@@ -1,0 +1,85 @@
+package com.sbshop.agent.core.application.product;
+
+import com.sbshop.agent.core.domain.product.Product;
+import com.sbshop.agent.core.domain.product.ProductRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import com.sbshop.agent.core.application.product.port.ProductStockCrawlerPort;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class ProductSyncService {
+
+	private final ProductRepository productRepository;
+	private final ProductStockCrawlerPort productStockCrawlerPort;
+
+	@Transactional
+	public void syncProductStock(Long productId) {
+		// 1. 상품 ID로 상품 엔티티 조회 (없을 경우 예외 발생)
+		Product product = productRepository.findById(productId)
+			.orElseThrow(() -> new IllegalArgumentException("Product not found"));
+
+		// 2. 소싱 정보 및 소싱 URL 존재 여부 확인
+		if (product.getSourcingInfo() != null && product.getSourcingInfo().getUrl() != null) {
+			String sourceUrl = product.getSourcingInfo().getUrl();
+			try {
+				// 3. 외부 크롤러 포트를 통해 소싱 URL의 재고/가격/입고일 통합 조회
+				com.sbshop.agent.core.application.product.dto.StockCheckResult result = productStockCrawlerPort
+					.checkStockWithDetails(sourceUrl);
+
+				// 4. 재고 상태 업데이트
+				product.updateStockStatus(result.status());
+
+				// 5. 원가 업데이트
+				product.updateCostPrice(result.costPrice());
+
+				// 6. 소싱 재고수량 업데이트
+				product.updateSourcingStock(result.stock());
+
+				// 7. 입고예정일 업데이트
+				product.updateRestockDate(result.restockDate());
+
+				// 8. 변경된 상품 정보 DB 저장
+				productRepository.save(product);
+
+				// 9. 동기화 완료 로깅
+				log.info("Synced product {} - status: {}, costPrice: {}, stock: {}, restockDate: {}",
+					product.getSbCode(), result.status(), result.costPrice(), result.stock(), result.restockDate());
+			} catch (Exception e) {
+				// 10. 크롤링 및 동기화 실패 시 예외 로깅
+				log.error("Failed to sync product stock: {}", product.getSbCode(), e);
+			}
+		}
+	}
+
+	@Transactional
+	public void syncStockForPreparingOrders(java.util.List<Long> productIds) {
+		if (productIds == null || productIds.isEmpty()) {
+			log.info("No preparing orders found. Skipping stock sync.");
+			return;
+		}
+
+		log.info("Starting stock sync for {} products associated with preparing orders.", productIds.size());
+
+		int syncedCount = 0;
+		for (Long productId : productIds) {
+			try {
+				syncProductStock(productId);
+				syncedCount++;
+				// 타겟 사이트 IP 차단(Rate-Limit) 방지를 위한 0.5초 딜레이
+				Thread.sleep(500);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				log.warn("Stock sync thread interrupted");
+				break;
+			} catch (Exception e) {
+				log.error("Failed to sync stock for product ID: {}", productId, e);
+			}
+		}
+
+		log.info("Finished stock sync. Successfully synced {}/{} products.", syncedCount, productIds.size());
+	}
+}

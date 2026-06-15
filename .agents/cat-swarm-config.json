@@ -1,0 +1,12 @@
+{
+  "project": "Antigravity Cat-Swarm",
+  "version": "1.0.0",
+  "settings": {
+    "max_crew_members": 3,
+    "description": "한 번에 동시에 실행할 수 있는 병렬 에이전트(Cat-Crew)의 최대 수입니다. 사용자님의 API 할당량(Quota)에 따라 이 숫자를 10 이상으로 직접 수정하실 수 있습니다."
+  },
+  "cache_optimization": {
+    "enabled": true,
+    "boilerplate_text": "Cat-Leader check-in: Shared context for parallel crew execution."
+  }
+}

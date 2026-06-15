@@ -1,0 +1,47 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.3' apply false
+    id 'io.spring.dependency-management' version '1.1.4' apply false
+    id 'com.diffplug.spotless' version '6.25.0' apply false
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'org.springframework.boot'
+    apply plugin: 'io.spring.dependency-management'
+
+    group = 'com.sbshop.agent'
+    version = '0.0.1-SNAPSHOT'
+    sourceCompatibility = '17'
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        compileOnly 'org.projectlombok:lombok'
+        annotationProcessor 'org.projectlombok:lombok'
+        runtimeOnly 'me.paulschwarz:spring-dotenv:4.0.0'
+        
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        testImplementation 'com.h2database:h2'
+    }
+
+    tasks.named('test') {
+        useJUnitPlatform()
+    }
+
+    apply plugin: 'com.diffplug.spotless'
+
+    spotless {
+        java {
+            target '**/*.java'
+            targetExclude '**/build/**', '**/Q*.java'
+            eclipse().configFile(rootProject.file('config/spotless/naver-eclipse-formatter.xml'))
+            removeUnusedImports()
+            trimTrailingWhitespace()
+            endWithNewline()
+        }
+    }
+}
+

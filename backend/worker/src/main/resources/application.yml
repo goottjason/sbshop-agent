@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: sbshop-worker
+  devtools:
+    livereload:
+      enabled: false
+  main:
+    banner-mode: off
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.mariadb.jdbc.Driver
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        show_sql: false
+  flyway:
+    enabled: false
+server:
+  port: 8081
+
+sbshop:
+  email:
+    accounts:
+      - host: imap.gmail.com
+        port: 993
+        username: ${EMAIL_USERNAME_1}
+        password: ${EMAIL_PASSWORD_1}
+        protocol: imaps
+      - host: imap.gmail.com
+        port: 993
+        username: ${EMAIL_USERNAME_2}
+        password: ${EMAIL_PASSWORD_2}
+        protocol: imaps
+
+logging:
+  level:
+    com.sbshop.agent: DEBUG
+    org.hibernate.dialect.Dialect: ERROR

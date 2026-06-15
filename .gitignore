@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.gradle/
+build/
+bin/
+dist/
+dist-ssr/
+
+# Environment & Secrets
+.env
+.env.local
+*.local
+
+# IDE & OS
+.DS_Store
+.vscode/
+.idea/
+*.sw?
+
+# Logs
+*.log
+logs/
+tmp/
+
+# Data files
+products_dump.csv
+
+# Package lock
+package-lock.json
+
+# Test artifacts
+*.h2.db
+*.mv.db

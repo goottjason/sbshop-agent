@@ -1,0 +1,6 @@
+rootProject.name = 'sbshop-agent'
+
+include 'core'
+include 'infrastructure'
+include 'api'
+include 'worker'
