@@ -129,8 +129,9 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 	}
 
 	@Override
-	public MarketOrderDto fetchOrderDetail(MarketCredential credential, String ordNo) {
+	public MarketOrderDto fetchOrderDetail(MarketCredential credential, MarketOrderDto dto) {
 		String apiKey = credential.getAccessKey();
+		String ordNo = dto.getMarketOrderNo();
 		try {
 			List<Element> details = elevenstOrderApiPort.fetchOrderDetail(apiKey, ordNo);
 			if (!details.isEmpty()) {

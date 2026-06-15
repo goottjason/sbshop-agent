@@ -139,6 +139,11 @@ public class Order extends BaseEntity {
 			this.shipmentBoxId = shipmentBoxId;
 	}
 
+	public void updateMarketType(MarketType marketType) {
+		if (marketType != null)
+			this.marketType = marketType;
+	}
+
 	public void updateCustomsStatus(CustomsStatus status) {
 		if (this.customsData == null) {
 			this.customsData = CustomsData.builder().customsStatus(status).build();

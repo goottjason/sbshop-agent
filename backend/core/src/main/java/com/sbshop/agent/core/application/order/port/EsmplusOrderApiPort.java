@@ -21,4 +21,15 @@ public interface EsmplusOrderApiPort {
 	 */
 	List<MarketOrderDto> fetchOrders(String masterId, String password,
 		LocalDate fromDate, LocalDate toDate);
+
+	/**
+ * 개별 주문 상세 조회
+ * 전화번호, 주소, 우편번호, 배송메시지, 통관번호 등 상세 정보 수집
+ *
+ * @param masterId 마스터 ID
+ * @param password 비밀번호
+ * @param dto 원본 주문 DTO (리스트 API 데이터)
+ * @return 상세 데이터가 병합된 DTO, 실패 시 null
+ */
+MarketOrderDto fetchOrderDetail(String masterId, String password, MarketOrderDto dto);
 }

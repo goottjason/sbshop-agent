@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -75,6 +76,18 @@ public class EsmplusOrderAdapter implements MarketOrderPort {
 	public void acceptOrders(MarketCredential credential, Order order) {
 		// ESM+는 주문 접수 API가 다를 수 있음 (추후 구현)
 		log.warn("[ESM+] acceptOrders 미구현: order={}", order.getMarketOrderNo());
+	}
+
+	@Override
+	public MarketOrderDto fetchOrderDetail(MarketCredential credential, MarketOrderDto dto) {
+		String masterId = credential.getAccessKey();
+		String password = credential.getSecretKey();
+		if (dto.getMarketOrderNo() == null || dto.getMarketOrderNo().isEmpty()) {
+			log.warn("[ESM+] fetchOrderDetail: siteOrderNo 없음");
+			return null;
+		}
+		log.info("[ESM+] fetchOrderDetail: siteOrderNo={}", dto.getMarketOrderNo());
+		return esmplusOrderApiPort.fetchOrderDetail(masterId, password, dto);
 	}
 
 	@Override
@@ -166,10 +179,15 @@ public class EsmplusOrderAdapter implements MarketOrderPort {
 
 			// 상태 매핑
 			ShippingStatus status = statusMapper.mapStatus(deliveryStatusCode);
+			if (status == ShippingStatus.NEW && deliveryStatusCode != 1010) {
+				ShippingStatus fallback = statusMapper.mapStatus(deliveryStatus);
+				if (fallback != ShippingStatus.NEW) {
+					status = fallback;
+				}
+			}
 
-			// 배송 상태가 취소/반품/교환이면 스킵
-			if (status == ShippingStatus.CANCELED || status == ShippingStatus.RETURNED
-				|| status == ShippingStatus.EXCHANGED) {
+			// 배송 상태가 취소/교환이면 스킵 (반품은 포함)
+			if (status == ShippingStatus.CANCELED || status == ShippingStatus.EXCHANGED) {
 				log.debug("[ESM+] 주문 {} 상태 {} 스킵", orderNo, deliveryStatus);
 				return null;
 			}
@@ -178,6 +196,7 @@ public class EsmplusOrderAdapter implements MarketOrderPort {
 			MarketType marketType = mapSiteIdToMarketType(siteId);
 
 			return MarketOrderDto.builder()
+				.marketType(marketType)
 				.marketOrderNo(siteOrderNo)
 				.marketProductCode(goodsNo)
 				.productName(goodsName)

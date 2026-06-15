@@ -87,52 +87,65 @@ public abstract class AbstractOrderSyncService {
 	}
 
 	/**
-	 * 주문 목록 처리: 기존 주문 업데이트 또는 신규 주문 생성
-	 */
-	protected void processOrders(List<MarketOrderDto> marketOrders,
-		MarketCredential credential, MarketOrderPort port) {
-		for (MarketOrderDto dto : marketOrders) {
-			log.info("[{}] 처리 중: orderNo={}, productCode={}, status={}",
-				getMarketType(), dto.getMarketOrderNo(), dto.getMarketProductCode(), dto.getStatus());
-			Optional<Order> existingOrder = orderRepository.findByMarketOrderNo(dto.getMarketOrderNo());
+ * 처리 중인 주문의 상세 조회가 항상 필요한지 여부
+ * ESM+ 등 리스트 API에 전화번호/주소가 없는 마켓은 true 오버라이드
+ */
+protected boolean alwaysFetchDetail() {
+	return false;
+}
 
-			if (existingOrder.isPresent()) {
-				// 최소 데이터 DTO인 경우 개별 조회로 전체 데이터 가져와서 업데이트
-				if (dto.getMarketProductCode() == null || dto.getMarketProductCode().isEmpty()) {
-					log.info("[{}] 기존 주문 + 최소 데이터 - 개별 조회 시도: orderNo={}",
-						getMarketType(), dto.getMarketOrderNo());
-					MarketOrderDto fullDto = port.fetchOrderDetail(credential, dto.getMarketOrderNo());
-					if (fullDto != null) {
-						log.info("[{}] 개별 조회 성공 - 기존 주문 업데이트: id={}, orderNo={}",
-							getMarketType(), existingOrder.get().getId(), dto.getMarketOrderNo());
-						updateExistingOrder(existingOrder.get(), fullDto);
-					} else {
-						log.warn("[{}] 개별 조회 실패 - 상태/운송장만 업데이트: orderNo={}",
-							getMarketType(), dto.getMarketOrderNo());
-						updateExistingOrder(existingOrder.get(), dto);
-					}
-				} else {
-					log.info("[{}] 기존 주문 발견: id={}, orderNo={}", getMarketType(), existingOrder.get().getId(),
-						dto.getMarketOrderNo());
-					updateExistingOrder(existingOrder.get(), dto);
-				}
+/**
+ * 주문 목록 처리: 기존 주문 업데이트 또는 신규 주문 생성
+ */
+protected void processOrders(List<MarketOrderDto> marketOrders,
+	MarketCredential credential, MarketOrderPort port) {
+	for (MarketOrderDto dto : marketOrders) {
+		log.info("[{}] 처리 중: orderNo={}, productCode={}, status={}",
+			getMarketType(), dto.getMarketOrderNo(), dto.getMarketProductCode(), dto.getStatus());
+		Optional<Order> existingOrder = orderRepository.findByMarketOrderNo(dto.getMarketOrderNo());
+
+		// ESM+는 리스트 API에 전화번호/주소가 없어 항상 상세 조회 필요
+		boolean shouldFetchDetail = alwaysFetchDetail()
+			|| dto.getMarketProductCode() == null || dto.getMarketProductCode().isEmpty();
+
+		if (existingOrder.isPresent() && shouldFetchDetail) {
+			log.info("[{}] 기존 주문 + 상세 조회 시도: orderNo={}",
+				getMarketType(), dto.getMarketOrderNo());
+			MarketOrderDto fullDto = port.fetchOrderDetail(credential, dto);
+			if (fullDto != null) {
+				log.info("[{}] 상세 조회 성공 - 기존 주문 업데이트: id={}, orderNo={}",
+					getMarketType(), existingOrder.get().getId(), dto.getMarketOrderNo());
+				updateExistingOrder(existingOrder.get(), fullDto);
+			} else {
+				log.warn("[{}] 상세 조회 실패 - 상태/운송장만 업데이트: orderNo={}",
+					getMarketType(), dto.getMarketOrderNo());
+				updateExistingOrder(existingOrder.get(), dto);
+			}
+		} else if (existingOrder.isPresent()) {
+			log.info("[{}] 기존 주문 발견: id={}, orderNo={}", getMarketType(), existingOrder.get().getId(),
+				dto.getMarketOrderNo());
+			updateExistingOrder(existingOrder.get(), dto);
+		} else if (shouldFetchDetail) {
+			log.info("[{}] 최소 데이터 주문 - 상세 조회 시도: orderNo={}", getMarketType(), dto.getMarketOrderNo());
+			MarketOrderDto fullDto = port.fetchOrderDetail(credential, dto);
+			if (fullDto != null) {
+				log.info("[{}] 상세 조회 성공 - 신규 주문 생성: orderNo={}", getMarketType(), dto.getMarketOrderNo());
+				createNewOrder(fullDto);
 			} else if (dto.getMarketProductCode() != null && !dto.getMarketProductCode().isEmpty()) {
-				// 전체 데이터가 있는 경우만 신규 주문 생성 (complete, packaging, dlvcompleted)
-				log.info("[{}] 신규 주문 생성 시도: orderNo={}", getMarketType(), dto.getMarketOrderNo());
+				log.info("[{}] 상세 조회 실패 - 기본 데이터로 신규 주문 생성: orderNo={}",
+					getMarketType(), dto.getMarketOrderNo());
 				createNewOrder(dto);
 			} else {
-				// 최소 데이터 (shipping API 등) - 개별 조회로 전체 데이터 가져오기 시도
-				log.info("[{}] 최소 데이터 주문 - 개별 조회 시도: orderNo={}", getMarketType(), dto.getMarketOrderNo());
-				MarketOrderDto fullDto = port.fetchOrderDetail(credential, dto.getMarketOrderNo());
-				if (fullDto != null) {
-					log.info("[{}] 개별 조회 성공 - 신규 주문 생성: orderNo={}", getMarketType(), dto.getMarketOrderNo());
-					createNewOrder(fullDto);
-				} else {
-					log.warn("[{}] 개별 조회 실패 - 주문 생성 불가: orderNo={}", getMarketType(), dto.getMarketOrderNo());
-				}
+				log.warn("[{}] 상세 조회 실패 - 주문 생성 불가: orderNo={}", getMarketType(), dto.getMarketOrderNo());
 			}
+		} else if (dto.getMarketProductCode() != null && !dto.getMarketProductCode().isEmpty()) {
+			log.info("[{}] 신규 주문 생성 시도: orderNo={}", getMarketType(), dto.getMarketOrderNo());
+			createNewOrder(dto);
+		} else {
+			log.warn("[{}] 주문 생성 불가 - 상품코드 없음: orderNo={}", getMarketType(), dto.getMarketOrderNo());
 		}
 	}
+}
 
 	/**
 	 * 기존 주문 업데이트
@@ -145,6 +158,8 @@ public abstract class AbstractOrderSyncService {
 			// productCode가 비어있으면 (배송중 API 등) 모든 라인아이템 업데이트
 			if (dto.getMarketProductCode() == null || dto.getMarketProductCode().isEmpty()
 				|| item.getMarketProductCode().equals(dto.getMarketProductCode())) {
+				log.info("[{}] 라인아이템 업데이트: itemId={}, itemProductCode={}, dtoProductCode={}",
+					getMarketType(), item.getId(), item.getMarketProductCode(), dto.getMarketProductCode());
 				updateLineItemFromDto(item, dto);
 				anyUpdated = true;
 			}
@@ -172,6 +187,13 @@ public abstract class AbstractOrderSyncService {
 	 * 주문 정보 업데이트 (기본 구현, 오버라이드 가능)
 	 */
 	protected void updateOrderInfoFromDto(Order order, MarketOrderDto dto) {
+		log.info("[{}] updateOrderInfoFromDto: dto.marketType={}, order.marketType={}, orderNo={}",
+			getMarketType(), dto.getMarketType(), order.getMarketType(), dto.getMarketOrderNo());
+		if (dto.getMarketType() != null && dto.getMarketType() != order.getMarketType()) {
+			log.info("[{}] marketType 업데이트: {} → {} (orderNo={})",
+				getMarketType(), order.getMarketType(), dto.getMarketType(), dto.getMarketOrderNo());
+			order.updateMarketType(dto.getMarketType());
+		}
 		order.updateInfo(
 			dto.getRecipientName(),
 			dto.getRecipientPhone(),
@@ -209,8 +231,9 @@ public abstract class AbstractOrderSyncService {
 	 * 주문 엔티티 빌드 (기본 구현, 오버라이드 가능)
 	 */
 	protected Order buildOrderFromDto(MarketOrderDto dto) {
+		MarketType marketType = dto.getMarketType() != null ? dto.getMarketType() : getMarketType();
 		return Order.builder()
-			.marketType(getMarketType())
+			.marketType(marketType)
 			.marketOrderNo(dto.getMarketOrderNo())
 			.orderDate(dto.getOrderDate())
 			.recipientName(dto.getRecipientName())

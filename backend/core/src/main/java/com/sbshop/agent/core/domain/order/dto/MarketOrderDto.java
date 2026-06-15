@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.domain.order.dto;
 
+import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import java.math.BigDecimal;
@@ -15,6 +16,7 @@ import lombok.Getter;
 @Getter
 @Builder
 public class MarketOrderDto {
+	private MarketType marketType;
 	private String marketOrderNo;
 	private String marketProductCode;
 	private String productName;

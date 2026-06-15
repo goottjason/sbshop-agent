@@ -70,10 +70,10 @@ public interface MarketOrderPort {
 	 * 최소 데이터로 생성된 주문의 전체 정보를 가져올 때 사용
 	 *
 	 * @param credential 마켓 크레덴셜
-	 * @param ordNo 주문번호
+	 * @param dto 최소 데이터 주문 DTO (marketSpecificData 포함)
 	 * @return 전체 데이터가 포함된 DTO, 실패 시 null
 	 */
-	default MarketOrderDto fetchOrderDetail(MarketCredential credential, String ordNo) {
+	default MarketOrderDto fetchOrderDetail(MarketCredential credential, MarketOrderDto dto) {
 		return null;
 	}
 }

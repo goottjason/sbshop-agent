@@ -13,10 +13,12 @@ import org.springframework.stereotype.Component;
  * - 1040: 배송중 → SHIPPED
  * - 1050: 배송완료 → DELIVERED
  * - 1060: 구매결정완료 → DELIVERED
+ * - 5010: 송금완료 → DELIVERED
  * - 2010: 주문취소접수 → CANCELED
  * - 2020: 주문취소완료 → CANCELED
  * - 2030: 반품접수 → RETURNED
  * - 2040: 반품완료 → RETURNED
+ * - 3030: 반품수거완료 → RETURNED
  * - 2050: 교환접수 → EXCHANGED
  * - 2060: 교환완료 → EXCHANGED
  * - 2070: 취소완료 → CANCELED
@@ -30,9 +32,9 @@ public class EsmplusStatusMapper {
 			case 1020 -> ShippingStatus.PREPARING;
 			case 1030 -> ShippingStatus.PURCHASED;
 			case 1040 -> ShippingStatus.SHIPPED;
-			case 1050, 1060 -> ShippingStatus.DELIVERED;
+			case 1050, 1060, 5010 -> ShippingStatus.DELIVERED;
 			case 2010, 2020, 2070 -> ShippingStatus.CANCELED;
-			case 2030, 2040 -> ShippingStatus.RETURNED;
+			case 2030, 2040, 3030 -> ShippingStatus.RETURNED;
 			case 2050, 2060 -> ShippingStatus.EXCHANGED;
 			default -> ShippingStatus.NEW;
 		};
@@ -47,9 +49,9 @@ public class EsmplusStatusMapper {
 			case "상품준비중" -> ShippingStatus.PREPARING;
 			case "발송준비중" -> ShippingStatus.PURCHASED;
 			case "배송중" -> ShippingStatus.SHIPPED;
-			case "배송완료", "구매결정완료" -> ShippingStatus.DELIVERED;
+			case "배송완료", "구매결정완료", "송금완료" -> ShippingStatus.DELIVERED;
 			case "주문취소", "취소접수", "취소완료" -> ShippingStatus.CANCELED;
-			case "반품접수", "반품완료" -> ShippingStatus.RETURNED;
+			case "반품접수", "반품완료", "반품수거완료" -> ShippingStatus.RETURNED;
 			case "교환접수", "교환완료" -> ShippingStatus.EXCHANGED;
 			default -> ShippingStatus.NEW;
 		};

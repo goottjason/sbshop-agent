@@ -782,8 +782,8 @@ const OrderGrid: React.FC = () => {
       size: 120,
       meta: { frozen: true, freezeLeft: 520 },
       cell: ({ row }) => {
-        const recipientName = row.original.order?.recipientName || '';
-        const ordererName = row.original.order?.ordererName || '';
+        const recipientName = (row.original.order?.recipientName || '').trim();
+        const ordererName = (row.original.order?.ordererName || '').trim();
         const customsStatus = row.original.order?.customsData?.customsStatus;
 
         if (!recipientName) return '-';
