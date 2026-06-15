@@ -59,6 +59,9 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 			"ACCEPT", "INSTRUCT", "DEPARTURE", "DELIVERING", "FINAL_DELIVERY", "NONE_TRACKING"
 		};
 
+		// sellerProductId -> externalVendorSku 매핑 캐시
+		Map<String, String> skuCache = new HashMap<>();
+
 		for (String status : statuses) {
 			try {
 				JsonNode orders = coupangOrderApiPort.fetchOrders(
@@ -76,7 +79,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 						continue;
 					}
 
-					MarketOrderDto dto = parseOrderNode(orderNode, status);
+					MarketOrderDto dto = parseOrderNode(orderNode, status, vendorId, accessKey, secretKey, skuCache);
 					if (dto != null) {
 						result.add(dto);
 					}
@@ -94,7 +97,72 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		return result;
 	}
 
-	private MarketOrderDto parseOrderNode(JsonNode orderNode, String status) {
+	/**
+	 * sellerProductId로 쿠팡 상품상세조회 API를 호출하여 올바른 externalVendorSku(판매자상품코드)를 가져옴
+	 * 쿠팡 주문 API의 externalVendorSkuCode는 부정확한 값을 반환할 수 있으므로 상품조회 API를 통해 검증
+	 */
+	private String resolveExternalVendorSku(String vendorId, String accessKey, String secretKey,
+		String sellerProductIdStr, String vendorItemId, Map<String, String> skuCache) {
+		if (sellerProductIdStr == null || sellerProductIdStr.isEmpty()) {
+			return null;
+		}
+
+		String cacheKey = sellerProductIdStr + ":" + (vendorItemId != null ? vendorItemId : "");
+
+		// 캐시 히트 시 즉시 반환 (null도 캐시 - 재시도 방지)
+		if (skuCache.containsKey(cacheKey)) {
+			return skuCache.get(cacheKey);
+		}
+
+		try {
+			long sellerProductId = Long.parseLong(sellerProductIdStr);
+			JsonNode productData = coupangOrderApiPort.queryProduct(vendorId, accessKey, secretKey, sellerProductId);
+
+			if (productData != null) {
+				JsonNode items = productData.path("items");
+				if (items.isArray()) {
+					for (JsonNode item : items) {
+						String itemVendorItemId = item.path("vendorItemId").asText(null);
+						String externalVendorSku = item.path("externalVendorSku").asText(null);
+
+						// vendorItemId가 일치하는 item에서 externalVendorSku를 가져옴
+						if (vendorItemId != null && vendorItemId.equals(itemVendorItemId)) {
+							if (externalVendorSku != null && !externalVendorSku.isEmpty()) {
+								skuCache.put(cacheKey, externalVendorSku);
+								log.info(
+									"상품조회 성공(vendorItemId 매칭): sellerProductId={}, vendorItemId={}, externalVendorSku={}",
+									sellerProductIdStr, vendorItemId, externalVendorSku);
+								return externalVendorSku;
+							}
+						}
+					}
+					// vendorItemId 매칭 실패 시 첫 번째 item의 externalVendorSku 사용
+					JsonNode firstItem = items.get(0);
+					if (firstItem != null) {
+						String externalVendorSku = firstItem.path("externalVendorSku").asText(null);
+						if (externalVendorSku != null && !externalVendorSku.isEmpty()) {
+							skuCache.put(cacheKey, externalVendorSku);
+							log.info("상품조회 성공(첫 번째 item): sellerProductId={}, externalVendorSku={}",
+								sellerProductIdStr, externalVendorSku);
+							return externalVendorSku;
+						}
+					}
+				}
+			}
+			log.warn("상품조회: externalVendorSku 없음 sellerProductId={}", sellerProductIdStr);
+		} catch (NumberFormatException e) {
+			log.warn("sellerProductId 파싱 실패: {}", sellerProductIdStr);
+		} catch (Exception e) {
+			log.warn("상품조회 실패: sellerProductId={}, error={}", sellerProductIdStr, e.getMessage());
+		}
+
+		// 조회 실패 시 null 캐싱 (재시도 방지)
+		skuCache.put(cacheKey, null);
+		return null;
+	}
+
+	private MarketOrderDto parseOrderNode(JsonNode orderNode, String status,
+		String vendorId, String accessKey, String secretKey, Map<String, String> skuCache) {
 		try {
 			String marketOrderNo = orderNode.path("orderId").asText();
 			String shipmentBoxId = orderNode.path("shipmentBoxId").asText(null);
@@ -144,12 +212,29 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 			JsonNode orderItems = orderNode.path("orderItems");
 			if (orderItems.isArray() && orderItems.size() > 0) {
 				JsonNode firstItem = orderItems.get(0);
+
+				// 1차: 주문 API의 externalVendorSkuCode 사용
 				String externalVendorSkuCode = firstItem.path("externalVendorSkuCode").asText(null);
 				if (externalVendorSkuCode == null || externalVendorSkuCode.isEmpty()
 					|| "null".equals(externalVendorSkuCode)) {
-					externalVendorSkuCode = firstItem.path("sellerProductId").asText(null);
+					externalVendorSkuCode = null;
+				}
+
+				// 2차: sellerProductId로 상품상세조회 API를 호출하여 올바른 externalVendorSku를 가져옴
+				// 쿠팡 주문 API의 externalVendorSkuCode는 부정확한 값(P0000NPQ000A 등)을 반환할 수 있음
+				String sellerProductId = firstItem.path("sellerProductId").asText(null);
+				String vendorItemId = firstItem.path("vendorItemId").asText(null);
+				String resolvedSku = resolveExternalVendorSku(
+					vendorId, accessKey, secretKey, sellerProductId, vendorItemId, skuCache);
+
+				if (resolvedSku != null && !resolvedSku.isEmpty()) {
+					externalVendorSkuCode = resolvedSku;
+				} else if (externalVendorSkuCode == null || externalVendorSkuCode.isEmpty()) {
+					// 3차: sellerProductId 자체를 사용 (최후의 수단)
+					externalVendorSkuCode = sellerProductId;
 				}
 				String vendorItemName = firstItem.path("vendorItemName").asText();
+				String sellerProductName = firstItem.path("sellerProductName").asText(null);
 				int qty = firstItem.path("shippingCount").asInt();
 				BigDecimal price = new BigDecimal(firstItem.path("orderPrice").asText());
 
@@ -157,6 +242,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 					.marketOrderNo(marketOrderNo)
 					.marketProductCode(externalVendorSkuCode)
 					.productName(vendorItemName)
+					.sellerProductName(sellerProductName)
 					.quantity(qty)
 					.orderPrice(price)
 					.totalAmount(price.multiply(BigDecimal.valueOf(qty)))

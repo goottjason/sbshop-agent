@@ -87,65 +87,71 @@ public abstract class AbstractOrderSyncService {
 	}
 
 	/**
- * 처리 중인 주문의 상세 조회가 항상 필요한지 여부
- * ESM+ 등 리스트 API에 전화번호/주소가 없는 마켓은 true 오버라이드
- */
-protected boolean alwaysFetchDetail() {
-	return false;
-}
+	* 처리 중인 주문의 상세 조회가 항상 필요한지 여부
+	* ESM+ 등 리스트 API에 전화번호/주소가 없는 마켓은 true 오버라이드
+	*/
+	protected boolean alwaysFetchDetail() {
+		return false;
+	}
 
-/**
- * 주문 목록 처리: 기존 주문 업데이트 또는 신규 주문 생성
- */
-protected void processOrders(List<MarketOrderDto> marketOrders,
-	MarketCredential credential, MarketOrderPort port) {
-	for (MarketOrderDto dto : marketOrders) {
-		log.info("[{}] 처리 중: orderNo={}, productCode={}, status={}",
-			getMarketType(), dto.getMarketOrderNo(), dto.getMarketProductCode(), dto.getStatus());
-		Optional<Order> existingOrder = orderRepository.findByMarketOrderNo(dto.getMarketOrderNo());
-
-		// ESM+는 리스트 API에 전화번호/주소가 없어 항상 상세 조회 필요
-		boolean shouldFetchDetail = alwaysFetchDetail()
-			|| dto.getMarketProductCode() == null || dto.getMarketProductCode().isEmpty();
-
-		if (existingOrder.isPresent() && shouldFetchDetail) {
-			log.info("[{}] 기존 주문 + 상세 조회 시도: orderNo={}",
-				getMarketType(), dto.getMarketOrderNo());
-			MarketOrderDto fullDto = port.fetchOrderDetail(credential, dto);
-			if (fullDto != null) {
-				log.info("[{}] 상세 조회 성공 - 기존 주문 업데이트: id={}, orderNo={}",
-					getMarketType(), existingOrder.get().getId(), dto.getMarketOrderNo());
-				updateExistingOrder(existingOrder.get(), fullDto);
-			} else {
-				log.warn("[{}] 상세 조회 실패 - 상태/운송장만 업데이트: orderNo={}",
-					getMarketType(), dto.getMarketOrderNo());
-				updateExistingOrder(existingOrder.get(), dto);
+	/**
+	 * 주문 목록 처리: 기존 주문 업데이트 또는 신규 주문 생성
+	 */
+	protected void processOrders(List<MarketOrderDto> marketOrders,
+		MarketCredential credential, MarketOrderPort port) {
+		for (MarketOrderDto dto : marketOrders) {
+			String resolvedCode = resolveP000xCode(dto.getMarketProductCode(), dto.getProductName(),
+				dto.getSellerProductName());
+			if (!resolvedCode.equals(dto.getMarketProductCode())) {
+				dto.setMarketProductCode(resolvedCode);
 			}
-		} else if (existingOrder.isPresent()) {
-			log.info("[{}] 기존 주문 발견: id={}, orderNo={}", getMarketType(), existingOrder.get().getId(),
-				dto.getMarketOrderNo());
-			updateExistingOrder(existingOrder.get(), dto);
-		} else if (shouldFetchDetail) {
-			log.info("[{}] 최소 데이터 주문 - 상세 조회 시도: orderNo={}", getMarketType(), dto.getMarketOrderNo());
-			MarketOrderDto fullDto = port.fetchOrderDetail(credential, dto);
-			if (fullDto != null) {
-				log.info("[{}] 상세 조회 성공 - 신규 주문 생성: orderNo={}", getMarketType(), dto.getMarketOrderNo());
-				createNewOrder(fullDto);
-			} else if (dto.getMarketProductCode() != null && !dto.getMarketProductCode().isEmpty()) {
-				log.info("[{}] 상세 조회 실패 - 기본 데이터로 신규 주문 생성: orderNo={}",
+
+			log.info("[{}] 처리 중: orderNo={}, productCode={}, status={}",
+				getMarketType(), dto.getMarketOrderNo(), dto.getMarketProductCode(), dto.getStatus());
+			Optional<Order> existingOrder = orderRepository.findByMarketOrderNo(dto.getMarketOrderNo());
+
+			// ESM+는 리스트 API에 전화번호/주소가 없어 항상 상세 조회 필요
+			boolean shouldFetchDetail = alwaysFetchDetail()
+				|| dto.getMarketProductCode() == null || dto.getMarketProductCode().isEmpty();
+
+			if (existingOrder.isPresent() && shouldFetchDetail) {
+				log.info("[{}] 기존 주문 + 상세 조회 시도: orderNo={}",
 					getMarketType(), dto.getMarketOrderNo());
+				MarketOrderDto fullDto = port.fetchOrderDetail(credential, dto);
+				if (fullDto != null) {
+					log.info("[{}] 상세 조회 성공 - 기존 주문 업데이트: id={}, orderNo={}",
+						getMarketType(), existingOrder.get().getId(), dto.getMarketOrderNo());
+					updateExistingOrder(existingOrder.get(), fullDto);
+				} else {
+					log.warn("[{}] 상세 조회 실패 - 상태/운송장만 업데이트: orderNo={}",
+						getMarketType(), dto.getMarketOrderNo());
+					updateExistingOrder(existingOrder.get(), dto);
+				}
+			} else if (existingOrder.isPresent()) {
+				log.info("[{}] 기존 주문 발견: id={}, orderNo={}", getMarketType(), existingOrder.get().getId(),
+					dto.getMarketOrderNo());
+				updateExistingOrder(existingOrder.get(), dto);
+			} else if (shouldFetchDetail) {
+				log.info("[{}] 최소 데이터 주문 - 상세 조회 시도: orderNo={}", getMarketType(), dto.getMarketOrderNo());
+				MarketOrderDto fullDto = port.fetchOrderDetail(credential, dto);
+				if (fullDto != null) {
+					log.info("[{}] 상세 조회 성공 - 신규 주문 생성: orderNo={}", getMarketType(), dto.getMarketOrderNo());
+					createNewOrder(fullDto);
+				} else if (dto.getMarketProductCode() != null && !dto.getMarketProductCode().isEmpty()) {
+					log.info("[{}] 상세 조회 실패 - 기본 데이터로 신규 주문 생성: orderNo={}",
+						getMarketType(), dto.getMarketOrderNo());
+					createNewOrder(dto);
+				} else {
+					log.warn("[{}] 상세 조회 실패 - 주문 생성 불가: orderNo={}", getMarketType(), dto.getMarketOrderNo());
+				}
+			} else if (dto.getMarketProductCode() != null && !dto.getMarketProductCode().isEmpty()) {
+				log.info("[{}] 신규 주문 생성 시도: orderNo={}", getMarketType(), dto.getMarketOrderNo());
 				createNewOrder(dto);
 			} else {
-				log.warn("[{}] 상세 조회 실패 - 주문 생성 불가: orderNo={}", getMarketType(), dto.getMarketOrderNo());
+				log.warn("[{}] 주문 생성 불가 - 상품코드 없음: orderNo={}", getMarketType(), dto.getMarketOrderNo());
 			}
-		} else if (dto.getMarketProductCode() != null && !dto.getMarketProductCode().isEmpty()) {
-			log.info("[{}] 신규 주문 생성 시도: orderNo={}", getMarketType(), dto.getMarketOrderNo());
-			createNewOrder(dto);
-		} else {
-			log.warn("[{}] 주문 생성 불가 - 상품코드 없음: orderNo={}", getMarketType(), dto.getMarketOrderNo());
 		}
 	}
-}
 
 	/**
 	 * 기존 주문 업데이트
@@ -155,9 +161,11 @@ protected void processOrders(List<MarketOrderDto> marketOrders,
 		boolean anyUpdated = false;
 
 		for (OrderLineItem item : lineItems) {
-			// productCode가 비어있으면 (배송중 API 등) 모든 라인아이템 업데이트
-			if (dto.getMarketProductCode() == null || dto.getMarketProductCode().isEmpty()
-				|| item.getMarketProductCode().equals(dto.getMarketProductCode())) {
+			boolean shouldUpdate = dto.getMarketProductCode() == null || dto.getMarketProductCode().isEmpty()
+				|| !dto.getMarketProductCode().equals(item.getMarketProductCode())
+				|| dto.getSellerProductName() != null && !dto.getSellerProductName().isEmpty();
+
+			if (shouldUpdate) {
 				log.info("[{}] 라인아이템 업데이트: itemId={}, itemProductCode={}, dtoProductCode={}",
 					getMarketType(), item.getId(), item.getMarketProductCode(), dto.getMarketProductCode());
 				updateLineItemFromDto(item, dto);
@@ -176,6 +184,19 @@ protected void processOrders(List<MarketOrderDto> marketOrders,
 	 * 라인 아이템 업데이트 (기본 구현, 오버라이드 가능)
 	 */
 	protected void updateLineItemFromDto(OrderLineItem item, MarketOrderDto dto) {
+		if (dto.getMarketProductCode() != null && !dto.getMarketProductCode().isEmpty()
+			&& !dto.getMarketProductCode().equals(item.getMarketProductCode())) {
+			log.info("[{}] marketProductCode 업데이트: {} → {} (itemId={})",
+				getMarketType(), item.getMarketProductCode(), dto.getMarketProductCode(), item.getId());
+			item.updateMarketProductCode(dto.getMarketProductCode());
+			Product product = productRepository.findBySbCode(dto.getMarketProductCode()).orElse(null);
+			if (product != null) {
+				item.assignProductId(product.getId());
+			}
+		}
+		if (dto.getSellerProductName() != null && !dto.getSellerProductName().isEmpty()) {
+			item.updateSellerProductName(dto.getSellerProductName());
+		}
 		item.updateShippingWithCarrier(
 			dto.getTrackingNo(),
 			dto.getStatus(),
@@ -260,6 +281,7 @@ protected void processOrders(List<MarketOrderDto> marketOrders,
 			.quantity(dto.getQuantity())
 			.marketProductName(dto.getProductName())
 			.marketProductCode(dto.getMarketProductCode())
+			.sellerProductName(dto.getSellerProductName())
 			.shippingData(ShippingData.builder()
 				.trackingNo(dto.getTrackingNo())
 				.shippingStatus(dto.getStatus())
@@ -289,6 +311,53 @@ protected void processOrders(List<MarketOrderDto> marketOrders,
 	 */
 	protected void postSyncProcess(List<MarketOrderDto> orders) {
 		// 기본 구현: 후처리 없음
+	}
+
+	/**
+	 * P000x 코드를 SB 코드로 변환 (상품명 매칭)
+	 * 쿠팡 주문 API의 externalVendorSkuCode가 P000x일 때, sellerProductName(한글 등록상품명)으로
+	 * 로컬 상품을 찾아 SB 코드를 반환
+	 */
+	private String resolveP000xCode(String productCode, String productName, String sellerProductName) {
+		if (productCode == null || !productCode.startsWith("P000")) {
+			return productCode;
+		}
+
+		// 1차: sellerProductName(한글 등록상품명)으로 매칭
+		if (sellerProductName != null && !sellerProductName.isEmpty()) {
+			List<Product> candidates = productRepository.findByProductNameProductNameContaining(sellerProductName);
+			if (candidates.size() == 1) {
+				String resolvedCode = candidates.get(0).getSbCode();
+				log.info("[{}] P000x 코드 변환 성공(sellerProductName): {} → {} ({})",
+					getMarketType(), productCode, resolvedCode, sellerProductName);
+				return resolvedCode;
+			} else if (candidates.size() > 1) {
+				log.warn("[{}] P000x 코드 변환 - 여러 상품 매칭(sellerProductName): code={}, name={}, candidates={}",
+					getMarketType(), productCode, sellerProductName,
+					candidates.stream().map(Product::getSbCode).toList());
+				return candidates.get(0).getSbCode();
+			}
+		}
+
+		// 2차: productName(vendorItemName)으로 매칭
+		if (productName != null && !productName.isEmpty()) {
+			List<Product> candidates = productRepository.findByProductNameProductNameContaining(productName);
+			if (candidates.size() == 1) {
+				String resolvedCode = candidates.get(0).getSbCode();
+				log.info("[{}] P000x 코드 변환 성공(productName): {} → {} ({})",
+					getMarketType(), productCode, resolvedCode, productName);
+				return resolvedCode;
+			} else if (candidates.size() > 1) {
+				log.warn("[{}] P000x 코드 변환 - 여러 상품 매칭(productName): code={}, name={}, candidates={}",
+					getMarketType(), productCode, productName,
+					candidates.stream().map(Product::getSbCode).toList());
+				return candidates.get(0).getSbCode();
+			}
+		}
+
+		log.warn("[{}] P000x 코드 변환 실패 - 매칭 상품 없음: code={}, sellerName={}, vendorName={}",
+			getMarketType(), productCode, sellerProductName, productName);
+		return productCode;
 	}
 
 	/**

@@ -13,4 +13,10 @@ public interface CoupangOrderApiPort {
 
 	JsonNode querySalesDetails(String vendorId, String accessKey, String secretKey,
 		String recognitionDateFrom, String recognitionDateTo);
+
+	/**
+	 * 쿠팡 상품상세조회 API (seller_api)
+	 * sellerProductId로 상품 정보를 조회하여 externalVendorSku(판매자상품코드)를 반환
+	 */
+	JsonNode queryProduct(String vendorId, String accessKey, String secretKey, long sellerProductId);
 }

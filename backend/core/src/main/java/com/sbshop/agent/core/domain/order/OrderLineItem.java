@@ -40,6 +40,10 @@ public class OrderLineItem extends BaseEntity {
 	@Column(name = "market_product_code")
 	private String marketProductCode;
 
+	/** 판매자 등록 상품명 (쿠팡 sellerProductName, 한글 등록상품명) */
+	@Column(name = "seller_product_name", length = 255)
+	private String sellerProductName;
+
 	/** 소싱 관련 데이터 (원가, 소싱처 등) */
 	@jakarta.persistence.Embedded
 	private SourcingData sourcingData = SourcingData.builder().build();
@@ -54,13 +58,14 @@ public class OrderLineItem extends BaseEntity {
 
 	@Builder
 	public OrderLineItem(Long orderId, Long productId, Integer quantity, String marketProductName,
-		String marketProductCode, SourcingData sourcingData,
+		String marketProductCode, String sellerProductName, SourcingData sourcingData,
 		SettlementData settlementData, ShippingData shippingData) {
 		this.orderId = orderId;
 		this.productId = productId;
 		this.quantity = quantity;
 		this.marketProductName = marketProductName;
 		this.marketProductCode = marketProductCode;
+		this.sellerProductName = sellerProductName;
 		this.sourcingData = sourcingData != null ? sourcingData : SourcingData.builder().build();
 		this.settlementData = settlementData != null ? settlementData : SettlementData.builder().build();
 		this.shippingData = shippingData != null ? shippingData : ShippingData.builder().build();
@@ -76,6 +81,10 @@ public class OrderLineItem extends BaseEntity {
 
 	public void updateMarketProductCode(String marketProductCode) {
 		this.marketProductCode = marketProductCode;
+	}
+
+	public void updateSellerProductName(String sellerProductName) {
+		this.sellerProductName = sellerProductName;
 	}
 
 	public void updateSettlement(BigDecimal salePrice, BigDecimal settlementAmount, BigDecimal netProfit) {

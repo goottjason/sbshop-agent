@@ -1042,9 +1042,8 @@ const OrderGrid: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {table.getRowModel().rows.map(row => {
-                  const isNew = row.original.lineItem?.shippingData?.shippingStatus === 'NEW';
                   return (
-                  <TableRow key={row.id} style={{ backgroundColor: isNew ? '#e0f7fa' : (row.original.isFirstLineItem ? '#ffffff' : '#fafafa') }}>
+                  <TableRow key={row.id} style={{ backgroundColor: row.original.isFirstLineItem ? '#ffffff' : '#fafafa' }}>
                     {row.getVisibleCells().map(cell => {
                       const isSpannedColumn = SPANNED_COLUMNS.includes(cell.column.id);
                       if (isSpannedColumn && !row.original.isFirstLineItem) return null;
@@ -1065,7 +1064,7 @@ const OrderGrid: React.FC = () => {
                             position: isFrozen ? 'sticky' : undefined,
                             left: isFrozen ? freezeLeft : undefined,
                             zIndex: isFrozen ? 2 : undefined,
-                            backgroundColor: isFrozen ? (isNew ? '#e0f7fa' : '#ffffff') : undefined,
+                            backgroundColor: isFrozen ? '#ffffff' : undefined,
                             boxShadow: isFrozen ? '2px 0 4px rgba(0,0,0,0.1)' : undefined,
                           }}
                         >

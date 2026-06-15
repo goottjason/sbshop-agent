@@ -33,7 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-	public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
+public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 
 	private final EsmplusStatusMapper statusMapper;
 	private final ObjectMapper objectMapper = new ObjectMapper();
@@ -51,7 +51,8 @@ import lombok.extern.slf4j.Slf4j;
 			log.error("[ESM+] 주문 조회 중 오류 발생", e);
 			return new ArrayList<>();
 		} finally {
-			if (driver != null) driver.quit();
+			if (driver != null)
+				driver.quit();
 		}
 	}
 
@@ -66,7 +67,7 @@ import lombok.extern.slf4j.Slf4j;
 			driver.get(detailUrl);
 			Thread.sleep(8000);
 
-			String html = (String) ((JavascriptExecutor) driver)
+			String html = (String)((JavascriptExecutor)driver)
 				.executeScript("return document.documentElement ? document.documentElement.outerHTML : '';");
 			if (html == null || html.isEmpty()) {
 				log.warn("[ESM+] 상세 페이지 HTML 없음");
@@ -89,7 +90,9 @@ import lombok.extern.slf4j.Slf4j;
 				return cachedDetailDriver;
 			} catch (Exception e) {
 				log.warn("[ESM+] 캐시된 드라이버 만료, 재생성: {}", e.getMessage());
-				try { cachedDetailDriver.quit(); } catch (Exception ex) {}
+				try {
+					cachedDetailDriver.quit();
+				} catch (Exception ex) {}
 				cachedDetailDriver = null;
 			}
 		}
@@ -99,7 +102,9 @@ import lombok.extern.slf4j.Slf4j;
 
 	private synchronized void resetCachedDriver() {
 		if (cachedDetailDriver != null) {
-			try { cachedDetailDriver.quit(); } catch (Exception e) {}
+			try {
+				cachedDetailDriver.quit();
+			} catch (Exception e) {}
 			cachedDetailDriver = null;
 		}
 	}
@@ -113,10 +118,14 @@ import lombok.extern.slf4j.Slf4j;
 			WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 			WebElement esmTab = wait.until(
 				ExpectedConditions.elementToBeClickable(By.cssSelector("button.button__tab--esm")));
-			if (!esmTab.getAttribute("class").contains("is-active")) { esmTab.click(); Thread.sleep(500); }
+			if (!esmTab.getAttribute("class").contains("is-active")) {
+				esmTab.click();
+				Thread.sleep(500);
+			}
 			WebElement idInput = wait.until(
 				ExpectedConditions.presenceOfElementLocated(By.id("typeMemberInputId01")));
-			idInput.clear(); idInput.sendKeys(masterId);
+			idInput.clear();
+			idInput.sendKeys(masterId);
 			driver.findElement(By.id("typeMemberInputPassword01")).clear();
 			driver.findElement(By.id("typeMemberInputPassword01")).sendKeys(password);
 			driver.findElement(By.cssSelector("button.button--blue")).click();
@@ -130,31 +139,39 @@ import lombok.extern.slf4j.Slf4j;
 
 	private MarketOrderDto parseDetailFromHtml(String html, MarketOrderDto originalDto) {
 		try {
-			if (html.contains("signin") || html.contains("login")) return null;
+			if (html.contains("signin") || html.contains("login"))
+				return null;
 
 			Map<String, String> data = new HashMap<>();
 			String marker = "text__layer\">";
 			int pos = 0;
 			while (true) {
 				int labelStart = html.indexOf(marker, pos);
-				if (labelStart < 0) break;
+				if (labelStart < 0)
+					break;
 				labelStart += marker.length();
 				int labelEnd = html.indexOf("</span>", labelStart);
-				if (labelEnd < 0) break;
+				if (labelEnd < 0)
+					break;
 				String label = html.substring(labelStart, labelEnd).trim();
 
 				int tdStart = html.indexOf("text\">", labelEnd);
-				if (tdStart < 0 || tdStart > labelEnd + 500) { pos = labelEnd; continue; }
+				if (tdStart < 0 || tdStart > labelEnd + 500) {
+					pos = labelEnd;
+					continue;
+				}
 				tdStart += 6;
 				int tdEnd = html.indexOf("</span>", tdStart);
-				if (tdEnd < 0) break;
+				if (tdEnd < 0)
+					break;
 				String value = html.substring(tdStart, tdEnd).trim();
 
 				data.put(label, value.replace("<br>", " ").replace("<br/>", " ").trim());
 				pos = tdEnd;
 			}
 
-			if (data.isEmpty()) return null;
+			if (data.isEmpty())
+				return null;
 
 			String recipientName = getValue(data, "상품수령인", "수취인명", "받는 분", "수취인");
 			String phone = getValue(data, "연락처1", "연락처", "수취인연락처", "전화번호", "휴대폰");
@@ -206,19 +223,30 @@ import lombok.extern.slf4j.Slf4j;
 	}
 
 	private int parseInt(String s, Integer fallback) {
-		if (s == null || s.isEmpty()) return fallback != null ? fallback : 0;
-		try { return Integer.parseInt(s); } catch (NumberFormatException e) { return fallback != null ? fallback : 0; }
+		if (s == null || s.isEmpty())
+			return fallback != null ? fallback : 0;
+		try {
+			return Integer.parseInt(s);
+		} catch (NumberFormatException e) {
+			return fallback != null ? fallback : 0;
+		}
 	}
 
 	private BigDecimal parseBigDecimal(String s, BigDecimal fallback) {
-		if (s == null || s.isEmpty()) return fallback;
-		try { return new BigDecimal(s); } catch (NumberFormatException e) { return fallback; }
+		if (s == null || s.isEmpty())
+			return fallback;
+		try {
+			return new BigDecimal(s);
+		} catch (NumberFormatException e) {
+			return fallback;
+		}
 	}
 
 	private String getValue(Map<String, String> data, String... keys) {
 		for (String key : keys) {
 			String v = data.get(key);
-			if (v != null && !v.isEmpty()) return v;
+			if (v != null && !v.isEmpty())
+				return v;
 		}
 		return "";
 	}
@@ -280,7 +308,7 @@ import lombok.extern.slf4j.Slf4j;
 
 	private List<MarketOrderDto> fetchOrdersFromDriver(ChromeDriver driver,
 		String masterId, String password, LocalDate fromDate, LocalDate toDate) throws Exception {
-		JavascriptExecutor js = (JavascriptExecutor) driver;
+		JavascriptExecutor js = (JavascriptExecutor)driver;
 
 		log.info("[ESM+] 4단계: XHR 인터셉터 주입");
 		injectXhrInterceptor(js);
@@ -310,7 +338,8 @@ import lombok.extern.slf4j.Slf4j;
 			Object orderResponses = js.executeScript(
 				"if (!window.__capturedResponses) return '[]';" +
 					"return JSON.stringify(window.__capturedResponses" +
-					".filter(r => r.url && (r.url.includes('order-integration/orders') || r.url.includes('order-integration?page')))" +
+					".filter(r => r.url && (r.url.includes('order-integration/orders') || r.url.includes('order-integration?page')))"
+					+
 					".slice(0, 3)" +
 					".map(r => ({url: r.url, body: r.body || ''})));");
 
@@ -386,13 +415,14 @@ import lombok.extern.slf4j.Slf4j;
 		Object result = js.executeScript(
 			"if (!window.__capturedResponses) return '[]';" +
 				"return JSON.stringify(window.__capturedResponses.map(r => ({url: r.url, body: r.body || ''})));");
-		if (result == null) return List.of();
+		if (result == null)
+			return List.of();
 		String json = result.toString();
 		try {
 			List<Map<String, Object>> raw = objectMapper.readValue(json, List.class);
 			List<String> bodies = new ArrayList<>();
 			for (Map<String, Object> entry : raw) {
-				String body = (String) entry.get("body");
+				String body = (String)entry.get("body");
 				if (body != null && !body.isEmpty()) {
 					bodies.add(body);
 				}

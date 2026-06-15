@@ -10,5 +10,7 @@ public interface ProductRepository {
 
 	Optional<Product> findBySbCode(String sbCode);
 
+	List<Product> findByProductNameProductNameContaining(String name);
+
 	List<Product> findAll();
 }

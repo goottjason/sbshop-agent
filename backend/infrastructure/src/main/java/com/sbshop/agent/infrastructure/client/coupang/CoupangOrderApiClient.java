@@ -210,6 +210,33 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 	}
 
 	@Override
+	public JsonNode queryProduct(String vendorId, String accessKey, String secretKey, long sellerProductId) {
+		String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + sellerProductId;
+		String authorization = generateHmacSignature("GET", path, accessKey, secretKey);
+
+		try {
+			String response = restClient.get()
+				.uri(DOMAIN + path)
+				.header(HttpHeaders.AUTHORIZATION, authorization)
+				.header("X-Requested-By", vendorId)
+				.accept(MediaType.APPLICATION_JSON)
+				.retrieve()
+				.body(String.class);
+
+			JsonNode rootNode = objectMapper.readTree(response);
+			if ("SUCCESS".equals(rootNode.path("code").asText()) || "200".equals(rootNode.path("code").asText())) {
+				return rootNode.path("data");
+			} else {
+				log.error("Coupang Product API error: {}", rootNode.path("message").asText());
+				return null;
+			}
+		} catch (Exception e) {
+			log.error("Failed to query Coupang product (sellerProductId={}): {}", sellerProductId, e.getMessage());
+			return null;
+		}
+	}
+
+	@Override
 	public void acceptOrders(String vendorId, String accessKey, String secretKey,
 		java.util.List<String> shipmentBoxIds) {
 		String path = "/v2/providers/openapi/apis/api/v4/vendors/" + vendorId + "/ordersheets/acknowledgement";

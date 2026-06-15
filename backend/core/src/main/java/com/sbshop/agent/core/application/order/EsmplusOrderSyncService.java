@@ -53,18 +53,18 @@ public class EsmplusOrderSyncService extends AbstractOrderSyncService {
 	}
 
 	/**
- * ESM+ 리스트 API는 전화번호/주소 정보가 없으므로 항상 상세 조회 필요
- */
-@Override
-protected boolean alwaysFetchDetail() {
-	return true;
-}
+	* ESM+ 리스트 API는 전화번호/주소 정보가 없으므로 항상 상세 조회 필요
+	*/
+	@Override
+	protected boolean alwaysFetchDetail() {
+		return true;
+	}
 
-/**
- * ESM+ 주문 동기화 (비동기)
- */
-@Async("syncTaskExecutor")
-public void syncEsmplusOrders() {
-	syncOrders();
-}
+	/**
+	 * ESM+ 주문 동기화 (비동기)
+	 */
+	@Async("syncTaskExecutor")
+	public void syncEsmplusOrders() {
+		syncOrders();
+	}
 }

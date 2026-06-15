@@ -8,18 +8,21 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 마켓별 주문 데이터를 통합된 형태로 표현하는 DTO
  * 각 마켓 어댑터에서 API 응답을 이 DTO로 변환하여 반환
  */
 @Getter
+@Setter
 @Builder
 public class MarketOrderDto {
 	private MarketType marketType;
 	private String marketOrderNo;
 	private String marketProductCode;
 	private String productName;
+	private String sellerProductName;
 	private Integer quantity;
 	private BigDecimal orderPrice;
 	private BigDecimal totalAmount;
