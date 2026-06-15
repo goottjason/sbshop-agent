@@ -1,0 +1,50 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot - sbshop-api",
+            "request": "launch",
+            "mainClass": "com.sbshop.agent.api.ApiApplication",
+            "projectName": "api",
+            "cwd": "${workspaceFolder}/backend/api",
+            "env": {
+                "SPRING_CONFIG_ADDITIONAL_LOCATION": "file:${workspaceFolder}/backend/api/src/main/resources/application.yml"
+            }
+        },
+        {
+            "type": "java",
+            "name": "Spring Boot - sbshop-worker",
+            "request": "launch",
+            "mainClass": "com.sbshop.agent.worker.WorkerApplication",
+            "projectName": "worker",
+            "cwd": "${workspaceFolder}/backend/worker",
+            "env": {
+                "SPRING_CONFIG_ADDITIONAL_LOCATION": "file:${workspaceFolder}/backend/worker/src/main/resources/application.yml"
+            }
+        },
+        {
+            "type": "node",
+            "name": "Frontend - Vite",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/frontend",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "run",
+                "dev"
+            ],
+            "console": "internalConsole"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Run All (API + Worker + Frontend)",
+            "configurations": [
+                "Spring Boot - sbshop-api",
+                "Spring Boot - sbshop-worker",
+                "Frontend - Vite"
+            ],
+            "stopAll": true
+        }
+    ]
+}

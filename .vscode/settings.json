@@ -1,0 +1,68 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[java]": {
+    "editor.defaultFormatter": "redhat.java"
+  },
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.compile.nullAnalysis.mode": "automatic",
+  "sqltools.connections": [
+    {
+      "mysqlOptions": {
+        "authProtocol": "default",
+        "enableSsl": "Disabled",
+        "charset": "utf8mb4"
+      },
+      "ssh": "Disabled",
+      "previewLimit": 50,
+      "server": "goottjason.cafe24.com",
+      "port": 3306,
+      "driver": "MariaDB",
+      "name": "Cafe24 DB ",
+      "database": "goottjason",
+      "username": "goottjason",
+      "password": "mimi1570!!@"
+    }
+  ],
+  "files.autoSave": "onFocusChange",
+  "files.autoSaveDelay": 1000,
+  "editor.wordWrap": "on",
+  "editor.fontSize": 14,
+  "editor.fontFamily": "'JetBrains Mono', 'JetBrainsMono-Regular', Menlo, Monaco, monospace",
+  "editor.fontLigatures": false,
+  "editor.formatOnType": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "always"
+  },
+  "terminal.integrated.fontSize": 14,
+  "terminal.integrated.fontFamily": "'JetBrains Mono', 'JetBrainsMono-Regular', Menlo, Monaco, monospace",
+  "debug.console.fontSize": 14,
+  "debug.console.fontFamily": "'JetBrains Mono', 'JetBrainsMono-Regular', Menlo, Monaco, monospace",
+  "debug.terminal.clearBeforeReusing": true,
+  "debug.internalConsoleOptions": "openOnSessionStart",
+  "java.format.onType.enabled": true,
+  "java.settings.url": ".vscode/org.eclipse.jdt.core.prefs",
+  "java.format.settings.url": "backend/config/spotless/naver-eclipse-formatter.xml",
+  "java.project.resourceFilters": [],
+  "java.import.gradle.enabled": true,
+  "java.import.gradle.wrapper.enabled": true,
+  "java.import.gradle.annotationProcessing.enabled": true,
+  "gradle.nestedProjects": true,
+  "java.gradle.buildServer.enabled": "off",
+  "java.debug.settings.vmArgs": "-Dcom.sun.management.jmxremote=false",
+  "java.debug.settings.onBuildFailureProceed": true,
+  "java.debug.settings.console": "internalConsole",
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/build": true,
+    "**/out": true,
+    "**/bin": true,
+    "**/.gradle": true,
+    "**/.classpath": true,
+    "**/.project": true,
+    "**/.settings": true,
+    "**/__pyrefly_virtual__/**": true
+  },
+  "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx4G -Xms100m -Xlog:disable"
+}
