@@ -46,7 +46,7 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 		JPAQuery<Order> query = queryFactory
 			.selectFrom(order)
 			.leftJoin(qLineItem).on(qLineItem.orderId.eq(order.id))
-			.leftJoin(qProduct).on(qLineItem.marketProductCode.eq(qProduct.sbCode))
+			.leftJoin(qProduct).on(qLineItem.productId.eq(qProduct.id))
 			.where(
 				marketTypeIn(condition.getMarketTypes()),
 				shippingStatusIn(condition.getShippingStatuses()),
@@ -66,7 +66,7 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			: queryFactory
 				.select(qLineItem, qProduct)
 				.from(qLineItem)
-				.leftJoin(qProduct).on(qLineItem.marketProductCode.eq(qProduct.sbCode))
+				.leftJoin(qProduct).on(qLineItem.productId.eq(qProduct.id))
 				.where(qLineItem.orderId.in(orderIds))
 				.fetch();
 
@@ -88,7 +88,7 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.select(order.countDistinct())
 			.from(order)
 			.leftJoin(qLineItem).on(qLineItem.orderId.eq(order.id))
-			.leftJoin(qProduct).on(qLineItem.marketProductCode.eq(qProduct.sbCode))
+			.leftJoin(qProduct).on(qLineItem.productId.eq(qProduct.id))
 			.where(
 				marketTypeIn(condition.getMarketTypes()),
 				shippingStatusIn(condition.getShippingStatuses()),
@@ -125,7 +125,6 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.or(order.recipientName.contains(keyword))
 			.or(order.recipientPhone.contains(keyword))
 			.or(order.ordererName.contains(keyword))
-			.or(QOrderLineItem.orderLineItem.marketProductName.contains(keyword))
 			.or(QProduct.product.productName.originalName.contains(keyword))
 			.or(QProduct.product.sbCode.contains(keyword));
 	}

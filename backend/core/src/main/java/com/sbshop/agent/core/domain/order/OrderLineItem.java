@@ -25,24 +25,13 @@ public class OrderLineItem extends BaseEntity {
 	@Column(name = "order_id", nullable = false)
 	private Long orderId;
 
-	/** 상품 ID (Product 테이블 참조값, SB상품 매핑 시 사용) */
+	/** SB 상품 ID (sb_product 참조) */
 	@Column(name = "product_id")
 	private Long productId;
 
 	/** 주문 수량 */
 	@Column(name = "quantity", nullable = false)
 	private Integer quantity;
-
-	@Column(name = "market_product_name", length = 255)
-	private String marketProductName;
-
-	/** 판매자 상품 코드 (SB코드 매핑용, 쿠팡의 externalVendorSkuCode 등) */
-	@Column(name = "market_product_code")
-	private String marketProductCode;
-
-	/** 판매자 등록 상품명 (쿠팡 sellerProductName, 한글 등록상품명) */
-	@Column(name = "seller_product_name", length = 255)
-	private String sellerProductName;
 
 	/** 소싱 관련 데이터 (원가, 소싱처 등) */
 	@jakarta.persistence.Embedded
@@ -57,15 +46,11 @@ public class OrderLineItem extends BaseEntity {
 	private ShippingData shippingData = ShippingData.builder().build();
 
 	@Builder
-	public OrderLineItem(Long orderId, Long productId, Integer quantity, String marketProductName,
-		String marketProductCode, String sellerProductName, SourcingData sourcingData,
+	public OrderLineItem(Long orderId, Long productId, Integer quantity, SourcingData sourcingData,
 		SettlementData settlementData, ShippingData shippingData) {
 		this.orderId = orderId;
 		this.productId = productId;
 		this.quantity = quantity;
-		this.marketProductName = marketProductName;
-		this.marketProductCode = marketProductCode;
-		this.sellerProductName = sellerProductName;
 		this.sourcingData = sourcingData != null ? sourcingData : SourcingData.builder().build();
 		this.settlementData = settlementData != null ? settlementData : SettlementData.builder().build();
 		this.shippingData = shippingData != null ? shippingData : ShippingData.builder().build();
@@ -79,19 +64,15 @@ public class OrderLineItem extends BaseEntity {
 		this.productId = productId;
 	}
 
-	public void updateMarketProductCode(String marketProductCode) {
-		this.marketProductCode = marketProductCode;
-	}
-
-	public void updateSellerProductName(String sellerProductName) {
-		this.sellerProductName = sellerProductName;
-	}
-
-	public void updateSettlement(BigDecimal salePrice, BigDecimal settlementAmount, BigDecimal netProfit) {
-		this.settlementData = SettlementData.builder()
-			.salePrice(salePrice)
+	public void updateSettlement(BigDecimal settlementAmount) {
+		this.settlementData = (this.settlementData != null ? this.settlementData.toBuilder() : SettlementData.builder())
 			.settlementAmount(settlementAmount)
-			.netProfit(netProfit)
+			.build();
+	}
+
+	public void markSettlementVerified() {
+		this.settlementData = (this.settlementData != null ? this.settlementData.toBuilder() : SettlementData.builder())
+			.settlementVerified(true)
 			.build();
 	}
 

@@ -4,6 +4,7 @@ import com.sbshop.agent.core.application.order.port.CoupangOrderApiPort;
 import com.sbshop.agent.core.application.order.port.MarketOrderPort;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
+import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.dto.MarketOrderDto;
@@ -11,6 +12,7 @@ import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
+import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -42,12 +44,13 @@ public class CoupangOrderSyncService extends AbstractOrderSyncService {
 		OrderRepository orderRepository,
 		OrderLineItemRepository orderLineItemRepository,
 		ProductRepository productRepository,
+		MarketRegistrationRepository marketRegistrationRepository,
 		ApplicationEventPublisher eventPublisher,
 		CoupangOrderAdapter coupangOrderAdapter,
 		CoupangOrderApiPort coupangOrderApiPort,
 		CoupangStatusMapper statusMapper) {
 		super(credentialRepository, orderRepository, orderLineItemRepository,
-			productRepository, eventPublisher);
+			productRepository, marketRegistrationRepository, eventPublisher);
 		this.coupangOrderAdapter = coupangOrderAdapter;
 		this.coupangOrderApiPort = coupangOrderApiPort;
 		this.statusMapper = statusMapper;
@@ -122,24 +125,21 @@ public class CoupangOrderSyncService extends AbstractOrderSyncService {
 						continue;
 					}
 
-					String vendorItemCode = item.getMarketProductCode();
-					if (vendorItemCode == null || vendorItemCode.isEmpty()) {
+					if (item.getProductId() == null)
 						continue;
-					}
+					String sbCode = productRepository.findById(item.getProductId())
+						.map(Product::getSbCode).orElse(null);
+					if (sbCode == null || sbCode.isEmpty())
+						continue;
 
-					java.math.BigDecimal actualSettlement = settlementMap.get(vendorItemCode);
+					BigDecimal actualSettlement = settlementMap.get(sbCode);
 					if (actualSettlement != null) {
-						java.math.BigDecimal currentSettlement = item.getSettlementData() != null
+						BigDecimal currentSettlement = item.getSettlementData() != null
 							? item.getSettlementData().getSettlementAmount() : null;
 
 						if (currentSettlement == null || actualSettlement.compareTo(currentSettlement) != 0) {
-							java.math.BigDecimal salePrice = item.getSettlementData() != null
-								? item.getSettlementData().getSalePrice() : null;
-							java.math.BigDecimal netProfit = null;
-							if (item.getSourcingData() != null && item.getSourcingData().getSourcingAmount() != null) {
-								netProfit = actualSettlement.subtract(item.getSourcingData().getSourcingAmount());
-							}
-							item.updateSettlement(salePrice, actualSettlement, netProfit);
+							item.updateSettlement(actualSettlement);
+							item.markSettlementVerified();
 							orderLineItemRepository.save(item);
 							updatedCount++;
 						}

@@ -9,7 +9,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -62,10 +61,6 @@ public class Order extends BaseEntity {
 	@Embedded
 	private CustomsData customsData;
 
-	/** 쿠팡 출고예정일 (mandatoryShipByDate) */
-	@Column(name = "mandatory_ship_by_date")
-	private LocalDate mandatoryShipByDate;
-
 	/** 주문자(구매자) 이름 - 수취인과 다를 수 있음 */
 	@Column(name = "orderer_name", length = 100)
 	private String ordererName;
@@ -89,7 +84,6 @@ public class Order extends BaseEntity {
 		String address,
 		String message,
 		CustomsData customsData,
-		LocalDate mandatoryShipByDate,
 		String ordererName,
 		String ordererPhone,
 		String shipmentBoxId) {
@@ -102,7 +96,6 @@ public class Order extends BaseEntity {
 		this.address = address;
 		this.message = message;
 		this.customsData = customsData;
-		this.mandatoryShipByDate = mandatoryShipByDate;
 		this.ordererName = ordererName;
 		this.ordererPhone = ordererPhone;
 		this.shipmentBoxId = shipmentBoxId;
@@ -120,11 +113,6 @@ public class Order extends BaseEntity {
 			this.address = address;
 		if (message != null)
 			this.message = message;
-	}
-
-	public void updateMandatoryShipByDate(LocalDate mandatoryShipByDate) {
-		if (mandatoryShipByDate != null)
-			this.mandatoryShipByDate = mandatoryShipByDate;
 	}
 
 	public void updateOrdererInfo(String ordererName, String ordererPhone) {

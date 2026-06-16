@@ -84,16 +84,10 @@ public class OrderShipService {
 	}
 
 	static void calculateSettlement(OrderLineItem item) {
-		if (item.getSettlementData() != null && item.getSettlementData().getSalePrice() != null) {
-			BigDecimal salePrice = item.getSettlementData().getSalePrice();
-			BigDecimal settlementAmount = salePrice.multiply(new BigDecimal("0.89"));
-
-			BigDecimal netProfit = null;
-			if (item.getSourcingData() != null && item.getSourcingData().getSourcingAmount() != null) {
-				netProfit = settlementAmount.subtract(item.getSourcingData().getSourcingAmount());
-			}
-
-			item.updateSettlement(salePrice, settlementAmount, netProfit);
+		if (item.getSettlementData() != null && item.getSettlementData().getSettlementAmount() != null) {
+			BigDecimal currentSettlement = item.getSettlementData().getSettlementAmount();
+			BigDecimal settlementAmount = currentSettlement.multiply(new BigDecimal("0.89"));
+			item.updateSettlement(settlementAmount);
 		}
 	}
 }

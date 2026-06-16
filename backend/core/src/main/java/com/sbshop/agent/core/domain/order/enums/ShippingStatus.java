@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum ShippingStatus implements EnumMapperType {
+	UNKNOWN("알수없음", -2),
 	NEW("결제완료", 0),
 	PREPARING("구매준비", 1),
 	PURCHASED("구매완료", 2),

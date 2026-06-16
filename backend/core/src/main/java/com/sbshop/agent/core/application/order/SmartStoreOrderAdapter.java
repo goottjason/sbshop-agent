@@ -148,6 +148,7 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 			ShippingCarrier carrier = ShippingCarrier.fromMarketCode(deliveryCompanyCode);
 
 			return MarketOrderDto.builder()
+				.marketType(getMarketType())
 				.marketOrderNo(productOrderId)
 				.marketProductCode(sellerProductCode)
 				.productName(productName)

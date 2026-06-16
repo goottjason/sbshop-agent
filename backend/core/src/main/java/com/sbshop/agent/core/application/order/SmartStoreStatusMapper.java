@@ -24,7 +24,7 @@ public class SmartStoreStatusMapper implements MarketStatusMapper {
 		String placeOrderStatus = marketStatuses.getOrDefault("placeOrderStatus", "");
 
 		if (status == null) {
-			return ShippingStatus.PREPARING;
+			return ShippingStatus.UNKNOWN;
 		}
 
 		return switch (status.toUpperCase()) {
@@ -44,8 +44,8 @@ public class SmartStoreStatusMapper implements MarketStatusMapper {
 			case "RETURNED" -> ShippingStatus.RETURNED;
 			case "EXCHANGED" -> ShippingStatus.EXCHANGED;
 			default -> {
-				log.warn("알 수 없는 스마트스토어 주문 상태: {} (placeOrder={}) → PREPARING으로 매핑", status, placeOrderStatus);
-				yield ShippingStatus.PREPARING;
+				log.warn("알 수 없는 스마트스토어 주문 상태: {} (placeOrder={}) → UNKNOWN으로 매핑", status, placeOrderStatus);
+				yield ShippingStatus.UNKNOWN;
 			}
 		};
 	}

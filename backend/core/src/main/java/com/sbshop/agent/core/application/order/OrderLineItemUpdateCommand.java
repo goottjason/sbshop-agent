@@ -19,7 +19,6 @@ public class OrderLineItemUpdateCommand {
 	private String trackingNo;
 	private ShippingStatus shippingStatus;
 	private Boolean isUnipassDone;
-	private Boolean marketplaceSynced;
-	private String marketProductCode;
+	private Boolean trackingSentToMarket;
 	private BigDecimal settlementAmount;
 }

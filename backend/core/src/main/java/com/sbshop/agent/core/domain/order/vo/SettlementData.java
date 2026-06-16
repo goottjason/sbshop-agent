@@ -12,24 +12,19 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SettlementData {
-	@Column(name = "sale_price", precision = 10, scale = 2)
-	private BigDecimal salePrice;
-
 	@Column(name = "settlement_amount", precision = 10, scale = 2)
 	private BigDecimal settlementAmount;
 
 	@Column(name = "shipping_fee", precision = 10, scale = 2)
 	private BigDecimal shippingFee;
 
-	@Column(name = "net_profit", precision = 10, scale = 2)
-	private BigDecimal netProfit;
+	@Column(name = "settlement_verified")
+	private Boolean settlementVerified;
 
 	@Builder(toBuilder = true)
-	public SettlementData(BigDecimal salePrice, BigDecimal settlementAmount, BigDecimal shippingFee,
-		BigDecimal netProfit) {
-		this.salePrice = salePrice;
+	public SettlementData(BigDecimal settlementAmount, BigDecimal shippingFee, Boolean settlementVerified) {
 		this.settlementAmount = settlementAmount;
 		this.shippingFee = shippingFee;
-		this.netProfit = netProfit;
+		this.settlementVerified = settlementVerified;
 	}
 }

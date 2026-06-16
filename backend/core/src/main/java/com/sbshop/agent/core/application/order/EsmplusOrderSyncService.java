@@ -3,6 +3,7 @@ package com.sbshop.agent.core.application.order;
 import com.sbshop.agent.core.application.order.port.MarketOrderPort;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
+import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
@@ -28,10 +29,11 @@ public class EsmplusOrderSyncService extends AbstractOrderSyncService {
 		OrderRepository orderRepository,
 		OrderLineItemRepository orderLineItemRepository,
 		ProductRepository productRepository,
+		MarketRegistrationRepository marketRegistrationRepository,
 		ApplicationEventPublisher eventPublisher,
 		EsmplusOrderAdapter esmplusOrderAdapter) {
 		super(credentialRepository, orderRepository, orderLineItemRepository,
-			productRepository, eventPublisher);
+			productRepository, marketRegistrationRepository, eventPublisher);
 		this.esmplusOrderAdapter = esmplusOrderAdapter;
 	}
 

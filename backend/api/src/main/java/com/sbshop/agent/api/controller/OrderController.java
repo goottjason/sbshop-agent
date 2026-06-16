@@ -85,8 +85,7 @@ public class OrderController {
 			.trackingNo(request.getTrackingNo())
 			.shippingStatus(request.getShippingStatus())
 			.isUnipassDone(request.getIsUnipassDone())
-			.marketplaceSynced(request.getMarketplaceSynced())
-			.marketProductCode(request.getMarketProductCode())
+			.trackingSentToMarket(request.getTrackingSentToMarket())
 			.settlementAmount(request.getSettlementAmount())
 			.build();
 

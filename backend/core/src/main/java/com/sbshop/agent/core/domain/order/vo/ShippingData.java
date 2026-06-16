@@ -37,16 +37,16 @@ public class ShippingData {
 	private ShippingCarrier shippingCarrier;
 
 	/** 마켓플러스(쿠팡/스마트스토어) 송장 동기화 완료 여부 */
-	@Column(name = "marketplace_synced")
-	private Boolean marketplaceSynced;
+	@Column(name = "tracking_sent_to_market")
+	private Boolean trackingSentToMarket;
 
 	@Builder(toBuilder = true)
 	public ShippingData(String trackingNo, Boolean isUnipassDone, ShippingStatus shippingStatus,
-		ShippingCarrier shippingCarrier, Boolean marketplaceSynced) {
+		ShippingCarrier shippingCarrier, Boolean trackingSentToMarket) {
 		this.trackingNo = trackingNo;
 		this.isUnipassDone = isUnipassDone;
 		this.shippingStatus = shippingStatus;
 		this.shippingCarrier = shippingCarrier;
-		this.marketplaceSynced = marketplaceSynced;
+		this.trackingSentToMarket = trackingSentToMarket;
 	}
 }

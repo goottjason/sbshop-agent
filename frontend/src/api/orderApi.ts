@@ -12,7 +12,6 @@ export interface OrderDto {
   message?: string;
   ordererName?: string;
   ordererPhone?: string;
-  mandatoryShipByDate?: string;
   customsData?: {
     customsClearanceNo?: string;
     customsStatus?: string;
@@ -23,8 +22,6 @@ export interface OrderLineItemDto {
   id?: number;
   quantity?: number;
   unitPrice?: number;
-  marketProductName?: string;
-  marketProductCode?: string;
   sourcingData?: {
     sourcingAccount?: string;
     sourcingOrderNo?: string;
@@ -32,10 +29,9 @@ export interface OrderLineItemDto {
     discountCode?: string;
   };
   settlementData?: {
-    salePrice?: number;
     settlementAmount?: number;
     shippingFee?: number;
-    netProfit?: number;
+    settlementVerified?: boolean;
   };
   shippingData?: {
     trackingNo?: string;

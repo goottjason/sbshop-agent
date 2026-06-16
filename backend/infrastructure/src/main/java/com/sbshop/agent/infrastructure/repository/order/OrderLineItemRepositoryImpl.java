@@ -46,10 +46,10 @@ public class OrderLineItemRepositoryImpl implements OrderLineItemRepositoryCusto
 
 	private BooleanExpression shipmentEmailNeeded() {
 		BooleanExpression purchased = orderLineItem.shippingData.shippingStatus.eq(ShippingStatus.PURCHASED);
-		// SHIPPED + marketplaceSynced가 false 또는 null: 마켓 미동기화 (재시도 필요)
+		// SHIPPED + trackingSentToMarket가 false 또는 null: 마켓 미동기화 (재시도 필요)
 		BooleanExpression shippedNotSynced = orderLineItem.shippingData.shippingStatus.eq(ShippingStatus.SHIPPED)
-			.and(orderLineItem.shippingData.marketplaceSynced.isFalse()
-				.or(orderLineItem.shippingData.marketplaceSynced.isNull()));
+			.and(orderLineItem.shippingData.trackingSentToMarket.isFalse()
+				.or(orderLineItem.shippingData.trackingSentToMarket.isNull()));
 		return purchased.or(shippedNotSynced);
 	}
 }

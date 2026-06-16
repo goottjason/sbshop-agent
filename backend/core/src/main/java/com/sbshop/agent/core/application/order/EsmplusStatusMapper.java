@@ -36,13 +36,13 @@ public class EsmplusStatusMapper {
 			case 2010, 2020, 2070 -> ShippingStatus.CANCELED;
 			case 2030, 2040, 3030 -> ShippingStatus.RETURNED;
 			case 2050, 2060 -> ShippingStatus.EXCHANGED;
-			default -> ShippingStatus.NEW;
+			default -> ShippingStatus.UNKNOWN;
 		};
 	}
 
 	public ShippingStatus mapStatus(String deliveryStatus) {
 		if (deliveryStatus == null) {
-			return ShippingStatus.NEW;
+			return ShippingStatus.UNKNOWN;
 		}
 		return switch (deliveryStatus) {
 			case "결제완료" -> ShippingStatus.NEW;
@@ -53,7 +53,7 @@ public class EsmplusStatusMapper {
 			case "주문취소", "취소접수", "취소완료" -> ShippingStatus.CANCELED;
 			case "반품접수", "반품완료", "반품수거완료" -> ShippingStatus.RETURNED;
 			case "교환접수", "교환완료" -> ShippingStatus.EXCHANGED;
-			default -> ShippingStatus.NEW;
+			default -> ShippingStatus.UNKNOWN;
 		};
 	}
 }

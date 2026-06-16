@@ -22,7 +22,7 @@ public class CoupangStatusMapper implements MarketStatusMapper {
 	public ShippingStatus mapStatus(Map<String, String> marketStatuses) {
 		String status = marketStatuses.get("status");
 		if (status == null) {
-			return ShippingStatus.PREPARING;
+			return ShippingStatus.UNKNOWN;
 		}
 		return mapBasicStatus(status.toUpperCase());
 	}
@@ -37,8 +37,8 @@ public class CoupangStatusMapper implements MarketStatusMapper {
 			case "RETURN_RECEIPT", "RETURN_DONE" -> ShippingStatus.RETURNED;
 			case "EXCHANGE_RECEIPT", "EXCHANGE_DONE" -> ShippingStatus.EXCHANGED;
 			default -> {
-				log.warn("알 수 없는 쿠팡 주문 상태: {} → PREPARING으로 매핑", s);
-				yield ShippingStatus.PREPARING;
+				log.warn("알 수 없는 쿠팡 주문 상태: {} → UNKNOWN으로 매핑", s);
+				yield ShippingStatus.UNKNOWN;
 			}
 		};
 	}

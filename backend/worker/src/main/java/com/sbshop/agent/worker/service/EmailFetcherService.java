@@ -3,14 +3,19 @@ package com.sbshop.agent.worker.service;
 import com.sbshop.agent.core.application.order.port.CoupangOrderApiPort;
 import com.sbshop.agent.core.application.order.port.SmartStoreOrderApiPort;
 import com.sbshop.agent.core.domain.market.MarketCredential;
+import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
+import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.worker.config.EmailAccountProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.*;
 import java.math.BigDecimal;
 import java.util.HashSet;
@@ -34,6 +39,7 @@ public class EmailFetcherService {
 	private final MarketCredentialRepository credentialRepository;
 	private final SmartStoreOrderApiPort smartStoreOrderApiPort;
 	private final CoupangOrderApiPort coupangOrderApiPort;
+	private final MarketRegistrationRepository marketRegistrationRepository;
 
 	@Transactional
 	public void fetchAndProcessEmails() {
@@ -185,7 +191,7 @@ public class EmailFetcherService {
 			if (alreadyShipped) {
 				// 마켓 동기화가 안 된 경우에만 재시도
 				boolean synced = item.getShippingData() != null
-					&& Boolean.TRUE.equals(item.getShippingData().getMarketplaceSynced());
+					&& Boolean.TRUE.equals(item.getShippingData().getTrackingSentToMarket());
 				if (synced) {
 					log.info("iHerb 주문 {} 이미 배송 처리 및 마켓 동기화 완료 (tracking={}) - 스킵",
 						shipmentData.getOrderNo(), shipmentData.getTrackingNo());
@@ -245,7 +251,7 @@ public class EmailFetcherService {
 						order.getMarketOrderNo(), trackingNo);
 				}
 				case COUPANG -> {
-					String vendorItemId = item.getMarketProductCode();
+					String vendorItemId = resolveCoupangVendorItemId(item);
 					if (vendorItemId != null && !vendorItemId.isEmpty()) {
 						coupangOrderApiPort.shipOrder(
 							cred.getClientId(), cred.getAccessKey(), cred.getSecretKey(),
@@ -268,7 +274,7 @@ public class EmailFetcherService {
 			com.sbshop.agent.core.domain.order.vo.ShippingData updatedShipping = (currentShipping != null
 				? currentShipping : com.sbshop.agent.core.domain.order.vo.ShippingData.builder().build())
 				.toBuilder()
-				.marketplaceSynced(true)
+				.trackingSentToMarket(true)
 				.build();
 			item.updateShippingData(updatedShipping);
 			orderLineItemRepository.save(item);
@@ -446,5 +452,26 @@ public class EmailFetcherService {
 			}
 		}
 		return result.toString();
+	}
+
+	private String resolveCoupangVendorItemId(OrderLineItem item) {
+		if (item.getProductId() == null)
+			return null;
+		MarketRegistration reg = marketRegistrationRepository.findByProductIdAndMarketType(
+			item.getProductId(), MarketType.COUPANG).orElse(null);
+		if (reg == null)
+			return null;
+		String identifiers = reg.getMarketIdentifiers();
+		if (identifiers == null || identifiers.isEmpty())
+			return null;
+		try {
+			ObjectMapper mapper = new ObjectMapper();
+			JsonNode node = mapper.readTree(identifiers);
+			JsonNode vendorItemId = node.get("vendorItemId");
+			return vendorItemId != null ? vendorItemId.asText() : null;
+		} catch (Exception e) {
+			log.warn("COUPANG vendorItemId 파싱 실패: productId={}, identifiers={}", item.getProductId(), identifiers, e);
+			return null;
+		}
 	}
 }

@@ -216,6 +216,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			ShippingCarrier carrier = parseCarrierCode(dlvEtprsCd);
 
 			return MarketOrderDto.builder()
+				.marketType(getMarketType())
 				.marketOrderNo(ordNo)
 				.marketProductCode(sellerPrdCd)
 				.productName(prdNm)
@@ -285,6 +286,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			BigDecimal totalAmount = parseBigDecimal(ordAmt);
 
 			return MarketOrderDto.builder()
+				.marketType(getMarketType())
 				.marketOrderNo(ordNo)
 				.marketProductCode(sellerPrdCd)
 				.productName(prdNm)
@@ -327,6 +329,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			ShippingCarrier carrier = parseCarrierCode(dlvEtprsCd);
 
 			return MarketOrderDto.builder()
+				.marketType(getMarketType())
 				.marketOrderNo(ordNo)
 				.marketProductCode("")
 				.productName("")

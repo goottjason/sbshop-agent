@@ -2,7 +2,9 @@ package com.sbshop.agent.core.application.order;
 
 import com.sbshop.agent.core.application.order.port.MarketOrderPort;
 import com.sbshop.agent.core.domain.market.MarketCredential;
+import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
+import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.dto.MarketOrderDto;
@@ -14,6 +16,7 @@ import com.sbshop.agent.core.domain.order.vo.SettlementData;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,6 +38,7 @@ public abstract class AbstractOrderSyncService {
 	protected final OrderRepository orderRepository;
 	protected final OrderLineItemRepository orderLineItemRepository;
 	protected final ProductRepository productRepository;
+	protected final MarketRegistrationRepository marketRegistrationRepository;
 	protected final ApplicationEventPublisher eventPublisher;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
@@ -100,19 +104,11 @@ public abstract class AbstractOrderSyncService {
 	protected void processOrders(List<MarketOrderDto> marketOrders,
 		MarketCredential credential, MarketOrderPort port) {
 		for (MarketOrderDto dto : marketOrders) {
-			String resolvedCode = resolveP000xCode(dto.getMarketProductCode(), dto.getProductName(),
-				dto.getSellerProductName());
-			if (!resolvedCode.equals(dto.getMarketProductCode())) {
-				dto.setMarketProductCode(resolvedCode);
-			}
-
-			log.info("[{}] 처리 중: orderNo={}, productCode={}, status={}",
-				getMarketType(), dto.getMarketOrderNo(), dto.getMarketProductCode(), dto.getStatus());
+			log.info("[{}] 처리 중: orderNo={}, status={}",
+				getMarketType(), dto.getMarketOrderNo(), dto.getStatus());
 			Optional<Order> existingOrder = orderRepository.findByMarketOrderNo(dto.getMarketOrderNo());
 
-			// ESM+는 리스트 API에 전화번호/주소가 없어 항상 상세 조회 필요
-			boolean shouldFetchDetail = alwaysFetchDetail()
-				|| dto.getMarketProductCode() == null || dto.getMarketProductCode().isEmpty();
+			boolean shouldFetchDetail = alwaysFetchDetail();
 
 			if (existingOrder.isPresent() && shouldFetchDetail) {
 				log.info("[{}] 기존 주문 + 상세 조회 시도: orderNo={}",
@@ -137,18 +133,14 @@ public abstract class AbstractOrderSyncService {
 				if (fullDto != null) {
 					log.info("[{}] 상세 조회 성공 - 신규 주문 생성: orderNo={}", getMarketType(), dto.getMarketOrderNo());
 					createNewOrder(fullDto);
-				} else if (dto.getMarketProductCode() != null && !dto.getMarketProductCode().isEmpty()) {
-					log.info("[{}] 상세 조회 실패 - 기본 데이터로 신규 주문 생성: orderNo={}",
+				} else {
+					log.warn("[{}] 상세 조회 실패 - 기본 데이터로 신규 주문 생성: orderNo={}",
 						getMarketType(), dto.getMarketOrderNo());
 					createNewOrder(dto);
-				} else {
-					log.warn("[{}] 상세 조회 실패 - 주문 생성 불가: orderNo={}", getMarketType(), dto.getMarketOrderNo());
 				}
-			} else if (dto.getMarketProductCode() != null && !dto.getMarketProductCode().isEmpty()) {
+			} else {
 				log.info("[{}] 신규 주문 생성 시도: orderNo={}", getMarketType(), dto.getMarketOrderNo());
 				createNewOrder(dto);
-			} else {
-				log.warn("[{}] 주문 생성 불가 - 상품코드 없음: orderNo={}", getMarketType(), dto.getMarketOrderNo());
 			}
 		}
 	}
@@ -158,44 +150,23 @@ public abstract class AbstractOrderSyncService {
 	 */
 	protected void updateExistingOrder(Order order, MarketOrderDto dto) {
 		List<OrderLineItem> lineItems = orderLineItemRepository.findByOrderId(order.getId());
-		boolean anyUpdated = false;
 
 		for (OrderLineItem item : lineItems) {
-			boolean shouldUpdate = dto.getMarketProductCode() == null || dto.getMarketProductCode().isEmpty()
-				|| !dto.getMarketProductCode().equals(item.getMarketProductCode())
-				|| dto.getSellerProductName() != null && !dto.getSellerProductName().isEmpty();
-
-			if (shouldUpdate) {
-				log.info("[{}] 라인아이템 업데이트: itemId={}, itemProductCode={}, dtoProductCode={}",
-					getMarketType(), item.getId(), item.getMarketProductCode(), dto.getMarketProductCode());
-				updateLineItemFromDto(item, dto);
-				anyUpdated = true;
-			}
+			updateLineItemFromDto(item, dto);
 		}
 
-		if (anyUpdated) {
-			updateOrderInfoFromDto(order, dto);
-			orderRepository.save(order);
-			lineItems.forEach(orderLineItemRepository::save);
-		}
+		updateOrderInfoFromDto(order, dto);
+		orderRepository.save(order);
+		lineItems.forEach(orderLineItemRepository::save);
 	}
 
 	/**
 	 * 라인 아이템 업데이트 (기본 구현, 오버라이드 가능)
 	 */
 	protected void updateLineItemFromDto(OrderLineItem item, MarketOrderDto dto) {
-		if (dto.getMarketProductCode() != null && !dto.getMarketProductCode().isEmpty()
-			&& !dto.getMarketProductCode().equals(item.getMarketProductCode())) {
-			log.info("[{}] marketProductCode 업데이트: {} → {} (itemId={})",
-				getMarketType(), item.getMarketProductCode(), dto.getMarketProductCode(), item.getId());
-			item.updateMarketProductCode(dto.getMarketProductCode());
-			Product product = productRepository.findBySbCode(dto.getMarketProductCode()).orElse(null);
-			if (product != null) {
-				item.assignProductId(product.getId());
-			}
-		}
-		if (dto.getSellerProductName() != null && !dto.getSellerProductName().isEmpty()) {
-			item.updateSellerProductName(dto.getSellerProductName());
+		Long productId = resolveProductId(dto);
+		if (productId != null && !productId.equals(item.getProductId())) {
+			item.assignProductId(productId);
 		}
 		item.updateShippingWithCarrier(
 			dto.getTrackingNo(),
@@ -252,7 +223,7 @@ public abstract class AbstractOrderSyncService {
 	 * 주문 엔티티 빌드 (기본 구현, 오버라이드 가능)
 	 */
 	protected Order buildOrderFromDto(MarketOrderDto dto) {
-		MarketType marketType = dto.getMarketType() != null ? dto.getMarketType() : getMarketType();
+		MarketType marketType = dto.getMarketType();
 		return Order.builder()
 			.marketType(marketType)
 			.marketOrderNo(dto.getMarketOrderNo())
@@ -273,25 +244,47 @@ public abstract class AbstractOrderSyncService {
 	 * 라인 아이템 엔티티 빌드 (기본 구현, 오버라이드 가능)
 	 */
 	protected OrderLineItem buildLineItemFromDto(MarketOrderDto dto, Long orderId) {
-		Product product = productRepository.findBySbCode(dto.getMarketProductCode()).orElse(null);
+		Long productId = resolveProductId(dto);
+
+		BigDecimal settlementAmount = dto.getMarketType() == MarketType.COUPANG && dto.getTotalAmount() != null
+			? dto.getTotalAmount().multiply(new BigDecimal("0.89"))
+			: dto.getTotalAmount();
 
 		return OrderLineItem.builder()
 			.orderId(orderId)
-			.productId(product != null ? product.getId() : null)
+			.productId(productId)
 			.quantity(dto.getQuantity())
-			.marketProductName(dto.getProductName())
-			.marketProductCode(dto.getMarketProductCode())
-			.sellerProductName(dto.getSellerProductName())
 			.shippingData(ShippingData.builder()
 				.trackingNo(dto.getTrackingNo())
 				.shippingStatus(dto.getStatus())
 				.shippingCarrier(dto.getCarrier())
 				.build())
 			.settlementData(SettlementData.builder()
-				.salePrice(dto.getOrderPrice())
-				.settlementAmount(dto.getTotalAmount())
+				.settlementAmount(settlementAmount)
+				.settlementVerified(false)
 				.build())
 			.build();
+	}
+
+	private Long resolveProductId(MarketOrderDto dto) {
+		if (dto.getMarketType() == MarketType.COUPANG && dto.getMarketProductCode() != null) {
+			List<MarketRegistration> regs = marketRegistrationRepository
+				.findByMarketTypeAndIdentifiersContaining(MarketType.COUPANG, dto.getMarketProductCode());
+			if (!regs.isEmpty()) {
+				Long sbProductId = regs.get(0).getSbProductId();
+				log.info("[{}] sb_market_registration에서 productId 조회: vendorItemId={}, sbProductId={}",
+					getMarketType(), dto.getMarketProductCode(), sbProductId);
+				return sbProductId;
+			}
+			log.warn("[{}] sb_market_registration에서 productId를 찾을 수 없음: vendorItemId={}",
+				getMarketType(), dto.getMarketProductCode());
+			return null;
+		}
+		if (dto.getMarketProductCode() != null) {
+			Product product = productRepository.findBySbCode(dto.getMarketProductCode()).orElse(null);
+			return product != null ? product.getId() : null;
+		}
+		return null;
 	}
 
 	/**
@@ -311,53 +304,6 @@ public abstract class AbstractOrderSyncService {
 	 */
 	protected void postSyncProcess(List<MarketOrderDto> orders) {
 		// 기본 구현: 후처리 없음
-	}
-
-	/**
-	 * P000x 코드를 SB 코드로 변환 (상품명 매칭)
-	 * 쿠팡 주문 API의 externalVendorSkuCode가 P000x일 때, sellerProductName(한글 등록상품명)으로
-	 * 로컬 상품을 찾아 SB 코드를 반환
-	 */
-	private String resolveP000xCode(String productCode, String productName, String sellerProductName) {
-		if (productCode == null || !productCode.startsWith("P000")) {
-			return productCode;
-		}
-
-		// 1차: sellerProductName(한글 등록상품명)으로 매칭
-		if (sellerProductName != null && !sellerProductName.isEmpty()) {
-			List<Product> candidates = productRepository.findByProductNameProductNameContaining(sellerProductName);
-			if (candidates.size() == 1) {
-				String resolvedCode = candidates.get(0).getSbCode();
-				log.info("[{}] P000x 코드 변환 성공(sellerProductName): {} → {} ({})",
-					getMarketType(), productCode, resolvedCode, sellerProductName);
-				return resolvedCode;
-			} else if (candidates.size() > 1) {
-				log.warn("[{}] P000x 코드 변환 - 여러 상품 매칭(sellerProductName): code={}, name={}, candidates={}",
-					getMarketType(), productCode, sellerProductName,
-					candidates.stream().map(Product::getSbCode).toList());
-				return candidates.get(0).getSbCode();
-			}
-		}
-
-		// 2차: productName(vendorItemName)으로 매칭
-		if (productName != null && !productName.isEmpty()) {
-			List<Product> candidates = productRepository.findByProductNameProductNameContaining(productName);
-			if (candidates.size() == 1) {
-				String resolvedCode = candidates.get(0).getSbCode();
-				log.info("[{}] P000x 코드 변환 성공(productName): {} → {} ({})",
-					getMarketType(), productCode, resolvedCode, productName);
-				return resolvedCode;
-			} else if (candidates.size() > 1) {
-				log.warn("[{}] P000x 코드 변환 - 여러 상품 매칭(productName): code={}, name={}, candidates={}",
-					getMarketType(), productCode, productName,
-					candidates.stream().map(Product::getSbCode).toList());
-				return candidates.get(0).getSbCode();
-			}
-		}
-
-		log.warn("[{}] P000x 코드 변환 실패 - 매칭 상품 없음: code={}, sellerName={}, vendorName={}",
-			getMarketType(), productCode, sellerProductName, productName);
-		return productCode;
 	}
 
 	/**

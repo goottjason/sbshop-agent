@@ -1,0 +1,77 @@
+package com.sbshop.agent.core.domain.market;
+
+import com.sbshop.agent.core.domain.common.BaseEntity;
+import com.sbshop.agent.core.domain.order.enums.MarketType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Table;
+import java.time.LocalDateTime;
+import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import java.sql.Types;
+
+@Entity
+@Table(name = "sb_market_registration")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class MarketRegistration extends BaseEntity {
+
+	@Column(name = "product_id", nullable = false)
+	private Long productId;
+
+	@Column(name = "sb_product_id")
+	private Long sbProductId;
+
+	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(Types.VARCHAR)
+	@Column(name = "market_type", length = 50, nullable = false)
+	private MarketType marketType;
+
+	@Column(name = "market_product_name", length = 255)
+	private String marketProductName;
+
+	@Column(name = "market_identifiers", columnDefinition = "TEXT")
+	private String marketIdentifiers;
+
+	@Column(name = "market_detailed_info", columnDefinition = "LONGTEXT")
+	private String marketDetailedInfo;
+
+	@Column(name = "is_synced", nullable = false)
+	private Boolean isSynced = false;
+
+	@Column(name = "last_synced_at")
+	private LocalDateTime lastSyncedAt;
+
+	@Builder
+	public MarketRegistration(Long productId, Long sbProductId, MarketType marketType, String marketProductName,
+		String marketIdentifiers, String marketDetailedInfo) {
+		this.productId = productId;
+		this.sbProductId = sbProductId;
+		this.marketType = marketType;
+		this.marketProductName = marketProductName;
+		this.marketIdentifiers = marketIdentifiers;
+		this.marketDetailedInfo = marketDetailedInfo;
+	}
+
+	public void markSynced() {
+		this.isSynced = true;
+		this.lastSyncedAt = LocalDateTime.now();
+	}
+
+	public void updateMarketIdentifiers(String marketIdentifiers) {
+		this.marketIdentifiers = marketIdentifiers;
+	}
+
+	public void updateMarketDetailedInfo(String marketDetailedInfo) {
+		this.marketDetailedInfo = marketDetailedInfo;
+	}
+
+	public void assignSbProductId(Long sbProductId) {
+		this.sbProductId = sbProductId;
+	}
+}

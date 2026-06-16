@@ -83,8 +83,8 @@ public class OrderService {
 				: com.sbshop.agent.core.domain.order.vo.ShippingData.builder();
 		if (command.getShippingCarrier() != null)
 			sdBuilder.shippingCarrier(command.getShippingCarrier());
-		if (command.getMarketplaceSynced() != null)
-			sdBuilder.marketplaceSynced(command.getMarketplaceSynced());
+		if (command.getTrackingSentToMarket() != null)
+			sdBuilder.trackingSentToMarket(command.getTrackingSentToMarket());
 
 		com.sbshop.agent.core.domain.order.vo.SourcingData.SourcingDataBuilder sourcingBuilder = lineItem
 			.getSourcingData() != null ? lineItem.getSourcingData().toBuilder()
@@ -108,21 +108,9 @@ public class OrderService {
 		if (command.getSettlementAmount() != null)
 			settlementBuilder.settlementAmount(command.getSettlementAmount());
 
-		if (command.getMarketProductCode() != null)
-			lineItem.updateMarketProductCode(command.getMarketProductCode());
-
 		lineItem.updateSourcingData(sourcingBuilder.build());
 
 		com.sbshop.agent.core.domain.order.vo.SettlementData newSettlement = settlementBuilder.build();
-		java.math.BigDecimal sourcingAmt = lineItem.getSourcingData() != null
-			&& lineItem.getSourcingData().getSourcingAmount() != null ? lineItem.getSourcingData().getSourcingAmount()
-				: java.math.BigDecimal.ZERO;
-		java.math.BigDecimal settlementAmt = newSettlement.getSettlementAmount() != null
-			? newSettlement.getSettlementAmount() : java.math.BigDecimal.ZERO;
-		java.math.BigDecimal shipFee = newSettlement.getShippingFee() != null ? newSettlement.getShippingFee()
-			: java.math.BigDecimal.ZERO;
-		java.math.BigDecimal netProfit = settlementAmt.subtract(sourcingAmt).subtract(shipFee);
-		newSettlement = newSettlement.toBuilder().netProfit(netProfit).build();
 
 		lineItem.updateSettlementData(newSettlement);
 		lineItem.updateShippingData(sdBuilder.build());

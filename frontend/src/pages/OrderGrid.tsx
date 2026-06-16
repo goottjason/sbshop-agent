@@ -435,7 +435,7 @@ const OrderGrid: React.FC = () => {
   const [queryParams, setQueryParams] = useState<{keyword?: string, markets?: string[], statuses?: string[], startDate?: string, endDate?: string}>({
     keyword: '',
     markets: ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'],
-    statuses: ['NEW', 'PREPARING', 'PURCHASED', 'SHIPPED', 'DELIVERED', 'CANCELED', 'RETURNED', 'EXCHANGED'],
+    statuses: ['UNKNOWN', 'NEW', 'PREPARING', 'PURCHASED', 'SHIPPED', 'DELIVERED', 'CANCELED', 'RETURNED', 'EXCHANGED'],
     startDate: defaultStart,
     endDate: defaultEnd
   });
@@ -764,6 +764,7 @@ const OrderGrid: React.FC = () => {
       cell: info => {
         const val = info.getValue() as string;
         const colorMap: any = {
+          'UNKNOWN': { bg: '#f5f5f5', text: '#666' },
           'NEW': { bg: '#e0f7fa', text: '#006064' },
           'PREPARING': { bg: '#fff3e0', text: '#e65100' },
           'PURCHASED': { bg: '#fffde7', text: '#fbc02d' },
@@ -835,8 +836,6 @@ const OrderGrid: React.FC = () => {
     columnHelper.accessor('order.zipcode', { header: '우편번호', size: 80 }),
     columnHelper.accessor('order.address', { header: '주소', size: 350, cell: info => <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{info.getValue() as string}</div> }),
     columnHelper.accessor('order.message', { header: '배송메시지', size: 150 }),
-    columnHelper.accessor('lineItem.marketProductCode', { header: 'SB코드', size: 110 }),
-    columnHelper.accessor('lineItem.marketProductName', { header: '마켓상품명', size: 250, cell: info => <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{info.getValue() as string}</div> }),
     columnHelper.accessor('product.productName.originalName', { header: '영문상품명', size: 250, cell: ({ row, getValue }) => { const url = (row.original as any).product?.sourcingInfo?.url; const name = getValue() as string; return (<div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{url ? <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1565c0', textDecoration: 'none' }}>{name}</a> : name}</div>); } }),
     columnHelper.accessor('product.stockStatus', {
       id: 'stockStatus',
@@ -881,7 +880,18 @@ const OrderGrid: React.FC = () => {
     columnHelper.accessor('lineItem.settlementData.settlementAmount', { id: 'settlementAmount', header: '정산금액', size: 90, cell: ({ getValue }) => <div style={{ fontWeight: 'bold', color: '#1565c0' }}>{(getValue() as number || 0).toLocaleString()}</div> }),
     columnHelper.accessor('lineItem.sourcingData.sourcingAmount', { id: 'sourcingAmount', header: '실구매가', size: 90, cell: ({ row, getValue }) => <input style={inputStyle} type="number" defaultValue={getValue() as number} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.sourcingAmount', Number(e.target.value))} /> }),
     columnHelper.accessor('lineItem.settlementData.shippingFee', { id: 'shippingFee', header: '배송비', size: 80, cell: ({ row, getValue }) => <input style={inputStyle} type="number" defaultValue={getValue() as number} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.shippingFee', Number(e.target.value))} /> }),
-    columnHelper.accessor('lineItem.settlementData.netProfit', { id: 'netProfit', header: '순수익', size: 80, cell: ({ getValue }) => <div style={{ fontWeight: 'bold', color: (getValue() as number) > 0 ? '#2e7d32' : '#d32f2f' }}>{(getValue() as number || 0).toLocaleString()}</div> }),
+    columnHelper.display({
+      id: 'netProfit',
+      header: '순수익',
+      size: 80,
+      cell: ({ row }) => {
+        const settlementAmount = (row.original.lineItem?.settlementData?.settlementAmount || 0) as number;
+        const sourcingAmount = (row.original.lineItem?.sourcingData?.sourcingAmount || 0) as number;
+        const shippingFee = (row.original.lineItem?.settlementData?.shippingFee || 0) as number;
+        const profit = settlementAmount - sourcingAmount - shippingFee;
+        return <div style={{ fontWeight: 'bold', color: profit > 0 ? '#2e7d32' : '#d32f2f' }}>{profit.toLocaleString()}</div>;
+      }
+    }),
     columnHelper.display({
       id: 'actions',
       header: '처리',

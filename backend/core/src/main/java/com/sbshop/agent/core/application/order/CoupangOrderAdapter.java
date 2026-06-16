@@ -1,9 +1,12 @@
 package com.sbshop.agent.core.application.order;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.order.port.CoupangOrderApiPort;
 import com.sbshop.agent.core.application.order.port.MarketOrderPort;
 import com.sbshop.agent.core.domain.market.MarketCredential;
+import com.sbshop.agent.core.domain.market.MarketRegistration;
+import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.dto.MarketOrderDto;
@@ -37,6 +40,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 	private final CoupangStatusMapper statusMapper;
 	private final OrderRepository orderRepository;
 	private final OrderLineItemRepository orderLineItemRepository;
+	private final MarketRegistrationRepository marketRegistrationRepository;
 
 	@Override
 	public MarketType getMarketType() {
@@ -173,30 +177,19 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 
 			JsonNode receiver = orderNode.path("receiver");
 			String recipientName = receiver.path("name").asText();
-			String recipientPhone = receiver.path("safeNumber").asText();
+			String ordererPhone = receiver.path("safeNumber").asText();
 			String zipcode = receiver.path("postCode").asText();
 			String address = receiver.path("addr1").asText() + " " + receiver.path("addr2").asText();
 			String message = orderNode.path("parcelPrintMessage").asText();
 
 			JsonNode overseaInfo = orderNode.path("overseaShippingInfoDto");
 			String customsClearanceNo = null;
-			String ordererName = null;
-			String ordererPhone = null;
+			String ordererName = orderNode.path("orderer").path("name").asText(null);
+			String recipientPhone = null;
 
 			if (!overseaInfo.isMissingNode() && !overseaInfo.isNull()) {
-				ordererPhone = overseaInfo.path("ordererPhoneNumber").asText(null);
-				if (ordererPhone != null && !ordererPhone.isEmpty()) {
-					recipientPhone = ordererPhone;
-				}
-				ordererName = overseaInfo.path("ordererName").asText(null);
+				recipientPhone = overseaInfo.path("ordererPhoneNumber").asText(null);
 				customsClearanceNo = overseaInfo.path("personalCustomsClearanceCode").asText(null);
-			}
-
-			if (ordererName == null || ordererName.isEmpty()) {
-				ordererName = orderNode.path("orderer").path("name").asText(null);
-			}
-			if (ordererName == null || ordererName.isEmpty()) {
-				ordererName = recipientName;
 			}
 
 			String invoiceNo = orderNode.path("invoiceNumber").asText(null);
@@ -233,16 +226,13 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 					// 3차: sellerProductId 자체를 사용 (최후의 수단)
 					externalVendorSkuCode = sellerProductId;
 				}
-				String vendorItemName = firstItem.path("vendorItemName").asText();
-				String sellerProductName = firstItem.path("sellerProductName").asText(null);
 				int qty = firstItem.path("shippingCount").asInt();
 				BigDecimal price = new BigDecimal(firstItem.path("orderPrice").asText());
 
 				return MarketOrderDto.builder()
+					.marketType(getMarketType())
 					.marketOrderNo(marketOrderNo)
-					.marketProductCode(externalVendorSkuCode)
-					.productName(vendorItemName)
-					.sellerProductName(sellerProductName)
+					.marketProductCode(vendorItemId)
 					.quantity(qty)
 					.orderPrice(price)
 					.totalAmount(price.multiply(BigDecimal.valueOf(qty)))
@@ -263,6 +253,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 			}
 
 			return MarketOrderDto.builder()
+				.marketType(getMarketType())
 				.marketOrderNo(marketOrderNo)
 				.recipientName(recipientName)
 				.recipientPhone(recipientPhone)
@@ -289,7 +280,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 	public void shipOrder(MarketCredential credential,
 		Order order, OrderLineItem lineItem,
 		String trackingNo, ShippingCarrier carrier) {
-		String vendorItemId = lineItem.getMarketProductCode();
+		String vendorItemId = resolveVendorItemId(lineItem);
 		if (vendorItemId == null || vendorItemId.isEmpty()) {
 			throw new IllegalArgumentException("쿠팡 배송 처리 실패: vendorItemId가 없습니다.");
 		}
@@ -303,6 +294,29 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 			vendorItemId,
 			trackingNo,
 			deliveryCompanyCode);
+	}
+
+	private String resolveVendorItemId(OrderLineItem lineItem) {
+		if (lineItem.getProductId() == null)
+			return null;
+		try {
+			java.util.Optional<MarketRegistration> reg = marketRegistrationRepository
+				.findByProductIdAndMarketType(lineItem.getProductId(), MarketType.COUPANG);
+			if (reg.isPresent()) {
+				String identifiers = reg.get().getMarketIdentifiers();
+				if (identifiers != null) {
+					ObjectMapper mapper = new ObjectMapper();
+					com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(identifiers);
+					String vendorItemId = node.path("vendorItemId").asText(null);
+					if (vendorItemId != null && !vendorItemId.isEmpty()) {
+						return vendorItemId;
+					}
+				}
+			}
+		} catch (Exception e) {
+			log.warn("vendorItemId 조회 실패 (productId={}): {}", lineItem.getProductId(), e.getMessage());
+		}
+		return null;
 	}
 
 	@Override

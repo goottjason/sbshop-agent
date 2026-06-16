@@ -27,7 +27,7 @@ public class ElevenstStatusMapper implements MarketStatusMapper {
 			return mapBySource(source);
 		}
 
-		return ShippingStatus.PREPARING;
+		return ShippingStatus.UNKNOWN;
 	}
 
 	/**
@@ -40,8 +40,8 @@ public class ElevenstStatusMapper implements MarketStatusMapper {
 			case "shipping" -> ShippingStatus.SHIPPED; // 배송중
 			case "dlvcompleted" -> ShippingStatus.DELIVERED; // 배송완료
 			default -> {
-				log.warn("알 수 없는 11번가 주문 상태 소스: {} → PREPARING으로 매핑", source);
-				yield ShippingStatus.PREPARING;
+				log.warn("알 수 없는 11번가 주문 상태 소스: {} → UNKNOWN으로 매핑", source);
+				yield ShippingStatus.UNKNOWN;
 			}
 		};
 	}
