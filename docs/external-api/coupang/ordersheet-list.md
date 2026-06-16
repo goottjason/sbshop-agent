@@ -71,17 +71,17 @@ CEA algorithm=HmacSHA256, access-key={accessKey}, signed-date={datetime}, signat
 
 ```json
 {
-  "code": "SUCCESS",
-  "message": "...",
+  "code": 200,
+  "message": "OK",
   "data": [ ... ],
-  "nextToken": "abc123..."
+  "nextToken": ""
 }
 ```
 
 | Field       | Type     | Description                              |
 |-------------|----------|------------------------------------------|
-| `code`      | string   | `SUCCESS` 또는 `200` 이면 성공           |
-| `message`   | string   | 에러 메시지 (성공 시 빈 문자열)          |
+| `code`      | number/string | `200` 또는 `"SUCCESS"` 이면 성공           |
+| `message`   | string   | 에러 메시지 (성공 시 `"OK"`)          |
 | `data`      | array    | 발주서 목록 (배열)                       |
 | `nextToken` | string   | 다음 페이지 토큰 (없으면 빈 문자열)     |
 
@@ -89,75 +89,167 @@ CEA algorithm=HmacSHA256, access-key={accessKey}, signed-date={datetime}, signat
 
 ### data[] (발주서 항목)
 
-각 발주서 항목(shipment box 단위)의 구조:
+각 발주서 항목(shipment box 단위)의 구조. 아래는 `8100198119354` 주문의 실제 Response:
 
 ```json
 {
-  "orderId": "20260615-ABCDEF-123456",
-  "shipmentBoxId": "789012345",
-  "status": "ACCEPT",
-  "orderedAt": "2026-06-15T10:30:00",
-  "invoiceNumber": null,
-  "deliveryCompanyName": null,
-  "parcelPrintMessage": "",
-  "receiver": {
-    "name": "홍길동",
-    "safeNumber": "0101234****",
-    "postCode": "06236",
-    "addr1": "서울특별시 강남구 테헤란로 152",
-    "addr2": "강남파이낸스센터 5층"
-  },
+  "shipmentBoxId": 698535699660808,
+  "orderId": "8100198119354",
+  "orderedAt": "2026-06-15T02:16:52",
   "orderer": {
-    "name": "홍길동"
+    "name": "이정수",
+    "email": "",
+    "safeNumber": "0502-4272-3093",
+    "ordererNumber": null
   },
-  "overseaShippingInfoDto": null,
+  "paidAt": "2026-06-15T02:16:54",
+  "status": "INSTRUCT",
+  "shippingPrice": 0,
+  "remotePrice": 0,
+  "remoteArea": false,
+  "parcelPrintMessage": "문 앞",
+  "splitShipping": false,
+  "ableSplitShipping": false,
+  "receiver": {
+    "name": "이정수",
+    "safeNumber": "0502-4272-3093",
+    "receiverNumber": null,
+    "addr1": "충청북도 청주시 흥덕구 봉명동 1120",
+    "addr2": "301호",
+    "postCode": "28563"
+  },
   "orderItems": [
     {
-      "externalVendorSkuCode": "SB-001",
-      "sellerProductId": "12345678",
-      "vendorItemId": "987654321",
-      "vendorItemName": "상품명 (옵션명)",
-      "sellerProductName": "판매자 상품명",
+      "vendorItemPackageId": 0,
+      "vendorItemPackageName": "California Gold Nutrition Omega 800 캘리포니아 골드 CGN 오메가800 30소프트젤 2팩",
+      "productId": 6447227891,
+      "vendorItemId": 87712424088,
+      "vendorItemName": "California Gold Nutrition Omega 800 캘리포니아 골드 CGN 오메가800 30소프트젤 2팩, 30정, 2개",
       "shippingCount": 1,
-      "orderPrice": "15000"
+      "salesPrice": 41200,
+      "orderPrice": 41200,
+      "discountPrice": 0,
+      "instantCouponDiscount": 0,
+      "downloadableCouponDiscount": 0,
+      "coupangDiscount": 0,
+      "externalVendorSkuCode": "P000BFLG000A",
+      "etcInfoHeader": null,
+      "etcInfoValue": null,
+      "etcInfoValues": null,
+      "sellerProductId": 14491299726,
+      "sellerProductName": "(2개) 캘리포니아 골드 뉴트리션 오메가 800 30캡슐",
+      "sellerProductItemName": "단일상품",
+      "firstSellerProductItemName": "(2개) 캘리포니아 골드 뉴트리션 오메가 800 30캡슐",
+      "cancelCount": 0,
+      "holdCountForCancel": 0,
+      "estimatedShippingDate": "2026-06-22",
+      "plannedShippingDate": "",
+      "invoiceNumberUploadDate": "",
+      "extraProperties": {},
+      "pricingBadge": false,
+      "usedProduct": false,
+      "confirmDate": null,
+      "deliveryChargeTypeName": "무료",
+      "upBundleVendorItemId": null,
+      "upBundleVendorItemName": null,
+      "upBundleSize": null,
+      "canceled": false,
+      "upBundleItem": false
     }
-  ]
+  ],
+  "overseaShippingInfoDto": {
+    "personalCustomsClearanceCode": "P210011766727",
+    "ordererSsn": "",
+    "ordererPhoneNumber": "01067227207"
+  },
+  "deliveryCompanyName": "",
+  "invoiceNumber": "",
+  "inTrasitDateTime": "",
+  "deliveredDate": "",
+  "refer": "아이폰앱",
+  "shipmentType": "THIRD_PARTY"
 }
 ```
 
 ### 필드 상세
 
-| 필드                       | 타입    | Nullable | Description                                      |
-|---------------------------|---------|----------|--------------------------------------------------|
-| `orderId`                 | string  | N        | 주문 번호 (시장 주문번호)                        |
-| `shipmentBoxId`           | string  | Y        | 배송 박스 ID (발주확인 시 사용)                  |
-| `status`                  | string  | N        | 주문 상태                                        |
-| `orderedAt`               | string  | N        | 주문일시 (`yyyy-MM-dd'T'HH:mm:ss`)              |
-| `invoiceNumber`           | string  | Y        | 운송장 번호 (배송 전이면 null)                   |
-| `deliveryCompanyName`     | string  | Y        | 택배사명 (배송 전이면 null)                      |
-| `parcelPrintMessage`      | string  | Y        | 택배 인쇄 메시지 (배송 메모)                     |
-| `receiver.name`           | string  | N        | 수령자 이름                                      |
-| `receiver.safeNumber`     | string  | N        | 수령자 전화번호 (마스킹 처리)                    |
-| `receiver.postCode`       | string  | N        | 우편번호                                         |
-| `receiver.addr1`          | string  | N        | 주소第一行                                      |
-| `receiver.addr2`          | string  | N        | 주소第二行 (상세주소)                            |
-| `orderer.name`            | string  | Y        | 주문자 이름                                      |
-| `overseaShippingInfoDto`  | object  | Y        | 해외배송 정보 (국내 배송이면 null)               |
-| `overseaShippingInfoDto.ordererPhoneNumber` | string | Y | 주문자 전화번호                           |
-| `overseaShippingInfoDto.ordererName`        | string | Y | 주문자 이름                              |
-| `overseaShippingInfoDto.personalCustomsClearanceCode` | string | Y | 개인통관고유부호                  |
+#### 최상위 필드
+
+| 필드 | 타입 | Nullable | Description |
+|------|------|----------|-------------|
+| `orderId` | string | N | 주문 번호 (시장 주문번호). e.g. `"8100198119354"` |
+| `shipmentBoxId` | number | Y | 배송 박스 ID (발주확인 시 사용) |
+| `status` | string | N | 주문 상태 (`ACCEPT`, `INSTRUCT`, `DEPARTURE`, `DELIVERING`, `FINAL_DELIVERY`, `NONE_TRACKING`) |
+| `orderedAt` | string | N | 주문일시 (`yyyy-MM-dd'T'HH:mm:ss`) |
+| `paidAt` | string | N | 결제일시 (`yyyy-MM-dd'T'HH:mm:ss`) |
+| `parcelPrintMessage` | string | Y | 택배 인쇄 메시지 (배송 메모). e.g. `"문 앞"` |
+| `invoiceNumber` | string | Y | 운송장 번호 (배송 전이면 빈 문자열) |
+| `deliveryCompanyName` | string | Y | 택배사명 (배송 전이면 빈 문자열) |
+| `inTrasitDateTime` | string | Y | 출고일시 |
+| `deliveredDate` | string | Y | 배송완료일시 |
+| `shippingPrice` | number | N | 배송비 |
+| `remotePrice` | number | N | 도서산간 추가 배송비 |
+| `remoteArea` | boolean | N | 도서산간 지역 여부 |
+| `splitShipping` | boolean | N | 분할배송 가능 여부 |
+| `ableSplitShipping` | boolean | N | 분할배송 설정 가능 여부 |
+| `refer` | string | Y | 주문 경로 (e.g. `"아이폰앱"`) |
+| `shipmentType` | string | Y | 배송 유형 (`"THIRD_PARTY"`: 판매자 직접 배송, `"ROCKET"`: 로켓배송) |
+
+#### receiver (수취인 정보)
+
+| 필드 | 타입 | Nullable | Description |
+|------|------|----------|-------------|
+| `name` | string | N | 수령자 이름 |
+| `safeNumber` | string | N | 수령자 전화번호 (마스킹 처리, e.g. `"0502-4272-3093"`) |
+| `receiverNumber` | string | Y | 수령자 실제 전화번호 (nullable, 보통 마스킹 처리됨) |
+| `postCode` | string | N | 우편번호 |
+| `addr1` | string | N | 주소 기본 |
+| `addr2` | string | N | 주소 상세 |
+
+#### orderer (주문자 정보)
+
+| 필드 | 타입 | Nullable | Description |
+|------|------|----------|-------------|
+| `name` | string | N | 주문자 이름 |
+| `safeNumber` | string | Y | 주문자 전화번호 (마스킹 처리) |
+| `email` | string | Y | 주문자 이메일 |
+| `ordererNumber` | string | Y | 주문자 실제 전화번호 (nullable) |
+
+#### overseaShippingInfoDto (추가/해외배송 정보)
+
+| 필드 | 타입 | Nullable | Description |
+|------|------|----------|-------------|
+| `personalCustomsClearanceCode` | string | Y | 개인통관고유부호 (e.g. `"P210011766727"`) |
+| `ordererPhoneNumber` | string | Y | 주문자 실제 전화번호 (마스킹 없음) |
+| `ordererSsn` | string | Y | 주문자 주민등록번호 (보통 빈 문자열) |
+
+> ⚠️ **해외배송 상품만 `overseaShippingInfoDto`가 존재**함. 국내배송 상품은 `null`.
 
 ### orderItems[] (주문 상품)
 
-| 필드                    | 타입    | Nullable | Description                                      |
-|------------------------|---------|----------|--------------------------------------------------|
-| `externalVendorSkuCode`| string  | Y        | 판매자 상품 코드 ⚠️ 부정확할 수 있음 (아래 주의사항 참고) |
-| `sellerProductId`      | string  | Y        | 쿠팡 상품 ID                                     |
-| `vendorItemId`         | string  | Y        | 쿠팡 상품 옵션 ID                                |
-| `vendorItemName`       | string  | N        | 상품명 (옵션 포함)                               |
-| `sellerProductName`    | string  | Y        | 판매자 상품명                                    |
-| `shippingCount`        | number  | N        | 배송 수량                                        |
-| `orderPrice`           | string  | N        | 주문 단가 (문자열, e.g. `"15000"`)               |
+| 필드 | 타입 | Nullable | Description |
+|------|------|----------|-------------|
+| `externalVendorSkuCode` | string | Y | 판매자 상품 코드 ⚠️ 부정확할 수 있음 (아래 주의사항 참고) |
+| `sellerProductId` | number | Y | 쿠팡 상품 ID |
+| `sellerProductName` | string | Y | 판매자 상품명 |
+| `productId` | number | Y | 쿠팡 상품 ID (sellerProductId와 유사) |
+| `vendorItemId` | number | Y | 쿠팡 상품 옵션 ID |
+| `vendorItemName` | string | N | 상품명 (옵션 포함) |
+| `vendorItemPackageId` | number | Y | 묶음 상품 ID (단일이면 0) |
+| `vendorItemPackageName` | string | Y | 묶음 상품명 |
+| `shippingCount` | number | N | 배송 수량 |
+| `orderPrice` | number | N | 주문 단가 |
+| `salesPrice` | number | N | 판매 단가 |
+| `discountPrice` | number | N | 할인 금액 |
+| `instantCouponDiscount` | number | N | 즉시할인쿠폰 할인액 |
+| `downloadableCouponDiscount` | number | N | 다운로드쿠폰 할인액 |
+| `coupangDiscount` | number | N | 쿠팡 할인액 |
+| `estimatedShippingDate` | string | Y | 예상 출고일 (`yyyy-MM-dd`) |
+| `deliveryChargeTypeName` | string | Y | 배송비 유형 (e.g. `"무료"`) |
+| `cancelCount` | number | N | 취소 수량 |
+| `canceled` | boolean | N | 취소 여부 |
+| `confirmDate` | string | Y | 구매확정일시 |
+| `usedProduct` | boolean | N | 중고상품 여부 |
 
 ---
 
@@ -199,21 +291,40 @@ for each status in [ACCEPT, INSTRUCT, DEPARTURE, DELIVERING, FINAL_DELIVERY, NON
 
 ---
 
-## 5. 참고: `8100198119354` 주문 예시 (conceptual)
+## 5. 실제 조회 결과: `8100198119354` 주문
+
+최근 30일간 `INSTRUCT`(배송준비중) 상태에서 조회된 실제 주문:
 
 ```
-GET /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/ordersheets
+GET /v2/providers/openapi/apis/api/v4/vendors/A00213055/ordersheets
     ?createdAtFrom=2026-05-17
     &createdAtTo=2026-06-16
     &maxPerPage=50
     &searchType=timeframe
-    &status=ACCEPT
+    &status=INSTRUCT
 
-Authorization: CEA algorithm=HmacSHA256, access-key=xxxxx, signed-date=260616T120000Z, signature=yyyyy
-X-Requested-By: {vendorId}
+Authorization: CEA algorithm=HmacSHA256, access-key=97211801-..., signed-date=260616T001051Z, signature=...
+X-Requested-By: A00213055
 ```
 
-응답에서 `orderId` 또는 `orderItems[].vendorItemId` 등으로 `8100198119354` 식별 가능.
+**응답 요약:**
+
+| 필드 | 값 |
+|------|-----|
+| `orderId` | `8100198119354` |
+| `status` | `INSTRUCT` (배송준비중) |
+| `orderedAt` | `2026-06-15T02:16:52` |
+| 상품 | California Gold Nutrition Omega 800 (2팩) |
+| 수취인 | 이정수 / 0502-4272-3093 / 충북 청주시 흥덕구 |
+| 우편번호 | `28563` |
+| 배송메모 | `문 앞` |
+| 통관번호 | `P210011766727` (해외배송) |
+| orderPrice | 41,200원 |
+| `externalVendorSkuCode` | `P000BFLG000A` |
+
+> **특이사항**: 이 주문은 `overseaShippingInfoDto`가 존재하는 **해외배송 상품**으로,
+> `personalCustomsClearanceCode`(통관번호)와 `ordererPhoneNumber`(실제 전화번호)가 포함되어 있음.
+> 국내배송 상품의 경우 `overseaShippingInfoDto`는 `null`.
 
 ---
 
@@ -231,10 +342,32 @@ X-Requested-By: {vendorId}
 
 ### dump_coupang.js 서명 버그
 
-JS 덤프 스크립트의 HMAC 서명에서 **쿼리 스트링이 포함되지 않는** 버그 존재.
+JS 덤프 스크립트의 HMAC 서명 방식이 **Java 구현과 다름**:
 
-- Java (정확): `datetime + "GET" + path + "?" + query`
-- JS (버그): `datetime + "GET" + path` (쿼리 스트링 누락)
+- **Java (정확)**: `datetime + "GET" + path + query`
+  - `path`는 `?` 제외한 경로, `query`는 `?` 없는 쿼리스트링
+  - e.g. `260616T001051ZGET/v2/providers/.../ordersheetscreatedAtFrom=...&status=INSTRUCT`
+  - `?`가 **없음** (path와 query 사이에 `?` 미포함)
+- **JS (오류)**: `datetime + "GET" + path` (path에 `?` 포함된 전체 경로)
+  - e.g. `20260616T001200ZGET/v2/providers/.../ordersheets?createdAtFrom=...&status=INSTRUCT`
+  - Coupang API는 이 형식을 **거부**함 (`HMAC format is invalid`)
+
+> 또 다른 차이: Java는 2자리 연도(`yy`), JS는 4자리 연도(`yyyy`) 사용.
+> → 반드시 **Java 형식**(`yyMMdd'T'HHmmss'Z'`, `path`와 `query` 사이 `?` 없음)을 따라야 함.
+
+### HMAC 서명 시 datetime 포맷 주의
+
+Java `DateTimeFormatter` 패턴 `"yyMMdd'T'HHmmss'Z'"`:
+
+| 의도 | 실제 출력 |
+|------|-----------|
+| `'T'` (literal T) | `T` |
+| `'Z'` (literal Z) | `Z` |
+| 결과 | `260616T001051Z` |
+
+> ⚠️ **bash `date` 명령어 사용 시**: `date -u +"%y%m%dT%H%M%SZ"` — 작은따옴표를 **포함하지 마라**.
+> 잘못된 예: `date -u +"%y%m%d'T'%H%M%S'Z'"` → `260616'T'001051'Z'` (틀림) ❌
+> 올바른 예: `date -u +"%y%m%dT%H%M%SZ"` → `260616T001051Z` (정확) ✅
 
 ---
 
