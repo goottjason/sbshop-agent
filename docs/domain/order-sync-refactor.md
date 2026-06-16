@@ -34,19 +34,34 @@
 | SourcingData | `sourcing_order_no` | String | 소싱주문번호 | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
 | SourcingData | `sourcing_amount` | BigDecimal | 소싱금액 (원가) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
 | SourcingData | `discount_code` | String | 할인코드 | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
-| SettlementData | `sale_price` | BigDecimal | 판매가 (단가) | `orderPrice` | `totalPaymentAmount ÷ quantity` | `selPrc` | `tradeAmnt ÷ orderQty` |
-| SettlementData | `settlement_amount` | BigDecimal | 정산금액 | `orderPrice × quantity` | `totalPaymentAmount` | `ordAmt` | `tradeAmnt` |
+| SettlementData | `settlement_amount` | BigDecimal | 정산금액 | `totalAmount × 0.89` (수수료 11% 반영) | `totalPaymentAmount` | `ordAmt` | `tradeAmnt` |
 | SettlementData | `shipping_fee` | BigDecimal | 배송비 | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
-| SettlementData | `net_profit` | BigDecimal | 순이익 | `—` (정산금액 - 소싱금액 계산) | `—` (정산금액 - 소싱금액 계산) | `—` (정산금액 - 소싱금액 계산) | `—` (정산금액 - 소싱금액 계산) |
+| SettlementData | `settlement_verified` | Boolean | 정산 검증 완료 여부 | 쿠팡 정산 동기화 시 `true` | `—` | `—` | `—` |
 | ShippingData | `tracking_no` | String | 송장번호 | `invoiceNumber` ("null" 문자열 필터링) | `deliveryInfo.trackingNumber` | `invcNo` | `—` / HTML |
 | ShippingData | `shipping_status` | enum `ShippingStatus` | 배송상태 | `CoupangStatusMapper` | `SmartStoreStatusMapper` | `ElevenstStatusMapper` | `EsmplusStatusMapper` |
 | ShippingData | `shipping_carrier` | enum `ShippingCarrier` | 택배사 | `deliveryCompanyName` → `fromMarketCode()` | `deliveryInfo.deliveryCompany` → `fromMarketCode()` | `dlvEtprsCd` (5자리 숫자 매핑) | `CJ_LOGISTICS` (기본값) |
 | ShippingData | `is_unipass_done` | Boolean | 유니패스 신고 완료 여부 | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
-| ShippingData | `marketplace_synced` | Boolean | 마켓 송장 동기화 여부 | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
+| ShippingData | `tracking_sent_to_market` | Boolean | 마켓 송장 전송 완료 여부 | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
+
+#### `MarketRegistration` (`sb_market_registration`)
+
+마켓별 상품 매핑 정보를 저장하는 엔티티. 쿠팡의 `vendorItemId` → SB 상품 매핑에 사용.
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| `product_id` | Long | 마켓 상품 ID |
+| `sb_product_id` | Long | SB 상품 ID (`sb_product` 참조) |
+| `market_type` | enum `MarketType` | 마켓 타입 |
+| `market_product_name` | String | 마켓 등록 상품명 |
+| `market_identifiers` | TEXT | 마켓 식별자 JSON (쿠팡: `{"vendorItemId": "..."}`) |
+| `market_detailed_info` | LONGTEXT | 마켓 상세 정보 |
+| `is_synced` | Boolean | 동기화 완료 여부 |
+| `last_synced_at` | LocalDateTime | 마지막 동기화 시각 |
 
 ### 열거형
 
 #### `ShippingStatus` (우선순위 포함)
+- `UNKNOWN(-2)` — 알수없음 (모든 매핑의 기본값)
 - `NEW(0)` — 결제완료
 - `PREPARING(1)` — 구매준비
 - `PURCHASED(2)` — 구매완료
@@ -87,6 +102,7 @@
 ├──────────────────────────────────────┤
 │  도메인 계층                          │
 │  Order, OrderLineItem 엔티티          │
+│  MarketRegistration 엔티티            │
 │  VO, Enum, Repository 인터페이스      │
 ├──────────────────────────────────────┤
 │  인프라스트럭처 계층                  │
@@ -127,24 +143,22 @@ SyncService → Adapter (MarketOrderPort) → ApiClient (infra)
 
 ```
 for each dto:
-  resolveProductId() → productId 설정 (vendorItemId → MarketRegistration or sbCode → Product)
+  resolveProductId() → productId 설정 (쿠팡: vendorItemId → MarketRegistration → sb_product_id, 
+                                        기타: marketProductCode → Product.findBySbCode())
   marketOrderNo로 기존 주문 조회
   
-  if 기존주문 && (alwaysFetchDetail || 상품코드 없음):
+  if 기존주문 && alwaysFetchDetail:
     fullDto = port.fetchOrderDetail(credential, dto)
     if fullDto: updateExistingOrder(fullDto)
-    else:       updateExistingOrder(dto)  // 송장만 업데이트
+    else:       updateExistingOrder(dto)
   elif 기존주문:
     updateExistingOrder(dto)
-  elif alwaysFetchDetail || 상품코드 없음:
+  elif alwaysFetchDetail:
     fullDto = port.fetchOrderDetail(credential, dto)
     if fullDto: createNewOrder(fullDto)
-    elif 상품코드 있음: createNewOrder(dto)
-    else: 건너뜀
-  elif 상품코드 있음:
-    createNewOrder(dto)
+    else:       createNewOrder(dto)  // 기본 데이터로 생성
   else:
-    건너뜀
+    createNewOrder(dto)
 ```
 
 ---
@@ -158,13 +172,13 @@ for each dto:
 | **API 타입** | REST JSON, HMAC 서명 |
 | **인증** | AccessKey + SecretKey + VendorId |
 | **주문 조회** | 6개 상태 순차 조회 (ACCEPT, INSTRUCT, DEPARTURE, DELIVERING, FINAL_DELIVERY, NONE_TRACKING), 1초 간격 |
-| **정산** | 전용 `querySettlement()` — sales-details API |
-| **P000x 코드 변환** | `externalVendorSkuCode`가 `P000`으로 시작하면 `sellerProductName`/`vendorItemName` → `ProductRepository.findByProductNameProductNameContaining()`으로 조회. 또한 `sellerProductId`로 `queryProduct` API를 호출하여 올바른 `externalVendorSku` 획득. |
+| **정산** | 전용 `querySettlement()` — sales-details API. 초기 정산금액 = `totalAmount × 0.89` (수수료 11% 반영) |
+| **상품 매핑** | `vendorItemId` → `sb_market_registration.market_identifiers` (JSON) → `sb_product_id` |
 | **후처리** | `detectCancellations()` — DB에는 있지만 API 결과에 없는 주문 → CANCELED. `fixCarriers()` — ETC 택배사나 송장번호 누락 → API에서 보정. |
 | **alwaysFetchDetail** | false (목록 API가 전체 데이터 반환) |
-| **shipOrder** | `coupangOrderApiPort.shipOrder()` 호출 |
+| **shipOrder** | `coupangOrderApiPort.shipOrder()` 호출. `resolveVendorItemId()`로 `MarketRegistration`에서 vendorItemId 조회 |
 | **acceptOrders** | `coupangOrderApiPort.acceptOrders()`에 `shipmentBoxId` 전달 |
-| **상태 매퍼** | `CoupangStatusMapper` — 쿠팡 API 상태코드를 `ShippingStatus`로 매핑 |
+| **상태 매퍼** | `CoupangStatusMapper` — 쿠팡 API 상태코드를 `ShippingStatus`로 매핑. 미등록 상태는 `UNKNOWN` |
 
 **주문 상세 페이지**: https://wing.coupang.com/orders/{orderId}
 
@@ -219,19 +233,19 @@ for each dto:
 
 | MarketOrderDto 필드 | 쿠팡 | 스마트스토어 | 11번가 | ESM+ (목록) | ESM+ (상세) |
 |---------------------|---------|------------|--------|-------------|---------------|
+| marketType | `COUPANG` (고정) | `SMART_STORE` (고정) | `ELEVEN_STREET` (고정) | `siteId` 매핑 | 동일 |
 | marketOrderNo | `orderId` | `productOrderId` | `ordNo` | `siteOrderNo` | 동일 |
 | marketProductCode | `vendorItemId` (orderItems → vendorItemId) | `sellerProductCode` | `sellerPrdCd` | `goodsNo` | 동일 |
-| productName | `vendorItemName` (DTO 전용, OrderLineItem 미저장) | `productName` (DTO 전용) | `prdNm` (DTO 전용) | `goodsName` (DTO 전용) | 동일 |
 | quantity | `shippingCount` | `quantity` | `ordQty` | `orderQty` | 동일 |
 | orderPrice | `orderPrice` | `totalPaymentAmount / quantity` | `selPrc` | `tradeAmnt / orderQty` | 동일 |
 | totalAmount | `orderPrice * quantity` | `totalPaymentAmount` | `ordAmt` | `tradeAmnt` | 동일 |
 | recipientName | `receiver.name` | `shippingAddress.name` | `rcvrNm` | `rcverName` | HTML 파싱 |
-| recipientPhone | `receiver.safeNumber` (또는 `overseaShippingInfoDto.ordererPhoneNumber`) | `shippingAddress.tel1` | `rcvrPrtblNo` | `""` | HTML 파싱 |
+| recipientPhone | `overseaShippingInfoDto.ordererPhoneNumber` (없으면 `receiver.safeNumber`) | `shippingAddress.tel1` | `rcvrPrtblNo` | `""` | HTML 파싱 |
 | zipcode | `receiver.postCode` | `shippingAddress.zipCode` | `rcvrMailNo` | `""` | HTML 파싱 |
 | address | `receiver.addr1 + addr2` | `shippingAddress.baseAddress + detailedAddress` | `rcvrBaseAddr + rcvrDtlsAddr` | `""` | HTML 파싱 |
 | message | `parcelPrintMessage` | `shippingMemo` | `ordDlvReqCont` | `""` | HTML 파싱 |
-| ordererName | `orderer.name` 또는 `overseaShippingInfoDto.ordererName` 또는 `recipientName` 폴백 | `ordererName` | `ordNm` | `buyerName` | 동일 |
-| ordererPhone | `overseaShippingInfoDto.ordererPhoneNumber` | `ordererTel` | `ordPrtblTel` | `""` | 동일 |
+| ordererName | `orderer.name` | `ordererName` | `ordNm` | `buyerName` | 동일 |
+| ordererPhone | `receiver.safeNumber` | `ordererTel` | `ordPrtblTel` | `""` | 동일 |
 | customsClearanceNo | `overseaShippingInfoDto.personalCustomsClearanceCode` | `individualCustomUniqueCode` ("undefined" 필터링) | `psnCscUniqNo` | — | — (ESM+ 없음) |
 | trackingNo | `invoiceNumber` | `deliveryInfo.trackingNumber` | `invcNo` | `""` | 동일 |
 | carrier | `deliveryCompanyName` → `ShippingCarrier.fromMarketCode()` | `deliveryInfo.deliveryCompany` → `fromMarketCode()` | `dlvEtprsCd` → 숫자 매핑 | CJ_LOGISTICS 기본값 | 동일 |
@@ -245,14 +259,18 @@ for each dto:
 
 ### 생성 (신규 주문)
 
-`buildOrderFromDto()`는 `MarketOrderDto` → `Order`로 직접 매핑. `buildLineItemFromDto()`는 송장/택배사/상태가 포함된 `ShippingData`, 판매가/정산금액이 포함된 `SettlementData`도 함께 생성.
+`buildOrderFromDto()`는 `MarketOrderDto` → `Order`로 직접 매핑. `buildLineItemFromDto()`는 송장/택배사/상태가 포함된 `ShippingData`, 정산금액이 포함된 `SettlementData`도 함께 생성.
+
+- 쿠팡: `SettlementData.settlementAmount` = `totalAmount × 0.89` (수수료 11% 반영)
+- 기타 마켓: `SettlementData.settlementAmount` = `totalAmount`
+- 모든 마켓: `SettlementData.settlementVerified` = `false` (초기값)
 
 ### 업데이트 (기존 주문)
 
 `updateExistingOrder(order, dto)`:
 1. 주문의 모든 `OrderLineItem` 조회
 2. 각 라인아이템: `resolveProductId()`로 `productId` 변경 시 `assignProductId()` 호출
-3. 하나라도 업데이트되면 `updateOrderInfoFromDto()` 호출 후 저장
+3. `updateOrderInfoFromDto()` 호출 후 저장 (변경 여부 무관)
 
 `updateLineItemFromDto()` 업데이트:
 - `productId` — `resolveProductId()`로 재설정
@@ -270,14 +288,42 @@ for each dto:
 다음 필드는 동기화 업데이트 시 **보존** (사용자 관리):
 - `sourcingData` (sourcingVendor, sourcingAccount, sourcingOrderNo, sourcingAmount, discountCode) — API 명령으로만 설정
 - `settlementData.shippingFee` — API로만 설정
-- `settlementData.netProfit` — 쿠팡 정산 동기화 시에만 재계산
+- `settlementData.settlementVerified` — 쿠팡 정산 동기화 시에만 `true`
 - `shippingData.isUnipassDone` — API로만
-- `shippingData.marketplaceSynced` — API로만
+- `shippingData.trackingSentToMarket` — API로만
 - `customsData.customsStatus` — API/통관 확인으로만
 
 ### 필드 출처 우선순위
 
 ESM+의 경우 `fetchOrderDetail()`은 **상세 특화 필드**만 채워진 DTO 반환 (전화번호/주소/우편번호/메시지). `AbstractOrderSyncService.updateOrderInfoFromDto()`는 null-safe 패턴으로 적용 — 상세 필드가 목록 API의 빈 칸을 채움. ESM+는 `alwaysFetchDetail()=true`이므로 상세 DTO로 완전한 DTO를 구성.
+
+---
+
+## 상품 매핑 (상세)
+
+### 쿠팡 vendorItemId 매핑
+
+쿠팡은 `sb_market_registration` 테이블을 통해 `vendorItemId` → SB 상품 매핑:
+
+```
+1. MarketOrderDto.marketProductCode = orderItems[0].vendorItemId
+2. AbstractOrderSyncService.resolveProductId():
+   marketRegistrationRepository.findByMarketTypeAndIdentifiersContaining(COUPANG, vendorItemId)
+   → MarketRegistration.sbProductId 반환
+3. shipOrder 시:
+   resolveVendorItemId()로 MarketRegistration.marketIdentifiers JSON에서 vendorItemId 조회
+```
+
+### 타 마켓 SB 코드 매핑
+
+```
+MarketOrderDto.marketProductCode = SB 코드 (예: "SB-001")
+→ ProductRepository.findBySbCode(sbCode) → Product.id
+```
+
+### P000x 코드 변환 (제거됨)
+
+기존 `resolveP000xCode()`는 `externalVendorSkuCode`가 `P000`으로 시작할 때 상품명 매칭으로 SB 코드를 찾는 로직이었으나, `sb_market_registration` 기반 매핑으로 대체되어 제거됨.
 
 ---
 
@@ -315,11 +361,11 @@ ESM+의 경우 `fetchOrderDetail()`은 **상세 특화 필드**만 채워진 DTO
 
 1. **`alwaysFetchDetail()` 훅** — ESM+는 목록 API에 연락처/주소 데이터가 없어 `true`로 오버라이드. 쿠팡/스마트스토어/11번가는 목록 API에 전체 데이터 있음 (11번가 배송중 엔드포인트 제외 → fetchOrderDetail 폴백).
 
-2. **상품 ID 매핑** — 쿠팡은 `vendorItemId` → `MarketRegistration.marketIdentifiers`(JSON) → `sb_product_id`로 조회 (`MarketRegistrationRepository`). 다른 마켓은 `marketProductCode`(SB 코드) → `Product.findBySbCode()`로 조회. `OrderLineItem`에서 `market_product_name`, `market_product_code`, `seller_product_name` 컬럼 제거됨 — 제품 정보는 `product_id` → `Product` 참조로 획득.
+2. **상품 ID 매핑** — 쿠팡은 `vendorItemId` → `MarketRegistration.marketIdentifiers`(JSON) → `sb_product_id`로 조회 (`MarketRegistrationRepository`). 다른 마켓은 `marketProductCode`(SB 코드) → `Product.findBySbCode()`로 조회.
 
-3. **정산 동기화** — 쿠팡만 정산 동기화 보유. 야간 실행, 쿠팡 Sales Details API 조회, DELIVERED 주문만 `SettlementData.settlementAmount` 업데이트 및 `netProfit` 재계산.
+3. **정산 동기화** — 쿠팡만 정산 동기화 보유. 야간 실행, 쿠팡 Sales Details API 조회, DELIVERED 주문만 `SettlementData.settlementAmount` 업데이트 및 `settlementVerified = true` 설정. 순수익(netProfit)은 DB 저장하지 않고 프론트에서 실시간 계산.
 
-4. **상태 다운그레이드 방지** — `ShippingStatus.isDowngrade()`가 SHIPPED → PREPARING 이동을 차단. 터미널 상태(CANCELED/RETURNED/EXCHANGED)는 항상 허용.
+4. **상태 다운그레이드 방지** — `ShippingStatus.isDowngrade()`가 SHIPPED → PREPARING 이동을 차단. 터미널 상태(CANCELED/RETURNED/EXCHANGED)는 항상 허용. 미등록 상태는 `UNKNOWN(-2)`으로 매핑.
 
 5. **취소 감지** — 쿠팡의 후처리 훅이 API 결과와 DB 비교. DB에는 있지만 API에 없는 주문은 CANCELED 처리 (이미 DELIVERED 또는 CANCELED인 경우 제외).
 
