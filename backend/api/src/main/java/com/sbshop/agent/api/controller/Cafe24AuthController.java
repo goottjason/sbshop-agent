@@ -1,6 +1,6 @@
 package com.sbshop.agent.api.controller;
 
-import com.sbshop.agent.infrastructure.client.cafe24.auth.Cafe24TokenManager;
+import com.sbshop.agent.infrastructure.client.cafe24.Cafe24TokenManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

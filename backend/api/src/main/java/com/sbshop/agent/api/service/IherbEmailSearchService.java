@@ -1,6 +1,6 @@
 package com.sbshop.agent.api.service;
 
-import com.sbshop.agent.api.config.EmailAccountProperties;
+import com.sbshop.agent.core.config.EmailAccountProperties;
 import jakarta.mail.*;
 import java.math.BigDecimal;
 import java.util.Optional;

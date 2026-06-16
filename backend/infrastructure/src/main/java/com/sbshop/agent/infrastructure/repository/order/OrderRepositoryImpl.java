@@ -5,21 +5,26 @@ import static com.sbshop.agent.core.domain.order.QOrder.order;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import com.sbshop.agent.core.application.order.dto.OrderDetailDto;
+import com.sbshop.agent.core.application.order.dto.OrderDetailDto.OrderLineItemDetailDto;
+import com.sbshop.agent.core.application.order.dto.OrderSearchCondition;
+import com.sbshop.agent.core.domain.market.MarketRegistration;
+import com.sbshop.agent.core.domain.market.QMarketRegistration;
 import com.sbshop.agent.core.domain.order.Order;
-import com.sbshop.agent.core.domain.order.dto.OrderSearchCondition;
+import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.domain.order.QOrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.repository.OrderRepositoryCustom;
+import com.sbshop.agent.core.domain.product.Product;
+import com.sbshop.agent.core.domain.product.QProduct;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Repository;
-import com.sbshop.agent.core.domain.order.OrderLineItem;
-import com.sbshop.agent.core.domain.order.QOrderLineItem;
-import com.sbshop.agent.core.domain.order.dto.OrderGridDto;
-import com.sbshop.agent.core.domain.product.Product;
-import com.sbshop.agent.core.domain.product.QProduct;
 
 @Repository
 @RequiredArgsConstructor
@@ -28,21 +33,13 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 	private final JPAQueryFactory queryFactory;
 
 	@Override
-	public Page<OrderGridDto> searchOrderGrid(OrderSearchCondition condition,
+	public Page<OrderDetailDto> searchOrderGrid(OrderSearchCondition condition,
 		Pageable pageable) {
-		com.querydsl.core.types.dsl.PathBuilder<Order> orderPath = new com.querydsl.core.types.dsl.PathBuilder<>(
-			Order.class, "order1");
-		// For now, to fix compilation and prove concept, we map from the order entity directly using queryFactory
-		// In a fully optimized projection, we would left join QOrderLineItem and QProduct.
-		// Given the complexity of the DTO and constructor matching, we can do a tuple projection or use the DTO builder.
-		// Let's use a simpler Projections.fields or constructor if we have the Q classes.
-		// For safety and to prevent massive build failures without seeing the Q-classes, we will fetch Orders,
-		// and then manually fetch LineItems with a secondary IN query to construct the DTOs, completely avoiding Lazy Loading!
-
-		// 1. Fetch Orders
 		QOrderLineItem qLineItem = QOrderLineItem.orderLineItem;
 		QProduct qProduct = QProduct.product;
+		QMarketRegistration qReg = QMarketRegistration.marketRegistration;
 
+		// 1. Fetch Orders
 		JPAQuery<Order> query = queryFactory
 			.selectFrom(order)
 			.leftJoin(qLineItem).on(qLineItem.orderId.eq(order.id))
@@ -59,29 +56,47 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 
 		List<Order> orders = query.fetch();
 
-		// 2. Fetch LineItems for these Orders (No N+1, just 1 query)
+		// 2. Fetch LineItems + Products + MarketRegistrations for these Orders (single join query)
 		List<Long> orderIds = orders.stream().map(Order::getId).toList();
 
-		List<com.querydsl.core.Tuple> lineItemTuples = orderIds.isEmpty() ? java.util.Collections.emptyList()
+		List<com.querydsl.core.Tuple> tuples = orderIds.isEmpty() ? List.of()
 			: queryFactory
-				.select(qLineItem, qProduct)
+				.select(qLineItem, qProduct, qReg)
 				.from(qLineItem)
 				.leftJoin(qProduct).on(qLineItem.productId.eq(qProduct.id))
+				.leftJoin(qReg).on(qReg.productId.eq(qLineItem.productId))
 				.where(qLineItem.orderId.in(orderIds))
 				.fetch();
 
-		// 3. Map Tuples to a Map by OrderId
-		java.util.Map<Long, java.util.List<com.querydsl.core.Tuple>> itemsByOrderId = lineItemTuples.stream()
-			.collect(java.util.stream.Collectors.groupingBy(t -> t.get(qLineItem).getOrderId()));
+		// 3. Group tuples by orderId
+		Map<Long, List<com.querydsl.core.Tuple>> tuplesByOrderId = tuples.stream()
+			.collect(Collectors.groupingBy(t -> t.get(qLineItem).getOrderId()));
 
-		// 4. Construct DTOs
-		List<OrderGridDto> dtoList = orders.stream().flatMap(o -> {
-			java.util.List<com.querydsl.core.Tuple> tuples = itemsByOrderId.getOrDefault(o.getId(),
-				java.util.Collections.emptyList());
-			if (tuples.isEmpty()) {
-				return java.util.stream.Stream.of(buildDto(o, null, null));
-			}
-			return tuples.stream().map(t -> buildDto(o, t.get(qLineItem), t.get(qProduct)));
+		// 4. Construct hierarchical DTOs
+		List<OrderDetailDto> dtoList = orders.stream().map(o -> {
+			List<com.querydsl.core.Tuple> orderTuples = tuplesByOrderId.getOrDefault(o.getId(), List.of());
+			// Group by lineItem id to handle products with multiple market registrations
+			Map<Long, List<com.querydsl.core.Tuple>> byLineItemId = orderTuples.stream()
+				.collect(Collectors.groupingBy(t -> t.get(qLineItem).getId()));
+			List<OrderLineItemDetailDto> items = byLineItemId.values().stream().map(liTuples -> {
+				com.querydsl.core.Tuple first = liTuples.get(0);
+				OrderLineItem li = first.get(qLineItem);
+				Product p = first.get(qProduct);
+				MarketRegistration reg = liTuples.stream()
+					.map(t -> t.get(qReg))
+					.filter(r -> r != null && r.getMarketType() == o.getMarketType())
+					.findFirst()
+					.orElse(null);
+				return OrderLineItemDetailDto.builder()
+					.lineItem(li)
+					.product(p)
+					.marketRegistration(reg)
+					.build();
+			}).toList();
+			return OrderDetailDto.builder()
+				.order(o)
+				.lineItems(items)
+				.build();
 		}).toList();
 
 		JPAQuery<Long> countQuery = queryFactory
@@ -96,15 +111,6 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 				dateBetween(condition.getStartDate(), condition.getEndDate()));
 
 		return PageableExecutionUtils.getPage(dtoList, pageable, countQuery::fetchOne);
-	}
-
-	private OrderGridDto buildDto(Order o,
-		OrderLineItem item, Product product) {
-		return OrderGridDto.builder()
-			.order(o)
-			.lineItem(item)
-			.product(product)
-			.build();
 	}
 
 	private BooleanExpression marketTypeIn(java.util.List<MarketType> marketTypes) {

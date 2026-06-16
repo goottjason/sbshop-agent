@@ -2,10 +2,10 @@ package com.sbshop.agent.api.controller;
 
 import com.sbshop.agent.api.dto.OrderUpdateRequest;
 import com.sbshop.agent.api.service.IherbEmailSearchService;
-import com.sbshop.agent.core.application.order.OrderService;
-import com.sbshop.agent.core.application.order.OrderUpdateCommand;
+import com.sbshop.agent.core.application.order.service.OrderService;
+import com.sbshop.agent.core.application.order.dto.OrderUpdateCommand;
 import com.sbshop.agent.core.domain.order.Order;
-import com.sbshop.agent.core.domain.order.dto.OrderSearchCondition;
+import com.sbshop.agent.core.application.order.dto.OrderSearchCondition;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -13,8 +13,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.sbshop.agent.api.dto.OrderShipRequest;
-import com.sbshop.agent.core.application.order.OrderShipService;
-import com.sbshop.agent.core.domain.order.dto.OrderGridDto;
+import com.sbshop.agent.core.application.order.service.OrderShipService;
+import com.sbshop.agent.core.application.order.dto.OrderDetailDto;
 
 @Slf4j
 @RestController
@@ -33,11 +33,11 @@ public class OrderController {
 	private final IherbEmailSearchService iherbEmailSearchService;
 
 	@GetMapping
-	public ResponseEntity<Page<OrderGridDto>> getOrders(
+	public ResponseEntity<Page<OrderDetailDto>> getOrders(
 		OrderSearchCondition condition, Pageable pageable) {
 		System.out.println("DEBUG OrderSearchCondition: " + condition);
 		// 1. 주문 검색 조건 및 페이징 파라미터 전달하여 조회
-		Page<OrderGridDto> dtoPage = orderService.searchOrders(condition,
+		Page<OrderDetailDto> dtoPage = orderService.searchOrders(condition,
 			pageable);
 
 		// 2. 조회된 그리드용 DTO 페이지 반환
@@ -73,7 +73,7 @@ public class OrderController {
 		Long id, @RequestBody
 		com.sbshop.agent.api.dto.OrderLineItemUpdateRequest request) {
 
-		com.sbshop.agent.core.application.order.OrderLineItemUpdateCommand command = com.sbshop.agent.core.application.order.OrderLineItemUpdateCommand
+		com.sbshop.agent.core.application.order.dto.OrderLineItemUpdateCommand command = com.sbshop.agent.core.application.order.dto.OrderLineItemUpdateCommand
 			.builder()
 			.sourcingAccount(request.getSourcingAccount())
 			.sourcingOrderNo(request.getSourcingOrderNo())

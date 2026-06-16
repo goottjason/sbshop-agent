@@ -1,6 +1,6 @@
 package com.sbshop.agent.api.controller;
 
-import com.sbshop.agent.core.application.order.SyncCompletedEvent;
+import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.CrossOrigin;

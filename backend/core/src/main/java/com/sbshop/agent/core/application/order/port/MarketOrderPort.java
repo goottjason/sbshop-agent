@@ -3,7 +3,7 @@ package com.sbshop.agent.core.application.order.port;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
-import com.sbshop.agent.core.domain.order.dto.MarketOrderDto;
+import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import java.math.BigDecimal;

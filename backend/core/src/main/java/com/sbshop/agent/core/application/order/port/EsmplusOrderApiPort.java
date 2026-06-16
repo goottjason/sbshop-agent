@@ -1,6 +1,6 @@
 package com.sbshop.agent.core.application.order.port;
 
-import com.sbshop.agent.core.domain.order.dto.MarketOrderDto;
+import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import java.time.LocalDate;
 import java.util.List;
 

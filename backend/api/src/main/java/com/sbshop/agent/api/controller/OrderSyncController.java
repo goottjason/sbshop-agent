@@ -1,9 +1,10 @@
 package com.sbshop.agent.api.controller;
 
-import com.sbshop.agent.core.application.order.CoupangOrderSyncService;
-import com.sbshop.agent.core.application.order.ElevenstOrderSyncService;
-import com.sbshop.agent.core.application.order.EsmplusOrderSyncService;
-import com.sbshop.agent.core.application.order.SmartStoreOrderSyncService;
+import com.sbshop.agent.core.application.order.service.CoupangOrderSyncService;
+import com.sbshop.agent.core.application.order.service.ElevenstOrderSyncService;
+import com.sbshop.agent.core.application.order.service.EsmplusOrderSyncService;
+import com.sbshop.agent.core.application.order.service.SmartStoreOrderSyncService;
+import com.sbshop.agent.core.application.order.service.CustomsOrderSyncService;
 import com.sbshop.agent.infrastructure.client.esmplus.EsmplusScraper;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +38,7 @@ public class OrderSyncController {
 	// ESM+(G마켓/옥션) 주문 동기화 서비스 의존성
 	private final EsmplusOrderSyncService esmplusOrderSyncService;
 	// 통관 상태 동기화 서비스 의존성
-	private final com.sbshop.agent.core.application.order.CustomsOrderSyncService customsOrderSyncService;
+	private final CustomsOrderSyncService customsOrderSyncService;
 	// ESM+ 웹 스크래퍼
 	private final EsmplusScraper esmplusScraper;
 
