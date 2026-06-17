@@ -15,6 +15,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
+import com.sbshop.agent.core.domain.order.enums.VerifiedPerson;
 import org.hibernate.annotations.JdbcTypeCode;
 import java.sql.Types;
 
@@ -133,10 +134,20 @@ public class Order extends BaseEntity {
 	}
 
 	public void updateCustomsStatus(CustomsStatus status) {
+		updateCustomsStatus(status, null);
+	}
+
+	public void updateCustomsStatus(CustomsStatus status, VerifiedPerson verifiedPerson) {
 		if (this.customsData == null) {
-			this.customsData = CustomsData.builder().customsStatus(status).build();
+			this.customsData = CustomsData.builder()
+				.customsStatus(status)
+				.verifiedPerson(verifiedPerson)
+				.build();
 		} else {
-			this.customsData = this.customsData.toBuilder().customsStatus(status).build();
+			this.customsData = this.customsData.toBuilder()
+				.customsStatus(status)
+				.verifiedPerson(verifiedPerson)
+				.build();
 		}
 	}
 

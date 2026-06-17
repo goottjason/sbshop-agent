@@ -1,8 +1,10 @@
 package com.sbshop.agent.infrastructure.client.customs;
 
+import com.sbshop.agent.core.application.order.dto.CustomsVerificationResult;
 import com.sbshop.agent.core.application.order.port.CustomsClearancePort;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
+import com.sbshop.agent.core.domain.order.enums.VerifiedPerson;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -21,8 +23,8 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 	private static final String TARGET_URL = "https://www.gsiexpress.com/pcc_chk.php";
 
 	@Override
-	public Map<Long, CustomsStatus> verifyBulk(List<Order> orders) {
-		Map<Long, CustomsStatus> resultMap = new HashMap<>();
+	public Map<Long, CustomsVerificationResult> verifyBulk(List<Order> orders) {
+		Map<Long, CustomsVerificationResult> resultMap = new HashMap<>();
 
 		if (orders == null || orders.isEmpty()) {
 			return resultMap;
@@ -39,7 +41,7 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 			String zip = order.getZipcode();
 
 			if (pccc == null || pccc.isBlank() || recipientName == null || recipientName.isBlank()) {
-				resultMap.put(order.getId(), CustomsStatus.PENDING);
+				resultMap.put(order.getId(), CustomsVerificationResult.pending());
 				continue;
 			}
 
@@ -62,7 +64,7 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 					.append(zip).append("\n");
 			}
 
-			resultMap.put(order.getId(), CustomsStatus.PENDING);
+			resultMap.put(order.getId(), CustomsVerificationResult.pending());
 		}
 
 		String chkData = sb.toString().trim();
@@ -81,7 +83,6 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 				.post();
 
 			// 3. Parse result table
-			// The table might not have a tbody tag, let's just select all 'tr' elements containing 'td'
 			Elements rows = doc.select("tr");
 			log.info("Scraped {} rows from GSI Express response", rows.size());
 
@@ -89,7 +90,7 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 				Elements cols = row.select("td");
 				if (cols.size() >= 4) {
 					String rowText = row.text();
-					log.info("Parsing row text: {}", rowText);
+					log.debug("Parsing row text: {}", rowText);
 
 					for (Order order : orders) {
 						String recipientName = order.getRecipientName();
@@ -105,44 +106,77 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 						recipientName = recipientName.trim();
 						pccc = pccc.trim().toUpperCase();
 
-						boolean nameMatches = rowText.contains(recipientName);
-						if (!nameMatches && ordererName != null && !ordererName.isBlank()) {
-							nameMatches = rowText.contains(ordererName.trim());
+						// Track which person (recipient or orderer) matched this response row
+						VerifiedPerson matchedPerson = null;
+						boolean nameMatches = false;
+
+						if (rowText.contains(recipientName)) {
+							nameMatches = true;
+							matchedPerson = VerifiedPerson.RECIPIENT;
+						} else if (ordererName != null && !ordererName.isBlank()
+							&& rowText.contains(ordererName.trim())) {
+							nameMatches = true;
+							matchedPerson = VerifiedPerson.ORDERER;
 						}
 
-						// Check if row matches BOTH name and PCCC to correctly identify the specific order,
-						// especially if multiple orders share the same PCCC.
+						// Check if row matches BOTH name and PCCC to correctly identify the specific order
 						if (nameMatches && rowText.contains(pccc)) {
-							log.info("Matched name (recipient={}, orderer={}) and PCCC {} for order ID {}",
-								recipientName, ordererName, pccc, orderId);
+							log.info("Matched name={} and PCCC {} for order ID {}",
+								matchedPerson, pccc, orderId);
+
+							CustomsStatus rowStatus = CustomsStatus.PENDING;
 							if (rowText.contains("정상")) {
-								log.info("Status marked as VALID for order {}", orderId);
-								resultMap.put(orderId, CustomsStatus.VALID);
+								rowStatus = CustomsStatus.VALID;
 							} else if (rowText.contains("전화번호가 일치하지 않습니다")) {
-								log.info("Status marked as VALID_PHONE_MISMATCH for order {}", orderId);
-								resultMap.put(orderId, CustomsStatus.VALID_PHONE_MISMATCH);
+								rowStatus = CustomsStatus.VALID_PHONE_MISMATCH;
 							} else if (rowText.contains("오류") || rowText.contains("불일치")) {
-								log.info("Status marked as INVALID for order {}", orderId);
-								resultMap.put(orderId, CustomsStatus.INVALID);
-							} else {
-								log.warn("Name/PCCC matched but result text unclear: {}", rowText);
+								rowStatus = CustomsStatus.INVALID;
+							}
+
+							// Accumulate: only update if new status has higher priority
+							// Priority: VALID(3) > VALID_PHONE_MISMATCH(2) > INVALID(1) > PENDING(0)
+							CustomsVerificationResult current = resultMap.get(orderId);
+							int currentPriority = current != null ? priority(current.getStatus()) : -1;
+							int newPriority = priority(rowStatus);
+
+							if (newPriority > currentPriority) {
+								log.info("Updating order {} status: {} -> {} (matched={})",
+									orderId, current != null ? current.getStatus() : null, rowStatus, matchedPerson);
+								resultMap.put(orderId, CustomsVerificationResult.of(rowStatus, matchedPerson));
 							}
 						}
 					}
 				}
 			}
 
-			// Add log if no rows were found
-			if (rows.isEmpty() || resultMap.values().stream().allMatch(s -> s == CustomsStatus.PENDING)) {
+			// Log if no rows were found or all still PENDING
+			if (rows.isEmpty() || resultMap.values().stream().allMatch(
+				r -> r.getStatus() == CustomsStatus.PENDING)) {
 				log.warn("Failed to find or match any rows. HTML body snippet: {}",
 					doc.body().text().length() > 500 ? doc.body().text().substring(0, 500) : doc.body().text());
 			}
 
 		} catch (Exception e) {
 			log.error("Failed to scrape GSI Express for customs clearance", e);
-			// On failure, items remain PENDING.
 		}
 
 		return resultMap;
+	}
+
+	private int priority(CustomsStatus status) {
+		if (status == null)
+			return -1;
+		switch (status) {
+			case VALID:
+				return 3;
+			case VALID_PHONE_MISMATCH:
+				return 2;
+			case INVALID:
+				return 1;
+			case PENDING:
+				return 0;
+			default:
+				return 0;
+		}
 	}
 }

@@ -6,7 +6,8 @@ import {
   createColumnHelper,
 } from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchOrders, updateOrder, updateOrderLineItem, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, syncProductStock } from '../api/orderApi';
+import { fetchOrders, updateOrder, updateOrderLineItem, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, syncProductStock, fetchSyncStatus } from '../api/orderApi';
+import type { SyncStatus } from '../api/orderApi';
 import type { OrderGridDto } from '../api/orderApi';
 import { toast } from 'react-toastify';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
@@ -18,7 +19,7 @@ interface ProcessingModalProps {
   onClose: () => void;
   onSubmit: (data: any) => void;
   lineItem: any;
-  mode: 'purchase' | 'ship' | 'tracking';
+  mode: 'purchase' | 'ship' | 'tracking' | 'editSourcing';
 }
 
 const ProcessingModal: React.FC<ProcessingModalProps> = ({ isOpen, onClose, onSubmit, lineItem, mode }) => {
@@ -40,6 +41,11 @@ const ProcessingModal: React.FC<ProcessingModalProps> = ({ isOpen, onClose, onSu
         setDiscountCode('');
         setEmailAccount('');
         setVendorName('');
+      } else if (mode === 'editSourcing') {
+        setSourcingOrderNo(lineItem.lineItem?.sourcingData?.sourcingOrderNo || '');
+        setDiscountCode(lineItem.lineItem?.sourcingData?.discountCode || '');
+        setEmailAccount(lineItem.lineItem?.sourcingData?.sourcingAccount || '');
+        setVendorName('');
       } else if (mode === 'ship' || mode === 'tracking') {
         setTrackingNo(shipping?.trackingNo || '');
         setCarrier(shipping?.shippingCarrier || 'DHL');
@@ -49,7 +55,7 @@ const ProcessingModal: React.FC<ProcessingModalProps> = ({ isOpen, onClose, onSu
 
   if (!isOpen) return null;
 
-  const title = mode === 'purchase' ? '구매 처리' : mode === 'ship' ? '배송 처리' : '송장 수정';
+  const title = mode === 'purchase' ? '구매 처리' : mode === 'editSourcing' ? '구매정보 수정' : mode === 'ship' ? '배송 처리' : '송장 수정';
 
   return (
     <div style={{
@@ -161,6 +167,63 @@ const ProcessingModal: React.FC<ProcessingModalProps> = ({ isOpen, onClose, onSu
           </>
         )}
 
+        {mode === 'editSourcing' && (
+          <>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500 }}>이메일 계정</label>
+              <select
+                value={emailAccount}
+                onChange={e => setEmailAccount(e.target.value)}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px' }}
+              >
+                <option value="">선택하세요</option>
+                <option value="shouldbe.shopping@gmail.com">shouldbe.shopping@gmail.com</option>
+                <option value="kimjw8712@gmail.com">kimjw8712@gmail.com</option>
+                <option value="369butterfly369@gmail.com">369butterfly369@gmail.com</option>
+                <option value="mariahcarey0815@gmail.com">mariahcarey0815@gmail.com</option>
+                <option value="goottjason@gmail.com">goottjason@gmail.com</option>
+                <option value="kimsubi.0007@gmail.com">kimsubi.0007@gmail.com</option>
+                <option value="tonyworld@hanmail.net">tonyworld@hanmail.net</option>
+                <option value="younzara@naver.com">younzara@naver.com</option>
+                <option value="younzara@nate.com">younzara@nate.com</option>
+                <option value="dnglglzpzp@hanmail.net">dnglglzpzp@hanmail.net</option>
+                <option value="kimjongwon0907@gmail.com">kimjongwon0907@gmail.com</option>
+                <option value="oasis_0907@hanmail.net">oasis_0907@hanmail.net</option>
+                <option value="palme86@naver.com">palme86@naver.com</option>
+                <option value="younzara@gmail.com">younzara@gmail.com</option>
+                <option value="inegg@gmail.com">inegg@gmail.com</option>
+                <option value="spreadyourwings33@gmail.com">spreadyourwings33@gmail.com</option>
+                <option value="tomkim8712@gmail.com">tomkim8712@gmail.com</option>
+                <option value="kimshou825@gmail.com">kimshou825@gmail.com</option>
+                <option value="kimshou31@gmail.com">kimshou31@gmail.com</option>
+                <option value="ordinary_things@naver.com">ordinary_things@naver.com</option>
+                <option value="jongwon@g.skku.edu">jongwon@g.skku.edu</option>
+                <option value="gootkimjw8712@gmail.com">gootkimjw8712@gmail.com</option>
+              </select>
+            </div>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500 }}>구매번호 *</label>
+              <input
+                type="text"
+                value={sourcingOrderNo}
+                onChange={e => setSourcingOrderNo(e.target.value)}
+                placeholder="예: 12345678"
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px' }}
+              />
+            </div>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500 }}>할인코드</label>
+              <input
+                type="text"
+                value={discountCode}
+                onChange={e => setDiscountCode(e.target.value)}
+                placeholder="선택사항"
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px' }}
+              />
+            </div>
+          </>
+        )}
+
         {(mode === 'ship' || mode === 'tracking') && (
           <>
             <div style={{ marginBottom: '16px' }}>
@@ -218,6 +281,16 @@ const ProcessingModal: React.FC<ProcessingModalProps> = ({ isOpen, onClose, onSu
                   discountCode,
                   sourcingVendor: vendorType === 'other' ? vendorName : 'IHB'
                 });
+              } else if (mode === 'editSourcing') {
+                if (!sourcingOrderNo) {
+                  toast.warning('구매번호를 입력해주세요.');
+                  return;
+                }
+                onSubmit({
+                  sourcingAccount: emailAccount,
+                  sourcingOrderNo,
+                  discountCode
+                });
               } else {
                 if (!trackingNo) {
                   toast.warning('송장번호를 입력해주세요.');
@@ -228,7 +301,7 @@ const ProcessingModal: React.FC<ProcessingModalProps> = ({ isOpen, onClose, onSu
             }}
             style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
           >
-            {mode === 'purchase' ? '구매 처리' : mode === 'ship' ? '배송 처리' : '송장 수정'}
+            {mode === 'purchase' ? '구매 처리' : mode === 'editSourcing' ? '저장' : mode === 'ship' ? '배송 처리' : '송장 수정'}
           </button>
         </div>
       </div>
@@ -240,12 +313,12 @@ const columnHelper = createColumnHelper<OrderGridDto & { isFirstLineItem?: boole
 
 const inputStyle = { width: '100%', padding: '4px 6px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '4px', boxSizing: 'border-box' as const, outline: 'none', backgroundColor: '#fdfdfd' };
 
-const SPANNED_COLUMNS = ['select', 'orderDate', 'marketType', 'marketOrderNo', 'recipientName', 'customsClearanceNo', 'customsStatus', 'recipientPhone', 'zipcode', 'address', 'message', 'sms'];
+const SPANNED_COLUMNS = ['select', 'orderDate', 'marketType', 'marketOrderNo', 'recipientName', 'customsClearanceNo', 'customsStatus', 'recipientPhone', 'zipcode', 'address', 'message'];
 
 // 상단 필터 패널 컴포넌트 (UI)
 function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: string[], statuses: string[], startDate: string, endDate: string) => void }) {
    const allMarkets = ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'];
-  const allStatuses = ['NEW', 'PREPARING', 'PURCHASED', 'SHIPPED', 'DELIVERED', 'CANCELED', 'RETURNED', 'EXCHANGED'];
+  const allStatuses = ['UNKNOWN', 'NEW', 'PREPARING', 'PURCHASED', 'SHIPPED', 'DELIVERED', 'CANCELED', 'RETURNED', 'EXCHANGED'];
   
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(allMarkets);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(allStatuses);
@@ -338,6 +411,7 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
               전체
             </label>
             {[
+              { id: 'UNKNOWN', label: '알수없음' },
               { id: 'NEW', label: '결제완료' },
               { id: 'PREPARING', label: '구매준비' },
               { id: 'PURCHASED', label: '구매완료' },
@@ -413,8 +487,15 @@ const OrderGrid: React.FC = () => {
   const [rowData, setRowData] = useState<OrderGridDto[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<'purchase' | 'ship' | 'tracking'>('purchase');
+  const [modalMode, setModalMode] = useState<'purchase' | 'ship' | 'tracking' | 'editSourcing'>('purchase');
   const [selectedLineItem, setSelectedLineItem] = useState<any>(null);
+
+  const { data: syncStatuses } = useQuery({
+    queryKey: ['syncStatus'],
+    queryFn: fetchSyncStatus,
+    refetchInterval: 60000,
+  });
+
   const { data: commonCodes } = useQuery({
     queryKey: ['commonCodes'],
     queryFn: fetchCommonCodes,
@@ -425,6 +506,35 @@ const OrderGrid: React.FC = () => {
     const item = commonCodes[category].find((c: any) => c.name === name);
     return item ? item.label : name;
   }, [commonCodes]);
+
+  const timeAgo = (dateStr: string | null): string => {
+    if (!dateStr) return '-';
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return '방금';
+    if (mins < 60) return `${mins}분 전`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}시간 전`;
+    return `${Math.floor(hours / 24)}일 전`;
+  };
+
+  const marketLabels: Record<string, string> = {
+    COUPANG: '쿠팡',
+    SMART_STORE: '스마트스토어',
+    ELEVEN_STREET: '11번가',
+    GMARKET: 'G마켓/옥션',
+    EMAIL: '이메일',
+    COUPANG_SETTLEMENT: '쿠팡 정산',
+  };
+
+  const syncDotColor = (status: string): string => {
+    switch (status) {
+      case 'COMPLETED': return '#4caf50';
+      case 'FAILED': return '#f44336';
+      case 'RUNNING': return '#ff9800';
+      default: return '#9e9e9e';
+    }
+  };
 
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const queryClient = useQueryClient();
@@ -659,6 +769,12 @@ const OrderGrid: React.FC = () => {
     setModalOpen(true);
   };
 
+  const openEditSourcingModal = (lineItem: any) => {
+    setSelectedLineItem(lineItem);
+    setModalMode('editSourcing');
+    setModalOpen(true);
+  };
+
   // 모달 제출 핸들러
   const handleModalSubmit = async (data: any) => {
     if (!selectedLineItem) return;
@@ -673,6 +789,13 @@ const OrderGrid: React.FC = () => {
       if (modalMode === 'purchase') {
         await apiClient.post(`/api/v1/orders/line-items/${lineItemId}/purchase`, data);
         toast.success('구매 처리 완료');
+      } else if (modalMode === 'editSourcing') {
+        await apiClient.patch(`/api/v1/orders/line-items/${lineItemId}`, {
+          sourcingAccount: data.sourcingAccount || '',
+          sourcingOrderNo: data.sourcingOrderNo,
+          discountCode: data.discountCode || ''
+        });
+        toast.success('구매정보 수정 완료');
       } else if (modalMode === 'ship') {
         await apiClient.post(`/api/v1/orders/line-items/${lineItemId}/ship`, data);
         toast.success('배송 처리 완료');
@@ -795,9 +918,21 @@ const OrderGrid: React.FC = () => {
         }
 
         // 수취인과 주문자가 다르면 두 줄로 표시
-        // 통관상태 VALID이면 수취인=파란색, 주문자=빨간색 (기본)
-        const recipientColor = customsStatus === 'VALID' ? '#1565c0' : '#e65100';
-        const ordererColor = customsStatus === 'VALID' ? '#e65100' : '#1565c0';
+        // 통관 검증된 사람이 수취인이면 수취인=파랑, 주문자면 주문자=파랑, VALID_PHONE_MISMATCH도 동일
+        // INVALID=둘다빨강, PENDING/없음=둘다검정
+        const verifiedPerson = row.original.order?.customsData?.verifiedPerson;
+        let recipientColor = '#000';
+        let ordererColor = '#000';
+        if (customsStatus === 'VALID' || customsStatus === 'VALID_PHONE_MISMATCH') {
+          if (verifiedPerson === 'RECIPIENT') {
+            recipientColor = '#1565c0';
+          } else if (verifiedPerson === 'ORDERER') {
+            ordererColor = '#1565c0';
+          }
+        } else if (customsStatus === 'INVALID') {
+          recipientColor = '#e65100';
+          ordererColor = '#e65100';
+        }
 
         return (
           <div style={{ lineHeight: '1.3', fontSize: '12px' }}>
@@ -834,8 +969,9 @@ const OrderGrid: React.FC = () => {
     }),
     columnHelper.accessor('order.recipientPhone', { header: '휴대폰', size: 130 }),
     columnHelper.accessor('order.zipcode', { header: '우편번호', size: 80 }),
-    columnHelper.accessor('order.address', { header: '주소', size: 350, cell: info => <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{info.getValue() as string}</div> }),
+    columnHelper.accessor('order.address', { header: '주소', size: 350, cell: ({ row, getValue }) => <input style={inputStyle} defaultValue={getValue() as string} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'order.address', e.target.value)} /> }),
     columnHelper.accessor('order.message', { header: '배송메시지', size: 150 }),
+    columnHelper.accessor('product.productName.productName', { header: '등록상품명', size: 200, cell: info => <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(info.getValue() as string) || ''}</div> }),
     columnHelper.accessor('product.productName.originalName', { header: '영문상품명', size: 250, cell: ({ row, getValue }) => { const url = (row.original as any).product?.sourcingInfo?.url; const name = getValue() as string; return (<div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{url ? <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1565c0', textDecoration: 'none' }}>{name}</a> : name}</div>); } }),
     columnHelper.accessor('product.stockStatus', {
       id: 'stockStatus',
@@ -858,9 +994,18 @@ const OrderGrid: React.FC = () => {
     columnHelper.accessor('product.restockDate', { header: '입고예정일', size: 100 }),
     columnHelper.accessor('product.productSpec.bundleQuantity', { header: '묶음', size: 60 }),
     columnHelper.accessor('lineItem.quantity', { header: '수량', size: 60 }),
-    columnHelper.accessor('lineItem.sourcingData.sourcingAccount', { id: 'sourcingAccount', header: '구매계정', size: 100, cell: ({ row, getValue }) => <input style={inputStyle} defaultValue={getValue() as string} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.sourcingAccount', e.target.value)} /> }),
-    columnHelper.accessor('lineItem.sourcingData.sourcingOrderNo', { id: 'sourcingOrderNo', header: '구매번호', size: 120, cell: ({ row, getValue }) => <input style={inputStyle} defaultValue={getValue() as string} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.sourcingOrderNo', e.target.value)} /> }),
-    columnHelper.display({ id: 'sms', header: 'SMS', size: 70 }),
+    columnHelper.display({
+      id: 'totalQuantity',
+      header: '총수량',
+      size: 70,
+      cell: ({ row }) => {
+        const qty = (row.original.lineItem?.quantity || 1) as number;
+        const bundle = (row.original.product?.productSpec?.bundleQuantity || 1) as number;
+        return <div style={{ textAlign: 'center' }}>{bundle * qty}</div>;
+      }
+    }),
+    columnHelper.accessor('lineItem.sourcingData.sourcingAccount', { id: 'sourcingAccount', header: '구매계정', size: 100, cell: ({ getValue }) => <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(getValue() as string) || ''}</div> }),
+    columnHelper.accessor('lineItem.sourcingData.sourcingOrderNo', { id: 'sourcingOrderNo', header: '구매번호', size: 120, cell: ({ getValue }) => <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(getValue() as string) || ''}</div> }),
     columnHelper.accessor('lineItem.sourcingData.discountCode', { id: 'discountCode', header: '할인코드', size: 90, cell: ({ row, getValue }) => <input style={inputStyle} defaultValue={getValue() as string} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.discountCode', e.target.value)} /> }),
     columnHelper.accessor('lineItem.shippingData.shippingCarrier', { id: 'shippingCarrier', header: '택배사', size: 120, cell: ({ row, getValue }) => {
       const trackingNo = row.original.lineItem?.shippingData?.trackingNo;
@@ -914,12 +1059,20 @@ const OrderGrid: React.FC = () => {
         
         if (status === 'PURCHASED') {
           return (
-            <button
-              onClick={() => openShipModal(lineItem)}
-              style={{ padding: '4px 8px', backgroundColor: '#fff3e0', color: '#e65100', border: '1px solid #ffe0b2', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
-            >
-              배송처리
-            </button>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button
+                onClick={() => openEditSourcingModal(lineItem)}
+                style={{ padding: '4px 6px', backgroundColor: '#e3f2fd', color: '#1565c0', border: '1px solid #bbdefb', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 600 }}
+              >
+                구매정보수정
+              </button>
+              <button
+                onClick={() => openShipModal(lineItem)}
+                style={{ padding: '4px 6px', backgroundColor: '#fff3e0', color: '#e65100', border: '1px solid #ffe0b2', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 600 }}
+              >
+                배송처리
+              </button>
+            </div>
           );
         }
         
@@ -937,7 +1090,7 @@ const OrderGrid: React.FC = () => {
         return <span style={{ color: '#999', fontSize: '11px' }}>-</span>;
       }
     }),
-  ], [handleUpdate, commonCodes, getCommonLabel, openPurchaseModal, openShipModal, openTrackingModal]);
+  ], [handleUpdate, commonCodes, getCommonLabel, openPurchaseModal, openShipModal, openTrackingModal, openEditSourcingModal]);
 
   const table = useReactTable({
     data: processedData,
@@ -994,6 +1147,21 @@ const OrderGrid: React.FC = () => {
           <button onClick={handleShipSelected} style={{ padding: '8px 16px', backgroundColor: '#fff', color: '#333', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>선택 발송</button>
         </div>
       </div>
+      {syncStatuses && (
+        <div style={{ display: 'flex', gap: '14px', marginBottom: '12px', alignItems: 'center', flexWrap: 'wrap', paddingLeft: '2px' }}>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: '#888' }}>동기화</span>
+          {Object.entries(marketLabels).map(([key, label]) => {
+            const s = syncStatuses[key];
+            return (
+              <span key={key} style={{ fontSize: '12px', color: '#666', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: s ? syncDotColor(s.status) : '#9e9e9e', display: 'inline-block' }} />
+                {label}
+                <span style={{ color: '#aaa' }}>{s ? timeAgo(s.lastSyncAt) : '전'}</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
       <OrderFilterPanel onSearch={(keyword, markets, statuses, startDate, endDate) => setQueryParams({ keyword, markets, statuses, startDate, endDate })} />
 
       <div style={{ padding: '0 12px 12px', flex: 1, backgroundColor: 'white', overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)', position: 'relative' }}>

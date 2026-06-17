@@ -15,6 +15,7 @@ export interface OrderDto {
   customsData?: {
     customsClearanceNo?: string;
     customsStatus?: string;
+    verifiedPerson?: string;
   };
 }
 
@@ -201,4 +202,16 @@ export const updateTracking = async (lineItemId: number, data: {
 }): Promise<any> => {
   const response = await apiClient.put(`/api/v1/orders/line-items/${lineItemId}/tracking`, data);
   return response.data;
+};
+
+export interface SyncStatus {
+  marketType: string;
+  status: string;
+  lastSyncAt: string | null;
+  errorMessage: string | null;
+}
+
+export const fetchSyncStatus = async (): Promise<Record<string, SyncStatus>> => {
+  const { data } = await apiClient.get('/api/v1/orders/sync/status');
+  return data;
 };

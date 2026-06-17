@@ -5,11 +5,13 @@ import com.sbshop.agent.core.application.order.service.ElevenstOrderSyncService;
 import com.sbshop.agent.core.application.order.service.EsmplusOrderSyncService;
 import com.sbshop.agent.core.application.order.service.SmartStoreOrderSyncService;
 import com.sbshop.agent.core.application.order.service.CustomsOrderSyncService;
+import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.infrastructure.client.esmplus.EsmplusScraper;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,6 +43,8 @@ public class OrderSyncController {
 	private final CustomsOrderSyncService customsOrderSyncService;
 	// ESM+ 웹 스크래퍼
 	private final EsmplusScraper esmplusScraper;
+	// 동기화 상태 추적 서비스
+	private final SyncStatusService syncStatusService;
 
 	// 쿠팡 동기화 POST 엔드포인트 매핑
 	@PostMapping("/coupang")
@@ -158,6 +162,12 @@ public class OrderSyncController {
 				"success", false,
 				"message", "통관 상태 동기화 실패: " + e.getMessage()));
 		}
+	}
+
+	// 동기화 상태 조회 엔드포인트
+	@GetMapping("/status")
+	public ResponseEntity<Map<String, com.sbshop.agent.core.application.sync.SyncStatusService.SyncStatus>> getSyncStatus() {
+		return ResponseEntity.ok(syncStatusService.getAllStatuses());
 	}
 
 	// ESM+ 로그인 테스트 엔드포인트

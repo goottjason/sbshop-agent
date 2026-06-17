@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.service;
 
+import com.sbshop.agent.core.application.order.dto.CustomsVerificationResult;
 import com.sbshop.agent.core.application.order.port.CustomsClearancePort;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
@@ -41,15 +42,13 @@ public class CustomsOrderSyncService {
 			List<Order> batch = targetOrders.subList(i, end);
 
 			log.info("Verifying customs status for batch {} to {} (out of {})", i + 1, end, targetOrders.size());
-			Map<Long, CustomsStatus> resultMap = customsClearancePort.verifyBulk(batch);
+			Map<Long, CustomsVerificationResult> resultMap = customsClearancePort.verifyBulk(batch);
 
-			// 4. 결과 반영
+			// 4. 결과 반영 (상태 + 검증된 사람)
 			for (Order order : batch) {
-				CustomsStatus newStatus = resultMap.getOrDefault(order.getId(),
-					CustomsStatus.PENDING);
-				if (order.getCustomsData() != null) {
-					order.updateCustomsStatus(newStatus);
-				}
+				CustomsVerificationResult result = resultMap.getOrDefault(order.getId(),
+					CustomsVerificationResult.pending());
+				order.updateCustomsStatus(result.getStatus(), result.getVerifiedPerson());
 			}
 
 			// 배치 사이에 약간의 딜레이를 주어 서버에 무리가 가지 않도록 함

@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.domain.order.vo;
 
 import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
+import com.sbshop.agent.core.domain.order.enums.VerifiedPerson;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EnumType;
@@ -26,9 +27,16 @@ public class CustomsData {
 	@Column(name = "customs_status", length = 20)
 	private CustomsStatus customsStatus;
 
+	/** 통관 검증된 사람 (수취인/주문자) */
+	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(Types.VARCHAR)
+	@Column(name = "verified_person", length = 20)
+	private VerifiedPerson verifiedPerson;
+
 	@Builder(toBuilder = true)
-	public CustomsData(String customsClearanceNo, CustomsStatus customsStatus) {
+	public CustomsData(String customsClearanceNo, CustomsStatus customsStatus, VerifiedPerson verifiedPerson) {
 		this.customsClearanceNo = customsClearanceNo;
 		this.customsStatus = customsStatus != null ? customsStatus : CustomsStatus.PENDING;
+		this.verifiedPerson = verifiedPerson;
 	}
 }
