@@ -403,7 +403,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 						if (item.getShippingData() == null
 							|| (item.getShippingData().getShippingStatus() != ShippingStatus.CANCELED
 								&& item.getShippingData().getShippingStatus() != ShippingStatus.DELIVERED)) {
-							item.updateShippingWithCarrier(null, ShippingStatus.CANCELED, null, null);
+							item.updateShippingInfo(null, ShippingStatus.CANCELED, null, null, null);
 							orderLineItemRepository.save(item);
 						}
 					}
@@ -447,11 +447,12 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 					&& !apiOrder.getTrackingNo().isEmpty();
 
 				if (needsCarrierFix || needsInvoiceFix) {
-					item.updateShippingWithCarrier(
+					item.updateShippingInfo(
 						needsInvoiceFix ? apiOrder.getTrackingNo() : item.getShippingData().getTrackingNo(),
 						item.getShippingData().getShippingStatus(),
 						item.getShippingData().getIsUnipassDone(),
-						needsCarrierFix ? apiOrder.getCarrier() : item.getShippingData().getShippingCarrier());
+						needsCarrierFix ? apiOrder.getCarrier() : item.getShippingData().getShippingCarrier(),
+						null);
 					orderLineItemRepository.save(item);
 					carrierFixedCount++;
 				}

@@ -102,8 +102,9 @@ public class Order extends BaseEntity {
 		this.shipmentBoxId = shipmentBoxId;
 	}
 
-	public void updateInfo(
-		String recipientName, String recipientPhone, String zipcode, String address, String message) {
+	public void update(
+		String recipientName, String recipientPhone, String zipcode, String address, String message,
+		String ordererName, String ordererPhone, String shipmentBoxId, MarketType marketType) {
 		if (recipientName != null)
 			this.recipientName = recipientName;
 		if (recipientPhone != null)
@@ -114,21 +115,12 @@ public class Order extends BaseEntity {
 			this.address = address;
 		if (message != null)
 			this.message = message;
-	}
-
-	public void updateOrdererInfo(String ordererName, String ordererPhone) {
-		if (ordererName != null && !ordererName.isEmpty())
+		if (ordererName != null)
 			this.ordererName = ordererName;
-		if (ordererPhone != null && !ordererPhone.isEmpty())
+		if (ordererPhone != null)
 			this.ordererPhone = ordererPhone;
-	}
-
-	public void updateShipmentBoxId(String shipmentBoxId) {
-		if (shipmentBoxId != null && !shipmentBoxId.isEmpty())
+		if (shipmentBoxId != null)
 			this.shipmentBoxId = shipmentBoxId;
-	}
-
-	public void updateMarketType(MarketType marketType) {
 		if (marketType != null)
 			this.marketType = marketType;
 	}

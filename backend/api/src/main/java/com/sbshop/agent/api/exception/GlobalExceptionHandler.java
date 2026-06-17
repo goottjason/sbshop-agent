@@ -1,8 +1,10 @@
 package com.sbshop.agent.api.exception;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -28,7 +30,12 @@ public class GlobalExceptionHandler {
 	}
 
 	@ExceptionHandler(Exception.class)
-	public ResponseEntity<Map<String, Object>> handleGeneral(Exception e) {
+	public ResponseEntity<Map<String, Object>> handleGeneral(Exception e, HttpServletRequest request) {
+		// SSE 스트림 요청 중 오류는 JSON 변환 불가 → 로그만 남기고 빈 응답 반환
+		if (MediaType.TEXT_EVENT_STREAM_VALUE.equals(request.getHeader("Accept"))) {
+			log.error("SSE stream error", e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+		}
 		log.error("Unexpected error", e);
 		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
 			"success", false,

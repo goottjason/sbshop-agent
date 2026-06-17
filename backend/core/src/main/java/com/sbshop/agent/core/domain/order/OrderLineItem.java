@@ -10,6 +10,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.vo.SettlementData;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
@@ -56,6 +57,36 @@ public class OrderLineItem extends BaseEntity {
 		this.shippingData = shippingData != null ? shippingData : ShippingData.builder().build();
 	}
 
+	/* ----- 배송정보 통합 갱신 (updateShipping + updateShippingWithCarrier 대체) ----- */
+	public void updateShippingInfo(
+		String trackingNo, ShippingStatus status, Boolean isUnipassDone, ShippingCarrier carrier,
+		Boolean trackingSentToMarket) {
+		ShippingData.ShippingDataBuilder builder = (this.shippingData != null) ? this.shippingData.toBuilder()
+			: ShippingData.builder();
+		if (trackingNo != null)
+			builder.trackingNo(trackingNo);
+		if (status != null)
+			builder.shippingStatus(status);
+		if (isUnipassDone != null)
+			builder.isUnipassDone(isUnipassDone);
+		if (carrier != null)
+			builder.shippingCarrier(carrier);
+		if (trackingSentToMarket != null)
+			builder.trackingSentToMarket(trackingSentToMarket);
+		this.shippingData = builder.build();
+	}
+
+	/* ----- 발주확인 이후 진행상태 여부 (address 보호 판단용) ----- */
+	public boolean isProgressed() {
+		ShippingStatus s = this.shippingData != null ? this.shippingData.getShippingStatus() : null;
+		if (s == null || s == ShippingStatus.UNKNOWN)
+			return false;
+		if (s.getOrder() < 0)
+			return false;
+		return s.getOrder() >= ShippingStatus.PREPARING.getOrder();
+	}
+
+	/* ----- 기존 하위 호환 유지 메서드들 ----- */
 	protected void assignOrderId(Long orderId) {
 		this.orderId = orderId;
 	}
@@ -76,48 +107,6 @@ public class OrderLineItem extends BaseEntity {
 			.build();
 	}
 
-	public void updateShipping(
-		String trackingNo,
-		ShippingStatus status,
-		Boolean isUnipassDone) {
-		ShippingData.ShippingDataBuilder builder = (this.shippingData != null) ? this.shippingData.toBuilder()
-			: ShippingData.builder();
-		if (trackingNo != null)
-			builder.trackingNo(trackingNo);
-		if (status != null) {
-			ShippingStatus current = this.shippingData != null ? this.shippingData.getShippingStatus() : null;
-			if (current == null || !ShippingStatus.isDowngrade(current, status)) {
-				builder.shippingStatus(status);
-			}
-		}
-		if (isUnipassDone != null)
-			builder.isUnipassDone(isUnipassDone);
-		this.shippingData = builder.build();
-	}
-
-	public void updateShippingWithCarrier(
-		String trackingNo,
-		ShippingStatus status,
-		Boolean isUnipassDone,
-		com.sbshop.agent.core.domain.order.enums.ShippingCarrier carrier) {
-		ShippingData.ShippingDataBuilder builder = (this.shippingData != null) ? this.shippingData.toBuilder()
-			: ShippingData.builder();
-		if (trackingNo != null)
-			builder.trackingNo(trackingNo);
-		// 상태 다운그레이드 방지: 현재 상태가 더 높으면 상태 변경 스킵
-		if (status != null) {
-			ShippingStatus current = this.shippingData != null ? this.shippingData.getShippingStatus() : null;
-			if (current == null || !ShippingStatus.isDowngrade(current, status)) {
-				builder.shippingStatus(status);
-			}
-		}
-		if (isUnipassDone != null)
-			builder.isUnipassDone(isUnipassDone);
-		if (carrier != null)
-			builder.shippingCarrier(carrier);
-		this.shippingData = builder.build();
-	}
-
 	public void updateSourcingData(SourcingData sourcingData) {
 		this.sourcingData = sourcingData;
 	}
@@ -130,7 +119,6 @@ public class OrderLineItem extends BaseEntity {
 		this.shippingData = shippingData;
 	}
 
-	// 아이허브 구매 처리
 	public void updateSourcingForIherb(String account, String orderNo, String discountCode) {
 		this.sourcingData = SourcingData.builder()
 			.sourcingVendor("IHB")
@@ -140,7 +128,6 @@ public class OrderLineItem extends BaseEntity {
 			.build();
 	}
 
-	// 비아이허브 구매 처리
 	public void updateSourcingForVendor(String vendor, String vendorOrderNo) {
 		this.sourcingData = SourcingData.builder()
 			.sourcingVendor(vendor)
@@ -148,7 +135,6 @@ public class OrderLineItem extends BaseEntity {
 			.build();
 	}
 
-	// PURCHASED 상태로 변경
 	public void markAsPurchased() {
 		ensureShippingData();
 		this.shippingData = this.shippingData.toBuilder()
@@ -156,9 +142,7 @@ public class OrderLineItem extends BaseEntity {
 			.build();
 	}
 
-	// 송장 업데이트 (배송처리/송장수정)
-	public void updateTrackingInfo(String trackingNo,
-		com.sbshop.agent.core.domain.order.enums.ShippingCarrier carrier) {
+	public void updateTrackingInfo(String trackingNo, ShippingCarrier carrier) {
 		ensureShippingData();
 		ShippingData.ShippingDataBuilder builder = this.shippingData.toBuilder();
 		if (trackingNo != null)
@@ -168,7 +152,6 @@ public class OrderLineItem extends BaseEntity {
 		this.shippingData = builder.build();
 	}
 
-	// 상태 변경
 	public void updateShippingStatus(ShippingStatus status) {
 		ensureShippingData();
 		this.shippingData = this.shippingData.toBuilder()

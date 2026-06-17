@@ -68,8 +68,8 @@ public class OrderShipService {
 					MarketOrderPort port = getPort(order.getMarketType());
 					port.shipOrder(cred, order, item, trackingNo, carrier);
 
-					item.updateShipping(trackingNo, SHIPPED,
-						item.getShippingData() != null ? item.getShippingData().getIsUnipassDone() : null);
+					item.updateShippingInfo(trackingNo, SHIPPED,
+						item.getShippingData() != null ? item.getShippingData().getIsUnipassDone() : null, null, null);
 					calculateSettlement(item);
 					orderLineItemRepository.save(item);
 					orderShipped = true;

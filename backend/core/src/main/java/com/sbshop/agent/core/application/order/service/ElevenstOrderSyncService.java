@@ -110,34 +110,21 @@ public class ElevenstOrderSyncService {
 		if (productId != null && !productId.equals(item.getProductId())) {
 			item.assignProductId(productId);
 		}
-		item.updateShippingWithCarrier(
+		item.updateShippingInfo(
 			dto.getTrackingNo(),
 			dto.getStatus(),
 			item.getShippingData() != null ? item.getShippingData().getIsUnipassDone() : null,
-			dto.getCarrier());
+			dto.getCarrier(),
+			null);
 	}
 
 	private void updateOrderInfoFromDto(Order order, MarketOrderDto dto) {
-		if (dto.getMarketType() != null && dto.getMarketType() != order.getMarketType()) {
-			order.updateMarketType(dto.getMarketType());
-		}
-		order.updateInfo(
-			dto.getRecipientName(),
-			dto.getRecipientPhone(),
-			dto.getZipcode(),
-			dto.getAddress(),
-			dto.getMessage());
-
-		if (dto.getOrdererName() != null) {
-			order.updateOrdererInfo(dto.getOrdererName(), dto.getOrdererPhone());
-		}
-
+		order.update(
+			dto.getRecipientName(), dto.getRecipientPhone(), dto.getZipcode(), dto.getAddress(), dto.getMessage(),
+			dto.getOrdererName(), dto.getOrdererPhone(), dto.getShipmentBoxId(),
+			dto.getMarketType() != null && dto.getMarketType() != order.getMarketType() ? dto.getMarketType() : null);
 		if (dto.getCustomsClearanceNo() != null) {
 			order.updateCustomsClearanceNo(dto.getCustomsClearanceNo());
-		}
-
-		if (dto.getShipmentBoxId() != null) {
-			order.updateShipmentBoxId(dto.getShipmentBoxId());
 		}
 	}
 

@@ -556,7 +556,17 @@ const OrderGrid: React.FC = () => {
   });
 
   useEffect(() => {
-    if (data) setRowData(data.content);
+    if (data) {
+      const flattened = data.content.flatMap(item =>
+        (item.lineItems || []).map(li => ({
+          order: item.order,
+          lineItem: li.lineItem,
+          product: li.product,
+          marketRegistration: li.marketRegistration
+        }))
+      );
+      setRowData(flattened);
+    }
   }, [data]);
 
   const orderMutation = useMutation({
@@ -971,6 +981,7 @@ const OrderGrid: React.FC = () => {
     columnHelper.accessor('order.zipcode', { header: '우편번호', size: 80 }),
     columnHelper.accessor('order.address', { header: '주소', size: 350, cell: ({ row, getValue }) => <input style={inputStyle} defaultValue={getValue() as string} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'order.address', e.target.value)} /> }),
     columnHelper.accessor('order.message', { header: '배송메시지', size: 150 }),
+    columnHelper.accessor('product.sbCode', { header: 'SB코드', size: 120, cell: info => <div style={{ textAlign: 'left', paddingLeft: '8px', color: '#555' }}>{(info.getValue() as string) || ''}</div> }),
     columnHelper.accessor('product.productName.productName', { header: '등록상품명', size: 200, cell: info => <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(info.getValue() as string) || ''}</div> }),
     columnHelper.accessor('product.productName.originalName', { header: '영문상품명', size: 250, cell: ({ row, getValue }) => { const url = (row.original as any).product?.sourcingInfo?.url; const name = getValue() as string; return (<div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{url ? <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1565c0', textDecoration: 'none' }}>{name}</a> : name}</div>); } }),
     columnHelper.accessor('product.stockStatus', {

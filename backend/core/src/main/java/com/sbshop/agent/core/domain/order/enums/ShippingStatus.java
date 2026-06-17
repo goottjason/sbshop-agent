@@ -25,16 +25,4 @@ public enum ShippingStatus implements EnumMapperType {
 	public String getName() {
 		return name();
 	}
-
-	public static boolean isDowngrade(ShippingStatus current, ShippingStatus next) {
-		if (current == null || next == null)
-			return false;
-		// 터미널 상태(취소/반품/교환)는 항상 허용
-		if (next.order < 0)
-			return false;
-		// 현재 상태가 터미널이면 다운그레이드 아님 (새로운 상태로 전환)
-		if (current.order < 0)
-			return false;
-		return next.order < current.order;
-	}
 }

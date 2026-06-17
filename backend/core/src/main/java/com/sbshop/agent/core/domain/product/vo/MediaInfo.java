@@ -1,24 +1,23 @@
 package com.sbshop.agent.core.domain.product.vo;
 
+import com.fasterxml.jackson.annotation.JsonRawValue;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.Lob;
 import lombok.AccessLevel;
 import lombok.Builder;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Embeddable
-@Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MediaInfo {
 	@Lob
 	@Column(name = "source_images", columnDefinition = "TEXT")
-	private String sourceImages; // JSON string format
+	private String sourceImages;
 
 	@Lob
 	@Column(name = "hosted_images", columnDefinition = "TEXT")
-	private String hostedImages; // JSON string format
+	private String hostedImages;
 
 	@Column(name = "search_keywords", length = 500)
 	private String searchKeywords;
@@ -29,6 +28,19 @@ public class MediaInfo {
 
 	@Column(name = "memo", length = 2000)
 	private String memo;
+
+	@JsonRawValue
+	public String getSourceImages() { return sourceImages; }
+
+	@JsonRawValue
+	public String getHostedImages() { return hostedImages; }
+
+	public String getSearchKeywords() { return searchKeywords; }
+
+	public String getDetailHtml() { return detailHtml; }
+
+	@JsonRawValue
+	public String getMemo() { return memo; }
 
 	@Builder
 	public MediaInfo(

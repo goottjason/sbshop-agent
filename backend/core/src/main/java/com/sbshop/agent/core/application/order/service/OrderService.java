@@ -54,12 +54,10 @@ public class OrderService {
 			.findById(id)
 			.orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
 
-		order.updateInfo(
-			command.getRecipientName(),
-			command.getRecipientPhone(),
-			command.getZipcode(),
-			command.getAddress(),
-			command.getMessage());
+		order.update(
+			command.getRecipientName(), command.getRecipientPhone(),
+			command.getZipcode(), command.getAddress(), command.getMessage(),
+			null, null, null, null);
 
 		order.updateCustomsStatus(command.getCustomsStatus());
 		order.updateCustomsClearanceNo(command.getCustomsClearanceNo());
@@ -77,16 +75,9 @@ public class OrderService {
 			&& !command.getTrackingNo().equals(oldTrackingNo)
 			&& !command.getTrackingNo().isEmpty();
 
-		lineItem.updateShipping(command.getTrackingNo(), command.getShippingStatus(), command.getIsUnipassDone());
-
-		com.sbshop.agent.core.domain.order.vo.ShippingData.ShippingDataBuilder sdBuilder = lineItem
-			.getShippingData() != null
-				? lineItem.getShippingData().toBuilder()
-				: com.sbshop.agent.core.domain.order.vo.ShippingData.builder();
-		if (command.getShippingCarrier() != null)
-			sdBuilder.shippingCarrier(command.getShippingCarrier());
-		if (command.getTrackingSentToMarket() != null)
-			sdBuilder.trackingSentToMarket(command.getTrackingSentToMarket());
+		lineItem.updateShippingInfo(
+			command.getTrackingNo(), command.getShippingStatus(), command.getIsUnipassDone(),
+			command.getShippingCarrier(), command.getTrackingSentToMarket());
 
 		com.sbshop.agent.core.domain.order.vo.SourcingData.SourcingDataBuilder sourcingBuilder = lineItem
 			.getSourcingData() != null ? lineItem.getSourcingData().toBuilder()
@@ -111,11 +102,7 @@ public class OrderService {
 			settlementBuilder.settlementAmount(command.getSettlementAmount());
 
 		lineItem.updateSourcingData(sourcingBuilder.build());
-
-		com.sbshop.agent.core.domain.order.vo.SettlementData newSettlement = settlementBuilder.build();
-
-		lineItem.updateSettlementData(newSettlement);
-		lineItem.updateShippingData(sdBuilder.build());
+		lineItem.updateSettlementData(settlementBuilder.build());
 
 		OrderLineItem saved = orderLineItemRepository.save(lineItem);
 
@@ -182,9 +169,9 @@ public class OrderService {
 			ShippingStatus currentStatus = item.getShippingData() != null
 				? item.getShippingData().getShippingStatus() : null;
 			if (currentStatus == ShippingStatus.NEW) {
-				item.updateShipping(item.getShippingData().getTrackingNo(),
+				item.updateShippingInfo(item.getShippingData().getTrackingNo(),
 					ShippingStatus.PREPARING,
-					item.getShippingData().getIsUnipassDone());
+					item.getShippingData().getIsUnipassDone(), null, null);
 				orderLineItemRepository.save(item);
 			}
 		}
@@ -241,9 +228,9 @@ public class OrderService {
 		List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
 		for (OrderLineItem item : items) {
 			if (item.getShippingData() != null) {
-				item.updateShipping(item.getShippingData().getTrackingNo(),
-					com.sbshop.agent.core.domain.order.enums.ShippingStatus.CANCELED,
-					item.getShippingData().getIsUnipassDone());
+				item.updateShippingInfo(item.getShippingData().getTrackingNo(),
+					ShippingStatus.CANCELED,
+					item.getShippingData().getIsUnipassDone(), null, null);
 				orderLineItemRepository.save(item);
 			}
 		}

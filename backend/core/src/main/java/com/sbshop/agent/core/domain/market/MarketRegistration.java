@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.domain.market;
 
+import com.fasterxml.jackson.annotation.JsonRawValue;
 import com.sbshop.agent.core.domain.common.BaseEntity;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import jakarta.persistence.Column;
@@ -35,9 +36,11 @@ public class MarketRegistration extends BaseEntity {
 	@Column(name = "market_product_name", length = 255)
 	private String marketProductName;
 
+	@Getter(AccessLevel.NONE)
 	@Column(name = "market_identifiers", columnDefinition = "TEXT")
 	private String marketIdentifiers;
 
+	@Getter(AccessLevel.NONE)
 	@Column(name = "market_detailed_info", columnDefinition = "LONGTEXT")
 	private String marketDetailedInfo;
 
@@ -46,6 +49,12 @@ public class MarketRegistration extends BaseEntity {
 
 	@Column(name = "last_synced_at")
 	private LocalDateTime lastSyncedAt;
+
+	@JsonRawValue
+	public String getMarketIdentifiers() { return marketIdentifiers; }
+
+	@JsonRawValue
+	public String getMarketDetailedInfo() { return marketDetailedInfo; }
 
 	@Builder
 	public MarketRegistration(Long productId, Long sbProductId, MarketType marketType, String marketProductName,

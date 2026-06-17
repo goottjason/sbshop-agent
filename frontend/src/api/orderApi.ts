@@ -66,10 +66,22 @@ export const fetchCommonCodes = async () => {
   return response.data;
 };
 
+export interface OrderLineItemDetailDto {
+  lineItem: OrderLineItemDto;
+  product: ProductDto;
+  marketRegistration?: any;
+}
+
 export interface OrderGridDto {
   order?: OrderDto;
   lineItem?: OrderLineItemDto;
   product?: ProductDto;
+  marketRegistration?: any;
+}
+
+export interface OrderDetailResponseDto {
+  order?: OrderDto;
+  lineItems: OrderLineItemDetailDto[];
 }
 
 export interface PageResponse<T> {
@@ -88,7 +100,7 @@ export const fetchOrders = async (
   shippingStatuses?: string[],
   startDate?: string,
   endDate?: string
-): Promise<PageResponse<OrderGridDto>> => {
+): Promise<PageResponse<OrderDetailResponseDto>> => {
   const params = new URLSearchParams();
   params.append('page', String(page));
   params.append('size', String(size));
