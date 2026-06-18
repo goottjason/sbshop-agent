@@ -2,7 +2,7 @@ import React from 'react';
 
 export const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div className="table-container" style={{ width: '100%', height: '100%', overflow: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)' }}>
+    <div className="table-container" style={{ display: 'inline-block', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)' }}>
       <table
         ref={ref}
         {...props}
@@ -15,7 +15,7 @@ Table.displayName = "Table";
 
 export const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
   ({ className, ...props }, ref) => (
-    <thead ref={ref} {...props} style={{ backgroundColor: '#f9fafb', position: 'sticky', top: 0, zIndex: 10, boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', ...props.style }} />
+    <thead ref={ref} {...props} style={{ backgroundColor: '#f9fafb', position: 'sticky', top: 0, zIndex: 20, boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', ...props.style }} />
   )
 );
 TableHeader.displayName = "TableHeader";

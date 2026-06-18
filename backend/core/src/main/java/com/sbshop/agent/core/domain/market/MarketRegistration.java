@@ -51,10 +51,14 @@ public class MarketRegistration extends BaseEntity {
 	private LocalDateTime lastSyncedAt;
 
 	@JsonRawValue
-	public String getMarketIdentifiers() { return marketIdentifiers; }
+	public String getMarketIdentifiers() {
+		return marketIdentifiers;
+	}
 
 	@JsonRawValue
-	public String getMarketDetailedInfo() { return marketDetailedInfo; }
+	public String getMarketDetailedInfo() {
+		return marketDetailedInfo;
+	}
 
 	@Builder
 	public MarketRegistration(Long productId, Long sbProductId, MarketType marketType, String marketProductName,

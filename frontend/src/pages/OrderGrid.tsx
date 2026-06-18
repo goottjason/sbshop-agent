@@ -309,11 +309,25 @@ const ProcessingModal: React.FC<ProcessingModalProps> = ({ isOpen, onClose, onSu
   );
 };
 
-const columnHelper = createColumnHelper<OrderGridDto & { isFirstLineItem?: boolean; lineItemCount?: number }>();
+type RowData = OrderGridDto & { isFirstLineItem?: boolean; lineItemCount?: number; totalRowCount?: number; rowType?: string; isSecondRow?: boolean; isThirdRow?: boolean };
+const columnHelper = createColumnHelper<RowData>();
 
 const inputStyle = { width: '100%', padding: '4px 6px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '4px', boxSizing: 'border-box' as const, outline: 'none', backgroundColor: '#fdfdfd' };
 
-const SPANNED_COLUMNS = ['select', 'orderDate', 'marketType', 'marketOrderNo', 'recipientName', 'customsClearanceNo', 'customsStatus', 'recipientPhone', 'zipcode', 'address', 'message'];
+// 주문 전체 병합 컬럼 (rowSpan = 해당 주문의 전체 행 수)
+const ORDER_SPANNED_COLUMNS = ['select', 'orderInfo', 'shippingStatus'];
+
+// 라인아이템 병합 컬럼 (rowSpan = 3)
+const LINEITEM_SPANNED_COLUMNS = ['sbCode', 'stockInfo', 'quantity', 'unipass', 'actions'];
+
+// 2줄 컬럼 (행1, 행2에만 표시, 행3에서는 셀 자체를 렌더링하지 않음)
+const TWO_ROW_COLUMNS = ['ordererInfo', 'customsInfo', 'shippingInfoPair', 'productNamePair', 'sourcingInfoPair', 'fulfillmentInfoPair', 'financialInfoPair'];
+
+// Row 1 전용 컬럼 (주문 행에만 표시)
+const ORDER_COLUMNS = [];
+
+// Row 2 전용 컬럼 (상품 행에만 표시)
+const PRODUCT_COLUMNS = [];
 
 // 상단 필터 패널 컴포넌트 (UI)
 function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: string[], statuses: string[], startDate: string, endDate: string) => void }) {
@@ -375,7 +389,7 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
         </div>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
           <span style={{ width: '120px', fontWeight: 600, color: '#555' }}>통합 검색</span>
-          <input type="text" placeholder="수취인명, 휴대폰, 상품명, 영문명, SB코드 입력" value={keyword} onChange={e => setKeyword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} style={{ flex: 1, padding: '6px 12px', border: '1px solid #ccc', outline: 'none' }} />
+          <input type="text" placeholder="주문번호, 수취인명, 주문자명, 통관번호, 휴대폰, SB코드, 등록상품명, 영문상품명, 송장번호" value={keyword} onChange={e => setKeyword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} style={{ flex: 1, padding: '6px 12px', border: '1px solid #ccc', outline: 'none' }} />
         </div>
       </div>
 
@@ -484,7 +498,7 @@ function MarketFilter({ column }: { column: any }) {
 }
 
 const OrderGrid: React.FC = () => {
-  const [rowData, setRowData] = useState<OrderGridDto[]>([]);
+  const [rowData, setRowData] = useState<RowData[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'purchase' | 'ship' | 'tracking' | 'editSourcing'>('purchase');
@@ -549,22 +563,40 @@ const OrderGrid: React.FC = () => {
     startDate: defaultStart,
     endDate: defaultEnd
   });
+  const [searchTrigger, setSearchTrigger] = useState(0);
 
   const { data, isLoading: queryLoading, refetch } = useQuery({
-    queryKey: ['orders', queryParams],
+    queryKey: ['orders', queryParams, searchTrigger],
     queryFn: () => fetchOrders(0, 500, queryParams.keyword, queryParams.markets, queryParams.statuses, queryParams.startDate, queryParams.endDate)
   });
 
   useEffect(() => {
     if (data) {
       const flattened = data.content.flatMap(item =>
-        (item.lineItems || []).map(li => ({
-          order: item.order,
-          lineItem: li.lineItem,
-          product: li.product,
-          marketRegistration: li.marketRegistration
-        }))
-      );
+        (item.lineItems || []).map(li => ([
+          {
+            order: item.order,
+            lineItem: li.lineItem,
+            product: li.product,
+            marketRegistration: li.marketRegistration,
+            rowType: 'order',
+          },
+          {
+            order: item.order,
+            lineItem: li.lineItem,
+            product: li.product,
+            marketRegistration: li.marketRegistration,
+            rowType: 'product',
+          },
+          {
+            order: item.order,
+            lineItem: li.lineItem,
+            product: li.product,
+            marketRegistration: li.marketRegistration,
+            rowType: 'fulfillment',
+          }
+        ]))
+      ).flat();
       setRowData(flattened);
     }
   }, [data]);
@@ -824,20 +856,27 @@ const OrderGrid: React.FC = () => {
   const processedData = useMemo(() => {
     if (!rowData || rowData.length === 0) return [];
     const orderCounts: Record<number, number> = {};
+    const orderLineItemCounts: Record<number, number> = {};
     rowData.forEach((row) => {
       const id = (row.order as any)?.id || 0;
       orderCounts[id] = (orderCounts[id] || 0) + 1;
+      if (row.rowType === 'order') {
+        orderLineItemCounts[id] = (orderLineItemCounts[id] || 0) + 1;
+      }
     });
 
     let currentOrderId = -1;
     return rowData.map((row) => {
       const id = (row.order as any)?.id || 0;
-      const isFirst = id !== currentOrderId;
-      if (isFirst) currentOrderId = id;
+      const isFirst = id !== currentOrderId && row.rowType === 'order';
+      if (id !== currentOrderId && row.rowType === 'order') currentOrderId = id;
       return {
         ...row,
         isFirstLineItem: isFirst,
-        lineItemCount: orderCounts[id],
+        isSecondRow: row.rowType === 'product',
+        isThirdRow: row.rowType === 'fulfillment',
+        lineItemCount: orderLineItemCounts[id],
+        totalRowCount: orderCounts[id],
       };
     });
   }, [rowData]);
@@ -853,6 +892,7 @@ const OrderGrid: React.FC = () => {
   }, [rowSelection, processedData]);
 
   const columns = useMemo(() => [
+    // ─── 주문 전체 병합 컬럼 (rowSpan = 전체 행 수) ───
     columnHelper.display({
       id: 'select',
       header: ({ table }) => (
@@ -864,19 +904,16 @@ const OrderGrid: React.FC = () => {
       size: 40,
       meta: { frozen: true, freezeLeft: 0 },
     }),
-    columnHelper.accessor('order.orderDate', { header: '주문일', size: 110, cell: info => info.getValue() ? new Date(info.getValue() as string).toLocaleDateString() : '', meta: { frozen: true, freezeLeft: 40 } }),
-    columnHelper.accessor('order.marketType', { 
-      header: ({ column }) => (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          마켓
-          <MarketFilter column={column} />
-        </div>
-      ), 
-      size: 120,
-      meta: { frozen: true, freezeLeft: 150 },
-      cell: info => {
-        const val = info.getValue() as string;
-        const colorMap: any = {
+    columnHelper.display({
+      id: 'orderInfo',
+      header: '주문정보',
+      size: 150,
+      cell: ({ row }) => {
+        const dateObj = row.original.order?.orderDate ? new Date(row.original.order.orderDate as string) : null;
+        const dateStr = dateObj ? `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')} ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}` : '-';
+        const market = row.original.order?.marketType || '';
+        const orderNo = row.original.order?.marketOrderNo || '-';
+        const marketColorMap: any = {
           'SMART_STORE': { bg: '#e8f5e9', text: '#2e7d32' },
           'COUPANG': { bg: '#fce4ec', text: '#c2185b' },
           'ELEVEN_STREET': { bg: '#e3f2fd', text: '#1565c0' },
@@ -884,16 +921,22 @@ const OrderGrid: React.FC = () => {
           'GMARKET': { bg: '#fff9c4', text: '#f57f17' },
           'AUCTION': { bg: '#fce4ec', text: '#d32f2f' }
         };
-        const style = colorMap[val] || { bg: '#f5f5f5', text: '#666' };
-        return <span style={{ backgroundColor: style.bg, color: style.text, padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>{getCommonLabel('marketType', val)}</span>;
-      }
+        const style = marketColorMap[market] || { bg: '#f5f5f5', text: '#666' };
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', lineHeight: '1.2', fontSize: '12px', textAlign: 'center' }}>
+            <div>{dateStr}</div>
+            <div><span style={{ backgroundColor: style.bg, color: style.text, padding: '2px 6px', borderRadius: '4px', fontWeight: 600, fontSize: '11px' }}>{getCommonLabel('marketType', market)}</span></div>
+            <div style={{ fontSize: '11px', color: '#555' }}>{orderNo}</div>
+          </div>
+        );
+      },
+      meta: { frozen: true, freezeLeft: 40 },
     }),
-    columnHelper.accessor('order.marketOrderNo', { header: '주문번호', size: 150, meta: { frozen: true, freezeLeft: 270 } }),
     columnHelper.accessor('lineItem.shippingData.shippingStatus', {
       id: 'shippingStatus',
       header: '주문상태',
       size: 100,
-      meta: { frozen: true, freezeLeft: 420 },
+      meta: { frozen: true, freezeLeft: 190 },
       cell: info => {
         const val = info.getValue() as string;
         const colorMap: any = {
@@ -911,39 +954,36 @@ const OrderGrid: React.FC = () => {
         return val ? <span style={{ backgroundColor: style.bg, color: style.text, padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>{getCommonLabel('shippingStatus', val)}</span> : '-';
       }
     }),
-    columnHelper.accessor('order.recipientName', {
-      header: '수취인명',
+
+    // ─── 2줄 컬럼 (행 1과 행 2에 각각 표시) ───
+    // 주문자정보: 행1=수취인명(주문자명), 행2=휴대폰
+    columnHelper.display({
+      id: 'ordererInfo',
+      header: '주문자정보',
       size: 120,
-      meta: { frozen: true, freezeLeft: 520 },
+      meta: { frozen: true, freezeLeft: 290 },
       cell: ({ row }) => {
+        if (row.original.rowType === 'product') {
+          return <span>{row.original.order?.recipientPhone || '-'}</span>;
+        }
+        if (row.original.rowType === 'fulfillment') return null;
         const recipientName = (row.original.order?.recipientName || '').trim();
         const ordererName = (row.original.order?.ordererName || '').trim();
         const customsStatus = row.original.order?.customsData?.customsStatus;
-
         if (!recipientName) return '-';
-
-        // 수취인과 주문자가 같거나 주문자 정보가 없으면 이름만 표시
         if (!ordererName || recipientName === ordererName) {
           return <span style={{ fontWeight: 600 }}>{recipientName}</span>;
         }
-
-        // 수취인과 주문자가 다르면 두 줄로 표시
-        // 통관 검증된 사람이 수취인이면 수취인=파랑, 주문자면 주문자=파랑, VALID_PHONE_MISMATCH도 동일
-        // INVALID=둘다빨강, PENDING/없음=둘다검정
         const verifiedPerson = row.original.order?.customsData?.verifiedPerson;
         let recipientColor = '#000';
         let ordererColor = '#000';
         if (customsStatus === 'VALID' || customsStatus === 'VALID_PHONE_MISMATCH') {
-          if (verifiedPerson === 'RECIPIENT') {
-            recipientColor = '#1565c0';
-          } else if (verifiedPerson === 'ORDERER') {
-            ordererColor = '#1565c0';
-          }
+          if (verifiedPerson === 'RECIPIENT') recipientColor = '#1565c0';
+          else if (verifiedPerson === 'ORDERER') ordererColor = '#1565c0';
         } else if (customsStatus === 'INVALID') {
           recipientColor = '#e65100';
           ordererColor = '#e65100';
         }
-
         return (
           <div style={{ lineHeight: '1.3', fontSize: '12px' }}>
             <div style={{ color: recipientColor, fontWeight: 600 }}>{recipientName}</div>
@@ -952,40 +992,91 @@ const OrderGrid: React.FC = () => {
         );
       }
     }),
-    columnHelper.accessor('order.customsData.customsClearanceNo', { header: '통관번호', size: 150, cell: ({ row, getValue }) => <input style={inputStyle} defaultValue={getValue() as string} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'order.customsClearanceNo', e.target.value)} /> }),
-    columnHelper.accessor('order.customsData.customsStatus', {
-      id: 'customsStatus',
+    // 통관정보: 행1=통관번호, 행2=통관상태 뱃지
+    columnHelper.display({
+      id: 'customsInfo',
       header: () => (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-          통관상태
+          통관정보
           <svg onClick={handleSyncCustoms} xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="#555" style={{ cursor: 'pointer' }}>
             <path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/>
           </svg>
         </div>
       ),
-      size: 100,
-      cell: info => {
-        const val = info.getValue() as string;
-        if (!val) return '-';
-        const customsColorMap: any = {
-          'VALID': { bg: '#e8f5e9', text: '#2e7d32' },
-          'VALID_PHONE_MISMATCH': { bg: '#fff8e1', text: '#f57f17' },
-          'INVALID': { bg: '#ffebee', text: '#c62828' },
-          'PENDING': { bg: '#f5f5f5', text: '#666' },
-        };
-        const style = customsColorMap[val] || { bg: '#f5f5f5', text: '#666' };
-        return <span style={{ backgroundColor: style.bg, color: style.text, padding: '4px 8px', borderRadius: '4px', fontWeight: 600, fontSize: '12px', whiteSpace: 'pre-line', lineHeight: '1.3' }}>{getCommonLabel('customsStatus', val)}</span>;
+      size: 120,
+      cell: ({ row }) => {
+        if (row.original.rowType === 'product') {
+          const val = row.original.order?.customsData?.customsStatus;
+          if (!val) return '-';
+          const customsColorMap: any = {
+            'VALID': { bg: '#e8f5e9', text: '#2e7d32' },
+            'VALID_PHONE_MISMATCH': { bg: '#fff8e1', text: '#f57f17' },
+            'INVALID': { bg: '#ffebee', text: '#c62828' },
+            'PENDING': { bg: '#f5f5f5', text: '#666' },
+          };
+          const style = customsColorMap[val] || { bg: '#f5f5f5', text: '#666' };
+          return <span style={{ backgroundColor: style.bg, color: style.text, padding: '4px 8px', borderRadius: '4px', fontWeight: 600, fontSize: '12px', whiteSpace: 'pre-line', lineHeight: '1.3' }}>{getCommonLabel('customsStatus', val)}</span>;
+        }
+        if (row.original.rowType === 'fulfillment') return null;
+        const val = row.original.order?.customsData?.customsClearanceNo || '';
+        return <input style={inputStyle} defaultValue={val} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'order.customsClearanceNo', e.target.value)} />;
       }
     }),
-    columnHelper.accessor('order.recipientPhone', { header: '휴대폰', size: 130 }),
-    columnHelper.accessor('order.zipcode', { header: '우편번호', size: 80 }),
-    columnHelper.accessor('order.address', { header: '주소', size: 350, cell: ({ row, getValue }) => <input style={inputStyle} defaultValue={getValue() as string} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'order.address', e.target.value)} /> }),
-    columnHelper.accessor('order.message', { header: '배송메시지', size: 150 }),
-    columnHelper.accessor('product.sbCode', { header: 'SB코드', size: 120, cell: info => <div style={{ textAlign: 'left', paddingLeft: '8px', color: '#555' }}>{(info.getValue() as string) || ''}</div> }),
-    columnHelper.accessor('product.productName.productName', { header: '등록상품명', size: 200, cell: info => <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(info.getValue() as string) || ''}</div> }),
-    columnHelper.accessor('product.productName.originalName', { header: '영문상품명', size: 250, cell: ({ row, getValue }) => { const url = (row.original as any).product?.sourcingInfo?.url; const name = getValue() as string; return (<div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{url ? <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1565c0', textDecoration: 'none' }}>{name}</a> : name}</div>); } }),
-    columnHelper.accessor('product.stockStatus', {
-      id: 'stockStatus',
+    // 배송정보: 행1=우편번호|배송메시지, 행2=주소
+    columnHelper.display({
+      id: 'shippingInfoPair',
+      header: '배송정보',
+      size: 240,
+      cell: ({ row }) => {
+        if (row.original.rowType === 'product') {
+          const val = row.original.order?.address || '';
+          return <input style={inputStyle} defaultValue={val} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'order.address', e.target.value)} />;
+        }
+        if (row.original.rowType === 'fulfillment') return null;
+        const zipcode = row.original.order?.zipcode || '';
+        const message = row.original.order?.message || '';
+        return (
+          <div style={{ fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left', paddingLeft: '4px' }}>
+            <span style={{ fontWeight: 500 }}>{zipcode || '-'}</span>
+            <span style={{ margin: '0 4px', color: '#999' }}>|</span>
+            <span style={{ color: '#666' }}>{message || '-'}</span>
+          </div>
+        );
+      }
+    }),
+
+    // ─── 라인아이템 병합 컬럼 (rowSpan=3) ───
+    columnHelper.display({
+      id: 'sbCode',
+      header: '상품코드',
+      size: 110,
+      cell: ({ row }) => {
+        const val = (row.original as any).product?.sbCode || '-';
+        return <div style={{ textAlign: 'center', fontWeight: 600, fontSize: '12px' }}>{val}</div>;
+      }
+    }),
+
+    // 상품정보: 행1=등록상품명, 행2=영문상품명
+    columnHelper.display({
+      id: 'productNamePair',
+      header: '상품정보',
+      size: 300,
+      cell: ({ row }) => {
+        const url = (row.original as any).product?.sourcingInfo?.url;
+        if (row.original.rowType === 'product') {
+          const name = (row.original as any).product?.productName?.originalName || '';
+          return <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{url ? <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1565c0', textDecoration: 'none' }}>{name}</a> : name}</div>;
+        }
+        if (row.original.rowType === 'fulfillment') return null;
+        const name = (row.original as any).product?.productName?.productName || '';
+        return <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</div>;
+      }
+    }),
+
+    // ─── Row 1 전용 컬럼 (주문 행에만 표시) ───
+    // ─── 2줄 병합 컬럼 (행 1, 행 2) ───
+    columnHelper.display({
+      id: 'stockInfo',
       header: () => (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
           재고현황
@@ -995,57 +1086,129 @@ const OrderGrid: React.FC = () => {
         </div>
       ),
       size: 100,
-      cell: info => {
-        const val = info.getValue() as string;
-        if (val === 'IN_STOCK') return <span style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>구입가능</span>;
-        if (val === 'OUT_OF_STOCK') return <span style={{ backgroundColor: '#ffebee', color: '#c62828', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>품절</span>;
-        return <span style={{ color: '#999' }}>-</span>;
+      cell: ({ row }) => {
+        if (row.original.rowType === 'product') return null;
+        if (row.original.rowType === 'fulfillment') return null;
+        const val = (row.original as any).product?.stockStatus;
+        const restockDate = (row.original as any).product?.restockDate;
+        let badge = <span style={{ color: '#999' }}>-</span>;
+        if (val === 'IN_STOCK') badge = <span style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>구입가능</span>;
+        if (val === 'OUT_OF_STOCK') badge = <span style={{ backgroundColor: '#ffebee', color: '#c62828', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>품절</span>;
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
+            <div>{badge}</div>
+            <div style={{ fontSize: '11px', color: '#666' }}>{restockDate ? `입고: ${restockDate}` : '( - )'}</div>
+          </div>
+        );
       }
     }),
-    columnHelper.accessor('product.restockDate', { header: '입고예정일', size: 100 }),
-    columnHelper.accessor('product.productSpec.bundleQuantity', { header: '묶음', size: 60 }),
-    columnHelper.accessor('lineItem.quantity', { header: '수량', size: 60 }),
     columnHelper.display({
-      id: 'totalQuantity',
-      header: '총수량',
-      size: 70,
+      id: 'sourcingInfoPair',
+      header: '구매 정보',
+      size: 200,
       cell: ({ row }) => {
-        const qty = (row.original.lineItem?.quantity || 1) as number;
-        const bundle = (row.original.product?.productSpec?.bundleQuantity || 1) as number;
-        return <div style={{ textAlign: 'center' }}>{bundle * qty}</div>;
+        if (row.original.rowType === 'product') {
+          const sourcingOrderNo = row.original.lineItem?.sourcingData?.sourcingOrderNo || '';
+          const discountCode = row.original.lineItem?.sourcingData?.discountCode || '';
+          return (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '12px', justifyContent: 'center' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{sourcingOrderNo || '-'}</span>
+              <span style={{ color: '#666' }}>{discountCode ? `(${discountCode})` : ''}</span>
+            </div>
+          );
+        }
+        if (row.original.rowType === 'fulfillment') return null;
+        const account = row.original.lineItem?.sourcingData?.sourcingAccount || '';
+        return <div style={{ textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600, color: '#1565c0' }}>{account || '-'}</div>;
       }
     }),
-    columnHelper.accessor('lineItem.sourcingData.sourcingAccount', { id: 'sourcingAccount', header: '구매계정', size: 100, cell: ({ getValue }) => <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(getValue() as string) || ''}</div> }),
-    columnHelper.accessor('lineItem.sourcingData.sourcingOrderNo', { id: 'sourcingOrderNo', header: '구매번호', size: 120, cell: ({ getValue }) => <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(getValue() as string) || ''}</div> }),
-    columnHelper.accessor('lineItem.sourcingData.discountCode', { id: 'discountCode', header: '할인코드', size: 90, cell: ({ row, getValue }) => <input style={inputStyle} defaultValue={getValue() as string} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.discountCode', e.target.value)} /> }),
-    columnHelper.accessor('lineItem.shippingData.shippingCarrier', { id: 'shippingCarrier', header: '택배사', size: 120, cell: ({ row, getValue }) => {
-      const trackingNo = row.original.lineItem?.shippingData?.trackingNo;
-      const hasTracking = trackingNo && trackingNo.trim() !== '';
-      const carrierValue = hasTracking ? ((getValue() as string) || '') : '';
-      return (
-        <select style={inputStyle} value={carrierValue} onChange={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.shippingCarrier', e.target.value)}>
-          <option value="">선택</option>
-          <option value="CJ_LOGISTICS">CJ대한통운</option>
-          <option value="KOREA_POST">우체국</option>
-          <option value="LOTTE_LOGISTICS">롯데택배</option>
-        </select>
-      );
-    } }),
-    columnHelper.accessor('lineItem.shippingData.trackingNo', { id: 'trackingNo', header: '송장번호', size: 130, cell: ({ row, getValue }) => <input style={inputStyle} defaultValue={getValue() as string} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.trackingNo', e.target.value)} /> }),
-    columnHelper.accessor('lineItem.shippingData.isUnipassDone', { id: 'isUnipassDone', header: '유니패스', size: 70, cell: ({ row, getValue }) => <input type="checkbox" checked={!!getValue()} onChange={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.isUnipassDone', e.target.checked)} /> }),
-    columnHelper.accessor('lineItem.settlementData.settlementAmount', { id: 'settlementAmount', header: '정산금액', size: 90, cell: ({ getValue }) => <div style={{ fontWeight: 'bold', color: '#1565c0' }}>{(getValue() as number || 0).toLocaleString()}</div> }),
-    columnHelper.accessor('lineItem.sourcingData.sourcingAmount', { id: 'sourcingAmount', header: '실구매가', size: 90, cell: ({ row, getValue }) => <input style={inputStyle} type="number" defaultValue={getValue() as number} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.sourcingAmount', Number(e.target.value))} /> }),
-    columnHelper.accessor('lineItem.settlementData.shippingFee', { id: 'shippingFee', header: '배송비', size: 80, cell: ({ row, getValue }) => <input style={inputStyle} type="number" defaultValue={getValue() as number} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.shippingFee', Number(e.target.value))} /> }),
     columnHelper.display({
-      id: 'netProfit',
-      header: '순수익',
-      size: 80,
+      id: 'fulfillmentInfoPair',
+      header: '배송 정보',
+      size: 150,
       cell: ({ row }) => {
+        if (row.original.rowType === 'product') {
+          const trackingNo = row.original.lineItem?.shippingData?.trackingNo || '-';
+          return <div style={{ fontSize: '12px', textAlign: 'center' }}>{trackingNo}</div>;
+        }
+        if (row.original.rowType === 'fulfillment') return null;
+        const carrier = row.original.lineItem?.shippingData?.shippingCarrier || '';
+        let carrierName = carrier;
+        if (carrier === 'CJ_LOGISTICS') carrierName = 'CJ대한통운';
+        else if (carrier === 'KOREA_POST') carrierName = '우체국';
+        else if (carrier === 'LOTTE_LOGISTICS') carrierName = '롯데택배';
+        return <div style={{ fontSize: '12px', color: '#666', textAlign: 'center' }}>{carrierName || '-'}</div>;
+      }
+    }),
+    columnHelper.display({
+      id: 'financialInfoPair',
+      header: '정산 정보',
+      size: 160,
+      cell: ({ row }) => {
+        if (row.original.rowType === 'product') {
+          const sourcingAmount = row.original.lineItem?.sourcingData?.sourcingAmount || 0;
+          const shippingFee = row.original.lineItem?.settlementData?.shippingFee || 0;
+          return (
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', textAlign: 'center' }}>실구매가</div>
+                <input style={{...inputStyle, textAlign: 'center'}} type="number" defaultValue={sourcingAmount} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.sourcingAmount', Number(e.target.value))} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', textAlign: 'center' }}>배송비</div>
+                <input style={{...inputStyle, textAlign: 'center'}} type="number" defaultValue={shippingFee} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.shippingFee', Number(e.target.value))} />
+              </div>
+            </div>
+          );
+        }
+        if (row.original.rowType === 'fulfillment') return null;
+        
         const settlementAmount = (row.original.lineItem?.settlementData?.settlementAmount || 0) as number;
         const sourcingAmount = (row.original.lineItem?.sourcingData?.sourcingAmount || 0) as number;
         const shippingFee = (row.original.lineItem?.settlementData?.shippingFee || 0) as number;
         const profit = settlementAmount - sourcingAmount - shippingFee;
-        return <div style={{ fontWeight: 'bold', color: profit > 0 ? '#2e7d32' : '#d32f2f' }}>{profit.toLocaleString()}</div>;
+        
+        return (
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px' }}>정산금액</div>
+              <div style={{ fontWeight: 'bold', color: '#1565c0', fontSize: '13px' }}>{settlementAmount.toLocaleString()}</div>
+            </div>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px' }}>순수익</div>
+              <div style={{ fontWeight: 'bold', color: profit > 0 ? '#2e7d32' : '#d32f2f', fontSize: '13px' }}>{profit.toLocaleString()}</div>
+            </div>
+          </div>
+        );
+      }
+    }),
+    columnHelper.display({
+      id: 'unipass',
+      header: '유니패스',
+      size: 70,
+      cell: ({ row }) => {
+        if (row.original.rowType !== 'order') return null;
+        const isDone = row.original.lineItem?.shippingData?.isUnipassDone;
+        return <div style={{ textAlign: 'center' }}><input type="checkbox" checked={!!isDone} onChange={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.isUnipassDone', e.target.checked)} /></div>;
+      }
+    }),
+    // ─── Row 1 전용 컬럼 (주문 행에만 표시) ───
+    columnHelper.display({
+      id: 'quantity',
+      header: '수량',
+      size: 70,
+      cell: ({ row }) => {
+        const qty = (row.original.lineItem?.quantity || 1) as number;
+        const bundle = (row.original.product?.productSpec?.bundleQuantity || 1) as number;
+        const total = qty * bundle;
+        return (
+          <div style={{ textAlign: 'center', lineHeight: '1.4' }}>
+            <div style={{ fontSize: '12px', color: '#666' }}>
+              {bundle} × <span style={qty >= 2 ? { fontWeight: 'bold', color: '#d32f2f' } : {}}>{qty}</span>
+            </div>
+            <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#1e293b' }}>{total}</div>
+          </div>
+        );
       }
     }),
     columnHelper.display({
@@ -1053,51 +1216,35 @@ const OrderGrid: React.FC = () => {
       header: '처리',
       size: 120,
       cell: ({ row }) => {
+        if (row.original.rowType !== 'order') return null;
         const status = row.original.lineItem?.shippingData?.shippingStatus;
         const lineItem = row.original;
-        
-        // 상태에 따라 다른 버튼 표시
         if (status === 'PREPARING') {
           return (
-            <button
-              onClick={() => openPurchaseModal(lineItem)}
-              style={{ padding: '4px 8px', backgroundColor: '#e8f5e9', color: '#2e7d32', border: '1px solid #c8e6c9', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
-            >
+            <button onClick={() => openPurchaseModal(lineItem)} style={{ padding: '4px 8px', backgroundColor: '#e8f5e9', color: '#2e7d32', border: '1px solid #c8e6c9', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}>
               구매처리
             </button>
           );
         }
-        
         if (status === 'PURCHASED') {
           return (
-            <div style={{ display: 'flex', gap: '4px' }}>
-              <button
-                onClick={() => openEditSourcingModal(lineItem)}
-                style={{ padding: '4px 6px', backgroundColor: '#e3f2fd', color: '#1565c0', border: '1px solid #bbdefb', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 600 }}
-              >
+            <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+              <button onClick={() => openEditSourcingModal(lineItem)} style={{ padding: '4px 6px', backgroundColor: '#e3f2fd', color: '#1565c0', border: '1px solid #bbdefb', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 600 }}>
                 구매정보수정
               </button>
-              <button
-                onClick={() => openShipModal(lineItem)}
-                style={{ padding: '4px 6px', backgroundColor: '#fff3e0', color: '#e65100', border: '1px solid #ffe0b2', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 600 }}
-              >
+              <button onClick={() => openShipModal(lineItem)} style={{ padding: '4px 6px', backgroundColor: '#fff3e0', color: '#e65100', border: '1px solid #ffe0b2', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 600 }}>
                 배송처리
               </button>
             </div>
           );
         }
-        
         if (status === 'SHIPPED') {
           return (
-            <button
-              onClick={() => openTrackingModal(lineItem)}
-              style={{ padding: '4px 8px', backgroundColor: '#e3f2fd', color: '#1565c0', border: '1px solid #bbdefb', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
-            >
+            <button onClick={() => openTrackingModal(lineItem)} style={{ padding: '4px 8px', backgroundColor: '#e3f2fd', color: '#1565c0', border: '1px solid #bbdefb', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}>
               송장수정
             </button>
           );
         }
-        
         return <span style={{ color: '#999', fontSize: '11px' }}>-</span>;
       }
     }),
@@ -1173,10 +1320,10 @@ const OrderGrid: React.FC = () => {
           })}
         </div>
       )}
-      <OrderFilterPanel onSearch={(keyword, markets, statuses, startDate, endDate) => setQueryParams({ keyword, markets, statuses, startDate, endDate })} />
+      <OrderFilterPanel onSearch={(keyword, markets, statuses, startDate, endDate) => { setQueryParams({ keyword, markets, statuses, startDate, endDate }); setSearchTrigger(c => c + 1); }} />
 
-      <div style={{ padding: '0 12px 12px', flex: 1, backgroundColor: 'white', overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)', position: 'relative' }}>
-        <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
+      <div style={{ flex: 1, backgroundColor: 'white', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+        <div className="force-scrollbar" style={{ flex: 1, overflow: 'scroll' }}>
           {(queryLoading || isSyncing) && (
             <div style={{
               position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
@@ -1192,7 +1339,25 @@ const OrderGrid: React.FC = () => {
               </div>
             </div>
           )}
-          <Table style={{ tableLayout: 'fixed', width: table.getCenterTotalSize(), borderTop: '2px solid var(--primary-color)' }}>
+          <style>{`
+            .force-scrollbar::-webkit-scrollbar {
+              width: 14px;
+              height: 14px;
+              background-color: #f8fafc;
+            }
+            .force-scrollbar::-webkit-scrollbar-thumb {
+              background-color: #cbd5e1;
+              border-radius: 8px;
+              border: 3px solid #f8fafc;
+            }
+            .force-scrollbar::-webkit-scrollbar-thumb:hover {
+              background-color: #94a3b8;
+            }
+            .force-scrollbar::-webkit-scrollbar-corner {
+              background-color: #f8fafc;
+            }
+          `}</style>
+          <Table style={{ tableLayout: 'fixed', width: 'max-content' }}>
               <TableHeader>
                 {table.getHeaderGroups().map(headerGroup => (
                   <TableRow key={headerGroup.id}>
@@ -1205,12 +1370,17 @@ const OrderGrid: React.FC = () => {
                         key={header.id}
                         style={{ 
                           width: header.getSize(), 
+                          minWidth: header.getSize(),
                           backgroundColor: '#f9fafb', 
                           borderRight: '1px solid #e5e7eb', 
-                          position: isFrozen ? 'sticky' : 'relative',
+                          borderTop: '2px solid var(--primary-color)',
+                          borderBottom: '1px solid #e5e7eb',
+                          position: 'sticky',
+                          top: 0,
                           left: isFrozen ? freezeLeft : undefined,
-                          zIndex: isFrozen ? 3 : undefined,
+                          zIndex: isFrozen ? 4 : 3,
                           boxShadow: isFrozen ? '2px 0 4px rgba(0,0,0,0.1)' : undefined,
+                          textAlign: ['shippingInfoPair', 'productNamePair'].includes(header.column.id) ? 'left' : 'center',
                         }}
                       >
                         {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
@@ -1231,29 +1401,43 @@ const OrderGrid: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {table.getRowModel().rows.map(row => {
+                  const bgCol = row.original.isFirstLineItem ? '#ffffff' : row.original.isSecondRow ? '#fdfdfd' : '#f9f9f9';
                   return (
-                  <TableRow key={row.id} style={{ backgroundColor: row.original.isFirstLineItem ? '#ffffff' : '#fafafa' }}>
+                  <TableRow key={row.id} style={{ backgroundColor: bgCol }}>
                     {row.getVisibleCells().map(cell => {
-                      const isSpannedColumn = SPANNED_COLUMNS.includes(cell.column.id);
-                      if (isSpannedColumn && !row.original.isFirstLineItem) return null;
+                      const isOrderSpanned = ORDER_SPANNED_COLUMNS.includes(cell.column.id);
+                      const isLineItemSpanned = LINEITEM_SPANNED_COLUMNS.includes(cell.column.id);
+                      const isTwoRowColumn = TWO_ROW_COLUMNS.includes(cell.column.id);
+                      const isOrderColumn = ORDER_COLUMNS.includes(cell.column.id);
+                      const isProductColumn = PRODUCT_COLUMNS.includes(cell.column.id);
+                      if (isOrderSpanned && !row.original.isFirstLineItem) return null;
+                      if (isLineItemSpanned && row.original.rowType !== 'order') return null;
+                      if (isTwoRowColumn && row.original.rowType === 'fulfillment') return null;
+                      if (isOrderColumn && row.original.rowType !== 'order') return null;
+                      if (isProductColumn && row.original.rowType !== 'product') return null;
                       const meta = cell.column.columnDef.meta as any;
                       const isFrozen = meta?.frozen;
                       const freezeLeft = meta?.freezeLeft;
                       return (
                         <TableCell 
                           key={cell.id} 
-                          rowSpan={isSpannedColumn ? row.original.lineItemCount : 1}
+                          rowSpan={isOrderSpanned ? row.original.totalRowCount || 1 : isLineItemSpanned ? 3 : 1}
                           style={{ 
                             borderRight: '1px solid #e5e7eb', 
                             width: cell.column.getSize(), 
+                            minWidth: cell.column.getSize(),
                             maxWidth: cell.column.getSize(), 
+                            height: '48px', // 행 높이를 48px로 고정
                             overflow: 'hidden', 
                             textOverflow: 'ellipsis', 
-                            whiteSpace: 'nowrap',
+                            whiteSpace: 'normal',
+                            wordBreak: 'break-word',
+                            padding: '6px 8px',
+                            textAlign: ['shippingInfoPair', 'productNamePair'].includes(cell.column.id) ? 'left' : 'center',
                             position: isFrozen ? 'sticky' : undefined,
                             left: isFrozen ? freezeLeft : undefined,
                             zIndex: isFrozen ? 2 : undefined,
-                            backgroundColor: isFrozen ? '#ffffff' : undefined,
+                            backgroundColor: isFrozen ? bgCol : undefined,
                             boxShadow: isFrozen ? '2px 0 4px rgba(0,0,0,0.1)' : undefined,
                           }}
                         >

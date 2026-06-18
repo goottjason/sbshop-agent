@@ -30,17 +30,27 @@ public class MediaInfo {
 	private String memo;
 
 	@JsonRawValue
-	public String getSourceImages() { return sourceImages; }
+	public String getSourceImages() {
+		return sourceImages;
+	}
 
 	@JsonRawValue
-	public String getHostedImages() { return hostedImages; }
+	public String getHostedImages() {
+		return hostedImages;
+	}
 
-	public String getSearchKeywords() { return searchKeywords; }
+	public String getSearchKeywords() {
+		return searchKeywords;
+	}
 
-	public String getDetailHtml() { return detailHtml; }
+	public String getDetailHtml() {
+		return detailHtml;
+	}
 
 	@JsonRawValue
-	public String getMemo() { return memo; }
+	public String getMemo() {
+		return memo;
+	}
 
 	@Builder
 	public MediaInfo(

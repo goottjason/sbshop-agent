@@ -131,8 +131,11 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.or(order.recipientName.contains(keyword))
 			.or(order.recipientPhone.contains(keyword))
 			.or(order.ordererName.contains(keyword))
+			.or(order.customsData.customsClearanceNo.contains(keyword))
+			.or(QProduct.product.productName.productName.contains(keyword))
 			.or(QProduct.product.productName.originalName.contains(keyword))
-			.or(QProduct.product.sbCode.contains(keyword));
+			.or(QProduct.product.sbCode.contains(keyword))
+			.or(QOrderLineItem.orderLineItem.shippingData.trackingNo.contains(keyword));
 	}
 
 	private BooleanExpression dateBetween(
