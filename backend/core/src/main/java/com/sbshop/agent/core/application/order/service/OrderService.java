@@ -357,4 +357,80 @@ public class OrderService {
 
 		log.info("LineItem {} tracking updated: tracking={}, carrier={}", lineItemId, trackingNo, carrier);
 	}
+
+	@Transactional
+	public void saveSourcingInfo(Long lineItemId, String sourcingAccount,
+		String sourcingOrderNo, String discountCode, String sourcingVendor) {
+		OrderLineItem item = orderLineItemRepository.findById(lineItemId)
+			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + lineItemId));
+
+		ShippingStatus currentStatus = item.getShippingData() != null
+			? item.getShippingData().getShippingStatus() : null;
+
+		if (currentStatus == ShippingStatus.NEW) {
+			throw new IllegalStateException("먼저 주문의 발주 확인 처리를 진행해주세요.");
+		}
+
+		if (currentStatus == ShippingStatus.PREPARING) {
+			// 구매 처리 (PREPARING -> PURCHASED)
+			if (sourcingAccount != null && !sourcingAccount.isEmpty()) {
+				item.updateSourcingForIherb(sourcingAccount, sourcingOrderNo, discountCode);
+			} else {
+				item.updateSourcingForVendor(sourcingVendor, sourcingOrderNo);
+			}
+
+			item.markAsPurchased();
+			orderLineItemRepository.save(item);
+
+			log.info("LineItem {} marked as PURCHASED via saveSourcingInfo (vendor: {}, orderNo: {})",
+				lineItemId, sourcingVendor != null ? sourcingVendor : "IHB", sourcingOrderNo);
+		} else {
+			// 단순 정보 수정 (구매완료 이후 상태)
+			com.sbshop.agent.core.domain.order.vo.SourcingData.SourcingDataBuilder sourcingBuilder = item
+				.getSourcingData() != null ? item.getSourcingData().toBuilder()
+					: com.sbshop.agent.core.domain.order.vo.SourcingData.builder();
+			if (sourcingAccount != null)
+				sourcingBuilder.sourcingAccount(sourcingAccount);
+			if (sourcingOrderNo != null)
+				sourcingBuilder.sourcingOrderNo(sourcingOrderNo);
+			if (discountCode != null)
+				sourcingBuilder.discountCode(discountCode);
+			if (sourcingVendor != null)
+				sourcingBuilder.sourcingVendor(sourcingVendor);
+
+			item.updateSourcingData(sourcingBuilder.build());
+			orderLineItemRepository.save(item);
+
+			log.info("LineItem {} sourcing info updated via saveSourcingInfo", lineItemId);
+		}
+	}
+
+	@Transactional
+	public void saveShippingInfo(Long lineItemId, String trackingNo,
+		com.sbshop.agent.core.domain.order.enums.ShippingCarrier carrier) {
+		OrderLineItem item = orderLineItemRepository.findById(lineItemId)
+			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + lineItemId));
+
+		ShippingStatus currentStatus = item.getShippingData() != null
+			? item.getShippingData().getShippingStatus() : null;
+
+		if (currentStatus == ShippingStatus.PURCHASED) {
+			// 배송 처리 (PURCHASED -> SHIPPED)
+			item.updateTrackingInfo(trackingNo, carrier);
+			item.updateShippingStatus(ShippingStatus.SHIPPED);
+			orderLineItemRepository.save(item);
+
+			syncTrackingToMarketplace(item);
+			log.info("LineItem {} shipped via saveShippingInfo: tracking={}, carrier={}", lineItemId, trackingNo,
+				carrier);
+		} else {
+			// 송장 수정 (SHIPPED 이후 상태)
+			item.updateTrackingInfo(trackingNo, carrier);
+			orderLineItemRepository.save(item);
+
+			syncTrackingToMarketplace(item);
+			log.info("LineItem {} tracking updated via saveShippingInfo: tracking={}, carrier={}", lineItemId,
+				trackingNo, carrier);
+		}
+	}
 }

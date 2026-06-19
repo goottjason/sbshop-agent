@@ -1,7 +1,6 @@
 package com.sbshop.agent.api.controller;
 
 import com.sbshop.agent.api.dto.OrderUpdateRequest;
-import com.sbshop.agent.api.service.IherbEmailSearchService;
 import com.sbshop.agent.core.application.order.service.OrderService;
 import com.sbshop.agent.core.application.order.dto.OrderUpdateCommand;
 import com.sbshop.agent.core.domain.order.Order;
@@ -28,9 +27,6 @@ public class OrderController {
 
 	// 발송 처리 전용 서비스
 	private final OrderShipService orderShipService;
-
-	// iHerb 이메일 검색 서비스
-	private final IherbEmailSearchService iherbEmailSearchService;
 
 	@GetMapping
 	public ResponseEntity<Page<OrderDetailDto>> getOrders(
@@ -64,32 +60,6 @@ public class OrderController {
 		Order updated = orderService.updateOrder(id, command);
 
 		// 3. 변경 완료된 엔티티 반환
-		return ResponseEntity.ok(updated);
-	}
-
-	@PatchMapping("/line-items/{id}")
-	public ResponseEntity<com.sbshop.agent.core.domain.order.OrderLineItem> updateOrderLineItem(
-		@PathVariable
-		Long id, @RequestBody
-		com.sbshop.agent.api.dto.OrderLineItemUpdateRequest request) {
-
-		com.sbshop.agent.core.application.order.dto.OrderLineItemUpdateCommand command = com.sbshop.agent.core.application.order.dto.OrderLineItemUpdateCommand
-			.builder()
-			.sourcingAccount(request.getSourcingAccount())
-			.sourcingOrderNo(request.getSourcingOrderNo())
-			.sourcingAmount(request.getSourcingAmount())
-			.discountCode(request.getDiscountCode())
-			.sourcingVendor(request.getSourcingVendor())
-			.shippingFee(request.getShippingFee())
-			.shippingCarrier(request.getShippingCarrier())
-			.trackingNo(request.getTrackingNo())
-			.shippingStatus(request.getShippingStatus())
-			.isUnipassDone(request.getIsUnipassDone())
-			.trackingSentToMarket(request.getTrackingSentToMarket())
-			.settlementAmount(request.getSettlementAmount())
-			.build();
-
-		com.sbshop.agent.core.domain.order.OrderLineItem updated = orderService.updateOrderLineItem(id, command);
 		return ResponseEntity.ok(updated);
 	}
 
@@ -142,9 +112,9 @@ public class OrderController {
 		return ResponseEntity.ok(java.util.Map.of("success", true, "message", "Order canceled successfully."));
 	}
 
-	// 구매 처리 (PREPARING → PURCHASED) - 즉시 응답
-	@PostMapping("/line-items/{lineItemId}/purchase")
-	public ResponseEntity<java.util.Map<String, Object>> markLineItemPurchased(
+	// 구매(소싱) 정보 저장 및 수정 통합 API
+	@PutMapping("/line-items/{lineItemId}/sourcing")
+	public ResponseEntity<java.util.Map<String, Object>> saveSourcingInfo(
 		@PathVariable
 		Long lineItemId,
 		@RequestBody
@@ -154,39 +124,15 @@ public class OrderController {
 		String discountCode = request.get("discountCode");
 		String sourcingVendor = request.get("sourcingVendor");
 
-		// 즉시 구매 처리 (이메일 검색 없이)
-		orderService.markAsPurchasedWithAmount(lineItemId, sourcingAccount, sourcingOrderNo, discountCode,
-			sourcingVendor, null);
+		// 상태에 따라 구매처리 또는 단순 정보업데이트 분기
+		orderService.saveSourcingInfo(lineItemId, sourcingAccount, sourcingOrderNo, discountCode, sourcingVendor);
 
-		// 아이허브 상품이면 백그라운드에서 이메일 검색 후 실구매가 업데이트
-		if (sourcingAccount != null && !sourcingAccount.isEmpty()
-			&& sourcingOrderNo != null && !sourcingOrderNo.isEmpty()) {
-			String finalSourcingAccount = sourcingAccount;
-			String finalSourcingOrderNo = sourcingOrderNo;
-			new Thread(() -> {
-				try {
-					log.info("백그라운드 이메일 검색 시작: orderNo={}", finalSourcingOrderNo);
-					java.math.BigDecimal emailAmount = iherbEmailSearchService
-						.findConfirmationAmount(finalSourcingOrderNo)
-						.orElse(null);
-					if (emailAmount != null) {
-						orderService.updateSourcingAmount(lineItemId, emailAmount);
-						log.info("백그라운드 이메일 검색 완료: orderNo={}, amount={}", finalSourcingOrderNo, emailAmount);
-					} else {
-						log.info("백그라운드 이메일 검색: 결제금액 미발견 (스케줄러가 채움): orderNo={}", finalSourcingOrderNo);
-					}
-				} catch (Exception e) {
-					log.warn("백그라운드 이메일 검색 실패: {}", e.getMessage());
-				}
-			}, "iherb-email-" + finalSourcingOrderNo).start();
-		}
-
-		return ResponseEntity.ok(java.util.Map.of("success", true, "message", "구매 완료 처리됨"));
+		return ResponseEntity.ok(java.util.Map.of("success", true, "message", "구매 정보가 저장되었습니다."));
 	}
 
-	// 배송 처리 (PURCHASED → SHIPPED)
-	@PostMapping("/line-items/{lineItemId}/ship")
-	public ResponseEntity<java.util.Map<String, Object>> processShipping(
+	// 배송 정보 저장 및 수정 통합 API
+	@PutMapping("/line-items/{lineItemId}/shipping")
+	public ResponseEntity<java.util.Map<String, Object>> saveShippingInfo(
 		@PathVariable
 		Long lineItemId,
 		@RequestBody
@@ -196,23 +142,10 @@ public class OrderController {
 
 		com.sbshop.agent.core.domain.order.enums.ShippingCarrier shippingCarrier = com.sbshop.agent.core.domain.order.enums.ShippingCarrier
 			.valueOf(carrier);
-		orderService.processShipping(lineItemId, trackingNo, shippingCarrier);
-		return ResponseEntity.ok(java.util.Map.of("success", true, "message", "배송 처리 완료"));
-	}
 
-	// 송장 수정 (SHIPPED 상태)
-	@PutMapping("/line-items/{lineItemId}/tracking")
-	public ResponseEntity<java.util.Map<String, Object>> updateTrackingInfo(
-		@PathVariable
-		Long lineItemId,
-		@RequestBody
-		java.util.Map<String, String> request) {
-		String trackingNo = request.get("trackingNo");
-		String carrier = request.get("carrier");
+		// 상태에 따라 배송처리 또는 단순 송장수정 분기
+		orderService.saveShippingInfo(lineItemId, trackingNo, shippingCarrier);
 
-		com.sbshop.agent.core.domain.order.enums.ShippingCarrier shippingCarrier = com.sbshop.agent.core.domain.order.enums.ShippingCarrier
-			.valueOf(carrier);
-		orderService.updateTrackingInfo(lineItemId, trackingNo, shippingCarrier);
-		return ResponseEntity.ok(java.util.Map.of("success", true, "message", "송장 수정 완료"));
+		return ResponseEntity.ok(java.util.Map.of("success", true, "message", "배송 정보가 저장되었습니다."));
 	}
 }
