@@ -20,15 +20,31 @@ public class CustomsOrderSyncService {
 	private final OrderRepository orderRepository;
 	private final CustomsClearancePort customsClearancePort;
 
+	/**
+	 * 통관 상태 동기화 프로세스
+	 *
+	 * 흐름:
+	 * 1. 통관번호가 없거나(空白), 이미 VALID인 주문은 스킵
+	 * 2. 통관번호가 있고 PENDING이거나 INVALID 상태인 주문만 대상
+	 * 3. GSI Express에서 벌크 검증 (30개씩)
+	 * 4. 결과를 주문에 반영 (상태 + 검증된 사람)
+	 */
 	@Transactional
 	public void syncCustomsStatus() {
 		log.info("Starting customs status sync process via GSI Scraper...");
 
-		// 1. 대기중(PENDING), 불일치(INVALID), 전화번호불일치(VALID_PHONE_MISMATCH) 상태인 주문만 조회
+		// 1. 통관 검증 대상: PENDING 또는 INVALID 상태인 주문
+		//    - PENDING: 통관번호 입력 후 아직 검증 안 된 경우
+		//    - INVALID_*: 이전 검증에서 실패한 경우 (재검증)
 		List<Order> targetOrders = orderRepository.findByCustomsData_CustomsStatusIn(
-			List.of(CustomsStatus.PENDING, CustomsStatus.INVALID, CustomsStatus.VALID_PHONE_MISMATCH));
+			List.of(
+				CustomsStatus.PENDING,
+				CustomsStatus.INVALID_PCCC,
+				CustomsStatus.INVALID_PHONE,
+				CustomsStatus.INVALID_ZIPCODE
+			));
 
-		log.info("Found {} candidate orders with PENDING/INVALID/VALID_PHONE_MISMATCH customs status",
+		log.info("Found {} candidate orders with PENDING/INVALID_* customs status",
 			targetOrders.size());
 
 		if (targetOrders.isEmpty()) {
@@ -44,7 +60,7 @@ public class CustomsOrderSyncService {
 			log.info("Verifying customs status for batch {} to {} (out of {})", i + 1, end, targetOrders.size());
 			Map<Long, CustomsVerificationResult> resultMap = customsClearancePort.verifyBulk(batch);
 
-			// 4. 결과 반영 (상태 + 검증된 사람)
+			// 3. 결과 반영 (상태 + 검증된 사람)
 			for (Order order : batch) {
 				CustomsVerificationResult result = resultMap.getOrDefault(order.getId(),
 					CustomsVerificationResult.pending());

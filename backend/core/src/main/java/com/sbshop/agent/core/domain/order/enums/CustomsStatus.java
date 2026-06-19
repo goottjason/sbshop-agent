@@ -8,9 +8,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum CustomsStatus implements EnumMapperType {
 	PENDING("대기중"),
-	VALID("일치"),
-	VALID_PHONE_MISMATCH("일치"),
-	INVALID("불일치");
+	VALID("정상"),
+	INVALID_PCCC("통관번호 불일치"),
+	INVALID_PHONE("전화번호 불일치"),
+	INVALID_ZIPCODE("우편번호 불일치");
 
 	private final String label;
 

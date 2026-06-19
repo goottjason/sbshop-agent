@@ -124,14 +124,21 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 							log.info("Matched name={} and PCCC {} for order ID {}",
 								matchedPerson, pccc, orderId);
 
-							CustomsStatus rowStatus = CustomsStatus.PENDING;
-							if (rowText.contains("정상")) {
-								rowStatus = CustomsStatus.VALID;
-							} else if (rowText.contains("전화번호가 일치하지 않습니다")) {
-								rowStatus = CustomsStatus.VALID_PHONE_MISMATCH;
-							} else if (rowText.contains("오류") || rowText.contains("불일치")) {
-								rowStatus = CustomsStatus.INVALID;
-							}
+						// 에러 메시지 패턴에 따라 통관 상태 결정
+						// 우선순위: 납세의무자명/개인통관고유부호(1순위) > 전화번호(2순위) > 우편번호(3순위)
+						CustomsStatus rowStatus = CustomsStatus.PENDING;
+						if (rowText.contains("정상")) {
+							rowStatus = CustomsStatus.VALID;
+						} else if (rowText.contains("납세의무자명") || rowText.contains("개인통관고유부호가 존재하지 않습니다")) {
+							rowStatus = CustomsStatus.INVALID_PCCC;
+						} else if (rowText.contains("전화번호가 일치하지 않습니다")) {
+							rowStatus = CustomsStatus.INVALID_PHONE;
+						} else if (rowText.contains("우편번호가 일치하지 않습니다")) {
+							rowStatus = CustomsStatus.INVALID_ZIPCODE;
+						} else if (rowText.contains("오류") || rowText.contains("불일치")) {
+							// 기타 불일치 에러는 통관번호 불일치로 처리
+							rowStatus = CustomsStatus.INVALID_PCCC;
+						}
 
 							// Accumulate: only update if new status has higher priority
 							// Priority: VALID(3) > VALID_PHONE_MISMATCH(2) > INVALID(1) > PENDING(0)
@@ -163,15 +170,19 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 		return resultMap;
 	}
 
+	// 통관 상태 우선순위 (높을수록 우선)
+	// VALID(4) > INVALID_PHONE(3) > INVALID_ZIPCODE(2) > INVALID_PCCC(1) > PENDING(0)
 	private int priority(CustomsStatus status) {
 		if (status == null)
 			return -1;
 		switch (status) {
 			case VALID:
+				return 4;
+			case INVALID_PHONE:
 				return 3;
-			case VALID_PHONE_MISMATCH:
+			case INVALID_ZIPCODE:
 				return 2;
-			case INVALID:
+			case INVALID_PCCC:
 				return 1;
 			case PENDING:
 				return 0;

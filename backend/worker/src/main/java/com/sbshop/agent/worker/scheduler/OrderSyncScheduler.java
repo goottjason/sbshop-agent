@@ -5,6 +5,7 @@ import com.sbshop.agent.core.application.order.service.SmartStoreOrderSyncServic
 import com.sbshop.agent.core.application.order.service.CoupangOrderSyncService;
 import com.sbshop.agent.core.application.order.service.ElevenstOrderSyncService;
 import com.sbshop.agent.core.application.order.service.EsmplusOrderSyncService;
+import com.sbshop.agent.core.application.order.service.CustomsOrderSyncService;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,12 +22,14 @@ public class OrderSyncScheduler {
 	private static final String ELEVEN_STREET = "ELEVEN_STREET";
 	private static final String GMARKET = "GMARKET";
 	private static final String COUPANG_SETTLEMENT = "COUPANG_SETTLEMENT";
+	private static final String CUSTOMS = "CUSTOMS";
 
 	private final EmailFetcherService emailFetcherService;
 	private final SmartStoreOrderSyncService smartStoreOrderSyncService;
 	private final CoupangOrderSyncService coupangOrderSyncService;
 	private final ElevenstOrderSyncService elevenstOrderSyncService;
 	private final EsmplusOrderSyncService esmplusOrderSyncService;
+	private final CustomsOrderSyncService customsOrderSyncService;
 	private final SyncStatusService syncStatusService;
 
 	// 매시 0분, 30분 - 이메일 IMAP 주문 수집
@@ -116,6 +119,21 @@ public class OrderSyncScheduler {
 		} catch (Exception e) {
 			syncStatusService.markFailed(COUPANG_SETTLEMENT, e.getMessage());
 			log.error("Scheduled Coupang settlement sync failed: {}", e.getMessage());
+		}
+	}
+
+	// 매 시간 정각 - 통관 상태 동기화 (GSI Express 검증)
+	// @Scheduled(cron = "0 0 * * * ?")
+	public void syncCustomsStatus() {
+		log.info("Starting scheduled customs status sync...");
+		syncStatusService.markRunning(CUSTOMS);
+		try {
+			customsOrderSyncService.syncCustomsStatus();
+			syncStatusService.markCompleted(CUSTOMS);
+			log.info("Finished scheduled customs status sync.");
+		} catch (Exception e) {
+			syncStatusService.markFailed(CUSTOMS, e.getMessage());
+			log.error("Scheduled customs status sync failed: {}", e.getMessage());
 		}
 	}
 }
