@@ -1,11 +1,10 @@
 package com.sbshop.agent.core.application.order.service;
 
-import com.sbshop.agent.core.application.order.port.MarketOrderPort;
+import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
-import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
@@ -25,22 +24,11 @@ public class OrderShipService {
 	private final OrderRepository orderRepository;
 	private final MarketCredentialRepository credentialRepository;
 	private final OrderLineItemRepository orderLineItemRepository;
-	private final List<MarketOrderPort> marketOrderPorts;
-
-	/**
-	 * MarketType에 해당하는 MarketOrderPort를 찾는 헬퍼 메서드
-	 */
-	private MarketOrderPort getPort(MarketType marketType) {
-		return marketOrderPorts.stream()
-			.filter(port -> port.getMarketType() == marketType)
-			.findFirst()
-			.orElseThrow(() -> new IllegalArgumentException(
-				"지원하지 않는 마켓: " + marketType));
-	}
+	private final MarketplaceShippingService marketplaceShippingService;
 
 	@Transactional
-	public int bulkShipOrders(List<Long> orderIds) {
-		int shippedCount = 0;
+	public List<Order> bulkShipOrders(List<Long> orderIds) {
+		List<Order> shippedOrders = new java.util.ArrayList<>();
 
 		for (Long orderId : orderIds) {
 			Order order = orderRepository.findById(orderId).orElse(null);
@@ -49,7 +37,7 @@ public class OrderShipService {
 
 			MarketCredential cred = credentialRepository.findByMarketType(order.getMarketType()).orElse(null);
 			if (cred == null) {
-				log.warn("No credentials for market type: {}", order.getMarketType());
+				log.warn("마켓 유형 {}에 대한 인증 정보가 없습니다.", order.getMarketType());
 				continue;
 			}
 
@@ -65,29 +53,32 @@ public class OrderShipService {
 					? item.getShippingData().getShippingCarrier() : null;
 
 				try {
-					MarketOrderPort port = getPort(order.getMarketType());
-					port.shipOrder(cred, order, item, trackingNo, carrier);
+					marketplaceShippingService.getPort(order.getMarketType())
+						.shipOrder(cred, order, item, trackingNo, carrier);
 
-					item.updateShippingInfo(trackingNo, SHIPPED,
-						item.getShippingData() != null ? item.getShippingData().getIsUnipassDone() : null, null, null);
+					ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
+						.trackingNo(trackingNo)
+						.shippingStatus(SHIPPED)
+						.build();
+					item.applyShippingData(cmd.toShippingData(item.getShippingData()));
 					calculateSettlement(item);
 					orderLineItemRepository.save(item);
 					orderShipped = true;
 				} catch (Exception e) {
-					log.error("Failed to ship orderLineItem {}: {}", item.getId(), e.getMessage());
+					log.error("라인아이템 {} 배송 처리 실패: {}", item.getId(), e.getMessage());
 				}
 			}
 			if (orderShipped)
-				shippedCount++;
+				shippedOrders.add(order);
 		}
-		return shippedCount;
+		return shippedOrders;
 	}
 
 	static void calculateSettlement(OrderLineItem item) {
 		if (item.getSettlementData() != null && item.getSettlementData().getSettlementAmount() != null) {
 			BigDecimal currentSettlement = item.getSettlementData().getSettlementAmount();
 			BigDecimal settlementAmount = currentSettlement.multiply(new BigDecimal("0.89"));
-			item.updateSettlement(settlementAmount);
+			item.applySettlement(settlementAmount);
 		}
 	}
 }

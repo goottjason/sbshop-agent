@@ -6,7 +6,7 @@ import {
   createColumnHelper,
 } from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchOrders, updateOrder, updateOrderLineItem, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, syncProductStock, fetchSyncStatus } from '../api/orderApi';
+import { fetchOrders, updateOrder, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, syncProductStock, fetchSyncStatus } from '../api/orderApi';
 import type { SyncStatus } from '../api/orderApi';
 import type { OrderGridDto } from '../api/orderApi';
 import { toast } from 'react-toastify';
@@ -678,13 +678,13 @@ const OrderGrid: React.FC = () => {
 
     try {
       const result = await confirmOrdersBatch(orderIdsToConfirm);
-      if (result.success) {
-        toast.success(`${result.result.successCount}건의 주문이 확인되었습니다.`);
+      if (result.failedCount === 0) {
+        toast.success(`${result.successCount}건의 주문이 확인되었습니다.`);
       } else {
-        if (result.result.successCount > 0) {
-          toast.warn(`${result.result.successCount}건 성공, ${result.result.failedCount}건 실패`);
+        if (result.successCount > 0) {
+          toast.warn(`${result.successCount}건 성공, ${result.failedCount}건 실패`);
         } else {
-          toast.error(`주문 확인 실패: ${result.result.errors?.[0] || '알 수 없는 오류'}`);
+          toast.error(`주문 확인 실패: ${result.errors?.[0] || '알 수 없는 오류'}`);
         }
       }
       setRowSelection({});
@@ -746,11 +746,11 @@ const OrderGrid: React.FC = () => {
 
     try {
       if (modalMode === 'sourcing') {
-        await apiClient.put(`/api/v1/orders/line-items/${lineItemId}/sourcing`, data);
-        toast.success('구매 정보가 저장되었습니다.');
+        await updateSourcingInfo(lineItemId, data);
+        toast.success('구매 정보가 수정되었습니다.');
       } else if (modalMode === 'shipping') {
-        await apiClient.put(`/api/v1/orders/line-items/${lineItemId}/shipping`, data);
-        toast.success('배송 정보가 저장되었습니다.');
+        await updateShippingInfo(lineItemId, data);
+        toast.success('배송 정보가 수정되었습니다.');
       }
       setModalOpen(false);
       refetch();
@@ -1057,7 +1057,7 @@ const OrderGrid: React.FC = () => {
       cell: ({ row }) => {
         if (row.original.rowType === 'product') {
           const sourcingAmount = row.original.lineItem?.sourcingData?.sourcingAmount || 0;
-          const shippingFee = row.original.lineItem?.settlementData?.shippingFee || 0;
+          const logisticsCost = row.original.lineItem?.sourcingData?.logisticsCost || 0;
           return (
             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
               <div style={{ flex: 1 }}>
@@ -1065,8 +1065,8 @@ const OrderGrid: React.FC = () => {
                 <input style={{...inputStyle, textAlign: 'center'}} type="number" defaultValue={sourcingAmount} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.sourcingAmount', Number(e.target.value))} />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', textAlign: 'center' }}>배송비</div>
-                <input style={{...inputStyle, textAlign: 'center'}} type="number" defaultValue={shippingFee} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.shippingFee', Number(e.target.value))} />
+                <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', textAlign: 'center' }}>물류비</div>
+                <input style={{...inputStyle, textAlign: 'center'}} type="number" defaultValue={logisticsCost} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.logisticsCost', Number(e.target.value))} />
               </div>
             </div>
           );
@@ -1075,8 +1075,8 @@ const OrderGrid: React.FC = () => {
         
         const settlementAmount = (row.original.lineItem?.settlementData?.settlementAmount || 0) as number;
         const sourcingAmount = (row.original.lineItem?.sourcingData?.sourcingAmount || 0) as number;
-        const shippingFee = (row.original.lineItem?.settlementData?.shippingFee || 0) as number;
-        const profit = settlementAmount - sourcingAmount - shippingFee;
+        const logisticsCost = (row.original.lineItem?.sourcingData?.logisticsCost || 0) as number;
+        const profit = settlementAmount - sourcingAmount - logisticsCost;
         
         return (
           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
@@ -1098,7 +1098,7 @@ const OrderGrid: React.FC = () => {
       size: 70,
       cell: ({ row }) => {
         if (row.original.rowType !== 'order') return null;
-        const isDone = row.original.lineItem?.shippingData?.isUnipassDone;
+        const isDone = row.original.lineItem?.isUnipassDone;
         return <div style={{ textAlign: 'center' }}><input type="checkbox" checked={!!isDone} onChange={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.isUnipassDone', e.target.checked)} /></div>;
       }
     }),
@@ -1161,10 +1161,8 @@ const OrderGrid: React.FC = () => {
       return;
     }
     try {
-      const res = await shipOrders(orderIds as number[]);
-      if (res.success) {
-        refetch();
-      }
+      await shipOrders(orderIds as number[]);
+      refetch();
     } catch (e) {
       toast.error('발송 처리 중 오류가 발생했습니다.');
     }

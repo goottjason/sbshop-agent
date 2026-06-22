@@ -5,6 +5,7 @@ import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
+import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
@@ -110,12 +111,12 @@ public class SmartStoreOrderSyncService {
 		if (productId != null && !productId.equals(item.getProductId())) {
 			item.assignProductId(productId);
 		}
-		item.updateShippingInfo(
-			dto.getTrackingNo(),
-			dto.getStatus(),
-			item.getShippingData() != null ? item.getShippingData().getIsUnipassDone() : null,
-			dto.getCarrier(),
-			null);
+		ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
+			.trackingNo(dto.getTrackingNo())
+			.shippingCarrier(dto.getCarrier())
+			.shippingStatus(dto.getStatus())
+			.build();
+		item.applyShippingData(cmd.toShippingData(item.getShippingData()));
 	}
 
 	private void updateOrderInfoFromDto(Order order, MarketOrderDto dto) {
@@ -187,12 +188,9 @@ public class SmartStoreOrderSyncService {
 			customsNo = null;
 		}
 
-		if (customsNo != null && !customsNo.trim().isEmpty()) {
-			return CustomsData.builder()
-				.customsClearanceNo(customsNo)
-				.build();
-		}
-		return null;
+		return CustomsData.builder()
+			.customsClearanceNo(customsNo)
+			.build();
 	}
 
 	private void postSyncProcess(List<MarketOrderDto> orders) {}

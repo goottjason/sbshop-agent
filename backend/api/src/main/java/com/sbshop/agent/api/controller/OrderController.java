@@ -1,19 +1,38 @@
 package com.sbshop.agent.api.controller;
 
-import com.sbshop.agent.api.dto.OrderUpdateRequest;
-import com.sbshop.agent.core.application.order.service.OrderService;
-import com.sbshop.agent.core.application.order.dto.OrderUpdateCommand;
-import com.sbshop.agent.core.domain.order.Order;
-import com.sbshop.agent.core.application.order.dto.OrderSearchCondition;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.sbshop.agent.api.dto.OrderLineItemUpdateRequest;
 import com.sbshop.agent.api.dto.OrderShipRequest;
-import com.sbshop.agent.core.application.order.service.OrderShipService;
+import com.sbshop.agent.api.dto.OrderUpdateRequest;
+import com.sbshop.agent.api.dto.ShippingUpdateRequest;
+import com.sbshop.agent.api.dto.SourcingUpdateRequest;
+import com.sbshop.agent.core.application.order.dto.BulkConfirmResult;
 import com.sbshop.agent.core.application.order.dto.OrderDetailDto;
+import com.sbshop.agent.core.application.order.dto.OrderLineItemUpdateCommand;
+import com.sbshop.agent.core.application.order.dto.OrderSearchCondition;
+import com.sbshop.agent.core.application.order.dto.OrderUpdateCommand;
+import com.sbshop.agent.core.application.order.service.OrderService;
+import com.sbshop.agent.core.application.order.service.OrderShipService;
+import com.sbshop.agent.core.domain.order.Order;
+import com.sbshop.agent.core.domain.order.OrderLineItem;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
@@ -40,26 +59,57 @@ public class OrderController {
 		return ResponseEntity.ok(dtoPage);
 	}
 
+	/** PATCH /orders/{id} - 주소/통관번호 사용자 수정 @reviewed */
 	@PatchMapping("/{id}")
 	public ResponseEntity<Order> updateOrder(
 		@PathVariable
 		Long id, @RequestBody
 		OrderUpdateRequest request) {
-		// 1. HTTP 요청 객체에서 비즈니스 커맨드 객체로 매핑 (의존성 분리)
 		OrderUpdateCommand command = OrderUpdateCommand.builder()
-			.recipientName(request.getRecipientName())
-			.recipientPhone(request.getRecipientPhone())
-			.zipcode(request.getZipcode())
 			.address(request.getAddress())
-			.message(request.getMessage())
 			.customsClearanceNo(request.getCustomsClearanceNo())
-			.customsStatus(request.getCustomsStatus())
 			.build();
 
-		// 2. 서비스 레이어에 업데이트 명령 위임
 		Order updated = orderService.updateOrder(id, command);
 
-		// 3. 변경 완료된 엔티티 반환
+		return ResponseEntity.ok(updated);
+	}
+
+	/** PATCH /line-items/{lineItemId} - 유니패스완료여부 사용자 수정 @reviewed */
+	@PatchMapping("/line-items/{lineItemId}")
+	public ResponseEntity<OrderLineItem> updateOrderLineItem(
+		@PathVariable
+		Long lineItemId,
+		@RequestBody
+		OrderLineItemUpdateRequest request) {
+		OrderLineItemUpdateCommand command = OrderLineItemUpdateCommand.builder()
+			.isUnipassDone(request.getIsUnipassDone())
+			.build();
+
+		OrderLineItem updated = orderService.updateOrderLineItem(lineItemId, command);
+
+		return ResponseEntity.ok(updated);
+	}
+
+	/** PATCH /line-items/{lineItemId}/sourcing - 구매(소싱) 정보 수정 @reviewed */
+	@PatchMapping("/line-items/{lineItemId}/sourcing")
+	public ResponseEntity<OrderLineItem> updateSourcingInfo(
+		@PathVariable
+		Long lineItemId,
+		@RequestBody
+		SourcingUpdateRequest request) {
+		OrderLineItem updated = orderService.updateSourcingInfo(lineItemId, request.toCommand());
+		return ResponseEntity.ok(updated);
+	}
+
+	/** PATCH /line-items/{lineItemId}/shipping - 배송 정보 수정 @reviewed */
+	@PatchMapping("/line-items/{lineItemId}/shipping")
+	public ResponseEntity<OrderLineItem> updateShippingInfo(
+		@PathVariable
+		Long lineItemId,
+		@RequestBody
+		ShippingUpdateRequest request) {
+		OrderLineItem updated = orderService.updateShippingInfo(lineItemId, request.toCommand());
 		return ResponseEntity.ok(updated);
 	}
 
@@ -74,78 +124,36 @@ public class OrderController {
 	}
 
 	@PostMapping("/ship")
-	public ResponseEntity<java.util.Map<String, Object>> shipOrders(@RequestBody
+	public ResponseEntity<List<Order>> shipOrders(@RequestBody
 	OrderShipRequest request) {
-		// 1. 발송 처리 서비스 호출 (벌크 처리)
-		int count = orderShipService.bulkShipOrders(request.getOrderIds());
+		List<Order> shippedOrders = orderShipService.bulkShipOrders(request.getOrderIds());
 
-		// 2. 처리 결과 맵 구성 및 반환 (성공 여부, 처리 건수)
-		return ResponseEntity.ok(java.util.Map.of("success", true, "shippedCount", count, "message",
-			"Successfully shipped " + count + " orders."));
+		return ResponseEntity.ok(shippedOrders);
 	}
 
 	@PostMapping("/{id}/confirm")
-	public ResponseEntity<java.util.Map<String, Object>> confirmOrder(@PathVariable
+	public ResponseEntity<Order> confirmOrder(@PathVariable
 	Long id) {
-		orderService.confirmOrder(id);
-		return ResponseEntity.ok(java.util.Map.of("success", true, "message", "Order confirmed successfully."));
+		Order order = orderService.confirmOrder(id);
+		return ResponseEntity.ok(order);
 	}
 
 	@PostMapping("/confirm/batch")
-	public ResponseEntity<java.util.Map<String, Object>> bulkConfirmOrders(
+	public ResponseEntity<BulkConfirmResult> bulkConfirmOrders(
 		@RequestBody
-		java.util.Map<String, java.util.List<Long>> request) {
-		java.util.List<Long> orderIds = request.get("orderIds");
+		Map<String, List<Long>> request) {
+		List<Long> orderIds = request.get("orderIds");
 		if (orderIds == null || orderIds.isEmpty()) {
-			return ResponseEntity.badRequest()
-				.body(java.util.Map.of("success", false, "message", "No order IDs provided."));
+			return ResponseEntity.badRequest().build();
 		}
-		java.util.Map<String, Object> result = orderService.bulkConfirmOrders(orderIds);
-		boolean allSuccess = (int)result.get("failedCount") == 0;
-		return ResponseEntity.ok(java.util.Map.of("success", allSuccess, "result", result));
+		BulkConfirmResult result = orderService.bulkConfirmOrders(orderIds);
+		return ResponseEntity.ok(result);
 	}
 
 	@PostMapping("/{id}/cancel")
-	public ResponseEntity<java.util.Map<String, Object>> cancelOrder(@PathVariable
+	public ResponseEntity<Order> cancelOrder(@PathVariable
 	Long id) {
-		orderService.cancelOrder(id);
-		return ResponseEntity.ok(java.util.Map.of("success", true, "message", "Order canceled successfully."));
-	}
-
-	// 구매(소싱) 정보 저장 및 수정 통합 API
-	@PutMapping("/line-items/{lineItemId}/sourcing")
-	public ResponseEntity<java.util.Map<String, Object>> saveSourcingInfo(
-		@PathVariable
-		Long lineItemId,
-		@RequestBody
-		java.util.Map<String, String> request) {
-		String sourcingAccount = request.get("sourcingAccount");
-		String sourcingOrderNo = request.get("sourcingOrderNo");
-		String discountCode = request.get("discountCode");
-		String sourcingVendor = request.get("sourcingVendor");
-
-		// 상태에 따라 구매처리 또는 단순 정보업데이트 분기
-		orderService.saveSourcingInfo(lineItemId, sourcingAccount, sourcingOrderNo, discountCode, sourcingVendor);
-
-		return ResponseEntity.ok(java.util.Map.of("success", true, "message", "구매 정보가 저장되었습니다."));
-	}
-
-	// 배송 정보 저장 및 수정 통합 API
-	@PutMapping("/line-items/{lineItemId}/shipping")
-	public ResponseEntity<java.util.Map<String, Object>> saveShippingInfo(
-		@PathVariable
-		Long lineItemId,
-		@RequestBody
-		java.util.Map<String, String> request) {
-		String trackingNo = request.get("trackingNo");
-		String carrier = request.get("carrier");
-
-		com.sbshop.agent.core.domain.order.enums.ShippingCarrier shippingCarrier = com.sbshop.agent.core.domain.order.enums.ShippingCarrier
-			.valueOf(carrier);
-
-		// 상태에 따라 배송처리 또는 단순 송장수정 분기
-		orderService.saveShippingInfo(lineItemId, trackingNo, shippingCarrier);
-
-		return ResponseEntity.ok(java.util.Map.of("success", true, "message", "배송 정보가 저장되었습니다."));
+		Order order = orderService.cancelOrder(id);
+		return ResponseEntity.ok(order);
 	}
 }

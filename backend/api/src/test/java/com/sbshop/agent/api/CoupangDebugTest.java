@@ -29,8 +29,7 @@ public class CoupangDebugTest {
 			try {
 				// Instead of fetchOrders (which filters), let's call a lower-level method
 				// Actually, let's modify CoupangOrderApiClient to expose the raw response
-				JsonNode response = coupangOrderApiClient.fetchOrders(cred.getClientId(), cred.getAccessKey(),
-					cred.getSecretKey(), fromDate, toDate, status);
+				JsonNode response = coupangOrderApiClient.fetchOrders(cred, fromDate, toDate, status);
 				System.out.println("Result: " + response.toPrettyString());
 				System.out.println("Size: " + response.size());
 			} catch (Exception e) {

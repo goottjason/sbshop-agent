@@ -1,23 +1,26 @@
 package com.sbshop.agent.core.domain.order;
 
+import java.sql.Types;
+import java.time.LocalDateTime;
+
+import org.hibernate.annotations.JdbcTypeCode;
+
 import com.sbshop.agent.core.domain.common.BaseEntity;
+import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.order.enums.VerifiedPerson;
 import com.sbshop.agent.core.domain.order.vo.CustomsData;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
-import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
-import com.sbshop.agent.core.domain.order.enums.VerifiedPerson;
-import org.hibernate.annotations.JdbcTypeCode;
-import java.sql.Types;
 
 @Entity
 @Table(name = "sb_order")
@@ -60,7 +63,7 @@ public class Order extends BaseEntity {
 
 	/** 세관/통관 관련 데이터 (개인통관고유부호 등) */
 	@Embedded
-	private CustomsData customsData;
+	private CustomsData customsData = CustomsData.builder().build();
 
 	/** 주문자(구매자) 이름 - 수취인과 다를 수 있음 */
 	@Column(name = "orderer_name", length = 100)
@@ -96,12 +99,27 @@ public class Order extends BaseEntity {
 		this.zipcode = zipcode;
 		this.address = address;
 		this.message = message;
-		this.customsData = customsData;
+		this.customsData = customsData != null ? customsData : CustomsData.builder().build();
 		this.ordererName = ordererName;
 		this.ordererPhone = ordererPhone;
 		this.shipmentBoxId = shipmentBoxId;
 	}
 
+	/** 사용자 수정 - 배송지 주소 변경 @reviewed */
+	public void updateAddress(String address) {
+		this.address = address;
+	}
+
+	/** 사용자 수정 - 통관번호 변경 (PENDING, NONE으로 초기화) @reviewed */
+	public void updateCustomsClearanceNo(String customsClearanceNo) {
+		this.customsData = this.customsData.toBuilder()
+			.customsClearanceNo(customsClearanceNo)
+			.customsStatus(CustomsStatus.PENDING)
+			.verifiedPerson(VerifiedPerson.NONE)
+			.build();
+	}
+
+	/** 동기화 - 주문 정보 전체 업데이트 (동기화 전용) */
 	public void update(
 		String recipientName, String recipientPhone, String zipcode, String address, String message,
 		String ordererName, String ordererPhone, String shipmentBoxId, MarketType marketType) {
@@ -125,29 +143,16 @@ public class Order extends BaseEntity {
 			this.marketType = marketType;
 	}
 
+	/** 통관 상태 변경 (자동 동기화) */
 	public void updateCustomsStatus(CustomsStatus status) {
 		updateCustomsStatus(status, null);
 	}
 
+	/** 통관 상태 + 검증 대상 변경 (자동 동기화) */
 	public void updateCustomsStatus(CustomsStatus status, VerifiedPerson verifiedPerson) {
-		if (this.customsData == null) {
-			this.customsData = CustomsData.builder()
-				.customsStatus(status)
-				.verifiedPerson(verifiedPerson)
-				.build();
-		} else {
-			this.customsData = this.customsData.toBuilder()
-				.customsStatus(status)
-				.verifiedPerson(verifiedPerson)
-				.build();
-		}
-	}
-
-	public void updateCustomsClearanceNo(String customsClearanceNo) {
-		if (this.customsData == null) {
-			this.customsData = CustomsData.builder().customsClearanceNo(customsClearanceNo).build();
-		} else {
-			this.customsData = this.customsData.toBuilder().customsClearanceNo(customsClearanceNo).build();
-		}
+		this.customsData = this.customsData.toBuilder()
+			.customsStatus(status)
+			.verifiedPerson(verifiedPerson)
+			.build();
 	}
 }

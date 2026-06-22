@@ -1,33 +1,30 @@
 package com.sbshop.agent.api.controller;
 
-import com.sbshop.agent.core.application.order.service.CoupangOrderSyncService;
-import com.sbshop.agent.core.application.order.service.ElevenstOrderSyncService;
-import com.sbshop.agent.core.application.order.service.EsmplusOrderSyncService;
-import com.sbshop.agent.core.application.order.service.SmartStoreOrderSyncService;
-import com.sbshop.agent.core.application.order.service.CustomsOrderSyncService;
-import com.sbshop.agent.core.application.sync.SyncStatusService;
-import com.sbshop.agent.infrastructure.client.esmplus.EsmplusScraper;
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.RequestBody;
+import com.sbshop.agent.core.application.order.service.CoupangOrderSyncService;
+import com.sbshop.agent.core.application.order.service.CustomsOrderSyncService;
+import com.sbshop.agent.core.application.order.service.ElevenstOrderSyncService;
+import com.sbshop.agent.core.application.order.service.EsmplusOrderSyncService;
+import com.sbshop.agent.core.application.order.service.SmartStoreOrderSyncService;
+import com.sbshop.agent.core.application.sync.SyncStatusService;
+import com.sbshop.agent.infrastructure.client.esmplus.EsmplusScraper;
 
-// 컨트롤러 로깅 설정
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 @Slf4j
-// REST API 컨트롤러 선언
 @RestController
-// 주문 동기화 기본 URI 매핑
 @RequestMapping("/api/v1/orders/sync")
-// 필수 인자 생성자 자동 주입
 @RequiredArgsConstructor
-// 모든 오리진 교차 출처 리소스 공유 허용
 @CrossOrigin(origins = "*")
 public class OrderSyncController {
 

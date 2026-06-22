@@ -1,7 +1,12 @@
 package com.sbshop.agent.core.domain.order.vo;
 
-import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+import java.sql.Types;
+
+import org.hibernate.annotations.JdbcTypeCode;
+
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
+import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EnumType;
@@ -10,8 +15,6 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.JdbcTypeCode;
-import java.sql.Types;
 
 @Embeddable
 @Getter
@@ -20,10 +23,6 @@ public class ShippingData {
 	/** 운송장 번호 (택배사 송장번호) */
 	@Column(name = "tracking_no", length = 100)
 	private String trackingNo;
-
-	/** 유니패스(관세청) 통관 신고 완료 여부 */
-	@Column(name = "is_unipass_done")
-	private Boolean isUnipassDone;
 
 	/** 실제 배송 상태 (상품준비중, 배송중, 배송완료 등) */
 	@Enumerated(EnumType.STRING)
@@ -41,10 +40,9 @@ public class ShippingData {
 	private Boolean trackingSentToMarket;
 
 	@Builder(toBuilder = true)
-	public ShippingData(String trackingNo, Boolean isUnipassDone, ShippingStatus shippingStatus,
+	public ShippingData(String trackingNo, ShippingStatus shippingStatus,
 		ShippingCarrier shippingCarrier, Boolean trackingSentToMarket) {
 		this.trackingNo = trackingNo;
-		this.isUnipassDone = isUnipassDone;
 		this.shippingStatus = shippingStatus;
 		this.shippingCarrier = shippingCarrier;
 		this.trackingSentToMarket = trackingSentToMarket;

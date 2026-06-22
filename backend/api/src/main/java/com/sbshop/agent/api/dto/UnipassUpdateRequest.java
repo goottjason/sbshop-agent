@@ -3,6 +3,6 @@ package com.sbshop.agent.api.dto;
 import lombok.Data;
 
 @Data
-public class OrderLineItemUpdateRequest {
+public class UnipassUpdateRequest {
 	private Boolean isUnipassDone;
 }

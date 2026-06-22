@@ -21,6 +21,9 @@ public class SourcingData {
 	@Column(name = "sourcing_amount", precision = 10, scale = 2)
 	private BigDecimal sourcingAmount;
 
+	@Column(name = "logistics_cost", precision = 10, scale = 2)
+	private BigDecimal logisticsCost;
+
 	@Column(name = "discount_code", length = 50)
 	private String discountCode;
 
@@ -32,11 +35,13 @@ public class SourcingData {
 		String sourcingAccount,
 		String sourcingOrderNo,
 		BigDecimal sourcingAmount,
+		BigDecimal logisticsCost,
 		String discountCode,
 		String sourcingVendor) {
 		this.sourcingAccount = sourcingAccount;
 		this.sourcingOrderNo = sourcingOrderNo;
 		this.sourcingAmount = sourcingAmount;
+		this.logisticsCost = logisticsCost;
 		this.discountCode = discountCode;
 		this.sourcingVendor = sourcingVendor;
 	}

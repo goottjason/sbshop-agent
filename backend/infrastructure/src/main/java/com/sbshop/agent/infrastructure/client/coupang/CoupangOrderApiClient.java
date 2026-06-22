@@ -12,7 +12,10 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.sbshop.agent.core.application.order.port.CoupangInvoiceUploadRequest;
 import com.sbshop.agent.core.application.order.port.CoupangOrderApiPort;
+import com.sbshop.agent.core.application.order.port.CoupangUpdateInvoiceRequest;
+import com.sbshop.agent.core.domain.market.MarketCredential;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -26,8 +29,11 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 	private final ObjectMapper objectMapper;
 	private static final String DOMAIN = "https://api-gateway.coupang.com";
 
-	public JsonNode fetchOrders(String vendorId, String accessKey, String secretKey, String fromDate, String toDate,
-		String status) {
+	public JsonNode fetchOrders(MarketCredential credential, String fromDate, String toDate, String status) {
+		String vendorId = credential.getClientId();
+		String accessKey = credential.getAccessKey();
+		String secretKey = credential.getSecretKey();
+
 		List<JsonNode> allOrders = new ArrayList<>();
 		String nextToken = "";
 
@@ -71,15 +77,15 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 					// Rate limit protection
 					Thread.sleep(300);
 				} else {
-					log.error("Coupang API error: {}", rootNode.path("message").asText());
+					log.error("쿠팡 API 오류: {}", rootNode.path("message").asText());
 					break;
 				}
 			} catch (org.springframework.web.client.RestClientResponseException e) {
-				log.error("Coupang API HTTP Error: {} (Status: {}) - Possible Rate Limit or IP block",
+				log.error("쿠팡 API HTTP 오류: {} (상태: {}) - 속도 제한 또는 IP 차단 가능성",
 					e.getStatusCode(), status);
 				break;
 			} catch (Exception e) {
-				log.error("Failed to fetch Coupang orders: {}", e.getMessage());
+				log.error("쿠팡 주문 조회 실패: {}", e.getMessage());
 				break;
 			}
 		}
@@ -121,17 +127,17 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 	}
 
 	@Override
-	public void shipOrder(String vendorId, String accessKey, String secretKey, String marketOrderNo,
-		String vendorItemId, String trackingNo, String deliveryCompanyCode) {
-		String path = "/v2/providers/openapi/apis/api/v4/vendors/" + vendorId + "/ordersheets/" + marketOrderNo
-			+ "/invoices";
+	public void shipOrder(MarketCredential credential, CoupangInvoiceUploadRequest request) {
+		String vendorId = credential.getClientId();
+		String accessKey = credential.getAccessKey();
+		String secretKey = credential.getSecretKey();
+
+		String path = "/v2/providers/openapi/apis/api/v4/vendors/" + vendorId + "/orders/invoices";
 		String authorization = generateHmacSignature("POST", path, accessKey, secretKey);
 
-		String payload = String.format(
-			"{\"vendorId\":\"%s\",\"orderSheetInvoiceApplyDtos\":[{\"vendorItemId\":\"%s\",\"deliveryCompanyCode\":\"%s\",\"trackingNumber\":\"%s\",\"splitShipping\":false}]}",
-			vendorId, vendorItemId, deliveryCompanyCode, trackingNo);
-
 		try {
+			String payload = objectMapper.writeValueAsString(request);
+
 			String response = restClient.post()
 				.uri(DOMAIN + path)
 				.header(HttpHeaders.AUTHORIZATION, authorization)
@@ -142,20 +148,61 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 				.retrieve()
 				.body(String.class);
 
-			JsonNode rootNode = objectMapper.readTree(response);
-			if (!("SUCCESS".equals(rootNode.path("code").asText()) || "200".equals(rootNode.path("code").asText()))) {
+			CoupangInvoiceResponse invoiceResponse = objectMapper.readValue(response, CoupangInvoiceResponse.class);
+			if (!invoiceResponse.isSuccessful()) {
 				throw new RuntimeException(
-					"Failed to ship order via Coupang API: " + rootNode.path("message").asText());
+					"쿠팡 송장업로드 실패: " + invoiceResponse.message());
 			}
+		} catch (RuntimeException e) {
+			throw e;
 		} catch (Exception e) {
-			log.error("Error shipping order {}: {}", marketOrderNo, e.getMessage());
+			log.error("쿠팡 송장업로드 실패: {}", e.getMessage());
 			throw new RuntimeException("Coupang shipOrder failed", e);
 		}
 	}
 
 	@Override
-	public JsonNode querySalesDetails(String vendorId, String accessKey, String secretKey,
+	public void updateTracking(MarketCredential credential, CoupangUpdateInvoiceRequest request) {
+		String vendorId = credential.getClientId();
+		String accessKey = credential.getAccessKey();
+		String secretKey = credential.getSecretKey();
+
+		String path = "/v2/providers/openapi/apis/api/v4/vendors/" + vendorId + "/orders/updateInvoices";
+		String authorization = generateHmacSignature("POST", path, accessKey, secretKey);
+
+		try {
+			String payload = objectMapper.writeValueAsString(request);
+
+			String response = restClient.post()
+				.uri(DOMAIN + path)
+				.header(HttpHeaders.AUTHORIZATION, authorization)
+				.header("X-Requested-By", vendorId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.accept(MediaType.APPLICATION_JSON)
+				.body(payload)
+				.retrieve()
+				.body(String.class);
+
+			CoupangInvoiceResponse invoiceResponse = objectMapper.readValue(response, CoupangInvoiceResponse.class);
+			if (!invoiceResponse.isSuccessful()) {
+				throw new RuntimeException(
+					"쿠팡 송장업데이트 실패: " + invoiceResponse.message());
+			}
+		} catch (RuntimeException e) {
+			throw e;
+		} catch (Exception e) {
+			log.error("쿠팡 송장업데이트 실패: {}", e.getMessage());
+			throw new RuntimeException("Coupang updateTracking failed", e);
+		}
+	}
+
+	@Override
+	public JsonNode querySalesDetails(MarketCredential credential,
 		String recognitionDateFrom, String recognitionDateTo) {
+		String vendorId = credential.getClientId();
+		String accessKey = credential.getAccessKey();
+		String secretKey = credential.getSecretKey();
+
 		List<JsonNode> allItems = new ArrayList<>();
 		String nextToken = "";
 
@@ -194,14 +241,14 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 					}
 					Thread.sleep(300);
 				} else {
-					log.error("Coupang Sales Detail API error: {}", rootNode.path("message").asText());
+					log.error("쿠팡 매출상세 API 오류: {}", rootNode.path("message").asText());
 					break;
 				}
 			} catch (org.springframework.web.client.RestClientResponseException e) {
-				log.error("Coupang Sales Detail API HTTP Error: {}", e.getStatusCode());
+				log.error("쿠팡 매출상세 API HTTP 오류: {}", e.getStatusCode());
 				break;
 			} catch (Exception e) {
-				log.error("Failed to query Coupang sales details: {}", e.getMessage());
+				log.error("쿠팡 매출상세 조회 실패: {}", e.getMessage());
 				break;
 			}
 		}
@@ -210,7 +257,11 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 	}
 
 	@Override
-	public JsonNode queryProduct(String vendorId, String accessKey, String secretKey, long sellerProductId) {
+	public JsonNode queryProduct(MarketCredential credential, long sellerProductId) {
+		String vendorId = credential.getClientId();
+		String accessKey = credential.getAccessKey();
+		String secretKey = credential.getSecretKey();
+
 		String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + sellerProductId;
 		String authorization = generateHmacSignature("GET", path, accessKey, secretKey);
 
@@ -227,38 +278,35 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 			if ("SUCCESS".equals(rootNode.path("code").asText()) || "200".equals(rootNode.path("code").asText())) {
 				return rootNode.path("data");
 			} else {
-				log.error("Coupang Product API error: {}", rootNode.path("message").asText());
+				log.error("쿠팡 상품 API 오류: {}", rootNode.path("message").asText());
 				return null;
 			}
 		} catch (Exception e) {
-			log.error("Failed to query Coupang product (sellerProductId={}): {}", sellerProductId, e.getMessage());
+			log.error("쿠팡 상품 조회 실패 (sellerProductId={}): {}", sellerProductId, e.getMessage());
 			return null;
 		}
 	}
 
 	@Override
-	public void acceptOrders(String vendorId, String accessKey, String secretKey,
-		java.util.List<String> shipmentBoxIds) {
+	public void acceptOrders(MarketCredential credential, List<String> shipmentBoxIds) {
+		String vendorId = credential.getClientId();
+		String accessKey = credential.getAccessKey();
+		String secretKey = credential.getSecretKey();
+
 		String path = "/v2/providers/openapi/apis/api/v4/vendors/" + vendorId + "/ordersheets/acknowledgement";
 		String authorization = generateHmacSignature("PUT", path, accessKey, secretKey);
 
-		StringBuilder jsonBody = new StringBuilder("{\"vendorId\":\"").append(vendorId)
-			.append("\",\"shipmentBoxIds\":[");
-		for (int i = 0; i < shipmentBoxIds.size(); i++) {
-			if (i > 0)
-				jsonBody.append(",");
-			jsonBody.append("\"").append(shipmentBoxIds.get(i)).append("\"");
-		}
-		jsonBody.append("]}");
-
 		try {
+			var request = new CoupangAcceptOrdersRequest(vendorId, shipmentBoxIds);
+			String payload = objectMapper.writeValueAsString(request);
+
 			String response = restClient.put()
 				.uri(DOMAIN + path)
 				.header(HttpHeaders.AUTHORIZATION, authorization)
 				.header("X-Requested-By", vendorId)
 				.contentType(MediaType.APPLICATION_JSON)
 				.accept(MediaType.APPLICATION_JSON)
-				.body(jsonBody.toString())
+				.body(payload)
 				.retrieve()
 				.body(String.class);
 
@@ -267,8 +315,10 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 				throw new RuntimeException(
 					"Failed to accept orders via Coupang API: " + rootNode.path("message").asText());
 			}
+		} catch (RuntimeException e) {
+			throw e;
 		} catch (Exception e) {
-			log.error("Error accepting Coupang orders (shipmentBoxIds: {}): {}", shipmentBoxIds, e.getMessage());
+			log.error("쿠팡 주문 접수 실패 (shipmentBoxIds: {}): {}", shipmentBoxIds, e.getMessage());
 			throw new RuntimeException("Coupang acceptOrders failed", e);
 		}
 	}

@@ -30,11 +30,21 @@ public interface MarketOrderPort {
 		LocalDate fromDate, LocalDate toDate);
 
 	/**
-	 * 상품 배송 시작
+	 * 상품 배송 시작 (송장 업로드)
 	 */
 	void shipOrder(MarketCredential credential,
 		Order order, OrderLineItem lineItem,
 		String trackingNo, ShippingCarrier carrier);
+
+	/**
+	 * 송장 정보 수정 (송장 업데이트)
+	 * 기본 구현은 shipOrder와 동일하게 동작 (update API가 없는 마켓용)
+	 */
+	default void updateTracking(MarketCredential credential,
+		Order order, OrderLineItem lineItem,
+		String trackingNo, ShippingCarrier carrier) {
+		shipOrder(credential, order, lineItem, trackingNo, carrier);
+	}
 
 	/**
 	 * 주문 접수/확인
@@ -47,22 +57,6 @@ public interface MarketOrderPort {
 	default Map<String, BigDecimal> querySettlement(MarketCredential credential,
 		LocalDate from, LocalDate to) {
 		return Collections.emptyMap();
-	}
-
-	/**
-	 * 배송사 코드 변환 (마켓별 다를 수 있음)
-	 */
-	default String mapCarrierCode(ShippingCarrier carrier) {
-		if (carrier == null)
-			return "CJGLS";
-		return switch (carrier) {
-			case CJ_LOGISTICS -> "CJGLS";
-			case HANJIN -> "HANJIN";
-			case KOREA_POST -> "EPOST";
-			case LOTTE_LOGISTICS -> "LOTTE";
-			case ROCKET -> "COUPANG";
-			default -> "CJGLS";
-		};
 	}
 
 	/**

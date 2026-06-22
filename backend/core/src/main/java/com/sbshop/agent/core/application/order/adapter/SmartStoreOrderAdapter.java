@@ -176,6 +176,20 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 		}
 	}
 
+	private String mapCarrierCode(ShippingCarrier carrier) {
+		if (carrier == null) {
+			throw new IllegalArgumentException("배송사 정보가 없습니다.");
+		}
+		return switch (carrier) {
+			case CJ_LOGISTICS -> "CJGLS";
+			case HANJIN -> "HANJIN";
+			case KOREA_POST -> "EPOST";
+			case LOTTE_LOGISTICS -> "LOTTE";
+			case ROCKET -> "COUPANG";
+			default -> "CJGLS";
+		};
+	}
+
 	@Override
 	public void shipOrder(MarketCredential credential,
 		Order order, OrderLineItem lineItem,

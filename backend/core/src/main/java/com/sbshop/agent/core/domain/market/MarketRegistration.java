@@ -1,6 +1,8 @@
 package com.sbshop.agent.core.domain.market;
 
 import com.fasterxml.jackson.annotation.JsonRawValue;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.domain.common.BaseEntity;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import jakarta.persistence.Column;
@@ -8,19 +10,23 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import java.sql.Types;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.hibernate.annotations.JdbcTypeCode;
-import java.sql.Types;
 
+@Slf4j
 @Entity
 @Table(name = "sb_market_registration")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MarketRegistration extends BaseEntity {
+
+	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	@Column(name = "product_id", nullable = false)
 	private Long productId;
@@ -74,6 +80,23 @@ public class MarketRegistration extends BaseEntity {
 	public void markSynced() {
 		this.isSynced = true;
 		this.lastSyncedAt = LocalDateTime.now();
+	}
+
+	/**
+	 * marketIdentifiers JSON에서 vendorItemId 추출
+	 */
+	public String extractVendorItemId() {
+		if (marketIdentifiers == null || marketIdentifiers.isEmpty()) {
+			return null;
+		}
+		try {
+			JsonNode node = MAPPER.readTree(marketIdentifiers);
+			String vendorItemId = node.path("vendorItemId").asText(null);
+			return (vendorItemId != null && !vendorItemId.isEmpty()) ? vendorItemId : null;
+		} catch (Exception e) {
+			log.warn("vendorItemId 파싱 실패: productId={}, error={}", productId, e.getMessage());
+			return null;
+		}
 	}
 
 	public void updateMarketIdentifiers(String marketIdentifiers) {

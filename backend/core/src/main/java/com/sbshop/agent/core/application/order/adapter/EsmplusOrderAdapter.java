@@ -90,21 +90,6 @@ public class EsmplusOrderAdapter implements MarketOrderPort {
 		return esmplusOrderApiPort.fetchOrderDetail(masterId, password, dto);
 	}
 
-	@Override
-	public String mapCarrierCode(ShippingCarrier carrier) {
-		if (carrier == null) {
-			return "CJGLS";
-		}
-		return switch (carrier) {
-			case CJ_LOGISTICS -> "CJGLS";
-			case HANJIN -> "HANJIN";
-			case KOREA_POST -> "EPOST";
-			case LOTTE_LOGISTICS -> "LOTTE";
-			case ROCKET -> "COUPANG";
-			default -> "CJGLS";
-		};
-	}
-
 	/**
 	 * ESM+ siteId로 마켓 타입 매핑
 	 * siteId 1 = 옥션, siteId 2 = G마켓

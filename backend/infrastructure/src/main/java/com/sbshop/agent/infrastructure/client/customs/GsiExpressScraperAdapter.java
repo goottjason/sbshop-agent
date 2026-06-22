@@ -74,7 +74,7 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 
 		// 2. Perform POST request via Jsoup
 		try {
-			log.info("Sending bulk check to GSI Express for {} orders", orders.size());
+			log.info("GSI Express에 {}건의 주문 벌크 검증 요청 중", orders.size());
 			Document doc = Jsoup.connect(TARGET_URL)
 				.data("action_type", "query")
 				.data("chk_data", chkData)
@@ -84,13 +84,13 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 
 			// 3. Parse result table
 			Elements rows = doc.select("tr");
-			log.info("Scraped {} rows from GSI Express response", rows.size());
+			log.info("GSI Express 응답에서 {}행 파싱 완료", rows.size());
 
 			for (Element row : rows) {
 				Elements cols = row.select("td");
 				if (cols.size() >= 4) {
 					String rowText = row.text();
-					log.debug("Parsing row text: {}", rowText);
+					log.debug("행 텍스트 파싱: {}", rowText);
 
 					for (Order order : orders) {
 						String recipientName = order.getRecipientName();
@@ -121,8 +121,8 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 
 						// Check if row matches BOTH name and PCCC to correctly identify the specific order
 						if (nameMatches && rowText.contains(pccc)) {
-							log.info("Matched name={} and PCCC {} for order ID {}",
-								matchedPerson, pccc, orderId);
+							log.info("주문 ID {}에서 name={} 및 PCCC {} 매칭됨",
+								orderId, matchedPerson, pccc);
 
 						// 에러 메시지 패턴에 따라 통관 상태 결정
 						// 우선순위: 납세의무자명/개인통관고유부호(1순위) > 전화번호(2순위) > 우편번호(3순위)
@@ -147,7 +147,7 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 							int newPriority = priority(rowStatus);
 
 							if (newPriority > currentPriority) {
-								log.info("Updating order {} status: {} -> {} (matched={})",
+								log.info("주문 {} 상태 업데이트: {} -> {} (매칭={})",
 									orderId, current != null ? current.getStatus() : null, rowStatus, matchedPerson);
 								resultMap.put(orderId, CustomsVerificationResult.of(rowStatus, matchedPerson));
 							}
@@ -159,12 +159,12 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 			// Log if no rows were found or all still PENDING
 			if (rows.isEmpty() || resultMap.values().stream().allMatch(
 				r -> r.getStatus() == CustomsStatus.PENDING)) {
-				log.warn("Failed to find or match any rows. HTML body snippet: {}",
+				log.warn("행을 찾거나 매칭하지 못함. HTML 본문 일부: {}",
 					doc.body().text().length() > 500 ? doc.body().text().substring(0, 500) : doc.body().text());
 			}
 
 		} catch (Exception e) {
-			log.error("Failed to scrape GSI Express for customs clearance", e);
+			log.error("GSI Express 통관 검증 스크래핑 실패", e);
 		}
 
 		return resultMap;

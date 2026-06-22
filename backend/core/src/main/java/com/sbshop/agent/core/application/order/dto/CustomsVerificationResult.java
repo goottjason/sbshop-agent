@@ -14,6 +14,6 @@ public class CustomsVerificationResult {
 	}
 
 	public static CustomsVerificationResult pending() {
-		return new CustomsVerificationResult(CustomsStatus.PENDING, null);
+		return new CustomsVerificationResult(CustomsStatus.PENDING, VerifiedPerson.NONE);
 	}
 }

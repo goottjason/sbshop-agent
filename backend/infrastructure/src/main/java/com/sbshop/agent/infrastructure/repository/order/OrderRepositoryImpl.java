@@ -14,9 +14,11 @@ import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.QOrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderRepositoryCustom;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.QProduct;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -117,8 +119,7 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 		return marketTypes != null && !marketTypes.isEmpty() ? order.marketType.in(marketTypes) : null;
 	}
 
-	private BooleanExpression shippingStatusIn(
-		java.util.List<com.sbshop.agent.core.domain.order.enums.ShippingStatus> statuses) {
+	private BooleanExpression shippingStatusIn(List<ShippingStatus> statuses) {
 		return statuses != null && !statuses.isEmpty()
 			? QOrderLineItem.orderLineItem.shippingData.shippingStatus.in(statuses) : null;
 	}
@@ -138,8 +139,7 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.or(QOrderLineItem.orderLineItem.shippingData.trackingNo.contains(keyword));
 	}
 
-	private BooleanExpression dateBetween(
-		java.time.LocalDateTime startDate, java.time.LocalDateTime endDate) {
+	private BooleanExpression dateBetween(LocalDateTime startDate, LocalDateTime endDate) {
 		if (startDate != null && endDate != null) {
 			return order.orderDate.between(startDate, endDate);
 		}

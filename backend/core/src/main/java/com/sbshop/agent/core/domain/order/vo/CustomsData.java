@@ -37,6 +37,6 @@ public class CustomsData {
 	public CustomsData(String customsClearanceNo, CustomsStatus customsStatus, VerifiedPerson verifiedPerson) {
 		this.customsClearanceNo = customsClearanceNo;
 		this.customsStatus = customsStatus != null ? customsStatus : CustomsStatus.PENDING;
-		this.verifiedPerson = verifiedPerson;
+		this.verifiedPerson = verifiedPerson != null ? verifiedPerson : VerifiedPerson.NONE;
 	}
 }

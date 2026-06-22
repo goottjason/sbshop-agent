@@ -2,6 +2,7 @@ package com.sbshop.agent.core.application.product;
 
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
+import com.sbshop.agent.core.application.product.dto.StockCheckResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,7 +28,7 @@ public class ProductSyncService {
 			String sourceUrl = product.getSourcingInfo().getUrl();
 			try {
 				// 3. 외부 크롤러 포트를 통해 소싱 URL의 재고/가격/입고일 통합 조회
-				com.sbshop.agent.core.application.product.dto.StockCheckResult result = productStockCrawlerPort
+				StockCheckResult result = productStockCrawlerPort
 					.checkStockWithDetails(sourceUrl);
 
 				// 4. 재고 상태 업데이트
@@ -46,11 +47,11 @@ public class ProductSyncService {
 				productRepository.save(product);
 
 				// 9. 동기화 완료 로깅
-				log.info("Synced product {} - status: {}, costPrice: {}, stock: {}, restockDate: {}",
+				log.info("상품 {} 동기화 완료 - 상태: {}, 원가: {}, 재고: {}, 입고예정일: {}",
 					product.getSbCode(), result.status(), result.costPrice(), result.stock(), result.restockDate());
 			} catch (Exception e) {
 				// 10. 크롤링 및 동기화 실패 시 예외 로깅
-				log.error("Failed to sync product stock: {}", product.getSbCode(), e);
+				log.error("상품 재고 동기화 실패: {}", product.getSbCode(), e);
 			}
 		}
 	}
@@ -58,11 +59,11 @@ public class ProductSyncService {
 	@Transactional
 	public void syncStockForPreparingOrders(java.util.List<Long> productIds) {
 		if (productIds == null || productIds.isEmpty()) {
-			log.info("No preparing orders found. Skipping stock sync.");
+			log.info("준비 중인 주문이 없습니다. 재고 동기화를 건너뜁니다.");
 			return;
 		}
 
-		log.info("Starting stock sync for {} products associated with preparing orders.", productIds.size());
+		log.info("준비 중인 주문과 연결된 {}개 상품의 재고 동기화를 시작합니다.", productIds.size());
 
 		int syncedCount = 0;
 		for (Long productId : productIds) {
@@ -73,13 +74,13 @@ public class ProductSyncService {
 				Thread.sleep(500);
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
-				log.warn("Stock sync thread interrupted");
+				log.warn("재고 동기화 스레드 중단됨");
 				break;
 			} catch (Exception e) {
-				log.error("Failed to sync stock for product ID: {}", productId, e);
+				log.error("상품 ID {} 재고 동기화 실패: {}", productId, e);
 			}
 		}
 
-		log.info("Finished stock sync. Successfully synced {}/{} products.", syncedCount, productIds.size());
+		log.info("재고 동기화 완료. {}/{}개 상품 동기화 성공.", syncedCount, productIds.size());
 	}
 }

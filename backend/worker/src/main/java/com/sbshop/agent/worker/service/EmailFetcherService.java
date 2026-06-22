@@ -1,21 +1,15 @@
 package com.sbshop.agent.worker.service;
 
-import com.sbshop.agent.core.application.order.port.CoupangOrderApiPort;
-import com.sbshop.agent.core.application.order.port.SmartStoreOrderApiPort;
-import com.sbshop.agent.core.domain.market.MarketCredential;
-import com.sbshop.agent.core.domain.market.MarketRegistration;
-import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
-import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
+import com.sbshop.agent.core.application.order.service.MarketplaceShippingService;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
-import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
+import com.sbshop.agent.core.domain.order.vo.SourcingData;
+import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import com.sbshop.agent.core.config.EmailAccountProperties;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.*;
 import java.math.BigDecimal;
 import java.util.HashSet;
@@ -36,15 +30,12 @@ public class EmailFetcherService {
 	private final OrderEmailParser parser;
 	private final OrderLineItemRepository orderLineItemRepository;
 	private final OrderRepository orderRepository;
-	private final MarketCredentialRepository credentialRepository;
-	private final SmartStoreOrderApiPort smartStoreOrderApiPort;
-	private final CoupangOrderApiPort coupangOrderApiPort;
-	private final MarketRegistrationRepository marketRegistrationRepository;
+	private final MarketplaceShippingService marketplaceShippingService;
 
 	@Transactional
 	public void fetchAndProcessEmails() {
 		if (properties.getAccounts() == null || properties.getAccounts().isEmpty()) {
-			log.warn("No email accounts configured for IMAP fetching.");
+			log.warn("IMAP 이메일 계정이 설정되지 않았습니다.");
 			return;
 		}
 
@@ -200,102 +191,38 @@ public class EmailFetcherService {
 				// 마켓 미동기화 건은 재시도
 				log.info("iHerb 주문 {} 배송 처리됨但 마켓 미동기화 (tracking={}) - 재시도",
 					shipmentData.getOrderNo(), shipmentData.getTrackingNo());
-				ShippingCarrier carrier = mapCarrier(shipmentData.getCarrier());
-				syncTrackingToMarketplace(item, carrier);
+				marketplaceShippingService.sendTrackingToMarketplace(item);
+				item.markTrackingAsSent();
+				orderLineItemRepository.save(item);
 				continue;
 			}
 
 			// PURCHASED 상태인 경우에만 배송 처리
 			if (currentStatus == ShippingStatus.PURCHASED) {
 				ShippingCarrier carrier = mapCarrier(shipmentData.getCarrier());
-				item.updateTrackingInfo(shipmentData.getTrackingNo(), carrier);
-				item.updateShippingStatus(ShippingStatus.SHIPPED);
+				ShippingData currentShipping = item.getShippingData();
+				if (currentShipping == null) {
+					currentShipping = ShippingData.builder().build();
+				}
+				item.applyShippingData(currentShipping.toBuilder()
+					.trackingNo(shipmentData.getTrackingNo())
+					.shippingCarrier(carrier)
+					.shippingStatus(ShippingStatus.SHIPPED)
+					.build());
 				orderLineItemRepository.save(item);
 
 				log.info("iHerb 발송 처리 완료: itemId={}, tracking={}, carrier={}",
 					item.getId(), shipmentData.getTrackingNo(), carrier);
 
 				// 마켓플러스에 송장 전송
-				syncTrackingToMarketplace(item, carrier);
+				marketplaceShippingService.sendTrackingToMarketplace(item);
+				item.markTrackingAsSent();
+				orderLineItemRepository.save(item);
 			} else {
 				log.info("iHerb 주문 {} 상태({})가 PURCHASED가 아니어서 배송 처리 스킵",
 					shipmentData.getOrderNo(), currentStatus);
 			}
 		}
-	}
-
-	// 마켓플러스에 송장번호 전송
-	private void syncTrackingToMarketplace(OrderLineItem item, ShippingCarrier carrier) {
-		try {
-			Order order = orderRepository.findById(item.getOrderId()).orElse(null);
-			if (order == null) {
-				log.warn("마켓 송장 전송 실패: 주문을 찾을 수 없습니다. orderId={}", item.getOrderId());
-				return;
-			}
-
-			MarketCredential cred = credentialRepository.findByMarketType(order.getMarketType()).orElse(null);
-			if (cred == null) {
-				log.warn("마켓 송장 전송 실패: 인증 정보를 찾을 수 없습니다. marketType={}", order.getMarketType());
-				return;
-			}
-
-			String trackingNo = item.getShippingData().getTrackingNo();
-			String deliveryCompanyCode = mapCarrierToMarketCode(carrier);
-
-			switch (order.getMarketType()) {
-				case SMART_STORE -> {
-					smartStoreOrderApiPort.shipOrder(
-						cred.getClientId(), cred.getSecretKey(),
-						order.getMarketOrderNo(), trackingNo, deliveryCompanyCode);
-					log.info("스마트스토어 송장 전송 완료: order={}, tracking={}",
-						order.getMarketOrderNo(), trackingNo);
-				}
-				case COUPANG -> {
-					String vendorItemId = resolveCoupangVendorItemId(item);
-					if (vendorItemId != null && !vendorItemId.isEmpty()) {
-						coupangOrderApiPort.shipOrder(
-							cred.getClientId(), cred.getAccessKey(), cred.getSecretKey(),
-							order.getMarketOrderNo(), vendorItemId, trackingNo, deliveryCompanyCode);
-						log.info("쿠팡 송장 전송 완료: order={}, vendorItemId={}, tracking={}",
-							order.getMarketOrderNo(), vendorItemId, trackingNo);
-					} else {
-						log.warn("쿠팡 송장 전송 실패: vendorItemId가 없습니다. order={}", order.getMarketOrderNo());
-						return;
-					}
-				}
-				default -> {
-					log.debug("송장 전송 미지원 마켓: {}", order.getMarketType());
-					return;
-				}
-			}
-
-			// 마켓 동기화 성공 시 플래그 업데이트
-			com.sbshop.agent.core.domain.order.vo.ShippingData currentShipping = item.getShippingData();
-			com.sbshop.agent.core.domain.order.vo.ShippingData updatedShipping = (currentShipping != null
-				? currentShipping : com.sbshop.agent.core.domain.order.vo.ShippingData.builder().build())
-				.toBuilder()
-				.trackingSentToMarket(true)
-				.build();
-			item.updateShippingData(updatedShipping);
-			orderLineItemRepository.save(item);
-
-		} catch (Exception e) {
-			log.error("마켓 송장 전송 실패: itemId={}, error={}", item.getId(), e.getMessage(), e);
-		}
-	}
-
-	// 택배사 -> 마켓 코드 매핑
-	private String mapCarrierToMarketCode(ShippingCarrier carrier) {
-		if (carrier == null)
-			return "CJGLS";
-		return switch (carrier) {
-			case CJ_LOGISTICS -> "CJGLS";
-			case HANJIN -> "HANJIN";
-			case KOREA_POST -> "EPOST";
-			case LOTTE_LOGISTICS -> "LOTTE";
-			case ROCKET -> "COUPANG";
-			default -> "CJGLS";
-		};
 	}
 
 	// iHerb 주문 확인 처리 (실구매가 자동 기록)
@@ -320,14 +247,14 @@ public class EmailFetcherService {
 				}
 
 				// 소싱 데이터에 총 결제 금액을 실구매가로 저장
-				com.sbshop.agent.core.domain.order.vo.SourcingData current = item.getSourcingData();
-				com.sbshop.agent.core.domain.order.vo.SourcingData updated = (current != null ? current
-					: com.sbshop.agent.core.domain.order.vo.SourcingData.builder().build())
+				SourcingData current = item.getSourcingData();
+				SourcingData updated = (current != null ? current
+					: SourcingData.builder().build())
 					.toBuilder()
 					.sourcingAmount(confirmData.getTotalAmount())
 					.build();
-				item.updateSourcingData(updated);
-				orderLineItemRepository.save(item);
+			item.applySourcingData(updated);
+			orderLineItemRepository.save(item);
 
 				log.info("iHerb 주문 확인 실구매가 기록: itemId={}, orderNo={}, amount={}",
 					item.getId(), confirmData.getOrderNo(), confirmData.getTotalAmount());
@@ -452,26 +379,5 @@ public class EmailFetcherService {
 			}
 		}
 		return result.toString();
-	}
-
-	private String resolveCoupangVendorItemId(OrderLineItem item) {
-		if (item.getProductId() == null)
-			return null;
-		MarketRegistration reg = marketRegistrationRepository.findByProductIdAndMarketType(
-			item.getProductId(), MarketType.COUPANG).orElse(null);
-		if (reg == null)
-			return null;
-		String identifiers = reg.getMarketIdentifiers();
-		if (identifiers == null || identifiers.isEmpty())
-			return null;
-		try {
-			ObjectMapper mapper = new ObjectMapper();
-			JsonNode node = mapper.readTree(identifiers);
-			JsonNode vendorItemId = node.get("vendorItemId");
-			return vendorItemId != null ? vendorItemId.asText() : null;
-		} catch (Exception e) {
-			log.warn("COUPANG vendorItemId 파싱 실패: productId={}, identifiers={}", item.getProductId(), identifiers, e);
-			return null;
-		}
 	}
 }

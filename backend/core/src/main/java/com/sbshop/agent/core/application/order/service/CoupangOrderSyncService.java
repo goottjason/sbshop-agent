@@ -7,6 +7,7 @@ import com.sbshop.agent.core.domain.market.repository.MarketRegistrationReposito
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
+import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
@@ -130,7 +131,7 @@ public class CoupangOrderSyncService {
 							? item.getSettlementData().getSettlementAmount() : null;
 
 						if (currentSettlement == null || actualSettlement.compareTo(currentSettlement) != 0) {
-							item.updateSettlement(actualSettlement);
+							item.applySettlement(actualSettlement);
 							item.markSettlementVerified();
 							orderLineItemRepository.save(item);
 							updatedCount++;
@@ -204,12 +205,12 @@ public class CoupangOrderSyncService {
 		boolean canOverwriteTracking = item.getShippingData() != null
 			&& Boolean.TRUE.equals(item.getShippingData().getTrackingSentToMarket());
 		// 3. 배송 정보 갱신 (shippingStatus는 항상 갱신, trackingNo/carrier는 조건부)
-		item.updateShippingInfo(
-			canOverwriteTracking ? dto.getTrackingNo() : null,
-			dto.getStatus(),
-			item.getShippingData() != null ? item.getShippingData().getIsUnipassDone() : null,
-			canOverwriteTracking ? dto.getCarrier() : null,
-			null);
+		ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
+			.trackingNo(canOverwriteTracking ? dto.getTrackingNo() : null)
+			.shippingCarrier(canOverwriteTracking ? dto.getCarrier() : null)
+			.shippingStatus(dto.getStatus())
+			.build();
+		item.applyShippingData(cmd.toShippingData(item.getShippingData()));
 	}
 
 	/* ----- 주문 정보 업데이트 ----- */
@@ -306,12 +307,9 @@ public class CoupangOrderSyncService {
 
 	/* ----- 통관정보 생성 ----- */
 	private CustomsData buildCustomsData(MarketOrderDto dto) {
-		if (dto.getCustomsClearanceNo() != null && !dto.getCustomsClearanceNo().trim().isEmpty()) {
-			return CustomsData.builder()
-				.customsClearanceNo(dto.getCustomsClearanceNo())
-				.build();
-		}
-		return null;
+		return CustomsData.builder()
+			.customsClearanceNo(dto.getCustomsClearanceNo())
+			.build();
 	}
 
 	/* ----- 사후 처리 ----- */

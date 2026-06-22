@@ -23,20 +23,20 @@ export interface OrderLineItemDto {
   id?: number;
   quantity?: number;
   unitPrice?: number;
+  isUnipassDone?: boolean;
   sourcingData?: {
     sourcingAccount?: string;
     sourcingOrderNo?: string;
     sourcingAmount?: number;
+    logisticsCost?: number;
     discountCode?: string;
   };
   settlementData?: {
     settlementAmount?: number;
-    shippingFee?: number;
     settlementVerified?: boolean;
   };
   shippingData?: {
     trackingNo?: string;
-    isUnipassDone?: boolean;
     shippingStatus?: string;
     shippingCarrier?: string;
   };
@@ -124,10 +124,29 @@ export const updateOrder = async (id: number, updateData: any): Promise<any> => 
   return data;
 };
 
-export const updateOrderLineItem = async (id: number, updateData: any): Promise<any> => {
-  const { data } = await apiClient.patch(`/api/v1/orders/line-items/${id}`, updateData);
-  return data;
+// 소싱 정보 수정
+export const updateSourcingInfo = async (lineItemId: number, data: {
+  sourcingAccount?: string;
+  sourcingOrderNo?: string;
+  sourcingAmount?: number;
+  logisticsCost?: number;
+  discountCode?: string;
+  sourcingVendor?: string;
+}): Promise<any> => {
+  const response = await apiClient.patch(`/api/v1/orders/line-items/${lineItemId}/sourcing`, data);
+  return response.data;
 };
+
+// 배송 정보 수정
+export const updateShippingInfo = async (lineItemId: number, data: {
+  trackingNo?: string;
+  shippingCarrier?: string;
+}): Promise<any> => {
+  const response = await apiClient.patch(`/api/v1/orders/line-items/${lineItemId}/shipping`, data);
+  return response.data;
+};
+
+// 유니패스 신고 완료 여부 수정
 
 export const syncCoupangOrders = async (): Promise<{ success: boolean; syncedCount: number; message: string }> => {
   const { data } = await apiClient.post('/api/v1/orders/sync/coupang');
@@ -170,13 +189,10 @@ export const confirmOrder = async (id: number): Promise<any> => {
 };
 
 export const confirmOrdersBatch = async (orderIds: number[]): Promise<{
-  success: boolean;
-  result: {
-    successCount: number;
-    failedCount: number;
-    failedIds: number[];
-    errors?: string[];
-  };
+  successCount: number;
+  failedCount: number;
+  failedIds: number[];
+  errors?: string[];
 }> => {
   const { data } = await apiClient.post('/api/v1/orders/confirm/batch', { orderIds });
   return data;

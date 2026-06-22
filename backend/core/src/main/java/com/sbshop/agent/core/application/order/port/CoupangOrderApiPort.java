@@ -1,22 +1,25 @@
 package com.sbshop.agent.core.application.order.port;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.sbshop.agent.core.domain.market.MarketCredential;
+
+import java.util.List;
 
 public interface CoupangOrderApiPort {
-	JsonNode fetchOrders(String vendorId, String accessKey, String secretKey, String fromDate, String toDate,
-		String status);
+	JsonNode fetchOrders(MarketCredential credential, String fromDate, String toDate, String status);
 
-	void shipOrder(String vendorId, String accessKey, String secretKey, String marketOrderNo, String vendorItemId,
-		String trackingNo, String deliveryCompanyCode);
+	void shipOrder(MarketCredential credential, CoupangInvoiceUploadRequest request);
 
-	void acceptOrders(String vendorId, String accessKey, String secretKey, java.util.List<String> shipmentBoxIds);
+	void updateTracking(MarketCredential credential, CoupangUpdateInvoiceRequest request);
 
-	JsonNode querySalesDetails(String vendorId, String accessKey, String secretKey,
+	void acceptOrders(MarketCredential credential, List<String> shipmentBoxIds);
+
+	JsonNode querySalesDetails(MarketCredential credential,
 		String recognitionDateFrom, String recognitionDateTo);
 
 	/**
 	 * 쿠팡 상품상세조회 API (seller_api)
 	 * sellerProductId로 상품 정보를 조회하여 externalVendorSku(판매자상품코드)를 반환
 	 */
-	JsonNode queryProduct(String vendorId, String accessKey, String secretKey, long sellerProductId);
+	JsonNode queryProduct(MarketCredential credential, long sellerProductId);
 }

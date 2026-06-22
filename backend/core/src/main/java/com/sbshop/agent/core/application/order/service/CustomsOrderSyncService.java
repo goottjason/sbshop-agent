@@ -31,7 +31,7 @@ public class CustomsOrderSyncService {
 	 */
 	@Transactional
 	public void syncCustomsStatus() {
-		log.info("Starting customs status sync process via GSI Scraper...");
+		log.info("GSI Scraper를 통한 통관 상태 동기화 프로세스 시작...");
 
 		// 1. 통관 검증 대상: PENDING 또는 INVALID 상태인 주문
 		//    - PENDING: 통관번호 입력 후 아직 검증 안 된 경우
@@ -44,7 +44,7 @@ public class CustomsOrderSyncService {
 				CustomsStatus.INVALID_ZIPCODE
 			));
 
-		log.info("Found {} candidate orders with PENDING/INVALID_* customs status",
+		log.info("PENDING/INVALID_* 통관 상태를 가진 후보 주문 {}건 발견",
 			targetOrders.size());
 
 		if (targetOrders.isEmpty()) {
@@ -57,7 +57,7 @@ public class CustomsOrderSyncService {
 			int end = Math.min(i + batchSize, targetOrders.size());
 			List<Order> batch = targetOrders.subList(i, end);
 
-			log.info("Verifying customs status for batch {} to {} (out of {})", i + 1, end, targetOrders.size());
+			log.info("배치 {} ~ {} / {}건의 통관 상태 검증 중", i + 1, end, targetOrders.size());
 			Map<Long, CustomsVerificationResult> resultMap = customsClearancePort.verifyBulk(batch);
 
 			// 3. 결과 반영 (상태 + 검증된 사람)
@@ -72,10 +72,10 @@ public class CustomsOrderSyncService {
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
-				log.warn("Customs sync batch thread interrupted");
+				log.warn("통관 동기화 배치 스레드 중단됨");
 			}
 		}
 
-		log.info("Customs status sync process completed.");
+		log.info("통관 상태 동기화 프로세스 완료.");
 	}
 }

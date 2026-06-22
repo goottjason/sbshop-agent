@@ -31,13 +31,7 @@ public class CoupangApiExplorationTest {
 		String toDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 
 		System.out.println("Fetching orders from " + fromDate + " to " + toDate);
-		JsonNode response = coupangOrderApiClient.fetchOrders(
-			cred.getClientId(), // vendorId is stored in clientId
-			cred.getAccessKey(),
-			cred.getSecretKey(),
-			fromDate,
-			toDate,
-			"ACCEPT");
+		JsonNode response = coupangOrderApiClient.fetchOrders(cred, fromDate, toDate, "ACCEPT");
 
 		System.out.println("========== RAW COUPANG API RESPONSE ==========");
 		System.out.println(response.toPrettyString());

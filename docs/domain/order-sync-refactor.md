@@ -33,15 +33,15 @@
 | SourcingData | `sourcing_account` | String | 구매계정 | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
 | SourcingData | `sourcing_order_no` | String | 소싱주문번호 | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
 | SourcingData | `sourcing_amount` | BigDecimal | 소싱금액 (원가) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
+| SourcingData | `logistics_cost` | BigDecimal | 물류비 | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
 | SourcingData | `discount_code` | String | 할인코드 | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
 | SettlementData | `settlement_amount` | BigDecimal | 정산금액 | `totalAmount × 0.89` (수수료 11% 반영) | `totalPaymentAmount` | `ordAmt` | `tradeAmnt` |
-| SettlementData | `shipping_fee` | BigDecimal | 배송비 | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
 | SettlementData | `settlement_verified` | Boolean | 정산 검증 완료 여부 | 쿠팡 정산 동기화 시 `true` | `—` | `—` | `—` |
 | ShippingData | `tracking_no` | String | 송장번호 | `invoiceNumber` ("null" 문자열 필터링) | `deliveryInfo.trackingNumber` | `invcNo` | `—` / HTML |
 | ShippingData | `shipping_status` | enum `ShippingStatus` | 배송상태 | `CoupangStatusMapper` | `SmartStoreStatusMapper` | `ElevenstStatusMapper` | `EsmplusStatusMapper` |
 | ShippingData | `shipping_carrier` | enum `ShippingCarrier` | 택배사 | `deliveryCompanyName` → `fromMarketCode()` | `deliveryInfo.deliveryCompany` → `fromMarketCode()` | `dlvEtprsCd` (5자리 숫자 매핑) | `CJ_LOGISTICS` (기본값) |
-| ShippingData | `is_unipass_done` | Boolean | 유니패스 신고 완료 여부 | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
 | ShippingData | `tracking_sent_to_market` | Boolean | 마켓 송장 전송 완료 여부 | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
+| — | `is_unipass_done` | Boolean | 유니패스 신고 완료 여부 | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) | `—` (사용자 입력) |
 
 #### `MarketRegistration` (`sb_market_registration`)
 
@@ -98,6 +98,7 @@
 │  │  └── Adapter 구현체           │    │
 │  └──────────────────────────────┘    │
 │  OrderService, OrderShipService      │
+│  MarketplaceShippingService         │
 │  StatusMappers (마켓별)               │
 ├──────────────────────────────────────┤
 │  도메인 계층                          │
@@ -286,10 +287,9 @@ for each dto:
 ### 업데이트 시 덮어쓰지 않는 필드
 
 다음 필드는 동기화 업데이트 시 **보존** (사용자 관리):
-- `sourcingData` (sourcingVendor, sourcingAccount, sourcingOrderNo, sourcingAmount, discountCode) — API 명령으로만 설정
-- `settlementData.shippingFee` — API로만 설정
+- `sourcingData` (sourcingVendor, sourcingAccount, sourcingOrderNo, sourcingAmount, logisticsCost, discountCode) — API 명령으로만 설정
 - `settlementData.settlementVerified` — 쿠팡 정산 동기화 시에만 `true`
-- `shippingData.isUnipassDone` — API로만
+- `isUnipassDone` — API로만
 - `shippingData.trackingSentToMarket` — API로만
 - `customsData.customsStatus` — API/통관 확인으로만
 
@@ -346,7 +346,8 @@ MarketOrderDto.marketProductCode = SB 코드 (예: "SB-001")
 |----------|--------|---------|
 | `/api/v1/orders` | GET | 그리드 조회 (페이징 + 필터링) |
 | `/api/v1/orders/{id}` | GET | 단건 주문 상세 |
-| `/api/v1/orders/{id}` | PUT | 주문 정보 수정 (수취인, 주소 등) |
+| `/api/v1/orders/{id}` | PATCH | 주문 정보 수정 (address, customsClearanceNo) |
+| `/api/v1/orders/{id}/unipass` | PATCH | 유니패스 완료 여부 수정 |
 | `/api/v1/orders/sync/coupang` | POST | 쿠팡 동기화 트리거 |
 | `/api/v1/orders/sync/smartstore` | POST | 스마트스토어 동기화 트리거 |
 | `/api/v1/orders/sync/elevenst` | POST | 11번가 동기화 트리거 |

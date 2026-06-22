@@ -144,10 +144,9 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		return null;
 	}
 
-	@Override
-	public String mapCarrierCode(ShippingCarrier carrier) {
+	private String mapCarrierCode(ShippingCarrier carrier) {
 		if (carrier == null) {
-			return "00034";
+			throw new IllegalArgumentException("배송사 정보가 없습니다.");
 		}
 		return switch (carrier) {
 			case CJ_LOGISTICS -> "00034";

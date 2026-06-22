@@ -1,20 +1,21 @@
 package com.sbshop.agent.core.domain.order;
 
-import com.sbshop.agent.core.domain.common.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-
-import jakarta.persistence.Table;
 import java.math.BigDecimal;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+
+import com.sbshop.agent.core.domain.common.BaseEntity;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.vo.SettlementData;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import com.sbshop.agent.core.domain.order.vo.SourcingData;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "sb_order_line_item")
@@ -46,34 +47,51 @@ public class OrderLineItem extends BaseEntity {
 	@jakarta.persistence.Embedded
 	private ShippingData shippingData = ShippingData.builder().build();
 
+	/** 유니패스 신고 완료 여부 */
+	@Column(name = "is_unipass_done")
+	private Boolean isUnipassDone;
+
 	@Builder
 	public OrderLineItem(Long orderId, Long productId, Integer quantity, SourcingData sourcingData,
-		SettlementData settlementData, ShippingData shippingData) {
+		SettlementData settlementData, ShippingData shippingData, Boolean isUnipassDone) {
 		this.orderId = orderId;
 		this.productId = productId;
 		this.quantity = quantity;
 		this.sourcingData = sourcingData != null ? sourcingData : SourcingData.builder().build();
 		this.settlementData = settlementData != null ? settlementData : SettlementData.builder().build();
 		this.shippingData = shippingData != null ? shippingData : ShippingData.builder().build();
+		this.isUnipassDone = isUnipassDone;
 	}
 
-	/* ----- 배송정보 통합 갱신 (updateShipping + updateShippingWithCarrier 대체) ----- */
-	public void updateShippingInfo(
-		String trackingNo, ShippingStatus status, Boolean isUnipassDone, ShippingCarrier carrier,
-		Boolean trackingSentToMarket) {
-		ShippingData.ShippingDataBuilder builder = (this.shippingData != null) ? this.shippingData.toBuilder()
-			: ShippingData.builder();
-		if (trackingNo != null)
-			builder.trackingNo(trackingNo);
-		if (status != null)
-			builder.shippingStatus(status);
-		if (isUnipassDone != null)
-			builder.isUnipassDone(isUnipassDone);
-		if (carrier != null)
-			builder.shippingCarrier(carrier);
-		if (trackingSentToMarket != null)
-			builder.trackingSentToMarket(trackingSentToMarket);
-		this.shippingData = builder.build();
+	public void markAsPurchased() {
+		this.shippingData = this.shippingData.toBuilder()
+			.shippingStatus(ShippingStatus.PURCHASED)
+			.build();
+	}
+
+	public void markAsShipped() {
+		this.shippingData = this.shippingData.toBuilder()
+			.shippingStatus(ShippingStatus.SHIPPED)
+			.build();
+	}
+
+	/* ----- 배송정보 갱신 ----- */
+	public void applyShippingData(ShippingData data) {
+		this.shippingData = data;
+	}
+
+	/* ----- 마켓 송장 전송 완료 플래그 ----- */
+	public void markTrackingAsSent() {
+		ShippingData current = this.shippingData;
+		if (current == null) {
+			current = ShippingData.builder().build();
+		}
+		this.shippingData = current.toBuilder().trackingSentToMarket(true).build();
+	}
+
+	/* ----- 유니패스 신고 완료 여부 변경 ----- */
+	public void updateUnipassDone(Boolean isUnipassDone) {
+		this.isUnipassDone = isUnipassDone;
 	}
 
 	/* ----- 발주확인 이후 진행상태 여부 (address 보호 판단용) ----- */
@@ -86,6 +104,18 @@ public class OrderLineItem extends BaseEntity {
 		return s.getOrder() >= ShippingStatus.PREPARING.getOrder();
 	}
 
+	/* ----- 소싱 정보 갱신 ----- */
+	public void applySourcingData(SourcingData data) {
+		this.sourcingData = data;
+	}
+
+	/* ----- 정산 정보 갱신 ----- */
+	public void applySettlement(BigDecimal settlementAmount) {
+		this.settlementData = (this.settlementData != null ? this.settlementData.toBuilder() : SettlementData.builder())
+			.settlementAmount(settlementAmount)
+			.build();
+	}
+
 	/* ----- 기존 하위 호환 유지 메서드들 ----- */
 	protected void assignOrderId(Long orderId) {
 		this.orderId = orderId;
@@ -95,73 +125,9 @@ public class OrderLineItem extends BaseEntity {
 		this.productId = productId;
 	}
 
-	public void updateSettlement(BigDecimal settlementAmount) {
-		this.settlementData = (this.settlementData != null ? this.settlementData.toBuilder() : SettlementData.builder())
-			.settlementAmount(settlementAmount)
-			.build();
-	}
-
 	public void markSettlementVerified() {
 		this.settlementData = (this.settlementData != null ? this.settlementData.toBuilder() : SettlementData.builder())
 			.settlementVerified(true)
 			.build();
-	}
-
-	public void updateSourcingData(SourcingData sourcingData) {
-		this.sourcingData = sourcingData;
-	}
-
-	public void updateSettlementData(SettlementData settlementData) {
-		this.settlementData = settlementData;
-	}
-
-	public void updateShippingData(ShippingData shippingData) {
-		this.shippingData = shippingData;
-	}
-
-	public void updateSourcingForIherb(String account, String orderNo, String discountCode) {
-		this.sourcingData = SourcingData.builder()
-			.sourcingVendor("IHB")
-			.sourcingAccount(account)
-			.sourcingOrderNo(orderNo)
-			.discountCode(discountCode)
-			.build();
-	}
-
-	public void updateSourcingForVendor(String vendor, String vendorOrderNo) {
-		this.sourcingData = SourcingData.builder()
-			.sourcingVendor(vendor)
-			.sourcingOrderNo(vendorOrderNo)
-			.build();
-	}
-
-	public void markAsPurchased() {
-		ensureShippingData();
-		this.shippingData = this.shippingData.toBuilder()
-			.shippingStatus(ShippingStatus.PURCHASED)
-			.build();
-	}
-
-	public void updateTrackingInfo(String trackingNo, ShippingCarrier carrier) {
-		ensureShippingData();
-		ShippingData.ShippingDataBuilder builder = this.shippingData.toBuilder();
-		if (trackingNo != null)
-			builder.trackingNo(trackingNo);
-		if (carrier != null)
-			builder.shippingCarrier(carrier);
-		this.shippingData = builder.build();
-	}
-
-	public void updateShippingStatus(ShippingStatus status) {
-		ensureShippingData();
-		this.shippingData = this.shippingData.toBuilder()
-			.shippingStatus(status)
-			.build();
-	}
-
-	private void ensureShippingData() {
-		if (this.shippingData == null) {
-			this.shippingData = ShippingData.builder().build();
-		}
 	}
 }

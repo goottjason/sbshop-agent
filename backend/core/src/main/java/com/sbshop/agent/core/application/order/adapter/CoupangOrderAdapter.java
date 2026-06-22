@@ -1,8 +1,9 @@
 package com.sbshop.agent.core.application.order.adapter;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sbshop.agent.core.application.order.port.CoupangInvoiceUploadRequest;
 import com.sbshop.agent.core.application.order.port.CoupangOrderApiPort;
+import com.sbshop.agent.core.application.order.port.CoupangUpdateInvoiceRequest;
 import com.sbshop.agent.core.application.order.port.MarketOrderPort;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
@@ -10,6 +11,7 @@ import com.sbshop.agent.core.domain.market.repository.MarketRegistrationReposito
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
+import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
@@ -22,8 +24,11 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -53,10 +58,6 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		LocalDate fromDate, LocalDate toDate) {
 		List<MarketOrderDto> result = new ArrayList<>();
 
-		String vendorId = credential.getClientId();
-		String accessKey = credential.getAccessKey();
-		String secretKey = credential.getSecretKey();
-
 		String fromDateStr = fromDate.toString();
 		String toDateStr = toDate.toString();
 
@@ -70,7 +71,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		for (String status : statuses) {
 			try {
 				JsonNode orders = coupangOrderApiPort.fetchOrders(
-					vendorId, accessKey, secretKey, fromDateStr, toDateStr, status);
+					credential, fromDateStr, toDateStr, status);
 
 				if (orders == null || !orders.isArray()) {
 					continue;
@@ -84,7 +85,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 						continue;
 					}
 
-					MarketOrderDto dto = parseOrderNode(orderNode, status, vendorId, accessKey, secretKey, skuCache);
+					MarketOrderDto dto = parseOrderNode(orderNode, status, credential, skuCache);
 					if (dto != null) {
 						result.add(dto);
 					}
@@ -106,7 +107,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 	 * sellerProductId로 쿠팡 상품상세조회 API를 호출하여 올바른 externalVendorSku(판매자상품코드)를 가져옴
 	 * 쿠팡 주문 API의 externalVendorSkuCode는 부정확한 값을 반환할 수 있으므로 상품조회 API를 통해 검증
 	 */
-	private String resolveExternalVendorSku(String vendorId, String accessKey, String secretKey,
+	private String resolveExternalVendorSku(MarketCredential credential,
 		String sellerProductIdStr, String vendorItemId, Map<String, String> skuCache) {
 		if (sellerProductIdStr == null || sellerProductIdStr.isEmpty()) {
 			return null;
@@ -121,7 +122,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 
 		try {
 			long sellerProductId = Long.parseLong(sellerProductIdStr);
-			JsonNode productData = coupangOrderApiPort.queryProduct(vendorId, accessKey, secretKey, sellerProductId);
+			JsonNode productData = coupangOrderApiPort.queryProduct(credential, sellerProductId);
 
 			if (productData != null) {
 				JsonNode items = productData.path("items");
@@ -167,7 +168,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 	}
 
 	private MarketOrderDto parseOrderNode(JsonNode orderNode, String status,
-		String vendorId, String accessKey, String secretKey, Map<String, String> skuCache) {
+		MarketCredential credential, Map<String, String> skuCache) {
 		try {
 			String marketOrderNo = orderNode.path("orderId").asText();
 			String shipmentBoxId = orderNode.path("shipmentBoxId").asText(null);
@@ -219,7 +220,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 				String sellerProductId = firstItem.path("sellerProductId").asText(null);
 				String vendorItemId = firstItem.path("vendorItemId").asText(null);
 				String resolvedSku = resolveExternalVendorSku(
-					vendorId, accessKey, secretKey, sellerProductId, vendorItemId, skuCache);
+					credential, sellerProductId, vendorItemId, skuCache);
 
 				if (resolvedSku != null && !resolvedSku.isEmpty()) {
 					externalVendorSkuCode = resolvedSku;
@@ -281,43 +282,88 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 	public void shipOrder(MarketCredential credential,
 		Order order, OrderLineItem lineItem,
 		String trackingNo, ShippingCarrier carrier) {
-		String vendorItemId = resolveVendorItemId(lineItem);
-		if (vendorItemId == null || vendorItemId.isEmpty()) {
+		if (lineItem.getProductId() == null) {
+			throw new IllegalArgumentException("쿠팡 배송 처리 실패: productId가 없습니다.");
+		}
+
+		Optional<MarketRegistration> reg = marketRegistrationRepository
+			.findByProductIdAndMarketType(lineItem.getProductId(), MarketType.COUPANG);
+		String vendorItemIdStr = reg.map(MarketRegistration::extractVendorItemId).orElse(null);
+
+		if (vendorItemIdStr == null || vendorItemIdStr.isEmpty()) {
 			throw new IllegalArgumentException("쿠팡 배송 처리 실패: vendorItemId가 없습니다.");
 		}
 
+		if (order.getShipmentBoxId() == null || order.getShipmentBoxId().isEmpty()) {
+			throw new IllegalArgumentException("쿠팡 배송 처리 실패: shipmentBoxId가 없습니다.");
+		}
+
 		String deliveryCompanyCode = mapCarrierCode(carrier);
-		coupangOrderApiPort.shipOrder(
+
+		var request = new CoupangInvoiceUploadRequest(
 			credential.getClientId(),
-			credential.getAccessKey(),
-			credential.getSecretKey(),
-			order.getMarketOrderNo(),
-			vendorItemId,
-			trackingNo,
-			deliveryCompanyCode);
+			List.of(new CoupangInvoiceUploadRequest.InvoiceApply(
+				Long.parseLong(order.getShipmentBoxId()),
+				Long.parseLong(order.getMarketOrderNo()),
+				Long.parseLong(vendorItemIdStr),
+				deliveryCompanyCode,
+				trackingNo,
+				false,
+				false,
+				"")));
+
+		coupangOrderApiPort.shipOrder(credential, request);
 	}
 
-	private String resolveVendorItemId(OrderLineItem lineItem) {
-		if (lineItem.getProductId() == null)
-			return null;
-		try {
-			java.util.Optional<MarketRegistration> reg = marketRegistrationRepository
-				.findByProductIdAndMarketType(lineItem.getProductId(), MarketType.COUPANG);
-			if (reg.isPresent()) {
-				String identifiers = reg.get().getMarketIdentifiers();
-				if (identifiers != null) {
-					ObjectMapper mapper = new ObjectMapper();
-					com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(identifiers);
-					String vendorItemId = node.path("vendorItemId").asText(null);
-					if (vendorItemId != null && !vendorItemId.isEmpty()) {
-						return vendorItemId;
-					}
-				}
-			}
-		} catch (Exception e) {
-			log.warn("vendorItemId 조회 실패 (productId={}): {}", lineItem.getProductId(), e.getMessage());
+	@Override
+	public void updateTracking(MarketCredential credential,
+		Order order, OrderLineItem lineItem,
+		String trackingNo, ShippingCarrier carrier) {
+		if (lineItem.getProductId() == null) {
+			throw new IllegalArgumentException("쿠팡 송장 수정 실패: productId가 없습니다.");
 		}
-		return null;
+
+		Optional<MarketRegistration> reg = marketRegistrationRepository
+			.findByProductIdAndMarketType(lineItem.getProductId(), MarketType.COUPANG);
+		String vendorItemIdStr = reg.map(MarketRegistration::extractVendorItemId).orElse(null);
+
+		if (vendorItemIdStr == null || vendorItemIdStr.isEmpty()) {
+			throw new IllegalArgumentException("쿠팡 송장 수정 실패: vendorItemId가 없습니다.");
+		}
+
+		if (order.getShipmentBoxId() == null || order.getShipmentBoxId().isEmpty()) {
+			throw new IllegalArgumentException("쿠팡 송장 수정 실패: shipmentBoxId가 없습니다.");
+		}
+
+		String deliveryCompanyCode = mapCarrierCode(carrier);
+
+		var request = new CoupangUpdateInvoiceRequest(
+			credential.getClientId(),
+			List.of(new CoupangUpdateInvoiceRequest.InvoiceApply(
+				Long.parseLong(order.getShipmentBoxId()),
+				Long.parseLong(order.getMarketOrderNo()),
+				Long.parseLong(vendorItemIdStr),
+				deliveryCompanyCode,
+				trackingNo,
+				false,
+				false,
+				"")));
+
+		coupangOrderApiPort.updateTracking(credential, request);
+	}
+
+	private String mapCarrierCode(ShippingCarrier carrier) {
+		if (carrier == null) {
+			throw new IllegalArgumentException("배송사 정보가 없습니다.");
+		}
+		return switch (carrier) {
+			case CJ_LOGISTICS -> "CJGLS";
+			case HANJIN -> "HANJIN";
+			case KOREA_POST -> "EPOST";
+			case LOTTE_LOGISTICS -> "LOTTE";
+			case ROCKET -> "COUPANG";
+			default -> "CJGLS";
+		};
 	}
 
 	@Override
@@ -328,9 +374,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		}
 
 		coupangOrderApiPort.acceptOrders(
-			credential.getClientId(),
-			credential.getAccessKey(),
-			credential.getSecretKey(),
+			credential,
 			List.of(order.getShipmentBoxId()));
 	}
 
@@ -341,9 +385,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 
 		try {
 			JsonNode salesItems = coupangOrderApiPort.querySalesDetails(
-				credential.getClientId(),
-				credential.getAccessKey(),
-				credential.getSecretKey(),
+				credential,
 				from.toString(),
 				to.toString());
 
@@ -376,7 +418,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 	}
 
 	public void detectCancellations(List<MarketOrderDto> apiOrders, LocalDate fromDate, LocalDate toDate) {
-		java.util.Set<String> apiOrderIds = new java.util.HashSet<>();
+		Set<String> apiOrderIds = new HashSet<>();
 		for (MarketOrderDto dto : apiOrders) {
 			apiOrderIds.add(dto.getMarketOrderNo());
 		}
@@ -403,7 +445,10 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 						if (item.getShippingData() == null
 							|| (item.getShippingData().getShippingStatus() != ShippingStatus.CANCELED
 								&& item.getShippingData().getShippingStatus() != ShippingStatus.DELIVERED)) {
-							item.updateShippingInfo(null, ShippingStatus.CANCELED, null, null, null);
+							ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
+								.shippingStatus(ShippingStatus.CANCELED)
+								.build();
+							item.applyShippingData(cmd.toShippingData(item.getShippingData()));
 							orderLineItemRepository.save(item);
 						}
 					}
@@ -447,12 +492,12 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 					&& !apiOrder.getTrackingNo().isEmpty();
 
 				if (needsCarrierFix || needsInvoiceFix) {
-					item.updateShippingInfo(
-						needsInvoiceFix ? apiOrder.getTrackingNo() : item.getShippingData().getTrackingNo(),
-						item.getShippingData().getShippingStatus(),
-						item.getShippingData().getIsUnipassDone(),
-						needsCarrierFix ? apiOrder.getCarrier() : item.getShippingData().getShippingCarrier(),
-						null);
+					ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
+						.trackingNo(needsInvoiceFix ? apiOrder.getTrackingNo() : item.getShippingData().getTrackingNo())
+						.shippingCarrier(needsCarrierFix ? apiOrder.getCarrier() : item.getShippingData().getShippingCarrier())
+						.shippingStatus(item.getShippingData().getShippingStatus())
+						.build();
+					item.applyShippingData(cmd.toShippingData(item.getShippingData()));
 					orderLineItemRepository.save(item);
 					carrierFixedCount++;
 				}
