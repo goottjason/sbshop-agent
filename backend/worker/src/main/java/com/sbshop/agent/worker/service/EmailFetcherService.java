@@ -14,6 +14,7 @@ import jakarta.mail.*;
 import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -287,24 +288,24 @@ public class EmailFetcherService {
 	}
 
 	// iHerb 주문 확인 이메일 즉시 검색 (구매처리 시 호출)
-	public java.util.Optional<BigDecimal> findIherbConfirmationAmount(String orderNo) {
+	public Optional<BigDecimal> findIherbConfirmationAmount(String orderNo) {
 		if (properties.getAccounts() == null || properties.getAccounts().isEmpty()) {
-			return java.util.Optional.empty();
+			return Optional.empty();
 		}
 
 		for (EmailAccountProperties.Account account : properties.getAccounts()) {
-			java.util.Optional<BigDecimal> result = searchConfirmationInAccount(account, orderNo);
+			Optional<BigDecimal> result = searchConfirmationInAccount(account, orderNo);
 			if (result.isPresent()) {
 				return result;
 			}
 		}
-		return java.util.Optional.empty();
+		return Optional.empty();
 	}
 
 	/**
 	 * Gmail 호환: 특정 주문번호의 확인 이메일을 검색하여 실구매가 반환
 	 */
-	private java.util.Optional<BigDecimal> searchConfirmationInAccount(
+	private Optional<BigDecimal> searchConfirmationInAccount(
 		EmailAccountProperties.Account account, String orderNo) {
 
 		Properties props = new Properties();
@@ -334,7 +335,7 @@ public class EmailFetcherService {
 				if (subject != null && subject.contains(searchSubject)) {
 					String body = getTextFromMessage(message);
 
-					java.util.Optional<OrderEmailParser.IherbConfirmationData> parsed = parser
+					Optional<OrderEmailParser.IherbConfirmationData> parsed = parser
 						.parseIherbConfirmation(subject, body);
 
 					inbox.close(false);
@@ -345,7 +346,7 @@ public class EmailFetcherService {
 							log.info("iHerb 주문 확인 메일 발견: orderNo={}, amount={}, account={}",
 								orderNo, data.getTotalAmount(), account.getUsername());
 						}
-						return java.util.Optional.ofNullable(data.getTotalAmount());
+						return Optional.ofNullable(data.getTotalAmount());
 					});
 				}
 			}
@@ -355,7 +356,7 @@ public class EmailFetcherService {
 		} catch (Exception e) {
 			log.debug("이메일 검색 실패 (account: {}): {}", account.getUsername(), e.getMessage());
 		}
-		return java.util.Optional.empty();
+		return Optional.empty();
 	}
 
 	private String getTextFromMessage(Message message) throws Exception {

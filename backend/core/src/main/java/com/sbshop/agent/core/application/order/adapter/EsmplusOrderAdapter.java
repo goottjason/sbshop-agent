@@ -13,6 +13,7 @@ import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.application.order.mapper.EsmplusStatusMapper;
 import java.math.BigDecimal;
+import java.util.Map;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -68,14 +69,21 @@ public class EsmplusOrderAdapter implements MarketOrderPort {
 	public void shipOrder(MarketCredential credential,
 		Order order, OrderLineItem lineItem,
 		String trackingNo, ShippingCarrier carrier) {
-		// ESM+는 배송 시작 API가 다를 수 있음 (추후 구현)
 		log.warn("[ESM+] shipOrder 미구현: order={}", order.getMarketOrderNo());
 	}
 
 	@Override
 	public void acceptOrders(MarketCredential credential, Order order) {
-		// ESM+는 주문 접수 API가 다를 수 있음 (추후 구현)
-		log.warn("[ESM+] acceptOrders 미구현: order={}", order.getMarketOrderNo());
+		esmplusOrderApiPort.confirmOrders(
+			credential.getAccessKey(), credential.getSecretKey(),
+			List.of(order.getMarketOrderNo()));
+	}
+
+	@Override
+	public void cancelOrder(MarketCredential credential, Order order) {
+		esmplusOrderApiPort.cancelOrders(
+			credential.getAccessKey(), credential.getSecretKey(),
+			List.of(order.getMarketOrderNo()), "판매자 취소");
 	}
 
 	@Override
@@ -199,7 +207,7 @@ public class EsmplusOrderAdapter implements MarketOrderPort {
 				.carrier(ShippingCarrier.CJ_LOGISTICS)
 				.status(status)
 				.orderDate(orderDate)
-				.marketSpecificData(java.util.Map.of(
+				.marketSpecificData(Map.of(
 					"siteId", siteId,
 					"siteOrderNo", siteOrderNo,
 					"orderNo", orderNo,

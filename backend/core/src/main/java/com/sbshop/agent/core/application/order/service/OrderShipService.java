@@ -9,6 +9,7 @@ import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +29,7 @@ public class OrderShipService {
 
 	@Transactional
 	public List<Order> bulkShipOrders(List<Long> orderIds) {
-		List<Order> shippedOrders = new java.util.ArrayList<>();
+		List<Order> shippedOrders = new ArrayList<>();
 
 		for (Long orderId : orderIds) {
 			Order order = orderRepository.findById(orderId).orElse(null);

@@ -2,6 +2,8 @@ package com.sbshop.agent.core.domain.order;
 
 import java.sql.Types;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.hibernate.annotations.JdbcTypeCode;
 
@@ -77,6 +79,10 @@ public class Order extends BaseEntity {
 	@Column(name = "shipment_box_id", length = 50)
 	private String shipmentBoxId;
 
+	/** 마켓별 상세 데이터 (JSON) — 11번가 ordPrdSeq, addPrdYn 등 저장 */
+	@Column(name = "market_specific_data", columnDefinition = "JSON")
+	private String marketSpecificData;
+
 	@Builder
 	public Order(
 		MarketType marketType,
@@ -90,7 +96,8 @@ public class Order extends BaseEntity {
 		CustomsData customsData,
 		String ordererName,
 		String ordererPhone,
-		String shipmentBoxId) {
+		String shipmentBoxId,
+		String marketSpecificData) {
 		this.marketType = marketType;
 		this.marketOrderNo = marketOrderNo;
 		this.orderDate = orderDate;
@@ -103,14 +110,15 @@ public class Order extends BaseEntity {
 		this.ordererName = ordererName;
 		this.ordererPhone = ordererPhone;
 		this.shipmentBoxId = shipmentBoxId;
+		this.marketSpecificData = marketSpecificData;
 	}
 
-	/** 사용자 수정 - 배송지 주소 변경 @reviewed */
+	/** 배송지 주소 변경 */
 	public void updateAddress(String address) {
 		this.address = address;
 	}
 
-	/** 사용자 수정 - 통관번호 변경 (PENDING, NONE으로 초기화) @reviewed */
+	/** 통관번호 변경 (PENDING, NONE으로 초기화) */
 	public void updateCustomsClearanceNo(String customsClearanceNo) {
 		this.customsData = this.customsData.toBuilder()
 			.customsClearanceNo(customsClearanceNo)
@@ -119,7 +127,7 @@ public class Order extends BaseEntity {
 			.build();
 	}
 
-	/** 동기화 - 주문 정보 전체 업데이트 (동기화 전용) */
+	/** 주문 정보 전체 업데이트 (동기화 전용) */
 	public void update(
 		String recipientName, String recipientPhone, String zipcode, String address, String message,
 		String ordererName, String ordererPhone, String shipmentBoxId, MarketType marketType) {
@@ -143,12 +151,55 @@ public class Order extends BaseEntity {
 			this.marketType = marketType;
 	}
 
-	/** 통관 상태 변경 (자동 동기화) */
+	/** marketSpecificData JSON을 Map으로 파싱 */
+	public Map<String, String> getMarketSpecificDataMap() {
+		if (marketSpecificData == null || marketSpecificData.isEmpty()) {
+			return Map.of();
+		}
+		try {
+			Map<String, String> result = new HashMap<>();
+			String json = marketSpecificData;
+			if (json.startsWith("{") && json.endsWith("}")) {
+				json = json.substring(1, json.length() - 1);
+			}
+			String[] pairs = json.split(",");
+			for (String pair : pairs) {
+				String[] kv = pair.split(":", 2);
+				if (kv.length == 2) {
+					String key = kv[0].trim().replace("\"", "");
+					String value = kv[1].trim().replace("\"", "");
+					result.put(key, value);
+				}
+			}
+			return result;
+		} catch (Exception e) {
+			return Map.of();
+		}
+	}
+
+	/** Map을 marketSpecificData JSON으로 저장 */
+	public void setMarketSpecificDataFromMap(Map<String, String> map) {
+		if (map == null || map.isEmpty()) {
+			this.marketSpecificData = null;
+			return;
+		}
+		StringBuilder sb = new StringBuilder("{");
+		boolean first = true;
+		for (Map.Entry<String, String> entry : map.entrySet()) {
+			if (!first) sb.append(",");
+			sb.append("\"").append(entry.getKey()).append("\":\"").append(entry.getValue()).append("\"");
+			first = false;
+		}
+		sb.append("}");
+		this.marketSpecificData = sb.toString();
+	}
+
+	/** 통관 상태 변경 */
 	public void updateCustomsStatus(CustomsStatus status) {
 		updateCustomsStatus(status, null);
 	}
 
-	/** 통관 상태 + 검증 대상 변경 (자동 동기화) */
+	/** 통관 상태 + 검증 대상 변경 */
 	public void updateCustomsStatus(CustomsStatus status, VerifiedPerson verifiedPerson) {
 		this.customsData = this.customsData.toBuilder()
 			.customsStatus(status)

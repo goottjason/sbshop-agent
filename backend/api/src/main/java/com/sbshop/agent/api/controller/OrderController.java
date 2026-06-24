@@ -38,122 +38,146 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @RequestMapping("/api/v1/orders")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*") // For local Vite frontend
+@CrossOrigin(origins = "*")
 public class OrderController {
 
-	// 주문 비즈니스 로직 서비스
 	private final OrderService orderService;
-
-	// 발송 처리 전용 서비스
 	private final OrderShipService orderShipService;
 
+	// ======================== 조회 ========================
+
+	/** 주문 그리드 조회 */
 	@GetMapping
 	public ResponseEntity<Page<OrderDetailDto>> getOrders(
 		OrderSearchCondition condition, Pageable pageable) {
-		System.out.println("DEBUG OrderSearchCondition: " + condition);
-		// 1. 주문 검색 조건 및 페이징 파라미터 전달하여 조회
-		Page<OrderDetailDto> dtoPage = orderService.searchOrders(condition,
-			pageable);
 
-		// 2. 조회된 그리드용 DTO 페이지 반환
+		Page<OrderDetailDto> dtoPage = orderService.searchOrders(condition, pageable);
 		return ResponseEntity.ok(dtoPage);
 	}
 
-	/** PATCH /orders/{id} - 주소/통관번호 사용자 수정 @reviewed */
+	// ======================== 발주확인 ========================
+
+	/** 단건 발주확인 */
+	@PostMapping("/{id}/confirm")
+	public ResponseEntity<Order> confirmOrder(@PathVariable
+	Long id) {
+
+		Order order = orderService.confirmOrder(id);
+		return ResponseEntity.ok(order);
+	}
+
+	/** 선택(일괄) 발주확인 */
+	@PostMapping("/confirm/batch")
+	public ResponseEntity<BulkConfirmResult> bulkConfirmOrders(
+		@RequestBody
+		Map<String, List<Long>> request) {
+
+		List<Long> orderIds = request.get("orderIds");
+		if (orderIds == null || orderIds.isEmpty()) {
+			return ResponseEntity.badRequest().build();
+		}
+
+		BulkConfirmResult result = orderService.bulkConfirmOrders(orderIds);
+		return ResponseEntity.ok(result);
+	}
+
+	// ======================== 발주취소 ========================
+
+	/** 단건 발주취소 */
+	@PostMapping("/{id}/cancel")
+	public ResponseEntity<Order> cancelOrder(@PathVariable
+	Long id) {
+
+		Order order = orderService.cancelOrder(id);
+		return ResponseEntity.ok(order);
+	}
+
+	/** 선택(일괄) 발주취소 */
+	@PostMapping("/cancel/batch")
+	public ResponseEntity<BulkConfirmResult> bulkCancelOrders(
+		@RequestBody
+		Map<String, List<Long>> request) {
+
+		List<Long> orderIds = request.get("orderIds");
+		if (orderIds == null || orderIds.isEmpty()) {
+			return ResponseEntity.badRequest().build();
+		}
+
+		BulkConfirmResult result = orderService.bulkCancelOrders(orderIds);
+		return ResponseEntity.ok(result);
+	}
+
+	// ======================== 수정 ========================
+
+	/** 주소/통관번호 사용자 수정 */
 	@PatchMapping("/{id}")
 	public ResponseEntity<Order> updateOrder(
 		@PathVariable
-		Long id, @RequestBody
+		Long id,
+		@RequestBody
 		OrderUpdateRequest request) {
-		OrderUpdateCommand command = OrderUpdateCommand.builder()
-			.address(request.getAddress())
-			.customsClearanceNo(request.getCustomsClearanceNo())
-			.build();
 
+		OrderUpdateCommand command = request.toCommand();
 		Order updated = orderService.updateOrder(id, command);
-
 		return ResponseEntity.ok(updated);
 	}
 
-	/** PATCH /line-items/{lineItemId} - 유니패스완료여부 사용자 수정 @reviewed */
+	/** 유니패스완료여부 사용자 수정 */
 	@PatchMapping("/line-items/{lineItemId}")
 	public ResponseEntity<OrderLineItem> updateOrderLineItem(
 		@PathVariable
 		Long lineItemId,
 		@RequestBody
 		OrderLineItemUpdateRequest request) {
-		OrderLineItemUpdateCommand command = OrderLineItemUpdateCommand.builder()
-			.isUnipassDone(request.getIsUnipassDone())
-			.build();
 
+		OrderLineItemUpdateCommand command = request.toCommand();
 		OrderLineItem updated = orderService.updateOrderLineItem(lineItemId, command);
-
 		return ResponseEntity.ok(updated);
 	}
 
-	/** PATCH /line-items/{lineItemId}/sourcing - 구매(소싱) 정보 수정 @reviewed */
+	/** 라인아이템 소싱(구매) 정보 수정 */
 	@PatchMapping("/line-items/{lineItemId}/sourcing")
 	public ResponseEntity<OrderLineItem> updateSourcingInfo(
 		@PathVariable
 		Long lineItemId,
 		@RequestBody
 		SourcingUpdateRequest request) {
+
 		OrderLineItem updated = orderService.updateSourcingInfo(lineItemId, request.toCommand());
 		return ResponseEntity.ok(updated);
 	}
 
-	/** PATCH /line-items/{lineItemId}/shipping - 배송 정보 수정 @reviewed */
+	/** 라인아이템 배송 정보 수정 */
 	@PatchMapping("/line-items/{lineItemId}/shipping")
 	public ResponseEntity<OrderLineItem> updateShippingInfo(
 		@PathVariable
 		Long lineItemId,
 		@RequestBody
 		ShippingUpdateRequest request) {
+
 		OrderLineItem updated = orderService.updateShippingInfo(lineItemId, request.toCommand());
 		return ResponseEntity.ok(updated);
 	}
 
-	@DeleteMapping("/{id}")
-	public ResponseEntity<Void> deleteOrder(@PathVariable
-	Long id) {
-		// 1. 주문 ID를 통한 삭제 로직 호출
-		orderService.deleteOrder(id);
+	// ======================== 발송 ========================
 
-		// 2. 삭제 완료 (No Content) 응답
-		return ResponseEntity.noContent().build();
-	}
-
+	/** 일괄 발송 처리 */
 	@PostMapping("/ship")
 	public ResponseEntity<List<Order>> shipOrders(@RequestBody
 	OrderShipRequest request) {
-		List<Order> shippedOrders = orderShipService.bulkShipOrders(request.getOrderIds());
 
+		List<Order> shippedOrders = orderShipService.bulkShipOrders(request.getOrderIds());
 		return ResponseEntity.ok(shippedOrders);
 	}
 
-	@PostMapping("/{id}/confirm")
-	public ResponseEntity<Order> confirmOrder(@PathVariable
-	Long id) {
-		Order order = orderService.confirmOrder(id);
-		return ResponseEntity.ok(order);
-	}
+	// ======================== 삭제 ========================
 
-	@PostMapping("/confirm/batch")
-	public ResponseEntity<BulkConfirmResult> bulkConfirmOrders(
-		@RequestBody
-		Map<String, List<Long>> request) {
-		List<Long> orderIds = request.get("orderIds");
-		if (orderIds == null || orderIds.isEmpty()) {
-			return ResponseEntity.badRequest().build();
-		}
-		BulkConfirmResult result = orderService.bulkConfirmOrders(orderIds);
-		return ResponseEntity.ok(result);
-	}
-
-	@PostMapping("/{id}/cancel")
-	public ResponseEntity<Order> cancelOrder(@PathVariable
+	/** 주문 삭제 */
+	@DeleteMapping("/{id}")
+	public ResponseEntity<Void> deleteOrder(@PathVariable
 	Long id) {
-		Order order = orderService.cancelOrder(id);
-		return ResponseEntity.ok(order);
+
+		orderService.deleteOrder(id);
+		return ResponseEntity.noContent().build();
 	}
 }

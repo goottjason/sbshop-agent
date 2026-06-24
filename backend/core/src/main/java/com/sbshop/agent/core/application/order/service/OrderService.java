@@ -1,5 +1,7 @@
 package com.sbshop.agent.core.application.order.service;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -40,152 +42,36 @@ public class OrderService {
 	private final MarketCredentialRepository credentialRepository;
 	private final MarketplaceShippingService marketplaceShippingService;
 
+	// ======================== 조회 ========================
+
 	/** 주문 검색 */
 	public Page<OrderDetailDto> searchOrders(OrderSearchCondition condition,
 		Pageable pageable) {
+
 		return orderRepository.searchOrderGrid(condition, pageable);
 	}
 
-	/** 주소/통관번호 사용자 수정 (NEW 상태 시 차단) @reviewed */
-	@Transactional
-	public Order updateOrder(Long id, OrderUpdateCommand command) {
-		Order order = orderRepository
-			.findById(id)
-			.orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
+	// ======================== 발주확인 ========================
 
-		// NEW 상태일 때 address, customsClearanceNo 수정 차단
-		List<OrderLineItem> lineItems = orderLineItemRepository.findByOrderId(id);
-		boolean isAllNew = lineItems.stream().allMatch(item -> {
-			ShippingStatus status = item.getShippingData() != null ? item.getShippingData().getShippingStatus() : null;
-			return status == null || status == ShippingStatus.NEW || status == ShippingStatus.UNKNOWN;
-		});
-
-		if (isAllNew && !lineItems.isEmpty()) {
-			throw new IllegalStateException("발주확인 전에는 주문 정보를 수정할 수 없습니다.");
-		}
-
-		if (command.getAddress() != null) {
-			order.updateAddress(command.getAddress());
-		}
-
-		if (command.getCustomsClearanceNo() != null) {
-			order.updateCustomsClearanceNo(command.getCustomsClearanceNo());
-		}
-
-		return order;
-	}
-
-	/** 유니패스완료여부 사용자 수정 (NEW 상태 시 차단) @reviewed */
-	@Transactional
-	public OrderLineItem updateOrderLineItem(Long id, OrderLineItemUpdateCommand command) {
-		OrderLineItem lineItem = orderLineItemRepository.findById(id)
-			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + id));
-
-		ShippingStatus currentStatus = lineItem.getShippingData() != null
-			? lineItem.getShippingData().getShippingStatus() : null;
-
-		if (currentStatus == ShippingStatus.NEW || currentStatus == ShippingStatus.UNKNOWN) {
-			throw new IllegalStateException("발주확인 전에는 라인아이템 정보를 수정할 수 없습니다.");
-		}
-
-		if (command.getIsUnipassDone() != null) {
-			lineItem.updateUnipassDone(command.getIsUnipassDone());
-		}
-
-		return orderLineItemRepository.save(lineItem);
-	}
-
-	/** 주문정보 수정 */
-	@Transactional
-	public OrderLineItem updateSourcingInfo(Long lineItemId, SourcingUpdateCommand command) {
-		OrderLineItem item = orderLineItemRepository.findById(lineItemId)
-			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + lineItemId));
-
-		ShippingStatus currentStatus = item.getShippingData() != null
-			? item.getShippingData().getShippingStatus() : null;
-
-		if (currentStatus == ShippingStatus.NEW) {
-			throw new IllegalStateException("발주확인 전에는 소싱 정보를 수정할 수 없습니다.");
-		}
-
-		if (currentStatus == ShippingStatus.PREPARING) {
-			// 구매 처리 (PREPARING -> PURCHASED)
-			if (command.getSourcingOrderNo() == null || command.getSourcingOrderNo().isEmpty()) {
-				throw new IllegalStateException("소싱 시 주문번호는 필수입니다.");
-			}
-			item.applySourcingData(command.toSourcingData(item.getSourcingData()));
-			item.markAsPurchased();
-			orderLineItemRepository.save(item);
-
-			log.info("라인아이템 {} PURCHASED로 변경 (vendor: {}, orderNo: {})",
-				lineItemId, command.getSourcingVendor(), command.getSourcingOrderNo());
-		} else {
-			// 단순 정보 수정 (구매완료 이후 상태)
-			item.applySourcingData(command.toSourcingData(item.getSourcingData()));
-			orderLineItemRepository.save(item);
-
-			log.info("라인아이템 {} 소싱 정보 업데이트 완료", lineItemId);
-		}
-		return item;
-	}
-
-	@Transactional
-	public OrderLineItem updateShippingInfo(Long lineItemId, ShippingUpdateCommand command) {
-		OrderLineItem item = orderLineItemRepository.findById(lineItemId)
-			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + lineItemId));
-
-		ShippingStatus currentStatus = item.getShippingData() != null
-			? item.getShippingData().getShippingStatus() : null;
-
-		if (currentStatus == ShippingStatus.NEW || currentStatus == ShippingStatus.PREPARING) {
-			throw new IllegalStateException("발주확인 또는 구매완료 전에는 배송 정보를 수정할 수 없습니다.");
-		}
-
-		if (currentStatus == ShippingStatus.PURCHASED) {
-			// 배송 처리 (PURCHASED -> SHIPPED)
-			item.applyShippingData(command.toShippingData(item.getShippingData()));
-			item.markAsShipped();
-			orderLineItemRepository.save(item);
-
-			marketplaceShippingService.sendTrackingToMarketplace(item);
-			item.markTrackingAsSent();
-			orderLineItemRepository.save(item);
-			log.info("라인아이템 {} 배송 처리: tracking={}, carrier={}", lineItemId, command.getTrackingNo(),
-				command.getShippingCarrier());
-		} else {
-			// 송장 수정 (SHIPPED 이후 상태)
-			item.applyShippingData(command.toShippingData(item.getShippingData()));
-			orderLineItemRepository.save(item);
-
-			marketplaceShippingService.sendTrackingToMarketplace(item);
-			item.markTrackingAsSent();
-			orderLineItemRepository.save(item);
-			log.info("라인아이템 {} 송장번호 업데이트: tracking={}, carrier={}", lineItemId,
-				command.getTrackingNo(), command.getShippingCarrier());
-		}
-		return item;
-	}
-
-	@Transactional
-	public void deleteOrder(Long id) {
-		List<OrderLineItem> lineItems = orderLineItemRepository.findByOrderId(id);
-		orderLineItemRepository.deleteAll(lineItems);
-		orderRepository.deleteById(id);
-	}
-
+	/** 마켓플레이스 주문 접수 */
 	@Transactional
 	public Order confirmOrder(Long id) {
+
+		// 주문 조회
 		Order order = orderRepository.findById(id)
 			.orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
 
+		// 마켓 타입 확인
 		if (order.getMarketType() == null) {
 			throw new IllegalStateException("Market type is not set for order: " + id);
 		}
 
+		// 이미 접수 완료된 주문이면 스킵
 		if (isOrderFullyPrepared(order)) {
 			return order;
 		}
 
+		// 마켓 크레덴셜 조회 및 접수 API 호출
 		MarketCredential credential = credentialRepository.findByMarketType(order.getMarketType())
 			.orElseThrow(() -> new RuntimeException(order.getMarketType() + " credentials not found"));
 
@@ -197,6 +83,7 @@ public class OrderService {
 			throw new RuntimeException("마켓플레이스 주문 접수 실패: " + e.getMessage(), e);
 		}
 
+		// NEW 상태 라인아이템을 PREPARING으로 변경
 		List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
 		for (OrderLineItem item : items) {
 			ShippingStatus currentStatus = item.getShippingData() != null
@@ -210,15 +97,18 @@ public class OrderService {
 				orderLineItemRepository.save(item);
 			}
 		}
+
 		log.info("주문 {} 접수 확인 및 상태를 PREPARING로 변경", id);
 		return order;
 	}
 
+	/** 주문 일괄 접수 */
 	@Transactional
-	public BulkConfirmResult bulkConfirmOrders(java.util.List<Long> ids) {
+	public BulkConfirmResult bulkConfirmOrders(List<Long> ids) {
+
 		int successCount = 0;
-		java.util.List<Long> failedIds = new java.util.ArrayList<>();
-		java.util.List<String> errors = new java.util.ArrayList<>();
+		List<Long> failedIds = new ArrayList<>();
+		List<String> errors = new ArrayList<>();
 
 		for (Long id : ids) {
 			try {
@@ -239,26 +129,17 @@ public class OrderService {
 			.build();
 	}
 
-	private boolean isOrderFullyPrepared(Order order) {
-		List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
-		return !items.isEmpty() && items.stream().allMatch(item -> {
-			ShippingStatus status = item.getShippingData() != null
-				? item.getShippingData().getShippingStatus() : null;
-			return status == ShippingStatus.PREPARING || status == ShippingStatus.SHIPPED
-				|| status == ShippingStatus.DELIVERED;
-		});
-	}
+	// ======================== 발주취소 ========================
 
-	private void callMarketplaceAcceptApi(Order order, MarketCredential credential) {
-		MarketOrderPort port = marketplaceShippingService.getPort(order.getMarketType());
-		port.acceptOrders(credential, order);
-	}
-
+	/** 주문 취소 */
 	@Transactional
 	public Order cancelOrder(Long id) {
+
+		// 주문 조회
 		Order order = orderRepository.findById(id)
 			.orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
 
+		// 라인아이템 배송상태를 CANCELED로 변경
 		List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
 		for (OrderLineItem item : items) {
 			if (item.getShippingData() != null) {
@@ -270,15 +151,191 @@ public class OrderService {
 				orderLineItemRepository.save(item);
 			}
 		}
+
 		return order;
 	}
 
+	/** 주문 일괄 취소 */
 	@Transactional
-	public void markAsPurchased(Long lineItemId, String sourcingAccount,
-		String sourcingOrderNo, String discountCode, String sourcingVendor) {
+	public BulkConfirmResult bulkCancelOrders(List<Long> ids) {
+
+		int successCount = 0;
+		List<Long> failedIds = new ArrayList<>();
+		List<String> errors = new ArrayList<>();
+
+		for (Long id : ids) {
+			try {
+				cancelOrder(id);
+				successCount++;
+			} catch (Exception e) {
+				failedIds.add(id);
+				errors.add("Order " + id + ": " + e.getMessage());
+				log.warn("주문 {} 취소 실패: {}", id, e.getMessage());
+			}
+		}
+
+		return BulkConfirmResult.builder()
+			.successCount(successCount)
+			.failedCount(failedIds.size())
+			.failedIds(failedIds)
+			.errors(errors.isEmpty() ? null : errors)
+			.build();
+	}
+
+	// ======================== 수정 ========================
+
+	/** 주소/통관번호 사용자 수정 */
+	@Transactional
+	public Order updateOrder(Long id, OrderUpdateCommand command) {
+
+		// 주문 조회
+		Order order = orderRepository
+			.findById(id)
+			.orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
+
+		// NEW/UNKNOWN 상태이면 수정 차단
+		List<OrderLineItem> lineItems = orderLineItemRepository.findByOrderId(id);
+		boolean isAllNew = lineItems.stream().allMatch(item -> {
+			ShippingStatus status = item.getShippingData() != null ? item.getShippingData().getShippingStatus() : null;
+			return status == null || status == ShippingStatus.NEW || status == ShippingStatus.UNKNOWN;
+		});
+
+		if (isAllNew && !lineItems.isEmpty()) {
+			throw new IllegalStateException("발주확인 전에는 주문 정보를 수정할 수 없습니다.");
+		}
+
+		// 주소 수정
+		if (command.getAddress() != null) {
+			order.updateAddress(command.getAddress());
+		}
+
+		// 통관번호 수정
+		if (command.getCustomsClearanceNo() != null) {
+			order.updateCustomsClearanceNo(command.getCustomsClearanceNo());
+		}
+
+		return order;
+	}
+
+	/** 유니패스완료여부 사용자 수정 */
+	@Transactional
+	public OrderLineItem updateOrderLineItem(Long id, OrderLineItemUpdateCommand command) {
+
+		// 라인아이템 조회
+		OrderLineItem lineItem = orderLineItemRepository.findById(id)
+			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + id));
+
+		// NEW/UNKNOWN 상태이면 수정 차단
+		ShippingStatus currentStatus = lineItem.getShippingData() != null
+			? lineItem.getShippingData().getShippingStatus() : null;
+
+		if (currentStatus == null || currentStatus == ShippingStatus.NEW || currentStatus == ShippingStatus.UNKNOWN) {
+			throw new IllegalStateException("발주확인 전에는 라인아이템 정보를 수정할 수 없습니다.");
+		}
+
+		// 유니패스완료여부 수정
+		if (command.getIsUnipassDone() != null) {
+			lineItem.updateUnipassDone(command.getIsUnipassDone());
+		}
+
+		return orderLineItemRepository.save(lineItem);
+	}
+
+	/** 소싱 정보 수정 */
+	@Transactional
+	public OrderLineItem updateSourcingInfo(Long lineItemId, SourcingUpdateCommand command) {
+
+		// 라인아이템 조회
 		OrderLineItem item = orderLineItemRepository.findById(lineItemId)
 			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + lineItemId));
 
+		// NEW/UNKNOWN 상태이면 수정 차단
+		ShippingStatus currentStatus = item.getShippingData() != null
+			? item.getShippingData().getShippingStatus() : null;
+
+		if (currentStatus == null || currentStatus == ShippingStatus.NEW || currentStatus == ShippingStatus.UNKNOWN) {
+			throw new IllegalStateException("발주확인 전에는 구매 정보를 수정할 수 없습니다.");
+		}
+
+		// PREPARING이면 구매 처리 (PREPARING -> PURCHASED)
+		if (currentStatus == ShippingStatus.PREPARING) {
+			if (command.getSourcingOrderNo() == null || command.getSourcingOrderNo().isEmpty()) {
+				throw new IllegalStateException("구매정보 수정 시 주문번호는 필수입니다.");
+			}
+			item.applySourcingData(command.toSourcingData(item.getSourcingData()));
+			item.markAsPurchased();
+			orderLineItemRepository.save(item);
+
+			log.info("라인아이템 {} PURCHASED로 변경 (vendor: {}, orderNo: {})",
+				lineItemId, command.getSourcingVendor(), command.getSourcingOrderNo());
+		} else {
+			// PURCHASED 이후면 단순 정보 수정
+			item.applySourcingData(command.toSourcingData(item.getSourcingData()));
+			orderLineItemRepository.save(item);
+
+			log.info("라인아이템 {} 구매 정보 수정 완료", lineItemId);
+		}
+
+		return item;
+	}
+
+	/** 배송 정보 수정 */
+	@Transactional
+	public OrderLineItem updateShippingInfo(Long lineItemId, ShippingUpdateCommand command) {
+
+		// 라인아이템 조회
+		OrderLineItem item = orderLineItemRepository.findById(lineItemId)
+			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + lineItemId));
+
+		// NEW/UNKNOWN/PREPARING 상태이면 수정 차단
+		ShippingStatus currentStatus = item.getShippingData() != null
+			? item.getShippingData().getShippingStatus() : null;
+
+		if (currentStatus == null || currentStatus == ShippingStatus.NEW || currentStatus == ShippingStatus.UNKNOWN
+			|| currentStatus == ShippingStatus.PREPARING) {
+			throw new IllegalStateException("발주확인 또는 구매완료 전에는 배송 정보를 수정할 수 없습니다.");
+		}
+
+		// PURCHASED면 배송 처리 (PURCHASED -> SHIPPED)
+		if (currentStatus == ShippingStatus.PURCHASED) {
+			item.applyShippingData(command.toShippingData(item.getShippingData()));
+			item.markAsShipped();
+			orderLineItemRepository.save(item);
+
+			// 마켓플레이스에 송장 전송
+			marketplaceShippingService.sendTrackingToMarketplace(item);
+			item.markTrackingAsSent();
+			orderLineItemRepository.save(item);
+
+			log.info("라인아이템 {} 배송 처리: tracking={}, carrier={}", lineItemId, command.getTrackingNo(),
+				command.getShippingCarrier());
+		} else {
+			// SHIPPED 이후면 송장 수정
+			item.applyShippingData(command.toShippingData(item.getShippingData()));
+			orderLineItemRepository.save(item);
+
+			// 마켓플레이스에 송장 업데이트
+			marketplaceShippingService.sendTrackingToMarketplace(item);
+			item.markTrackingAsSent();
+			orderLineItemRepository.save(item);
+
+			log.info("라인아이템 {} 송장번호 업데이트: tracking={}, carrier={}", lineItemId,
+				command.getTrackingNo(), command.getShippingCarrier());
+		}
+
+		return item;
+	}
+
+	/** 라인아이템 구매 처리 */
+	@Transactional
+	public void markAsPurchased(Long lineItemId, String sourcingAccount,
+		String sourcingOrderNo, String discountCode, String sourcingVendor) {
+
+		// 라인아이템 조회
+		OrderLineItem item = orderLineItemRepository.findById(lineItemId)
+			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + lineItemId));
+
+		// PREPARING 상태 확인
 		ShippingStatus currentStatus = item.getShippingData() != null
 			? item.getShippingData().getShippingStatus() : null;
 		if (currentStatus != ShippingStatus.PREPARING) {
@@ -286,6 +343,7 @@ public class OrderService {
 				"구매 처리는 PREPARING 상태에서만 가능합니다. 현재: " + currentStatus);
 		}
 
+		// 소싱 데이터 적용 및 PURCHASED로 변경
 		SourcingData data = SourcingData.builder()
 			.sourcingVendor(sourcingVendor)
 			.sourcingAccount(sourcingAccount)
@@ -300,13 +358,17 @@ public class OrderService {
 			lineItemId, sourcingVendor, sourcingOrderNo);
 	}
 
+	/** 라인아이템 구매 처리 (금액 포함) */
 	@Transactional
 	public void markAsPurchasedWithAmount(Long lineItemId, String sourcingAccount,
 		String sourcingOrderNo, String discountCode, String sourcingVendor,
-		java.math.BigDecimal emailAmount) {
+		BigDecimal emailAmount) {
+
+		// 라인아이템 조회
 		OrderLineItem item = orderLineItemRepository.findById(lineItemId)
 			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + lineItemId));
 
+		// PREPARING 상태 확인
 		ShippingStatus currentStatus = item.getShippingData() != null
 			? item.getShippingData().getShippingStatus() : null;
 		if (currentStatus != ShippingStatus.PREPARING) {
@@ -314,6 +376,7 @@ public class OrderService {
 				"구매 처리는 PREPARING 상태에서만 가능합니다. 현재: " + currentStatus);
 		}
 
+		// 소싱 데이터 적용 및 PURCHASED로 변경
 		SourcingData data = SourcingData.builder()
 			.sourcingVendor(sourcingVendor)
 			.sourcingAccount(sourcingAccount)
@@ -329,11 +392,15 @@ public class OrderService {
 			lineItemId, sourcingVendor, sourcingOrderNo, emailAmount);
 	}
 
+	/** 실구매가 업데이트 */
 	@Transactional
-	public void updateSourcingAmount(Long lineItemId, java.math.BigDecimal amount) {
+	public void updateSourcingAmount(Long lineItemId, BigDecimal amount) {
+
+		// 라인아이템 조회
 		OrderLineItem item = orderLineItemRepository.findById(lineItemId)
 			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + lineItemId));
 
+		// 소싱 데이터에서 실구매가 업데이트
 		SourcingData current = item.getSourcingData();
 		SourcingData updated = (current != null ? current
 			: SourcingData.builder().build())
@@ -346,18 +413,23 @@ public class OrderService {
 		log.info("LineItem {} 실구매가 업데이트: {}", lineItemId, amount);
 	}
 
+	/** 배송 처리 (PURCHASED -> SHIPPED) */
 	@Transactional
 	public void processShipping(Long lineItemId, String trackingNo,
 		ShippingCarrier carrier) {
+
+		// 라인아이템 조회
 		OrderLineItem item = orderLineItemRepository.findById(lineItemId)
 			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + lineItemId));
 
+		// PURCHASED 상태 확인
 		ShippingStatus currentStatus = item.getShippingData() != null
 			? item.getShippingData().getShippingStatus() : null;
 		if (currentStatus != ShippingStatus.PURCHASED) {
 			throw new IllegalStateException("배송 처리는 PURCHASED 상태에서만 가능합니다. 현재: " + currentStatus);
 		}
 
+		// 배송 데이터 적용 및 SHIPPED로 변경
 		ShippingData currentShipping = item.getShippingData();
 		if (currentShipping == null) {
 			currentShipping = ShippingData.builder().build();
@@ -369,6 +441,7 @@ public class OrderService {
 			.build());
 		orderLineItemRepository.save(item);
 
+		// 마켓플레이스에 송장 전송
 		marketplaceShippingService.sendTrackingToMarketplace(item);
 		item.markTrackingAsSent();
 		orderLineItemRepository.save(item);
@@ -376,18 +449,23 @@ public class OrderService {
 		log.info("라인아이템 {} 배송 처리: tracking={}, carrier={}", lineItemId, trackingNo, carrier);
 	}
 
+	/** 송장 정보 업데이트 */
 	@Transactional
 	public void updateTrackingInfo(Long lineItemId, String trackingNo,
 		ShippingCarrier carrier) {
+
+		// 라인아이템 조회
 		OrderLineItem item = orderLineItemRepository.findById(lineItemId)
 			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + lineItemId));
 
+		// SHIPPED 상태 확인
 		ShippingStatus currentStatus = item.getShippingData() != null
 			? item.getShippingData().getShippingStatus() : null;
 		if (currentStatus != ShippingStatus.SHIPPED) {
 			throw new IllegalStateException("송장 수정은 SHIPPED 상태에서만 가능합니다. 현재: " + currentStatus);
 		}
 
+		// 송장 정보 업데이트
 		ShippingData currentShipping = item.getShippingData();
 		if (currentShipping == null) {
 			currentShipping = ShippingData.builder().build();
@@ -398,11 +476,42 @@ public class OrderService {
 			.build());
 		orderLineItemRepository.save(item);
 
+		// 마켓플레이스에 송장 업데이트
 		marketplaceShippingService.sendTrackingToMarketplace(item);
 		item.markTrackingAsSent();
 		orderLineItemRepository.save(item);
 
 		log.info("라인아이템 {} 송장번호 업데이트: tracking={}, carrier={}", lineItemId, trackingNo, carrier);
+	}
+
+	// ======================== 삭제 ========================
+
+	/** 주문 삭제 */
+	@Transactional
+	public void deleteOrder(Long id) {
+
+		List<OrderLineItem> lineItems = orderLineItemRepository.findByOrderId(id);
+		orderLineItemRepository.deleteAll(lineItems);
+		orderRepository.deleteById(id);
+	}
+
+	// ======================== private ========================
+
+	/** 접수 완료 여부 판단 */
+	private boolean isOrderFullyPrepared(Order order) {
+		List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
+		return !items.isEmpty() && items.stream().allMatch(item -> {
+			ShippingStatus status = item.getShippingData() != null
+				? item.getShippingData().getShippingStatus() : null;
+			return status == ShippingStatus.PREPARING || status == ShippingStatus.SHIPPED
+				|| status == ShippingStatus.DELIVERED;
+		});
+	}
+
+	/** 마켓플레이스 주문 접수 API 호출 */
+	private void callMarketplaceAcceptApi(Order order, MarketCredential credential) {
+		MarketOrderPort port = marketplaceShippingService.getPort(order.getMarketType());
+		port.acceptOrders(credential, order);
 	}
 
 }

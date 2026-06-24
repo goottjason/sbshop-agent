@@ -32,4 +32,23 @@ public interface EsmplusOrderApiPort {
 	* @return 상세 데이터가 병합된 DTO, 실패 시 null
 	*/
 	MarketOrderDto fetchOrderDetail(String masterId, String password, MarketOrderDto dto);
+
+	/**
+	 * 발주확인 (Selenium 자동화)
+	 *
+	 * @param masterId 마스터 ID
+	 * @param password 비밀번호
+	 * @param siteOrderNos 사이트 주문 번호 목록
+	 */
+	void confirmOrders(String masterId, String password, List<String> siteOrderNos);
+
+	/**
+	 * 주문취소 (Selenium 자동화)
+	 *
+	 * @param masterId 마스터 ID
+	 * @param password 비밀번호
+	 * @param siteOrderNos 사이트 주문 번호 목록
+	 * @param reason 취소 사유
+	 */
+	void cancelOrders(String masterId, String password, List<String> siteOrderNos, String reason);
 }

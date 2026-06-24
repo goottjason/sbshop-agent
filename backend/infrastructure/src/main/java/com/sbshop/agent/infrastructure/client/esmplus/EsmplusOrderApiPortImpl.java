@@ -100,6 +100,188 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 		return cachedDetailDriver;
 	}
 
+	@Override
+	public void confirmOrders(String masterId, String password, List<String> siteOrderNos) {
+		if (siteOrderNos == null || siteOrderNos.isEmpty()) {
+			log.warn("[ESM+] 발주확인 대상 없음");
+			return;
+		}
+
+		ChromeDriver driver = null;
+		try {
+			driver = loginAndCreateDriver(masterId, password);
+			JavascriptExecutor js = (JavascriptExecutor)driver;
+
+			log.info("[ESM+] 발주확인: {}건 처리 시작", siteOrderNos.size());
+
+			for (String siteOrderNo : siteOrderNos) {
+				try {
+					boolean selected = selectOrderCheckbox(js, siteOrderNo);
+					if (!selected) {
+						log.warn("[ESM+] 발주확인: 주문 {} 선택 실패 - 건너뜀", siteOrderNo);
+						continue;
+					}
+					Thread.sleep(500);
+				} catch (Exception e) {
+					log.error("[ESM+] 발주확인: 주문 {} 체크박스 선택 실패: {}", siteOrderNo, e.getMessage());
+				}
+			}
+
+			clickConfirmButton(js);
+			Thread.sleep(3000);
+			handleConfirmDialog(js);
+
+			log.info("[ESM+] 발주확인: {}건 처리 완료", siteOrderNos.size());
+		} catch (Exception e) {
+			log.error("[ESM+] 발주확인 실패", e);
+			throw new RuntimeException("[ESM+] 발주확인 실패: " + e.getMessage(), e);
+		} finally {
+			if (driver != null) {
+				driver.quit();
+			}
+		}
+	}
+
+	@Override
+	public void cancelOrders(String masterId, String password, List<String> siteOrderNos, String reason) {
+		if (siteOrderNos == null || siteOrderNos.isEmpty()) {
+			log.warn("[ESM+] 주문취소 대상 없음");
+			return;
+		}
+
+		ChromeDriver driver = null;
+		try {
+			driver = loginAndCreateDriver(masterId, password);
+			JavascriptExecutor js = (JavascriptExecutor)driver;
+
+			log.info("[ESM+] 주문취소: {}건 처리 시작 (사유: {})", siteOrderNos.size(), reason);
+
+			for (String siteOrderNo : siteOrderNos) {
+				try {
+					boolean selected = selectOrderCheckbox(js, siteOrderNo);
+					if (!selected) {
+						log.warn("[ESM+] 주문취소: 주문 {} 선택 실패 - 건너뜀", siteOrderNo);
+						continue;
+					}
+					Thread.sleep(500);
+				} catch (Exception e) {
+					log.error("[ESM+] 주문취소: 주문 {} 체크박스 선택 실패: {}", siteOrderNo, e.getMessage());
+				}
+			}
+
+			clickCancelButton(js);
+			Thread.sleep(2000);
+			inputCancelReason(js, reason);
+			Thread.sleep(1000);
+			handleConfirmDialog(js);
+
+			log.info("[ESM+] 주문취소: {}건 처리 완료", siteOrderNos.size());
+		} catch (Exception e) {
+			log.error("[ESM+] 주문취소 실패", e);
+			throw new RuntimeException("[ESM+] 주문취소 실패: " + e.getMessage(), e);
+		} finally {
+			if (driver != null) {
+				driver.quit();
+			}
+		}
+	}
+
+	/**
+	 * 주문 번호에 해당하는 체크박스 선택
+	 */
+	private boolean selectOrderCheckbox(JavascriptExecutor js, String siteOrderNo) {
+		Object result = js.executeScript(
+			"var rows = document.querySelectorAll('tr[data-order-no], tr[data-site-order-no], .order-row, [class*=order] tr');" +
+				"for (var i = 0; i < rows.length; i++) {" +
+				"  var row = rows[i];" +
+				"  var orderNo = row.getAttribute('data-order-no') || row.getAttribute('data-site-order-no') || '';" +
+				"  if (orderNo === '" + siteOrderNo + "') {" +
+				"    var cb = row.querySelector('input[type=checkbox]');" +
+				"    if (cb && !cb.checked) { cb.click(); }" +
+				"    return 'found';" +
+				"  }" +
+				"}" +
+				"return 'not_found';"
+		);
+		return "found".equals(result);
+	}
+
+	/**
+	 * 발주확인 버튼 클릭
+	 */
+	private void clickConfirmButton(JavascriptExecutor js) {
+		js.executeScript(
+			"var btns = document.querySelectorAll('button, a.btn, input[type=button]');" +
+				"for (var i = 0; i < btns.length; i++) {" +
+				"  var text = btns[i].textContent.trim() || btns[i].value || '';" +
+				"  if (text.indexOf('발주확인') >= 0 || text.indexOf('주문확인') >= 0) {" +
+				"    btns[i].click();" +
+				"    break;" +
+				"  }" +
+				"}"
+		);
+	}
+
+	/**
+	 * 취소처리 버튼 클릭
+	 */
+	private void clickCancelButton(JavascriptExecutor js) {
+		js.executeScript(
+			"var btns = document.querySelectorAll('button, a.btn, input[type=button]');" +
+				"for (var i = 0; i < btns.length; i++) {" +
+				"  var text = btns[i].textContent.trim() || btns[i].value || '';" +
+				"  if (text.indexOf('취소처리') >= 0 || text.indexOf('주문취소') >= 0 || text.indexOf('취소') >= 0) {" +
+				"    btns[i].click();" +
+				"    break;" +
+				"  }" +
+				"}"
+		);
+	}
+
+	/**
+	 * 취소 사유 입력
+	 */
+	private void inputCancelReason(JavascriptExecutor js, String reason) {
+		js.executeScript(
+			"var textareas = document.querySelectorAll('textarea, input[type=text]');" +
+				"for (var i = 0; i < textareas.length; i++) {" +
+				"  var el = textareas[i];" +
+				"  var ph = (el.placeholder || '').toLowerCase();" +
+				"  var name = (el.name || '').toLowerCase();" +
+				"  if (ph.indexOf('사유') >= 0 || ph.indexOf('reason') >= 0 ||" +
+				"      name.indexOf('reason') >= 0 || name.indexOf('cancel') >= 0) {" +
+				"    el.value = '" + reason.replace("'", "\\'") + "';" +
+				"    el.dispatchEvent(new Event('input', {bubbles: true}));" +
+				"    el.dispatchEvent(new Event('change', {bubbles: true}));" +
+				"    break;" +
+				"  }" +
+				"}"
+		);
+	}
+
+	/**
+	 * 확인 다이얼로그 처리 (alert 또는 커스텀 모달)
+	 */
+	private void handleConfirmDialog(JavascriptExecutor js) {
+		try {
+			js.executeScript(
+				"var modals = document.querySelectorAll('.modal, .dialog, [class*=modal], [class*=dialog], [role=dialog]');" +
+					"for (var i = 0; i < modals.length; i++) {" +
+					"  var btns = modals[i].querySelectorAll('button, a.btn');" +
+					"  for (var j = 0; j < btns.length; j++) {" +
+					"    var text = btns[j].textContent.trim();" +
+					"    if (text === '확인' || text === '예' || text === 'OK' || text === '승인') {" +
+					"      btns[j].click();" +
+					"      break;" +
+					"    }" +
+					"  }" +
+					"}"
+			);
+		} catch (Exception e) {
+			log.debug("[ESM+] 확인 다이얼로그 처리 중 alert 감지: {}", e.getMessage());
+		}
+	}
+
 	private synchronized void resetCachedDriver() {
 		if (cachedDetailDriver != null) {
 			try {

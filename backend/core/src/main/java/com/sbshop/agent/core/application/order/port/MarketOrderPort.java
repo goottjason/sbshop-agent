@@ -52,6 +52,15 @@ public interface MarketOrderPort {
 	void acceptOrders(MarketCredential credential, Order order);
 
 	/**
+	 * 주문 취소
+	 * 결제완료/상품준비중 상태의 주문을 취소합니다.
+	 * 미구현 시 UnsupportedOperationException 발생
+	 */
+	default void cancelOrder(MarketCredential credential, Order order) {
+		throw new UnsupportedOperationException("이 마켓은 주문 취소를 지원하지 않습니다.");
+	}
+
+	/**
 	 * 정산 조회 (선택적 구현, 미구현 시 빈 맵 반환)
 	 */
 	default Map<String, BigDecimal> querySettlement(MarketCredential credential,

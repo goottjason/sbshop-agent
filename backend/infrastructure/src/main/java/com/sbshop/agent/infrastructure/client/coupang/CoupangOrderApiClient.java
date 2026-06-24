@@ -7,11 +7,13 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.sbshop.agent.core.application.order.port.CoupangCancelOrderRequest;
 import com.sbshop.agent.core.application.order.port.CoupangInvoiceUploadRequest;
 import com.sbshop.agent.core.application.order.port.CoupangOrderApiPort;
 import com.sbshop.agent.core.application.order.port.CoupangUpdateInvoiceRequest;
@@ -116,7 +118,7 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 			mac.init(secretKeySpec);
 
 			byte[] signatureBytes = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
-			String signature = java.util.HexFormat.of().formatHex(signatureBytes);
+			String signature = HexFormat.of().formatHex(signatureBytes);
 
 			return String.format("CEA algorithm=HmacSHA256, access-key=%s, signed-date=%s, signature=%s",
 				accessKey, datetime, signature);
@@ -320,6 +322,42 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 		} catch (Exception e) {
 			log.error("쿠팡 주문 접수 실패 (shipmentBoxIds: {}): {}", shipmentBoxIds, e.getMessage());
 			throw new RuntimeException("Coupang acceptOrders failed", e);
+		}
+	}
+
+	@Override
+	public void cancelOrder(MarketCredential credential, CoupangCancelOrderRequest request) {
+		String vendorId = credential.getClientId();
+		String accessKey = credential.getAccessKey();
+		String secretKey = credential.getSecretKey();
+
+		String path = "/v2/providers/openapi/apis/api/v5/vendors/" + vendorId
+			+ "/orders/" + request.orderId() + "/cancel";
+		String authorization = generateHmacSignature("POST", path, accessKey, secretKey);
+
+		try {
+			String payload = objectMapper.writeValueAsString(request);
+
+			String response = restClient.post()
+				.uri(DOMAIN + path)
+				.header(HttpHeaders.AUTHORIZATION, authorization)
+				.header("X-Requested-By", vendorId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.accept(MediaType.APPLICATION_JSON)
+				.body(payload)
+				.retrieve()
+				.body(String.class);
+
+			CoupangCancelOrderResponse cancelResponse = objectMapper.readValue(response, CoupangCancelOrderResponse.class);
+			if (!cancelResponse.isSuccessful()) {
+				throw new RuntimeException(
+					"쿠팡 주문취소 실패: " + cancelResponse.message());
+			}
+		} catch (RuntimeException e) {
+			throw e;
+		} catch (Exception e) {
+			log.error("쿠팡 주문취소 실패 (orderId: {}): {}", request.orderId(), e.getMessage());
+			throw new RuntimeException("Coupang cancelOrder failed", e);
 		}
 	}
 }

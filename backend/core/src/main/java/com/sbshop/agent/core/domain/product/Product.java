@@ -1,5 +1,8 @@
 package com.sbshop.agent.core.domain.product;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
 import com.sbshop.agent.core.domain.common.BaseEntity;
 import com.sbshop.agent.core.domain.product.enums.ProductCategory;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
@@ -76,7 +79,7 @@ public class Product extends BaseEntity {
 
 	/** 재입고 예정일 (품절 시) */
 	@Column(name = "restock_date")
-	private java.time.LocalDate restockDate;
+	private LocalDate restockDate;
 
 	@Builder
 	public Product(
@@ -90,7 +93,7 @@ public class Product extends BaseEntity {
 		SourcingInfo sourcingInfo,
 		MediaInfo mediaInfo,
 		StockStatus stockStatus,
-		java.time.LocalDate restockDate) {
+		LocalDate restockDate) {
 		this.sbCode = sbCode;
 		this.category = category;
 		this.vendor = vendor;
@@ -108,11 +111,11 @@ public class Product extends BaseEntity {
 		this.stockStatus = status;
 	}
 
-	public void updateRestockDate(java.time.LocalDate restockDate) {
+	public void updateRestockDate(LocalDate restockDate) {
 		this.restockDate = restockDate;
 	}
 
-	public void updateCostPrice(java.math.BigDecimal costPrice) {
+	public void updateCostPrice(BigDecimal costPrice) {
 		if (costPrice == null)
 			return;
 		if (this.priceInfo == null) {

@@ -123,10 +123,24 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 
 	@Override
 	public void acceptOrders(MarketCredential credential, Order order) {
-		// 11번가는 개별 상품 단위로 발주확인 필요 (ordPrdSeq, dlvNo 등)
-		// 현재 Order 엔티티에 해당 정보 미저장으로 인해 미지원
+		Map<String, String> data = order.getMarketSpecificDataMap();
+		if (data == null || !data.containsKey("ordPrdSeq")) {
+			throw new IllegalArgumentException(
+				"11번가 발주확인 정보 부족: order=" + order.getMarketOrderNo());
+		}
+		elevenstOrderApiPort.confirmOrder(
+			credential.getAccessKey(),
+			order.getMarketOrderNo(),
+			data.get("ordPrdSeq"),
+			data.getOrDefault("addPrdYn", "N"),
+			data.getOrDefault("addPrdNo", "0"),
+			data.getOrDefault("dlvNo", order.getMarketOrderNo()));
+	}
+
+	@Override
+	public void cancelOrder(MarketCredential credential, Order order) {
 		throw new UnsupportedOperationException(
-			"11번가 발주확인은 별도 처리 필요: order=" + order.getMarketOrderNo());
+			"11번가 주문취소는 판매자 센터에서 수동 처리 필요: order=" + order.getMarketOrderNo());
 	}
 
 	@Override
@@ -211,9 +225,22 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			String rcvrBaseAddr = ElevenstXmlUtils.getElementText(element, "rcvrBaseAddr");
 			String rcvrDtlsAddr = ElevenstXmlUtils.getElementText(element, "rcvrDtlsAddr");
 
+			// 발주확인용 필드
+			String ordPrdSeq = ElevenstXmlUtils.getElementText(element, "ordPrdSeq");
+			String addPrdYn = ElevenstXmlUtils.getElementText(element, "addPrdYn");
+			String addPrdNo = ElevenstXmlUtils.getElementText(element, "addPrdNo");
+			String dlvNo = ElevenstXmlUtils.getElementText(element, "dlvNo");
+
 			// 주문번호에서 주문일 추출
 			LocalDateTime orderDate = extractOrderDate(ordNo);
 			ShippingCarrier carrier = parseCarrierCode(dlvEtprsCd);
+
+			// 마켓별 상세 데이터
+			Map<String, Object> marketData = new java.util.HashMap<>();
+			if (ordPrdSeq != null && !ordPrdSeq.isEmpty()) marketData.put("ordPrdSeq", ordPrdSeq);
+			if (addPrdYn != null && !addPrdYn.isEmpty()) marketData.put("addPrdYn", addPrdYn);
+			if (addPrdNo != null && !addPrdNo.isEmpty()) marketData.put("addPrdNo", addPrdNo);
+			if (dlvNo != null && !dlvNo.isEmpty()) marketData.put("dlvNo", dlvNo);
 
 			return MarketOrderDto.builder()
 				.marketType(getMarketType())
@@ -234,6 +261,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				.trackingNo(invcNo)
 				.carrier(carrier)
 				.orderDate(orderDate)
+				.marketSpecificData(marketData)
 				.build();
 		} catch (Exception e) {
 			log.error("11번가 주문 상세 파싱 실패: {}", e.getMessage());
@@ -273,6 +301,12 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			String dlvEtprsCd = ElevenstXmlUtils.getElementText(element, "dlvEtprsCd");
 			ShippingCarrier carrier = parseCarrierCode(dlvEtprsCd);
 
+			// 발주확인용 필드
+			String ordPrdSeq = ElevenstXmlUtils.getElementText(element, "ordPrdSeq");
+			String addPrdYn = ElevenstXmlUtils.getElementText(element, "addPrdYn");
+			String addPrdNo = ElevenstXmlUtils.getElementText(element, "addPrdNo");
+			String dlvNo = ElevenstXmlUtils.getElementText(element, "dlvNo");
+
 			// 주문번호에서 주문일 추출
 			LocalDateTime orderDate = extractOrderDate(ordNo);
 
@@ -284,6 +318,13 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			BigDecimal price = parseBigDecimal(selPrc);
 			int qty = parseIntValue(ordQty);
 			BigDecimal totalAmount = parseBigDecimal(ordAmt);
+
+			// 마켓별 상세 데이터
+			Map<String, Object> marketData = new java.util.HashMap<>();
+			if (ordPrdSeq != null && !ordPrdSeq.isEmpty()) marketData.put("ordPrdSeq", ordPrdSeq);
+			if (addPrdYn != null && !addPrdYn.isEmpty()) marketData.put("addPrdYn", addPrdYn);
+			if (addPrdNo != null && !addPrdNo.isEmpty()) marketData.put("addPrdNo", addPrdNo);
+			if (dlvNo != null && !dlvNo.isEmpty()) marketData.put("dlvNo", dlvNo);
 
 			return MarketOrderDto.builder()
 				.marketType(getMarketType())
@@ -305,6 +346,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				.carrier(carrier)
 				.status(status)
 				.orderDate(orderDate)
+				.marketSpecificData(marketData)
 				.build();
 		} catch (Exception e) {
 			log.error("11번가 주문 파싱 실패: {}", e.getMessage());

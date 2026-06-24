@@ -25,7 +25,9 @@ public class MarketplaceShippingService {
 	private final MarketCredentialRepository credentialRepository;
 	private final List<MarketOrderPort> marketOrderPorts;
 
+	/** 마켓 타입에 맞는 포트 조회 */
 	public MarketOrderPort getPort(MarketType marketType) {
+
 		return marketOrderPorts.stream()
 			.filter(port -> port.getMarketType() == marketType)
 			.findFirst()
@@ -34,24 +36,28 @@ public class MarketplaceShippingService {
 	}
 
 	/**
-	 * 마켓에 송장번호를 전송합니다.
-	 * - 송장 미전송 상태: 최초 송장 등록 (shipOrder)
-	 * - 송장 전송 완료 상태: 송장정보 수정 (updateTracking)
-	 * - 취소/반품/교환 상태: 전송 불가
+	 * 마켓에 송장번호 전송
+	 * - 미전송 상태면 최초 등록 (shipOrder)
+	 * - 전송 완료 상태면 수정 (updateTracking)
+	 * - 취소/반품/교환 상태면 전송 불가
 	 */
 	public void sendTrackingToMarketplace(OrderLineItem lineItem) {
+
+		// 주문 조회
 		Order order = orderRepository.findById(lineItem.getOrderId()).orElse(null);
 		if (order == null)
 			return;
 
+		// 마켓크레덴셜 조회
 		MarketCredential cred = credentialRepository.findByMarketType(order.getMarketType()).orElse(null);
 		if (cred == null)
 			return;
 
+		// 현재 배송상태 확인
 		ShippingStatus currentStatus = lineItem.getShippingData() != null
 			? lineItem.getShippingData().getShippingStatus() : null;
 
-		// 취소/반품/교환 상태에서는 마켓에 송장 전송 불가
+		// 취소/반품/교환 상태이면 전송 불가
 		if (currentStatus == ShippingStatus.CANCELED
 			|| currentStatus == ShippingStatus.RETURNED
 			|| currentStatus == ShippingStatus.EXCHANGED) {
@@ -59,13 +65,14 @@ public class MarketplaceShippingService {
 			return;
 		}
 
+		// 송장 전송 여부 확인
 		Boolean alreadySent = lineItem.getShippingData() != null
 			? lineItem.getShippingData().getTrackingSentToMarket() : null;
 
+		// 마켓 포트 조회
 		MarketOrderPort port = getPort(order.getMarketType());
 
-		// 이미 마켓에 송장이 전송된 상태 → 송장정보 수정 (updateTracking)
-		// 송장 미전송 상태 → 최초 송장 등록 (shipOrder)
+		// 전송 또는 수정 처리
 		if (Boolean.TRUE.equals(alreadySent)) {
 			port.updateTracking(cred, order, lineItem,
 				lineItem.getShippingData().getTrackingNo(),
@@ -77,6 +84,23 @@ public class MarketplaceShippingService {
 		}
 
 		log.info("마켓 배송 전송 완료: order={}, market={}", order.getMarketOrderNo(), order.getMarketType());
+	}
+
+	/** 마켓에 주문 취소 요청 */
+	public void cancelOrderToMarketplace(Order order) {
+
+		// 마켓크레덴셜 조회
+		MarketCredential cred = credentialRepository.findByMarketType(order.getMarketType()).orElse(null);
+		if (cred == null) {
+			log.warn("마켓 인증 정보 없음: market={}", order.getMarketType());
+			return;
+		}
+
+		// 마켓에 취소 요청
+		MarketOrderPort port = getPort(order.getMarketType());
+		port.cancelOrder(cred, order);
+
+		log.info("마켓 주문취소 완료: order={}, market={}", order.getMarketOrderNo(), order.getMarketType());
 	}
 
 }

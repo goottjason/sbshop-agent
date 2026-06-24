@@ -1,5 +1,6 @@
 package com.sbshop.agent.worker.service;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -55,7 +56,7 @@ public class OrderEmailParser {
 	@Builder
 	public static class IherbConfirmationData {
 		private String orderNo;
-		private java.math.BigDecimal totalAmount;
+		private BigDecimal totalAmount;
 	}
 
 	// iHerb 발송 알림 파싱
@@ -110,7 +111,7 @@ public class OrderEmailParser {
 		String flatBody = flattenHtml(body);
 
 		// 본문에서 총 결제 금액 추출
-		java.math.BigDecimal totalAmount = null;
+		BigDecimal totalAmount = null;
 		Matcher amountMatcher = IHERB_CONFIRM_TOTAL_AMOUNT.matcher(flatBody);
 		if (!amountMatcher.find()) {
 			amountMatcher = IHERB_CONFIRM_TOTAL_AMOUNT2.matcher(flatBody);
@@ -121,7 +122,7 @@ public class OrderEmailParser {
 		if (amountMatcher.find()) {
 			String amountStr = amountMatcher.group(1).replace(",", "");
 			try {
-				totalAmount = new java.math.BigDecimal(amountStr);
+				totalAmount = new BigDecimal(amountStr);
 			} catch (NumberFormatException e) {
 				log.warn("iHerb 금액 파싱 실패: {}", amountStr);
 			}

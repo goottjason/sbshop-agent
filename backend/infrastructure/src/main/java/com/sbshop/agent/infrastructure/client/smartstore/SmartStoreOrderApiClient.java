@@ -1,5 +1,7 @@
 package com.sbshop.agent.infrastructure.client.smartstore;
 
+import java.util.List;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.order.port.SmartStoreOrderApiPort;
@@ -176,40 +178,99 @@ public class SmartStoreOrderApiClient implements SmartStoreOrderApiPort {
 	}
 
 	@Override
-	public void confirmOrders(String clientId, String secretKey, java.util.List<String> productOrderIds) {
+	public void confirmOrders(String clientId, String secretKey, List<String> productOrderIds) {
+		// 1. 엑세스 토큰 발급
 		String accessToken = getAccessToken(clientId, secretKey);
 		if (accessToken == null) {
 			throw new RuntimeException("스마트스토어 발주 확인용 엑세스 토큰 획득 실패.");
 		}
 
 		try {
+			// 2. 발주확인 API URL 조합
 			String url = API_DOMAIN + "/external/v1/pay-order/seller/product-orders/confirm";
 
-			StringBuilder jsonBody = new StringBuilder("{\"productOrderIds\":[");
-			for (int i = 0; i < productOrderIds.size(); i++) {
-				if (i > 0)
-					jsonBody.append(",");
-				jsonBody.append("\"").append(productOrderIds.get(i)).append("\"");
-			}
-			jsonBody.append("]}");
+			// 3. 요청 본문 JSON 생성
+			String jsonBody = buildProductOrderIdsBody(productOrderIds);
 
+			// 4. 발주확인 POST 요청 전송
 			String response = restClient.post()
 				.uri(URI.create(url))
 				.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
 				.contentType(MediaType.APPLICATION_JSON)
 				.accept(MediaType.APPLICATION_JSON)
-				.body(jsonBody.toString())
+				.body(jsonBody)
 				.retrieve()
 				.body(String.class);
 
+			// 5. 응답 파싱 및 실패 건 확인
 			JsonNode rootNode = objectMapper.readTree(response);
-			if (rootNode.has("code") && !rootNode.path("code").asText().isEmpty()) {
-				log.warn("스마트스토어 발주 확인 API 비정상 응답 코드 반환: {}", rootNode.toPrettyString());
+			JsonNode detail = rootNode.path("detail");
+			if (detail.isArray()) {
+				for (JsonNode item : detail) {
+					if (!item.path("confirm").asBoolean()) {
+						log.warn("스마트스토어 발주확인 실패 건: productOrderId={}, response={}",
+							item.path("productOrderId").asText(), rootNode.toPrettyString());
+					}
+				}
 			}
 		} catch (Exception e) {
 			log.error("스마트스토어 발주 확인 실패: {}", e.getMessage(), e);
 			throw new RuntimeException("스마트스토어 발주 확인(confirmOrders) 실패", e);
 		}
+	}
+
+	@Override
+	public void cancelOrders(String clientId, String secretKey, List<String> productOrderIds) {
+		// 1. 엑세스 토큰 발급
+		String accessToken = getAccessToken(clientId, secretKey);
+		if (accessToken == null) {
+			throw new RuntimeException("스마트스토어 주문 취소용 엑세스 토큰 획득 실패.");
+		}
+
+		try {
+			// 2. 주문취소 API URL 조합
+			String url = API_DOMAIN + "/external/v1/pay-order/seller/product-orders/cancel";
+
+			// 3. 요청 본문 JSON 생성
+			String jsonBody = buildProductOrderIdsBody(productOrderIds);
+
+			// 4. 주문취소 POST 요청 전송
+			String response = restClient.post()
+				.uri(URI.create(url))
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+				.contentType(MediaType.APPLICATION_JSON)
+				.accept(MediaType.APPLICATION_JSON)
+				.body(jsonBody)
+				.retrieve()
+				.body(String.class);
+
+			// 5. 응답 파싱 및 실패 건 확인
+			JsonNode rootNode = objectMapper.readTree(response);
+			JsonNode detail = rootNode.path("detail");
+			if (detail.isArray()) {
+				for (JsonNode item : detail) {
+					if (!item.path("cancel").asBoolean()) {
+						log.warn("스마트스토어 주문취소 실패 건: productOrderId={}, response={}",
+							item.path("productOrderId").asText(), rootNode.toPrettyString());
+					}
+				}
+			}
+		} catch (Exception e) {
+			log.error("스마트스토어 주문 취소 실패: {}", e.getMessage(), e);
+			throw new RuntimeException("스마트스토어 주문 취소(cancelOrders) 실패", e);
+		}
+	}
+
+	/** productOrderIds 배열 요청 본문 JSON 생성 */
+	private String buildProductOrderIdsBody(List<String> productOrderIds) {
+		StringBuilder jsonBody = new StringBuilder("{\"productOrderIds\":[");
+		for (int i = 0; i < productOrderIds.size(); i++) {
+			if (i > 0)
+				jsonBody.append(",");
+			jsonBody.append("\"").append(productOrderIds.get(i)).append("\"");
+		}
+		jsonBody.append("]}");
+		return jsonBody.toString();
 	}
 
 	// 스마트스토어 엑세스 토큰 발급 비공개 메서드

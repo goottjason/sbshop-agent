@@ -12,6 +12,7 @@ import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.application.order.mapper.SmartStoreStatusMapper;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -141,7 +142,7 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 			int quantity = productOrderInfo.path("quantity").asInt(1);
 			BigDecimal totalPaymentAmount = new BigDecimal(productOrderInfo.path("totalPaymentAmount").asText("0"));
 			BigDecimal unitPrice = quantity > 0
-				? totalPaymentAmount.divide(BigDecimal.valueOf(quantity), 2, java.math.RoundingMode.HALF_UP)
+				? totalPaymentAmount.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP)
 				: BigDecimal.ZERO;
 
 			String trackingNo = deliveryInfo.path("trackingNumber").asText(null);
@@ -206,6 +207,14 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 	@Override
 	public void acceptOrders(MarketCredential credential, Order order) {
 		smartStoreOrderApiPort.confirmOrders(
+			credential.getClientId(),
+			credential.getSecretKey(),
+			List.of(order.getMarketOrderNo()));
+	}
+
+	@Override
+	public void cancelOrder(MarketCredential credential, Order order) {
+		smartStoreOrderApiPort.cancelOrders(
 			credential.getClientId(),
 			credential.getSecretKey(),
 			List.of(order.getMarketOrderNo()));

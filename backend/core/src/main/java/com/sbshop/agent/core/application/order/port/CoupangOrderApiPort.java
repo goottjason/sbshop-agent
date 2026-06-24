@@ -22,4 +22,10 @@ public interface CoupangOrderApiPort {
 	 * sellerProductId로 상품 정보를 조회하여 externalVendorSku(판매자상품코드)를 반환
 	 */
 	JsonNode queryProduct(MarketCredential credential, long sellerProductId);
+
+	/**
+	 * 쿠팡 주문 취소 API (v5)
+	 * 결제완료/상품준비중 상태의 주문을 취소합니다.
+	 */
+	void cancelOrder(MarketCredential credential, CoupangCancelOrderRequest request);
 }

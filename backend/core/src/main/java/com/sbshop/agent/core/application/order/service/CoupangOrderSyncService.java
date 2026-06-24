@@ -22,6 +22,7 @@ import com.sbshop.agent.core.domain.product.ProductRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
@@ -96,7 +97,7 @@ public class CoupangOrderSyncService {
 			log.info("쿠팡 정산 동기화 시작: {} ~ {}", fromDate, toDate);
 
 			// 2. 정산 API 호출 (sbCode → settlementAmount 맵)
-			java.util.Map<String, BigDecimal> settlementMap = coupangOrderAdapter.querySettlement(
+			Map<String, BigDecimal> settlementMap = coupangOrderAdapter.querySettlement(
 				credential, fromDate, toDate);
 
 			if (settlementMap.isEmpty()) {

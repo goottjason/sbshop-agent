@@ -10,7 +10,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.CrossOrigin;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/v1/products")
@@ -33,20 +37,20 @@ public class ProductSyncController {
 					.findProductIdsByShippingStatus(ShippingStatus.PREPARING);
 
 				// 중복 제거 후 합산
-				java.util.Set<Long> mergedIds = new java.util.LinkedHashSet<>(productIdsNew);
+				Set<Long> mergedIds = new LinkedHashSet<>(productIdsNew);
 				mergedIds.addAll(productIdsPreparing);
 
 				// 3. 필터링된 상품 ID 목록만 동기화 서비스로 전달 (안전한 크롤링)
-				productSyncService.syncStockForPreparingOrders(new java.util.ArrayList<>(mergedIds));
+				productSyncService.syncStockForPreparingOrders(new ArrayList<>(mergedIds));
 			}).start();
 
 			// 4. 백그라운드 작업 시작 성공 응답 반환
-			return ResponseEntity.ok(java.util.Map.of("success", true, "message",
+			return ResponseEntity.ok(Map.of("success", true, "message",
 				"Targeted stock sync for PREPARING orders started in background"));
 		} catch (Exception e) {
 			// 5. 스레드 생성 등 예외 발생 시 에러 응답 반환
 			return ResponseEntity.internalServerError()
-				.body(java.util.Map.of("success", false, "message", e.getMessage()));
+				.body(Map.of("success", false, "message", e.getMessage()));
 		}
 	}
 }

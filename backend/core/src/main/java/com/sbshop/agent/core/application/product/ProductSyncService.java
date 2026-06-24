@@ -1,5 +1,7 @@
 package com.sbshop.agent.core.application.product;
 
+import java.util.List;
+
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
@@ -57,7 +59,7 @@ public class ProductSyncService {
 	}
 
 	@Transactional
-	public void syncStockForPreparingOrders(java.util.List<Long> productIds) {
+	public void syncStockForPreparingOrders(List<Long> productIds) {
 		if (productIds == null || productIds.isEmpty()) {
 			log.info("준비 중인 주문이 없습니다. 재고 동기화를 건너뜁니다.");
 			return;

@@ -2,6 +2,7 @@ package com.sbshop.agent.infrastructure.client.esmplus;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.openqa.selenium.By;
@@ -22,7 +23,7 @@ public class EsmplusScraper {
 
 	public Map<String, Object> loginAndScrapeOrders(String masterId, String password, String fromDate, String toDate) {
 		ChromeOptions options = createChromeOptions();
-		options.setCapability("goog:loggingPrefs", java.util.Map.of("performance", "ALL"));
+		options.setCapability("goog:loggingPrefs", Map.of("performance", "ALL"));
 
 		ChromeDriver driver = new ChromeDriver(options);
 
@@ -263,7 +264,7 @@ public class EsmplusScraper {
 		options.addArguments("--window-size=1920,1080");
 		options.addArguments(
 			"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-		options.setExperimentalOption("excludeSwitches", java.util.List.of("enable-automation"));
+		options.setExperimentalOption("excludeSwitches", List.of("enable-automation"));
 		options.setExperimentalOption("useAutomationExtension", false);
 		return options;
 	}

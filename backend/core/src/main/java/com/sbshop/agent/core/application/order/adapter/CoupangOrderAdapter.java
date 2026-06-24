@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.order.adapter;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.sbshop.agent.core.application.order.port.CoupangCancelOrderRequest;
 import com.sbshop.agent.core.application.order.port.CoupangInvoiceUploadRequest;
 import com.sbshop.agent.core.application.order.port.CoupangOrderApiPort;
 import com.sbshop.agent.core.application.order.port.CoupangUpdateInvoiceRequest;
@@ -376,6 +377,47 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		coupangOrderApiPort.acceptOrders(
 			credential,
 			List.of(order.getShipmentBoxId()));
+	}
+
+	@Override
+	public void cancelOrder(MarketCredential credential, Order order) {
+		List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
+		if (items.isEmpty()) {
+			throw new IllegalStateException("쿠팡 주문취소 실패: 라인아이템이 없습니다. order=" + order.getMarketOrderNo());
+		}
+
+		List<Long> vendorItemIds = new ArrayList<>();
+		List<Integer> receiptCounts = new ArrayList<>();
+
+		for (OrderLineItem item : items) {
+			if (item.getProductId() == null) {
+				continue;
+			}
+
+			Optional<MarketRegistration> reg = marketRegistrationRepository
+				.findByProductIdAndMarketType(item.getProductId(), MarketType.COUPANG);
+			String vendorItemIdStr = reg.map(MarketRegistration::extractVendorItemId).orElse(null);
+
+			if (vendorItemIdStr != null && !vendorItemIdStr.isEmpty()) {
+				vendorItemIds.add(Long.parseLong(vendorItemIdStr));
+				receiptCounts.add(item.getQuantity() != null ? item.getQuantity() : 1);
+			}
+		}
+
+		if (vendorItemIds.isEmpty()) {
+			throw new IllegalStateException("쿠팡 주문취소 실패: vendorItemId가 없습니다. order=" + order.getMarketOrderNo());
+		}
+
+		var request = new CoupangCancelOrderRequest(
+			Long.parseLong(order.getMarketOrderNo()),
+			vendorItemIds,
+			receiptCounts,
+			"CANERR",
+			"CCTTER",
+			credential.getClientId(),
+			credential.getClientId());
+
+		coupangOrderApiPort.cancelOrder(credential, request);
 	}
 
 	@Override

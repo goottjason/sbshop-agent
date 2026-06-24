@@ -1,5 +1,7 @@
 package com.sbshop.agent.core.domain.market;
 
+import java.time.LocalDateTime;
+
 import com.sbshop.agent.core.domain.common.BaseEntity;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import jakarta.persistence.Column;
@@ -71,7 +73,7 @@ public class MarketCredential extends BaseEntity {
 
 	/** 토큰 만료 일시 */
 	@Column(name = "token_expires_at")
-	private java.time.LocalDateTime tokenExpiresAt;
+	private LocalDateTime tokenExpiresAt;
 
 	/**
 	 * 인증 완료 후 돌아올 Redirect URI (OAuth 연동 시 필요)

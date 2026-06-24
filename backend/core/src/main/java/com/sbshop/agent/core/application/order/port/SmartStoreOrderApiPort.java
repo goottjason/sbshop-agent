@@ -1,5 +1,7 @@
 package com.sbshop.agent.core.application.order.port;
 
+import java.util.List;
+
 import com.fasterxml.jackson.databind.JsonNode;
 
 public interface SmartStoreOrderApiPort {
@@ -21,7 +23,12 @@ public interface SmartStoreOrderApiPort {
 		String deliveryCompanyCode);
 
 	/**
-	 * 발주 확인 처리 (최대 30건)
+	 * 발주 확인 처리 (최대 50건)
 	 */
-	void confirmOrders(String clientId, String secretKey, java.util.List<String> productOrderIds);
+	void confirmOrders(String clientId, String secretKey, List<String> productOrderIds);
+
+	/**
+	 * 주문 취소 처리
+	 */
+	void cancelOrders(String clientId, String secretKey, List<String> productOrderIds);
 }

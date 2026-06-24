@@ -127,6 +127,13 @@ public class ElevenstOrderSyncService {
 		if (dto.getCustomsClearanceNo() != null) {
 			order.updateCustomsClearanceNo(dto.getCustomsClearanceNo());
 		}
+		if (dto.getMarketSpecificData() != null && !dto.getMarketSpecificData().isEmpty()) {
+			java.util.Map<String, String> stringMap = new java.util.HashMap<>();
+			for (java.util.Map.Entry<String, Object> entry : dto.getMarketSpecificData().entrySet()) {
+				stringMap.put(entry.getKey(), String.valueOf(entry.getValue()));
+			}
+			order.setMarketSpecificDataFromMap(stringMap);
+		}
 	}
 
 	private void createNewOrder(MarketOrderDto dto) {
@@ -139,7 +146,7 @@ public class ElevenstOrderSyncService {
 	}
 
 	private Order buildOrderFromDto(MarketOrderDto dto) {
-		return Order.builder()
+		Order order = Order.builder()
 			.marketType(MarketType.ELEVEN_STREET)
 			.marketOrderNo(dto.getMarketOrderNo())
 			.orderDate(dto.getOrderDate())
@@ -153,6 +160,16 @@ public class ElevenstOrderSyncService {
 			.ordererPhone(dto.getOrdererPhone())
 			.shipmentBoxId(dto.getShipmentBoxId())
 			.build();
+
+		if (dto.getMarketSpecificData() != null && !dto.getMarketSpecificData().isEmpty()) {
+			java.util.Map<String, String> stringMap = new java.util.HashMap<>();
+			for (java.util.Map.Entry<String, Object> entry : dto.getMarketSpecificData().entrySet()) {
+				stringMap.put(entry.getKey(), String.valueOf(entry.getValue()));
+			}
+			order.setMarketSpecificDataFromMap(stringMap);
+		}
+
+		return order;
 	}
 
 	private OrderLineItem buildLineItemFromDto(MarketOrderDto dto, Long orderId) {

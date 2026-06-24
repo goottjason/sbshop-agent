@@ -1,5 +1,9 @@
 package com.sbshop.agent.worker.config;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import lombok.Getter;
 
 @Getter
@@ -33,10 +37,10 @@ public enum EmailAccount {
 	}
 
 	// 이메일 주소 목록 반환
-	public static java.util.List<String> getAllEmails() {
-		return java.util.Arrays.stream(values())
+	public static List<String> getAllEmails() {
+		return Arrays.stream(values())
 			.filter(a -> a != OTHERS)
 			.map(EmailAccount::getEmail)
-			.collect(java.util.stream.Collectors.toList());
+			.collect(Collectors.toList());
 	}
 }
