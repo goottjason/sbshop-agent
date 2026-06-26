@@ -23,7 +23,7 @@ public class MediaInfo {
 	private String searchKeywords;
 
 	@Lob
-	@Column(name = "detail_html", columnDefinition = "LONGTEXT")
+	@Column(name = "detail_html", columnDefinition = "TEXT")
 	private String detailHtml;
 
 	@Column(name = "memo", length = 2000)

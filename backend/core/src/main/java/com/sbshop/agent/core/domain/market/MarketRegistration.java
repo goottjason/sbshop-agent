@@ -47,7 +47,7 @@ public class MarketRegistration extends BaseEntity {
 	private String marketIdentifiers;
 
 	@Getter(AccessLevel.NONE)
-	@Column(name = "market_detailed_info", columnDefinition = "LONGTEXT")
+	@Column(name = "market_detailed_info", columnDefinition = "TEXT")
 	private String marketDetailedInfo;
 
 	@Column(name = "is_synced", nullable = false)
