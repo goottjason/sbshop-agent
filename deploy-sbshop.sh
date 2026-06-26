@@ -5,7 +5,7 @@ set -e
 
 SERVER="168.107.31.154"
 USER="ubuntu"
-KEY="/Users/jasonair/.ssh/id_rsa"
+KEY="/Users/jasonair/Projects/sbshop-agent/ssh-key-2026-06-25.key"
 REMOTE_DIR="~/projects"
 
 echo "1. sbshop-agent 빌드 중..."
