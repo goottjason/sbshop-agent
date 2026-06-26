@@ -1,0 +1,13 @@
+# sbshop-agent Docker ignore
+.git
+.gitignore
+.env
+.env.*
+*.md
+!README.md
+node_modules
+dist
+build
+.gradle
+.idea
+*.iml

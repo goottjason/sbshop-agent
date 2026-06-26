@@ -7,11 +7,9 @@ import {
 } from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchOrders, updateOrder, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, syncProductStock, fetchSyncStatus } from '../api/orderApi';
-import type { SyncStatus } from '../api/orderApi';
 import type { OrderGridDto } from '../api/orderApi';
 import { toast } from 'react-toastify';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
-import { apiClient } from '../api/axios';
 
 // 구매/배송 처리 모달
 interface ProcessingModalProps {
@@ -549,7 +547,7 @@ const OrderGrid: React.FC = () => {
   }, [orderMutation, lineItemMutation]);
 
   useEffect(() => {
-    const eventSource = new EventSource('http://localhost:8080/api/v1/notifications/subscribe');
+    const eventSource = new EventSource('/sbshop-agent/api/v1/notifications/subscribe');
     eventSource.addEventListener('SYNC_COMPLETED', () => {
       setIsSyncing(false);
       refetch();

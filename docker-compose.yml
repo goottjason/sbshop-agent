@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # ===== 기존 서비스 (can-agent) =====
+  nginx:
+    image: nginx:alpine
+    container_name: projects-nginx-1
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+    depends_on:
+      - can-agent
+      - sbshop-api
+      - sbshop-frontend
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: projects-postgres-1
+    environment:
+      POSTGRES_DB: canagent
+      POSTGRES_USER: canagent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432"
+    restart: unless-stopped
+
+  can-agent:
+    build: ./can-agent
+    container_name: projects-can-agent-1
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://postgres:5432/canagent
+      DB_USERNAME: canagent
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  # ===== 신규 서비스 (sbshop-agent) =====
+  sbshop-api:
+    build:
+      context: ./sbshop-agent
+      dockerfile: Dockerfile.backend
+    container_name: projects-sbshop-api-1
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://postgres:5432/sbshop
+      DB_USERNAME: sbshop
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  sbshop-frontend:
+    build:
+      context: ./sbshop-agent
+      dockerfile: Dockerfile.frontend
+    container_name: projects-sbshop-frontend-1
+    restart: unless-stopped
+
+volumes:
+  pgdata:

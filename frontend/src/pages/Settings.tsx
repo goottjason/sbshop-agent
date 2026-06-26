@@ -243,7 +243,7 @@ const Settings = () => {
                   <div style={{ marginTop: '12px', fontSize: '13px', color: '#666' }}>
                     인증 후 주소창이 <code>{formData.redirectUri || 'https://younzara.cafe24.com/'}?code=인증코드...</code> 형태로 바뀝니다.<br />
                     이때 받은 인증코드를 복사하여, 백엔드 콜백 엔드포인트<br/>
-                    <code>http://localhost:8080/api/admin/sync/cafe24/auth/callback?code=복사한코드</code> 를 브라우저 주소창에 직접 입력하시면 서버에 영구 토큰이 저장됩니다.
+                    <code>{window.location.origin}/sbshop-agent/api/admin/sync/cafe24/auth/callback?code=복사한코드</code> 를 브라우저 주소창에 직접 입력하시면 서버에 영구 토큰이 저장됩니다.
                   </div>
                 </div>
               )}

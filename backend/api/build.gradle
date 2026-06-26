@@ -10,4 +10,7 @@ dependencies {
 
     // BCrypt for Naver API Signature
     implementation 'org.mindrot:jbcrypt:0.4'
+    
+    // PostgreSQL
+    runtimeOnly 'org.postgresql:postgresql'
 }

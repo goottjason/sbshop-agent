@@ -9,7 +9,9 @@ dist-ssr/
 # Environment & Secrets
 .env
 .env.local
+.env.*
 *.local
+!.env.example
 
 # IDE & OS
 .DS_Store
@@ -30,3 +32,7 @@ package-lock.json
 # Test artifacts
 *.h2.db
 *.mv.db
+
+# SSH Keys
+*.key
+*.pem
