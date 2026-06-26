@@ -80,7 +80,7 @@ public class Order extends BaseEntity {
 	private String shipmentBoxId;
 
 	/** 마켓별 상세 데이터 (JSON) — 11번가 ordPrdSeq, addPrdYn 등 저장 */
-	@Column(name = "market_specific_data", columnDefinition = "JSON")
+	@Column(name = "market_specific_data", columnDefinition = "TEXT")
 	private String marketSpecificData;
 
 	@Builder
