@@ -1,8 +1,13 @@
 FROM eclipse-temurin:17-jdk AS builder
 WORKDIR /app
 
-# Gradle 캐시 활용
-COPY backend/gradle/ backend/gradlew backend/build.gradle backend/settings.gradle ./
+# Gradle wrapper 먼저 복사
+COPY backend/gradle/ gradle/
+COPY backend/gradlew .
+COPY backend/build.gradle .
+COPY backend/settings.gradle .
+
+# 소스 코드 복사
 COPY backend/core/ core/
 COPY backend/infrastructure/ infrastructure/
 COPY backend/api/ api/
