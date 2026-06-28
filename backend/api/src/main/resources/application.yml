@@ -11,15 +11,21 @@ spring:
     username: ${DB_USERNAME:sbshop}
     password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:after-migrate.sql
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
+    defer-datasource-initialization: true
     properties:
       hibernate:
         format_sql: true
-        show_sql: false
+        show_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
   flyway:
     enabled: false
 server:
@@ -41,4 +47,5 @@ sbshop:
 
 logging:
   level:
-    org.hibernate.dialect.Dialect: ERROR
+    org.hibernate.SQL: DEBUG
+    org.springframework.web: DEBUG

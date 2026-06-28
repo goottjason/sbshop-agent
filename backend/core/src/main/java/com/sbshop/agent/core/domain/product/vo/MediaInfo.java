@@ -3,7 +3,6 @@ package com.sbshop.agent.core.domain.product.vo;
 import com.fasterxml.jackson.annotation.JsonRawValue;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
-import jakarta.persistence.Lob;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -11,19 +10,16 @@ import lombok.NoArgsConstructor;
 @Embeddable
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MediaInfo {
-	@Lob
-	@Column(name = "source_images", columnDefinition = "TEXT")
+	@Column(name = "source_images", columnDefinition = "VARCHAR(50000)")
 	private String sourceImages;
 
-	@Lob
-	@Column(name = "hosted_images", columnDefinition = "TEXT")
+	@Column(name = "hosted_images", columnDefinition = "VARCHAR(50000)")
 	private String hostedImages;
 
 	@Column(name = "search_keywords", length = 500)
 	private String searchKeywords;
 
-	@Lob
-	@Column(name = "detail_html", columnDefinition = "TEXT")
+	@Column(name = "detail_html", columnDefinition = "VARCHAR(50000)")
 	private String detailHtml;
 
 	@Column(name = "memo", length = 2000)

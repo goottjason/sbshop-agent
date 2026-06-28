@@ -3,14 +3,12 @@ package com.sbshop.agent.core.domain.product;
 import java.util.List;
 import java.util.Optional;
 
-public interface ProductRepository {
-	Product save(Product product);
+import org.springframework.data.repository.ListCrudRepository;
 
-	Optional<Product> findById(Long id);
+public interface ProductRepository extends ListCrudRepository<Product, Long> {
+	Product save(Product product);
 
 	Optional<Product> findBySbCode(String sbCode);
 
-	List<Product> findByProductNameProductNameContaining(String name);
-
-	List<Product> findAll();
+	List<Product> findByProductNameContaining(String name);
 }

@@ -4,15 +4,10 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import com.sbshop.agent.core.domain.common.BaseEntity;
+import com.sbshop.agent.core.domain.product.enums.MeasureUnit;
 import com.sbshop.agent.core.domain.product.enums.ProductCategory;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
-import com.sbshop.agent.core.domain.product.vo.MediaInfo;
-import com.sbshop.agent.core.domain.product.vo.PriceInfo;
-import com.sbshop.agent.core.domain.product.vo.ProductName;
-import com.sbshop.agent.core.domain.product.vo.ProductSpec;
-import com.sbshop.agent.core.domain.product.vo.SourcingInfo;
 import jakarta.persistence.Column;
-import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -23,6 +18,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.JdbcType;
+import org.hibernate.type.descriptor.jdbc.VarcharJdbcType;
 import java.sql.Types;
 
 @Entity
@@ -31,53 +28,98 @@ import java.sql.Types;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Product extends BaseEntity {
 
-	/** 자체 관리 상품 코드 (SB코드, 예: 210129IHB014) */
 	@Column(name = "sb_code", unique = true, nullable = false, length = 50)
 	private String sbCode;
 
-	/** 상품 카테고리 (건강기능식품, 화장품 등) */
 	@Enumerated(EnumType.STRING)
 	@JdbcTypeCode(Types.VARCHAR)
 	@Column(name = "category", length = 50)
 	private ProductCategory category;
 
-	/** 상품 제조사 또는 브랜드 (벤더) */
 	@Enumerated(EnumType.STRING)
 	@JdbcTypeCode(Types.VARCHAR)
 	@Column(name = "vendor", length = 50)
 	private VendorType vendor;
 
-	/** 상품 바코드 (UPC, EAN 등) */
 	@Column(name = "barcode", length = 100)
 	private String barcode;
 
-	/** 상품명 관련 정보 (국문명, 영문명 등) */
-	@Embedded
-	private ProductName productName;
+	@Column(name = "brand", length = 100)
+	private String brand;
 
-	/** 상품 상세 스펙 (용량, 캡슐 수 등) */
-	@Embedded
-	private ProductSpec productSpec;
+	@Column(name = "original_name", length = 255)
+	private String originalName;
 
-	/** 가격 정보 (원가, 판매가 등) */
-	@Embedded
-	private PriceInfo priceInfo;
+	@Column(name = "base_name", length = 255)
+	private String baseName;
 
-	/** 소싱 정보 (구매처 URL, 소싱처 등) */
-	@Embedded
-	private SourcingInfo sourcingInfo;
+	@Column(name = "product_name", nullable = false, length = 255)
+	private String productName;
 
-	/** 미디어 정보 (상품 이미지 URL 등) */
-	@Embedded
-	private MediaInfo mediaInfo;
+	@Column(name = "capacity", precision = 10, scale = 2)
+	private BigDecimal capacity;
 
-	/** 재고 상태 (품절, 판매중 등) */
+	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(Types.VARCHAR)
+	@Column(name = "measure_unit", length = 20)
+	private MeasureUnit measureUnit;
+
+	@Column(name = "weight", precision = 10, scale = 2)
+	private BigDecimal weight;
+
+	@Column(name = "bundle_quantity")
+	private Integer bundleQuantity;
+
+	@Column(name = "cost_price", precision = 10, scale = 2)
+	private BigDecimal costPrice;
+
+	@Column(name = "exchange_rate", precision = 10, scale = 4)
+	private BigDecimal exchangeRate;
+
+	@Column(name = "margin_rate", precision = 5, scale = 2)
+	private BigDecimal marginRate;
+
+	@Column(name = "sale_price", precision = 10, scale = 2)
+	private BigDecimal salePrice;
+
+	@Column(name = "sourcing_url", length = 1000)
+	private String sourcingUrl;
+
+	@Column(name = "manufacturer", length = 100)
+	private String manufacturer;
+
+	@Column(name = "origin", length = 100)
+	private String origin;
+
+	@Column(name = "hs_code", length = 50)
+	private String hsCode;
+
+	@Column(name = "stock")
+	private Integer stock;
+
+	@JdbcType(VarcharJdbcType.class)
+	@Column(name = "source_images")
+	private String sourceImages;
+
+	@JdbcType(VarcharJdbcType.class)
+	@Column(name = "hosted_images")
+	private String hostedImages;
+
+	@Column(name = "search_keywords", length = 500)
+	private String searchKeywords;
+
+	@JdbcType(VarcharJdbcType.class)
+	@Column(name = "detail_html")
+	private String detailHtml;
+
+	@Column(name = "memo", length = 2000)
+	private String memo;
+
 	@Enumerated(EnumType.STRING)
 	@JdbcTypeCode(Types.VARCHAR)
 	@Column(name = "stock_status", length = 30)
 	private StockStatus stockStatus;
 
-	/** 재입고 예정일 (품절 시) */
 	@Column(name = "restock_date")
 	private LocalDate restockDate;
 
@@ -87,22 +129,56 @@ public class Product extends BaseEntity {
 		ProductCategory category,
 		VendorType vendor,
 		String barcode,
-		ProductName productName,
-		ProductSpec productSpec,
-		PriceInfo priceInfo,
-		SourcingInfo sourcingInfo,
-		MediaInfo mediaInfo,
+		String brand,
+		String originalName,
+		String baseName,
+		String productName,
+		BigDecimal capacity,
+		MeasureUnit measureUnit,
+		BigDecimal weight,
+		Integer bundleQuantity,
+		BigDecimal costPrice,
+		BigDecimal exchangeRate,
+		BigDecimal marginRate,
+		BigDecimal salePrice,
+		String sourcingUrl,
+		String manufacturer,
+		String origin,
+		String hsCode,
+		Integer stock,
+		String sourceImages,
+		String hostedImages,
+		String searchKeywords,
+		String detailHtml,
+		String memo,
 		StockStatus stockStatus,
 		LocalDate restockDate) {
 		this.sbCode = sbCode;
 		this.category = category;
 		this.vendor = vendor;
 		this.barcode = barcode;
+		this.brand = brand;
+		this.originalName = originalName;
+		this.baseName = baseName;
 		this.productName = productName;
-		this.productSpec = productSpec;
-		this.priceInfo = priceInfo;
-		this.sourcingInfo = sourcingInfo;
-		this.mediaInfo = mediaInfo;
+		this.capacity = capacity;
+		this.measureUnit = measureUnit;
+		this.weight = weight;
+		this.bundleQuantity = bundleQuantity;
+		this.costPrice = costPrice;
+		this.exchangeRate = exchangeRate;
+		this.marginRate = marginRate;
+		this.salePrice = salePrice;
+		this.sourcingUrl = sourcingUrl;
+		this.manufacturer = manufacturer;
+		this.origin = origin;
+		this.hsCode = hsCode;
+		this.stock = stock;
+		this.sourceImages = sourceImages;
+		this.hostedImages = hostedImages;
+		this.searchKeywords = searchKeywords;
+		this.detailHtml = detailHtml;
+		this.memo = memo;
 		this.stockStatus = stockStatus;
 		this.restockDate = restockDate;
 	}
@@ -116,33 +192,10 @@ public class Product extends BaseEntity {
 	}
 
 	public void updateCostPrice(BigDecimal costPrice) {
-		if (costPrice == null)
-			return;
-		if (this.priceInfo == null) {
-			this.priceInfo = PriceInfo.builder().costPrice(costPrice).build();
-		} else {
-			this.priceInfo = PriceInfo.builder()
-				.costPrice(costPrice)
-				.exchangeRate(this.priceInfo.getExchangeRate())
-				.marginRate(this.priceInfo.getMarginRate())
-				.salePrice(this.priceInfo.getSalePrice())
-				.build();
-		}
+		this.costPrice = costPrice;
 	}
 
 	public void updateSourcingStock(Integer stock) {
-		if (stock == null)
-			return;
-		if (this.sourcingInfo == null) {
-			this.sourcingInfo = SourcingInfo.builder().stock(stock).build();
-		} else {
-			this.sourcingInfo = SourcingInfo.builder()
-				.url(this.sourcingInfo.getUrl())
-				.manufacturer(this.sourcingInfo.getManufacturer())
-				.origin(this.sourcingInfo.getOrigin())
-				.hsCode(this.sourcingInfo.getHsCode())
-				.stock(stock)
-				.build();
-		}
+		this.stock = stock;
 	}
 }

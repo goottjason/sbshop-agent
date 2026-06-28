@@ -19,6 +19,14 @@ npm run build
 echo "3. 서버에 배포 중..."
 ssh -i "$KEY" "$USER@$SERVER" "cd $REMOTE_DIR && git pull origin main && docker compose up -d --build sbshop-api sbshop-frontend"
 
+echo "3.5. DB 컬럼 타입 확인/수정 (text → varchar)..."
+ssh -i "$KEY" "$USER@$SERVER" "docker exec projects-postgres-1 psql -U canagent -d sbshop -c \"
+ALTER TABLE sb_product ALTER COLUMN detail_html TYPE varchar(50000);
+ALTER TABLE sb_product ALTER COLUMN source_images TYPE varchar(50000);
+ALTER TABLE sb_product ALTER COLUMN hosted_images TYPE varchar(50000);
+ALTER TABLE sb_order ALTER COLUMN market_specific_data TYPE varchar(50000);
+\" 2>/dev/null || true"
+
 echo "4. 테스트 중..."
 sleep 15
 STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "http://$SERVER/sbshop-agent")

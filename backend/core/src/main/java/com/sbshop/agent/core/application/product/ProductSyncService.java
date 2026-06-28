@@ -26,8 +26,8 @@ public class ProductSyncService {
 			.orElseThrow(() -> new IllegalArgumentException("Product not found"));
 
 		// 2. 소싱 정보 및 소싱 URL 존재 여부 확인
-		if (product.getSourcingInfo() != null && product.getSourcingInfo().getUrl() != null) {
-			String sourceUrl = product.getSourcingInfo().getUrl();
+		if (product.getSourcingUrl() != null) {
+			String sourceUrl = product.getSourcingUrl();
 			try {
 				// 3. 외부 크롤러 포트를 통해 소싱 URL의 재고/가격/입고일 통합 조회
 				StockCheckResult result = productStockCrawlerPort
