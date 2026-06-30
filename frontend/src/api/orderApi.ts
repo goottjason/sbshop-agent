@@ -232,6 +232,11 @@ export const updateTracking = async (lineItemId: number, data: {
   return response.data;
 };
 
+export const deleteOrder = async (id: number): Promise<any> => {
+  const { data } = await apiClient.delete(`/api/v1/orders/${id}`);
+  return data;
+};
+
 export interface SyncStatus {
   marketType: string;
   status: string;

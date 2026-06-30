@@ -22,8 +22,8 @@ public class SseNotificationController {
 
 	@GetMapping(value = "/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
 	public SseEmitter subscribe() {
-		// 1. SSE 연결 객체 생성 (타임아웃 60초)
-		SseEmitter emitter = new SseEmitter(60000L);
+		// 1. SSE 연결 객체 생성 (타임아웃 24시간)
+		SseEmitter emitter = new SseEmitter(86400000L);
 
 		// 2. 발송 목록에 클라이언트 추가
 		emitters.add(emitter);

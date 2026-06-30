@@ -58,12 +58,22 @@ public class MarketRegistration extends BaseEntity {
 
 	@JsonRawValue
 	public String getMarketIdentifiers() {
-		return marketIdentifiers;
+		return isValidJson(marketIdentifiers) ? marketIdentifiers : "{}";
 	}
 
 	@JsonRawValue
 	public String getMarketDetailedInfo() {
-		return marketDetailedInfo;
+		return isValidJson(marketDetailedInfo) ? marketDetailedInfo : "{}";
+	}
+
+	private boolean isValidJson(String value) {
+		if (value == null || value.isEmpty()) return false;
+		try {
+			MAPPER.readTree(value);
+			return true;
+		} catch (Exception e) {
+			return false;
+		}
 	}
 
 	@Builder

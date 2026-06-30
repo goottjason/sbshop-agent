@@ -134,8 +134,16 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 
 	/** 배송상태 필터 */
 	private BooleanExpression shippingStatusIn(List<ShippingStatus> statuses) {
-		return statuses != null && !statuses.isEmpty()
-			? QOrderLineItem.orderLineItem.shippingData.shippingStatus.in(statuses) : null;
+		if (statuses == null || statuses.isEmpty()) {
+			return null;
+		}
+		QOrderLineItem subLineItem = QOrderLineItem.orderLineItem;
+		return com.querydsl.jpa.JPAExpressions
+			.selectOne()
+			.from(subLineItem)
+			.where(subLineItem.orderId.eq(order.id)
+				.and(subLineItem.shippingData.shippingStatus.in(statuses)))
+			.exists();
 	}
 
 	/** 키워드 검색 */

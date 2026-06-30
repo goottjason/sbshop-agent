@@ -14,7 +14,7 @@ const queryClient = new QueryClient({
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={queryClient}>
-    <BrowserRouter>
+    <BrowserRouter basename="/sbshop-agent">
       <App />
     </BrowserRouter>
   </QueryClientProvider>

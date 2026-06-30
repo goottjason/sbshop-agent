@@ -6,7 +6,7 @@ import {
   createColumnHelper,
 } from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchOrders, updateOrder, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, syncProductStock, fetchSyncStatus } from '../api/orderApi';
+import { fetchOrders, updateOrder, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, deleteOrder, syncProductStock, fetchSyncStatus } from '../api/orderApi';
 import type { OrderGridDto } from '../api/orderApi';
 import { toast } from 'react-toastify';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
@@ -1173,9 +1173,14 @@ const OrderGrid: React.FC = () => {
       toast.warning('삭제할 주문을 선택해주세요.');
       return;
     }
-    if (window.confirm(`선택한 ${orderIds.length}개의 주문을 삭제하시겠습니까?`)) {
-      setRowData(prev => prev.filter(row => !orderIds.includes(row.order?.id)));
+    if (!window.confirm(`선택한 ${orderIds.length}개의 주문을 삭제하시겠습니까?`)) return;
+    try {
+      await Promise.all(orderIds.map(id => deleteOrder(id as number)));
       setRowSelection({});
+      refetch();
+      toast.success(`${orderIds.length}건 삭제 완료`);
+    } catch (e) {
+      toast.error('주문 삭제 중 오류가 발생했습니다.');
     }
   };
 
