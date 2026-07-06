@@ -8,6 +8,8 @@ import com.sbshop.agent.core.application.product.ProductManageUseCase;
 import com.sbshop.agent.core.application.product.ProductSearchUseCase;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.client.dto.ImageUploadFile;
+import com.sbshop.agent.core.application.product.port.ProductInfoCrawlerPort;
+import com.sbshop.agent.core.application.sourcing.dto.ScrapedProductDto;
 import com.sbshop.agent.infrastructure.client.cloudflare.ImageDownloadService;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -44,6 +46,7 @@ public class ProductController {
 	private final ProductSearchUseCase productSearchUseCase;
 	private final ProductManageUseCase productManageUseCase;
 	private final ImageDownloadService imageDownloadService;
+	private final ProductInfoCrawlerPort productInfoCrawlerPort;
 
 	@GetMapping
 	public ResponseEntity<Page<ProductListResponse>> getProducts(
@@ -83,6 +86,20 @@ public class ProductController {
 		List<ImageUploadFile> downloadFiles = imageDownloadService.downloadAndConvert(imageUrls);
 		productManageUseCase.updateImagesAndHtml(id, downloadFiles);
 		return ResponseEntity.ok().build();
+	}
+
+	@GetMapping("/{id}/images/crawl")
+	public ResponseEntity<List<String>> crawlSourceImages(@PathVariable Long id) {
+		Product product = productSearchUseCase.getProductDetail(id);
+		String sourcingUrl = product.getSourcingUrl();
+		if (sourcingUrl == null || sourcingUrl.isEmpty()) {
+			return ResponseEntity.ok(List.of());
+		}
+		ScrapedProductDto scraped = productInfoCrawlerPort.crawlProductInfoAsDto(sourcingUrl);
+		if (scraped == null || scraped.sourceImages() == null) {
+			return ResponseEntity.ok(List.of());
+		}
+		return ResponseEntity.ok(scraped.sourceImages());
 	}
 
 	@PutMapping("/{id}")

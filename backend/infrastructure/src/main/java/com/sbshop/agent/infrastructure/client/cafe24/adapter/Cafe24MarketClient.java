@@ -34,9 +34,41 @@ public class Cafe24MarketClient implements MarketClient {
 	@Override
 	public Map<String, String> publish(Product product) {
 		log.info("[카페24] 상품 등록 시작: {}", product.getSbCode());
-		Map<String, String> identifiers = new HashMap<>();
-		identifiers.put("product_no", "C24-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
-		return identifiers;
+		try {
+			Map<String, Object> requestBody = new HashMap<>();
+			Map<String, Object> productData = new HashMap<>();
+			productData.put("shop_no", 1);
+			productData.put("product_name", product.getProductName());
+			productData.put("custom_product_code", product.getSbCode());
+			productData.put("price", product.getSalePrice() != null ? product.getSalePrice().toString() : "0");
+			productData.put("supply_quantity", product.getStock() != null ? String.valueOf(product.getStock()) : "0");
+			if (product.getBrand() != null) productData.put("brand", product.getBrand());
+			if (product.getDetailHtml() != null) productData.put("description", product.getDetailHtml());
+
+			List<String> hostedImages = product.getHostedImages();
+			if (!hostedImages.isEmpty()) {
+				productData.put("use_external_image", "T");
+				productData.put("list_image", hostedImages.get(0));
+				productData.put("detail_image", hostedImages.get(0));
+			}
+
+			requestBody.put("request", productData);
+
+			String responseJson = cafe24RestClient.post("/admin/products", requestBody);
+			JsonNode responseNode = objectMapper.readTree(responseJson);
+			JsonNode productNode = responseNode.path("product");
+			String productNo = productNode.path("product_no").asText("");
+			String productCode = productNode.path("product_code").asText("");
+
+			log.info("[카페24] 상품 등록 성공: product_no={}, product_code={}", productNo, productCode);
+			Map<String, String> identifiers = new HashMap<>();
+			identifiers.put("product_no", productNo);
+			identifiers.put("product_code", productCode);
+			return identifiers;
+		} catch (Exception e) {
+			log.error("[카페24] 상품 등록 실패: {}", e.getMessage());
+			throw new RuntimeException("카페24 상품 등록 오류", e);
+		}
 	}
 
 	@Override
