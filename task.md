@@ -421,12 +421,20 @@
 |---|---|---|
 | Phase 0: 기반 업그레이드 | 9 | ✅ 완료 |
 | Phase 1: 상품 도메인 모델 | 31 | ✅ 완료 |
-| Phase 2: R2 이미지 호스팅 | 16 | ✅ 완료 (T2.13-16은 Phase 3으로 이연) |
-| Phase 3: 상품 CRUD API | 22 | ✅ 완료 (T3.17-22는 후순위 이연) |
-| Phase 4: 마켓 클라이언트 | 30 | ✅ 완료 (Smartstore/Elevenst는 향후) |
-| Phase 5: 신규 상품 등록 | 28 | ✅ 완료 (CoupangCategoryPredictor/MetaService는 향후) |
+| Phase 2: R2 이미지 호스팅 | 16 | ✅ 완료 |
+| Phase 3: 상품 CRUD API | 22 | ✅ 완료 (MarketRegistration 엔드포인트 추가 구현 완료) |
+| Phase 4: 마켓 클라이언트 | 30 | ✅ 완료 (Coupang publish 실구현, Cafe24 publish 실구현 추가) |
+| Phase 5: 신규 상품 등록 | 28 | ✅ 완료 (SourcingAgent 인터페이스 + Factory 추가) |
 | Phase 6: 배치 가격/재고 | 25 | ✅ 완료 |
-| Phase 7: 프론트엔드 | 17 | ✅ 완료 |
+| Phase 7: 프론트엔드 | 17 | ✅ 완료 (market/supplier API 모듈 추가) |
 | Phase 8: 시크릿/보안 | 18 | ✅ 완료 |
-| Phase 9: 테스트/배포 | 21 | ✅ 완료 (스케줄러 활성화, Docker Java 21) |
+| Phase 9: 테스트/배포 | 21 | ✅ 완료 (ProductSyncScheduler 추가) |
 | **총계** | **217** | |
+
+### 향후 남은 작업 (우선순위 낮음)
+- Smartstore/Elevenst MarketClient 실구현 (purchase-agent 코드 참고 필요)
+- Spring Security 인증/인가 기반 구축
+- 통합 테스트 작성 (mock 기반)
+- Docker 빌드/실행 검증
+- API 문서 작성 (docs/api/product, sourcing, batch README.md)
+- 프론트엔드 code splitting (번들 크기 최적화)
