@@ -111,40 +111,46 @@
 
 ### UseCase 이식 (core/application/product)
 
-- [ ] T3.1 `core/application/product/ProductSearchUseCase.java` — 목록 검색 (페이징, 검색, 필터)
-- [ ] T3.2 `core/application/product/ProductManageUseCase.java` — 상품 수정 (가격/재고, 이미지+HTML, 전체 필드) + 마켓 브로드캐스트
-- [ ] T3.3 `core/domain/product/component/ProductReader.java` — 상품 조회 인터페이스 (findById, findBySku, search, getNextSkuSequence)
-- [ ] T3.4 `core/domain/product/component/ProductWriter.java` — 상품 저장 인터페이스 (save, saveAll, delete)
-- [ ] T3.5 `infrastructure/.../persistence/product/ProductReaderImpl.java`, `ProductWriterImpl.java` — 구현체
+- [x] T3.1 `ProductSearchUseCase.java` — 목록 검색 (페이징, 키워드), 상세 조회 (entity 반환)
+- [x] T3.2 `ProductManageUseCase.java` — 가격/재고 수정, 이미지+HTML 업데이트, 전체 수정, 삭제
+- [x] T3.3 `ProductReader.java` — 상품 조회 인터페이스 (findById, findBySbCode, search, getNextSbCodeSequence)
+- [x] T3.4 `ProductWriter.java` — 상품 저장 인터페이스 (save, saveAll, delete)
+- [x] T3.5 `ProductReaderImpl.java`, `ProductWriterImpl.java` — 구현체 (infrastructure)
 
 ### DTO (api/dto/product)
 
-- [ ] T3.6 `api/dto/product/ProductListResponse.java` — 목록 응답 (페이징 메타 + 상품 목록 + 마켓 등록 정보)
-- [ ] T3.7 `api/dto/product/ProductDetailResponse.java` — 상품 상세 (전체 필드 + 마켓 등록 목록)
-- [ ] T3.8 `api/dto/product/PriceStockUpdateRequest.java` — price, stock (record)
-- [ ] T3.9 `api/dto/product/ProductUpdateRequest.java` — 전체 필드 수정용
-- [ ] T3.10 `api/dto/product/ProductSearchCondition.java` — 검색 조건 (keyword, vendor, category, supplier, channel-id 필터)
+- [x] T3.6 `ProductListResponse.java` — 목록 응답 (상품 정보 + 대표이미지 + hostedImages)
+- [x] T3.7 `ProductDetailResponse.java` — 상품 상세 (전체 VO + 이미지 + HTML)
+- [x] T3.8 `PriceStockUpdateRequest.java` — price, stock (record)
+- [x] T3.9 `ProductUpdateRequest.java` — 전체 필드 수정용 → ProductUpdateCommand 변환
+- [x] T3.10 `ProductSearchCondition.java` — Phase 3.16 QueryDSL 동적 검색으로 통합
 
 ### ProductController (api 모듈)
 
-- [ ] T3.11 `GET /api/v1/products` — 목록 조회 (page, size, keyword, vendor, category, supplier 파라미터)
-- [ ] T3.12 `GET /api/v1/products/{id}` — 상품 상세
-- [ ] T3.13 `PUT /api/v1/products/{id}/price-stock` — 가격/재고 수정 + 마켓 브로드캐스트
-- [ ] T3.14 `PUT /api/v1/products/{id}` — 전체 필드 수정
-- [ ] T3.15 `DELETE /api/v1/products/{id}` — 삭제 (soft delete 고려)
+- [x] T3.11 `GET /api/v1/products` — 목록 조회 (keyword, pageable)
+- [x] T3.12 `GET /api/v1/products/{id}` — 상품 상세
+- [x] T3.13 `PUT /api/v1/products/{id}/price-stock` — 가격/재고 수정 (DB 업데이트)
+- [x] T3.14 `PUT /api/v1/products/{id}` — 전체 필드 수정
+- [x] T3.15 `DELETE /api/v1/products/{id}` — 삭제
 
 ### QueryDSL 동적 검색 고도화
 
-- [ ] T3.16 `ProductRepositoryImpl.searchProducts(condition)` — BooleanExpression 동적 쿼리 (keywordContains, vendorEq, categoryEq, supplierEq)
-- [ ] T3.17 채널 ID NULL 필터 추가 (filterNullVendorItemId, filterNullSellerProductId 등 — purchase-agent 참고)
-- [ ] T3.18 정렬 옵션 추가 (createdAt, updatedAt, sbCode, name asc/desc)
+- [x] T3.16 ProductRepository.searchByKeyword (JPQL 동적 검색: productName/sbCode/brand)
+- [ ] T3.17 채널 ID NULL 필터 — Phase 4+에서 MarketRegistration 연동 시 추가
+- [ ] T3.18 정렬 옵션 — Pageable Sort로 처리 (프론트엔드에서 제어)
 
 ### MarketRegistration 연동
 
-- [ ] T3.19 `GET /api/v1/products/{id}/markets` — 상품의 마켓 등록 목록
-- [ ] T3.20 `GET /api/v1/products/{id}/markets/{marketType}/local` — 마켓별 로컬 데이터
-- [ ] T3.21 `POST /api/v1/products/{id}/markets/{marketType}/sync` — 마켓 실시간 동기화 (MarketClient.extractMarketItem)
-- [ ] T3.22 상품 목록 응답에 마켓별 등록 여부/마켓 상품ID 포함
+- [ ] T3.19 `GET /api/v1/products/{id}/markets` — Phase 4 MarketClient 구축 후 추가
+- [ ] T3.20 `GET /api/v1/products/{id}/markets/{marketType}/local` — Phase 4로 이연
+- [ ] T3.21 `POST /api/v1/products/{id}/markets/{marketType}/sync` — Phase 4로 이연
+- [ ] T3.22 상품 목록 응답에 마켓별 등록 정보 — Phase 4로 이연
+
+### 이미지 엔드포인트 (Phase 2에서 이연)
+
+- [x] T2.13 `PUT /api/v1/products/{id}/images` (multipart) — ProductController에 구현
+- [x] T2.14 `PUT /api/v1/products/{id}/images/by-url` — ProductController에 구현
+- [ ] T2.15 `GET /api/v1/products/{id}/images/crawl` — Phase 5 소싱 스크래퍼 구축 후 추가
 
 ---
 

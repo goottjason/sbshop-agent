@@ -40,6 +40,12 @@ cloud:
       bucket: ${CLOUDFLARE_R2_BUCKET:sbshop-images}
       public-url: ${CLOUDFLARE_R2_PUBLIC_URL:}
 
+coupang:
+  api-url: https://api-gateway.coupang.com
+  vendor-id: ${COUPANG_CLIENT_ID:}
+  access-key: ${COUPANG_ACCESS_KEY:}
+  secret-key: ${COUPANG_SECRET_KEY:}
+
 sbshop:
   email:
     accounts:

@@ -61,6 +61,12 @@ public class Cafe24TokenManager {
 		return accessToken;
 	}
 
+	public String getApiUrl() {
+		MarketCredential credential = getCredential();
+		if (credential == null) return null;
+		return "https://" + credential.getClientId() + ".cafe24api.com/api/v2";
+	}
+
 	private void refreshAccessToken() {
 		MarketCredential credential = getCredential();
 		if (credential == null)
