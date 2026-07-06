@@ -1,0 +1,24 @@
+package com.sbshop.agent.core.application.product;
+
+import com.sbshop.agent.core.domain.product.Product;
+import com.sbshop.agent.core.domain.product.component.ProductReader;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class ProductSearchUseCase {
+
+	private final ProductReader productReader;
+
+	public Page<Product> searchProducts(String keyword, Pageable pageable) {
+		return productReader.search(keyword, pageable);
+	}
+
+	public Product getProductDetail(Long id) {
+		return productReader.findById(id)
+				.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + id));
+	}
+}

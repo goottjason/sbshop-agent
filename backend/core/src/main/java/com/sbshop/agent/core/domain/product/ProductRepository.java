@@ -3,6 +3,8 @@ package com.sbshop.agent.core.domain.product;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -23,4 +25,10 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
 	@Query("SELECT p FROM Product p WHERE p.sourcingInfo.vendor = :vendor")
 	List<Product> findByVendor(@Param("vendor") com.sbshop.agent.core.domain.product.enums.VendorType vendor);
+
+	@Query("SELECT p FROM Product p WHERE " +
+			"LOWER(p.productName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+			"LOWER(p.sbCode) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+			"LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+	Page<Product> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 }

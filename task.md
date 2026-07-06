@@ -76,34 +76,34 @@
 
 ### R2 설정
 
-- [ ] T2.1 `infrastructure/client/cloudflare/config/R2Properties.java` — `@ConfigurationProperties("cloud.cloudflare.r2")` (endpoint, accessKey, secretKey, bucket, publicUrl)
-- [ ] T2.2 `infrastructure/client/cloudflare/config/R2Config.java` — S3Client 빈 (R2 endpoint, Region.of("auto"), pathStyleAccess)
-- [ ] T2.3 `application.yml` — R2 설정 추가 (모든 값을 `${ENV_VAR}`로 외부화)
-- [ ] T2.4 `.env.example` — `CLOUDFLARE_R2_*` env 변수 문서화
+- [x] T2.1 `infrastructure/client/cloudflare/config/R2Properties.java` — `@ConfigurationProperties("cloud.cloudflare.r2")`
+- [x] T2.2 `infrastructure/client/cloudflare/config/R2Config.java` — S3Client 빈 (R2 endpoint, Region.of("auto"), pathStyle)
+- [x] T2.3 `application.yml` — R2 설정 추가 (모든 값을 `${ENV_VAR}`로 외부화)
+- [x] T2.4 `.env.example` — `CLOUDFLARE_R2_*` env 변수 문서화
 
 ### 포트 인터페이스 (core)
 
-- [ ] T2.5 `core/domain/product/client/ImageStorageClient.java` — `uploadImages(List<ImageUploadFile>) → Map<String,String>`
-- [ ] T2.6 `core/domain/product/client/ImageDownloadClient.java` — `downloadAll(List<String> urls) → List<ImageUploadFile>`
-- [ ] T2.7 `core/domain/product/client/dto/ImageUploadFile.java` — filename, contentType, inputStream, size
+- [x] T2.5 `core/domain/product/client/ImageStorageClient.java` — `uploadImages(List<ImageUploadFile>) → Map<String,String>`
+- [x] T2.6 `core/domain/product/client/ImageDownloadClient.java` — `downloadAll(List<String> urls) → List<ImageUploadFile>`
+- [x] T2.7 `core/domain/product/client/dto/ImageUploadFile.java` — filename, contentType, inputStream, size
 
 ### 이미지 스토리지/다운로드 구현
 
-- [ ] T2.8 `infrastructure/client/cloudflare/R2ImageStorageClient.java` — ImageStorageClient 구현, UUID 파일명, s3Client.putObject, publicUrl 반환
-- [ ] T2.9 `infrastructure/client/cloudflare/ImageDownloadService.java` — ImageDownloadClient 구현, OkHttp 다운로드 + Thumbnailator 리사이즈(1000×1000, JPG 80%)
-- [ ] T2.10 `infrastructure/client/image/ImageDownloader.java` — 소스 이미지 일괄 다운로드 (RestTemplate 기반, buying-agent 참고)
+- [x] T2.8 `infrastructure/client/cloudflare/R2ImageStorageClient.java` — ImageStorageClient 구현, UUID 파일명, s3Client.putObject, publicUrl 반환
+- [x] T2.9 `infrastructure/client/cloudflare/ImageDownloadService.java` — OkHttp 다운로드 + Thumbnailator 리사이즈(1000×1000, JPG 80%)
+- [x] T2.10 `infrastructure/client/image/ImageDownloader.java` — ImageDownloadClient 구현 (RestTemplate 기반)
 
 ### HTML 이미지 교체
 
-- [ ] T2.11 `core/domain/product/component/HtmlImageReplacer.java` — `replaceImagesBySku(html, sku, hostedImages)` (regex 기반, buying-agent 포팅)
-- [ ] T2.12 `infrastructure/.../common/util/HtmlImageExtractor.java` — HTML에서 `<img src>` URL 추출 (cafe24 상세 HTML에서 이미지 복구용)
+- [x] T2.11 `core/domain/product/component/HtmlImageReplacer.java` — `replaceImagesBySku(html, sku, hostedImages)` (regex 기반)
+- [x] T2.12 `infrastructure/client/common/util/HtmlImageExtractor.java` — HTML에서 `<img src>` URL 추출
 
 ### API 엔드포인트
 
-- [ ] T2.13 `api/.../controller/ProductController.java` — `PUT /api/v1/products/{id}/images` (multipart) 엔드포인트
-- [ ] T2.14 `api/.../controller/ProductController.java` — `PUT /api/v1/products/{id}/images/by-url` 엔드포인트
-- [ ] T2.15 `api/.../controller/ProductController.java` — `GET /api/v1/products/{id}/images/crawl` 엔드포인트 (소스 이미지 크롤)
-- [ ] T2.16 이미지 업로드 → R2 저장 → 상품 hostedImages 갱신 → detailHtml 이미지 교체 통합 테스트
+- [ ] T2.13 `PUT /api/v1/products/{id}/images` (multipart) — Phase 3 ProductController로 이연
+- [ ] T2.14 `PUT /api/v1/products/{id}/images/by-url` — Phase 3으로 이연
+- [ ] T2.15 `GET /api/v1/products/{id}/images/crawl` — Phase 3으로 이연
+- [ ] T2.16 통합 테스트 — Phase 9로 이연
 
 ---
 
