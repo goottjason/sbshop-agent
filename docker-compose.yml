@@ -28,6 +28,13 @@ services:
       - "5432"
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    container_name: projects-redis-1
+    ports:
+      - "6379"
+    restart: unless-stopped
+
   can-agent:
     build: ./can-agent
     container_name: projects-can-agent-1

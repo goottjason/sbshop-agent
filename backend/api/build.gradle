@@ -10,7 +10,13 @@ dependencies {
 
     // BCrypt for Naver API Signature
     implementation 'org.mindrot:jbcrypt:0.4'
-    
+
+    // Image resize (controller-level)
+    implementation 'net.coobird:thumbnailator:0.4.20'
+
+    // Swagger/OpenAPI docs
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+
     // PostgreSQL
     runtimeOnly 'org.postgresql:postgresql'
 }

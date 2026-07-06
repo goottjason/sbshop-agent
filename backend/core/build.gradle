@@ -12,6 +12,9 @@ dependencies {
     
     // BCrypt for Naver API Signature
     implementation 'org.mindrot:jbcrypt:0.4'
+
+    // hypersistence-utils for JSON columns (@JdbcTypeCode(SqlTypes.JSON))
+    implementation 'io.hypersistence:hypersistence-utils-hibernate-63:3.7.1'
 }
 
 bootJar { enabled = false }
