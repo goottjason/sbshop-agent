@@ -31,6 +31,15 @@ spring:
 server:
   port: 8080
 
+cloud:
+  cloudflare:
+    r2:
+      endpoint: ${CLOUDFLARE_R2_ENDPOINT:}
+      access-key: ${CLOUDFLARE_R2_ACCESS_KEY:}
+      secret-key: ${CLOUDFLARE_R2_SECRET_KEY:}
+      bucket: ${CLOUDFLARE_R2_BUCKET:sbshop-images}
+      public-url: ${CLOUDFLARE_R2_PUBLIC_URL:}
+
 sbshop:
   email:
     accounts:

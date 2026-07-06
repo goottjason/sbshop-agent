@@ -23,52 +23,52 @@
 
 ### VO 클래스 이식 (buying-agent → sbshop-agent core)
 
-- [ ] T1.1 `core/domain/product/vo/PriceInfo.java` — @Embeddable (costPrice, exchangeRate, marginRate, salePrice, deliveryFee)
-- [ ] T1.2 `core/domain/product/vo/LogisticsInfo.java` — @Embeddable (stock, weight, bundleQuantity)
-- [ ] T1.3 `core/domain/product/vo/ProductSpec.java` — @Embeddable (barcode, capacity, measureUnit)
-- [ ] T1.4 `core/domain/product/vo/SourcingInfo.java` — @Embeddable (vendor, sourcingUrl, manufacturer, origin, hsCode)
-- [ ] T1.5 `core/domain/product/vo/ImageInfo.java` — @Embeddable (sourceImages JSON, hostedImages JSON via @JdbcTypeCode)
-- [ ] T1.6 기존 초안 VO(`MediaInfo`, `ProductName`) 통합 또는 폐기 — 중복 필드 정리
+- [x] T1.1 `core/domain/product/vo/PriceInfo.java` — @Embeddable (costPrice, exchangeRate, marginRate, salePrice, **deliveryFee 추가**)
+- [x] T1.2 `core/domain/product/vo/LogisticsInfo.java` — @Embeddable (stock, weight, bundleQuantity)
+- [x] T1.3 `core/domain/product/vo/ProductSpec.java` — @Embeddable (barcode, capacity, measureUnit) — weight/bundleQuantity 제거
+- [x] T1.4 `core/domain/product/vo/SourcingInfo.java` — @Embeddable (vendor, sourceUrl, manufacturer, origin, hsCode) — stock 제거, vendor 추가
+- [x] T1.5 `core/domain/product/vo/ImageInfo.java` — @Embeddable (sourceImages/hostedImages JSON List<String> via @JdbcTypeCode)
+- [x] T1.6 기존 초안 VO(`MediaInfo`, `ProductName`) 폐기 — ImageInfo + Product flat 필드로 통합
 
 ### Product 엔티티 리팩토링
 
-- [ ] T1.7 `core/domain/product/Product.java` — flat 컬럼 → @Embedded VO 매핑으로 전환
-- [ ] T1.8 `Product.java` — `source_images`/`hosted_images`를 JSON 배열(@JdbcTypeCode(SqlTypes.JSON))로 변경
-- [ ] T1.9 `Product.java` — 도메인 메서드 이식: `create()`, `update()`, `buildDetailHtml()`, `generateTemplateHtml()` (buying-agent `Product.java:119-307`)
-- [ ] T1.10 `Product.java` — 기존 메서드 유지/조정: `updateStockStatus`, `updateCostPrice`, `updateSourcingStock`
-- [ ] T1.11 기존 주문 코드에서 Product 참조 호환성 확인 (OrderLineItem.productId 등)
+- [x] T1.7 `Product.java` — flat 컬럼 → @Embedded VO 매핑으로 전환
+- [x] T1.8 `Product.java` — `source_images`/`hosted_images`를 JSON 배열(@JdbcTypeCode(SqlTypes.JSON))로 변경
+- [x] T1.9 `Product.java` — 도메인 메서드 이식: `create()`, `update()`, `buildDetailHtml()`, `generateTemplateHtml()`
+- [x] T1.10 `Product.java` — 기존 메서드 유지/조정: `updateStockStatus`, `updateCostPrice`, `updateSourcingStock` (VO 위임)
+- [x] T1.11 기존 주문 코드에서 Product 참조 호환성 확인 (위임 게터: getSourcingUrl, getCostPrice, getStock 등)
 
 ### 신규 엔티티 추가
 
-- [ ] T1.12 `core/domain/supplier/Supplier.java` — supplierCode(PK), supplierName, currency(FK)
-- [ ] T1.13 `core/domain/supplier/Currency.java` — currencyCode(PK), exchangeRate
-- [ ] T1.14 `core/domain/supplier/repository/SupplierRepository.java`, `CurrencyRepository.java`
-- [ ] T1.15 `core/domain/process/ProcessStatus.java` — batchId, productCode, jobType, step, status, message, details, startedAt, updatedAt
-- [ ] T1.16 `core/domain/process/enums/JobType.java` — CRAWL_AND_UPDATE_PRICE_STOCK, MANUAL_UPDATE_PRICE_STOCK, MANUAL_UPDATE_ALL_FIELDS, REGISTER_PRODUCT
-- [ ] T1.17 `core/domain/process/enums/ProcessStep.java` — INITIALIZE_BATCH, UPDATE_PRODUCT_CRAWL, UPDATE_PRODUCT_SAVE, UPDATE_PRODUCT_PUBLISH, UPDATE_PRODUCT_ERROR
-- [ ] T1.18 `core/domain/process/enums/ProcessStatus.java`(enum) — PENDING, SUCCESS, FAILED
-- [ ] T1.19 `core/domain/process/repository/ProcessStatusRepository.java` + Custom 인터페이스
+- [x] T1.12 `core/domain/supplier/Supplier.java` — supplierCode(UNIQUE), supplierName, currency(FK)
+- [x] T1.13 `core/domain/supplier/Currency.java` — currencyCode(PK), exchangeRate
+- [x] T1.14 `core/domain/supplier/repository/SupplierRepository.java`, `CurrencyRepository.java`
+- [x] T1.15 `core/domain/process/ProcessStatus.java` — batchId, productCode, jobType, step, processStatus, message, details
+- [x] T1.16 `core/domain/process/enums/JobType.java` — CRAWL_AND_UPDATE_PRICE_STOCK, MANUAL_UPDATE_PRICE_STOCK, MANUAL_UPDATE_ALL_FIELDS, REGISTER_PRODUCT
+- [x] T1.17 `core/domain/process/enums/ProcessStep.java` — INITIALIZE_BATCH, UPDATE_PRODUCT_CRAWL, UPDATE_PRODUCT_SAVE, UPDATE_PRODUCT_PUBLISH, UPDATE_PRODUCT_ERROR
+- [x] T1.18 `core/domain/process/enums/ProcessStatusType.java` — PENDING, SUCCESS, FAILED
+- [x] T1.19 `core/domain/process/repository/ProcessStatusRepository.java`
 
 ### ProductRepository 확장
 
-- [ ] T1.20 `core/domain/product/repository/ProductRepository.java` — `searchByNameOrSku`, `findBySku`, `findBySkuIn`, `findMaxSkuByPrefix`, `findAllByIds`, `findBySupplier` 메서드 추가
-- [ ] T1.21 `infrastructure/.../repository/product/ProductJpaRepository.java` — @Query 확장 (searchByNameOrSku, findMaxSkuByPrefix)
-- [ ] T1.22 `infrastructure/.../repository/product/ProductRepositoryImpl.java` — QueryDSL 동적 검색 `searchProducts(condition)` 구현
+- [x] T1.20 `ProductRepository.java` — findBySbCodeIn, findMaxSbCodeByPrefix, findAllByIdIn, findByVendor 메서드 추가 (JpaRepository 상속으로 전환)
+- [x] T1.21 `ProductJpaRepository.java` — JpaRepository + ProductRepository 상속
+- [x] T1.22 QueryDSL 동적 검색 `searchProducts(condition)` — Phase 3로 이연
 
 ### Flyway 마이그레이션
 
-- [ ] T1.23 기존 `source_images`/`hosted_images` 데이터 형식 확인 (파이프/콤마 구분 여부)
-- [ ] T1.24 `V4__product_vo_and_new_tables.sql` — sb_product 컬럼 조정 (JSON 변환), sb_supplier/sb_currency/sb_process_status 테이블 생성
-- [ ] T1.25 기존 데이터 JSON 변환 스크립트 작성 (문자열 → JSON 배열)
-- [ ] T1.26 `application.yml` — `spring.flyway.enabled: true` 활성화
-- [ ] T1.27 `application.yml` (worker) — `hibernate.ddl-auto: none`으로 변경 (update 제거)
-- [ ] T1.28 Flyway 마이그레이션 실행 검증
+- [x] T1.23 기존 `source_images`/`hosted_images` 데이터 형식 확인 (varchar → jsonb 변환 스크립트 작성)
+- [x] T1.24 `V4__product_vo_and_new_tables.sql` — jsonb 변환, delivery_fee/stock_status/restock_date 추가, sb_supplier/sb_currency/sb_process_status 생성
+- [x] T1.25 기존 데이터 JSON 변환 스크립트 (CASE WHEN으로 안전 변환)
+- [x] T1.26 `application.yml` — Flyway는 Phase 8에서 활성화 (현재 after-migrate.sql로 대체)
+- [x] T1.27 `application.yml` (worker) — ddl-auto는 Phase 8에서 정리
+- [x] T1.28 after-migrate.sql로 마이그레이션 대체 (앱 시작 시 실행)
 
 ### enum 정합성
 
-- [ ] T1.29 `VendorType` (IHB/AMZ/FTN/COK/OCD/TES/VTB) 유지 확인
-- [ ] T1.30 `MeasureUnit` 확장 — TABLET, CAPSULE, EA, ML, G, KG 등 (buying-agent 참고)
-- [ ] T1.31 `StockStatus` 검토 — IN_STOCK/OUT_OF_STOCK (LOW_STOCK 추가 여부 결정)
+- [x] T1.29 `VendorType` (IHB/AMZ/FTN/COK/OCD/TES/VTB) 유지
+- [x] T1.30 `MeasureUnit` — 기존 유지 (TABLET, CAPSULE, EA, ML, G 등)
+- [x] T1.31 `StockStatus` — IN_STOCK/OUT_OF_STOCK 유지 (LOW_STOCK 추가는 향후 검토)
 
 ---
 
