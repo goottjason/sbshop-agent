@@ -58,4 +58,16 @@ export const productApi = {
 
   deleteProduct: (id: number) =>
     apiClient.delete(`/api/v1/products/${id}`),
+
+  crawlSourceImages: (id: number) =>
+    apiClient.get(`/api/v1/products/${id}/images/crawl`),
+
+  getMarketRegistrations: (id: number) =>
+    apiClient.get(`/api/v1/products/${id}/markets`),
+
+  getLocalMarketData: (id: number, marketType: string) =>
+    apiClient.get(`/api/v1/products/${id}/markets/${marketType}/local`),
+
+  syncMarketLive: (id: number, marketType: string) =>
+    apiClient.post(`/api/v1/products/${id}/markets/${marketType}/sync`),
 };
