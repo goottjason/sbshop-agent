@@ -8,6 +8,8 @@ import com.sbshop.agent.core.domain.market.repository.MarketRegistrationReposito
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
+import com.sbshop.agent.core.domain.product.component.ProductSanitizer;
+import com.sbshop.agent.core.domain.product.component.ProductValidator;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,8 @@ public class ProductPublishUseCase {
 	private final MarketClientRouter marketClientRouter;
 	private final MarketRegistrationRepository marketRegistrationRepository;
 	private final ObjectMapper objectMapper;
+	private final ProductSanitizer productSanitizer;
+	private final ProductValidator productValidator;
 
 	@Transactional
 	public void publishToMarket(Long productId, MarketType marketType) {
@@ -32,6 +36,9 @@ public class ProductPublishUseCase {
 		if (!marketClientRouter.hasClient(marketType)) {
 			throw new IllegalArgumentException("지원하지 않는 마켓입니다: " + marketType);
 		}
+
+		productSanitizer.sanitizeForPublish(product);
+		productValidator.validateForPublish(product);
 
 		MarketClient client = marketClientRouter.getClient(marketType);
 		Map<String, String> identifiers = client.publish(product);

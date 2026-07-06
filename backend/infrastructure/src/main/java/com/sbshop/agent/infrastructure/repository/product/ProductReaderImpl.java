@@ -3,6 +3,7 @@ package com.sbshop.agent.infrastructure.repository.product;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
+import com.sbshop.agent.core.domain.order.enums.MarketType;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,14 @@ public class ProductReaderImpl implements ProductReader {
 			return productRepository.findAll(pageable);
 		}
 		return productRepository.searchByKeyword(keyword, pageable);
+	}
+
+	@Override
+	public Page<Product> findByMarketRegistration(MarketType marketType, boolean registered, Pageable pageable) {
+		if (registered) {
+			return productRepository.findRegisteredByMarket(marketType, pageable);
+		}
+		return productRepository.findUnregisteredByMarket(marketType, pageable);
 	}
 
 	@Override

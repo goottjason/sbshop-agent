@@ -62,4 +62,18 @@ public class ProcessStatusService {
 	public List<ProcessStatus> getBatchStatus(String batchId) {
 		return processStatusRepository.findByBatchIdOrderByStartedAtDesc(batchId);
 	}
+
+	@Transactional(readOnly = true)
+	public List<String> getAllBatchIds() {
+		List<ProcessStatus> all = processStatusRepository.findAll();
+		return all.stream()
+				.map(ProcessStatus::getBatchId)
+				.distinct()
+				.toList();
+	}
+
+	@Transactional(readOnly = true)
+	public List<ProcessStatus> getAllBatches() {
+		return processStatusRepository.findAll();
+	}
 }

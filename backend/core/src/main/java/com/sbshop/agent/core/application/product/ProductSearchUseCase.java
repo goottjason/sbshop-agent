@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.product;
 
+import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,10 @@ public class ProductSearchUseCase {
 
 	public Page<Product> searchProducts(String keyword, Pageable pageable) {
 		return productReader.search(keyword, pageable);
+	}
+
+	public Page<Product> searchByMarket(MarketType marketType, boolean registered, Pageable pageable) {
+		return productReader.findByMarketRegistration(marketType, registered, pageable);
 	}
 
 	public Product getProductDetail(Long id) {

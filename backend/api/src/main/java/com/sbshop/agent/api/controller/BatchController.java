@@ -2,6 +2,7 @@ package com.sbshop.agent.api.controller;
 
 import com.sbshop.agent.api.dto.batch.CrawlAndUpdateRequest;
 import com.sbshop.agent.api.dto.batch.ManualUpdateRequest;
+import com.sbshop.agent.api.dto.batch.ManualUpdateAllRequest;
 import com.sbshop.agent.api.dto.batch.SupplierBatchRequest;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.BatchPriceStockService;
@@ -63,6 +64,18 @@ public class BatchController {
 		return ResponseEntity.ok(Map.of("batchId", batchId, "message", "수동 일괄 업데이트가 시작되었습니다."));
 	}
 
+	@PostMapping("/manual-update-all")
+	public ResponseEntity<Map<String, String>> manualUpdateAll(@RequestBody ManualUpdateAllRequest request) {
+		List<String> productCodes = request.productIds().stream()
+				.map(String::valueOf)
+				.toList();
+		String batchId = processStatusService.startBatch(
+				com.sbshop.agent.core.domain.process.enums.JobType.MANUAL_UPDATE_ALL_FIELDS,
+				productCodes);
+		batchPriceStockService.manualUpdateAllFields(batchId, request.productIds(), request.commands());
+		return ResponseEntity.ok(Map.of("batchId", batchId, "message", "전체 필드 일괄 업데이트가 시작되었습니다."));
+	}
+
 	@PostMapping("/by-supplier")
 	public ResponseEntity<Map<String, String>> updateBySupplier(@RequestBody SupplierBatchRequest request) {
 		VendorType vendor = VendorType.valueOf(request.supplierCode().toUpperCase());
@@ -85,5 +98,10 @@ public class BatchController {
 	@GetMapping("/status/{batchId}")
 	public ResponseEntity<List<ProcessStatus>> getBatchStatus(@PathVariable String batchId) {
 		return ResponseEntity.ok(processStatusService.getBatchStatus(batchId));
+	}
+
+	@GetMapping("/status")
+	public ResponseEntity<List<String>> getAllBatchIds() {
+		return ResponseEntity.ok(processStatusService.getAllBatchIds());
 	}
 }

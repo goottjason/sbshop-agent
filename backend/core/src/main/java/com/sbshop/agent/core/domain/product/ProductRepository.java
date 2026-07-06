@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.sbshop.agent.core.domain.order.enums.MarketType;
+
 public interface ProductRepository extends JpaRepository<Product, Long> {
 	Product save(Product product);
 
@@ -31,4 +33,12 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 			"LOWER(p.sbCode) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
 			"LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%'))")
 	Page<Product> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+
+	@Query("SELECT p FROM Product p WHERE p.id NOT IN " +
+			"(SELECT r.productId FROM MarketRegistration r WHERE r.marketType = :marketType)")
+	Page<Product> findUnregisteredByMarket(@Param("marketType") MarketType marketType, Pageable pageable);
+
+	@Query("SELECT p FROM Product p WHERE p.id IN " +
+			"(SELECT r.productId FROM MarketRegistration r WHERE r.marketType = :marketType)")
+	Page<Product> findRegisteredByMarket(@Param("marketType") MarketType marketType, Pageable pageable);
 }

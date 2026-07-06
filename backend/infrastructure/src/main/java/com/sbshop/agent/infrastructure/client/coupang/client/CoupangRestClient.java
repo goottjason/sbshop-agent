@@ -1,13 +1,7 @@
 package com.sbshop.agent.infrastructure.client.coupang.client;
 
+import com.sbshop.agent.infrastructure.client.coupang.CoupangHmacUtil;
 import com.sbshop.agent.infrastructure.client.coupang.config.CoupangProperties;
-import java.nio.charset.StandardCharsets;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.HexFormat;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -45,15 +39,13 @@ public class CoupangRestClient {
 
 	private String request(String method, String path, Object body) {
 		try {
-			String datetime = ZonedDateTime.now(ZoneId.of("Asia/Seoul"))
-					.format(DateTimeFormatter.ofPattern("yyMMddHHmmss"));
-			String signature = generateSignature(method, path, datetime);
+			String authorization = CoupangHmacUtil.generateSignature(
+					method, path, properties.getAccessKey(), properties.getSecretKey());
+			String datetime = CoupangHmacUtil.generateDatetime();
 
 			var requestSpec = restClient.method(org.springframework.http.HttpMethod.valueOf(method))
 					.uri(properties.getApiUrl() + path)
-					.header(HttpHeaders.AUTHORIZATION,
-							"CEA algorithm=HmacSHA256, access-key=" + properties.getAccessKey()
-									+ ", signed-date=" + datetime + ", signature=" + signature)
+					.header(HttpHeaders.AUTHORIZATION, authorization)
 					.header("X-Requested-By", properties.getVendorId())
 					.header("signed-date", datetime);
 
@@ -66,13 +58,5 @@ public class CoupangRestClient {
 			log.error("[Coupang {} Error] path: {}, msg: {}", method, path, e.getMessage());
 			throw new RuntimeException("Coupang API 호출 실패", e);
 		}
-	}
-
-	private String generateSignature(String method, String path, String datetime) throws Exception {
-		String message = datetime + method + path;
-		Mac mac = Mac.getInstance("HmacSHA256");
-		mac.init(new SecretKeySpec(properties.getSecretKey().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-		byte[] hash = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
-		return HexFormat.of().formatHex(hash);
 	}
 }

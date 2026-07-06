@@ -1,10 +1,10 @@
--- V1 Init Schema
+-- V1 Init Schema (PostgreSQL)
 
 CREATE TABLE IF NOT EXISTS sb_product (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     status VARCHAR(20) NOT NULL,
-    created_at DATETIME(6),
-    updated_at DATETIME(6),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
     
     sb_code VARCHAR(50) NOT NULL UNIQUE,
     category VARCHAR(50),
@@ -35,19 +35,19 @@ CREATE TABLE IF NOT EXISTS sb_product (
     source_images TEXT,
     hosted_images TEXT,
     search_keywords VARCHAR(500),
-    detail_html LONGTEXT,
+    detail_html TEXT,
     memo VARCHAR(2000)
 );
 
 CREATE TABLE IF NOT EXISTS sb_order (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     status VARCHAR(20) NOT NULL,
-    created_at DATETIME(6),
-    updated_at DATETIME(6),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
     
     market_type VARCHAR(50) NOT NULL,
     market_order_no VARCHAR(100) NOT NULL UNIQUE,
-    order_date DATETIME(6) NOT NULL,
+    order_date TIMESTAMP NOT NULL,
     buyer_name VARCHAR(100),
     buyer_phone VARCHAR(50),
     zipcode VARCHAR(20),
@@ -68,10 +68,10 @@ CREATE TABLE IF NOT EXISTS sb_order (
 );
 
 CREATE TABLE IF NOT EXISTS sb_order_line_item (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     status VARCHAR(20) NOT NULL,
-    created_at DATETIME(6),
-    updated_at DATETIME(6),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
     
     order_id BIGINT NOT NULL,
     product_id BIGINT,
@@ -83,10 +83,10 @@ CREATE TABLE IF NOT EXISTS sb_order_line_item (
 );
 
 CREATE TABLE IF NOT EXISTS sb_fee_policy (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     status VARCHAR(20) NOT NULL,
-    created_at DATETIME(6),
-    updated_at DATETIME(6),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
     
     market_type VARCHAR(50) NOT NULL,
     category_name VARCHAR(100) NOT NULL,

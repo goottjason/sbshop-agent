@@ -5,9 +5,9 @@ WORKDIR /app
 COPY frontend/package*.json ./
 RUN npm install
 
-# 소스 코드 복사 및 빌드
+# 소스 코드 복사 및 빌드 (Ant Design 번들 대응 메모리 확장)
 COPY frontend/ .
-RUN npm run build
+RUN NODE_OPTIONS=--max_old_space_size=4096 npm run build
 
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html

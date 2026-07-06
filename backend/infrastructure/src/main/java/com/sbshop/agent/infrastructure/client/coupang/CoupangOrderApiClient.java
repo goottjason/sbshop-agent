@@ -96,36 +96,7 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 	}
 
 	private String generateHmacSignature(String method, String url, String accessKey, String secretKey) {
-		String path = url;
-		String query = "";
-
-		if (url.contains("?")) {
-			String[] parts = url.split("\\?", 2);
-			path = parts[0];
-			query = parts[1];
-		}
-
-		String datetime = ZonedDateTime.now(ZoneId.of("UTC"))
-			.format(DateTimeFormatter.ofPattern("yyMMdd'T'HHmmss'Z'"));
-
-		String message = datetime + method + path + query;
-
-		try {
-			Mac mac = Mac.getInstance("HmacSHA256");
-			SecretKeySpec secretKeySpec = new SecretKeySpec(
-				secretKey.getBytes(StandardCharsets.UTF_8),
-				"HmacSHA256");
-			mac.init(secretKeySpec);
-
-			byte[] signatureBytes = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
-			String signature = HexFormat.of().formatHex(signatureBytes);
-
-			return String.format("CEA algorithm=HmacSHA256, access-key=%s, signed-date=%s, signature=%s",
-				accessKey, datetime, signature);
-
-		} catch (Exception e) {
-			throw new RuntimeException("Coupang signature generation failed", e);
-		}
+		return CoupangHmacUtil.generateSignatureUtc(method, url, accessKey, secretKey);
 	}
 
 	@Override

@@ -11,12 +11,14 @@ import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import com.sbshop.agent.core.domain.product.service.MarginCalculator;
 import com.sbshop.agent.core.domain.process.enums.JobType;
+import com.sbshop.agent.core.application.product.event.BatchCompletedEvent;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +33,7 @@ public class BatchPriceStockService {
 	private final ProductStockCrawlerPort productStockCrawlerPort;
 	private final ProcessStatusService processStatusService;
 	private final MarginCalculator marginCalculator;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Async
 	public void crawlAndUpdatePriceStock(String batchId, List<Long> productIds,
@@ -72,6 +75,7 @@ public class BatchPriceStockService {
 				processStatusService.markFailed(batchId, String.valueOf(productId), e.getMessage());
 			}
 		}
+		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId, true, "배치 완료"));
 	}
 
 	@Async
@@ -86,6 +90,16 @@ public class BatchPriceStockService {
 				BigDecimal price = i < prices.size() ? prices.get(i) : null;
 				Integer stock = i < stocks.size() ? stocks.get(i) : null;
 
+				BigDecimal oldPrice = product.getSalePrice();
+				Integer oldStock = product.getStock();
+				boolean priceChanged = price != null && !price.equals(oldPrice);
+				boolean stockChanged = stock != null && !stock.equals(oldStock);
+
+				if (!priceChanged && !stockChanged) {
+					processStatusService.markSuccess(batchId, product.getSbCode(), "변경사항 없음");
+					continue;
+				}
+
 				ProductUpdateCommand command = new ProductUpdateCommand(
 						null, null, null, null, null,
 						null, null, null, null, price,
@@ -97,12 +111,35 @@ public class BatchPriceStockService {
 				productWriter.save(product);
 
 				processStatusService.markSuccess(batchId, product.getSbCode(),
-						String.format("가격:%s, 재고:%d", price, stock));
+						String.format("가격:%s->%s, 재고:%d->%d", oldPrice, price, oldStock, stock));
 			} catch (Exception e) {
 				log.error("수동 업데이트 실패: productId={}", productIds.get(i), e);
 				processStatusService.markFailed(batchId, String.valueOf(productIds.get(i)), e.getMessage());
 			}
 		}
+		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId, true, "수동 배치 완료"));
+	}
+
+	@Async
+	public void manualUpdateAllFields(String batchId, List<Long> productIds,
+			List<com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand> commands) {
+		for (int i = 0; i < productIds.size(); i++) {
+			try {
+				Long productId = productIds.get(i);
+				Product product = productReader.findById(productId)
+						.orElseThrow(() -> new IllegalArgumentException("상품 없음: " + productId));
+
+				com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand command = commands.get(i);
+				product.update(command);
+				productWriter.save(product);
+
+				processStatusService.markSuccess(batchId, product.getSbCode(), "전체 필드 수정 완료");
+			} catch (Exception e) {
+				log.error("전체 필드 업데이트 실패: productId={}", productIds.get(i), e);
+				processStatusService.markFailed(batchId, String.valueOf(productIds.get(i)), e.getMessage());
+			}
+		}
+		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId, true, "전체 필드 배치 완료"));
 	}
 
 	public List<Long> getProductIdsByVendor(VendorType vendor) {

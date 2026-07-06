@@ -6,6 +6,9 @@ import com.sbshop.agent.api.dto.product.ProductListResponse;
 import com.sbshop.agent.api.dto.product.ProductUpdateRequest;
 import com.sbshop.agent.core.application.product.ProductManageUseCase;
 import com.sbshop.agent.core.application.product.ProductSearchUseCase;
+import com.sbshop.agent.core.domain.market.MarketRegistration;
+import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
+import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.client.dto.ImageUploadFile;
 import com.sbshop.agent.core.application.product.port.ProductInfoCrawlerPort;
@@ -15,7 +18,10 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.coobird.thumbnailator.Thumbnails;
@@ -47,13 +53,23 @@ public class ProductController {
 	private final ProductManageUseCase productManageUseCase;
 	private final ImageDownloadService imageDownloadService;
 	private final ProductInfoCrawlerPort productInfoCrawlerPort;
+	private final MarketRegistrationRepository marketRegistrationRepository;
 
 	@GetMapping
 	public ResponseEntity<Page<ProductListResponse>> getProducts(
 			@RequestParam(required = false) String keyword,
+			@RequestParam(required = false) String marketFilter,
 			@PageableDefault(size = 50) Pageable pageable) {
-		Page<Product> products = productSearchUseCase.searchProducts(keyword, pageable);
-		return ResponseEntity.ok(products.map(ProductListResponse::from));
+		Page<Product> products;
+		if (marketFilter != null && !marketFilter.isBlank()) {
+			boolean registered = !marketFilter.startsWith("!");
+			String marketName = registered ? marketFilter : marketFilter.substring(1);
+			MarketType marketType = MarketType.valueOf(marketName.toUpperCase());
+			products = productSearchUseCase.searchByMarket(marketType, registered, pageable);
+		} else {
+			products = productSearchUseCase.searchProducts(keyword, pageable);
+		}
+		return ResponseEntity.ok(products.map(this::toListResponse));
 	}
 
 	@GetMapping("/{id}")
@@ -114,6 +130,27 @@ public class ProductController {
 	public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
 		productManageUseCase.deleteProduct(id);
 		return ResponseEntity.ok().build();
+	}
+
+	private ProductListResponse toListResponse(Product p) {
+		Map<String, String> marketMap = getMarketMap(p.getId());
+		return ProductListResponse.from(p, marketMap);
+	}
+
+	private Map<String, String> getMarketMap(Long productId) {
+		List<MarketRegistration> registrations = marketRegistrationRepository.findByProductId(productId);
+		if (registrations.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		Map<String, String> marketMap = new HashMap<>();
+		for (MarketRegistration reg : registrations) {
+			String marketId = reg.extractVendorItemId();
+			if (marketId == null || marketId.isEmpty()) {
+				marketId = String.valueOf(reg.getProductId());
+			}
+			marketMap.put(reg.getMarketType().name(), marketId);
+		}
+		return marketMap;
 	}
 
 	private List<ImageUploadFile> prepareImageFiles(List<MultipartFile> images) {

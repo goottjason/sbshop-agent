@@ -6,6 +6,7 @@ import com.sbshop.agent.core.domain.product.enums.ProductCategory;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 public record ProductListResponse(
 		Long id,
@@ -21,7 +22,8 @@ public record ProductListResponse(
 		String repImageUrl,
 		List<String> hostedImages,
 		String sourcingUrl,
-		String memo) {
+		String memo,
+		Map<String, String> marketRegistrations) {
 
 	public static ProductListResponse from(Product p) {
 		return new ProductListResponse(
@@ -38,6 +40,26 @@ public record ProductListResponse(
 				p.getRepImageUrl(),
 				p.getHostedImages(),
 				p.getSourcingUrl(),
-				p.getMemo());
+				p.getMemo(),
+				null);
+	}
+
+	public static ProductListResponse from(Product p, Map<String, String> marketRegistrations) {
+		return new ProductListResponse(
+				p.getId(),
+				p.getSbCode(),
+				p.getBrand(),
+				p.getProductName(),
+				p.getBaseName(),
+				p.getOriginalName(),
+				p.getCategory(),
+				p.getVendor(),
+				p.getSalePrice(),
+				p.getStock(),
+				p.getRepImageUrl(),
+				p.getHostedImages(),
+				p.getSourcingUrl(),
+				p.getMemo(),
+				marketRegistrations);
 	}
 }
