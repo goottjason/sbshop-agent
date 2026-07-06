@@ -174,8 +174,8 @@ public class OrderSyncController {
 		log.info("ESM+ 로그인 테스트 요청 수신됨");
 
 		try {
-			String masterId = request.getOrDefault("masterId", "shouldbeshop");
-			String password = request.getOrDefault("password", "Mimi1570!!");
+			String masterId = request.getOrDefault("masterId", System.getenv().getOrDefault("ESMPLUS_USER_ID", ""));
+			String password = request.getOrDefault("password", System.getenv().getOrDefault("ESMPLUS_PASSWORD", ""));
 			String fromDate = request.getOrDefault("fromDate", "2024-06-01");
 			String toDate = request.getOrDefault("toDate", "2024-06-14");
 
@@ -198,8 +198,8 @@ public class OrderSyncController {
 		log.info("ESM+ 주문 스크래핑 테스트 요청 수신됨");
 
 		try {
-			String masterId = request.getOrDefault("masterId", "shouldbeshop");
-			String password = request.getOrDefault("password", "Mimi1570!!");
+			String masterId = request.getOrDefault("masterId", System.getenv().getOrDefault("ESMPLUS_USER_ID", ""));
+			String password = request.getOrDefault("password", System.getenv().getOrDefault("ESMPLUS_PASSWORD", ""));
 			String fromDate = request.getOrDefault("fromDate", "2024-06-01");
 			String toDate = request.getOrDefault("toDate", "2024-06-14");
 
