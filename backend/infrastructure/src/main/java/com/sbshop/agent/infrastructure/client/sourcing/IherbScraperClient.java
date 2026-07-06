@@ -3,8 +3,12 @@ package com.sbshop.agent.infrastructure.client.sourcing;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
+import com.sbshop.agent.core.application.product.port.ProductInfoCrawlerPort;
 import com.sbshop.agent.core.application.product.port.ProductStockCrawlerPort;
+import com.sbshop.agent.core.application.sourcing.dto.ScrapedProductDto;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
+import com.sbshop.agent.core.domain.product.enums.VendorType;
+import com.sbshop.agent.infrastructure.client.sourcing.dto.IherbProductInfo;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -13,6 +17,8 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +28,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class IherbScraperClient implements ProductStockCrawlerPort {
+public class IherbScraperClient implements ProductStockCrawlerPort, ProductInfoCrawlerPort {
 
 	private final HttpClient httpClient = HttpClient.newBuilder()
 		.connectTimeout(Duration.ofSeconds(10))
@@ -171,5 +177,159 @@ public class IherbScraperClient implements ProductStockCrawlerPort {
 		pattern = Pattern.compile("/pr/[^/]+/(\\d+)");
 		matcher = pattern.matcher(url);
 		return matcher.find() ? matcher.group(1) : null;
+	}
+
+	public IherbProductInfo crawlProductInfo(String url) {
+		String productId = extractProductId(url);
+		if (productId == null) {
+			log.error("아이허브 상품 ID 추출 실패. url={}", url);
+			return null;
+		}
+
+		String apiUrl = "https://catalog.app.iherb.com/product/" + productId;
+		for (int i = 0; i <= 3; i++) {
+			try {
+				HttpRequest request = HttpRequest.newBuilder()
+					.uri(URI.create(apiUrl))
+					.header("User-Agent",
+						"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+					.header("Accept", "application/json")
+					.header("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8")
+					.header("Referer", "https://www.iherb.com/")
+					.GET()
+					.build();
+
+				HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+				if (response.statusCode() == 200) {
+					return parseProductInfo(response.body(), url);
+				} else if (response.statusCode() == 403) {
+					log.warn("아이허브 403 차단. 재시도 중... ({}/3)", i + 1);
+					Thread.sleep(2000L * (i + 1));
+				}
+			} catch (Exception e) {
+				if (i == 3) log.error("아이허브 상품 정보 크롤링 실패: {}", url, e);
+			}
+		}
+		return null;
+	}
+
+	@Override
+	public ScrapedProductDto crawlProductInfoAsDto(String url) {
+		IherbProductInfo info = crawlProductInfo(url);
+		return info != null ? toScrapedDto(info) : null;
+	}
+
+	@Override
+	public List<ScrapedProductDto> crawlProducts(List<String> urls) {
+		List<ScrapedProductDto> results = new ArrayList<>();
+		for (String url : urls) {
+			try {
+				ScrapedProductDto dto = crawlProductInfoAsDto(url);
+				if (dto != null) {
+					results.add(dto);
+				}
+				Thread.sleep(500 + (long) (Math.random() * 500));
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				break;
+			} catch (Exception e) {
+				log.error("소싱 실패: {}", url, e);
+			}
+		}
+		return results;
+	}
+
+	private ScrapedProductDto toScrapedDto(IherbProductInfo info) {
+		return ScrapedProductDto.builder()
+				.sourceUrl(info.sourceUrl())
+				.baseName(info.productName())
+				.originalName(info.englishName())
+				.brand(info.brandName())
+				.costPrice(info.discountPrice() != null && info.discountPrice().compareTo(BigDecimal.ZERO) > 0
+						? info.discountPrice() : info.listPrice())
+				.listPrice(info.listPrice())
+				.discountPrice(info.discountPrice())
+				.discountType(info.discountType())
+				.couponRate(info.couponRate())
+				.salesDiscount(info.salesDiscount())
+				.isAvailable(info.isAvailable())
+				.sourceImages(info.imageLinks())
+				.rawSourceHtml(info.htmlDescription())
+				.rawCategory(info.categoryPath())
+				.capacity(info.capacity())
+				.unit(info.unit())
+				.vendor(VendorType.IHB)
+				.build();
+	}
+
+	private IherbProductInfo parseProductInfo(String body, String sourceUrl) {
+		try {
+			JsonNode root = objectMapper.readTree(body);
+
+			String productName = root.path("productName").asText("");
+			String brandName = root.path("brandName").asText("");
+			String englishName = root.path("englishName").asText(productName);
+
+			BigDecimal listPrice = BigDecimal.valueOf(root.path("listPriceAmount").asDouble(0));
+			BigDecimal discountPrice = BigDecimal.valueOf(root.path("discountPriceAmount").asDouble(0));
+			int discountType = root.path("discountType").asInt(0);
+			int couponRate = root.path("couponDiscountPercentage").asInt(0);
+			int salesDiscount = root.path("salesDiscountPercentage").asInt(0);
+
+			boolean isAvailable = root.path("isAvailableToPurchase").asBoolean(false);
+
+			List<String> imageLinks = new ArrayList<>();
+			JsonNode imagesNode = root.path("imageGroups");
+			if (imagesNode.isArray()) {
+				for (JsonNode imgGroup : imagesNode) {
+					JsonNode images = imgGroup.path("images");
+					if (images.isArray()) {
+						for (JsonNode img : images) {
+							String imgUrl = img.path("url").asText("");
+							if (!imgUrl.isEmpty()) {
+								if (!imgUrl.startsWith("http")) {
+									imgUrl = "https://s3.images-iherb.com" + imgUrl;
+								}
+								imageLinks.add(imgUrl);
+							}
+						}
+					}
+				}
+			}
+			if (imageLinks.isEmpty()) {
+				JsonNode mainImg = root.path("mainImage");
+				if (!mainImg.isMissingNode()) {
+					String imgUrl = mainImg.path("url").asText("");
+					if (!imgUrl.isEmpty()) {
+						if (!imgUrl.startsWith("http")) {
+							imgUrl = "https://s3.images-iherb.com" + imgUrl;
+						}
+						imageLinks.add(imgUrl);
+					}
+				}
+			}
+
+			String categoryPath = root.path("userCategoryPath").asText("");
+			String htmlDescription = root.path("htmlDescription").asText("");
+
+			BigDecimal capacity = BigDecimal.ZERO;
+			String unit = root.path("unit").asText("");
+			try {
+				String servingSize = root.path("servingSize").asText("");
+				if (!servingSize.isEmpty()) {
+					capacity = new BigDecimal(servingSize.replaceAll("[^0-9.]", ""));
+				}
+			} catch (Exception ignored) {
+			}
+
+			return new IherbProductInfo(
+					productName, englishName, brandName,
+					listPrice, discountPrice, discountType, couponRate, salesDiscount,
+					isAvailable, imageLinks, categoryPath, htmlDescription,
+					capacity, unit, sourceUrl);
+		} catch (Exception e) {
+			log.error("아이허브 상품 정보 파싱 실패", e);
+			return null;
+		}
 	}
 }

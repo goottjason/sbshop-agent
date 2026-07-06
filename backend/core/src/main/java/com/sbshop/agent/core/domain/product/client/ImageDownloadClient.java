@@ -8,4 +8,6 @@ public interface ImageDownloadClient {
 	List<ImageUploadFile> downloadAll(List<String> imageUrls);
 
 	Optional<ImageUploadFile> download(String imageUrl);
+
+	List<ImageUploadFile> downloadAndConvert(List<String> imageUrls);
 }

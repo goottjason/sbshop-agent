@@ -158,48 +158,43 @@
 
 ### MarketClient 포트 + 라우터 (core)
 
-- [ ] T4.1 `core/domain/market/client/MarketClient.java` — publish, syncPriceAndStock, syncImagesAndHtml, extractMarketItem, deleteMarketProduct, fetchAllMarketItemIds
-- [ ] T4.2 `core/domain/market/client/MarketClientRouter.java` — marketType → MarketClient 라우팅
-- [ ] T4.3 `core/domain/market/client/dto/MarketItemInfo.java` — 마켓 상품 정보 ACL DTO
-- [ ] T4.4 `core/domain/market/component/MarketRegistrationReader.java`, `MarketRegistrationWriter.java` — 인터페이스
+- [x] T4.1 `MarketClient.java` — publish, syncPriceAndStock, syncImagesAndHtml, extractMarketItem, parseLocalData
+- [x] T4.2 `MarketClientRouter.java` — marketType → MarketClient 라우팅 + hasClient
+- [x] T4.3 `MarketItemInfo.java` — 마켓 상품 정보 ACL DTO
+- [ ] T4.4 `MarketRegistrationReader/Writer` — Phase 3.19 MarketRegistration 엔드포인트와 함께 이연
 
 ### Cafe24MarketClient (infrastructure)
 
-- [ ] T4.5 `infrastructure/client/cafe24/adapter/Cafe24MarketClient.java` — MarketClient 구현 (buying-agent 포팅)
-- [ ] T4.6 `infrastructure/client/cafe24/client/Cafe24RestClient.java` — REST 클라이언트 (buying-agent 포팅)
-- [ ] T4.7 `infrastructure/client/cafe24/config/Cafe24Properties.java` — `@ConfigurationProperties("cafe24")` (mall-id, client-id, client-secret 등)
-- [ ] T4.8 `infrastructure/client/cafe24/mapper/Cafe24DataMapper.java`, `parser/Cafe24ProductParser.java` — 데이터 매핑/파싱
-- [ ] T4.9 `Cafe24MarketClient.syncImagesAndHtml` — 실구현 확인 (description PUT, 이미지 DELETE+POST, 외부 이미지 Base64)
-- [ ] T4.10 `Cafe24MarketClient.syncPriceAndStock` — commented out → 실구현 전환
-- [ ] T4.11 `Cafe24MarketClient.publish` — stub → 실구현 (purchase-agent `CafeApiService.registerProduct` 참고: FTP 업로드 + POST /admin/products)
-- [ ] T4.12 기존 `Cafe24TokenManager`와 통합 (sbshop-agent 기존 코드 재사용)
+- [x] T4.5 `Cafe24MarketClient.java` — MarketClient 구현 (buying-agent 포팅)
+- [x] T4.6 `Cafe24RestClient.java` — 기존 Cafe24TokenManager 재사용 (DB 기반 credential)
+- [ ] T4.7 Cafe24Properties — 기존 Cafe24TokenManager 사용으로 불필요 (DB 기반)
+- [ ] T4.8 Cafe24DataMapper, Cafe24ProductParser — Cafe24MarketClient에 인라인 처리
+- [x] T4.9 `Cafe24MarketClient.syncImagesAndHtml` — 실구현 (description PUT, 이미지 DELETE+POST Base64)
+- [x] T4.10 `Cafe24MarketClient.syncPriceAndStock` — 로컬 Map 패치 구현
+- [ ] T4.11 `Cafe24MarketClient.publish` — stub → Phase 5/8에서 실구현 (purchase-agent CafeApiService 참고)
+- [x] T4.12 기존 `Cafe24TokenManager` 통합 — getApiUrl() 추가
 
 ### CoupangMarketClient (infrastructure)
 
-- [ ] T4.13 `infrastructure/client/coupang/adapter/CoupangMarketClient.java` — MarketClient 구현 (buying-agent 포팅)
-- [ ] T4.14 `infrastructure/client/coupang/client/CoupangRestClient.java` — HMAC 서명 REST 클라이언트
-- [ ] T4.15 `infrastructure/client/coupang/component/CoupangCategoryPredictor.java` — 카테고리 예측 (whitelist 방어)
-- [ ] T4.16 `infrastructure/client/coupang/component/CoupangMetaService.java` — 카테고리 메타 조회 (@Cacheable Redis)
-- [ ] T4.17 `infrastructure/client/coupang/component/CoupangSearchTagGenerator.java` — SEO 태그 생성
-- [ ] T4.18 `infrastructure/client/coupang/config/CoupangProperties.java` — `@ConfigurationProperties("coupang")`
-- [ ] T4.19 `CoupangMarketClient.syncPriceAndStock` — commented out → 실구현 전환
-- [ ] T4.20 `CoupangMarketClient.syncImagesAndHtml` — 실구현 확인
-- [ ] T4.21 `CoupangMarketClient.publish` — 실구현 확인
-- [ ] T4.22 중복 HMAC 서명 코드 정리 — `CoupangOrderApiClient`(주문용)와 `CoupangRestClient`(상품용) 공통 유틸 추출
+- [x] T4.13 `CoupangMarketClient.java` — MarketClient 구현 (buying-agent 포팅)
+- [x] T4.14 `CoupangRestClient.java` — HMAC-SHA256 서명 REST 클라이언트
+- [ ] T4.15 CoupangCategoryPredictor — Phase 5에서 구현
+- [ ] T4.16 CoupangMetaService — Phase 5에서 구현
+- [ ] T4.17 CoupangSearchTagGenerator — Phase 5에서 구현
+- [x] T4.18 `CoupangProperties.java` — `@ConfigurationProperties("coupang")`
+- [x] T4.19 `CoupangMarketClient.syncPriceAndStock` — 로컬 Map 패치 구현
+- [x] T4.20 `CoupangMarketClient.syncImagesAndHtml` — 실구현 (PUT /marketplace/seller-products)
+- [ ] T4.21 `CoupangMarketClient.publish` — stub (Phase 5에서 실구현)
+- [ ] T4.22 중복 HMAC 서명 코드 정리 — Phase 8에서 기존 CoupangOrderApiClient와 통합
 
 ### Smartstore / Elevenst MarketClient (infrastructure)
 
-- [ ] T4.23 `infrastructure/client/smartstore/adapter/SmartstoreMarketClient.java` — MarketClient 구현 (purchase-agent `SmartstoreApiService` 참고 신규)
-- [ ] T4.24 `infrastructure/client/smartstore/client/SmartstoreRestClient.java` — OAuth2 + BCrypt 토큰 교환
-- [ ] T4.25 `SmartstoreMarketClient.publish`, `syncPriceAndStock` 구현
-- [ ] T4.26 `infrastructure/client/elevenst/adapter/ElevenstMarketClient.java` — MarketClient 구현 (purchase-agent `ElevenstApiService` 참고)
-- [ ] T4.27 `infrastructure/client/elevenst/client/ElevenstRestClient.java` — XML over REST
-- [ ] T4.28 `ElevenstMarketClient.publish`, `syncPriceAndStock` 구현
+- [ ] T4.23-T4.28 Smartstore/Elevenst MarketClient — 향후 구현 (현재 미지원 마켓 에러)
 
 ### 기존 MarketOrderPort와 관계 정리
 
-- [ ] T4.29 `MarketOrderPort`(주문용)와 `MarketClient`(상품용)가 `MarketCredential` 공유 확인
-- [ ] T4.30 마켓별 중복 HTTP 클라이언트/인증 코드 정리 (공통 모듈로 추출)
+- [x] T4.29 `MarketOrderPort`(주문용)와 `MarketClient`(상품용) 분리 확인 — 별개 포트로 공존
+- [ ] T4.30 중복 HTTP 클라이언트 정리 — Phase 8에서 통합
 
 ---
 
