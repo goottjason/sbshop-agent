@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Table, Settings } from 'lucide-react';
+import { LayoutDashboard, Table, Settings, Package, PlusCircle, RefreshCw, List } from 'lucide-react';
 
 const MainLayout = () => {
   const location = useLocation();
@@ -7,6 +7,10 @@ const MainLayout = () => {
   const navItems = [
     { name: '대시보드', path: '/', icon: LayoutDashboard },
     { name: '통합 주문 관리', path: '/orders', icon: Table },
+    { name: '상품 관리', path: '/products', icon: Package },
+    { name: '신규 상품 등록', path: '/register', icon: PlusCircle },
+    { name: '배치 업데이트', path: '/batch', icon: RefreshCw },
+    { name: '진행 현황', path: '/process-status', icon: List },
     { name: '설정 및 연동', path: '/settings', icon: Settings },
   ];
 
