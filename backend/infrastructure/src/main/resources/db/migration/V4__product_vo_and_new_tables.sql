@@ -1,9 +1,6 @@
--- after-migrate.sql: Postgres 컬럼 타입 조정 (앱 시작 시마다 실행, 멱등)
+-- V4: Product VO 구조 전환 및 신규 테이블 추가 (Postgres)
 
--- detail_html을 text 타입으로
-ALTER TABLE sb_product ALTER COLUMN detail_html TYPE text;
-
--- source_images / hosted_images를 jsonb로 변환 (기존 문자열이 JSON 배열이 아니면 빈 배열로)
+-- source_images / hosted_images를 jsonb로 변환
 ALTER TABLE sb_product ALTER COLUMN source_images TYPE jsonb USING
     CASE
         WHEN source_images IS NULL OR source_images = '' THEN '[]'::jsonb
@@ -18,13 +15,9 @@ ALTER TABLE sb_product ALTER COLUMN hosted_images TYPE jsonb USING
         ELSE '[]'::jsonb
     END;
 
--- market_specific_data 확장 (기존 유지)
-DO $$ BEGIN
-    ALTER TABLE sb_order ALTER COLUMN market_specific_data TYPE varchar(50000);
-EXCEPTION WHEN OTHERS THEN NULL;
-END $$;
+ALTER TABLE sb_product ALTER COLUMN detail_html TYPE text;
 
--- 신규 컬럼 추가 (이미 존재하면 스킵)
+-- 신규 컬럼
 ALTER TABLE sb_product ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(15,2);
 ALTER TABLE sb_product ADD COLUMN IF NOT EXISTS stock_status VARCHAR(30);
 ALTER TABLE sb_product ADD COLUMN IF NOT EXISTS restock_date DATE;

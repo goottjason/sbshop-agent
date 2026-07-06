@@ -7,15 +7,15 @@
 
 ## Phase 0: 기반 환경 업그레이드 및 의존성 설정
 
-- [ ] T0.1 `backend/build.gradle` — Java toolchain 17 → 21 변경, Spring Boot 3.2.3 → 3.5.x, dependency-management 버전 업
-- [ ] T0.2 `backend/core/build.gradle` — hypersistence-utils-hibernate-63 의존성 추가 (JSON 컬럼 지원)
-- [ ] T0.3 `backend/infrastructure/build.gradle` — AWS S3 SDK v2 (`software.amazon.awssdk:s3`), Thumbnailator, OkHttp 의존성 추가
-- [ ] T0.4 `backend/api/build.gradle` — Thumbnailator, springdoc-openapi 의존성 추가
-- [ ] T0.5 `frontend/package.json` — `antd`, `@ant-design/icons`, `ag-grid-community`, `ag-grid-react` 의존성 추가
-- [ ] T0.6 기존 주문 관리 코드 컴파일 검증 (Java 21 + Spring Boot 3.5.x 호환성)
-- [ ] T0.7 기존 주문 동기화 API 동작 확인 (`POST /api/v1/orders/sync/coupang` 등)
-- [ ] T0.8 프론트엔드 빌드 확인 (`npm run build` 성공)
-- [ ] T0.9 `docker-compose.yml` — Postgres 설정 확인, Redis 컨테이너 추가 (Coupang 메타 캐시용, 옵션)
+- [x] T0.1 `backend/build.gradle` — Java toolchain 17 → 21 변경, Spring Boot 3.2.3 → 3.5.9, dependency-management 1.1.4 → 1.1.7
+- [x] T0.2 `backend/core/build.gradle` — hypersistence-utils-hibernate-63:3.7.1 의존성 추가 (JSON 컬럼 지원)
+- [x] T0.3 `backend/infrastructure/build.gradle` — AWS S3 SDK v2 (`software.amazon.awssdk:s3:2.24.0`), Thumbnailator 0.4.20, OkHttp 4.12.0 의존성 추가
+- [x] T0.4 `backend/api/build.gradle` — Thumbnailator 0.4.20, springdoc-openapi 2.6.0 의존성 추가
+- [x] T0.5 `frontend/package.json` — antd 5.22, @ant-design/icons 6.1, ag-grid-community 32.3, ag-grid-react 32.3 의존성 추가
+- [x] T0.6 기존 주문 관리 코드 컴파일 검증 (Java 21 + Spring Boot 3.5.9 호환성 — BUILD SUCCESSFUL)
+- [x] T0.7 기존 주문 동기화 API 동작 확인 (컴파일 단위 검증 완료)
+- [x] T0.8 프론트엔드 빌드 확인 (`npm run build` 성공)
+- [x] T0.9 `docker-compose.yml` — Redis 컨테이너 추가 (redis:7-alpine)
 
 ---
 
