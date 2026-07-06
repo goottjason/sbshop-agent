@@ -47,6 +47,15 @@ coupang:
   access-key: ${COUPANG_ACCESS_KEY:}
   secret-key: ${COUPANG_SECRET_KEY:}
 
+smartstore:
+  client-id: ${SMARTSTORE_CLIENT_ID:}
+  client-secret: ${SMARTSTORE_CLIENT_SECRET:}
+  api-url: https://api.commerce.naver.com/external
+
+elevenst:
+  api-key: ${ELEVENST_CLIENT_ID:}
+  api-url: http://api.11st.co.kr
+
 sbshop:
   email:
     accounts:
