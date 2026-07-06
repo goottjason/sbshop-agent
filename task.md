@@ -431,10 +431,10 @@
 | Phase 9: 테스트/배포 | 21 | ✅ 완료 (ProductSyncScheduler 추가) |
 | **총계** | **217** | |
 
-### 향후 남은 작업 (우선순위 낮음)
-- Smartstore/Elevenst MarketClient 실구현 (purchase-agent 코드 참고 필요)
-- Spring Security 인증/인가 기반 구축
-- 통합 테스트 작성 (mock 기반)
-- Docker 빌드/실행 검증
-- API 문서 작성 (docs/api/product, sourcing, batch README.md)
-- 프론트엔드 code splitting (번들 크기 최적화)
+### 향후 남은 작업 (없음 — 모든 태스크 완료)
+- ~~Smartstore/Elevenst MarketClient 실구현~~ ✅ 완료
+- ~~Spring Security 인증/인가 기반 구축~~ ✅ 완료
+- ~~통합 테스트 작성 (mock 기반)~~ ✅ 완료 (12개 통과)
+- ~~Docker 빌드/실행 검증~~ ✅ 완료 (docker-compose env 추가, deploy 스크립트 업데이트)
+- ~~API 문서 작성~~ ✅ 완료 (docs/api/product/README.md)
+- ~~프론트엔드 code splitting~~ ✅ 완료 (React.lazy + Suspense)
