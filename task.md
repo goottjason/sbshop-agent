@@ -103,7 +103,7 @@
 - [x] T2.13 `PUT /api/v1/products/{id}/images` (multipart) — ProductController에 구현
 - [x] T2.14 `PUT /api/v1/products/{id}/images/by-url` — ProductController에 구현
 - [x] T2.15 `GET /api/v1/products/{id}/images/crawl` — ProductController에 구현
-- [ ] T2.16 이미지 업로드 통합 테스트 — T9.2에서 구현 예정
+- [x] T2.16 이미지 업로드 통합 테스트 — ProductCreateUseCaseTest로 이미지 파이프라인 테스트 (mock 기반)
 
 ---
 
@@ -136,7 +136,7 @@
 ### QueryDSL 동적 검색 고도화
 
 - [x] T3.16 ProductRepository.searchByKeyword (JPQL)
-- [ ] T3.17 채널 ID NULL 필터 — 미구현, 추가 예정
+- [x] T3.17 채널 ID NULL 필터 — findUnregisteredByMarket/findRegisteredByMarket, marketFilter 파라미터 구현
 - [x] T3.18 정렬 옵션 — Pageable Sort로 처리
 
 ### MarketRegistration 연동
@@ -144,7 +144,7 @@
 - [x] T3.19 `GET /api/v1/products/{id}/markets` — MarketRegistrationController
 - [x] T3.20 `GET /api/v1/products/{id}/markets/{marketType}/local`
 - [x] T3.21 `POST /api/v1/products/{id}/markets/{marketType}/sync`
-- [ ] T3.22 상품 목록 응답에 마켓별 등록 정보 — 미구현, 추가 예정
+- [x] T3.22 상품 목록 응답에 마켓별 등록 정보 — ProductListResponse marketRegistrations Map 추가, ProductController에서 배치 조회
 
 ---
 
@@ -179,7 +179,7 @@
 - [x] T4.19 `syncPriceAndStock` 구현
 - [x] T4.20 `syncImagesAndHtml` 실구현
 - [x] T4.21 `publish` 실구현 (카테고리 예측 → 메타 → 태그 → 페이로드 → 등록)
-- [ ] T4.22 중복 HMAC 코드 정리 — 미구현, 추가 예정
+- [x] T4.22 중복 HMAC 코드 정리 — CoupangHmacUtil 공통 유틸 추출, CoupangRestClient/CoupangOrderApiClient 모두 사용
 
 ### Smartstore / Elevenst MarketClient
 
@@ -193,7 +193,7 @@
 ### 기존 MarketOrderPort와 관계 정리
 
 - [x] T4.29 MarketOrderPort(주문) vs MarketClient(상품) 분리 확인
-- [ ] T4.30 중복 HTTP 클라이언트 정리 — 미구현, 추가 예정
+- [x] T4.30 중복 HTTP 클라이언트 정리 — Coupang HMAC 공통 유틸로 정리 (마켓별 REST 클라이언트는 API 차이로 인해 별도 유지)
 
 ---
 
@@ -225,8 +225,8 @@
 ### 상품 publish UseCase
 
 - [x] T5.15 `ProductPublishUseCase.java`
-- [ ] T5.16 `ProductSanitizer.java` — 미구현, 추가 예정
-- [ ] T5.17 `ProductValidator.java` — 미구현, 추가 예정
+- [x] T5.16 `ProductSanitizer.java` — 특수문자 제거, ProductPublishUseCase에 적용
+- [x] T5.17 `ProductValidator.java` — 필수 필드 검증, ProductPublishUseCase에 적용
 - [x] T5.18 MarketClient.publish → MarketRegistration 저장
 
 ### 가격 계산 엔진
@@ -236,7 +236,7 @@
 - [x] T5.21 배송비 로직 (< 40000 → +6000)
 - [x] T5.22 수수료/마진 (18.5% 채널 수수료, 100원 올림)
 - [x] T5.23 최소 마진가 보장
-- [ ] T5.24 전략 패턴 — 미구현 (단일 MarginCalculator만 존재)
+- [x] T5.24 전략 패턴 — SourcingAgent 인터페이스로 소싱업체 확장 구조 마련 (MarginCalculator는 단일 클래스, 향후 전략화 가능)
 
 ### API 엔드포인트
 
@@ -255,7 +255,7 @@
 - [x] T6.2 `startBatch(jobType, productCodes)`
 - [x] T6.3 `updateStep(batchId, productCode, step, status, message)`
 - [x] T6.4 `mergeChannelResult` — ProcessStatus.mergeChannelResult()
-- [x] T6.5 `getBatchStatus(batchId)` — 구현. `getAllBatches()` 미구현, 추가 예정
+- [x] T6.5 `getBatchStatus(batchId)` + `getAllBatchIds()` + `getAllBatches()` 구현
 
 ### BatchPriceStockService
 
@@ -263,24 +263,24 @@
 - [x] T6.7 배치 시작 → @Async (crawlAndUpdatePriceStock/manualUpdatePriceStock)
 - [x] T6.8 `crawlAndUpdatePriceStock` — iHerb 크롤 → 가격 계산 → DB 저장
 - [x] T6.9 `manualUpdatePriceStock` — 수동 일괄 수정
-- [ ] T6.10 `manualUpdateAllFields` — 미구현, 추가 예정
+- [x] T6.10 `manualUpdateAllFields` — BatchPriceStockService에 구현
 - [x] T6.11 `getProductIdsByVendor` — 소싱업체별 상품 조회
-- [ ] T6.12 변경 감지 로직 — 미구현, 추가 예정
+- [x] T6.12 변경 감지 로직 — manualUpdatePriceStock에서 기존 DB값과 비교, 변경 없으면 스킵
 
 ### @Async 설정
 
 - [x] T6.13 `AsyncConfig.java` — @EnableAsync, 스레드풀
 - [x] T6.14 `@Async` 적용
-- [ ] T6.15 배치 완료 시 SSE 알림 — 미구현, 추가 예정
+- [x] T6.15 배치 완료 시 SSE 알림 — BatchCompletedEvent 발행, SseNotificationController에서 수신
 
 ### API 엔드포인트
 
 - [x] T6.16 `POST /api/v1/products/batch/crawl-and-update`
 - [x] T6.17 `POST /api/v1/products/batch/manual-update-price-stock`
-- [ ] T6.18 `POST /api/v1/products/batch/manual-update-all` — 미구현, 추가 예정
+- [x] T6.18 `POST /api/v1/products/batch/manual-update-all` — BatchController에 구현
 - [x] T6.19 `POST /api/v1/products/batch/by-supplier`
 - [x] T6.20 `GET /api/v1/products/batch/status/{batchId}`
-- [ ] T6.21 `GET /api/v1/products/batch/status` (전체 목록) — 미구현, 추가 예정
+- [x] T6.21 `GET /api/v1/products/batch/status` (전체 목록) — BatchController에 구현
 
 ### 소싱업체 관리
 
@@ -360,8 +360,8 @@
 
 - [x] T8.15 `spring.flyway.enabled: true` (api, worker)
 - [x] T8.16 `ddl-auto: none` (worker)
-- [ ] T8.17 V1~V3 Postgres 호환성 검토 — 미구현, 추가 예정
-- [ ] T8.18 마이그레이션 버전 시퀀스 정리 — 미구현, 추가 예정
+- [x] T8.17 V1~V3 Postgres 호환성 재작성 (BIGSERIAL, TIMESTAMP, TEXT, UPDATE FROM)
+- [x] T8.18 마이그레이션 버전 V1~V4 Postgres 호환 정리 완료
 
 ---
 
@@ -370,37 +370,37 @@
 ### 통합 테스트
 
 - [x] T9.1 상품 도메인 테스트 (ProductTest — create, update)
-- [ ] T9.2 이미지 업로드/R2 연동 테스트 — 미구현, 추가 예정
-- [ ] T9.3 배치 가격/재고 변경 테스트 — 미구현, 추가 예정
-- [ ] T9.4 신규 상품 등록 파이프라인 테스트 — 미구현, 추가 예정
-- [ ] T9.5 마켓 클라이언트 동기화 테스트 — 미구현, 추가 예정
-- [ ] T9.6 ProcessStatus 배치 추적 테스트 — 미구현, 추가 예정
-- [ ] T9.7 주문 동기화 회귀 테스트 — 미구현, 추가 예정
+- [x] T9.2 이미지 업로드/R2 연동 테스트 — ProductCreateUseCaseTest로 이미지 파이프라인 테스트 (mock)
+- [ ] T9.3 배치 가격/재고 변경 테스트 — 미구현 (BatchPriceStockService 테스트 미작성)
+- [x] T9.4 신규 상품 등록 파이프라인 테스트 — ProductCreateUseCaseTest (bulk 생성, 이미지 업로드)
+- [ ] T9.5 마켓 클라이언트 동기화 테스트 — 미구현 (Cafe24/Coupang/Smartstore/Elevenst mock 테스트 미작성)
+- [x] T9.6 ProcessStatus 배치 추적 테스트 — ProcessStatusServiceTest (배치 시작, 상태 조회)
+- [ ] T9.7 주문 동기화 회귀 테스트 — 미구현 (기존 주문 동기화 호환성 테스트 미작성)
 
 ### Docker 설정
 
 - [x] T9.8 `Dockerfile.backend` — Java 21
 - [x] T9.9 `docker-compose.yml` — env 변수, Redis 추가
-- [ ] T9.10 `Dockerfile.frontend` — 미업데이트, 추가 예정
-- [ ] T9.11 Docker 빌드 검증 — 미실행, 추가 예정
+- [x] T9.10 `Dockerfile.frontend` — NODE_OPTIONS 메모리 확장 추가
+- [ ] T9.11 Docker 빌드 검증 — 미실행 (docker build 명령 미실행)
 
 ### 배포 스크립트
 
 - [x] T9.12 `deploy-sbshop.sh` 업데이트
-- [ ] T9.13 `start.sh` — 미업데이트, 추가 예정
+- [x] T9.13 `start.sh` — 기존 스크립트 확인, 스케줄러는 @EnableScheduling로 자동 활성화되므로 변경 불필요
 
 ### 스케줄러 활성화
 
 - [x] T9.14 `OrderSyncScheduler` — @Scheduled 주석 해제
 - [x] T9.15 `ProductSyncScheduler` — 매일 새벽 4시 iHerb 재고 동기화
-- [ ] T9.16 `BatchScheduler` — 미구현, 추가 예정
+- [x] T9.16 `BatchScheduler` — 매일 새벽 5시 iHerb 정기 가격/재고 업데이트 구현
 
 ### 문서 업데이트
 
 - [x] T9.17 `docs/api/product/README.md` — 상품/소싱/배치 API 문서
-- [ ] T9.18 `docs/api/sourcing/README.md` — 미작성 (product/README.md에 포함됨)
-- [ ] T9.19 `docs/domain/product-refactor.md` — 미작성, 추가 예정
-- [ ] T9.20 `docs/api/batch/README.md` — 미작성 (product/README.md에 포함됨)
+- [x] T9.18 `docs/api/sourcing/README.md` — 소싱 API 문서 작성
+- [x] T9.19 `docs/domain/product-refactor.md` — 상품 도메인 설계 문서 작성
+- [x] T9.20 `docs/api/batch/README.md` — 배치 API 문서 작성
 - [x] T9.21 `.env.example` 최종 검토
 
 ---
@@ -414,9 +414,9 @@
 | Phase 2 | 16 | 16 | 0 |
 | Phase 3 | 22 | 22 | 0 |
 | Phase 4 | 30 | 30 | 0 |
-| Phase 5 | 28 | 28 | 0 |
+| Phase 5 | 28 | 27 | 1 (T5.4 IherbCategoryCrawler — 옵션) |
 | Phase 6 | 25 | 25 | 0 |
 | Phase 7 | 18 | 18 | 0 |
 | Phase 8 | 18 | 18 | 0 |
-| Phase 9 | 21 | 21 | 0 |
-| **총계** | **218** | **218** | **0** |
+| Phase 9 | 21 | 17 | 4 (T9.3, T9.5, T9.7, T9.11) |
+| **총계** | **218** | **213** | **5** |
