@@ -9,6 +9,7 @@ import com.sbshop.agent.core.application.order.service.CustomsOrderSyncService;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -33,7 +34,7 @@ public class OrderSyncScheduler {
 	private final SyncStatusService syncStatusService;
 
 	// 매시 0분, 30분 - 이메일 IMAP 주문 수집
-	// @Scheduled(cron = "0 0/30 * * * ?") // TODO: 리팩토링 완료 후 활성화
+	@Scheduled(cron = "0 0/30 * * * ?") // TODO: 리팩토링 완료 후 활성화
 	public void syncOrders() {
 		log.info("IMAP 이메일 주문 동기화 시작...");
 		syncStatusService.markRunning(EMAIL);
@@ -48,7 +49,7 @@ public class OrderSyncScheduler {
 	}
 
 	// 매시 5분, 35분 - 쿠팡 주문 동기화
-	// @Scheduled(cron = "0 5/30 * * * ?") // TODO: 리팩토링 완료 후 활성화
+	@Scheduled(cron = "0 5/30 * * * ?") // TODO: 리팩토링 완료 후 활성화
 	public void syncCoupangOrders() {
 		log.info("쿠팡 주문 동기화 시작...");
 		syncStatusService.markRunning(COUPANG);
@@ -63,7 +64,7 @@ public class OrderSyncScheduler {
 	}
 
 	// 매시 10분, 40분 - ESM+(G마켓/옥션) 주문 동기화
-	// @Scheduled(cron = "0 10/30 * * * ?") // TODO: 리팩토링 완료 후 활성화
+	@Scheduled(cron = "0 10/30 * * * ?") // TODO: 리팩토링 완료 후 활성화
 	public void syncEsmplusOrders() {
 		log.info("ESM+(G마켓/옥션) 주문 동기화 시작...");
 		syncStatusService.markRunning(GMARKET);
@@ -78,7 +79,7 @@ public class OrderSyncScheduler {
 	}
 
 	// 매시 15분, 45분 - 스마트스토어 주문 동기화
-	// @Scheduled(cron = "0 15/30 * * * ?") // TODO: 리팩토링 완료 후 활성화
+	@Scheduled(cron = "0 15/30 * * * ?") // TODO: 리팩토링 완료 후 활성화
 	public void syncSmartStoreOrders() {
 		log.info("스마트스토어 주문 동기화 시작...");
 		syncStatusService.markRunning(SMART_STORE);
@@ -93,7 +94,7 @@ public class OrderSyncScheduler {
 	}
 
 	// 매시 20분, 50분 - 11번가 주문 동기화
-	// @Scheduled(cron = "0 20/30 * * * ?") // TODO: 리팩토링 완료 후 활성화
+	@Scheduled(cron = "0 20/30 * * * ?") // TODO: 리팩토링 완료 후 활성화
 	public void syncElevenstOrders() {
 		log.info("11번가 주문 동기화 시작...");
 		syncStatusService.markRunning(ELEVEN_STREET);
@@ -108,7 +109,7 @@ public class OrderSyncScheduler {
 	}
 
 	// 매일 새벽 2시 - 쿠팡 정산 데이터 동기화
-	// @Scheduled(cron = "0 0 2 * * ?") // TODO: 리팩토링 완료 후 활성화
+	@Scheduled(cron = "0 0 2 * * ?") // TODO: 리팩토링 완료 후 활성화
 	public void syncCoupangSettlement() {
 		log.info("쿠팡 정산 데이터 동기화 시작...");
 		syncStatusService.markRunning(COUPANG_SETTLEMENT);
@@ -123,7 +124,7 @@ public class OrderSyncScheduler {
 	}
 
 	// 매 시간 정각 - 통관 상태 동기화 (GSI Express 검증)
-	// @Scheduled(cron = "0 0 * * * ?")
+	@Scheduled(cron = "0 0 * * * ?")
 	public void syncCustomsStatus() {
 		log.info("통관 상태 동기화 시작...");
 		syncStatusService.markRunning(CUSTOMS);

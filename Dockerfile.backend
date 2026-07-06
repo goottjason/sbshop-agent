@@ -1,4 +1,4 @@
-FROM eclipse-temurin:17-jdk AS builder
+FROM eclipse-temurin:21-jdk AS builder
 WORKDIR /app
 
 # Gradle wrapper 먼저 복사
@@ -15,7 +15,7 @@ COPY backend/worker/ worker/
 
 RUN chmod +x gradlew && ./gradlew :api:bootJar :worker:bootJar --no-daemon -x test
 
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 
 # API JAR와 Worker JAR 모두 복사
