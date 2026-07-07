@@ -60,6 +60,7 @@ public class CoupangOrderSyncService {
 			return;
 		}
 
+		boolean success = false;
 		try {
 			// 2. 크레덴셜 로드
 			MarketCredential credential = loadAndValidateCredential();
@@ -72,14 +73,17 @@ public class CoupangOrderSyncService {
 			postSyncProcess(orders);
 
 			log.info("[COUPANG] 주문 동기화 완료: {}건 처리", orders.size());
+			success = true;
 		} catch (Exception e) {
 			log.error("[COUPANG] 주문 동기화 실패: {}", e.getMessage(), e);
 			eventPublisher.publishEvent(
 				new SyncCompletedEvent(this, MarketType.COUPANG, false, e.getMessage()));
 		} finally {
-			// 6. 락 해제 + SSE 알림
+			// 6. 락 해제 + SSE 알림 (성공 시에만 SYNC_COMPLETED 발행 — 실패 시 catch의 SYNC_FAILED 유지)
 			isSyncing.set(false);
-			eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.COUPANG));
+			if (success) {
+				eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.COUPANG));
+			}
 		}
 	}
 

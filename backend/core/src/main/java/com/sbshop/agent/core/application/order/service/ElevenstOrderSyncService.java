@@ -49,6 +49,7 @@ public class ElevenstOrderSyncService {
 			return;
 		}
 
+		boolean success = false;
 		try {
 			MarketCredential credential = loadAndValidateCredential();
 			List<MarketOrderDto> orders = elevenstOrderAdapter.fetchOrders(
@@ -58,13 +59,16 @@ public class ElevenstOrderSyncService {
 			postSyncProcess(orders);
 
 			log.info("[ELEVEN_STREET] 주문 동기화 완료: {}건 처리", orders.size());
+			success = true;
 		} catch (Exception e) {
 			log.error("[ELEVEN_STREET] 주문 동기화 실패: {}", e.getMessage(), e);
 			eventPublisher.publishEvent(
 				new SyncCompletedEvent(this, MarketType.ELEVEN_STREET, false, e.getMessage()));
 		} finally {
 			isSyncing.set(false);
-			eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.ELEVEN_STREET));
+			if (success) {
+				eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.ELEVEN_STREET));
+			}
 		}
 	}
 

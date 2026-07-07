@@ -49,6 +49,7 @@ public class SmartStoreOrderSyncService {
 			return;
 		}
 
+		boolean success = false;
 		try {
 			MarketCredential credential = loadAndValidateCredential();
 			List<MarketOrderDto> orders = smartStoreOrderAdapter.fetchOrders(
@@ -58,13 +59,16 @@ public class SmartStoreOrderSyncService {
 			postSyncProcess(orders);
 
 			log.info("[SMART_STORE] 주문 동기화 완료: {}건 처리", orders.size());
+			success = true;
 		} catch (Exception e) {
 			log.error("[SMART_STORE] 주문 동기화 실패: {}", e.getMessage(), e);
 			eventPublisher.publishEvent(
 				new SyncCompletedEvent(this, MarketType.SMART_STORE, false, e.getMessage()));
 		} finally {
 			isSyncing.set(false);
-			eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.SMART_STORE));
+			if (success) {
+				eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.SMART_STORE));
+			}
 		}
 	}
 

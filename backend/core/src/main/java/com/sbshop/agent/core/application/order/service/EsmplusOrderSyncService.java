@@ -49,6 +49,7 @@ public class EsmplusOrderSyncService {
 			return;
 		}
 
+		boolean success = false;
 		try {
 			MarketCredential credential = loadAndValidateCredential();
 			List<MarketOrderDto> orders = esmplusOrderAdapter.fetchOrders(
@@ -58,13 +59,16 @@ public class EsmplusOrderSyncService {
 			postSyncProcess(orders);
 
 			log.info("[ESMPLUS] 주문 동기화 완료: {}건 처리", orders.size());
+			success = true;
 		} catch (Exception e) {
 			log.error("[ESMPLUS] 주문 동기화 실패: {}", e.getMessage(), e);
 			eventPublisher.publishEvent(
 				new SyncCompletedEvent(this, MarketType.GMARKET, false, e.getMessage()));
 		} finally {
 			isSyncing.set(false);
-			eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.GMARKET));
+			if (success) {
+				eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.GMARKET));
+			}
 		}
 	}
 
