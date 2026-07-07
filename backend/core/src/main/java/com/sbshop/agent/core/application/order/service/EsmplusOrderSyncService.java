@@ -7,6 +7,7 @@ import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.application.order.adapter.EsmplusOrderAdapter;
@@ -92,6 +93,11 @@ public class EsmplusOrderSyncService {
 					existingOrder.get().getId(), dto.getMarketOrderNo());
 				updateExistingOrder(existingOrder.get(), dto);
 			} else {
+				if (dto.getStatus() == ShippingStatus.CANCELED || dto.getStatus() == ShippingStatus.EXCHANGED) {
+					log.info("[ESMPLUS] 미동기화 취소/교환 주문 - 신규 생성 건너뜀: orderNo={}, status={}",
+						dto.getMarketOrderNo(), dto.getStatus());
+					continue;
+				}
 				log.info("[ESMPLUS] 최소 데이터 주문 - 상세 조회 시도: orderNo={}", dto.getMarketOrderNo());
 				MarketOrderDto fullDto = esmplusOrderAdapter.fetchOrderDetail(credential, dto);
 				if (fullDto != null) {
