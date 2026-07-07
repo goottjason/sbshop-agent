@@ -23,7 +23,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
-import jakarta.persistence.Lob;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -80,7 +79,8 @@ public class Product extends BaseEntity {
 	@Column(name = "search_keywords", length = 500)
 	private String searchKeywords;
 
-	@Lob
+	// @Lob 금지: PostgreSQL에서 @Lob String은 Large Object(OID)로 매핑돼 text 컬럼을
+	// getLong()으로 읽다 "Bad value for type long"으로 조회 전체가 깨진다 (D-021, 운영 실측).
 	@Column(name = "detail_html", columnDefinition = "text")
 	private String detailHtml;
 
