@@ -28,12 +28,12 @@ TDD 규율(Red→Green→Refactor, Tidy First)의 일반 원칙은 `.claude/skil
 | 빈 등록/설정 오류 | `@SpringBootTest` 컨텍스트 로드 테스트 또는 `ApplicationContext.getBean()` 검증 테스트 |
 | 중복 클래스 통합 (구조 변경) | 전후 테스트 전체 통과로 동작 불변 증명. 통합 전 양쪽 구현 차이를 원장에 기록했는지 확인 |
 | 스케줄러 재활성화 | 스케줄 메서드가 호출하는 서비스의 단위/통합 테스트 Green 확보 **후** 활성화. 활성화 자체는 중대 등급 — 오케스트레이터 승인 필요 |
-| 스키마/마이그레이션 | H2 대신 실제 PostgreSQL 계열 검증 필요 시 testcontainers 도입은 리더 승인 후 (신규 의존성) |
+| 스키마 변경 | **Flyway 없음** (2026-07-07 사용자 결정 — 운영 DB 수동 관리). 엔티티 변경이 스키마를 요구하면 대응 DDL을 fix.md에 명시하고 사용자 수동 적용 안내. 실 PostgreSQL 검증은 testcontainers(도입됨) + 테스트 한정 ddl-auto=create-drop |
 | 프론트 결함 | 테스트 러너 부재 — `npx tsc --noEmit -p tsconfig.app.json` + `npm run build` + 수동 검증 절차 명시. 루트 tsconfig는 references-only(`files: []`)라 `-p` 없는 tsc는 아무것도 검사 안 하는 헛-그린이다. vitest 도입은 개선 후보로 원장에 기록 |
 
 ## 이 프로젝트의 함정
 
-- **H2 ≠ PostgreSQL**: 테스트는 H2로 돌지만 운영은 PostgreSQL + JSONB(`after-migrate.sql`). JSONB·PL/pgSQL 의존 로직은 H2 통과가 동작 보증이 아님을 판정서에 남겨라.
+- **H2 ≠ PostgreSQL**: 운영은 PostgreSQL + JSONB. JSONB 의존 로직은 H2 통과가 동작 보증이 아님 — 실 검증은 testcontainers PostgreSQL(api 모듈에 도입됨) 사용.
 - **task.md 체크를 믿지 마라**: "완료" 표시는 테스트 근거가 없다. 결함 수정 중 관련 기능을 건드리면 그 기능의 테스트부터 확보하라.
 - **마켓 API 클라이언트는 mock으로**: Coupang/SmartStore/11st/ESM+/Cafe24 실 API 호출 테스트 금지 (자격증명·rate limit·부작용). MockWebServer 또는 인터페이스 mock 사용.
 - **`.env`·자격증명 파일 접근 금지**: 테스트에 실 자격증명을 넣지 않는다.

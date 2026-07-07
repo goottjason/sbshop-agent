@@ -20,7 +20,7 @@ description: "sbshop-agent 통합 정합성 검증 방법론. 수정 검증, QA,
 |--------|-------------|---------------|------|
 | API ↔ 프론트 | `backend/api/.../dto/` 응답 DTO 필드 | `frontend/src/api/*.ts` 타입·unwrap 로직 | 필드명(카멜/스네이크), 래핑(`PageResponse<T>`의 `content`), null 처리 |
 | 스케줄러 ↔ 서비스 | `worker/.../scheduler/*.java` 활성 여부 | core 동기화 서비스 | 비활성 스케줄이 "동작하는 기능"으로 오인되지 않는가 |
-| Flyway ↔ 엔티티 | `infrastructure/.../db/migration/*.sql` + `api/.../after-migrate.sql` | `core/.../domain/` `@Entity`·`@Embeddable` | 컬럼명·타입·NOT NULL 일치. after-migrate가 만든 컬럼이 엔티티에 있는가 |
+| DB 스키마 ↔ 엔티티 | 운영 DB 스키마 (**수동 관리** — 2026-07-07 사용자 결정으로 Flyway 제거, 코드에 스키마 원본 없음) | `core/.../domain/` `@Entity`·`@Embeddable` | 엔티티 변경 시 운영 DB에 대응 DDL을 사용자가 수동 적용해야 함을 판정서에 명시. 드리프트는 코드가 탐지 못 함 |
 | 포트 ↔ 어댑터 | core의 port 인터페이스 | infrastructure 구현체 | 구현이 정확히 1벌인가 (중복 구현이 빈 충돌을 일으키지 않는가) |
 | 설정 ↔ 빈 | `@Configuration` 클래스 | 주입 지점 (`@Qualifier`, executor 이름) | `@Bean` 누락, 모듈 간 중복 정의, 이름 충돌 |
 | 프론트 라우트 ↔ 링크 | `App.tsx` 라우트 정의 | `MainLayout.tsx` nav·페이지 내 이동 | base path `/sbshop-agent` 포함 여부 일관성 |

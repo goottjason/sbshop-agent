@@ -19,3 +19,4 @@
 | 2026-07-07 | 무응답 팀원 재스폰 가드 추가 | skills/sbshop-normalize | 사이클 2 중복 fixer 스폰 사고 |
 | 2026-07-07 | 검증 요청 후 트리 동결 규율 추가 | agents/tdd-fixer.md | 사이클 4 mid-edit 검증 오염 사건 |
 | 2026-07-07 | 프론트 타입 게이트 교정 (tsc -p tsconfig.app.json) | skills 3개 | 루트 tsconfig references-only → -p 없는 tsc는 헛-그린 |
+| 2026-07-07 | 스키마 수동 관리 체제 반영 (Flyway 제거) | skills 3개 | 사용자 결정 — 운영 DB가 스키마 단일 원본, 엔티티 변경 시 수동 DDL |

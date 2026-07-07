@@ -14,16 +14,16 @@ description: "sbshop-agent 결함 진단·원장 기록 방법론. 버그 찾기
 3. **정적 대조 (경계면)**: `integration-qa` 스킬의 교차 비교 체크리스트를 진단 모드로 적용 — API 응답 DTO ↔ 프론트 타입, 스케줄러 활성 여부 ↔ 기대 동작, Flyway 스키마 ↔ 엔티티.
 4. **알려진 패턴 재확인**: 아래 "이 프로젝트의 알려진 결함 패턴" 목록의 현재 상태 점검.
 
-## 이 프로젝트의 알려진 결함 패턴 (2026-07 초기 탐사 기준)
+## 이 프로젝트의 알려진 결함 패턴
 
-레거시 병합의 전형적 후유증. 진단 시 이 패턴들의 잔존·재발 여부를 우선 확인하라:
+레거시 병합의 전형적 후유증 유형. **개별 사례의 현재 상태는 원장(`docs/normalize/defect-ledger.md`)이 정본**이다 — 2026-07 초기 탐사분(빈 충돌·중복 구현·after-migrate 등 D-001~D-014)은 사이클 1~7에서 대부분 해소됐으므로, 진단 시 아래 **유형**의 신규 사례와 해소분의 재발(회귀)을 확인하라:
 
-- **비활성 기능**: `backend/worker/.../scheduler/OrderSyncScheduler.java`의 스케줄 6개가 전부 `// TODO: 리팩토링 완료 후 활성화` — 주문 동기화가 실제로 안 돌고 있음.
-- **등록 안 되는 빈**: `backend/api/.../config/AsyncConfig.java`의 `productBatchExecutor()`에 `@Bean` 누락. core 모듈 `AsyncConfig`와 중복 정의이기도 함.
-- **중복 구현**: `ElevenstRestClient` 2벌(`elevenst/` vs `elevenst/client/`), 이미지 다운로더 3벌, 마켓별 adapter/client 패키지 구조 불일치.
-- **스키마 우회로**: `backend/api/src/main/resources/after-migrate.sql` — Flyway 밖에서 스키마를 고치는 idempotent 스크립트. 엔티티와의 정합 확인 필요.
-- **미검증 완료 선언**: `task.md`의 체크는 구현 완료 표시일 뿐, 통합 테스트(T9.3/T9.5/T9.7/T9.11)가 없어 동작 보증이 아님.
-- **프론트 미사용 함수**: `frontend/src/api/orderApi.ts`의 `purchaseItem`/`shipItem`/`updateTracking` 등 — 호출 누락인지 의도적인지 판별 필요.
+- **빈 등록/충돌**: `@Bean` 누락, 동일 빈 이름 중복 (core↔api 모듈 간 특히)
+- **중복 구현**: 같은 개념의 복수 클래스, 마켓별 adapter/client 패키지 구조 불일치
+- **경계면 계약 불일치**: 프론트↔백엔드 필드명·enum 값·엔드포인트 소속 (D-017/D-018 유형)
+- **스키마 드리프트**: Flyway 제거(2026-07-07) 후 엔티티↔운영 DB 정합은 코드가 보증하지 않음 — 엔티티 변경 이력과 운영 DB 상태 대조 필요
+- **미검증 완료 선언**: `task.md` 체크는 테스트 근거 없음
+- **헛-그린 게이트**: 검사 대상이 0인 검증 커맨드 (예: `-p` 없는 tsc)
 
 ## 결함 레코드 스키마 (원장: `docs/normalize/defect-ledger.md`)
 
