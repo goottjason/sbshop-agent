@@ -23,7 +23,13 @@ const BatchUpdatePage = () => {
           values.couponRate,
           values.minMarginPrice
         );
-        message.success(`배치 시작: ${res.data.count}개 상품 (batchId: ${res.data.batchId})`);
+        // D-038: 대상 상품이 없으면 백엔드는 {message}만 반환(batchId·count 없음) → undefined 방지 분기
+        const data = res.data as { batchId?: string; count?: string; message?: string };
+        if (data.batchId) {
+          message.success(`배치 시작: ${data.count}개 상품 (batchId: ${data.batchId})`);
+        } else {
+          message.info(data.message || '해당 소싱업체의 상품이 없습니다.');
+        }
       } else {
         const ids = (values.productIds || '').split(',').map((s) => parseInt(s.trim())).filter((n) => !isNaN(n));
         if (ids.length === 0) {
