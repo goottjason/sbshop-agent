@@ -664,19 +664,20 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 			MarketType detectedMarketType = siteId == 1 ? MarketType.AUCTION : MarketType.GMARKET;
 			log.info("[ESM+] 주문 {}: siteId={}, marketType={}", siteOrderNo, siteId, detectedMarketType);
 
+			// D-032: 미인식 코드(UNKNOWN)일 때만 문자열 폴백 적용
+			// (기존 `status==NEW && code!=1010`은 논리 모순 DEAD CODE였음)
 			ShippingStatus status = statusMapper.mapStatus(deliveryStatusCode);
-			if (status == ShippingStatus.NEW && deliveryStatusCode != 1010) {
+			if (status == ShippingStatus.UNKNOWN) {
 				ShippingStatus fallback = statusMapper.mapStatus(deliveryStatus);
-				if (fallback != ShippingStatus.NEW) {
-					log.info("[ESM+] 주문 {}: deliveryStatusCode={} → NEW, 문자열 '{}' → {}",
+				if (fallback != ShippingStatus.UNKNOWN) {
+					log.info("[ESM+] 주문 {}: deliveryStatusCode={} 미인식, 문자열 '{}' → {}",
 						siteOrderNo, deliveryStatusCode, deliveryStatus, fallback);
 					status = fallback;
 				}
 			}
 
-			if (status == ShippingStatus.CANCELED || status == ShippingStatus.EXCHANGED) {
-				return null;
-			}
+			// D-029: 취소/교환 주문을 null로 필터링하지 않는다 — 정상 처리 경로로 흘려보내
+			// 기존 DB 주문의 상태를 취소/교환으로 갱신하게 한다.
 
 			return MarketOrderDto.builder()
 				.marketType(detectedMarketType)

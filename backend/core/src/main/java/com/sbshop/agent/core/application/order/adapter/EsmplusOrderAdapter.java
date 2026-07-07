@@ -170,20 +170,19 @@ public class EsmplusOrderAdapter implements MarketOrderPort {
 			// 주문일 파싱
 			LocalDateTime orderDate = parseDateTime(depositDate);
 
-			// 상태 매핑
+			// 상태 매핑 — D-032: 미인식 코드(UNKNOWN)일 때만 문자열 폴백 적용
+			// (기존 `status==NEW && code!=1010`은 논리 모순 DEAD CODE였음)
 			ShippingStatus status = statusMapper.mapStatus(deliveryStatusCode);
-			if (status == ShippingStatus.NEW && deliveryStatusCode != 1010) {
+			if (status == ShippingStatus.UNKNOWN) {
 				ShippingStatus fallback = statusMapper.mapStatus(deliveryStatus);
-				if (fallback != ShippingStatus.NEW) {
+				if (fallback != ShippingStatus.UNKNOWN) {
 					status = fallback;
 				}
 			}
 
-			// 배송 상태가 취소/교환이면 스킵 (반품은 포함)
-			if (status == ShippingStatus.CANCELED || status == ShippingStatus.EXCHANGED) {
-				log.debug("[ESM+] 주문 {} 상태 {} 스킵", orderNo, deliveryStatus);
-				return null;
-			}
+			// D-029: 취소/교환 주문을 null로 필터링하지 않는다 — 정상 처리 경로로 흘려보내
+			// 기존 DB 주문의 상태를 취소/교환으로 갱신하게 한다. ESM+ 통합주문목록은 상태 필터 없이
+			// 취소/교환 주문을 in-band로 반환하므로 별도 취소 감지 없이 갱신이 성립한다.
 
 			// siteId가 2(G마켓)인 주문만 처리 (옥션은 siteId=1)
 			MarketType marketType = mapSiteIdToMarketType(siteId);
