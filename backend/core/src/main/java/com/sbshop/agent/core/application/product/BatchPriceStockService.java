@@ -35,7 +35,7 @@ public class BatchPriceStockService {
 	private final MarginCalculator marginCalculator;
 	private final ApplicationEventPublisher eventPublisher;
 
-	@Async
+	@Async("productBatchExecutor")
 	public void crawlAndUpdatePriceStock(String batchId, List<Long> productIds,
 			BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice) {
 		for (Long productId : productIds) {
@@ -78,7 +78,7 @@ public class BatchPriceStockService {
 		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId, true, "배치 완료"));
 	}
 
-	@Async
+	@Async("productBatchExecutor")
 	public void manualUpdatePriceStock(String batchId, List<Long> productIds,
 			List<BigDecimal> prices, List<Integer> stocks) {
 		for (int i = 0; i < productIds.size(); i++) {
@@ -120,7 +120,7 @@ public class BatchPriceStockService {
 		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId, true, "수동 배치 완료"));
 	}
 
-	@Async
+	@Async("productBatchExecutor")
 	public void manualUpdateAllFields(String batchId, List<Long> productIds,
 			List<com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand> commands) {
 		for (int i = 0; i < productIds.size(); i++) {
