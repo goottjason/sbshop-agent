@@ -55,7 +55,7 @@ core  ←  infrastructure  ←  api
 | 패키지 | 역할 | 핵심 클래스 |
 |--------|------|-------------|
 | `infrastructure.client.coupang` | 쿠팡 주문/상품 | `CoupangOrderApiClient`, `CoupangRestClient`, `CoupangMarketClient` |
-| `infrastructure.client.elevenst` | 11번가 | `ElevenstOrderApiClient`, `ElevenstRestClient`(2벌 — 중복 섹션 참조) |
+| `infrastructure.client.elevenst` | 11번가 | `ElevenstOrderApiClient`, `ElevenstOrderRestClient`(주문 API), `ElevenstMarketRestClient`(상품 API) — D-010 리네임으로 단순명 중복 해소 |
 | `infrastructure.client.esmplus` | ESM+(G마켓/옥션) | `EsmplusOrderApiPortImpl`, `EsmplusScraper` |
 | `infrastructure.client.smartstore` | 스마트스토어 | `SmartStoreOrderApiClient`, `SmartstoreRestClient`, `SmartstoreMarketClient` |
 | `infrastructure.client.cafe24` | 카페24 | `Cafe24TokenManager`, `Cafe24RestClient`, `Cafe24MarketClient` |
@@ -116,6 +116,8 @@ frontend/src/
 
 **통합 권고**: A를 `ElevenstOrderApiRestClient`, B를 `ElevenstProductRestClient`로 이름을 구분하고 `@Bean` 이름을 명시하거나, B를 A 위에 추상화하여 단일 HTTP 클라이언트로 통합 후 호출 측에서 XML 파싱을 담당한다.
 
+**해소(2026-07-07, D-010)**: A→`ElevenstOrderRestClient`(elevenst), B→`ElevenstMarketRestClient`(elevenst.client)로 리네임. 단순명 중복 제거로 D-001 빈 충돌의 근본 원인 해소. 두 클래스는 반환 타입·용도가 다른 분기 복제로 판정돼 물리적 통합은 하지 않고 이름·주입만 정합화(동작 불변). D-1 항목은 해소됨.
+
 ---
 
 ### D-2. AsyncConfig 2벌 (분기된 복제 — 한쪽 비기능)
@@ -167,6 +169,8 @@ frontend/src/
 **판정**: 단순 복제 아님 — II는 인터페이스를 통한 도메인 포트 구현, III는 컨트롤러 레이어가 인터페이스를 우회해 직접 사용하는 구현체. 동일한 `downloadAndConvert` 로직이 양쪽에 중복 존재하며 HTTP 클라이언트가 서로 다름(RestTemplate vs OkHttp).
 
 **통합 권고**: III를 `ImageDownloadClient`를 구현하도록 변경하거나 II에 통합. `ProductController`가 인터페이스(I)를 통해 주입받도록 수정하면 HTTP 클라이언트를 한 곳에서 선택할 수 있다.
+
+**해소(2026-07-07, D-004)**: III(`ImageDownloadService`, OkHttp+User-Agent — Cloudflare 우회)가 `ImageDownloadClient`(I)를 구현하도록 변경, `ProductController`는 인터페이스로 주입(계층 위반 해소), 잉여 II(`ImageDownloader`, RestTemplate) 삭제. 두 소비처 모두 `downloadAndConvert`만 사용해 단일 OkHttp 구현으로 통합(동작 계약 불변, ProductCreateUseCase 경로는 RestTemplate→OkHttp+UA로 견고성만 상승). `image` 패키지 비게 됨. D-3 항목은 해소됨.
 
 ---
 
