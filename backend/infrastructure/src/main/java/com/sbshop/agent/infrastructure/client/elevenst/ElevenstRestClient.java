@@ -19,7 +19,7 @@ import org.xml.sax.InputSource;
  * XML/EUC-KR 응답 처리 포함
  */
 @Slf4j
-@Component
+@Component("elevenstOrderRestClient")
 public class ElevenstRestClient {
 
 	private static final String DOMAIN = "https://api.11st.co.kr";
