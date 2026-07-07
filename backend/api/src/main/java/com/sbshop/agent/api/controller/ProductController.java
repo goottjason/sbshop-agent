@@ -10,10 +10,10 @@ import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
+import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
 import com.sbshop.agent.core.domain.product.client.dto.ImageUploadFile;
 import com.sbshop.agent.core.application.product.port.ProductInfoCrawlerPort;
 import com.sbshop.agent.core.application.sourcing.dto.ScrapedProductDto;
-import com.sbshop.agent.infrastructure.client.cloudflare.ImageDownloadService;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -51,7 +51,7 @@ public class ProductController {
 
 	private final ProductSearchUseCase productSearchUseCase;
 	private final ProductManageUseCase productManageUseCase;
-	private final ImageDownloadService imageDownloadService;
+	private final ImageDownloadClient imageDownloadClient;
 	private final ProductInfoCrawlerPort productInfoCrawlerPort;
 	private final MarketRegistrationRepository marketRegistrationRepository;
 
@@ -99,7 +99,7 @@ public class ProductController {
 	public ResponseEntity<Void> uploadImagesByUrl(
 			@PathVariable Long id,
 			@RequestBody List<String> imageUrls) {
-		List<ImageUploadFile> downloadFiles = imageDownloadService.downloadAndConvert(imageUrls);
+		List<ImageUploadFile> downloadFiles = imageDownloadClient.downloadAndConvert(imageUrls);
 		productManageUseCase.updateImagesAndHtml(id, downloadFiles);
 		return ResponseEntity.ok().build();
 	}

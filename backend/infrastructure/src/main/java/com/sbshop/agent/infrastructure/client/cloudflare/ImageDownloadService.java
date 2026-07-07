@@ -1,11 +1,13 @@
 package com.sbshop.agent.infrastructure.client.cloudflare;
 
+import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
 import com.sbshop.agent.core.domain.product.client.dto.ImageUploadFile;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import net.coobird.thumbnailator.Thumbnails;
 import okhttp3.OkHttpClient;
@@ -13,12 +15,17 @@ import okhttp3.Request;
 import okhttp3.Response;
 import org.springframework.stereotype.Component;
 
+/**
+ * {@link ImageDownloadClient}의 단일 구현체. 크롤링 대상 사이트의 Cloudflare 봇 차단을 우회해야 하므로
+ * 브라우저 User-Agent 헤더를 실어 OkHttp로 이미지를 내려받는다.
+ */
 @Slf4j
 @Component
-public class ImageDownloadService {
+public class ImageDownloadService implements ImageDownloadClient {
 
 	private final OkHttpClient httpClient = new OkHttpClient();
 
+	@Override
 	public List<ImageUploadFile> downloadAndConvert(List<String> imageUrls) {
 		List<ImageUploadFile> results = new ArrayList<>();
 
@@ -57,6 +64,30 @@ public class ImageDownloadService {
 		return results;
 	}
 
+	@Override
+	public List<ImageUploadFile> downloadAll(List<String> imageUrls) {
+		return imageUrls.stream()
+				.filter(url -> url != null && !url.isBlank())
+				.map(this::download)
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.toList();
+	}
+
+	@Override
+	public Optional<ImageUploadFile> download(String imageUrl) {
+		try {
+			byte[] rawBytes = downloadImage(imageUrl);
+			String filename = extractFilenameFromUrl(imageUrl);
+			ImageUploadFile uploadFile = new ImageUploadFile(
+					filename, "image/jpeg", new ByteArrayInputStream(rawBytes), rawBytes.length);
+			return Optional.of(uploadFile);
+		} catch (Exception e) {
+			log.error("이미지 다운로드 중 오류 발생: {}", imageUrl, e);
+			return Optional.empty();
+		}
+	}
+
 	private byte[] downloadImage(String url) throws Exception {
 		Request request = new Request.Builder()
 				.url(url)
@@ -70,5 +101,18 @@ public class ImageDownloadService {
 			}
 			return response.body().bytes();
 		}
+	}
+
+	private String extractFilenameFromUrl(String url) {
+		String path = url;
+		int queryIndex = path.indexOf('?');
+		if (queryIndex != -1) {
+			path = path.substring(0, queryIndex);
+		}
+		int lastSlashIndex = path.lastIndexOf('/');
+		if (lastSlashIndex != -1) {
+			return path.substring(lastSlashIndex + 1);
+		}
+		return "unknown_image.jpg";
 	}
 }
