@@ -16,7 +16,7 @@ interface ProcessingModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: any) => void;
-  lineItem: any;
+  lineItem: OrderGridDto | null;
   mode: 'sourcing' | 'shipping';
 }
 
@@ -376,58 +376,12 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
   );
 }
 
-// 커스텀 필터 컴포넌트
-function MarketFilter({ column }: { column: any }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const filterValue = (column.getFilterValue() as string[]) || [];
-
-  const options = ['쿠팡', '스마트스토어', '11번가', '카페24'];
-
-  const toggle = (val: string) => {
-    if (filterValue.includes(val)) {
-      column.setFilterValue(filterValue.filter((v) => v !== val));
-    } else {
-      column.setFilterValue([...filterValue, val]);
-    }
-  };
-
-  const clear = () => column.setFilterValue(undefined);
-
-  return (
-    <div style={{ position: 'relative', display: 'inline-block', marginLeft: '8px' }}>
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: filterValue.length ? 1 : 0.4 }}
-      >
-        ▼
-      </button>
-      {isOpen && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, backgroundColor: 'white', border: '1px solid #ddd', padding: '8px', zIndex: 100, borderRadius: '4px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', minWidth: '120px' }}>
-          <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
-            <button onClick={clear} style={{ fontSize: '11px', flex: 1 }}>초기화</button>
-          </div>
-          {options.map(opt => (
-            <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', marginBottom: '4px' }}>
-              <input 
-                type="checkbox" 
-                checked={filterValue.includes(opt)}
-                onChange={() => toggle(opt)}
-              />
-              {opt}
-            </label>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 const OrderGrid: React.FC = () => {
   const [rowData, setRowData] = useState<RowData[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'sourcing' | 'shipping'>('sourcing');
-  const [selectedLineItem, setSelectedLineItem] = useState<any>(null);
+  const [selectedLineItem, setSelectedLineItem] = useState<OrderGridDto | null>(null);
   const [hoveredOrderId, setHoveredOrderId] = useState<number | null>(null);
 
   const { data: syncStatuses } = useQuery({
@@ -443,7 +397,7 @@ const OrderGrid: React.FC = () => {
 
   const getCommonLabel = useCallback((category: string, name: string) => {
     if (!commonCodes || !commonCodes[category]) return name;
-    const item = commonCodes[category].find((c: any) => c.name === name);
+    const item = commonCodes[category].find((c: { name: string; label: string }) => c.name === name);
     return item ? item.label : name;
   }, [commonCodes]);
 
@@ -528,15 +482,15 @@ const OrderGrid: React.FC = () => {
   }, [data]);
 
   const orderMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: number; updates: any }) => updateOrder(id, updates),
+    mutationFn: ({ id, updates }: { id: number; updates: Record<string, unknown> }) => updateOrder(id, updates),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
   });
   const lineItemMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: number; updates: any }) => updateOrderLineItem(id, updates),
+    mutationFn: ({ id, updates }: { id: number; updates: Record<string, unknown> }) => updateOrderLineItem(id, updates),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
   });
 
-  const handleUpdate = useCallback((orderId: number, lineItemId: number, field: string, value: any) => {
+  const handleUpdate = useCallback((orderId: number, lineItemId: number, field: string, value: unknown) => {
     if (field.startsWith('order.')) {
       const actualField = field.replace('order.', '');
       orderMutation.mutate({ id: orderId, updates: { [actualField]: value } });
@@ -572,7 +526,7 @@ const OrderGrid: React.FC = () => {
       } else {
         toast.error(res.message || '통관 상태 동기화에 실패했습니다.');
       }
-    } catch (error) {
+    } catch {
       toast.error('통관 상태 동기화 중 오류가 발생했습니다.');
     } finally {
       setIsSyncing(false);
@@ -589,7 +543,7 @@ const OrderGrid: React.FC = () => {
         toast.error(res.message || '스마트스토어 동기화에 실패했습니다.');
         setIsSyncing(false);
       }
-    } catch (error) {
+    } catch {
       toast.error('스마트스토어 동기화 중 오류가 발생했습니다.');
       setIsSyncing(false);
     }
@@ -605,7 +559,7 @@ const OrderGrid: React.FC = () => {
         toast.error(res.message || '쿠팡 동기화에 실패했습니다.');
         setIsSyncing(false);
       }
-    } catch (error) {
+    } catch {
       toast.error('쿠팡 동기화 중 오류가 발생했습니다.');
       setIsSyncing(false);
     }
@@ -621,7 +575,7 @@ const OrderGrid: React.FC = () => {
         toast.error(res.message || '11번가 동기화에 실패했습니다.');
         setIsSyncing(false);
       }
-    } catch (error) {
+    } catch {
       toast.error('11번가 동기화 중 오류가 발생했습니다.');
       setIsSyncing(false);
     }
@@ -637,7 +591,7 @@ const OrderGrid: React.FC = () => {
         toast.error(res.message || 'G마켓/옥션 동기화에 실패했습니다.');
         setIsSyncing(false);
       }
-    } catch (error) {
+    } catch {
       toast.error('G마켓/옥션 동기화 중 오류가 발생했습니다.');
       setIsSyncing(false);
     }
@@ -654,7 +608,7 @@ const OrderGrid: React.FC = () => {
         toast.error(res.message || '재고 동기화에 실패했습니다.');
         setIsSyncing(false);
       }
-    } catch (error) {
+    } catch {
       toast.error('재고 동기화 중 오류가 발생했습니다.');
       setIsSyncing(false);
     }
@@ -687,8 +641,8 @@ const OrderGrid: React.FC = () => {
       }
       setRowSelection({});
       refetch();
-    } catch (e: any) {
-      const msg = e?.response?.data?.message || '주문 확인 처리 중 오류가 발생했습니다.';
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message || '주문 확인 처리 중 오류가 발생했습니다.';
       toast.error(msg);
     }
   };
@@ -713,20 +667,20 @@ const OrderGrid: React.FC = () => {
       await Promise.all(orderIdsToCancel.map(id => cancelOrder(id as number)));
       setRowSelection({});
       refetch();
-    } catch (e) {
+    } catch {
       toast.error('주문 취소 처리 중 오류가 발생했습니다.');
     }
   };
 
   // 구매/소싱 처리 모달 열기
-  const openSourcingModal = (lineItem: any) => {
+  const openSourcingModal = (lineItem: OrderGridDto) => {
     setSelectedLineItem(lineItem);
     setModalMode('sourcing');
     setModalOpen(true);
   };
 
   // 배송/송장 처리 모달 열기
-  const openShippingModal = (lineItem: any) => {
+  const openShippingModal = (lineItem: OrderGridDto) => {
     setSelectedLineItem(lineItem);
     setModalMode('shipping');
     setModalOpen(true);
@@ -752,8 +706,8 @@ const OrderGrid: React.FC = () => {
       }
       setModalOpen(false);
       refetch();
-    } catch (e: any) {
-      const msg = e?.response?.data?.message || '처리 중 오류가 발생했습니다.';
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message || '처리 중 오류가 발생했습니다.';
       toast.error(msg);
     }
   };
@@ -763,7 +717,7 @@ const OrderGrid: React.FC = () => {
     const orderCounts: Record<number, number> = {};
     const orderLineItemCounts: Record<number, number> = {};
     rowData.forEach((row) => {
-      const id = (row.order as any)?.id || 0;
+      const id = row.order?.id || 0;
       orderCounts[id] = (orderCounts[id] || 0) + 1;
       if (row.rowType === 'order') {
         orderLineItemCounts[id] = (orderLineItemCounts[id] || 0) + 1;
@@ -772,7 +726,7 @@ const OrderGrid: React.FC = () => {
 
     let currentOrderId = -1;
     return rowData.map((row) => {
-      const id = (row.order as any)?.id || 0;
+      const id = row.order?.id || 0;
       const isFirst = id !== currentOrderId && row.rowType === 'order';
       if (id !== currentOrderId && row.rowType === 'order') currentOrderId = id;
       return {
@@ -818,7 +772,7 @@ const OrderGrid: React.FC = () => {
         const dateStr = dateObj ? `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')} ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}` : '-';
         const market = row.original.order?.marketType || '';
         const orderNo = row.original.order?.marketOrderNo || '-';
-        const marketColorMap: any = {
+        const marketColorMap: Record<string, { bg: string; text: string }> = {
           'SMART_STORE': { bg: '#e8f5e9', text: '#2e7d32' },
           'COUPANG': { bg: '#fce4ec', text: '#c2185b' },
           'ELEVEN_STREET': { bg: '#e3f2fd', text: '#1565c0' },
@@ -844,7 +798,7 @@ const OrderGrid: React.FC = () => {
       meta: { frozen: true, freezeLeft: 190 },
       cell: info => {
         const val = info.getValue() as string;
-        const colorMap: any = {
+        const colorMap: Record<string, { bg: string; text: string }> = {
           'UNKNOWN': { bg: '#f5f5f5', text: '#666' },
           'NEW': { bg: '#e0f7fa', text: '#006064' },
           'PREPARING': { bg: '#fff3e0', text: '#e65100' },
@@ -915,7 +869,7 @@ const OrderGrid: React.FC = () => {
         if (row.original.rowType === 'product') {
           const val = row.original.order?.customsData?.customsStatus;
           if (!val) return '-';
-          const customsColorMap: any = {
+          const customsColorMap: Record<string, { bg: string; text: string }> = {
             'VALID': { bg: '#e8f5e9', text: '#2e7d32' },
             'INVALID_PCCC': { bg: '#ffebee', text: '#c62828' },
             'INVALID_PHONE': { bg: '#fff3e0', text: '#e65100' },
@@ -959,7 +913,7 @@ const OrderGrid: React.FC = () => {
       header: '상품코드',
       size: 110,
       cell: ({ row }) => {
-        const val = (row.original as any).product?.sbCode || '-';
+        const val = row.original.product?.sbCode || '-';
         return <div style={{ textAlign: 'center', fontWeight: 600, fontSize: '12px' }}>{val}</div>;
       }
     }),
@@ -970,13 +924,13 @@ const OrderGrid: React.FC = () => {
       header: '상품정보',
       size: 300,
       cell: ({ row }) => {
-        const url = (row.original as any).product?.sourcingInfo?.url;
+        const url = row.original.product?.sourcingInfo?.url;
         if (row.original.rowType === 'product') {
-          const name = (row.original as any).product?.productName?.originalName || '';
+          const name = row.original.product?.productName?.originalName || '';
           return <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{url ? <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1565c0', textDecoration: 'none' }}>{name}</a> : name}</div>;
         }
         if (row.original.rowType === 'fulfillment') return null;
-        const name = (row.original as any).product?.productName?.productName || '';
+        const name = row.original.product?.productName?.productName || '';
         return <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</div>;
       }
     }),
@@ -997,8 +951,8 @@ const OrderGrid: React.FC = () => {
       cell: ({ row }) => {
         if (row.original.rowType === 'product') return null;
         if (row.original.rowType === 'fulfillment') return null;
-        const val = (row.original as any).product?.stockStatus;
-        const restockDate = (row.original as any).product?.restockDate;
+        const val = row.original.product?.stockStatus;
+        const restockDate = row.original.product?.restockDate;
         let badge = <span style={{ color: '#999' }}>-</span>;
         if (val === 'IN_STOCK') badge = <span style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>구입가능</span>;
         if (val === 'OUT_OF_STOCK') badge = <span style={{ backgroundColor: '#ffebee', color: '#c62828', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>품절</span>;
@@ -1161,7 +1115,7 @@ const OrderGrid: React.FC = () => {
     try {
       await shipOrders(orderIds as number[]);
       refetch();
-    } catch (e) {
+    } catch {
       toast.error('발송 처리 중 오류가 발생했습니다.');
     }
   };
@@ -1179,7 +1133,7 @@ const OrderGrid: React.FC = () => {
       setRowSelection({});
       refetch();
       toast.success(`${orderIds.length}건 삭제 완료`);
-    } catch (e) {
+    } catch {
       toast.error('주문 삭제 중 오류가 발생했습니다.');
     }
   };
@@ -1256,7 +1210,7 @@ const OrderGrid: React.FC = () => {
                 {table.getHeaderGroups().map(headerGroup => (
                   <TableRow key={headerGroup.id}>
                     {headerGroup.headers.map(header => {
-                      const meta = header.column.columnDef.meta as any;
+                      const meta = header.column.columnDef.meta as { frozen?: boolean; freezeLeft?: number } | undefined;
                       const isFrozen = meta?.frozen;
                       const freezeLeft = meta?.freezeLeft;
                       return (
@@ -1316,7 +1270,7 @@ const OrderGrid: React.FC = () => {
                       if (isTwoRowColumn && row.original.rowType === 'fulfillment') return null;
                       if (isOrderColumn && row.original.rowType !== 'order') return null;
                       if (isProductColumn && row.original.rowType !== 'product') return null;
-                      const meta = cell.column.columnDef.meta as any;
+                      const meta = cell.column.columnDef.meta as { frozen?: boolean; freezeLeft?: number } | undefined;
                       const isFrozen = meta?.frozen;
                       const freezeLeft = meta?.freezeLeft;
                       return (

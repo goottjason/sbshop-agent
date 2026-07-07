@@ -11,7 +11,7 @@ const ProductPage = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [priceStockModal, setPriceStockModal] = useState<{ visible: boolean; id?: number; price?: number; stock?: number }>({ visible: false });
 
   const loadData = useCallback(async (page: number, size: number, kw?: string) => {

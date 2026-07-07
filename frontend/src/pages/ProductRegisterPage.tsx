@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Input, Button, Table, InputNumber, Space, message, Typography } from 'antd';
+import { Input, Button, Table, Space, message, Typography } from 'antd';
 import { sourcingApi, type SourcingResult } from '../api/sourcingApi';
 
 const { TextArea } = Input;
