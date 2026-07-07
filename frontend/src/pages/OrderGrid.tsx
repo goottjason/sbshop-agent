@@ -6,7 +6,7 @@ import {
   createColumnHelper,
 } from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchOrders, updateOrder, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, deleteOrder, syncProductStock, fetchSyncStatus } from '../api/orderApi';
+import { fetchOrders, updateOrder, updateOrderLineItem, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, deleteOrder, syncProductStock, fetchSyncStatus } from '../api/orderApi';
 import type { OrderGridDto } from '../api/orderApi';
 import { toast } from 'react-toastify';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
@@ -27,7 +27,7 @@ const ProcessingModal: React.FC<ProcessingModalProps> = ({ isOpen, onClose, onSu
   const [discountCode, setDiscountCode] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [trackingNo, setTrackingNo] = useState('');
-  const [carrier, setCarrier] = useState('DHL');
+  const [carrier, setCarrier] = useState('CJ_LOGISTICS');
 
   useEffect(() => {
     if (isOpen && lineItem) {
@@ -41,7 +41,7 @@ const ProcessingModal: React.FC<ProcessingModalProps> = ({ isOpen, onClose, onSu
         setVendorName(lineItem.lineItem?.sourcingData?.sourcingVendor || '');
       } else if (mode === 'shipping') {
         setTrackingNo(shipping?.trackingNo || '');
-        setCarrier(shipping?.shippingCarrier || 'DHL');
+        setCarrier(shipping?.shippingCarrier || 'CJ_LOGISTICS');
       }
     }
   }, [isOpen, lineItem, mode]);
@@ -168,14 +168,12 @@ const ProcessingModal: React.FC<ProcessingModalProps> = ({ isOpen, onClose, onSu
                 onChange={e => setCarrier(e.target.value)}
                 style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px' }}
               >
-                <option value="DHL">DHL</option>
-                <option value="FedEx">FedEx</option>
-                <option value="UPS">UPS</option>
-                <option value="USPS">USPS</option>
-                <option value="EMS">EMS</option>
-                <option value="CJ">CJ대한통운</option>
-                <option value="LOTTE">롯데택배</option>
-                <option value="POST">우체국</option>
+                <option value="CJ_LOGISTICS">CJ대한통운</option>
+                <option value="HANJIN">한진택배</option>
+                <option value="KOREA_POST">우체국택배</option>
+                <option value="LOTTE_LOGISTICS">롯데택배</option>
+                <option value="HYUNDAI_LOGISTICS">현대택배</option>
+                <option value="ROCKET">쿠팡로켓</option>
                 <option value="ETC">기타</option>
               </select>
             </div>
@@ -221,7 +219,7 @@ const ProcessingModal: React.FC<ProcessingModalProps> = ({ isOpen, onClose, onSu
                   toast.warning('송장번호를 입력해주세요.');
                   return;
                 }
-                onSubmit({ trackingNo, carrier });
+                onSubmit({ trackingNo, shippingCarrier: carrier });
               }
             }}
             style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
@@ -486,7 +484,11 @@ const OrderGrid: React.FC = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
   });
   const lineItemMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: number; updates: Record<string, unknown> }) => updateOrderLineItem(id, updates),
+    mutationFn: ({ id, updates }: { id: number; updates: { isUnipassDone?: boolean } }) => updateOrderLineItem(id, updates),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
+  });
+  const sourcingMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: number; updates: { sourcingAmount?: number; logisticsCost?: number } }) => updateSourcingInfo(id, updates),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
   });
 
@@ -494,11 +496,16 @@ const OrderGrid: React.FC = () => {
     if (field.startsWith('order.')) {
       const actualField = field.replace('order.', '');
       orderMutation.mutate({ id: orderId, updates: { [actualField]: value } });
-    } else if (field.startsWith('lineItem.')) {
-      const actualField = field.replace('lineItem.', '');
-      lineItemMutation.mutate({ id: lineItemId, updates: { [actualField]: value } });
+    } else if (field === 'lineItem.isUnipassDone') {
+      lineItemMutation.mutate({ id: lineItemId, updates: { isUnipassDone: value as boolean } });
+    } else if (field === 'lineItem.sourcingAmount') {
+      // 소싱금액은 SourcingData 필드 → 소싱 엔드포인트로 전송(라인아이템 PATCH DTO에는 없음)
+      sourcingMutation.mutate({ id: lineItemId, updates: { sourcingAmount: value as number } });
+    } else if (field === 'lineItem.logisticsCost') {
+      // 물류비도 SourcingData 필드 → 소싱 엔드포인트로 전송
+      sourcingMutation.mutate({ id: lineItemId, updates: { logisticsCost: value as number } });
     }
-  }, [orderMutation, lineItemMutation]);
+  }, [orderMutation, lineItemMutation, sourcingMutation]);
 
   useEffect(() => {
     const eventSource = new EventSource('/sbshop-agent/api/v1/notifications/subscribe');

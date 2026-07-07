@@ -147,7 +147,14 @@ export const updateShippingInfo = async (lineItemId: number, data: {
   return response.data;
 };
 
-// 유니패스 신고 완료 여부 수정
+// 라인아이템 자체 필드(유니패스 신고 완료 여부) 수정
+// 백엔드 OrderLineItemUpdateRequest는 isUnipassDone만 받는다. 소싱금액/물류비는 updateSourcingInfo로 보낸다.
+export const updateOrderLineItem = async (lineItemId: number, data: {
+  isUnipassDone?: boolean;
+}): Promise<unknown> => {
+  const response = await apiClient.patch(`/api/v1/orders/line-items/${lineItemId}`, data);
+  return response.data;
+};
 
 export const syncCoupangOrders = async (): Promise<{ success: boolean; syncedCount: number; message: string }> => {
   const { data } = await apiClient.post('/api/v1/orders/sync/coupang');
