@@ -34,6 +34,10 @@ products_dump.csv
 # Package lock
 package-lock.json
 
+# Harness volatile workspace (영속 산출물은 docs/normalize/)
+_workspace/
+.claude/settings.local.json
+
 # Test artifacts
 *.h2.db
 *.mv.db
