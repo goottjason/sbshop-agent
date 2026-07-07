@@ -4,7 +4,7 @@ import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
-import com.sbshop.agent.infrastructure.client.elevenst.client.ElevenstRestClient;
+import com.sbshop.agent.infrastructure.client.elevenst.client.ElevenstMarketRestClient;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class ElevenstMarketClient implements MarketClient {
 
-	private final ElevenstRestClient restClient;
+	private final ElevenstMarketRestClient restClient;
 
 	@Override
 	public MarketType getSupportedMarket() {

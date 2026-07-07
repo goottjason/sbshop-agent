@@ -18,7 +18,7 @@ import org.w3c.dom.Element;
 @RequiredArgsConstructor
 public class ElevenstOrderApiClient implements ElevenstOrderApiPort {
 
-	private final ElevenstRestClient restClient;
+	private final ElevenstOrderRestClient restClient;
 
 	@Override
 	public List<Element> fetchCompletedOrders(String apiKey, String startTime, String endTime) {

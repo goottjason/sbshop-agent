@@ -15,12 +15,12 @@ import org.w3c.dom.Document;
 import org.xml.sax.InputSource;
 
 /**
- * 11번가 API REST 클라이언트
- * XML/EUC-KR 응답 처리 포함
+ * 11번가 주문 API REST 클라이언트 (GET 전용, XML/EUC-KR 응답 처리 포함).
+ * 상품 등록/가격재고용 {@link com.sbshop.agent.infrastructure.client.elevenst.client.ElevenstMarketRestClient}와 구분된다.
  */
 @Slf4j
-@Component("elevenstOrderRestClient")
-public class ElevenstRestClient {
+@Component
+public class ElevenstOrderRestClient {
 
 	private static final String DOMAIN = "https://api.11st.co.kr";
 	private final RestClient restClient = RestClient.create();
