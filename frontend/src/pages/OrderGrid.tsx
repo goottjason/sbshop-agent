@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -377,6 +377,9 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
 const OrderGrid: React.FC = () => {
   const [rowData, setRowData] = useState<RowData[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  // isSyncing의 최신값을 SSE onerror 콜백(이펙트 클로저)에서 stale 없이 읽기 위한 ref (D-023)
+  const isSyncingRef = useRef(false);
+  useEffect(() => { isSyncingRef.current = isSyncing; }, [isSyncing]);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'sourcing' | 'shipping'>('sourcing');
   const [selectedLineItem, setSelectedLineItem] = useState<OrderGridDto | null>(null);
@@ -518,9 +521,19 @@ const OrderGrid: React.FC = () => {
       const parts = event.data.split('|');
       const marketType = parts[0] || '';
       const errorMsg = parts[2] || '동기화 중 오류가 발생했습니다.';
-      const marketLabel = marketType === 'COUPANG' ? '쿠팡' : marketType === 'SMART_STORE' ? '스마트스토어' : marketType;
+      const marketLabel = marketLabels[marketType] || marketType;
       toast.error(`${marketLabel} 동기화 실패: ${errorMsg}`);
     });
+    // D-023: SSE 연결이 영구 실패(CLOSED)하면 SYNC_COMPLETED/FAILED가 도달하지 않아
+    // 로딩 오버레이가 무한 고착된다. 동기화 중이었다면 로딩을 해제하고 사용자에게 알린다.
+    eventSource.onerror = () => {
+      if (eventSource.readyState === EventSource.CLOSED) {
+        if (isSyncingRef.current) {
+          setIsSyncing(false);
+          toast.error('실시간 동기화 연결이 끊어졌습니다. 잠시 후 다시 시도해주세요.');
+        }
+      }
+    };
     return () => eventSource.close();
   }, [refetch]);
 
@@ -546,6 +559,8 @@ const OrderGrid: React.FC = () => {
       const res = await syncSmartStoreOrders();
       if (res.success) {
         refetch();
+        // D-023: SSE(SYNC_COMPLETED/FAILED) 미도달 시 로딩 영구 고착 방지 안전장치
+        setTimeout(() => setIsSyncing(false), 30000);
       } else {
         toast.error(res.message || '스마트스토어 동기화에 실패했습니다.');
         setIsSyncing(false);
@@ -562,6 +577,8 @@ const OrderGrid: React.FC = () => {
       const res = await syncCoupangOrders();
       if (res.success) {
         refetch();
+        // D-023: SSE(SYNC_COMPLETED/FAILED) 미도달 시 로딩 영구 고착 방지 안전장치
+        setTimeout(() => setIsSyncing(false), 30000);
       } else {
         toast.error(res.message || '쿠팡 동기화에 실패했습니다.');
         setIsSyncing(false);
@@ -578,6 +595,8 @@ const OrderGrid: React.FC = () => {
       const res = await syncElevenStreetOrders();
       if (res.success) {
         refetch();
+        // D-023: SSE(SYNC_COMPLETED/FAILED) 미도달 시 로딩 영구 고착 방지 안전장치
+        setTimeout(() => setIsSyncing(false), 30000);
       } else {
         toast.error(res.message || '11번가 동기화에 실패했습니다.');
         setIsSyncing(false);
@@ -594,6 +613,8 @@ const OrderGrid: React.FC = () => {
       const res = await syncEsmplusOrders();
       if (res.success) {
         refetch();
+        // D-023: SSE(SYNC_COMPLETED/FAILED) 미도달 시 로딩 영구 고착 방지 안전장치
+        setTimeout(() => setIsSyncing(false), 30000);
       } else {
         toast.error(res.message || 'G마켓/옥션 동기화에 실패했습니다.');
         setIsSyncing(false);
@@ -674,6 +695,7 @@ const OrderGrid: React.FC = () => {
       await Promise.all(orderIdsToCancel.map(id => cancelOrder(id as number)));
       setRowSelection({});
       refetch();
+      toast.success(`${orderIdsToCancel.length}건 취소(거부) 처리되었습니다.`);
     } catch {
       toast.error('주문 취소 처리 중 오류가 발생했습니다.');
     }
@@ -1122,6 +1144,7 @@ const OrderGrid: React.FC = () => {
     try {
       await shipOrders(orderIds as number[]);
       refetch();
+      toast.success(`${orderIds.length}건 발송 처리되었습니다.`);
     } catch {
       toast.error('발송 처리 중 오류가 발생했습니다.');
     }
