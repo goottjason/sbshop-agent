@@ -31,13 +31,24 @@ const ProductPage = () => {
 
   useState(() => { loadData(0, 50); });
 
+  const openPriceStockModal = (product: ProductList) => {
+    setPriceStockModal({
+      visible: true,
+      id: product.id,
+      price: product.salePrice ?? 0,
+      stock: product.stock ?? 0,
+    });
+  };
+
   const columnDefs: ColDef<ProductList>[] = [
     {
       headerName: '이미지',
       field: 'repImageUrl',
       width: 80,
       cellRenderer: (params: { value?: string }) =>
-        params.value ? `<img src="${params.value}" style="width:50px;height:50px;object-fit:cover;" />` : '',
+        params.value ? (
+          <img src={params.value} style={{ width: 50, height: 50, objectFit: 'cover' }} />
+        ) : null,
     },
     { headerName: 'SB코드', field: 'sbCode', width: 120 },
     { headerName: '브랜드', field: 'brand', width: 100 },
@@ -49,15 +60,11 @@ const ProductPage = () => {
       headerName: '관리',
       width: 120,
       cellRenderer: (params: { data?: ProductList }) =>
-        params.data ? `<button onclick="window.__editProduct(${params.data.id}, ${params.data.salePrice || 0}, ${params.data.stock || 0})">가격/재고</button>` : '',
+        params.data ? (
+          <button onClick={() => openPriceStockModal(params.data!)}>가격/재고</button>
+        ) : null,
     },
   ];
-
-  const onGridReady = () => {
-    (window as unknown as { __editProduct: (id: number, price: number, stock: number) => void }).__editProduct = (id: number, price: number, stock: number) => {
-      setPriceStockModal({ visible: true, id, price, stock });
-    };
-  };
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -80,7 +87,6 @@ const ProductPage = () => {
           columnDefs={columnDefs}
           pagination={true}
           paginationPageSize={pageSize}
-          onGridReady={onGridReady}
           defaultColDef={{ sortable: true, resizable: true }}
         />
       </div>
