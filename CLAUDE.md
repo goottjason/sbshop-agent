@@ -17,3 +17,4 @@
 | 2026-07-07 | 외부 리뷰 루프 미구성 | - | codex/agy/gemini 미설치 (REVIEWERS: none) — 내부 QA 게이트로 대체 |
 | 2026-07-07 | 검증자 트리 변경 명령 금지 명문화 | agents/qa-verifier.md | 사이클 2 spotlessApply 오염 사고 |
 | 2026-07-07 | 무응답 팀원 재스폰 가드 추가 | skills/sbshop-normalize | 사이클 2 중복 fixer 스폰 사고 |
+| 2026-07-07 | 검증 요청 후 트리 동결 규율 추가 | agents/tdd-fixer.md | 사이클 4 mid-edit 검증 오염 사건 |
