@@ -17,8 +17,9 @@ dependencies {
     // PostgreSQL
     runtimeOnly 'org.postgresql:postgresql'
     
-    // Flyway
+    // Flyway (Flyway 10.x는 Postgres 지원에 별도 database 모듈 필요 — 없으면 "Unsupported Database")
     implementation 'org.flywaydb:flyway-core'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 
     // Cloudflare R2 (via AWS S3 SDK v2)
     implementation 'software.amazon.awssdk:s3:2.24.0'
