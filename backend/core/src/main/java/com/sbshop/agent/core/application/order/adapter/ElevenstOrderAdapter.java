@@ -261,7 +261,8 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				.message("")
 				.ordererName("")
 				.ordererPhone("")
-				.status(ShippingStatus.SHIPPED)
+				// D-031: 주문상세(claimservice/orderlistalladdr)는 배송 상태 필드를 제공하지 않으므로
+				// 상태를 조작하지 않고 미설정(null)으로 둔다 — enrichment 시 기존 상태를 덮어쓰지 않음.
 				.trackingNo(invcNo)
 				.carrier(carrier)
 				.orderDate(orderDate)
