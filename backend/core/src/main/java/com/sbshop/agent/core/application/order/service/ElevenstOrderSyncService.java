@@ -7,6 +7,7 @@ import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter;
@@ -209,5 +210,70 @@ public class ElevenstOrderSyncService {
 			.build();
 	}
 
-	private void postSyncProcess(List<MarketOrderDto> orders) {}
+	/**
+	 * 사후 처리: API 응답에 없는 기존 주문 중 non-terminal 상태를 CANCELED로 감지한다.
+	 * 쿠팡 detectCancellations 정본 패턴을 이식 — 11번가는 취소/반품/교환 조회 API가 없어
+	 * 이 감지가 없으면 취소된 주문이 이전 상태(NEW/PREPARING)로 영구 잔류한다. (D-028)
+	 */
+	private void postSyncProcess(List<MarketOrderDto> orders) {
+		LocalDate fromDate = LocalDate.now().minusDays(30);
+		LocalDate toDate = LocalDate.now();
+		detectCancellations(orders, fromDate, toDate);
+	}
+
+	private void detectCancellations(List<MarketOrderDto> apiOrders, LocalDate fromDate, LocalDate toDate) {
+		java.util.Set<String> apiOrderNos = new java.util.HashSet<>();
+		for (MarketOrderDto dto : apiOrders) {
+			apiOrderNos.add(dto.getMarketOrderNo());
+		}
+
+		List<Order> dbOrders = orderRepository.findByMarketType(MarketType.ELEVEN_STREET);
+		int canceledCount = 0;
+
+		for (Order order : dbOrders) {
+			if (order.getOrderDate() != null) {
+				LocalDate orderDate = order.getOrderDate().toLocalDate();
+				if (orderDate.isBefore(fromDate) || orderDate.isAfter(toDate)) {
+					continue;
+				}
+			}
+
+			if (!apiOrderNos.contains(order.getMarketOrderNo())) {
+				List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
+				boolean hasNonTerminal = items.stream().anyMatch(this::isNonTerminal);
+
+				if (hasNonTerminal) {
+					for (OrderLineItem item : items) {
+						if (isNonTerminal(item)) {
+							ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
+								.shippingStatus(ShippingStatus.CANCELED)
+								.build();
+							item.applyShippingData(cmd.toShippingData(item.getShippingData()));
+							orderLineItemRepository.save(item);
+						}
+					}
+					canceledCount++;
+				}
+			}
+		}
+
+		if (canceledCount > 0) {
+			log.info("[ELEVEN_STREET] 취소 감지: {}건 CANCELED로 업데이트", canceledCount);
+		}
+	}
+
+	/**
+	 * terminal(종결) 상태가 아닌지 판정한다. fetchOrders가 조회하지 않는 종결 상태
+	 * (CANCELED·DELIVERED·RETURNED·EXCHANGED)는 API 응답에 없어도 취소로 오인해선 안 된다. (D-028)
+	 */
+	private boolean isNonTerminal(OrderLineItem item) {
+		if (item.getShippingData() == null) {
+			return true;
+		}
+		ShippingStatus s = item.getShippingData().getShippingStatus();
+		return s != ShippingStatus.CANCELED
+			&& s != ShippingStatus.DELIVERED
+			&& s != ShippingStatus.RETURNED
+			&& s != ShippingStatus.EXCHANGED;
+	}
 }
