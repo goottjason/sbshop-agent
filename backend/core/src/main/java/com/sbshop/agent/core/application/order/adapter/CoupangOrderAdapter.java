@@ -478,15 +478,11 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 
 			if (!apiOrderIds.contains(order.getMarketOrderNo())) {
 				List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
-				boolean hasNonTerminal = items.stream().anyMatch(item -> item.getShippingData() == null
-					|| (item.getShippingData().getShippingStatus() != ShippingStatus.CANCELED
-						&& item.getShippingData().getShippingStatus() != ShippingStatus.DELIVERED));
+				boolean hasNonTerminal = items.stream().anyMatch(item -> isNonTerminal(item));
 
 				if (hasNonTerminal) {
 					for (OrderLineItem item : items) {
-						if (item.getShippingData() == null
-							|| (item.getShippingData().getShippingStatus() != ShippingStatus.CANCELED
-								&& item.getShippingData().getShippingStatus() != ShippingStatus.DELIVERED)) {
+						if (isNonTerminal(item)) {
 							ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
 								.shippingStatus(ShippingStatus.CANCELED)
 								.build();
@@ -502,6 +498,21 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		if (canceledCount > 0) {
 			log.info("쿠팡 취소 감지: {}건 CANCELED로 업데이트", canceledCount);
 		}
+	}
+
+	/**
+	 * terminal(종결) 상태가 아닌지 판정한다. fetchOrders가 조회하지 않는 종결 상태
+	 * (CANCELED·DELIVERED·RETURNED·EXCHANGED)는 API 응답에 없어도 취소로 오인해선 안 된다. (D-027)
+	 */
+	private boolean isNonTerminal(OrderLineItem item) {
+		if (item.getShippingData() == null) {
+			return true;
+		}
+		ShippingStatus s = item.getShippingData().getShippingStatus();
+		return s != ShippingStatus.CANCELED
+			&& s != ShippingStatus.DELIVERED
+			&& s != ShippingStatus.RETURNED
+			&& s != ShippingStatus.EXCHANGED;
 	}
 
 	public void fixCarriers(List<MarketOrderDto> apiOrders) {
