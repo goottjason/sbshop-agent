@@ -25,13 +25,13 @@ public class CoupangDataMapper {
 	}
 
 	public Map<String, Object> buildRawData(JsonNode dataNode) {
-		return objectMapper.convertValue(dataNode, new TypeReference<Map<String, Object>>() {
-		});
+		return objectMapper.convertValue(dataNode, new TypeReference<Map<String, Object>>() {});
 	}
 
 	public String extractMergedHtmlDescription(JsonNode firstItem) {
 		JsonNode contents = firstItem.path("contents");
-		if (!contents.isArray()) return "";
+		if (!contents.isArray())
+			return "";
 		StringBuilder htmlBuilder = new StringBuilder();
 		for (JsonNode content : contents) {
 			String detailType = content.path("detailType").asText("");

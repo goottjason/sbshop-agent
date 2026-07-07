@@ -29,20 +29,20 @@ public class R2ImageStorageClient implements ImageStorageClient {
 		for (ImageUploadFile file : images) {
 			String originalFilename = file.originalFilename();
 			String extension = originalFilename != null && originalFilename.contains(".")
-					? originalFilename.substring(originalFilename.lastIndexOf("."))
-					: "";
+				? originalFilename.substring(originalFilename.lastIndexOf("."))
+				: "";
 			String fileName = UUID.randomUUID().toString() + extension;
 
 			try {
 				PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-						.bucket(r2Properties.getBucket())
-						.key(fileName)
-						.contentType(file.contentType())
-						.build();
+					.bucket(r2Properties.getBucket())
+					.key(fileName)
+					.contentType(file.contentType())
+					.build();
 
 				s3Client.putObject(
-						putObjectRequest,
-						RequestBody.fromInputStream(file.inputStream(), file.size()));
+					putObjectRequest,
+					RequestBody.fromInputStream(file.inputStream(), file.size()));
 
 				String publicUrl = r2Properties.getPublicUrl() + "/" + fileName;
 				uploadedUrlMap.put(originalFilename, publicUrl);

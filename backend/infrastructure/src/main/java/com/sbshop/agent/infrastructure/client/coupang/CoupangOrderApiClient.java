@@ -2,15 +2,8 @@ package com.sbshop.agent.infrastructure.client.coupang;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.sbshop.agent.core.application.order.port.CoupangCancelOrderRequest;
@@ -319,7 +312,8 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 				.retrieve()
 				.body(String.class);
 
-			CoupangCancelOrderResponse cancelResponse = objectMapper.readValue(response, CoupangCancelOrderResponse.class);
+			CoupangCancelOrderResponse cancelResponse = objectMapper.readValue(response,
+				CoupangCancelOrderResponse.class);
 			if (!cancelResponse.isSuccessful()) {
 				throw new RuntimeException(
 					"쿠팡 주문취소 실패: " + cancelResponse.message());

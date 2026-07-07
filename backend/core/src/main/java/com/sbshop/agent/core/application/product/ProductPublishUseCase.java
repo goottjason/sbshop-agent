@@ -31,7 +31,7 @@ public class ProductPublishUseCase {
 	@Transactional
 	public void publishToMarket(Long productId, MarketType marketType) {
 		Product product = productReader.findById(productId)
-				.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
+			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
 
 		if (!marketClientRouter.hasClient(marketType)) {
 			throw new IllegalArgumentException("지원하지 않는 마켓입니다: " + marketType);
@@ -51,13 +51,13 @@ public class ProductPublishUseCase {
 		}
 
 		MarketRegistration registration = MarketRegistration.builder()
-				.productId(productId)
-				.sbProductId(productId)
-				.marketType(marketType)
-				.marketProductName(product.getProductName())
-				.marketIdentifiers(identifiersJson)
-				.marketDetailedInfo("{}")
-				.build();
+			.productId(productId)
+			.sbProductId(productId)
+			.marketType(marketType)
+			.marketProductName(product.getProductName())
+			.marketIdentifiers(identifiersJson)
+			.marketDetailedInfo("{}")
+			.build();
 		registration.markSynced();
 		marketRegistrationRepository.save(registration);
 

@@ -191,7 +191,8 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 	 */
 	private boolean selectOrderCheckbox(JavascriptExecutor js, String siteOrderNo) {
 		Object result = js.executeScript(
-			"var rows = document.querySelectorAll('tr[data-order-no], tr[data-site-order-no], .order-row, [class*=order] tr');" +
+			"var rows = document.querySelectorAll('tr[data-order-no], tr[data-site-order-no], .order-row, [class*=order] tr');"
+				+
 				"for (var i = 0; i < rows.length; i++) {" +
 				"  var row = rows[i];" +
 				"  var orderNo = row.getAttribute('data-order-no') || row.getAttribute('data-site-order-no') || '';" +
@@ -201,8 +202,7 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 				"    return 'found';" +
 				"  }" +
 				"}" +
-				"return 'not_found';"
-		);
+				"return 'not_found';");
 		return "found".equals(result);
 	}
 
@@ -218,8 +218,7 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 				"    btns[i].click();" +
 				"    break;" +
 				"  }" +
-				"}"
-		);
+				"}");
 	}
 
 	/**
@@ -234,8 +233,7 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 				"    btns[i].click();" +
 				"    break;" +
 				"  }" +
-				"}"
-		);
+				"}");
 	}
 
 	/**
@@ -255,8 +253,7 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 				"    el.dispatchEvent(new Event('change', {bubbles: true}));" +
 				"    break;" +
 				"  }" +
-				"}"
-		);
+				"}");
 	}
 
 	/**
@@ -265,7 +262,8 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 	private void handleConfirmDialog(JavascriptExecutor js) {
 		try {
 			js.executeScript(
-				"var modals = document.querySelectorAll('.modal, .dialog, [class*=modal], [class*=dialog], [role=dialog]');" +
+				"var modals = document.querySelectorAll('.modal, .dialog, [class*=modal], [class*=dialog], [role=dialog]');"
+					+
 					"for (var i = 0; i < modals.length; i++) {" +
 					"  var btns = modals[i].querySelectorAll('button, a.btn');" +
 					"  for (var j = 0; j < btns.length; j++) {" +
@@ -275,8 +273,7 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 					"      break;" +
 					"    }" +
 					"  }" +
-					"}"
-			);
+					"}");
 		} catch (Exception e) {
 			log.debug("[ESM+] 확인 다이얼로그 처리 중 alert 감지: {}", e.getMessage());
 		}

@@ -41,8 +41,7 @@ public class CustomsOrderSyncService {
 				CustomsStatus.PENDING,
 				CustomsStatus.INVALID_PCCC,
 				CustomsStatus.INVALID_PHONE,
-				CustomsStatus.INVALID_ZIPCODE
-			));
+				CustomsStatus.INVALID_ZIPCODE));
 
 		log.info("PENDING/INVALID_* 통관 상태를 가진 후보 주문 {}건 발견",
 			targetOrders.size());

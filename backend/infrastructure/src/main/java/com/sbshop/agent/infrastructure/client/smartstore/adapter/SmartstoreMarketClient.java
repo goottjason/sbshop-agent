@@ -72,13 +72,13 @@ public class SmartstoreMarketClient implements MarketClient {
 		try {
 			JsonNode originNode = objectMapper.readTree(response).path("originProduct");
 			return MarketItemInfo.builder()
-					.isMasterData(true)
-					.name(originNode.path("productName").asText(null))
-					.mappingKey(originNode.path("productCode").asText(""))
-					.salePrice(BigDecimal.valueOf(originNode.path("salePrice").asDouble(0)))
-					.stock(originNode.path("stockQuantity").asInt(0))
-					.rawData(objectMapper.convertValue(originNode, Map.class))
-					.build();
+				.isMasterData(true)
+				.name(originNode.path("productName").asText(null))
+				.mappingKey(originNode.path("productCode").asText(""))
+				.salePrice(BigDecimal.valueOf(originNode.path("salePrice").asDouble(0)))
+				.stock(originNode.path("stockQuantity").asInt(0))
+				.rawData(objectMapper.convertValue(originNode, Map.class))
+				.build();
 		} catch (Exception e) {
 			log.error("[Smartstore] 상품 정보 추출 실패 (ID: {}): {}", marketItemId, e.getMessage());
 			throw new RuntimeException("Smartstore 데이터 추출 오류", e);
@@ -91,23 +91,26 @@ public class SmartstoreMarketClient implements MarketClient {
 			return MarketItemInfo.builder().build();
 		}
 		return MarketItemInfo.builder()
-				.isMasterData(true)
-				.name(rawData.get("productName") != null ? String.valueOf(rawData.get("productName")) : null)
-				.salePrice(rawData.get("salePrice") != null ? new BigDecimal(String.valueOf(rawData.get("salePrice"))) : null)
-				.stock(rawData.get("stockQuantity") != null ? Integer.parseInt(String.valueOf(rawData.get("stockQuantity"))) : null)
-				.rawData(rawData)
-				.build();
+			.isMasterData(true)
+			.name(rawData.get("productName") != null ? String.valueOf(rawData.get("productName")) : null)
+			.salePrice(
+				rawData.get("salePrice") != null ? new BigDecimal(String.valueOf(rawData.get("salePrice"))) : null)
+			.stock(rawData.get("stockQuantity") != null ? Integer.parseInt(String.valueOf(rawData.get("stockQuantity")))
+				: null)
+			.rawData(rawData)
+			.build();
 	}
 
 	@Override
 	public Map<String, Object> syncPriceAndStock(String marketItemId, Map<String, Object> currentRawData,
-			Integer price, Integer stock) {
+		Integer price, Integer stock) {
 		try {
 			String response = restClient.get("/v2/products/origin-products/" + marketItemId);
 			JsonNode originNode = objectMapper.readTree(response).path("originProduct");
 			Map<String, Object> originProduct = objectMapper.convertValue(originNode, Map.class);
 
-			if (price != null) originProduct.put("salePrice", price);
+			if (price != null)
+				originProduct.put("salePrice", price);
 			if (stock != null) {
 				originProduct.put("stockQuantity", stock);
 				if (stock > 0 && "OUTOFSTOCK".equals(originProduct.get("status"))) {
@@ -121,8 +124,10 @@ public class SmartstoreMarketClient implements MarketClient {
 
 			log.info("[Smartstore] 가격/재고 업데이트 완료: {}", marketItemId);
 			if (currentRawData != null) {
-				if (price != null) currentRawData.put("salePrice", price);
-				if (stock != null) currentRawData.put("stockQuantity", stock);
+				if (price != null)
+					currentRawData.put("salePrice", price);
+				if (stock != null)
+					currentRawData.put("stockQuantity", stock);
 			}
 		} catch (Exception e) {
 			log.error("[Smartstore] 가격/재고 업데이트 실패: {}", e.getMessage());
@@ -132,7 +137,7 @@ public class SmartstoreMarketClient implements MarketClient {
 
 	@Override
 	public Map<String, Object> syncImagesAndHtml(String marketItemId, Map<String, Object> currentRawData,
-			List<String> hostedImages, String newDetailHtml) {
+		List<String> hostedImages, String newDetailHtml) {
 		try {
 			String response = restClient.get("/v2/products/origin-products/" + marketItemId);
 			JsonNode originNode = objectMapper.readTree(response).path("originProduct");
@@ -151,8 +156,10 @@ public class SmartstoreMarketClient implements MarketClient {
 
 			log.info("[Smartstore] 이미지/HTML 동기화 완료: {}", marketItemId);
 			if (currentRawData != null) {
-				if (!hostedImages.isEmpty()) currentRawData.put("representativeImage", hostedImages.get(0));
-				if (newDetailHtml != null) currentRawData.put("detailContent", newDetailHtml);
+				if (!hostedImages.isEmpty())
+					currentRawData.put("representativeImage", hostedImages.get(0));
+				if (newDetailHtml != null)
+					currentRawData.put("detailContent", newDetailHtml);
 			}
 		} catch (Exception e) {
 			log.error("[Smartstore] 이미지/HTML 동기화 실패: {}", e.getMessage());

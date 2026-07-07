@@ -54,25 +54,25 @@ class BatchPriceStockAsyncPoolTest {
 	@Test
 	void crawlBatchRunsOnDedicatedProductBatchPoolInCoreOnlyContext() throws InterruptedException {
 		service.crawlAndUpdatePriceStock("batch-1", List.of(), BigDecimal.ONE, BigDecimal.ZERO,
-				BigDecimal.ZERO);
+			BigDecimal.ZERO);
 
 		assertThat(testBeans.completed.await(5, TimeUnit.SECONDS))
-				.as("배치가 비동기로 실행되어 완료 이벤트를 발행해야 함").isTrue();
+			.as("배치가 비동기로 실행되어 완료 이벤트를 발행해야 함").isTrue();
 		assertThat(testBeans.executionThread.get())
-				.as("worker 유형(core 설정만) 컨텍스트에서도 productBatchExecutor 전용 풀(product-batch-)로 라우팅되어야 함")
-				.startsWith("product-batch-");
+			.as("worker 유형(core 설정만) 컨텍스트에서도 productBatchExecutor 전용 풀(product-batch-)로 라우팅되어야 함")
+			.startsWith("product-batch-");
 	}
 
 	@Test
 	void allBatchMethodsDeclareProductBatchExecutorQualifier() {
 		for (String methodName : List.of("crawlAndUpdatePriceStock", "manualUpdatePriceStock",
-				"manualUpdateAllFields")) {
+			"manualUpdateAllFields")) {
 			Method method = findMethod(methodName);
 			Async async = method.getAnnotation(Async.class);
 			assertThat(async).as("%s 는 @Async 여야 함", methodName).isNotNull();
 			assertThat(async.value())
-					.as("%s 의 @Async 는 productBatchExecutor 한정자를 지정해야 함", methodName)
-					.isEqualTo("productBatchExecutor");
+				.as("%s 의 @Async 는 productBatchExecutor 한정자를 지정해야 함", methodName)
+				.isEqualTo("productBatchExecutor");
 		}
 	}
 
@@ -98,8 +98,8 @@ class BatchPriceStockAsyncPoolTest {
 				completed.countDown();
 			};
 			return new BatchPriceStockService(mock(ProductReader.class), mock(ProductWriter.class),
-					mock(ProductRepository.class), mock(ProductStockCrawlerPort.class),
-					mock(ProcessStatusService.class), mock(MarginCalculator.class), recordingPublisher);
+				mock(ProductRepository.class), mock(ProductStockCrawlerPort.class),
+				mock(ProcessStatusService.class), mock(MarginCalculator.class), recordingPublisher);
 		}
 	}
 }

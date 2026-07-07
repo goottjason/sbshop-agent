@@ -1,11 +1,8 @@
 package com.sbshop.agent.core.application.product;
 
-import com.sbshop.agent.core.domain.product.Product;
-import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
 import com.sbshop.agent.core.domain.product.component.ProductWriter;
 import com.sbshop.agent.core.domain.product.dto.ProductCreateCommand;
-import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
 import com.sbshop.agent.core.domain.product.client.ImageStorageClient;
 import com.sbshop.agent.core.domain.product.client.dto.ImageUploadFile;
@@ -27,27 +24,32 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ProductCreateUseCaseTest {
 
-	@Mock private ProductReader productReader;
-	@Mock private ProductWriter productWriter;
-	@Mock private ImageDownloadClient imageDownloadClient;
-	@Mock private ImageStorageClient imageStorageClient;
-	@InjectMocks private ProductCreateUseCase useCase;
+	@Mock
+	private ProductReader productReader;
+	@Mock
+	private ProductWriter productWriter;
+	@Mock
+	private ImageDownloadClient imageDownloadClient;
+	@Mock
+	private ImageStorageClient imageStorageClient;
+	@InjectMocks
+	private ProductCreateUseCase useCase;
 
 	@Test
 	@DisplayName("bulk 생성 시 SKU를 자동 생성하고 R2에 이미지를 업로드한다")
 	void createBulk_generatesSkuAndUploadsImages() {
 		ProductCreateCommand cmd = new ProductCreateCommand(
-				"url", new BigDecimal("25"), "Magnesium", "Mag 400mg", "KAL", "US",
-				BigDecimal.ONE, new BigDecimal("400"), MeasureUnit.TABLET,
-				List.of("https://img.iherb.com/1.jpg"), null, "html", "비타민",
-				true, 2, new BigDecimal("20"), VendorType.IHB);
+			"url", new BigDecimal("25"), "Magnesium", "Mag 400mg", "KAL", "US",
+			BigDecimal.ONE, new BigDecimal("400"), MeasureUnit.TABLET,
+			List.of("https://img.iherb.com/1.jpg"), null, "html", "비타민",
+			true, 2, new BigDecimal("20"), VendorType.IHB);
 
 		when(productReader.getNextSbCodeSequence(any()))
-				.thenReturn("260707IHB001");
+			.thenReturn("260707IHB001");
 		when(imageDownloadClient.downloadAndConvert(any()))
-				.thenReturn(List.of(new ImageUploadFile("img.jpg", "image/jpeg", null, 100)));
+			.thenReturn(List.of(new ImageUploadFile("img.jpg", "image/jpeg", null, 100)));
 		when(imageStorageClient.uploadImages(any()))
-				.thenReturn(Map.of("img.jpg", "https://r2.dev/img.jpg"));
+			.thenReturn(Map.of("img.jpg", "https://r2.dev/img.jpg"));
 
 		var result = useCase.createBulk(List.of(cmd));
 
@@ -61,15 +63,15 @@ class ProductCreateUseCaseTest {
 	@DisplayName("이미지 업로드 실패 시 원본 이미지로 진행한다")
 	void createBulk_imageUploadFails_continuesWithoutHostedImages() {
 		ProductCreateCommand cmd = new ProductCreateCommand(
-				"url", new BigDecimal("25"), "Magnesium", "Mag", "KAL", "US",
-				BigDecimal.ONE, new BigDecimal("400"), MeasureUnit.TABLET,
-				List.of("https://img.iherb.com/1.jpg"), null, "html", "비타민",
-				true, 1, new BigDecimal("20"), VendorType.IHB);
+			"url", new BigDecimal("25"), "Magnesium", "Mag", "KAL", "US",
+			BigDecimal.ONE, new BigDecimal("400"), MeasureUnit.TABLET,
+			List.of("https://img.iherb.com/1.jpg"), null, "html", "비타민",
+			true, 1, new BigDecimal("20"), VendorType.IHB);
 
 		when(productReader.getNextSbCodeSequence(any()))
-				.thenReturn("260707IHB001");
+			.thenReturn("260707IHB001");
 		when(imageDownloadClient.downloadAndConvert(any()))
-				.thenThrow(new RuntimeException("다운로드 실패"));
+			.thenThrow(new RuntimeException("다운로드 실패"));
 
 		var result = useCase.createBulk(List.of(cmd));
 

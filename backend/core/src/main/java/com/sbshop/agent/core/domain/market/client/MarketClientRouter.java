@@ -13,7 +13,7 @@ public class MarketClientRouter {
 
 	public MarketClientRouter(List<MarketClient> adapters) {
 		this.adapterMap = adapters.stream()
-				.collect(Collectors.toMap(MarketClient::getSupportedMarket, adapter -> adapter));
+			.collect(Collectors.toMap(MarketClient::getSupportedMarket, adapter -> adapter));
 	}
 
 	public MarketClient getClient(MarketType marketType) {

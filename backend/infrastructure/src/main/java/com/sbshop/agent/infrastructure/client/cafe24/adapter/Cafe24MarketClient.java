@@ -12,7 +12,6 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -42,8 +41,10 @@ public class Cafe24MarketClient implements MarketClient {
 			productData.put("custom_product_code", product.getSbCode());
 			productData.put("price", product.getSalePrice() != null ? product.getSalePrice().toString() : "0");
 			productData.put("supply_quantity", product.getStock() != null ? String.valueOf(product.getStock()) : "0");
-			if (product.getBrand() != null) productData.put("brand", product.getBrand());
-			if (product.getDetailHtml() != null) productData.put("description", product.getDetailHtml());
+			if (product.getBrand() != null)
+				productData.put("brand", product.getBrand());
+			if (product.getDetailHtml() != null)
+				productData.put("description", product.getDetailHtml());
 
 			List<String> hostedImages = product.getHostedImages();
 			if (!hostedImages.isEmpty()) {
@@ -80,13 +81,13 @@ public class Cafe24MarketClient implements MarketClient {
 			String detailHtml = productNode.path("description").asText("");
 			String sku = productNode.path("custom_product_code").asText("");
 			return MarketItemInfo.builder()
-					.isMasterData(true)
-					.mappingKey(productNode.path("product_code").asText(""))
-					.name(productNode.path("product_name").asText(null))
-					.detailHtml(detailHtml)
-					.images(imageExtractor.extractSkuImages(detailHtml, sku))
-					.rawData(objectMapper.convertValue(productNode, Map.class))
-					.build();
+				.isMasterData(true)
+				.mappingKey(productNode.path("product_code").asText(""))
+				.name(productNode.path("product_name").asText(null))
+				.detailHtml(detailHtml)
+				.images(imageExtractor.extractSkuImages(detailHtml, sku))
+				.rawData(objectMapper.convertValue(productNode, Map.class))
+				.build();
 		} catch (Exception e) {
 			log.error("카페24 상품 정보 추출 실패 (ID: {}): {}", marketItemId, e.getMessage());
 			throw new RuntimeException("카페24 데이터 추출 오류", e);
@@ -99,24 +100,25 @@ public class Cafe24MarketClient implements MarketClient {
 			return MarketItemInfo.builder().build();
 		}
 		return MarketItemInfo.builder()
-				.isMasterData(true)
-				.name(rawData.get("product_name") != null ? String.valueOf(rawData.get("product_name")) : null)
-				.mappingKey(rawData.get("custom_product_code") != null ? String.valueOf(rawData.get("custom_product_code")) : "")
-				.rawData(rawData)
-				.build();
+			.isMasterData(true)
+			.name(rawData.get("product_name") != null ? String.valueOf(rawData.get("product_name")) : null)
+			.mappingKey(
+				rawData.get("custom_product_code") != null ? String.valueOf(rawData.get("custom_product_code")) : "")
+			.rawData(rawData)
+			.build();
 	}
 
 	@Override
 	public Map<String, Object> syncPriceAndStock(String marketItemId, Map<String, Object> currentRawData,
-			Integer price, Integer stock) {
+		Integer price, Integer stock) {
 		try {
 			if (currentRawData != null) {
 				if (price != null) {
 					currentRawData.put("price", price + ".00");
 				}
 				if (stock != null && currentRawData.containsKey("variants")) {
-					@SuppressWarnings("unchecked")
-					List<Map<String, Object>> variants = (List<Map<String, Object>>) currentRawData.get("variants");
+					@SuppressWarnings("unchecked") List<Map<String, Object>> variants = (List<Map<String, Object>>)currentRawData
+						.get("variants");
 					if (variants != null && !variants.isEmpty()) {
 						variants.get(0).put("quantity", stock);
 					}
@@ -130,7 +132,7 @@ public class Cafe24MarketClient implements MarketClient {
 
 	@Override
 	public Map<String, Object> syncImagesAndHtml(String marketItemId, Map<String, Object> currentRawData,
-			List<String> hostedImages, String newDetailHtml) {
+		List<String> hostedImages, String newDetailHtml) {
 		Map<String, Object> descriptionRequestBody = new HashMap<>();
 		Map<String, Object> descriptionData = new HashMap<>();
 		descriptionData.put("shop_no", 1);

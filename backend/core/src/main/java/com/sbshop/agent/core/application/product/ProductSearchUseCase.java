@@ -24,6 +24,6 @@ public class ProductSearchUseCase {
 
 	public Product getProductDetail(Long id) {
 		return productReader.findById(id)
-				.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + id));
+			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + id));
 	}
 }

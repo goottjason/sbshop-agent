@@ -11,18 +11,18 @@ public class ProductSanitizer {
 			String sanitized = product.getProductName().replaceAll("[<>\"'&]", "").trim();
 			if (!sanitized.equals(product.getProductName())) {
 				product.update(new com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand(
-						null, sanitized, null, null, null, null, null, null, null, null,
-						null, null, null, null, null, null, null, null, null, null, null,
-						null, null, null, null, null));
+					null, sanitized, null, null, null, null, null, null, null, null,
+					null, null, null, null, null, null, null, null, null, null, null,
+					null, null, null, null, null));
 			}
 		}
 		if (product.getBrand() != null) {
 			String brand = product.getBrand().replaceAll("[<>\"'&]", "").trim();
 			if (!brand.equals(product.getBrand())) {
 				product.update(new com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand(
-						brand, null, null, null, null, null, null, null, null, null,
-						null, null, null, null, null, null, null, null, null, null, null,
-						null, null, null, null, null));
+					brand, null, null, null, null, null, null, null, null, null,
+					null, null, null, null, null, null, null, null, null, null, null,
+					null, null, null, null, null));
 			}
 		}
 		return product;

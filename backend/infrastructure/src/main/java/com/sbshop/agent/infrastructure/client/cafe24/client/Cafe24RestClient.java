@@ -24,11 +24,11 @@ public class Cafe24RestClient {
 	public String get(String path) {
 		try {
 			return restClient.get()
-					.uri(getBaseUrl() + path)
-					.header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenManager.getValidAccessToken())
-					.accept(MediaType.APPLICATION_JSON)
-					.retrieve()
-					.body(String.class);
+				.uri(getBaseUrl() + path)
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenManager.getValidAccessToken())
+				.accept(MediaType.APPLICATION_JSON)
+				.retrieve()
+				.body(String.class);
 		} catch (Exception e) {
 			log.error("[Cafe24 GET Error] path: {}, msg: {}", path, e.getMessage());
 			throw new RuntimeException("Cafe24 API 호출 실패", e);
@@ -38,12 +38,12 @@ public class Cafe24RestClient {
 	public String put(String path, Object body) {
 		try {
 			return restClient.put()
-					.uri(getBaseUrl() + path)
-					.header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenManager.getValidAccessToken())
-					.contentType(MediaType.APPLICATION_JSON)
-					.body(body)
-					.retrieve()
-					.body(String.class);
+				.uri(getBaseUrl() + path)
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenManager.getValidAccessToken())
+				.contentType(MediaType.APPLICATION_JSON)
+				.body(body)
+				.retrieve()
+				.body(String.class);
 		} catch (Exception e) {
 			log.error("[Cafe24 PUT Error] path: {}, msg: {}", path, e.getMessage());
 			throw new RuntimeException("Cafe24 API PUT 호출 실패", e);
@@ -53,12 +53,12 @@ public class Cafe24RestClient {
 	public String post(String path, Object body) {
 		try {
 			return restClient.post()
-					.uri(getBaseUrl() + path)
-					.header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenManager.getValidAccessToken())
-					.contentType(MediaType.APPLICATION_JSON)
-					.body(body)
-					.retrieve()
-					.body(String.class);
+				.uri(getBaseUrl() + path)
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenManager.getValidAccessToken())
+				.contentType(MediaType.APPLICATION_JSON)
+				.body(body)
+				.retrieve()
+				.body(String.class);
 		} catch (Exception e) {
 			log.error("[Cafe24 POST Error] path: {}, msg: {}", path, e.getMessage());
 			throw new RuntimeException("Cafe24 API POST 호출 실패", e);
@@ -68,10 +68,10 @@ public class Cafe24RestClient {
 	public void delete(String path) {
 		try {
 			restClient.delete()
-					.uri(getBaseUrl() + path)
-					.header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenManager.getValidAccessToken())
-					.retrieve()
-					.toBodilessEntity();
+				.uri(getBaseUrl() + path)
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenManager.getValidAccessToken())
+				.retrieve()
+				.toBodilessEntity();
 		} catch (Exception e) {
 			log.error("[Cafe24 DELETE Error] path: {}, msg: {}", path, e.getMessage());
 			throw new RuntimeException("Cafe24 API DELETE 호출 실패", e);
@@ -81,9 +81,9 @@ public class Cafe24RestClient {
 	public byte[] getExternalImageBytes(String url) {
 		try {
 			return restClient.get()
-					.uri(url)
-					.retrieve()
-					.body(byte[].class);
+				.uri(url)
+				.retrieve()
+				.body(byte[].class);
 		} catch (Exception e) {
 			log.error("외부 이미지 다운로드 실패: {}, msg: {}", url, e.getMessage());
 			return null;

@@ -19,16 +19,16 @@ public class R2Config {
 	@Bean
 	public S3Client s3Client() {
 		AwsBasicCredentials credentials = AwsBasicCredentials.create(
-				r2Properties.getAccessKey(),
-				r2Properties.getSecretKey());
+			r2Properties.getAccessKey(),
+			r2Properties.getSecretKey());
 
 		return S3Client.builder()
-				.endpointOverride(URI.create(r2Properties.getEndpoint()))
-				.credentialsProvider(StaticCredentialsProvider.create(credentials))
-				.region(Region.of("auto"))
-				.serviceConfiguration(S3Configuration.builder()
-						.pathStyleAccessEnabled(true)
-						.build())
-				.build();
+			.endpointOverride(URI.create(r2Properties.getEndpoint()))
+			.credentialsProvider(StaticCredentialsProvider.create(credentials))
+			.region(Region.of("auto"))
+			.serviceConfiguration(S3Configuration.builder()
+				.pathStyleAccessEnabled(true)
+				.build())
+			.build();
 	}
 }

@@ -13,9 +13,9 @@ public class SourcingAgentFactory {
 
 	public SourcingAgent getAgentByUrl(String url) {
 		return agents.stream()
-				.filter(agent -> agent.supports(url))
-				.findFirst()
-				.orElseThrow(() -> new IllegalArgumentException("지원하지 않는 소싱 URL입니다: " + url));
+			.filter(agent -> agent.supports(url))
+			.findFirst()
+			.orElseThrow(() -> new IllegalArgumentException("지원하지 않는 소싱 URL입니다: " + url));
 	}
 
 	public ScrapedProductDto scrapeProduct(String url) {

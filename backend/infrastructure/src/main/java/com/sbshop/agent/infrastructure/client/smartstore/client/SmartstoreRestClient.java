@@ -38,7 +38,7 @@ public class SmartstoreRestClient {
 		String timestamp = String.valueOf(Instant.now().getEpochSecond());
 		String password = properties.getClientId() + "_" + timestamp;
 		String clientSecretSign = Base64.getEncoder()
-				.encodeToString(BCrypt.hashpw(password, properties.getClientSecret()).getBytes(StandardCharsets.UTF_8));
+			.encodeToString(BCrypt.hashpw(password, properties.getClientSecret()).getBytes(StandardCharsets.UTF_8));
 
 		MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
 		form.add("grant_type", "client_credentials");
@@ -49,11 +49,11 @@ public class SmartstoreRestClient {
 
 		try {
 			String response = restClient.post()
-					.uri(properties.getApiUrl() + "/v1/oauth2/token")
-					.contentType(MediaType.APPLICATION_FORM_URLENCODED)
-					.body(form)
-					.retrieve()
-					.body(String.class);
+				.uri(properties.getApiUrl() + "/v1/oauth2/token")
+				.contentType(MediaType.APPLICATION_FORM_URLENCODED)
+				.body(form)
+				.retrieve()
+				.body(String.class);
 			JsonNode node = objectMapper.readTree(response);
 			accessToken = node.path("access_token").asText();
 			log.info("[Smartstore] OAuth2 토큰 발급 완료");
@@ -78,9 +78,9 @@ public class SmartstoreRestClient {
 	private String request(String method, String path, Object body) {
 		try {
 			var spec = restClient.method(org.springframework.http.HttpMethod.valueOf(method))
-					.uri(properties.getApiUrl() + path)
-					.header(HttpHeaders.AUTHORIZATION, "Bearer " + getValidAccessToken())
-					.header("X-Time-Stamp", String.valueOf(Instant.now().getEpochSecond()));
+				.uri(properties.getApiUrl() + path)
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + getValidAccessToken())
+				.header("X-Time-Stamp", String.valueOf(Instant.now().getEpochSecond()));
 			if (body != null) {
 				spec.contentType(MediaType.APPLICATION_JSON).body(body);
 			}

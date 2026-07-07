@@ -186,7 +186,8 @@ public class Order extends BaseEntity {
 		StringBuilder sb = new StringBuilder("{");
 		boolean first = true;
 		for (Map.Entry<String, String> entry : map.entrySet()) {
-			if (!first) sb.append(",");
+			if (!first)
+				sb.append(",");
 			sb.append("\"").append(entry.getKey()).append("\":\"").append(entry.getValue()).append("\"");
 			first = false;
 		}

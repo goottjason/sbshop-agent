@@ -40,14 +40,14 @@ public class CoupangRestClient {
 	private String request(String method, String path, Object body) {
 		try {
 			String authorization = CoupangHmacUtil.generateSignature(
-					method, path, properties.getAccessKey(), properties.getSecretKey());
+				method, path, properties.getAccessKey(), properties.getSecretKey());
 			String datetime = CoupangHmacUtil.generateDatetime();
 
 			var requestSpec = restClient.method(org.springframework.http.HttpMethod.valueOf(method))
-					.uri(properties.getApiUrl() + path)
-					.header(HttpHeaders.AUTHORIZATION, authorization)
-					.header("X-Requested-By", properties.getVendorId())
-					.header("signed-date", datetime);
+				.uri(properties.getApiUrl() + path)
+				.header(HttpHeaders.AUTHORIZATION, authorization)
+				.header("X-Requested-By", properties.getVendorId())
+				.header("signed-date", datetime);
 
 			if (body != null) {
 				requestSpec.contentType(MediaType.APPLICATION_JSON).body(body);

@@ -28,30 +28,35 @@ public class MarketRegistrationController {
 	private final MarketClientRouter marketClientRouter;
 
 	@GetMapping
-	public ResponseEntity<List<MarketRegistration>> getMarketRegistrations(@PathVariable Long productId) {
+	public ResponseEntity<List<MarketRegistration>> getMarketRegistrations(@PathVariable
+	Long productId) {
 		List<MarketRegistration> registrations = marketRegistrationRepository.findByProductId(productId);
 		return ResponseEntity.ok(registrations);
 	}
 
 	@GetMapping("/{marketType}/local")
 	public ResponseEntity<MarketRegistration> getLocalMarketData(
-			@PathVariable Long productId,
-			@PathVariable String marketType) {
+		@PathVariable
+		Long productId,
+		@PathVariable
+		String marketType) {
 		MarketType type = MarketType.valueOf(marketType.toUpperCase());
 		MarketRegistration reg = marketRegistrationRepository
-				.findByProductIdAndMarketType(productId, type)
-				.orElseThrow(() -> new IllegalArgumentException("마켓 등록 정보 없음: " + marketType));
+			.findByProductIdAndMarketType(productId, type)
+			.orElseThrow(() -> new IllegalArgumentException("마켓 등록 정보 없음: " + marketType));
 		return ResponseEntity.ok(reg);
 	}
 
 	@PostMapping("/{marketType}/sync")
 	public ResponseEntity<MarketItemInfo> syncMarketLive(
-			@PathVariable Long productId,
-			@PathVariable String marketType) {
+		@PathVariable
+		Long productId,
+		@PathVariable
+		String marketType) {
 		MarketType type = MarketType.valueOf(marketType.toUpperCase());
 		MarketRegistration reg = marketRegistrationRepository
-				.findByProductIdAndMarketType(productId, type)
-				.orElseThrow(() -> new IllegalArgumentException("마켓 등록 정보 없음: " + marketType));
+			.findByProductIdAndMarketType(productId, type)
+			.orElseThrow(() -> new IllegalArgumentException("마켓 등록 정보 없음: " + marketType));
 
 		String marketItemId = reg.extractVendorItemId();
 		if (marketItemId == null || marketItemId.isEmpty()) {

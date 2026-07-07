@@ -20,13 +20,12 @@ class ProductBatchExecutorBeanTest {
 
 	@Test
 	void productBatchExecutorShouldBeRegisteredInCoreAsyncConfig() {
-		try (AnnotationConfigApplicationContext ctx =
-				new AnnotationConfigApplicationContext(AsyncConfig.class)) {
+		try (AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(AsyncConfig.class)) {
 
 			Executor executor = ctx.getBean("productBatchExecutor", Executor.class);
 			assertThat(executor).isInstanceOf(ThreadPoolTaskExecutor.class);
-			assertThat(((ThreadPoolTaskExecutor) executor).getThreadNamePrefix())
-					.isEqualTo("product-batch-");
+			assertThat(((ThreadPoolTaskExecutor)executor).getThreadNamePrefix())
+				.isEqualTo("product-batch-");
 		}
 	}
 }

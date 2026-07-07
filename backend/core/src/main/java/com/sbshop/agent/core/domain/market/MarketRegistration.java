@@ -67,7 +67,8 @@ public class MarketRegistration extends BaseEntity {
 	}
 
 	private boolean isValidJson(String value) {
-		if (value == null || value.isEmpty()) return false;
+		if (value == null || value.isEmpty())
+			return false;
 		try {
 			MAPPER.readTree(value);
 			return true;

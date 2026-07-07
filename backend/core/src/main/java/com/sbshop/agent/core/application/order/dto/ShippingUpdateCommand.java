@@ -16,12 +16,15 @@ public class ShippingUpdateCommand {
 	private Boolean trackingSentToMarket;
 
 	public ShippingData toShippingData(ShippingData existing) {
-		ShippingData.ShippingDataBuilder builder =
-			existing != null ? existing.toBuilder() : ShippingData.builder();
-		if (this.trackingNo != null) builder.trackingNo(this.trackingNo);
-		if (this.shippingCarrier != null) builder.shippingCarrier(this.shippingCarrier);
-		if (this.shippingStatus != null) builder.shippingStatus(this.shippingStatus);
-		if (this.trackingSentToMarket != null) builder.trackingSentToMarket(this.trackingSentToMarket);
+		ShippingData.ShippingDataBuilder builder = existing != null ? existing.toBuilder() : ShippingData.builder();
+		if (this.trackingNo != null)
+			builder.trackingNo(this.trackingNo);
+		if (this.shippingCarrier != null)
+			builder.shippingCarrier(this.shippingCarrier);
+		if (this.shippingStatus != null)
+			builder.shippingStatus(this.shippingStatus);
+		if (this.trackingSentToMarket != null)
+			builder.trackingSentToMarket(this.trackingSentToMarket);
 		return builder.build();
 	}
 }

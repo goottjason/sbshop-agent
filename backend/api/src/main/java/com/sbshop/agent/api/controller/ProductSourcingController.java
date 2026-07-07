@@ -31,27 +31,31 @@ public class ProductSourcingController {
 	private final ProductPublishUseCase productPublishUseCase;
 
 	@PostMapping("/sourcing/iherb")
-	public ResponseEntity<List<ProductSourcingResponse>> sourceFromIherb(@RequestBody List<String> urls) {
+	public ResponseEntity<List<ProductSourcingResponse>> sourceFromIherb(@RequestBody
+	List<String> urls) {
 		List<ScrapedProductDto> dtos = productSourcingUseCase.sourceFromIherb(urls);
 		List<ProductSourcingResponse> responses = dtos.stream()
-				.map(ProductSourcingResponse::from)
-				.collect(Collectors.toList());
+			.map(ProductSourcingResponse::from)
+			.collect(Collectors.toList());
 		return ResponseEntity.ok(responses);
 	}
 
 	@PostMapping("/products/bulk")
-	public ResponseEntity<Void> saveProductsBulk(@RequestBody List<ProductSaveRequest> requests) {
+	public ResponseEntity<Void> saveProductsBulk(@RequestBody
+	List<ProductSaveRequest> requests) {
 		List<com.sbshop.agent.core.domain.product.dto.ProductCreateCommand> commands = requests.stream()
-				.map(ProductSaveRequest::toCommand)
-				.toList();
+			.map(ProductSaveRequest::toCommand)
+			.toList();
 		productCreateUseCase.createBulk(commands);
 		return ResponseEntity.ok().build();
 	}
 
 	@PostMapping("/products/{id}/markets/{marketType}")
 	public ResponseEntity<Void> publishToMarket(
-			@PathVariable Long id,
-			@PathVariable String marketType) {
+		@PathVariable
+		Long id,
+		@PathVariable
+		String marketType) {
 		MarketType type = MarketType.valueOf(marketType.toUpperCase());
 		productPublishUseCase.publishToMarket(id, type);
 		return ResponseEntity.ok().build();

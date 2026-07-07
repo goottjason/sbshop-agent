@@ -59,7 +59,7 @@ public class ProcessStatus extends BaseEntity {
 
 	@Builder
 	public ProcessStatus(String batchId, String productCode, JobType jobType, ProcessStep step,
-			ProcessStatusType processStatus, String message, String details, LocalDateTime startedAt) {
+		ProcessStatusType processStatus, String message, String details, LocalDateTime startedAt) {
 		this.batchId = batchId;
 		this.productCode = productCode;
 		this.jobType = jobType;

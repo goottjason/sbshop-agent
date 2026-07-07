@@ -17,14 +17,14 @@ public interface MarketClient {
 	MarketItemInfo parseLocalData(Map<String, Object> rawData);
 
 	Map<String, Object> syncPriceAndStock(
-			String marketItemId,
-			Map<String, Object> currentRawData,
-			Integer price,
-			Integer stock);
+		String marketItemId,
+		Map<String, Object> currentRawData,
+		Integer price,
+		Integer stock);
 
 	Map<String, Object> syncImagesAndHtml(
-			String marketItemId,
-			Map<String, Object> currentRawData,
-			List<String> hostedImages,
-			String newDetailHtml);
+		String marketItemId,
+		Map<String, Object> currentRawData,
+		List<String> hostedImages,
+		String newDetailHtml);
 }

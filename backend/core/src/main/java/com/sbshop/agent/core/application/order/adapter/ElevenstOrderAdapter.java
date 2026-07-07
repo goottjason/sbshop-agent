@@ -237,10 +237,14 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 
 			// 마켓별 상세 데이터
 			Map<String, Object> marketData = new java.util.HashMap<>();
-			if (ordPrdSeq != null && !ordPrdSeq.isEmpty()) marketData.put("ordPrdSeq", ordPrdSeq);
-			if (addPrdYn != null && !addPrdYn.isEmpty()) marketData.put("addPrdYn", addPrdYn);
-			if (addPrdNo != null && !addPrdNo.isEmpty()) marketData.put("addPrdNo", addPrdNo);
-			if (dlvNo != null && !dlvNo.isEmpty()) marketData.put("dlvNo", dlvNo);
+			if (ordPrdSeq != null && !ordPrdSeq.isEmpty())
+				marketData.put("ordPrdSeq", ordPrdSeq);
+			if (addPrdYn != null && !addPrdYn.isEmpty())
+				marketData.put("addPrdYn", addPrdYn);
+			if (addPrdNo != null && !addPrdNo.isEmpty())
+				marketData.put("addPrdNo", addPrdNo);
+			if (dlvNo != null && !dlvNo.isEmpty())
+				marketData.put("dlvNo", dlvNo);
 
 			return MarketOrderDto.builder()
 				.marketType(getMarketType())
@@ -321,10 +325,14 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 
 			// 마켓별 상세 데이터
 			Map<String, Object> marketData = new java.util.HashMap<>();
-			if (ordPrdSeq != null && !ordPrdSeq.isEmpty()) marketData.put("ordPrdSeq", ordPrdSeq);
-			if (addPrdYn != null && !addPrdYn.isEmpty()) marketData.put("addPrdYn", addPrdYn);
-			if (addPrdNo != null && !addPrdNo.isEmpty()) marketData.put("addPrdNo", addPrdNo);
-			if (dlvNo != null && !dlvNo.isEmpty()) marketData.put("dlvNo", dlvNo);
+			if (ordPrdSeq != null && !ordPrdSeq.isEmpty())
+				marketData.put("ordPrdSeq", ordPrdSeq);
+			if (addPrdYn != null && !addPrdYn.isEmpty())
+				marketData.put("addPrdYn", addPrdYn);
+			if (addPrdNo != null && !addPrdNo.isEmpty())
+				marketData.put("addPrdNo", addPrdNo);
+			if (dlvNo != null && !dlvNo.isEmpty())
+				marketData.put("dlvNo", dlvNo);
 
 			return MarketOrderDto.builder()
 				.marketType(getMarketType())

@@ -536,7 +536,8 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 				if (needsCarrierFix || needsInvoiceFix) {
 					ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
 						.trackingNo(needsInvoiceFix ? apiOrder.getTrackingNo() : item.getShippingData().getTrackingNo())
-						.shippingCarrier(needsCarrierFix ? apiOrder.getCarrier() : item.getShippingData().getShippingCarrier())
+						.shippingCarrier(
+							needsCarrierFix ? apiOrder.getCarrier() : item.getShippingData().getShippingCarrier())
 						.shippingStatus(item.getShippingData().getShippingStatus())
 						.build();
 					item.applyShippingData(cmd.toShippingData(item.getShippingData()));

@@ -54,19 +54,19 @@ public class CoupangMarketClient implements MarketClient {
 
 			List<String> hostedUrls = product.getHostedImages();
 			List<CoupangProductPayload.Item.Image> images = IntStream.range(0, hostedUrls.size())
-					.mapToObj(i -> CoupangProductPayload.Item.Image.builder()
-							.imageOrder(i)
-							.imageType(i == 0 ? "REPRESENTATION" : "DETAIL")
-							.vendorPath(hostedUrls.get(i))
-							.build())
-					.toList();
+				.mapToObj(i -> CoupangProductPayload.Item.Image.builder()
+					.imageOrder(i)
+					.imageType(i == 0 ? "REPRESENTATION" : "DETAIL")
+					.vendorPath(hostedUrls.get(i))
+					.build())
+				.toList();
 
 			CoupangProductPayload payload = CoupangProductPayload.create(
-					product, categoryId,
-					product.getBaseName(), product.getBaseName(), product.getBrand(),
-					product.getSalePrice() != null ? product.getSalePrice().intValue() : 0,
-					tags, images, metaResult.notices(), metaResult.attributes(),
-					product.getDetailHtml());
+				product, categoryId,
+				product.getBaseName(), product.getBaseName(), product.getBrand(),
+				product.getSalePrice() != null ? product.getSalePrice().intValue() : 0,
+				tags, images, metaResult.notices(), metaResult.attributes(),
+				product.getDetailHtml());
 
 			String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
 			String responseJson = restClient.requestWithBody("POST", path, payload);
@@ -90,22 +90,22 @@ public class CoupangMarketClient implements MarketClient {
 	@Override
 	public MarketItemInfo extractMarketItem(String marketItemId) {
 		String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId
-				+ "?vendorId=" + properties.getVendorId();
+			+ "?vendorId=" + properties.getVendorId();
 		String responseJson = restClient.get(path);
 		try {
 			JsonNode dataNode = productParser.parseDataNode(responseJson);
 			JsonNode firstItem = productParser.getFirstItem(dataNode);
 			return MarketItemInfo.builder()
-					.isMasterData(true)
-					.name(dataNode.path("displayProductName").asText(null))
-					.marketIdentifiers(dataMapper.buildIdentifiers(marketItemId, firstItem))
-					.mappingKey(firstItem.path("externalVendorSku").asText(""))
-					.brand(dataNode.path("brand").asText(null))
-					.manufacturer(dataNode.path("manufacture").asText(null))
-					.barcode(firstItem.path("barcode").asText(null))
-					.generalProductName(dataNode.path("generalProductName").asText(null))
-					.rawData(dataMapper.buildRawData(dataNode))
-					.build();
+				.isMasterData(true)
+				.name(dataNode.path("displayProductName").asText(null))
+				.marketIdentifiers(dataMapper.buildIdentifiers(marketItemId, firstItem))
+				.mappingKey(firstItem.path("externalVendorSku").asText(""))
+				.brand(dataNode.path("brand").asText(null))
+				.manufacturer(dataNode.path("manufacture").asText(null))
+				.barcode(firstItem.path("barcode").asText(null))
+				.generalProductName(dataNode.path("generalProductName").asText(null))
+				.rawData(dataMapper.buildRawData(dataNode))
+				.build();
 		} catch (Exception e) {
 			log.error("[쿠팡] 상품 정보 추출 실패 (ID: {}): {}", marketItemId, e.getMessage());
 			throw new RuntimeException("쿠팡 데이터 추출 오류", e);
@@ -117,10 +117,12 @@ public class CoupangMarketClient implements MarketClient {
 		if (rawData == null || rawData.isEmpty()) {
 			return MarketItemInfo.builder().build();
 		}
-		String displayProductName = rawData.get("displayProductName") != null ? String.valueOf(rawData.get("displayProductName")) : null;
+		String displayProductName = rawData.get("displayProductName") != null
+			? String.valueOf(rawData.get("displayProductName")) : null;
 		String brand = rawData.get("brand") != null ? String.valueOf(rawData.get("brand")) : null;
 		String manufacturer = rawData.get("manufacture") != null ? String.valueOf(rawData.get("manufacture")) : null;
-		String generalProductName = rawData.get("generalProductName") != null ? String.valueOf(rawData.get("generalProductName")) : null;
+		String generalProductName = rawData.get("generalProductName") != null
+			? String.valueOf(rawData.get("generalProductName")) : null;
 
 		String externalVendorSku = "";
 		String barcode = null;
@@ -129,41 +131,45 @@ public class CoupangMarketClient implements MarketClient {
 		try {
 			Object itemsObj = rawData.get("items");
 			if (itemsObj instanceof List<?> items && !items.isEmpty()) {
-				@SuppressWarnings("unchecked")
-				Map<String, Object> firstItem = (Map<String, Object>) items.get(0);
-				externalVendorSku = firstItem.get("externalVendorSku") != null ? String.valueOf(firstItem.get("externalVendorSku")) : "";
+				@SuppressWarnings("unchecked") Map<String, Object> firstItem = (Map<String, Object>)items.get(0);
+				externalVendorSku = firstItem.get("externalVendorSku") != null
+					? String.valueOf(firstItem.get("externalVendorSku")) : "";
 				barcode = firstItem.get("barcode") != null ? String.valueOf(firstItem.get("barcode")) : null;
-				if (firstItem.get("salePrice") != null) salePrice = new BigDecimal(String.valueOf(firstItem.get("salePrice")));
-				if (firstItem.get("maximumBuyCount") != null) stock = Integer.parseInt(String.valueOf(firstItem.get("maximumBuyCount")));
+				if (firstItem.get("salePrice") != null)
+					salePrice = new BigDecimal(String.valueOf(firstItem.get("salePrice")));
+				if (firstItem.get("maximumBuyCount") != null)
+					stock = Integer.parseInt(String.valueOf(firstItem.get("maximumBuyCount")));
 			}
 		} catch (Exception e) {
 			log.warn("쿠팡 로컬 데이터 파싱 실패", e);
 		}
 		return MarketItemInfo.builder()
-				.isMasterData(true)
-				.name(displayProductName)
-				.mappingKey(externalVendorSku)
-				.brand(brand)
-				.manufacturer(manufacturer)
-				.barcode(barcode)
-				.generalProductName(generalProductName)
-				.salePrice(salePrice)
-				.stock(stock)
-				.rawData(rawData)
-				.build();
+			.isMasterData(true)
+			.name(displayProductName)
+			.mappingKey(externalVendorSku)
+			.brand(brand)
+			.manufacturer(manufacturer)
+			.barcode(barcode)
+			.generalProductName(generalProductName)
+			.salePrice(salePrice)
+			.stock(stock)
+			.rawData(rawData)
+			.build();
 	}
 
 	@Override
 	public Map<String, Object> syncPriceAndStock(String marketItemId, Map<String, Object> currentRawData,
-			Integer price, Integer stock) {
+		Integer price, Integer stock) {
 		try {
 			if (currentRawData != null && currentRawData.containsKey("items")) {
-				@SuppressWarnings("unchecked")
-				List<Map<String, Object>> items = (List<Map<String, Object>>) currentRawData.get("items");
+				@SuppressWarnings("unchecked") List<Map<String, Object>> items = (List<Map<String, Object>>)currentRawData
+					.get("items");
 				if (items != null && !items.isEmpty()) {
 					Map<String, Object> firstItem = items.get(0);
-					if (price != null) firstItem.put("salePrice", price);
-					if (stock != null) firstItem.put("maximumBuyCount", stock);
+					if (price != null)
+						firstItem.put("salePrice", price);
+					if (stock != null)
+						firstItem.put("maximumBuyCount", stock);
 				}
 			}
 		} catch (Exception e) {
@@ -174,11 +180,12 @@ public class CoupangMarketClient implements MarketClient {
 
 	@Override
 	public Map<String, Object> syncImagesAndHtml(String marketItemId, Map<String, Object> currentRawData,
-			List<String> hostedImages, String newDetailHtml) {
-		if (currentRawData == null || !currentRawData.containsKey("items")) return currentRawData;
+		List<String> hostedImages, String newDetailHtml) {
+		if (currentRawData == null || !currentRawData.containsKey("items"))
+			return currentRawData;
 		try {
-			@SuppressWarnings("unchecked")
-			List<Map<String, Object>> items = (List<Map<String, Object>>) currentRawData.get("items");
+			@SuppressWarnings("unchecked") List<Map<String, Object>> items = (List<Map<String, Object>>)currentRawData
+				.get("items");
 			if (items != null && !items.isEmpty()) {
 				Map<String, Object> firstItem = items.get(0);
 				List<Map<String, Object>> coupangImages = new ArrayList<>();

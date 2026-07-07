@@ -11,15 +11,17 @@ import org.springframework.stereotype.Component;
 public class CoupangSearchTagGenerator {
 
 	private static final List<String> MAGIC_KEYWORDS = List.of(
-			"해외직구", "미국직구", "정품", "가성비", "영양제추천");
+		"해외직구", "미국직구", "정품", "가성비", "영양제추천");
 
 	public List<String> generateTags(Product product) {
 		Set<String> tags = new LinkedHashSet<>();
-		if (product.getBrand() != null) tags.add(cleanText(product.getBrand()));
+		if (product.getBrand() != null)
+			tags.add(cleanText(product.getBrand()));
 		if (product.getBaseName() != null) {
 			for (String word : product.getBaseName().split("\\s+")) {
 				String cleaned = cleanText(word);
-				if (cleaned.length() > 1 && cleaned.length() <= 20) tags.add(cleaned);
+				if (cleaned.length() > 1 && cleaned.length() <= 20)
+					tags.add(cleaned);
 			}
 		}
 		tags.addAll(MAGIC_KEYWORDS);

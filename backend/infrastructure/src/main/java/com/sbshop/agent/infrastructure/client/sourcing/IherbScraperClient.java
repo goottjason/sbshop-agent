@@ -207,7 +207,8 @@ public class IherbScraperClient implements ProductStockCrawlerPort, ProductInfoC
 					Thread.sleep(2000L * (i + 1));
 				}
 			} catch (Exception e) {
-				if (i == 3) log.error("아이허브 상품 정보 크롤링 실패: {}", url, e);
+				if (i == 3)
+					log.error("아이허브 상품 정보 크롤링 실패: {}", url, e);
 			}
 		}
 		return null;
@@ -228,7 +229,7 @@ public class IherbScraperClient implements ProductStockCrawlerPort, ProductInfoC
 				if (dto != null) {
 					results.add(dto);
 				}
-				Thread.sleep(500 + (long) (Math.random() * 500));
+				Thread.sleep(500 + (long)(Math.random() * 500));
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 				break;
@@ -241,25 +242,25 @@ public class IherbScraperClient implements ProductStockCrawlerPort, ProductInfoC
 
 	private ScrapedProductDto toScrapedDto(IherbProductInfo info) {
 		return ScrapedProductDto.builder()
-				.sourceUrl(info.sourceUrl())
-				.baseName(info.productName())
-				.originalName(info.englishName())
-				.brand(info.brandName())
-				.costPrice(info.discountPrice() != null && info.discountPrice().compareTo(BigDecimal.ZERO) > 0
-						? info.discountPrice() : info.listPrice())
-				.listPrice(info.listPrice())
-				.discountPrice(info.discountPrice())
-				.discountType(info.discountType())
-				.couponRate(info.couponRate())
-				.salesDiscount(info.salesDiscount())
-				.isAvailable(info.isAvailable())
-				.sourceImages(info.imageLinks())
-				.rawSourceHtml(info.htmlDescription())
-				.rawCategory(info.categoryPath())
-				.capacity(info.capacity())
-				.unit(info.unit())
-				.vendor(VendorType.IHB)
-				.build();
+			.sourceUrl(info.sourceUrl())
+			.baseName(info.productName())
+			.originalName(info.englishName())
+			.brand(info.brandName())
+			.costPrice(info.discountPrice() != null && info.discountPrice().compareTo(BigDecimal.ZERO) > 0
+				? info.discountPrice() : info.listPrice())
+			.listPrice(info.listPrice())
+			.discountPrice(info.discountPrice())
+			.discountType(info.discountType())
+			.couponRate(info.couponRate())
+			.salesDiscount(info.salesDiscount())
+			.isAvailable(info.isAvailable())
+			.sourceImages(info.imageLinks())
+			.rawSourceHtml(info.htmlDescription())
+			.rawCategory(info.categoryPath())
+			.capacity(info.capacity())
+			.unit(info.unit())
+			.vendor(VendorType.IHB)
+			.build();
 	}
 
 	private IherbProductInfo parseProductInfo(String body, String sourceUrl) {
@@ -319,14 +320,13 @@ public class IherbScraperClient implements ProductStockCrawlerPort, ProductInfoC
 				if (!servingSize.isEmpty()) {
 					capacity = new BigDecimal(servingSize.replaceAll("[^0-9.]", ""));
 				}
-			} catch (Exception ignored) {
-			}
+			} catch (Exception ignored) {}
 
 			return new IherbProductInfo(
-					productName, englishName, brandName,
-					listPrice, discountPrice, discountType, couponRate, salesDiscount,
-					isAvailable, imageLinks, categoryPath, htmlDescription,
-					capacity, unit, sourceUrl);
+				productName, englishName, brandName,
+				listPrice, discountPrice, discountType, couponRate, salesDiscount,
+				isAvailable, imageLinks, categoryPath, htmlDescription,
+				capacity, unit, sourceUrl);
 		} catch (Exception e) {
 			log.error("아이허브 상품 정보 파싱 실패", e);
 			return null;

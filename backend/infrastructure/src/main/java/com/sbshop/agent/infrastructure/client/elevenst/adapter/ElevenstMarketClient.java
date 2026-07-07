@@ -5,7 +5,6 @@ import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.infrastructure.client.elevenst.client.ElevenstMarketRestClient;
-import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +33,8 @@ public class ElevenstMarketClient implements MarketClient {
 			log.info("[Elevenst] 상품 등록 응답: {}", response.substring(0, Math.min(response.length(), 200)));
 
 			String productNo = extractXmlValue(response, "prdNo");
-			if (productNo.isEmpty()) productNo = "11ST-" + product.getSbCode();
+			if (productNo.isEmpty())
+				productNo = "11ST-" + product.getSbCode();
 
 			Map<String, String> identifiers = new HashMap<>();
 			identifiers.put("elevenstId", productNo);
@@ -49,11 +49,11 @@ public class ElevenstMarketClient implements MarketClient {
 	public MarketItemInfo extractMarketItem(String marketItemId) {
 		String response = restClient.get("/rest/prodservices/productinfo/" + marketItemId);
 		return MarketItemInfo.builder()
-				.isMasterData(true)
-				.name(extractXmlValue(response, "prdNm"))
-				.mappingKey(extractXmlValue(response, "prdNo"))
-				.rawData(Map.of("xmlResponse", response))
-				.build();
+			.isMasterData(true)
+			.name(extractXmlValue(response, "prdNm"))
+			.mappingKey(extractXmlValue(response, "prdNo"))
+			.rawData(Map.of("xmlResponse", response))
+			.build();
 	}
 
 	@Override
@@ -62,15 +62,15 @@ public class ElevenstMarketClient implements MarketClient {
 			return MarketItemInfo.builder().build();
 		}
 		return MarketItemInfo.builder()
-				.isMasterData(true)
-				.name(rawData.get("prdNm") != null ? String.valueOf(rawData.get("prdNm")) : null)
-				.rawData(rawData)
-				.build();
+			.isMasterData(true)
+			.name(rawData.get("prdNm") != null ? String.valueOf(rawData.get("prdNm")) : null)
+			.rawData(rawData)
+			.build();
 	}
 
 	@Override
 	public Map<String, Object> syncPriceAndStock(String marketItemId, Map<String, Object> currentRawData,
-			Integer price, Integer stock) {
+		Integer price, Integer stock) {
 		try {
 			if (price != null) {
 				restClient.get("/rest/prodservices/product/price/" + marketItemId + "/" + price);
@@ -85,8 +85,10 @@ public class ElevenstMarketClient implements MarketClient {
 				log.info("[Elevenst] 재고 업데이트: {} -> {}", marketItemId, stock);
 			}
 			if (currentRawData != null) {
-				if (price != null) currentRawData.put("salePrice", price);
-				if (stock != null) currentRawData.put("stockQuantity", stock);
+				if (price != null)
+					currentRawData.put("salePrice", price);
+				if (stock != null)
+					currentRawData.put("stockQuantity", stock);
 			}
 		} catch (Exception e) {
 			log.error("[Elevenst] 가격/재고 업데이트 실패: {}", e.getMessage());
@@ -96,7 +98,7 @@ public class ElevenstMarketClient implements MarketClient {
 
 	@Override
 	public Map<String, Object> syncImagesAndHtml(String marketItemId, Map<String, Object> currentRawData,
-			List<String> hostedImages, String newDetailHtml) {
+		List<String> hostedImages, String newDetailHtml) {
 		log.warn("[Elevenst] 이미지/HTML 개별 업데이트 미지원 (상품 재등록 필요): {}", marketItemId);
 		return currentRawData;
 	}
@@ -106,21 +108,29 @@ public class ElevenstMarketClient implements MarketClient {
 		sb.append("<?xml version=\"1.0\" encoding=\"euc-kr\"?>");
 		sb.append("<Product>");
 		sb.append("<prdNm>").append("<![CDATA[").append(product.getProductName()).append("]]>").append("</prdNm>");
-		sb.append("<prdNmEng>").append("<![CDATA[").append(product.getBaseName() != null ? product.getBaseName() : "").append("]]>").append("</prdNmEng>");
-		sb.append("<brand>").append("<![CDATA[").append(product.getBrand() != null ? product.getBrand() : "").append("]]>").append("</brand>");
-		sb.append("<makerNm>").append("<![CDATA[").append(product.getBrand() != null ? product.getBrand() : "").append("]]>").append("</makerNm>");
+		sb.append("<prdNmEng>").append("<![CDATA[").append(product.getBaseName() != null ? product.getBaseName() : "")
+			.append("]]>").append("</prdNmEng>");
+		sb.append("<brand>").append("<![CDATA[").append(product.getBrand() != null ? product.getBrand() : "")
+			.append("]]>").append("</brand>");
+		sb.append("<makerNm>").append("<![CDATA[").append(product.getBrand() != null ? product.getBrand() : "")
+			.append("]]>").append("</makerNm>");
 		sb.append("<dptNo>1012345</dptNo>");
-		sb.append("<selPrc>").append(product.getSalePrice() != null ? product.getSalePrice().intValue() : 0).append("</selPrc>");
+		sb.append("<selPrc>").append(product.getSalePrice() != null ? product.getSalePrice().intValue() : 0)
+			.append("</selPrc>");
 		sb.append("<prdSelQty>").append(product.getStock() != null ? product.getStock() : 999).append("</prdSelQty>");
 		List<String> images = product.getHostedImages();
 		if (!images.isEmpty()) {
 			sb.append("<prdImage01>").append(images.get(0)).append("</prdImage01>");
-			if (images.size() > 1) sb.append("<prdImage02>").append(images.get(1)).append("</prdImage02>");
-			if (images.size() > 2) sb.append("<prdImage03>").append(images.get(2)).append("</prdImage03>");
-			if (images.size() > 3) sb.append("<prdImage04>").append(images.get(3)).append("</prdImage04>");
+			if (images.size() > 1)
+				sb.append("<prdImage02>").append(images.get(1)).append("</prdImage02>");
+			if (images.size() > 2)
+				sb.append("<prdImage03>").append(images.get(2)).append("</prdImage03>");
+			if (images.size() > 3)
+				sb.append("<prdImage04>").append(images.get(3)).append("</prdImage04>");
 		}
 		if (product.getDetailHtml() != null) {
-			sb.append("<htmlDetail>").append("<![CDATA[").append(product.getDetailHtml()).append("]]>").append("</htmlDetail>");
+			sb.append("<htmlDetail>").append("<![CDATA[").append(product.getDetailHtml()).append("]]>")
+				.append("</htmlDetail>");
 		}
 		sb.append("<rtngdDlvCst>7000</rtngdDlvCst>");
 		sb.append("<exchDlvCst>14000</exchDlvCst>");

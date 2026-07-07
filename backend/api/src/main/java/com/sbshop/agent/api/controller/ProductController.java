@@ -33,7 +33,6 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -57,9 +56,12 @@ public class ProductController {
 
 	@GetMapping
 	public ResponseEntity<Page<ProductListResponse>> getProducts(
-			@RequestParam(required = false) String keyword,
-			@RequestParam(required = false) String marketFilter,
-			@PageableDefault(size = 50) Pageable pageable) {
+		@RequestParam(required = false)
+		String keyword,
+		@RequestParam(required = false)
+		String marketFilter,
+		@PageableDefault(size = 50)
+		Pageable pageable) {
 		Page<Product> products;
 		if (marketFilter != null && !marketFilter.isBlank()) {
 			boolean registered = !marketFilter.startsWith("!");
@@ -73,23 +75,28 @@ public class ProductController {
 	}
 
 	@GetMapping("/{id}")
-	public ResponseEntity<ProductDetailResponse> getProduct(@PathVariable Long id) {
+	public ResponseEntity<ProductDetailResponse> getProduct(@PathVariable
+	Long id) {
 		Product product = productSearchUseCase.getProductDetail(id);
 		return ResponseEntity.ok(ProductDetailResponse.from(product));
 	}
 
 	@PutMapping("/{id}/price-stock")
 	public ResponseEntity<Void> updatePriceStock(
-			@PathVariable Long id,
-			@RequestBody PriceStockUpdateRequest request) {
+		@PathVariable
+		Long id,
+		@RequestBody
+		PriceStockUpdateRequest request) {
 		productManageUseCase.updatePriceStock(id, request.price(), request.stock());
 		return ResponseEntity.ok().build();
 	}
 
 	@PutMapping("/{id}/images")
 	public ResponseEntity<Void> uploadImages(
-			@PathVariable Long id,
-			@RequestPart("images") List<MultipartFile> images) {
+		@PathVariable
+		Long id,
+		@RequestPart("images")
+		List<MultipartFile> images) {
 		List<ImageUploadFile> uploadFiles = prepareImageFiles(images);
 		productManageUseCase.updateImagesAndHtml(id, uploadFiles);
 		return ResponseEntity.ok().build();
@@ -97,15 +104,18 @@ public class ProductController {
 
 	@PutMapping("/{id}/images/by-url")
 	public ResponseEntity<Void> uploadImagesByUrl(
-			@PathVariable Long id,
-			@RequestBody List<String> imageUrls) {
+		@PathVariable
+		Long id,
+		@RequestBody
+		List<String> imageUrls) {
 		List<ImageUploadFile> downloadFiles = imageDownloadClient.downloadAndConvert(imageUrls);
 		productManageUseCase.updateImagesAndHtml(id, downloadFiles);
 		return ResponseEntity.ok().build();
 	}
 
 	@GetMapping("/{id}/images/crawl")
-	public ResponseEntity<List<String>> crawlSourceImages(@PathVariable Long id) {
+	public ResponseEntity<List<String>> crawlSourceImages(@PathVariable
+	Long id) {
 		Product product = productSearchUseCase.getProductDetail(id);
 		String sourcingUrl = product.getSourcingUrl();
 		if (sourcingUrl == null || sourcingUrl.isEmpty()) {
@@ -120,14 +130,17 @@ public class ProductController {
 
 	@PutMapping("/{id}")
 	public ResponseEntity<Void> updateProduct(
-			@PathVariable Long id,
-			@RequestBody ProductUpdateRequest request) {
+		@PathVariable
+		Long id,
+		@RequestBody
+		ProductUpdateRequest request) {
 		productManageUseCase.updateProduct(id, request.toCommand());
 		return ResponseEntity.ok().build();
 	}
 
 	@DeleteMapping("/{id}")
-	public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
+	public ResponseEntity<Void> deleteProduct(@PathVariable
+	Long id) {
 		productManageUseCase.deleteProduct(id);
 		return ResponseEntity.ok().build();
 	}
@@ -160,17 +173,17 @@ public class ProductController {
 				byte[] rawBytes = mf.getBytes();
 				ByteArrayOutputStream os = new ByteArrayOutputStream();
 				Thumbnails.of(new ByteArrayInputStream(rawBytes))
-						.size(1000, 1000)
-						.outputFormat("jpg")
-						.outputQuality(0.8)
-						.toOutputStream(os);
+					.size(1000, 1000)
+					.outputFormat("jpg")
+					.outputQuality(0.8)
+					.toOutputStream(os);
 				byte[] optimizedBytes = os.toByteArray();
 				InputStream stream = new ByteArrayInputStream(optimizedBytes);
 				uploadFiles.add(new ImageUploadFile(
-						mf.getOriginalFilename(),
-						"image/jpeg",
-						stream,
-						optimizedBytes.length));
+					mf.getOriginalFilename(),
+					"image/jpeg",
+					stream,
+					optimizedBytes.length));
 			} catch (Exception e) {
 				log.error("이미지 리사이즈 실패: {}", mf.getOriginalFilename(), e);
 			}

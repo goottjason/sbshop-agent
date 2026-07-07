@@ -12,9 +12,9 @@ public class OrderUpdateCommand {
 	private String customsClearanceNo;
 
 	public CustomsData toCustomsData(CustomsData existing) {
-		CustomsData.CustomsDataBuilder builder =
-			existing != null ? existing.toBuilder() : CustomsData.builder();
-		if (this.customsClearanceNo != null) builder.customsClearanceNo(this.customsClearanceNo);
+		CustomsData.CustomsDataBuilder builder = existing != null ? existing.toBuilder() : CustomsData.builder();
+		if (this.customsClearanceNo != null)
+			builder.customsClearanceNo(this.customsClearanceNo);
 		return builder.build();
 	}
 }

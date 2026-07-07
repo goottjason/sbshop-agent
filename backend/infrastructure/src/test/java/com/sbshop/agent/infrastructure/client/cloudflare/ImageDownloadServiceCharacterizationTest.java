@@ -89,7 +89,7 @@ class ImageDownloadServiceCharacterizationTest {
 		ImageDownloadService service = new ImageDownloadService();
 
 		assertThatThrownBy(() -> service.downloadAndConvert(List.of(baseUrl + "/blocked.jpg")))
-				.isInstanceOf(RuntimeException.class);
+			.isInstanceOf(RuntimeException.class);
 	}
 
 	private static byte[] sampleJpeg() throws Exception {

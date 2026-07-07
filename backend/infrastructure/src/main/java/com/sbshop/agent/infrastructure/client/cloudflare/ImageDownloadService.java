@@ -36,20 +36,20 @@ public class ImageDownloadService implements ImageDownloadClient {
 
 				ByteArrayOutputStream os = new ByteArrayOutputStream();
 				Thumbnails.of(new ByteArrayInputStream(rawBytes))
-						.size(1000, 1000)
-						.outputFormat("jpg")
-						.outputQuality(0.8)
-						.toOutputStream(os);
+					.size(1000, 1000)
+					.outputFormat("jpg")
+					.outputQuality(0.8)
+					.toOutputStream(os);
 
 				byte[] optimizedBytes = os.toByteArray();
 				InputStream optimizedStream = new ByteArrayInputStream(optimizedBytes);
 				String filename = "crawled-image-" + (i + 1) + ".jpg";
 
 				results.add(new ImageUploadFile(
-						filename,
-						"image/jpeg",
-						optimizedStream,
-						optimizedBytes.length));
+					filename,
+					"image/jpeg",
+					optimizedStream,
+					optimizedBytes.length));
 
 				log.info("이미지 다운로드 및 최적화 완료 [{}/{}]: {}", i + 1, imageUrls.size(), url);
 			} catch (Exception e) {
@@ -67,11 +67,11 @@ public class ImageDownloadService implements ImageDownloadClient {
 	@Override
 	public List<ImageUploadFile> downloadAll(List<String> imageUrls) {
 		return imageUrls.stream()
-				.filter(url -> url != null && !url.isBlank())
-				.map(this::download)
-				.filter(Optional::isPresent)
-				.map(Optional::get)
-				.toList();
+			.filter(url -> url != null && !url.isBlank())
+			.map(this::download)
+			.filter(Optional::isPresent)
+			.map(Optional::get)
+			.toList();
 	}
 
 	@Override
@@ -80,7 +80,7 @@ public class ImageDownloadService implements ImageDownloadClient {
 			byte[] rawBytes = downloadImage(imageUrl);
 			String filename = extractFilenameFromUrl(imageUrl);
 			ImageUploadFile uploadFile = new ImageUploadFile(
-					filename, "image/jpeg", new ByteArrayInputStream(rawBytes), rawBytes.length);
+				filename, "image/jpeg", new ByteArrayInputStream(rawBytes), rawBytes.length);
 			return Optional.of(uploadFile);
 		} catch (Exception e) {
 			log.error("이미지 다운로드 중 오류 발생: {}", imageUrl, e);
@@ -90,10 +90,10 @@ public class ImageDownloadService implements ImageDownloadClient {
 
 	private byte[] downloadImage(String url) throws Exception {
 		Request request = new Request.Builder()
-				.url(url)
-				.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-				.header("Accept", "image/*")
-				.build();
+			.url(url)
+			.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+			.header("Accept", "image/*")
+			.build();
 
 		try (Response response = httpClient.newCall(request).execute()) {
 			if (!response.isSuccessful() || response.body() == null) {

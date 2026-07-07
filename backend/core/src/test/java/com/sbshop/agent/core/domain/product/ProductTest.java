@@ -17,23 +17,23 @@ class ProductTest {
 	@DisplayName("ProductCreateCommand로 상품을 생성하면 모든 필드가 올바르게 설정된다")
 	void create_fromCommand_setsAllFields() {
 		ProductCreateCommand command = new ProductCreateCommand(
-				"https://www.iherb.com/product/12345",
-				new BigDecimal("25.00"),
-				"Magnesium Taurate",
-				"Magnesium Taurate 400mg",
-				"KAL",
-				"USA",
-				new BigDecimal("0.5"),
-				new BigDecimal("400"),
-				MeasureUnit.TABLET,
-				List.of("https://img.iherb.com/1.jpg", "https://img.iherb.com/2.jpg"),
-				List.of("https://r2.dev/img1.jpg", "https://r2.dev/img2.jpg"),
-				"<div>description</div>",
-				"비타민/미네랄",
-				true,
-				2,
-				new BigDecimal("20"),
-				VendorType.IHB);
+			"https://www.iherb.com/product/12345",
+			new BigDecimal("25.00"),
+			"Magnesium Taurate",
+			"Magnesium Taurate 400mg",
+			"KAL",
+			"USA",
+			new BigDecimal("0.5"),
+			new BigDecimal("400"),
+			MeasureUnit.TABLET,
+			List.of("https://img.iherb.com/1.jpg", "https://img.iherb.com/2.jpg"),
+			List.of("https://r2.dev/img1.jpg", "https://r2.dev/img2.jpg"),
+			"<div>description</div>",
+			"비타민/미네랄",
+			true,
+			2,
+			new BigDecimal("20"),
+			VendorType.IHB);
 
 		Product product = Product.create("260707IHB001", command);
 
@@ -58,22 +58,22 @@ class ProductTest {
 	@DisplayName("ProductUpdateCommand로 가격과 재고를 부분 업데이트한다")
 	void update_priceStock_updatesOnlyPriceAndStock() {
 		ProductCreateCommand createCmd = new ProductCreateCommand(
-				"url", new BigDecimal("10"), "base", "orig", "brand", "US",
-				BigDecimal.ONE, BigDecimal.TEN, MeasureUnit.TABLET,
-				List.of(), List.of("https://r2.dev/img.jpg"), "html", "비타민",
-				true, 1, BigDecimal.ZERO, VendorType.IHB);
+			"url", new BigDecimal("10"), "base", "orig", "brand", "US",
+			BigDecimal.ONE, BigDecimal.TEN, MeasureUnit.TABLET,
+			List.of(), List.of("https://r2.dev/img.jpg"), "html", "비타민",
+			true, 1, BigDecimal.ZERO, VendorType.IHB);
 		Product product = Product.create("260707IHB002", createCmd);
 
 		BigDecimal originalCost = product.getPriceInfo().getCostPrice();
 		Integer originalStock = product.getLogisticsInfo().getStock();
 
 		ProductUpdateCommand update = new ProductUpdateCommand(
-				null, null, null, null, null,
-				null, null, null, null, new BigDecimal("50000"),
-				100, null, null,
-				null, null, null,
-				null, null, null, null, null,
-				null, null, null, null, null);
+			null, null, null, null, null,
+			null, null, null, null, new BigDecimal("50000"),
+			100, null, null,
+			null, null, null,
+			null, null, null, null, null,
+			null, null, null, null, null);
 		product.update(update);
 
 		assertThat(product.getPriceInfo().getSalePrice()).isEqualByComparingTo("50000");

@@ -11,8 +11,8 @@ import org.springframework.stereotype.Component;
 public class HtmlImageExtractor {
 
 	private static final Pattern IMG_PATTERN = Pattern.compile(
-			"<img[^>]+src\\s*=\\s*['\"]([^'\"]+)['\"][^>]*>",
-			Pattern.CASE_INSENSITIVE);
+		"<img[^>]+src\\s*=\\s*['\"]([^'\"]+)['\"][^>]*>",
+		Pattern.CASE_INSENSITIVE);
 
 	public List<String> extractSkuImages(String html, String sku) {
 		if (html == null || html.isBlank() || sku == null || sku.isBlank()) {

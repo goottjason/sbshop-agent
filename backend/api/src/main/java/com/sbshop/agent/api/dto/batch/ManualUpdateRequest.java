@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public record ManualUpdateRequest(
-		List<Long> productIds,
-		List<BigDecimal> prices,
-		List<Integer> stocks) {
+	List<Long> productIds,
+	List<BigDecimal> prices,
+	List<Integer> stocks) {
 }

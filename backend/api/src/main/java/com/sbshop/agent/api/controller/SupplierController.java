@@ -11,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,9 +32,10 @@ public class SupplierController {
 	}
 
 	@PostMapping("/suppliers")
-	public ResponseEntity<Supplier> createSupplier(@RequestBody SupplierRequest request) {
+	public ResponseEntity<Supplier> createSupplier(@RequestBody
+	SupplierRequest request) {
 		Currency currency = currencyRepository.findById(request.currencyCode())
-				.orElseThrow(() -> new IllegalArgumentException("통화 없음: " + request.currencyCode()));
+			.orElseThrow(() -> new IllegalArgumentException("통화 없음: " + request.currencyCode()));
 		Supplier supplier = new Supplier(request.supplierCode(), request.supplierName(), currency);
 		return ResponseEntity.ok(supplierRepository.save(supplier));
 	}
@@ -46,7 +46,8 @@ public class SupplierController {
 	}
 
 	@PostMapping("/currencies")
-	public ResponseEntity<Currency> createCurrency(@RequestBody CurrencyRequest request) {
+	public ResponseEntity<Currency> createCurrency(@RequestBody
+	CurrencyRequest request) {
 		Currency currency = new Currency(request.currencyCode(), request.exchangeRate());
 		return ResponseEntity.ok(currencyRepository.save(currency));
 	}

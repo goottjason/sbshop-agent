@@ -10,12 +10,11 @@ import javax.crypto.spec.SecretKeySpec;
 
 public final class CoupangHmacUtil {
 
-	private CoupangHmacUtil() {
-	}
+	private CoupangHmacUtil() {}
 
 	public static String generateSignature(String method, String path, String accessKey, String secretKey) {
 		String datetime = ZonedDateTime.now(ZoneId.of("Asia/Seoul"))
-				.format(DateTimeFormatter.ofPattern("yyMMddHHmmss"));
+			.format(DateTimeFormatter.ofPattern("yyMMddHHmmss"));
 		return buildAuth(method, path, "", datetime, accessKey, secretKey);
 	}
 
@@ -28,12 +27,12 @@ public final class CoupangHmacUtil {
 			query = parts[1];
 		}
 		String datetime = ZonedDateTime.now(ZoneId.of("UTC"))
-				.format(DateTimeFormatter.ofPattern("yyMMdd'T'HHmmss'Z'"));
+			.format(DateTimeFormatter.ofPattern("yyMMdd'T'HHmmss'Z'"));
 		return buildAuth(method, path, query, datetime, accessKey, secretKey);
 	}
 
 	private static String buildAuth(String method, String path, String query,
-			String datetime, String accessKey, String secretKey) {
+		String datetime, String accessKey, String secretKey) {
 		try {
 			String message = datetime + method + path + query;
 			Mac mac = Mac.getInstance("HmacSHA256");
@@ -41,7 +40,7 @@ public final class CoupangHmacUtil {
 			byte[] hash = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
 			String signature = HexFormat.of().formatHex(hash);
 			return String.format("CEA algorithm=HmacSHA256, access-key=%s, signed-date=%s, signature=%s",
-					accessKey, datetime, signature);
+				accessKey, datetime, signature);
 		} catch (Exception e) {
 			throw new RuntimeException("Coupang HMAC 서명 생성 실패", e);
 		}
@@ -49,6 +48,6 @@ public final class CoupangHmacUtil {
 
 	public static String generateDatetime() {
 		return ZonedDateTime.now(ZoneId.of("Asia/Seoul"))
-				.format(DateTimeFormatter.ofPattern("yyMMddHHmmss"));
+			.format(DateTimeFormatter.ofPattern("yyMMddHHmmss"));
 	}
 }

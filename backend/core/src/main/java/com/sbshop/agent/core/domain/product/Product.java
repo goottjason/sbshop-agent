@@ -98,20 +98,20 @@ public class Product extends BaseEntity {
 	// --- 4. 생성자 (private) ---
 
 	private Product(
-			String sbCode,
-			String brand,
-			String productName,
-			String baseName,
-			String originalName,
-			ProductCategory category,
-			PriceInfo priceInfo,
-			LogisticsInfo logisticsInfo,
-			ProductSpec productSpec,
-			SourcingInfo sourcingInfo,
-			ImageInfo imageInfo,
-			String searchKeywords,
-			String detailHtml,
-			String memo) {
+		String sbCode,
+		String brand,
+		String productName,
+		String baseName,
+		String originalName,
+		ProductCategory category,
+		PriceInfo priceInfo,
+		LogisticsInfo logisticsInfo,
+		ProductSpec productSpec,
+		SourcingInfo sourcingInfo,
+		ImageInfo imageInfo,
+		String searchKeywords,
+		String detailHtml,
+		String memo) {
 		this.sbCode = sbCode;
 		this.brand = brand;
 		this.productName = productName;
@@ -153,22 +153,30 @@ public class Product extends BaseEntity {
 		SourcingInfo sourcingInfo = createSourcingInfo(command, safeBrand, hsCode);
 
 		return new Product(
-				sbCode, safeBrand, assembledName, safeBaseName, safeOriginalName,
-				category, priceInfo, logisticsInfo, productSpec, sourcingInfo,
-				imageInfo, searchKeywords, finalDetailHtml, "{}");
+			sbCode, safeBrand, assembledName, safeBaseName, safeOriginalName,
+			category, priceInfo, logisticsInfo, productSpec, sourcingInfo,
+			imageInfo, searchKeywords, finalDetailHtml, "{}");
 	}
 
 	// --- 6. 도메인 업데이트 ---
 
 	public void update(ProductUpdateCommand command) {
-		if (command.brand() != null) this.brand = command.brand();
-		if (command.name() != null) this.productName = command.name();
-		if (command.baseName() != null) this.baseName = command.baseName();
-		if (command.originalName() != null) this.originalName = command.originalName();
-		if (command.category() != null) this.category = command.category();
-		if (command.searchKeywords() != null) this.searchKeywords = command.searchKeywords();
-		if (command.detailHtml() != null) this.detailHtml = command.detailHtml();
-		if (command.memo() != null) this.memo = command.memo();
+		if (command.brand() != null)
+			this.brand = command.brand();
+		if (command.name() != null)
+			this.productName = command.name();
+		if (command.baseName() != null)
+			this.baseName = command.baseName();
+		if (command.originalName() != null)
+			this.originalName = command.originalName();
+		if (command.category() != null)
+			this.category = command.category();
+		if (command.searchKeywords() != null)
+			this.searchKeywords = command.searchKeywords();
+		if (command.detailHtml() != null)
+			this.detailHtml = command.detailHtml();
+		if (command.memo() != null)
+			this.memo = command.memo();
 
 		updatePriceInfo(command);
 		updateLogisticsInfo(command);
@@ -179,62 +187,83 @@ public class Product extends BaseEntity {
 
 	private void updatePriceInfo(ProductUpdateCommand command) {
 		boolean hasUpdate = command.costPrice() != null || command.exchangeRate() != null ||
-				command.deliveryFee() != null || command.marginRate() != null ||
-				command.salePrice() != null;
-		if (!hasUpdate) return;
+			command.deliveryFee() != null || command.marginRate() != null ||
+			command.salePrice() != null;
+		if (!hasUpdate)
+			return;
 		PriceInfo.PriceInfoBuilder builder = this.priceInfo != null
-				? this.priceInfo.toBuilder() : PriceInfo.builder();
-		if (command.costPrice() != null) builder.costPrice(command.costPrice());
-		if (command.exchangeRate() != null) builder.exchangeRate(command.exchangeRate());
-		if (command.deliveryFee() != null) builder.deliveryFee(command.deliveryFee());
-		if (command.marginRate() != null) builder.marginRate(command.marginRate());
-		if (command.salePrice() != null) builder.salePrice(command.salePrice());
+			? this.priceInfo.toBuilder() : PriceInfo.builder();
+		if (command.costPrice() != null)
+			builder.costPrice(command.costPrice());
+		if (command.exchangeRate() != null)
+			builder.exchangeRate(command.exchangeRate());
+		if (command.deliveryFee() != null)
+			builder.deliveryFee(command.deliveryFee());
+		if (command.marginRate() != null)
+			builder.marginRate(command.marginRate());
+		if (command.salePrice() != null)
+			builder.salePrice(command.salePrice());
 		this.priceInfo = builder.build();
 	}
 
 	private void updateLogisticsInfo(ProductUpdateCommand command) {
 		boolean hasUpdate = command.stock() != null || command.weight() != null ||
-				command.bundleQuantity() != null;
-		if (!hasUpdate) return;
+			command.bundleQuantity() != null;
+		if (!hasUpdate)
+			return;
 		LogisticsInfo.LogisticsInfoBuilder builder = this.logisticsInfo != null
-				? this.logisticsInfo.toBuilder() : LogisticsInfo.builder();
-		if (command.stock() != null) builder.stock(command.stock());
-		if (command.weight() != null) builder.weight(command.weight());
-		if (command.bundleQuantity() != null) builder.bundleQuantity(command.bundleQuantity());
+			? this.logisticsInfo.toBuilder() : LogisticsInfo.builder();
+		if (command.stock() != null)
+			builder.stock(command.stock());
+		if (command.weight() != null)
+			builder.weight(command.weight());
+		if (command.bundleQuantity() != null)
+			builder.bundleQuantity(command.bundleQuantity());
 		this.logisticsInfo = builder.build();
 	}
 
 	private void updateProductSpec(ProductUpdateCommand command) {
 		boolean hasUpdate = command.barcode() != null || command.capacity() != null ||
-				command.measureUnit() != null;
-		if (!hasUpdate) return;
+			command.measureUnit() != null;
+		if (!hasUpdate)
+			return;
 		ProductSpec.ProductSpecBuilder builder = this.productSpec != null
-				? this.productSpec.toBuilder() : ProductSpec.builder();
-		if (command.barcode() != null) builder.barcode(command.barcode());
-		if (command.capacity() != null) builder.capacity(command.capacity());
-		if (command.measureUnit() != null) builder.measureUnit(command.measureUnit());
+			? this.productSpec.toBuilder() : ProductSpec.builder();
+		if (command.barcode() != null)
+			builder.barcode(command.barcode());
+		if (command.capacity() != null)
+			builder.capacity(command.capacity());
+		if (command.measureUnit() != null)
+			builder.measureUnit(command.measureUnit());
 		this.productSpec = builder.build();
 	}
 
 	private void updateSourcingInfo(ProductUpdateCommand command) {
 		boolean hasUpdate = command.vendor() != null || command.sourceUrl() != null ||
-				command.manufacturer() != null || command.origin() != null || command.hsCode() != null;
-		if (!hasUpdate) return;
+			command.manufacturer() != null || command.origin() != null || command.hsCode() != null;
+		if (!hasUpdate)
+			return;
 		SourcingInfo.SourcingInfoBuilder builder = this.sourcingInfo != null
-				? this.sourcingInfo.toBuilder() : SourcingInfo.builder();
-		if (command.vendor() != null) builder.vendor(command.vendor());
-		if (command.sourceUrl() != null) builder.sourceUrl(command.sourceUrl());
-		if (command.manufacturer() != null) builder.manufacturer(command.manufacturer());
-		if (command.origin() != null) builder.origin(command.origin());
-		if (command.hsCode() != null) builder.hsCode(command.hsCode());
+			? this.sourcingInfo.toBuilder() : SourcingInfo.builder();
+		if (command.vendor() != null)
+			builder.vendor(command.vendor());
+		if (command.sourceUrl() != null)
+			builder.sourceUrl(command.sourceUrl());
+		if (command.manufacturer() != null)
+			builder.manufacturer(command.manufacturer());
+		if (command.origin() != null)
+			builder.origin(command.origin());
+		if (command.hsCode() != null)
+			builder.hsCode(command.hsCode());
 		this.sourcingInfo = builder.build();
 	}
 
 	private void updateImageInfo(ProductUpdateCommand command) {
 		boolean hasUpdate = command.sourceImages() != null || command.hostedImages() != null;
-		if (!hasUpdate) return;
+		if (!hasUpdate)
+			return;
 		ImageInfo.ImageInfoBuilder builder = this.imageInfo != null
-				? this.imageInfo.toBuilder() : ImageInfo.builder();
+			? this.imageInfo.toBuilder() : ImageInfo.builder();
 		if (command.sourceImages() != null && !command.sourceImages().isEmpty())
 			builder.sourceImages(command.sourceImages());
 		if (command.hostedImages() != null && !command.hostedImages().isEmpty())
@@ -314,7 +343,8 @@ public class Product extends BaseEntity {
 	// --- 9. 도메인 내부 헬퍼 ---
 
 	private static ProductCategory determineCategory(String rawCategory) {
-		if (rawCategory == null) return ProductCategory.UNKNOWN;
+		if (rawCategory == null)
+			return ProductCategory.UNKNOWN;
 		if (rawCategory.contains("보충제") || rawCategory.contains("미네랄") || rawCategory.contains("비타민")) {
 			return ProductCategory.SUPPLEMENT;
 		}
@@ -333,108 +363,112 @@ public class Product extends BaseEntity {
 		BigDecimal margin = defaultIfNull(command.marginRate(), BigDecimal.ZERO);
 		BigDecimal sale = cost.multiply(BigDecimal.ONE.add(margin.divide(BigDecimal.valueOf(100))));
 		return PriceInfo.builder()
-				.costPrice(cost)
-				.exchangeRate(BigDecimal.ONE)
-				.deliveryFee(BigDecimal.ZERO)
-				.marginRate(margin)
-				.salePrice(sale)
-				.build();
+			.costPrice(cost)
+			.exchangeRate(BigDecimal.ONE)
+			.deliveryFee(BigDecimal.ZERO)
+			.marginRate(margin)
+			.salePrice(sale)
+			.build();
 	}
 
 	private static LogisticsInfo createLogisticsInfo(ProductCreateCommand command, int bundleQty) {
 		return LogisticsInfo.builder()
-				.stock(command.isAvailable() ? 999 : 0)
-				.weight(defaultIfNull(command.weight(), BigDecimal.ZERO))
-				.bundleQuantity(bundleQty)
-				.build();
+			.stock(command.isAvailable() ? 999 : 0)
+			.weight(defaultIfNull(command.weight(), BigDecimal.ZERO))
+			.bundleQuantity(bundleQty)
+			.build();
 	}
 
 	private static ProductSpec createProductSpec(BigDecimal cap, MeasureUnit unit) {
 		return ProductSpec.builder()
-				.barcode("")
-				.capacity(cap)
-				.measureUnit(unit)
-				.build();
+			.barcode("")
+			.capacity(cap)
+			.measureUnit(unit)
+			.build();
 	}
 
 	private static ImageInfo createImageInfo(ProductCreateCommand command) {
 		return ImageInfo.builder()
-				.sourceImages(command.sourceImages() != null ? command.sourceImages() : new ArrayList<>())
-				.hostedImages(command.hostedImages() != null ? command.hostedImages() : new ArrayList<>())
-				.build();
+			.sourceImages(command.sourceImages() != null ? command.sourceImages() : new ArrayList<>())
+			.hostedImages(command.hostedImages() != null ? command.hostedImages() : new ArrayList<>())
+			.build();
 	}
 
 	private static SourcingInfo createSourcingInfo(ProductCreateCommand command, String brand, String hsCode) {
 		return SourcingInfo.builder()
-				.vendor(command.vendor() != null ? command.vendor() : VendorType.IHB)
-				.sourceUrl(defaultString(command.sourceUrl()))
-				.manufacturer(brand)
-				.origin(command.origin() != null ? command.origin() : "상세설명 참조")
-				.hsCode(hsCode)
-				.build();
+			.vendor(command.vendor() != null ? command.vendor() : VendorType.IHB)
+			.sourceUrl(defaultString(command.sourceUrl()))
+			.manufacturer(brand)
+			.origin(command.origin() != null ? command.origin() : "상세설명 참조")
+			.hsCode(hsCode)
+			.build();
 	}
 
 	private static String generateSearchKeywords(String brand, String baseName, String originalName) {
 		String keywords = String.format("%s,%s,%s", brand, baseName, originalName)
-				.replaceAll(",,", ",")
-				.replaceAll("^,|,$", "");
+			.replaceAll(",,", ",")
+			.replaceAll("^,|,$", "");
 		return keywords.length() > 500 ? keywords.substring(0, 499) : keywords;
 	}
 
 	private static String buildDetailHtml(String name, String originalName, int bundleCount,
-			BigDecimal capacity, MeasureUnit unit, ProductCreateCommand command) {
+		BigDecimal capacity, MeasureUnit unit, ProductCreateCommand command) {
 		List<String> hosted = command.hostedImages() != null ? command.hostedImages() : new ArrayList<>();
 		String mainImg = hosted.isEmpty() ? "" : hosted.get(0);
 		List<String> addImgs = hosted.size() > 1 ? hosted.subList(1, hosted.size()) : new ArrayList<>();
-		return generateTemplateHtml(name, originalName, bundleCount, capacity, unit, mainImg, addImgs, command.rawSourceHtml());
+		return generateTemplateHtml(name, originalName, bundleCount, capacity, unit, mainImg, addImgs,
+			command.rawSourceHtml());
 	}
 
 	private static String assembleMarketName(String brand, String baseName, BigDecimal capacity,
-			MeasureUnit unit, int bundleCount) {
+		MeasureUnit unit, int bundleCount) {
 		String unitDesc = unit != null && unit != MeasureUnit.UNKNOWN ? unit.getDescription() : "";
 		int capInt = capacity.intValue();
 		return String.format("%s %s, %d%s, %d개", brand, baseName, capInt, unitDesc, bundleCount)
-				.replaceAll(" ,", ",")
-				.trim();
+			.replaceAll(" ,", ",")
+			.trim();
 	}
 
 	private static String generateTemplateHtml(String name, String originalName, int bundleCount,
-			BigDecimal capacity, MeasureUnit measureUnit, String mainImageUrl,
-			List<String> additionalImageUrls, String rawSourceHtml) {
+		BigDecimal capacity, MeasureUnit measureUnit, String mainImageUrl,
+		List<String> additionalImageUrls, String rawSourceHtml) {
 		StringBuilder sb = new StringBuilder();
 		int capInt = capacity.intValue();
 
-		sb.append("<img src=\"http://ai.esmplus.com/shouldbe2480/notice/sb_top.png\" style=\"margin:0 auto; display:block; max-width:100%;\"><br/><br/>");
+		sb.append(
+			"<img src=\"http://ai.esmplus.com/shouldbe2480/notice/sb_top.png\" style=\"margin:0 auto; display:block; max-width:100%;\"><br/><br/>");
 		sb.append("<div style=\"text-align: center; margin-bottom: 10px;\">")
-				.append("<span style=\"font-size: 22px; color: #00B0A2; font-weight: bold;\">")
-				.append(name)
-				.append("</span><br/>")
-				.append("<span style=\"font-size: 18px; color: #555;\">")
-				.append(originalName != null ? originalName : "")
-				.append("</span></div><br/><br/>");
+			.append("<span style=\"font-size: 22px; color: #00B0A2; font-weight: bold;\">")
+			.append(name)
+			.append("</span><br/>")
+			.append("<span style=\"font-size: 18px; color: #555;\">")
+			.append(originalName != null ? originalName : "")
+			.append("</span></div><br/><br/>");
 
 		sb.append("<div style=\"text-align: center; margin-bottom: 30px;\">")
-				.append("<span style=\"font-size: 20px; color: #EF007C; font-weight: bold;\">")
-				.append("[구성품] 총 ")
-				.append(bundleCount)
-				.append(" 묶음상품 (1개 당 ")
-				.append(capInt)
-				.append(measureUnit != null ? measureUnit.getDescription() : "")
-				.append(")</span></div><br/>");
+			.append("<span style=\"font-size: 20px; color: #EF007C; font-weight: bold;\">")
+			.append("[구성품] 총 ")
+			.append(bundleCount)
+			.append(" 묶음상품 (1개 당 ")
+			.append(capInt)
+			.append(measureUnit != null ? measureUnit.getDescription() : "")
+			.append(")</span></div><br/>");
 
 		if (mainImageUrl != null && !mainImageUrl.isEmpty()) {
 			sb.append("<img src=\"").append(mainImageUrl)
-					.append("\" style=\"margin:0 auto; display:block; max-width:800px;\"><br/><br/>");
+				.append("\" style=\"margin:0 auto; display:block; max-width:800px;\"><br/><br/>");
 		}
 		for (String addImg : additionalImageUrls) {
 			sb.append("<img src=\"").append(addImg)
-					.append("\" style=\"margin:0 auto; display:block; max-width:800px;\"><br/><br/>");
+				.append("\" style=\"margin:0 auto; display:block; max-width:800px;\"><br/><br/>");
 		}
 
-		sb.append("<div style=\"text-align: left; color: #636363; font-size: 16px; line-height: 1.6; max-width: 800px; margin: 0 auto;\">")
-				.append(rawSourceHtml != null ? rawSourceHtml : "")
-				.append("</div><br/><br/>");
-		sb.append("<img src=\"http://ai.esmplus.com/shouldbe2480/notice/sb_bottom.png\" style=\"margin:0 auto; display:block; max-width:100%;\">");
+		sb.append(
+			"<div style=\"text-align: left; color: #636363; font-size: 16px; line-height: 1.6; max-width: 800px; margin: 0 auto;\">")
+			.append(rawSourceHtml != null ? rawSourceHtml : "")
+			.append("</div><br/><br/>");
+		sb.append(
+			"<img src=\"http://ai.esmplus.com/shouldbe2480/notice/sb_bottom.png\" style=\"margin:0 auto; display:block; max-width:100%;\">");
 
 		return sb.toString();
 	}

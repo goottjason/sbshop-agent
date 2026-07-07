@@ -23,14 +23,14 @@ public class SecurityConfig {
 	@Bean
 	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 		http
-				.cors(cors -> cors.configurationSource(corsConfigurationSource()))
-				.csrf(csrf -> csrf.disable())
-				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-				.authorizeHttpRequests(auth -> auth
-						.requestMatchers("/api/v1/**").permitAll()
-						.requestMatchers("/api/admin/**").permitAll()
-						.requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-						.anyRequest().authenticated());
+			.cors(cors -> cors.configurationSource(corsConfigurationSource()))
+			.csrf(csrf -> csrf.disable())
+			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+			.authorizeHttpRequests(auth -> auth
+				.requestMatchers("/api/v1/**").permitAll()
+				.requestMatchers("/api/admin/**").permitAll()
+				.requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+				.anyRequest().authenticated());
 		return http.build();
 	}
 

@@ -47,42 +47,50 @@ public class CoupangMetaService {
 
 				if ("NUMBER".equals(dataType)) {
 					if (typeName.contains("수량") || typeName.contains("캡슐") || typeName.contains("정")) {
-						int bundleQty = product.getLogisticsInfo() != null ? product.getLogisticsInfo().getBundleQuantity() : 1;
-						int totalCount = (product.getProductSpec() != null && product.getProductSpec().getCapacity() != null
-								? product.getProductSpec().getCapacity().intValue() : 1) * bundleQty;
+						int bundleQty = product.getLogisticsInfo() != null
+							? product.getLogisticsInfo().getBundleQuantity() : 1;
+						int totalCount = (product.getProductSpec() != null
+							&& product.getProductSpec().getCapacity() != null
+								? product.getProductSpec().getCapacity().intValue() : 1)
+							* bundleQty;
 						valueName = String.valueOf(totalCount > 0 ? totalCount : 1);
 					} else if (typeName.contains("용량") || typeName.contains("중량") || typeName.contains("함량")) {
-						valueName = String.valueOf(product.getProductSpec() != null && product.getProductSpec().getCapacity() != null
+						valueName = String
+							.valueOf(product.getProductSpec() != null && product.getProductSpec().getCapacity() != null
 								? product.getProductSpec().getCapacity().intValue() : 1);
 					} else {
 						valueName = "1";
 					}
 					if (unitsNode.isArray() && !unitsNode.isEmpty() && product.getProductSpec() != null) {
 						String unitStr = product.getProductSpec().getMeasureUnit() != null
-								? product.getProductSpec().getMeasureUnit().getDescription() : "";
+							? product.getProductSpec().getMeasureUnit().getDescription() : "";
 						valueName += findProperUnit(unitsNode, unitStr);
 					}
 				}
 				attributes.add(Attribute.builder()
-						.attributeTypeName(typeName).attributeValueName(valueName).exposed("NONE").build());
+					.attributeTypeName(typeName).attributeValueName(valueName).exposed("NONE").build());
 			}
 		}
 		return attributes;
 	}
 
 	private String findProperUnit(JsonNode usableUnitsNode, String myUnit) {
-		if (myUnit == null || myUnit.isBlank()) return usableUnitsNode.get(0).asText();
+		if (myUnit == null || myUnit.isBlank())
+			return usableUnitsNode.get(0).asText();
 		String normalized = normalizeUnit(myUnit);
 		for (JsonNode unitNode : usableUnitsNode) {
 			String coupangUnit = unitNode.asText();
-			if (coupangUnit.contains(normalized) || normalized.contains(coupangUnit)) return coupangUnit;
+			if (coupangUnit.contains(normalized) || normalized.contains(coupangUnit))
+				return coupangUnit;
 		}
 		return usableUnitsNode.get(0).asText();
 	}
 
 	private String normalizeUnit(String unit) {
-		if (unit.contains("타블렛") || unit.contains("tablet") || unit.contains("정")) return "정";
-		if (unit.contains("캡슐") || unit.contains("capsule") || unit.contains("소프트겔")) return "캡슐";
+		if (unit.contains("타블렛") || unit.contains("tablet") || unit.contains("정"))
+			return "정";
+		if (unit.contains("캡슐") || unit.contains("capsule") || unit.contains("소프트겔"))
+			return "캡슐";
 		return unit;
 	}
 
@@ -94,10 +102,10 @@ public class CoupangMetaService {
 			JsonNode detailNames = firstNoticeCategory.path("noticeCategoryDetailNames");
 			for (JsonNode detail : detailNames) {
 				notices.add(Notice.builder()
-						.noticeCategoryName(noticeName)
-						.noticeCategoryDetailName(detail.path("noticeCategoryDetailName").asText())
-						.content("상품상세페이지 참조")
-						.build());
+					.noticeCategoryName(noticeName)
+					.noticeCategoryDetailName(detail.path("noticeCategoryDetailName").asText())
+					.content("상품상세페이지 참조")
+					.build());
 			}
 		}
 		return notices;

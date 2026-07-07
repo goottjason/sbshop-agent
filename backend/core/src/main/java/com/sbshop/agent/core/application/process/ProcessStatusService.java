@@ -25,13 +25,13 @@ public class ProcessStatusService {
 		String batchId = UUID.randomUUID().toString().substring(0, 8);
 		for (String productCode : productCodes) {
 			ProcessStatus status = ProcessStatus.builder()
-					.batchId(batchId)
-					.productCode(productCode)
-					.jobType(jobType)
-					.step(ProcessStep.INITIALIZE_BATCH)
-					.processStatus(ProcessStatusType.PENDING)
-					.startedAt(LocalDateTime.now())
-					.build();
+				.batchId(batchId)
+				.productCode(productCode)
+				.jobType(jobType)
+				.step(ProcessStep.INITIALIZE_BATCH)
+				.processStatus(ProcessStatusType.PENDING)
+				.startedAt(LocalDateTime.now())
+				.build();
 			processStatusRepository.save(status);
 		}
 		log.info("배치 시작: batchId={}, jobType={}, count={}", batchId, jobType, productCodes.size());
@@ -40,12 +40,12 @@ public class ProcessStatusService {
 
 	@Transactional
 	public void updateStep(String batchId, String productCode, ProcessStep step,
-			ProcessStatusType status, String message) {
+		ProcessStatusType status, String message) {
 		List<ProcessStatus> statuses = processStatusRepository.findByBatchId(batchId);
 		statuses.stream()
-				.filter(s -> s.getProductCode().equals(productCode))
-				.findFirst()
-				.ifPresent(s -> s.updateStep(step, status, message));
+			.filter(s -> s.getProductCode().equals(productCode))
+			.findFirst()
+			.ifPresent(s -> s.updateStep(step, status, message));
 	}
 
 	@Transactional
@@ -67,9 +67,9 @@ public class ProcessStatusService {
 	public List<String> getAllBatchIds() {
 		List<ProcessStatus> all = processStatusRepository.findAll();
 		return all.stream()
-				.map(ProcessStatus::getBatchId)
-				.distinct()
-				.toList();
+			.map(ProcessStatus::getBatchId)
+			.distinct()
+			.toList();
 	}
 
 	@Transactional(readOnly = true)

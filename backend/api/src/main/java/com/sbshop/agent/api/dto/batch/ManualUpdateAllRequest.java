@@ -4,6 +4,6 @@ import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
 import java.util.List;
 
 public record ManualUpdateAllRequest(
-		List<Long> productIds,
-		List<ProductUpdateCommand> commands) {
+	List<Long> productIds,
+	List<ProductUpdateCommand> commands) {
 }

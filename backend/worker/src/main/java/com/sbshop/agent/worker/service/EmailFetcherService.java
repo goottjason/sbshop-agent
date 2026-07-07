@@ -1,7 +1,6 @@
 package com.sbshop.agent.worker.service;
 
 import com.sbshop.agent.core.application.order.service.MarketplaceShippingService;
-import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
@@ -254,8 +253,8 @@ public class EmailFetcherService {
 					.toBuilder()
 					.sourcingAmount(confirmData.getTotalAmount())
 					.build();
-			item.applySourcingData(updated);
-			orderLineItemRepository.save(item);
+				item.applySourcingData(updated);
+				orderLineItemRepository.save(item);
 
 				log.info("iHerb 주문 확인 실구매가 기록: itemId={}, orderNo={}, amount={}",
 					item.getId(), confirmData.getOrderNo(), confirmData.getTotalAmount());

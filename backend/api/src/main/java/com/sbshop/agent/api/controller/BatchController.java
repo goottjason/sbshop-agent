@@ -34,50 +34,54 @@ public class BatchController {
 	private final ProcessStatusService processStatusService;
 
 	@PostMapping("/crawl-and-update")
-	public ResponseEntity<Map<String, String>> crawlAndUpdate(@RequestBody CrawlAndUpdateRequest request) {
+	public ResponseEntity<Map<String, String>> crawlAndUpdate(@RequestBody
+	CrawlAndUpdateRequest request) {
 		List<String> productCodes = request.productIds().stream()
-				.map(String::valueOf)
-				.toList();
+			.map(String::valueOf)
+			.toList();
 		String batchId = processStatusService.startBatch(
-				com.sbshop.agent.core.domain.process.enums.JobType.CRAWL_AND_UPDATE_PRICE_STOCK,
-				productCodes);
+			com.sbshop.agent.core.domain.process.enums.JobType.CRAWL_AND_UPDATE_PRICE_STOCK,
+			productCodes);
 		batchPriceStockService.crawlAndUpdatePriceStock(
-				batchId, request.productIds(),
-				request.marginRate() != null ? request.marginRate() : new BigDecimal("15"),
-				request.couponRate() != null ? request.couponRate() : new BigDecimal("20"),
-				request.minMarginPrice() != null ? request.minMarginPrice() : new BigDecimal("5000"));
+			batchId, request.productIds(),
+			request.marginRate() != null ? request.marginRate() : new BigDecimal("15"),
+			request.couponRate() != null ? request.couponRate() : new BigDecimal("20"),
+			request.minMarginPrice() != null ? request.minMarginPrice() : new BigDecimal("5000"));
 		return ResponseEntity.ok(Map.of("batchId", batchId, "message", "크롤 기반 일괄 업데이트가 시작되었습니다."));
 	}
 
 	@PostMapping("/manual-update-price-stock")
-	public ResponseEntity<Map<String, String>> manualUpdate(@RequestBody ManualUpdateRequest request) {
+	public ResponseEntity<Map<String, String>> manualUpdate(@RequestBody
+	ManualUpdateRequest request) {
 		List<String> productCodes = request.productIds().stream()
-				.map(String::valueOf)
-				.toList();
+			.map(String::valueOf)
+			.toList();
 		String batchId = processStatusService.startBatch(
-				com.sbshop.agent.core.domain.process.enums.JobType.MANUAL_UPDATE_PRICE_STOCK,
-				productCodes);
+			com.sbshop.agent.core.domain.process.enums.JobType.MANUAL_UPDATE_PRICE_STOCK,
+			productCodes);
 		batchPriceStockService.manualUpdatePriceStock(
-				batchId, request.productIds(),
-				request.prices() != null ? request.prices() : new ArrayList<>(),
-				request.stocks() != null ? request.stocks() : new ArrayList<>());
+			batchId, request.productIds(),
+			request.prices() != null ? request.prices() : new ArrayList<>(),
+			request.stocks() != null ? request.stocks() : new ArrayList<>());
 		return ResponseEntity.ok(Map.of("batchId", batchId, "message", "수동 일괄 업데이트가 시작되었습니다."));
 	}
 
 	@PostMapping("/manual-update-all")
-	public ResponseEntity<Map<String, String>> manualUpdateAll(@RequestBody ManualUpdateAllRequest request) {
+	public ResponseEntity<Map<String, String>> manualUpdateAll(@RequestBody
+	ManualUpdateAllRequest request) {
 		List<String> productCodes = request.productIds().stream()
-				.map(String::valueOf)
-				.toList();
+			.map(String::valueOf)
+			.toList();
 		String batchId = processStatusService.startBatch(
-				com.sbshop.agent.core.domain.process.enums.JobType.MANUAL_UPDATE_ALL_FIELDS,
-				productCodes);
+			com.sbshop.agent.core.domain.process.enums.JobType.MANUAL_UPDATE_ALL_FIELDS,
+			productCodes);
 		batchPriceStockService.manualUpdateAllFields(batchId, request.productIds(), request.commands());
 		return ResponseEntity.ok(Map.of("batchId", batchId, "message", "전체 필드 일괄 업데이트가 시작되었습니다."));
 	}
 
 	@PostMapping("/by-supplier")
-	public ResponseEntity<Map<String, String>> updateBySupplier(@RequestBody SupplierBatchRequest request) {
+	public ResponseEntity<Map<String, String>> updateBySupplier(@RequestBody
+	SupplierBatchRequest request) {
 		VendorType vendor = VendorType.valueOf(request.supplierCode().toUpperCase());
 		List<Long> productIds = batchPriceStockService.getProductIdsByVendor(vendor);
 		if (productIds.isEmpty()) {
@@ -85,18 +89,19 @@ public class BatchController {
 		}
 		List<String> productCodes = productIds.stream().map(String::valueOf).toList();
 		String batchId = processStatusService.startBatch(
-				com.sbshop.agent.core.domain.process.enums.JobType.CRAWL_AND_UPDATE_PRICE_STOCK,
-				productCodes);
+			com.sbshop.agent.core.domain.process.enums.JobType.CRAWL_AND_UPDATE_PRICE_STOCK,
+			productCodes);
 		batchPriceStockService.crawlAndUpdatePriceStock(
-				batchId, productIds,
-				request.marginRate() != null ? request.marginRate() : new BigDecimal("15"),
-				request.couponRate() != null ? request.couponRate() : new BigDecimal("20"),
-				request.minMarginPrice() != null ? request.minMarginPrice() : new BigDecimal("5000"));
+			batchId, productIds,
+			request.marginRate() != null ? request.marginRate() : new BigDecimal("15"),
+			request.couponRate() != null ? request.couponRate() : new BigDecimal("20"),
+			request.minMarginPrice() != null ? request.minMarginPrice() : new BigDecimal("5000"));
 		return ResponseEntity.ok(Map.of("batchId", batchId, "count", String.valueOf(productIds.size())));
 	}
 
 	@GetMapping("/status/{batchId}")
-	public ResponseEntity<List<ProcessStatus>> getBatchStatus(@PathVariable String batchId) {
+	public ResponseEntity<List<ProcessStatus>> getBatchStatus(@PathVariable
+	String batchId) {
 		return ResponseEntity.ok(processStatusService.getBatchStatus(batchId));
 	}
 

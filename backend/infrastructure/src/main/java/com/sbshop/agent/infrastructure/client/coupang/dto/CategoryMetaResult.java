@@ -5,6 +5,6 @@ import lombok.Builder;
 
 @Builder
 public record CategoryMetaResult(
-		List<CoupangProductPayload.Item.Attribute> attributes,
-		List<CoupangProductPayload.Item.Notice> notices) {
+	List<CoupangProductPayload.Item.Attribute> attributes,
+	List<CoupangProductPayload.Item.Notice> notices) {
 }

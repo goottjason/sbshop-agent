@@ -23,22 +23,27 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 	List<Product> findAllByIdIn(List<Long> ids);
 
 	@Query("SELECT MAX(p.sbCode) FROM Product p WHERE p.sbCode LIKE CONCAT(:prefix, '%')")
-	Optional<String> findMaxSbCodeByPrefix(@Param("prefix") String prefix);
+	Optional<String> findMaxSbCodeByPrefix(@Param("prefix")
+	String prefix);
 
 	@Query("SELECT p FROM Product p WHERE p.sourcingInfo.vendor = :vendor")
-	List<Product> findByVendor(@Param("vendor") com.sbshop.agent.core.domain.product.enums.VendorType vendor);
+	List<Product> findByVendor(@Param("vendor")
+	com.sbshop.agent.core.domain.product.enums.VendorType vendor);
 
 	@Query("SELECT p FROM Product p WHERE " +
-			"LOWER(p.productName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-			"LOWER(p.sbCode) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-			"LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%'))")
-	Page<Product> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+		"LOWER(p.productName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+		"LOWER(p.sbCode) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+		"LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+	Page<Product> searchByKeyword(@Param("keyword")
+	String keyword, Pageable pageable);
 
 	@Query("SELECT p FROM Product p WHERE p.id NOT IN " +
-			"(SELECT r.productId FROM MarketRegistration r WHERE r.marketType = :marketType)")
-	Page<Product> findUnregisteredByMarket(@Param("marketType") MarketType marketType, Pageable pageable);
+		"(SELECT r.productId FROM MarketRegistration r WHERE r.marketType = :marketType)")
+	Page<Product> findUnregisteredByMarket(@Param("marketType")
+	MarketType marketType, Pageable pageable);
 
 	@Query("SELECT p FROM Product p WHERE p.id IN " +
-			"(SELECT r.productId FROM MarketRegistration r WHERE r.marketType = :marketType)")
-	Page<Product> findRegisteredByMarket(@Param("marketType") MarketType marketType, Pageable pageable);
+		"(SELECT r.productId FROM MarketRegistration r WHERE r.marketType = :marketType)")
+	Page<Product> findRegisteredByMarket(@Param("marketType")
+	MarketType marketType, Pageable pageable);
 }

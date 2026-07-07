@@ -14,7 +14,7 @@ public class HtmlImageReplacer {
 		}
 
 		String regex = "(?i)<img[^>]*src=[\"'][^\"']*" + Pattern.quote(sku)
-				+ "[^\"']*[\"'][^>]*>(?:\\s*<br\\s*/?>\\s*)*";
+			+ "[^\"']*[\"'][^>]*>(?:\\s*<br\\s*/?>\\s*)*";
 		Pattern pattern = Pattern.compile(regex);
 		Matcher matcher = pattern.matcher(originalHtml);
 
@@ -26,8 +26,8 @@ public class HtmlImageReplacer {
 				StringBuilder newTags = new StringBuilder();
 				for (String newUrl : hostedImages) {
 					newTags.append(String.format(
-							"<img src=\"%s\" style=\"margin-left: auto; margin-right: auto; display: block;\"><br /><br /><br /><br />",
-							newUrl));
+						"<img src=\"%s\" style=\"margin-left: auto; margin-right: auto; display: block;\"><br /><br /><br /><br />",
+						newUrl));
 				}
 				matcher.appendReplacement(sb, Matcher.quoteReplacement(newTags.toString()));
 				isFirstMatch = false;

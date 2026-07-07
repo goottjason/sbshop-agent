@@ -28,11 +28,11 @@ public class BatchScheduler {
 		}
 		List<String> productCodes = productIds.stream().map(String::valueOf).toList();
 		String batchId = processStatusService.startBatch(
-				com.sbshop.agent.core.domain.process.enums.JobType.CRAWL_AND_UPDATE_PRICE_STOCK,
-				productCodes);
+			com.sbshop.agent.core.domain.process.enums.JobType.CRAWL_AND_UPDATE_PRICE_STOCK,
+			productCodes);
 		batchPriceStockService.crawlAndUpdatePriceStock(
-				batchId, productIds,
-				new BigDecimal("15"), new BigDecimal("20"), new BigDecimal("5000"));
+			batchId, productIds,
+			new BigDecimal("15"), new BigDecimal("20"), new BigDecimal("5000"));
 		log.info("iHerb 정기 가격/재고 업데이트 배치 시작: batchId={}, count={}", batchId, productIds.size());
 	}
 }
