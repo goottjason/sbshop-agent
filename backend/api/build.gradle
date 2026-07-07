@@ -20,4 +20,8 @@ dependencies {
 
     // PostgreSQL
     runtimeOnly 'org.postgresql:postgresql'
+
+    // Testcontainers — 실 PostgreSQL 기반 @SpringBootTest 컨텍스트/마이그레이션 검증 (D-013)
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
 }
