@@ -30,6 +30,7 @@ export interface OrderLineItemDto {
     sourcingAmount?: number;
     logisticsCost?: number;
     discountCode?: string;
+    sourcingVendor?: string;
   };
   settlementData?: {
     settlementAmount?: number;
@@ -69,14 +70,14 @@ export const fetchCommonCodes = async () => {
 export interface OrderLineItemDetailDto {
   lineItem: OrderLineItemDto;
   product: ProductDto;
-  marketRegistration?: any;
+  marketRegistration?: unknown;
 }
 
 export interface OrderGridDto {
   order?: OrderDto;
   lineItem?: OrderLineItemDto;
   product?: ProductDto;
-  marketRegistration?: any;
+  marketRegistration?: unknown;
 }
 
 export interface OrderDetailResponseDto {
@@ -119,7 +120,7 @@ export const fetchOrders = async (
 };
 
 // Note: updateOrder currently updates Order entity using id.
-export const updateOrder = async (id: number, updateData: any): Promise<any> => {
+export const updateOrder = async (id: number, updateData: Record<string, unknown>): Promise<unknown> => {
   const { data } = await apiClient.patch(`/api/v1/orders/${id}`, updateData);
   return data;
 };
@@ -132,7 +133,7 @@ export const updateSourcingInfo = async (lineItemId: number, data: {
   logisticsCost?: number;
   discountCode?: string;
   sourcingVendor?: string;
-}): Promise<any> => {
+}): Promise<unknown> => {
   const response = await apiClient.patch(`/api/v1/orders/line-items/${lineItemId}/sourcing`, data);
   return response.data;
 };
@@ -141,7 +142,7 @@ export const updateSourcingInfo = async (lineItemId: number, data: {
 export const updateShippingInfo = async (lineItemId: number, data: {
   trackingNo?: string;
   shippingCarrier?: string;
-}): Promise<any> => {
+}): Promise<unknown> => {
   const response = await apiClient.patch(`/api/v1/orders/line-items/${lineItemId}/shipping`, data);
   return response.data;
 };
@@ -178,12 +179,12 @@ export const syncProductStock = async (): Promise<{ success: boolean; message: s
   return data;
 };
 
-export const shipOrders = async (orderIds: number[]): Promise<any> => {
+export const shipOrders = async (orderIds: number[]): Promise<unknown> => {
   const { data } = await apiClient.post('/api/v1/orders/ship', { orderIds });
   return data;
 };
 
-export const confirmOrder = async (id: number): Promise<any> => {
+export const confirmOrder = async (id: number): Promise<unknown> => {
   const { data } = await apiClient.post(`/api/v1/orders/${id}/confirm`);
   return data;
 };
@@ -198,41 +199,12 @@ export const confirmOrdersBatch = async (orderIds: number[]): Promise<{
   return data;
 };
 
-export const cancelOrder = async (id: number): Promise<any> => {
+export const cancelOrder = async (id: number): Promise<unknown> => {
   const { data } = await apiClient.post(`/api/v1/orders/${id}/cancel`);
   return data;
 };
 
-// 구매 처리 (PREPARING → PURCHASED)
-export const purchaseItem = async (lineItemId: number, data: {
-  sourcingAccount?: string;
-  sourcingOrderNo: string;
-  discountCode?: string;
-  sourcingVendor?: string;
-}): Promise<any> => {
-  const response = await apiClient.post(`/api/v1/orders/line-items/${lineItemId}/purchase`, data);
-  return response.data;
-};
-
-// 배송 처리 (PURCHASED → SHIPPED)
-export const shipItem = async (lineItemId: number, data: {
-  trackingNo: string;
-  carrier: string;
-}): Promise<any> => {
-  const response = await apiClient.post(`/api/v1/orders/line-items/${lineItemId}/ship`, data);
-  return response.data;
-};
-
-// 송장 수정 (SHIPPED 상태)
-export const updateTracking = async (lineItemId: number, data: {
-  trackingNo: string;
-  carrier: string;
-}): Promise<any> => {
-  const response = await apiClient.put(`/api/v1/orders/line-items/${lineItemId}/tracking`, data);
-  return response.data;
-};
-
-export const deleteOrder = async (id: number): Promise<any> => {
+export const deleteOrder = async (id: number): Promise<unknown> => {
   const { data } = await apiClient.delete(`/api/v1/orders/${id}`);
   return data;
 };
