@@ -29,7 +29,7 @@ TDD 규율(Red→Green→Refactor, Tidy First)의 일반 원칙은 `.claude/skil
 | 중복 클래스 통합 (구조 변경) | 전후 테스트 전체 통과로 동작 불변 증명. 통합 전 양쪽 구현 차이를 원장에 기록했는지 확인 |
 | 스케줄러 재활성화 | 스케줄 메서드가 호출하는 서비스의 단위/통합 테스트 Green 확보 **후** 활성화. 활성화 자체는 중대 등급 — 오케스트레이터 승인 필요 |
 | 스키마/마이그레이션 | H2 대신 실제 PostgreSQL 계열 검증 필요 시 testcontainers 도입은 리더 승인 후 (신규 의존성) |
-| 프론트 결함 | 테스트 러너 부재 — `npx tsc --noEmit` + `npm run build` + 수동 검증 절차 명시. vitest 도입은 개선 후보로 원장에 기록 |
+| 프론트 결함 | 테스트 러너 부재 — `npx tsc --noEmit -p tsconfig.app.json` + `npm run build` + 수동 검증 절차 명시. 루트 tsconfig는 references-only(`files: []`)라 `-p` 없는 tsc는 아무것도 검사 안 하는 헛-그린이다. vitest 도입은 개선 후보로 원장에 기록 |
 
 ## 이 프로젝트의 함정
 

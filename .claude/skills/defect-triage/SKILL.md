@@ -10,7 +10,7 @@ description: "sbshop-agent 결함 진단·원장 기록 방법론. 버그 찾기
 ## 진단 순서 (비용이 싼 것부터)
 
 1. **컴파일/빌드**: `cd backend && ./gradlew compileJava compileTestJava` → 실패하면 그 자체가 최우선(P0) 결함.
-2. **기존 테스트**: `cd backend && ./gradlew test` (모듈별: `:core:test` `:api:test` `:infrastructure:test` `:worker:test`). 프론트: `cd frontend && npm run lint && npx tsc --noEmit && npm run build`.
+2. **기존 테스트**: `cd backend && ./gradlew test` (모듈별: `:core:test` `:api:test` `:infrastructure:test` `:worker:test`). 프론트: `cd frontend && npm run lint && npx tsc --noEmit -p tsconfig.app.json && npm run build` (`-p` 필수 — 루트 tsconfig는 references-only라 없으면 헛-그린).
 3. **정적 대조 (경계면)**: `integration-qa` 스킬의 교차 비교 체크리스트를 진단 모드로 적용 — API 응답 DTO ↔ 프론트 타입, 스케줄러 활성 여부 ↔ 기대 동작, Flyway 스키마 ↔ 엔티티.
 4. **알려진 패턴 재확인**: 아래 "이 프로젝트의 알려진 결함 패턴" 목록의 현재 상태 점검.
 

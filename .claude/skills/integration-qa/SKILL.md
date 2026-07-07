@@ -10,7 +10,7 @@ description: "sbshop-agent 통합 정합성 검증 방법론. 수정 검증, QA,
 ## 검증 절차
 
 1. **결함 해소 확인**: 수정의 Red 테스트가 Green인지 직접 실행. `_workspace/fixes/{결함ID}_fix.md`의 주장을 그대로 믿지 않는다.
-2. **회귀**: 영향 모듈 전체 테스트 — `cd backend && ./gradlew :모듈:test` (다모듈 수정이면 `./gradlew test`). 프론트 영향 시 `npx tsc --noEmit && npm run build`.
+2. **회귀**: 영향 모듈 전체 테스트 — `cd backend && ./gradlew :모듈:test` (다모듈 수정이면 `./gradlew test`). 프론트 영향 시 `npx tsc --noEmit -p tsconfig.app.json && npm run build` (루트 tsconfig는 references-only라 `-p` 없는 tsc는 헛-그린 — 검사 0건).
 3. **경계면 교차 비교**: 아래 체크리스트에서 수정이 걸치는 경계면만 수행.
 4. **판정서 작성**: `_workspace/verify/{결함ID}_verdict.md` — 실행 커맨드·결과 원문 요지·미검증 항목 명시.
 
