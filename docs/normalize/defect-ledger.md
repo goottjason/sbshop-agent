@@ -657,8 +657,8 @@
 - 위치: `Dockerfile.backend`(런타임 `eclipse-temurin:21-jre`에 Chrome 미설치), `start.sh`, `infrastructure/.../esmplus/EsmplusScraper.java`(`new ChromeDriver(options)` — Selenium Manager 자동 다운로드 의존)
 - 증상(라이브 실측): ESM+ 동기화 → 액션 로그 `FAILED "Unable to obtain: chromedriver, error Command failed"`. 자격증명(masterId/password) 정상, 크롤링 드라이버 자체가 없음. 로컬 PC엔 크롬 있었으나 서버 컨테이너엔 없음.
 - 원인(확인): 런타임 이미지에 Chrome/chromedriver 부재 + Selenium 4.16이 Selenium Manager로 런타임 다운로드 시도하나 실패.
-- 수정(2026-07-08, 리더 직접 — 인프라, 라이브 게이트): `Dockerfile.backend` 런타임 스테이지에 Google Chrome stable(.deb) + 버전 일치 chromedriver(Chrome for Testing) 설치. `start.sh`에서 `-Dwebdriver.chrome.driver=/usr/local/bin/chromedriver` 고정(런타임 다운로드 제거). Chrome 옵션은 이미 headless/no-sandbox/disable-dev-shm 구성됨. 게이트=재배포 후 ESM+ 동기화가 chromedriver 오류 없이 진행되는지 라이브 실측(자격증명·마켓 접근은 별개).
-- 상태: 수정중 (사이클 10 후속)
+- 수정(2026-07-08, 리더 직접 — 인프라, 라이브 게이트): **핵심 발견 — 서버가 ARM64**(`ports.ubuntu.com`/arm64). Google Chrome는 Linux ARM64 빌드 미제공이라 amd64 .deb 의존성 충돌(1차 시도 실패). 해법: 런타임 베이스를 `eclipse-temurin:21-jre`(Ubuntu Noble, chromium=snap)→**`bellsoft/liberica-openjre-debian:21`(Debian bookworm)**로 교체 후 `chromium`+`chromium-driver` 설치(arm64 배포판 패키지, Chromium 150 ↔ chromedriver 150 버전 일치 실측). `start.sh` `-Dwebdriver.chrome.driver=/usr/bin/chromedriver`, `ENV CHROME_BIN=/usr/bin/chromium`, `EsmplusScraper.createChromeOptions`가 CHROME_BIN 있으면 `setBinary`(로컬 개발 무영향 가드). 게이트=재배포 후 ESM+ 동기화가 chromedriver 오류 없이 진행되는지 라이브 실측.
+- 상태: 수정중 (사이클 10 후속 — 배포 검증 대기)
 
 ### 후보 기록 (사이클 8 운영 정착 중 관찰)
 

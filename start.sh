@@ -3,8 +3,8 @@
 
 # ESM+(G마켓/옥션) Selenium: 컨테이너에 설치된 chromedriver를 고정 사용(런타임 다운로드 방지)
 CHROMEDRIVER_OPT=""
-if [ -x /usr/local/bin/chromedriver ]; then
-  CHROMEDRIVER_OPT="-Dwebdriver.chrome.driver=/usr/local/bin/chromedriver"
+if [ -x /usr/bin/chromedriver ]; then
+  CHROMEDRIVER_OPT="-Dwebdriver.chrome.driver=/usr/bin/chromedriver"
 fi
 
 echo "Starting sbshop-api on port 8080..."

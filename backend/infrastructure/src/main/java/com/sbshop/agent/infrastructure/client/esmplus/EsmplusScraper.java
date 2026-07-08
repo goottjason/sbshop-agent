@@ -256,6 +256,11 @@ public class EsmplusScraper {
 
 	private ChromeOptions createChromeOptions() {
 		ChromeOptions options = new ChromeOptions();
+		// 컨테이너(ARM64)에서는 Chromium 바이너리 경로를 명시(CHROME_BIN). 로컬 개발엔 미설정 → 기본 탐색.
+		String chromeBin = System.getenv("CHROME_BIN");
+		if (chromeBin != null && !chromeBin.isBlank()) {
+			options.setBinary(chromeBin);
+		}
 		options.addArguments("--headless=new");
 		options.addArguments("--disable-gpu");
 		options.addArguments("--no-sandbox");

@@ -15,23 +15,16 @@ COPY backend/worker/ worker/
 
 RUN chmod +x gradlew && ./gradlew :api:bootJar :worker:bootJar --no-daemon -x test
 
-FROM eclipse-temurin:21-jre
+# 런타임: Debian 기반 JRE (서버 ARM64 — Google Chrome ARM64 미제공이라 Chromium 사용)
+FROM bellsoft/liberica-openjre-debian:21
 WORKDIR /app
 
-# ESM+(G마켓/옥션) Selenium 스크래핑용 Google Chrome + 버전 일치 chromedriver 설치
-# (Selenium Manager 런타임 다운로드 의존 제거 — 드라이버 경로는 start.sh에서 고정)
+# ESM+(G마켓/옥션) Selenium 스크래핑용 Chromium + 버전 일치 chromedriver (Debian arm64, 배포판 패키지)
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends wget unzip ca-certificates \
-    && wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-    && apt-get install -y --no-install-recommends /tmp/chrome.deb \
-    && CHROME_VERSION="$(google-chrome-stable --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')" \
-    && wget -q -O /tmp/chromedriver.zip "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" \
-    && unzip -q /tmp/chromedriver.zip -d /tmp \
-    && mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver \
-    && chmod +x /usr/local/bin/chromedriver \
-    && rm -rf /tmp/chrome.deb /tmp/chromedriver.zip /tmp/chromedriver-linux64 \
+    && apt-get install -y --no-install-recommends chromium chromium-driver \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+ENV CHROME_BIN=/usr/bin/chromium
 
 # API JAR와 Worker JAR 모두 복사
 COPY --from=builder /app/api/build/libs/*.jar api.jar
