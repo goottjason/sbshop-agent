@@ -657,6 +657,14 @@
 - **market-credentials API가 accessKey/secretKey 평문 노출**: 응답에 자격증명 원문 포함. 사용자의 "보안 비중요" 방침상 후보 기록만 (공개망 노출 시 마스킹 필요).
 - **nginx 컨테이너 IP 캐시**: sbshop 컨테이너 재생성 시 nginx reload 필요 (`docker exec projects-nginx-1 nginx -s reload`) — 배포 절차에 포함 권장.
 
+### 사이클 10 배포 기록 (2026-07-08)
+
+- **sb_action_log 수동 DDL 적용**: 서버 postgres에 `CREATE TABLE sb_action_log`(엔티티 정합 — verifier-c10 대조) + `idx_action_log_created_at`. `docker exec -i`로 적용(-i 없으면 stdin 미전달 함정).
+- **재배포**: git pull(D-041/042/043) → compose up --build(api·frontend) → nginx reload. api 기동 안정.
+- **라이브 검증(핵심)**: 쿠팡 동기화 트리거 → 액션 로그에 `STARTED "쿠팡 동기화 요청"` → `FAILED "동기화 실패: 쿠팡 API HTTP 오류: 403 FORBIDDEN — IP 허용목록/자격증명 확인"` 기록 실증. **더 이상 "성공 0건" 위장 없음.** 외부 https app·action-logs API 200.
+- **사용자 조치 리마인더**: 쿠팡·11번가·스마트스토어 API 허용목록에 서버 아웃바운드 IP **168.107.31.154** 등록(기존 로컬 PC IP 대체) + 스마트스토어 access-key·11번가 secret-key 자격증명 채우기. 그러면 즉시 정상 적재.
+- **후속 후보**: 11번가 result_code≠0(HTTP200+업무오류코드)는 정상0건과 구분 위해 미변경 — 오류코드 사전확보 시 코드별 throw. 쿠팡 서비스 loadAndValidateCredential 빈문자열 검증(일관성, 현재 자격증명 SET이라 무영향).
+
 ### 사이클 9 배포 기록 (2026-07-08)
 
 - **R2 자격증명 활성화 (D-020/D-036 연계 완료)**: buying-agent `application.yml`의 R2 키를 서버 `~/projects/.env`에 `CLOUDFLARE_R2_*`로 추가. **핵심 발견**: 서버 `~/projects/docker-compose.yml`(레포와 별개 파일)의 sbshop-api 서비스가 **구 변수명 `R2_ACCESS_KEY_ID` 등**을 쓰고 있어 현재 앱이 읽는 `CLOUDFLARE_R2_*`와 불일치 → `.env`만으론 컨테이너 미전달이었음. 서버 compose sbshop-api `environment`에 `CLOUDFLARE_R2_*` 5줄 매핑 추가(백업: `docker-compose.yml.bak-c9`). 재배포 후 컨테이너 env 주입·부팅 무에러(blank creds 예외 소멸) 확인. **주의: 서버 compose는 git 미추적 — 이 변경은 서버에만 존재**(레포 docker-compose.yml엔 이미 CLOUDFLARE_R2 매핑 있음, 서버가 뒤처져 있었음).
