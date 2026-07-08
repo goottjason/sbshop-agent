@@ -26,6 +26,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 @Service
@@ -76,8 +77,10 @@ public class SmartStoreOrderSyncService {
 		MarketCredential credential = credentialRepository.findByMarketType(MarketType.SMART_STORE)
 			.orElseThrow(() -> new IllegalArgumentException("SMART_STORE 크레덴셜 없음"));
 
-		if (credential.getClientId() == null || credential.getSecretKey() == null) {
-			throw new IllegalArgumentException("스마트스토어 크레덴셜 불완전");
+		// D-043: 빈 문자열/공백도 불완전으로 fast-fail (access/secret EMPTY를 API 이전에 명확히 실패).
+		if (!StringUtils.hasText(credential.getClientId())
+			|| !StringUtils.hasText(credential.getSecretKey())) {
+			throw new IllegalArgumentException("스마트스토어 크레덴셜 불완전: client-id/secret-key 확인");
 		}
 		return credential;
 	}

@@ -49,9 +49,9 @@ public class EsmplusOrderAdapter implements MarketOrderPort {
 		String masterId = credential.getAccessKey();
 		String password = credential.getSecretKey();
 
-		if (masterId == null || masterId.isEmpty()) {
-			log.warn("[ESM+] 크레덴셜에 masterId(accessKey)가 없습니다");
-			return result;
+		// D-043: masterId 부재는 조회 불가한 실패이므로 빈 반환("성공 0건")이 아니라 예외로 표면화.
+		if (masterId == null || masterId.isBlank()) {
+			throw new IllegalArgumentException("ESM+ 주문 조회 실패: masterId(accessKey) 없음");
 		}
 
 		try {
@@ -59,7 +59,9 @@ public class EsmplusOrderAdapter implements MarketOrderPort {
 			result.addAll(orders);
 			log.info("[ESM+] {} 건의 주문 조회 완료 ({}~{})", orders.size(), fromDate, toDate);
 		} catch (Exception e) {
+			// D-043: 스크래핑/로그인 실패를 삼켜 위장하지 말고 전파 → 서비스 catch → SYNC_FAILED → 액션로그 FAILED.
 			log.error("[ESM+] 주문 조회 실패: {}", e.getMessage(), e);
+			throw new RuntimeException("ESM+ 주문 조회 실패: " + e.getMessage(), e);
 		}
 
 		return result;

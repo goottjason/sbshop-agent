@@ -111,7 +111,9 @@ public class ElevenstOrderApiClient implements ElevenstOrderApiPort {
 
 			log.info("11번가 {} 조회 완료: {}건", statusName, orders.size());
 		} catch (Exception e) {
+			// D-043: 조회 실패(HTTP/네트워크/파싱)를 삼켜 빈 반환하지 말고 전파 → 어댑터가 전량 실패 감지.
 			log.error("11번가 {} 조회 실패: {}", statusName, e.getMessage());
+			throw new RuntimeException("11번가 " + statusName + " 조회 실패: " + e.getMessage(), e);
 		}
 
 		return orders;

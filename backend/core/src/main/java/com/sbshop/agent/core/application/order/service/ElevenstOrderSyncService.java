@@ -27,6 +27,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 @Service
@@ -77,8 +78,9 @@ public class ElevenstOrderSyncService {
 		MarketCredential credential = credentialRepository.findByMarketType(MarketType.ELEVEN_STREET)
 			.orElseThrow(() -> new IllegalArgumentException("ELEVEN_STREET 크레덴셜 없음"));
 
-		if (credential.getAccessKey() == null || credential.getAccessKey().isEmpty()) {
-			throw new IllegalArgumentException("11번가 크레덴셜 불완전: API Key 필요");
+		// D-043: 빈 문자열/공백도 불완전으로 fast-fail (secret-key EMPTY 등을 API 이전에 명확히 실패).
+		if (!StringUtils.hasText(credential.getAccessKey())) {
+			throw new IllegalArgumentException("11번가 크레덴셜 불완전: API Key(access-key) 확인");
 		}
 		return credential;
 	}

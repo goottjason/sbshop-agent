@@ -48,8 +48,9 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 			driver = loginAndCreateDriver(masterId, password);
 			return fetchOrdersFromDriver(driver, masterId, password, fromDate, toDate);
 		} catch (Exception e) {
+			// D-043: 로그인/스크래핑 실패를 삼켜 빈 반환("성공 0건")하지 말고 전파 → 어댑터/서비스가 실패로 표면화.
 			log.error("[ESM+] 주문 조회 중 오류 발생", e);
-			return new ArrayList<>();
+			throw new RuntimeException("ESM+ 주문 조회 실패: " + e.getMessage(), e);
 		} finally {
 			if (driver != null)
 				driver.quit();

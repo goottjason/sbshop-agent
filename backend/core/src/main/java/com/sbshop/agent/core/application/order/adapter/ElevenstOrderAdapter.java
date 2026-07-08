@@ -47,6 +47,11 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 
 		String apiKey = credential.getAccessKey();
 
+		// D-043: chunk별 성공/실패 집계. 전량 실패 시 예외 전파 → 서비스 catch → SYNC_FAILED → 액션로그 FAILED.
+		int successChunks = 0;
+		int failedChunks = 0;
+		Exception lastFailure = null;
+
 		// 11번가는 최대 7일 조회 가능 -> 7일 단위로 분할
 		LocalDate current = fromDate;
 		while (!current.isAfter(toDate)) {
@@ -95,14 +100,27 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 					}
 				}
 				Thread.sleep(500);
+				successChunks++;
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 				break;
 			} catch (Exception e) {
+				failedChunks++;
+				lastFailure = e;
 				log.error("11번가 주문 조회 실패 ({}~{}): {}", current, chunkEnd, e.getMessage());
 			}
 
 			current = chunkEnd.plusDays(1);
+		}
+
+		// 전량 실패(성공 0 · 오류≥1)면 대표 오류를 담아 전파. 부분 성공은 result 반환(경고).
+		if (successChunks == 0 && failedChunks > 0) {
+			String detail = lastFailure != null ? lastFailure.getMessage() : "알 수 없는 오류";
+			throw new RuntimeException("11번가 주문 조회 실패: " + detail, lastFailure);
+		}
+		if (failedChunks > 0) {
+			log.warn("11번가 주문 부분 조회: {} chunk 성공, {} chunk 실패 (마지막 오류: {})",
+				successChunks, failedChunks, lastFailure != null ? lastFailure.getMessage() : "-");
 		}
 
 		return result;

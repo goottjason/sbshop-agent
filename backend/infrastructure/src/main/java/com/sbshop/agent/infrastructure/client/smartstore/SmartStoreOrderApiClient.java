@@ -113,13 +113,13 @@ public class SmartStoreOrderApiClient implements SmartStoreOrderApiPort {
 			return detailNode.path("data");
 
 		} catch (RestClientResponseException re) {
+			// D-043: HTTP 오류를 삼켜 빈 반환("성공 0건")하지 말고 상태코드 담아 전파 → 어댑터 전량 실패 감지.
 			log.error("스마트스토어 주문 내역 조회 실패 (HTTP 상태: {}, 바디: {})", re.getStatusCode(), re.getResponseBodyAsString(), re);
-			return objectMapper.createArrayNode();
+			throw new RuntimeException("스마트스토어 주문 조회 HTTP 오류: " + re.getStatusCode(), re);
 		} catch (Exception e) {
-			// 주문 내역 조회 실패 에러 로그 출력
+			// D-043: 조회 실패(파싱/네트워크)를 삼키지 말고 전파.
 			log.error("스마트스토어 주문 내역 조회 실패: {}", e.getMessage(), e);
-			// 빈 JSON 배열 노드 반환
-			return objectMapper.createArrayNode();
+			throw new RuntimeException("스마트스토어 주문 조회 실패: " + e.getMessage(), e);
 		}
 	}
 
