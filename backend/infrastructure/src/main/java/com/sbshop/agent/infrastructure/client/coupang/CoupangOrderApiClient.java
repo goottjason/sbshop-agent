@@ -76,12 +76,19 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 					break;
 				}
 			} catch (org.springframework.web.client.RestClientResponseException e) {
+				// D-041: HTTP 오류(403 등)를 삼켜 "성공 0건"으로 위장하지 않고 상태코드를 담아 전파한다.
+				// 어댑터가 전량 실패를 감지해 SYNC_FAILED로 이어지게 한다.
 				log.error("쿠팡 API HTTP 오류: {} (상태: {}) - 속도 제한 또는 IP 차단 가능성",
 					e.getStatusCode(), status);
-				break;
+				throw new RuntimeException(
+					"쿠팡 API HTTP 오류: " + e.getStatusCode() + " (status=" + status + ")", e);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new RuntimeException("쿠팡 주문 조회 중단됨 (status=" + status + ")", e);
 			} catch (Exception e) {
 				log.error("쿠팡 주문 조회 실패: {}", e.getMessage());
-				break;
+				throw new RuntimeException(
+					"쿠팡 주문 조회 실패: " + e.getMessage() + " (status=" + status + ")", e);
 			}
 		}
 

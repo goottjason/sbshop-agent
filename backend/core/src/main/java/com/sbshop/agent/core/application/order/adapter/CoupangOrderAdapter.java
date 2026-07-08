@@ -69,6 +69,12 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		// sellerProductId -> externalVendorSku 매핑 캐시
 		Map<String, String> skuCache = new HashMap<>();
 
+		// D-041: status별 성공/실패 집계. 전량 실패 시 예외 전파 → 서비스 catch → SYNC_FAILED → 에러 토스트.
+		// "진짜 0건(예외 없는 빈 응답)"과 "오류로 0건(API 실패)"을 구분한다.
+		int successCount = 0;
+		int failureCount = 0;
+		Exception lastFailure = null;
+
 		for (String status : statuses) {
 			try {
 				JsonNode orders = coupangOrderApiPort.fetchOrders(
@@ -92,13 +98,27 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 					}
 				}
 
+				successCount++;
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 				break;
 			} catch (Exception e) {
+				failureCount++;
+				lastFailure = e;
 				log.error("쿠팡 주문 조회 실패 (status={}): {}", status, e.getMessage());
 			}
+		}
+
+		// 전량 실패(성공 0 · 오류≥1)면 대표 오류를 담아 전파. 부분 성공은 기존대로 result 반환(경고).
+		if (successCount == 0 && failureCount > 0) {
+			String detail = lastFailure != null ? lastFailure.getMessage() : "알 수 없는 오류";
+			throw new RuntimeException(
+				"쿠팡 주문 조회 실패: " + detail + " — IP 허용목록/자격증명 확인", lastFailure);
+		}
+		if (failureCount > 0) {
+			log.warn("쿠팡 주문 부분 조회: {} status 성공, {} status 실패 (마지막 오류: {})",
+				successCount, failureCount, lastFailure != null ? lastFailure.getMessage() : "-");
 		}
 
 		return result;
