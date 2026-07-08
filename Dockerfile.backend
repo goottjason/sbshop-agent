@@ -15,16 +15,8 @@ COPY backend/worker/ worker/
 
 RUN chmod +x gradlew && ./gradlew :api:bootJar :worker:bootJar --no-daemon -x test
 
-# 런타임: Debian 기반 JRE (서버 ARM64 — Google Chrome ARM64 미제공이라 Chromium 사용)
-FROM bellsoft/liberica-openjre-debian:21
+FROM eclipse-temurin:21-jre
 WORKDIR /app
-
-# ESM+(G마켓/옥션) Selenium 스크래핑용 Chromium + 버전 일치 chromedriver (Debian arm64, 배포판 패키지)
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends chromium chromium-driver \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-ENV CHROME_BIN=/usr/bin/chromium
 
 # API JAR와 Worker JAR 모두 복사
 COPY --from=builder /app/api/build/libs/*.jar api.jar

@@ -9,8 +9,8 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.Cookie;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebElement;
-import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.stereotype.Component;
@@ -25,7 +25,7 @@ public class EsmplusScraper {
 		ChromeOptions options = createChromeOptions();
 		options.setCapability("goog:loggingPrefs", Map.of("performance", "ALL"));
 
-		ChromeDriver driver = new ChromeDriver(options);
+		RemoteWebDriver driver = EsmplusDriverFactory.newDriver(options);
 
 		try {
 			// === 1. 로그인 ===
@@ -256,11 +256,6 @@ public class EsmplusScraper {
 
 	private ChromeOptions createChromeOptions() {
 		ChromeOptions options = new ChromeOptions();
-		// 컨테이너(ARM64)에서는 Chromium 바이너리 경로를 명시(CHROME_BIN). 로컬 개발엔 미설정 → 기본 탐색.
-		String chromeBin = System.getenv("CHROME_BIN");
-		if (chromeBin != null && !chromeBin.isBlank()) {
-			options.setBinary(chromeBin);
-		}
 		options.addArguments("--headless=new");
 		options.addArguments("--disable-gpu");
 		options.addArguments("--no-sandbox");

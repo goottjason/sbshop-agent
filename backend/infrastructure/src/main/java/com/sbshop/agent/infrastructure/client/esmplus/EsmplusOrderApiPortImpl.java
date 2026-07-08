@@ -21,8 +21,8 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.Cookie;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebElement;
-import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.stereotype.Component;
@@ -38,12 +38,12 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 	private final EsmplusStatusMapper statusMapper;
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
-	private volatile ChromeDriver cachedDetailDriver = null;
+	private volatile RemoteWebDriver cachedDetailDriver = null;
 
 	@Override
 	public List<MarketOrderDto> fetchOrders(String masterId, String password,
 		LocalDate fromDate, LocalDate toDate) {
-		ChromeDriver driver = null;
+		RemoteWebDriver driver = null;
 		try {
 			driver = loginAndCreateDriver(masterId, password);
 			return fetchOrdersFromDriver(driver, masterId, password, fromDate, toDate);
@@ -61,7 +61,7 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 	public MarketOrderDto fetchOrderDetail(String masterId, String password, MarketOrderDto dto) {
 		String siteOrderNo = dto.getMarketOrderNo();
 		try {
-			ChromeDriver driver = getOrCreateDetailDriver(masterId, password);
+			RemoteWebDriver driver = getOrCreateDetailDriver(masterId, password);
 
 			String detailUrl = "https://post-tx.esmplus.com/order-detail?siteOrderNo=" + siteOrderNo;
 			log.info("[ESM+] 상세 페이지 접속: {}", detailUrl);
@@ -84,7 +84,7 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 		}
 	}
 
-	private synchronized ChromeDriver getOrCreateDetailDriver(String masterId, String password) {
+	private synchronized RemoteWebDriver getOrCreateDetailDriver(String masterId, String password) {
 		if (cachedDetailDriver != null) {
 			try {
 				cachedDetailDriver.getTitle();
@@ -108,7 +108,7 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 			return;
 		}
 
-		ChromeDriver driver = null;
+		RemoteWebDriver driver = null;
 		try {
 			driver = loginAndCreateDriver(masterId, password);
 			JavascriptExecutor js = (JavascriptExecutor)driver;
@@ -150,7 +150,7 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 			return;
 		}
 
-		ChromeDriver driver = null;
+		RemoteWebDriver driver = null;
 		try {
 			driver = loginAndCreateDriver(masterId, password);
 			JavascriptExecutor js = (JavascriptExecutor)driver;
@@ -289,9 +289,9 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 		}
 	}
 
-	private ChromeDriver createLoggedInDetailDriver(String masterId, String password) {
+	private RemoteWebDriver createLoggedInDetailDriver(String masterId, String password) {
 		ChromeOptions options = createChromeOptions();
-		ChromeDriver driver = new ChromeDriver(options);
+		RemoteWebDriver driver = EsmplusDriverFactory.newDriver(options);
 		try {
 			log.info("[ESM+] 상세조회: 로그인");
 			driver.get("https://signin.esmplus.com/login");
@@ -436,10 +436,10 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 	 * 현재 findElement로는 새 창/iframe 진입/성능 로그 모두 실패 중.
 	 * → fetchOrderDetail 로그인은 새 세션을 열고, SPA 페이지로 직접 이동해서 HTML/performance log 수집.
 	 */
-	private ChromeDriver loginAndCreateDriver(String masterId, String password) throws Exception {
+	private RemoteWebDriver loginAndCreateDriver(String masterId, String password) throws Exception {
 		ChromeOptions options = createChromeOptions();
 		options.setCapability("goog:loggingPrefs", Map.of("performance", "ALL"));
-		ChromeDriver driver = new ChromeDriver(options);
+		RemoteWebDriver driver = EsmplusDriverFactory.newDriver(options);
 
 		log.info("[ESM+] 1단계: 로그인 페이지 접속");
 		driver.get("https://signin.esmplus.com/login");
@@ -486,7 +486,7 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 		return driver;
 	}
 
-	private List<MarketOrderDto> fetchOrdersFromDriver(ChromeDriver driver,
+	private List<MarketOrderDto> fetchOrdersFromDriver(RemoteWebDriver driver,
 		String masterId, String password, LocalDate fromDate, LocalDate toDate) throws Exception {
 		JavascriptExecutor js = (JavascriptExecutor)driver;
 
