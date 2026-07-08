@@ -619,6 +619,38 @@
 
 ---
 
+## 사이클 10 (운영 라이브 진단: 동기화 무반응·액션로그, 2026-07-08)
+
+> 라이브 진단(리더 직접, 실서버 SSH): 동기화 버튼 눌러도 그리드 비어있음 → 실제로는 마켓 API가 실패하는데 **어댑터가 오류를 삼켜 "성공 0건"으로 보고**. 근본은 외부(자격증명/IP 허용목록)이나, 코드가 실패를 은폐. 서버 아웃바운드 IP=168.107.31.154(쿠팡/11번가/스마트스토어 허용목록 등록 대상 — 사용자 조치). 자격증명 실측: COUPANG SET/SET(그러나 403 FORBIDDEN=IP 미허용 유력), SMART_STORE access-key EMPTY, ELEVEN_STREET secret-key EMPTY, GMARKET SET/SET(Selenium).
+
+### D-041: 마켓 주문 동기화 어댑터가 API 오류(403 등)를 삼켜 "성공 0건"으로 보고
+
+- 심각도: P1 (오동작 — 실패를 성공으로 위장, 사용자 무반응 체감)
+- 리스크 등급: 표준
+- 위치: `backend/core/.../order/adapter/CoupangOrderAdapter.java:72-104`(status별 `catch(Exception)` 후 log만·빈 리스트 반환), 동종 패턴 타 어댑터 점검
+- 증상(라이브 실측): 쿠팡 동기화 → API 전 status **403 FORBIDDEN** → 어댑터가 삼켜 `result` 빈 채 반환 → 서비스 `[COUPANG] 동기화 완료: 0건 처리`·success=true → SSE SYNC_COMPLETED → 프론트 에러 없이 빈 그리드. D-022(finally 이중이벤트)는 해소됐으나 그 위층(어댑터 삼킴)이 남아 실패가 서비스 catch에 도달 못 함.
+- 원인(확인): fetchOrders가 API 실패를 예외로 전파하지 않고 빈 결과로 흡수. "진짜 0건"과 "오류로 0건"을 구분 못 함.
+- 제안 수정: fetchOrders에서 status별 실패를 집계 → 전량 실패(성공 0·오류≥1)면 HTTP 상태 포함 설명적 예외 throw(서비스 catch→SYNC_FAILED→에러 토스트). 부분 성공은 유지. HTTP 403 등 상태코드를 메시지에 노출("403 — IP 허용목록/자격증명 확인"). 타 마켓 어댑터 동일 패턴 점검.
+- 상태: 검증통과 (qa-verifier, 2026-07-08 — `_workspace/verify/D-041_verdict.md`). 전량실패→예외전파(403 포함)·진짜0건 무예외·정상/부분실패 정합, 서비스 catch→SYNC_FAILED 경로 정합, CoupangOrderFetchFailureTest 4/4 그린. ⚠커밋 전 트리 동결 후 재게이트 필요(검증 중 D-043 라이브 편집 감지 — 판정서 참조).
+
+### D-042: 진행 현황 사용자 액션 로그 부재 (요청 기능)
+
+- 심각도: 기능 요청 · 리스크 등급: 표준 (신규 테이블·엔드포인트·UI)
+- 사용자 요청: "진행 현황에서 사용자가 누른 모든 행동을 로그로 — 쿠팡 동기화 눌렀으면 눌렀다는 것 한 줄 + 성공/실패."
+- 현황: `SyncStatusService`는 마켓별 최신 상태만 인메모리 보관(이력 없음·재시작 소실). `ProcessStatus`(sb_process_status)는 상품 배치 전용. 시간순 액션 로그 없음.
+- 제안 구축: 영속 `ActionLog` 엔티티(`sb_action_log`: BaseEntity[id/status/created_at/updated_at] + action_type·market_type·action_status(STARTED/SUCCESS/FAILED)·message) + `ActionLogService.record()` + `@EventListener(SyncCompletedEvent)`로 SUCCESS/FAILED 기록 + 컨트롤러에서 STARTED 기록 + `GET /api/v1/action-logs?limit=N` + 프론트 진행현황에 "활동 로그" 섹션(시간·액션·마켓·상태·메시지). 스키마는 수동 DDL(서버). D-041과 결합 시 실패가 로그에 명확히 남음.
+- 상태: 검증통과 (qa-verifier, 2026-07-08 — `_workspace/verify/D-042_verdict.md`). **DDL↔엔티티 완전 일치**(id/status/action_type/market_type/action_status/message/created_at/updated_at 컬럼명·타입·nullable 대조 — 서버 DDL 적용 안전), SyncCompletedEvent getter명 정확, GET 최근순·limit clamp, 프론트 DTO 계약 일치, ProcessStatusPage 무회귀. ServiceTest/SyncListenerTest 그린·api:test 빈주입 확인·프론트 tsc0/build0. ⚠서버 `sb_action_log` 수동 DDL 생성 필요(미생성 시 record 예외안전 삼킴).
+
+---
+
+### D-043: 11번가·스마트스토어·ESM+ 어댑터도 동일 오류 삼킴 + 자격증명 빈문자열 미검증
+
+- 심각도: P1 (오동작 — 액션 로그에 거짓 SUCCESS 기록 유발) · 리스크 등급: 표준
+- 위치: 각 마켓 클라이언트/포트impl fetch + `{Elevenst,SmartStore,Esmplus}OrderAdapter.fetchOrders`(D-041의 쿠팡과 동일 2층 삼킴), `{...}OrderSyncService.loadAndValidateCredential`(null만 검사·빈문자열 통과)
+- 근거(fixer-c10 점검 + 리더 실측): 동일 삼킴 패턴이 11번가·스마트스토어·ESM+ 전부에 존재. 또한 loadAndValidateCredential이 `access_key==null`만 보고 **빈 문자열은 통과** → 스마트스토어(access-key EMPTY)·11번가(secret EMPTY)가 API까지 가서 실패·삼켜짐. 결과적으로 D-042 액션 로그가 이 3마켓에 거짓 SUCCESS(0건) 기록 → 로그 신뢰성 훼손.
+- 제안 수정: D-041의 쿠팡 패턴을 3개 마켓 클라이언트+어댑터에 이식(전량 실패 throw). loadAndValidateCredential을 빈문자열도 불완전으로 처리(clear 메시지 "○○ 자격증명 불완전"). 각 마켓 Red 테스트.
+- 상태: 검증통과 (qa-verifier, 2026-07-08 — `_workspace/verify/D-043_verdict.md`). 3마켓 어댑터+클라이언트 전량실패 예외전파(삼킴 2층 해소)·**정상0건 오탐 없음**(11번가 result_code≠0 업무분기·스마트스토어 빈배열 try내 반환 보존)·부분실패 result+warn·자격증명 `!hasText` fast-fail(불완전 이벤트, success 없음)·ESM+ masterId/스크래핑 예외전파. 신규 10 케이스 그린. **전체 클린 게이트 `./gradlew test`(전 모듈) BUILD SUCCESSFUL·프론트 tsc0/build0** — 사이클 10(D-041·D-042·D-043) 일괄 커밋 게이트 통과. 쿠팡 서비스 무접촉. 잔여: 11번가 result_code≠0(HTTP200 업무오류) 및 쿠팡 서비스 빈문자열 검증은 후속 권고(판정서 참조).
+
 ### 후보 기록 (사이클 8 운영 정착 중 관찰)
 
 - **Cafe24 refresh token 만료**: 기동 시 invalid_grant (비치명 — 로그만). Cafe24 개발자센터에서 토큰 재발급 후 sb_market_credential 갱신 필요 (사용자 조치).
