@@ -651,6 +651,15 @@
 - 제안 수정: D-041의 쿠팡 패턴을 3개 마켓 클라이언트+어댑터에 이식(전량 실패 throw). loadAndValidateCredential을 빈문자열도 불완전으로 처리(clear 메시지 "○○ 자격증명 불완전"). 각 마켓 Red 테스트.
 - 상태: 검증통과 (qa-verifier, 2026-07-08 — `_workspace/verify/D-043_verdict.md`). 3마켓 어댑터+클라이언트 전량실패 예외전파(삼킴 2층 해소)·**정상0건 오탐 없음**(11번가 result_code≠0 업무분기·스마트스토어 빈배열 try내 반환 보존)·부분실패 result+warn·자격증명 `!hasText` fast-fail(불완전 이벤트, success 없음)·ESM+ masterId/스크래핑 예외전파. 신규 10 케이스 그린. **전체 클린 게이트 `./gradlew test`(전 모듈) BUILD SUCCESSFUL·프론트 tsc0/build0** — 사이클 10(D-041·D-042·D-043) 일괄 커밋 게이트 통과. 쿠팡 서비스 무접촉. 잔여: 11번가 result_code≠0(HTTP200 업무오류) 및 쿠팡 서비스 빈문자열 검증은 후속 권고(판정서 참조).
 
+### D-044: ESM+(G마켓/옥션) Selenium이 컨테이너에 chromedriver/Chrome 부재로 동작 불가
+
+- 심각도: P1 (기능 불능 — ESM+ 동기화 전무) · 리스크 등급: 표준 (Docker 이미지·기동 스크립트)
+- 위치: `Dockerfile.backend`(런타임 `eclipse-temurin:21-jre`에 Chrome 미설치), `start.sh`, `infrastructure/.../esmplus/EsmplusScraper.java`(`new ChromeDriver(options)` — Selenium Manager 자동 다운로드 의존)
+- 증상(라이브 실측): ESM+ 동기화 → 액션 로그 `FAILED "Unable to obtain: chromedriver, error Command failed"`. 자격증명(masterId/password) 정상, 크롤링 드라이버 자체가 없음. 로컬 PC엔 크롬 있었으나 서버 컨테이너엔 없음.
+- 원인(확인): 런타임 이미지에 Chrome/chromedriver 부재 + Selenium 4.16이 Selenium Manager로 런타임 다운로드 시도하나 실패.
+- 수정(2026-07-08, 리더 직접 — 인프라, 라이브 게이트): `Dockerfile.backend` 런타임 스테이지에 Google Chrome stable(.deb) + 버전 일치 chromedriver(Chrome for Testing) 설치. `start.sh`에서 `-Dwebdriver.chrome.driver=/usr/local/bin/chromedriver` 고정(런타임 다운로드 제거). Chrome 옵션은 이미 headless/no-sandbox/disable-dev-shm 구성됨. 게이트=재배포 후 ESM+ 동기화가 chromedriver 오류 없이 진행되는지 라이브 실측(자격증명·마켓 접근은 별개).
+- 상태: 수정중 (사이클 10 후속)
+
 ### 후보 기록 (사이클 8 운영 정착 중 관찰)
 
 - **Cafe24 refresh token 만료**: 기동 시 invalid_grant (비치명 — 로그만). Cafe24 개발자센터에서 토큰 재발급 후 sb_market_credential 갱신 필요 (사용자 조치).

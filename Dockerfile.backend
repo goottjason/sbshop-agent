@@ -18,6 +18,21 @@ RUN chmod +x gradlew && ./gradlew :api:bootJar :worker:bootJar --no-daemon -x te
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
+# ESM+(G마켓/옥션) Selenium 스크래핑용 Google Chrome + 버전 일치 chromedriver 설치
+# (Selenium Manager 런타임 다운로드 의존 제거 — 드라이버 경로는 start.sh에서 고정)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget unzip ca-certificates \
+    && wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && apt-get install -y --no-install-recommends /tmp/chrome.deb \
+    && CHROME_VERSION="$(google-chrome-stable --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')" \
+    && wget -q -O /tmp/chromedriver.zip "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" \
+    && unzip -q /tmp/chromedriver.zip -d /tmp \
+    && mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver \
+    && chmod +x /usr/local/bin/chromedriver \
+    && rm -rf /tmp/chrome.deb /tmp/chromedriver.zip /tmp/chromedriver-linux64 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # API JAR와 Worker JAR 모두 복사
 COPY --from=builder /app/api/build/libs/*.jar api.jar
 COPY --from=builder /app/worker/build/libs/*.jar worker.jar
