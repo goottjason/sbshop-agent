@@ -659,7 +659,17 @@
 - 원인(확인): 런타임 이미지에 Chrome/chromedriver 부재 + Selenium 4.16이 Selenium Manager로 런타임 다운로드 시도하나 실패.
 - 진단 여정(2026-07-08, 리더 직접): ①서버가 **ARM64**(Oracle Ampere, 커널 6.17) — Google Chrome ARM64 미제공(amd64 .deb 의존성 충돌). ②Debian bookworm `chromium`+`chromium-driver`(arm64, 버전일치 150) 설치는 되나 **Chromium이 SIGTRAP(exit 133)으로 크래시** — 플래그(headless old/new·single-process)·seccomp=unconfined 무관하게 재현(이 Ampere 커널과 비호환). ③해법 전환: **`seleniarm/standalone-chromium`(ARM64 지원 이미지, Chromium 124)는 이 호스트에서 세션 생성 성공 실측** → 별도 Selenium 컨테이너 + 앱이 RemoteWebDriver로 접속.
 - 수정(2026-07-08, 리더+fixer-c11): 앱 이미지 chromium 설치 시도 전량 롤백(Dockerfile/start.sh 원복). 신규 `EsmplusDriverFactory.newDriver(options)` — `SELENIUM_REMOTE_URL` 있으면 `RemoteWebDriver(url, options)`, 없으면 `ChromeDriver`(로컬 개발 보존). `EsmplusOrderApiPortImpl`·`EsmplusScraper`의 ChromeDriver 타입을 공통 상위 `RemoteWebDriver`로 넓히고 생성부를 팩토리로 교체. 서버 compose에 `sbshop-selenium`(seleniarm/standalone-chromium, shm 2g) 서비스 + sbshop-api에 `SELENIUM_REMOTE_URL=http://sbshop-selenium:4444/wd/hub` env 추가(백업 `docker-compose.yml.bak-c11`). `:infrastructure:compileJava :api:compileJava :infrastructure:test` BUILD OK.
-- 상태: 수정중 (사이클 10 후속 — 배포·ESM+ 라이브 검증 대기)
+- 검증(2026-07-08, 리더 라이브): **PASS(드라이버 인프라 한정)**. 재배포 후 ESM+ 동기화 → **원격 Selenium 그리드에서 세션 생성 성공**(chrome 124, Session ID 로그 실측) → 로그인 페이지 접속·로그인 제출·쿠키 6개 획득까지 실행. chromedriver "Unable to obtain"/SIGTRAP 크래시 **완전 소멸**. 이후 `#innerIFrame` 미발견으로 실패하나 이는 드라이버가 아닌 **ESM+ 로그인 성공 여부/페이지 구조** 문제 → [[D-045]]로 분리.
+- 상태: 검증통과 (사이클 10 후속 — chromedriver/드라이버 인프라 해소, 원격 그리드 세션 실증)
+
+### D-045: (후보) ESM+ 로그인 후 주문 iframe(#innerIFrame) 미발견 → 스크래핑 실패
+
+- 심각도: P1 (ESM+ 동기화 여전히 불가 — 단 원인이 드라이버가 아님) · 리스크 등급: 표준
+- 위치: `EsmplusOrderApiPortImpl.loginAndCreateDriver:482`(로그인 후 `driver.findElement(By.id("innerIFrame"))`)
+- 증상(라이브): 원격 그리드로 로그인 페이지 접속·제출·쿠키 6개 획득 후 주문 페이지(`/Home/v2/order-integration`)에서 `#innerIFrame` NoSuchElement. 로그인이 완전 성공했다면 iframe 존재해야 함 → **로그인 미성공(자격증명 무효/추가 인증) 또는 ESM+ 페이지 구조 변경** 의심.
+- 원인(미확정): ①ESM+ masterId(access_key)/password(secret_key) 유효성 미검증(사용자 확인 필요) ②ESM+ 로그인 후 리다이렉트/보안 단계 ③페이지 DOM 변경. 로그인 후 URL 로깅으로 성공/실패 판별 보강 권고.
+- 제안: 로그인 성공 검증 단계 추가(로그인 후 URL/요소 확인 실패 시 명확한 "ESM+ 로그인 실패" 예외) + ESM+ 계정 자격증명 유효성 사용자 확인. 페이지 구조 변경이면 셀렉터 갱신.
+- 상태: 후보 (사이클 10 — 드라이버 해소 후 노출된 스크래핑 이슈)
 
 ### 후보 기록 (사이클 8 운영 정착 중 관찰)
 
