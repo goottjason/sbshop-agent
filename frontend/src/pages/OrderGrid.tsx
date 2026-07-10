@@ -247,10 +247,10 @@ const LINEITEM_SPANNED_COLUMNS = ['sbCode', 'stockInfo', 'quantity', 'unipass', 
 const TWO_ROW_COLUMNS = ['ordererInfo', 'customsInfo', 'shippingInfoPair', 'productNamePair', 'sourcingInfoPair', 'fulfillmentInfoPair', 'financialInfoPair'];
 
 // Row 1 전용 컬럼 (주문 행에만 표시)
-const ORDER_COLUMNS = [];
+const ORDER_COLUMNS: string[] = [];
 
 // Row 2 전용 컬럼 (상품 행에만 표시)
-const PRODUCT_COLUMNS = [];
+const PRODUCT_COLUMNS: string[] = [];
 
 // 상단 필터 패널 컴포넌트 (UI)
 function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: string[], statuses: string[], startDate: string, endDate: string) => void }) {
@@ -383,7 +383,32 @@ const OrderGrid: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'sourcing' | 'shipping'>('sourcing');
   const [selectedLineItem, setSelectedLineItem] = useState<OrderGridDto | null>(null);
-  const [hoveredOrderId, setHoveredOrderId] = useState<number | null>(null);
+
+  // 행 호버(같은 주문 그룹 전체 음영): React state 대신 DOM 클래스 토글로 처리한다.
+  // 이전엔 hoveredOrderId state가 매 호버마다 전체 그리드(수백~수천 행)를 리렌더해 음영 지연이 발생했다.
+  const gridScrollRef = useRef<HTMLDivElement>(null);
+  const hoveredOrderRef = useRef<string | null>(null);
+  const applyRowHover = useCallback((e: React.MouseEvent) => {
+    const root = gridScrollRef.current;
+    if (!root) return;
+    const tr = (e.target as HTMLElement).closest('tr[data-order-id]') as HTMLElement | null;
+    const id = tr?.dataset.orderId ?? null;
+    if (id === hoveredOrderRef.current) return;
+    if (hoveredOrderRef.current !== null) {
+      root.querySelectorAll(`tr[data-order-id="${hoveredOrderRef.current}"]`).forEach(el => el.classList.remove('og-row-hover'));
+    }
+    hoveredOrderRef.current = id;
+    if (id !== null) {
+      root.querySelectorAll(`tr[data-order-id="${id}"]`).forEach(el => el.classList.add('og-row-hover'));
+    }
+  }, []);
+  const clearRowHover = useCallback(() => {
+    const root = gridScrollRef.current;
+    if (root && hoveredOrderRef.current !== null) {
+      root.querySelectorAll(`tr[data-order-id="${hoveredOrderRef.current}"]`).forEach(el => el.classList.remove('og-row-hover'));
+    }
+    hoveredOrderRef.current = null;
+  }, []);
 
   const { data: syncStatuses } = useQuery({
     queryKey: ['syncStatus'],
@@ -953,13 +978,13 @@ const OrderGrid: React.FC = () => {
       header: '상품정보',
       size: 300,
       cell: ({ row }) => {
-        const url = row.original.product?.sourcingInfo?.url;
+        const url = row.original.product?.sourcingInfo?.sourceUrl;
         if (row.original.rowType === 'product') {
-          const name = row.original.product?.productName?.originalName || '';
+          const name = row.original.product?.originalName || '';
           return <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{url ? <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1565c0', textDecoration: 'none' }}>{name}</a> : name}</div>;
         }
         if (row.original.rowType === 'fulfillment') return null;
-        const name = row.original.product?.productName?.productName || '';
+        const name = row.original.product?.productName || '';
         return <div style={{ textAlign: 'left', paddingLeft: '8px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</div>;
       }
     }),
@@ -1201,7 +1226,7 @@ const OrderGrid: React.FC = () => {
       <OrderFilterPanel onSearch={(keyword, markets, statuses, startDate, endDate) => { setQueryParams({ keyword, markets, statuses, startDate, endDate }); setSearchTrigger(c => c + 1); }} />
 
       <div style={{ flex: 1, backgroundColor: 'white', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
-        <div className="force-scrollbar" style={{ flex: 1, overflow: 'scroll' }}>
+        <div className="force-scrollbar" ref={gridScrollRef} onMouseOver={applyRowHover} onMouseLeave={clearRowHover} style={{ flex: 1, overflow: 'scroll' }}>
           {(queryLoading || isSyncing) && (
             <div style={{
               position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
@@ -1218,6 +1243,10 @@ const OrderGrid: React.FC = () => {
             </div>
           )}
           <style>{`
+            /* 같은 주문 그룹 전체 호버 음영 — TD에 !important로 적용해 frozen 셀 인라인 배경까지 즉시 덮는다(리렌더 없음). */
+            .og-row-hover > td {
+              background-color: #f1f5f9 !important;
+            }
             .force-scrollbar::-webkit-scrollbar {
               width: 14px;
               height: 14px;
@@ -1279,15 +1308,14 @@ const OrderGrid: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {table.getRowModel().rows.map(row => {
-                  const isHovered = hoveredOrderId !== null && hoveredOrderId === row.original.order?.id;
                   const baseBgCol = row.original.isFirstLineItem ? '#ffffff' : row.original.isSecondRow ? '#fdfdfd' : '#f9f9f9';
-                  const bgCol = isHovered ? '#f1f5f9' : baseBgCol;
                   return (
-                  <TableRow 
-                    key={row.id} 
-                    style={{ backgroundColor: bgCol, transition: 'background-color 0.2s ease-in-out' }}
-                    onMouseEnter={() => setHoveredOrderId(row.original.order?.id || null)}
-                    onMouseLeave={() => setHoveredOrderId(null)}
+                  <TableRow
+                    key={row.id}
+                    data-order-id={row.original.order?.id ?? undefined}
+                    style={{ backgroundColor: baseBgCol }}
+                    onMouseEnter={undefined}
+                    onMouseLeave={undefined}
                   >
                     {row.getVisibleCells().map(cell => {
                       const isOrderSpanned = ORDER_SPANNED_COLUMNS.includes(cell.column.id);
@@ -1322,7 +1350,7 @@ const OrderGrid: React.FC = () => {
                             position: isFrozen ? 'sticky' : undefined,
                             left: isFrozen ? freezeLeft : undefined,
                             zIndex: isFrozen ? 2 : undefined,
-                            backgroundColor: isFrozen ? bgCol : undefined,
+                            backgroundColor: isFrozen ? baseBgCol : undefined,
                             boxShadow: isFrozen ? '2px 0 4px rgba(0,0,0,0.1)' : undefined,
                           }}
                         >

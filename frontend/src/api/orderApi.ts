@@ -48,12 +48,11 @@ export interface ProductDto {
   sbCode?: string;
   category?: string;
   vendor?: string;
-  productName?: {
-    productName?: string;
-    originalName?: string;
-  };
+  // Product 엔티티의 flat 필드(둘 다 String). 이전엔 중첩 객체로 잘못 정의돼 상품명이 표시되지 않았다.
+  productName?: string;
+  originalName?: string;
   sourcingInfo?: {
-    url?: string;
+    sourceUrl?: string;
   };
   stockStatus?: string;
   restockDate?: string;
