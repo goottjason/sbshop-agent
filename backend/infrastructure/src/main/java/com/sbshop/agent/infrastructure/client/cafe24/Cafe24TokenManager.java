@@ -51,6 +51,12 @@ public class Cafe24TokenManager {
 		return marketCredentialRepository.findByMarketType(MarketType.CAFE24).orElse(null);
 	}
 
+	/** 리프레시 토큰이 DB에 등록돼 있는지(존재 여부만). 실유효성은 실 API 호출로 별도 검증. */
+	public boolean isRefreshTokenPresent() {
+		MarketCredential c = getCredential();
+		return c != null && c.getRefreshToken() != null && !c.getRefreshToken().isBlank();
+	}
+
 	public synchronized String getValidAccessToken() {
 		// 만료 5분 전이면 안전하게 갱신
 		if (accessToken == null
