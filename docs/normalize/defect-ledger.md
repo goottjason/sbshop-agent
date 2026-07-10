@@ -776,8 +776,9 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 근본원인: `buildMarketMap`이 **모든 마켓**의 코드를 쿠팡 전용 `extractVendorItemId()`(marketIdentifiers의 `vendorItemId` 키)로 읽었다. 스마트스토어(`originProductNo`)·11번가(`elevenstId`)·카페24(`product_no`)·ESM+(`goodsNo`)는 해당 키가 없어 항상 null→`productId` 폴백→프론트에서 code===row.id로 '미확인' 배지. 스크린샷 실증(쿠팡 코드 정상, 스토어/11번가/카페24 전부 '미확인'). 각 마켓 클라이언트 저장 키 확인: Coupang `sellerProductId`/`vendorItemId`, Elevenst `elevenstId`, Smartstore `originProductNo`, Cafe24 `product_no`/`product_code`.
 - 수정(2026-07-10, 사이클 12 리더): `MarketRegistration.extractMarketCode()` 신설 — marketType별 실제 키 분기(COUPANG=vendorItemId→sellerProductId, SMART_STORE=originProductNo→channelProductNo, ELEVEN_STREET=elevenstId→prdNo, CAFE24=product_no→product_code, GMARKET/AUCTION=goodsNo→itemNo→goodsCode). `buildMarketMap`이 이를 사용(코드 없으면 기존대로 productId 폴백→'미확인'). 프론트 '미확인' 툴팁을 D-046 한정 문구→"해당 마켓 연동정보에 상품코드 키 없음"으로 일반화. Red: `MarketRegistrationExtractMarketCodeTest`(스토어 코드가 vendorItemId 조회로는 null이나 extractMarketCode로는 OP123 반환하는 회귀 재현 포함). 게이트: `:core:test :api:test :infrastructure:test --rerun-tasks` BUILD SUCCESSFUL, 프론트 tsc(신규0, 기존 D-007 OrderGrid 4건만)·build EXIT0.
 - 미확정 가정: ESM+(GMARKET/AUCTION)의 실제 저장 키가 `goodsNo`인지는 상품 발행 write-path 미확인(라이브 데이터로 확인 필요) — 후보 키 3종(goodsNo/itemNo/goodsCode) 순차 조회로 방어. 스토어/11번가/카페24는 클라이언트 저장 키 코드상 확인.
-- 상태: 수정완료(검증대기 — 리더 게이트 통과, 라이브 표시 확인 대기)
-- 이력: 2026-07-10 발견·수정(사이클 12)
+- 라이브 발견(2026-07-10, 사용자 협조 DB 조회): `sb_market_registration` 마켓별 건수 = CAFE24 3185·SMART_STORE 3183·ELEVEN_STREET 2286·COUPANG 1261, **GMARKET·AUCTION 0건**. 전체 11개 테이블 중 마켓코드 저장처는 이 테이블뿐(레거시 매핑 테이블 없음), `sb_product`에도 마켓코드 컬럼 없음. 코드상 ESM+ 상품 연동 경로 부재(발행 클라이언트 4개뿐, ESM+는 주문 스크래핑 전용). **결론: 지마켓/옥션은 "매핑 실패"가 아니라 "데이터 부재"** — 사용자 가설(카페24 호스팅 원본 market_registration 테이블 마이그레이션 누락)이 유력, 원본 확인 후 임포트 스크립트 필요. D-052 코드수정은 데이터가 존재하는 4마켓엔 유효.
+- 상태: 수정완료(검증대기 — 리더 게이트 통과. 4마켓 라이브 표시 확인 대기 / GMARKET·AUCTION은 데이터 부재로 별도 임포트 트랙)
+- 이력: 2026-07-10 발견·수정(사이클 12) → 2026-07-10 라이브 진단(지마켓/옥션 데이터 부재 확정)
 
 ### 사이클 11 요약 (defect-scout)
 
