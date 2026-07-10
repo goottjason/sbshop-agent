@@ -13,6 +13,7 @@ import com.sbshop.agent.core.domain.market.QMarketRegistration;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.QOrderLineItem;
+import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderRepositoryCustom;
@@ -50,6 +51,7 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.where(
 				marketTypeIn(condition.getMarketTypes()),
 				shippingStatusIn(condition.getShippingStatuses()),
+				customsStatusIn(condition.getCustomsStatuses()),
 				keywordContains(condition.getKeyword(), qLineItem, qProduct),
 				dateBetween(condition.getStartDate(), condition.getEndDate()))
 			.orderBy(order.orderDate.desc())
@@ -121,6 +123,7 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.where(
 				marketTypeIn(condition.getMarketTypes()),
 				shippingStatusIn(condition.getShippingStatuses()),
+				customsStatusIn(condition.getCustomsStatuses()),
 				keywordContains(condition.getKeyword(), qLineItem, qProduct),
 				dateBetween(condition.getStartDate(), condition.getEndDate()));
 
@@ -144,6 +147,12 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.where(subLineItem.orderId.eq(order.id)
 				.and(subLineItem.shippingData.shippingStatus.in(statuses)))
 			.exists();
+	}
+
+	/** 통관상태 필터 (통관 데이터는 Order에 임베드됨) */
+	private BooleanExpression customsStatusIn(List<CustomsStatus> statuses) {
+		return statuses != null && !statuses.isEmpty()
+			? order.customsData.customsStatus.in(statuses) : null;
 	}
 
 	/** 키워드 검색 */

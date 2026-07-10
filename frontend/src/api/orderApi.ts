@@ -118,6 +118,22 @@ export const fetchOrders = async (
   return data;
 };
 
+// 대시보드 현황 집계용 경량 카운트. size=1로 조회해 totalElements만 사용한다.
+export const fetchOrderCount = async (filters: {
+  shippingStatuses?: string[];
+  customsStatuses?: string[];
+  marketTypes?: string[];
+} = {}): Promise<number> => {
+  const params = new URLSearchParams();
+  params.append('page', '0');
+  params.append('size', '1');
+  filters.shippingStatuses?.forEach((s) => params.append('shippingStatuses', s));
+  filters.customsStatuses?.forEach((s) => params.append('customsStatuses', s));
+  filters.marketTypes?.forEach((m) => params.append('marketTypes', m));
+  const { data } = await apiClient.get<PageResponse<unknown>>(`/api/v1/orders?${params.toString()}`);
+  return data.totalElements ?? 0;
+};
+
 // Note: updateOrder currently updates Order entity using id.
 export const updateOrder = async (id: number, updateData: Record<string, unknown>): Promise<unknown> => {
   const { data } = await apiClient.patch(`/api/v1/orders/${id}`, updateData);
