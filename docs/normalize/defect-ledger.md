@@ -895,3 +895,25 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 수정: D-058(ETC·경량), D-059(대시보드·표준) — 게이트 통과.
 - 보고(요승인·중대): D-060(가격재고 마켓 미동기), D-061(배송 마켓 전파 갭). 프론트 죽은코드 인벤토리(P3).
 - 다음 배치 권고: D-060 우선(사용자 명시 기대) — 승인 후 마켓별 syncPriceAndStock 호출 경로 신설 + 쿠팡/카페24 실 API 구현 + 라이브 검증.
+
+---
+
+## 사이클 16 (D-060 수정 — 가격/재고 마켓 동기화 배선 + 쿠팡/카페24 실 API, 2026-07-11, 리더 직접, 사용자 승인)
+
+### D-060: 상품 가격/재고 → 마켓 동기화 (수정 완료)
+
+- 상태 전이: 발견(보고·요승인) → **검증통과(수정)** — 사용자 "승인"
+- 리스크 등급: 중대(마켓 API 계약·다도메인). 사용자 승인 취득. 게이트: 회귀 통과 + 신규 TDD.
+- 수정 내역:
+  1. **배선(핵심)**: `ProductManageUseCase.updatePriceStock`가 DB 저장 후 `syncPriceStockToMarkets` 호출 — 상품의 MarketRegistration을 순회하며 `MarketClient.syncPriceAndStock(marketItemId, rawData, price.intValue(), stock)` 실행. 이미지 재게시(`republishToMarkets`, D-049)와 동일 규율: 클라이언트 없는 마켓(GMARKET/AUCTION) 스킵, 마켓별 try로 부분 실패 수집(롤백 없음). marketItemId는 D-052 `extractMarketCode()`(마켓별 코드) 사용. 반환 `MarketRepublishResult`(synced/skipped/failed).
+  2. **쿠팡 실 API**: `CoupangMarketClient.syncPriceAndStock`가 로컬 Map만 패치하던 것을 `syncImagesAndHtml`과 동일 패턴(전체 seller-product 페이로드 PUT `/v2/providers/seller_api/apis/api/v1/marketplace/seller-products`)으로 실제 반영. items 없으면 예외 전파(실패 표면화).
+  3. **카페24 실 API**: `Cafe24MarketClient.syncPriceAndStock`가 로컬 Map만 패치하던 것을 `publish`의 price/supply_quantity 필드 + `syncImagesAndHtml`의 `PUT /admin/products/{id}` 패턴으로 실제 반영.
+  4. **컨트롤러/프론트**: `PUT /products/{id}/price-stock`가 `MarketRepublishResult` 반환. ProductPage가 마켓별 성공/실패를 토스트로 표면화(자사 저장 성공해도 마켓 반영 실패 조용히 삼키지 않음).
+  5. **테스트**: `ProductManageUseCasePriceStockSyncTest`(마켓 순회 호출·스킵·부분실패 수집 3케이스). 게이트: `:core:test` 신규 3 PASS(기존 flaky SmartStore 1건 제외), `:infrastructure:test`·`:api:test` BUILD SUCCESSFUL, 전체 compileJava SUCCESSFUL, 프론트 tsc clean + build EXIT0.
+- 실동작 마켓: 스마트스토어·11번가는 기존 실 API 구현 → 배선으로 즉시 반영. 쿠팡·카페24는 이번에 실 API 추가. GMARKET/AUCTION은 클라이언트 부재 → 스킵.
+- **라이브 미검증(중요)**: 실 마켓 API 응답은 코드 정합으로만 확인, 실제 write 성공은 미검증. 배포는 안전(버튼 클릭 시에만 해당 상품 write, 자동 대량변경 없음) — 첫 상품 1건 클릭이 곧 스모크 테스트. 마켓별 실패는 토스트로 표면화됨.
+- 잔여(후속): **배치 경로**(`BatchPriceStockService` 3메서드)는 여전히 DB만 — 대량 라이브 write는 단건 검증 후 별도 배선 권고. 카페24 재고는 product-level `supply_quantity`(publish 관례) 사용 — variant 재고 정확 반영은 라이브 확인 필요. D-061(배송 마켓 전파)은 미착수.
+
+### 사이클 16 요약
+- D-060 수정 완료(승인·게이트 통과). 단건 가격/재고 저장이 연동 마켓(스토어·11번가·쿠팡·카페24)에 반영되고 결과가 표면화됨.
+- 다음: 단건 라이브 스모크(상품 1건) → 이상 없으면 배치 경로 배선 + D-061(배송 전파) 검토.
