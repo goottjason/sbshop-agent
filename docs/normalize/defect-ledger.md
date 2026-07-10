@@ -964,3 +964,27 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
   - 카페24 OrderAdapter: 주문 조회/배송 어댑터 전무 → **카페24 주문 동기화 자체가 없음**. 배송 전파 이전에 주문 수집부터 필요. 대형 신규 개발.
 - 결론: D-061의 핵심(데이터 있는 3마켓 배송정보 수정→마켓 전파)은 **이미 구현·동작**. ESM+/카페24는 데이터 부재·대형 개발이라 즉시 착수 부적합. 라이브 검증은 실 송장이 필요해(실주문에 실송장 전송) 보류 — 코드 경로는 이메일 자동추적과 동일한 sendTrackingToMarketplace로 확인됨.
 - 상태: D-061 핵심 이미구현 확인(정정). ESM+/카페24 배송은 발견(보고) 유지 — 데이터·우선순위상 후순위.
+
+---
+
+## 사이클 18 (사용자 요청 "1,2,3 모두 구현", 2026-07-11)
+
+### 항목1(D-060 배치): 배치 가격/재고도 마켓 자동 반영 — 검증통과
+- 구조(Tidy First): 마켓 순회 동기화 로직을 `ProductManageUseCase`→공용 `ProductMarketSyncService`로 추출, `MarketRepublishResult` 독립 레코드화(단건 회귀 없음). `ProductMarketSyncServiceTest`(순회·스킵·부분실패 3케이스).
+- 행위: `BatchPriceStockService.crawlAndUpdatePriceStock`(일일 크롤)·`manualUpdatePriceStock`(수동 배치)가 DB 저장 후 마켓 반영, 진행상태 메시지에 성공/스킵/실패 표면화. 일일 가격 갱신이 마켓까지 자동 전파.
+- 게이트: compileJava/TestJava 전체 SUCCESSFUL, :core:test(신규3 PASS, 기존 flaky1 제외), :api:test BUILD SUCCESSFUL.
+
+### 항목2: 스토어·11번가 상품 클라이언트 DB 자격증명 통합 — 검증통과(라이브)
+- 행위: `SmartstoreRestClient`(clientId/clientSecret)·`ElevenstMarketRestClient`(apiKey)가 쿠팡처럼 DB `sb_market_credential` 우선, env 폴백. 상품-마켓 작업 자격증명을 DB 단일소스로 일원화.
+- 라이브 회귀: 배포 후 `PUT /products/1/price-stock` = `synced:[CAFE24,SMART_STORE,COUPANG,ELEVEN_STREET], failed:{}` — **DB 자격증명으로 4마켓 전부 유지(스토어·11번가 무회귀 확인)**.
+
+### 항목3(D-061): 배송 마켓 전파 — 안전개선 + 대형갭 보고
+- 행위(안전): `MarketplaceShippingService`가 배송 어댑터 없는 마켓(카페24 등)에서 `getPort` 예외로 배송정보 수정을 깨뜨리던 것을 `findPort`(Optional)로 감지해 스킵(자사 저장 유지, 크래시 방지).
+- **대형 갭(미착수·데이터 부재로 검증 불가)**:
+  - **ESM+(G마켓/옥션) 송장 등록**: 정규 API 없이 Selenium 스크래핑으로만 가능 → 라이브 UI 리버스엔지니어링 필요. ESM+ 주문 데이터 0건(D-052)이라 검증 불가·가치 낮음.
+  - **카페24 배송/주문**: OrderAdapter 자체 부재 + **카페24 주문 동기화(fetchOrders)가 아예 없음** → 배송 전파 이전에 카페24 주문 통합(대형 신규)부터 필요. 카페24 주문 데이터도 시스템에 없음.
+  - 판정: 두 건 모두 해당 마켓에 주문 데이터가 없어 무검증 대형 투기 개발 → 라이브 검증 원칙상 별도 스코프(사용자가 실제 해당 마켓 주문 운영 시 착수). 데이터 있는 3마켓(쿠팡·스토어·11번가)은 배송정보 수정→마켓 전파 이미 동작.
+- 상태: 항목1·2 검증통과, 항목3 안전개선 완료·대형 어댑터는 보고(후순위).
+
+### 사이클 18 요약
+- 사용자 "1,2,3 모두 구현": 1·2 완전 구현·라이브 검증, 3은 안전개선 + 대형 신규(ESM+ Selenium·카페24 주문통합)는 데이터 부재로 별도 스코프 권고.
