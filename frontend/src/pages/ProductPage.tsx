@@ -6,12 +6,11 @@ import { SearchOutlined, ReloadOutlined, UploadOutlined, LinkOutlined, CloudDown
 import { productApi, type ProductList, type ProductDetail, type ImageUploadResult } from '../api/productApi';
 
 // D-047: 마켓별 연동코드 컬럼 정의. 키는 백엔드 MarketType.name()과 정확히 일치해야 한다.
+// G마켓·옥션은 마켓 상품코드가 없어(ESM+ 연동코드 부재) 컬럼에서 제외한다.
 const MARKET_COLUMNS: { key: string; header: string }[] = [
   { key: 'COUPANG', header: '쿠팡' },
   { key: 'SMART_STORE', header: '스토어' },
   { key: 'ELEVEN_STREET', header: '11번가' },
-  { key: 'GMARKET', header: 'G마켓' },
-  { key: 'AUCTION', header: '옥션' },
   { key: 'CAFE24', header: '카페24' },
 ];
 
@@ -69,6 +68,48 @@ const renderMarketCell = (marketKey: string) => (params: { data?: ProductList })
     </a>
   );
 };
+
+// 상품 그리드 전용 스타일(quartz 테마 토큰 + 가격/재고 버튼). .sb-product-grid로 스코프해 타 그리드에 영향 없음.
+const ProductGridStyle = () => (
+  <style>{`
+    .sb-product-grid {
+      --ag-font-family: 'Inter', sans-serif;
+      --ag-font-size: 13px;
+      --ag-foreground-color: #334155;
+      --ag-header-foreground-color: #475569;
+      --ag-header-background-color: #f8fafc;
+      --ag-background-color: #ffffff;
+      --ag-odd-row-background-color: #ffffff;
+      --ag-border-color: #e5e7eb;
+      --ag-row-border-color: #eef2f7;
+      --ag-row-hover-color: #f1f5f9;
+      --ag-selected-row-background-color: #e8effb;
+      --ag-header-column-resize-handle-color: #cbd5e1;
+      --ag-wrapper-border-radius: 10px;
+      --ag-cell-horizontal-padding: 14px;
+      --ag-accent-color: #334155;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .sb-product-grid .ag-header { border-bottom: 1px solid #e5e7eb; }
+    .sb-product-grid .ag-header-cell-label { font-weight: 600; }
+    .sb-pricestock-btn {
+      border: 1px solid var(--primary-color);
+      background: #fff;
+      color: var(--primary-color);
+      padding: 4px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.15s ease, color 0.15s ease;
+      line-height: 1.4;
+    }
+    .sb-pricestock-btn:hover { background: var(--primary-color); color: #fff; }
+  `}</style>
+);
 
 const ProductPage = () => {
   const [rowData, setRowData] = useState<ProductList[]>([]);
@@ -223,14 +264,20 @@ const ProductPage = () => {
     {
       headerName: '이미지',
       field: 'repImageUrl',
-      width: 80,
+      width: 72,
+      cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
       cellRenderer: (params: { value?: string }) =>
         params.value ? (
-          <img src={params.value} style={{ width: 50, height: 50, objectFit: 'cover' }} />
-        ) : null,
+          <img
+            src={params.value}
+            style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid #e5e7eb' }}
+          />
+        ) : (
+          <div style={{ width: 44, height: 44, borderRadius: 8, background: '#f1f5f9', border: '1px solid #e5e7eb' }} />
+        ),
     },
-    { headerName: 'SB코드', field: 'sbCode', width: 120 },
-    { headerName: '브랜드', field: 'brand', width: 100 },
+    { headerName: 'SB코드', field: 'sbCode', width: 120, cellStyle: { fontWeight: 600, color: '#475569' } },
+    { headerName: '브랜드', field: 'brand', width: 100, cellStyle: { color: '#64748b' } },
     {
       headerName: '상품명',
       field: 'productName',
@@ -241,9 +288,12 @@ const ProductPage = () => {
         if (e.data) openDetailModal(e.data.id);
       },
     },
-    { headerName: '소싱처', field: 'vendor', width: 80 },
-    { headerName: '판매가', field: 'salePrice', width: 100, valueFormatter: (p: { value?: number }) => p.value ? `${p.value.toLocaleString()}원` : '' },
-    { headerName: '재고', field: 'stock', width: 80 },
+    { headerName: '소싱처', field: 'vendor', width: 80, cellStyle: { color: '#64748b' } },
+    { headerName: '판매가', field: 'salePrice', width: 110, type: 'rightAligned',
+      cellStyle: { fontWeight: 600, color: '#0f172a', justifyContent: 'flex-end' },
+      valueFormatter: (p: { value?: number }) => p.value ? `${p.value.toLocaleString()}원` : '-' },
+    { headerName: '재고', field: 'stock', width: 80, type: 'rightAligned',
+      cellStyle: { justifyContent: 'flex-end', color: '#334155' } },
     // D-047: 마켓별 연동코드 컬럼(클릭 시 마켓 상품 페이지 새 탭)
     ...MARKET_COLUMNS.map((m): ColDef<ProductList> => ({
       headerName: m.header,
@@ -253,10 +303,12 @@ const ProductPage = () => {
     })),
     {
       headerName: '관리',
-      width: 120,
+      width: 110,
+      sortable: false,
+      cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
       cellRenderer: (params: { data?: ProductList }) =>
         params.data ? (
-          <button onClick={() => openPriceStockModal(params.data!)}>가격/재고</button>
+          <button className="sb-pricestock-btn" onClick={() => openPriceStockModal(params.data!)}>가격/재고</button>
         ) : null,
     },
   ];
@@ -264,25 +316,40 @@ const ProductPage = () => {
   const d = detailModal.data;
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Space style={{ marginBottom: 16 }}>
-        <Input
-          placeholder="상품명, SB코드, 브랜드 검색"
-          prefix={<SearchOutlined />}
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          onPressEnter={() => loadData(0, pageSize, keyword)}
-          style={{ width: 300 }}
-        />
-        <Button type="primary" onClick={() => loadData(0, pageSize, keyword)}>검색</Button>
-        <Button icon={<ReloadOutlined />} onClick={() => { setKeyword(''); loadData(0, pageSize); }}>새로고침</Button>
-      </Space>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '16px 24px', background: '#f8f9fa' }}>
+      <ProductGridStyle />
 
-      <div className="ag-theme-quartz" style={{ flex: 1, minHeight: 400 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10,
+        padding: '12px 16px', marginBottom: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--primary-color)' }}>상품 관리</span>
+          <span style={{ fontSize: 13, color: '#94a3b8' }}>총 {totalCount.toLocaleString()}개</span>
+        </div>
+        <Space>
+          <Input
+            placeholder="상품명, SB코드, 브랜드 검색"
+            prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            onPressEnter={() => loadData(0, pageSize, keyword)}
+            style={{ width: 320 }}
+            allowClear
+          />
+          <Button type="primary" onClick={() => loadData(0, pageSize, keyword)}>검색</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => { setKeyword(''); loadData(0, pageSize); }}>새로고침</Button>
+        </Space>
+      </div>
+
+      <div className="ag-theme-quartz sb-product-grid" style={{ flex: 1, minHeight: 400 }}>
         <AgGridReact
           rowData={rowData}
           columnDefs={columnDefs}
           pagination={false}
+          rowHeight={56}
+          headerHeight={44}
           defaultColDef={{ sortable: true, resizable: true }}
         />
       </div>
