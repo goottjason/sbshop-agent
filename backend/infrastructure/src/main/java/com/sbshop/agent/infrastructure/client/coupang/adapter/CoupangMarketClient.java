@@ -165,11 +165,7 @@ public class CoupangMarketClient implements MarketClient {
 		if (marketItemId == null || marketItemId.isEmpty()) {
 			throw new IllegalStateException("쿠팡 vendorItemId 없음");
 		}
-		String accessKey = properties.getAccessKey();
-		String secretKey = properties.getSecretKey();
-		if (accessKey == null || accessKey.isBlank() || secretKey == null || secretKey.isBlank()) {
-			throw new IllegalStateException("쿠팡 API 자격증명(COUPANG_ACCESS_KEY/SECRET_KEY) 미설정");
-		}
+		// 자격증명 검증은 CoupangRestClient가 DB 우선(env 폴백)으로 수행 — 미설정 시 명확한 예외 전파.
 		String base = "/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/" + marketItemId;
 		if (price != null) {
 			restClient.put(base + "/prices/" + price, null);
