@@ -938,3 +938,12 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 3. **카페24만 잔여**: `401 Invalid access_token`. `Cafe24TokenManager`는 DB 리프레시 토큰으로 갱신하는데, 리프레시 토큰이 Cafe24에서 거부(만료/회전소진)돼 access token을 못 얻음 → "Bearer null"→invalid_token. **코드 아님 — 사용자 OAuth 재인증 필요**(Settings UI "정상 연동중"은 토큰 존재만 확인, 유효성 미검증). 재인증 경로: `Cafe24AuthController /api/admin/sync/cafe24/auth/callback` + `generateAuthorizationUrl`.
 - **핵심 부산물**: 마켓 자격증명 2원화(주문=DB, 제품=env) 불일치를 쿠팡에 한해 DB 우선으로 통합. 스토어·11번가는 기존 env로 동작 중이라 미변경(향후 동일 통합 여지).
 - 상태: **D-060 검증통과(3/4 마켓 라이브 확정)**. 카페24는 토큰 재인증 대기(운영·사용자).
+
+### D-062: Cafe24 가짜 '정상 연동중' 표시 + 재인증 UX 부재 (2026-07-11, 사용자 요청)
+
+- 심각도: P2 (오표시로 장애 은폐 — 실제 토큰 무효인데 정상으로 표기) · 리스크 등급: 표준
+- 위치: `frontend/src/pages/Settings.tsx`(hasRefreshToken 기반 녹색), `Cafe24AuthController`(상태 점검·간편 발급 엔드포인트 부재)
+- 근본원인: Settings가 `hasRefreshToken`(토큰 **존재** 여부만)으로 "✅ 정상 연동 중"을 표시 → 리프레시 토큰이 실제로 만료/거부돼도 녹색으로 뜸(가짜). 재인증은 콜백 URL을 브라우저 주소창에 수동 입력하는 번거로운 방식뿐.
+- 수정: (백엔드) `GET /api/admin/sync/cafe24/status`가 실 Cafe24 API(`/admin/products?limit=1`)를 호출해 토큰 **실유효성**을 검증(401이면 재인증 필요). `POST /api/admin/sync/cafe24/issue-token`이 리다이렉트 code(또는 전체 URL, code 자동추출)로 리프레시 토큰 발급·저장. `Cafe24TokenManager.isRefreshTokenPresent()` 추가. (프론트) 카페24 탭이 실상태를 표시(가짜 녹색 제거)하고, 무효 시 재인증 카드(①인증 열기 →②주소/코드 붙여넣기 →발급) + 상태 새로고침 제공.
+- 라이브 검증: 배포 후 `/status` = `{connected:false, "리프레시 토큰이 만료/무효입니다"}` — **기존 '정상 연동중'이 가짜였음이 실검증으로 확정**. 이제 사용자가 UI에서 재인증(OAuth 승인은 Cafe24 로그인 필요) 후 즉시 토큰 발급 가능.
+- 상태: 검증통과 (게이트: infra+api test BUILD SUCCESSFUL, 프론트 tsc clean + build EXIT0, 라이브 상태 엔드포인트 실동작 확인)
