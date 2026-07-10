@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Input, Button, Table, message, Card, Typography, Tag, Space, Modal } from 'antd';
 import { batchApi } from '../api/batchApi';
 import { actionLogApi, type ActionLogItem } from '../api/actionLogApi';
+import { formatKst } from '../utils/datetime';
 
 const { Title } = Typography;
 
@@ -109,12 +110,13 @@ const ProcessStatusPage = () => {
       }
     },
     { title: '메시지', dataIndex: 'message', ellipsis: true },
-    { title: '시작시간', dataIndex: 'startedAt', width: 180 },
+    { title: '시작시간', dataIndex: 'startedAt', width: 180,
+      render: (v: string) => formatKst(v) },
   ];
 
   const actionLogColumns = [
     { title: '시간', dataIndex: 'createdAt', width: 180,
-      render: (v: string) => (v ? new Date(v).toLocaleString('ko-KR') : '-') },
+      render: (v: string) => formatKst(v) },
     { title: '액션', dataIndex: 'actionType', width: 180,
       render: (v: string) => renderActionType(v) },
     { title: '마켓', dataIndex: 'marketType', width: 120,
