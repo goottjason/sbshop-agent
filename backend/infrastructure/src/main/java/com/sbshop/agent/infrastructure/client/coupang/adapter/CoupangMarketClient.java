@@ -167,12 +167,12 @@ public class CoupangMarketClient implements MarketClient {
 		}
 		// 자격증명 검증은 CoupangRestClient가 DB 우선(env 폴백)으로 수행 — 미설정 시 명확한 예외 전파.
 		String base = "/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/" + marketItemId;
-		// 값은 경로 파라미터. 바디는 비어있지만 Coupang(Akamai)은 Content-Length를 요구하므로 빈 문자열 바디로 보낸다(411 방지).
+		// 값은 경로 파라미터, 바디 없음. CoupangRestClient가 무바디 PUT에 Content-Length:0을 명시(411 방지).
 		if (price != null) {
-			restClient.put(base + "/prices/" + price, "");
+			restClient.put(base + "/prices/" + price, null);
 		}
 		if (stock != null) {
-			restClient.put(base + "/quantities/" + stock, "");
+			restClient.put(base + "/quantities/" + stock, null);
 		}
 		log.info("[쿠팡] 가격/재고 동기화 완료: vendorItemId={}, price={}, stock={}", marketItemId, price, stock);
 		return currentRawData;

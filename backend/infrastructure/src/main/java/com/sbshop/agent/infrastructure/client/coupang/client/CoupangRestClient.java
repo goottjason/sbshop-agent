@@ -74,6 +74,9 @@ public class CoupangRestClient {
 
 			if (body != null) {
 				requestSpec.contentType(MediaType.APPLICATION_JSON).body(body);
+			} else if ("PUT".equals(method) || "POST".equals(method)) {
+				// 무바디 PUT/POST도 Content-Length:0을 명시(Coupang/Akamai가 미지정 시 411 Length Required 반환).
+				requestSpec.header(HttpHeaders.CONTENT_LENGTH, "0").body(new byte[0]);
 			}
 
 			return requestSpec.retrieve().body(String.class);
