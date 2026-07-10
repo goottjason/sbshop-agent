@@ -1,10 +1,12 @@
 package com.sbshop.agent.api.controller;
 
+import com.sbshop.agent.api.dto.product.ImageUploadResponse;
 import com.sbshop.agent.api.dto.product.PriceStockUpdateRequest;
 import com.sbshop.agent.api.dto.product.ProductDetailResponse;
 import com.sbshop.agent.api.dto.product.ProductListResponse;
 import com.sbshop.agent.api.dto.product.ProductUpdateRequest;
 import com.sbshop.agent.core.application.product.ProductManageUseCase;
+import com.sbshop.agent.core.application.product.ProductManageUseCase.MarketRepublishResult;
 import com.sbshop.agent.core.application.product.ProductSearchUseCase;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
@@ -22,6 +24,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.coobird.thumbnailator.Thumbnails;
@@ -71,7 +74,10 @@ public class ProductController {
 		} else {
 			products = productSearchUseCase.searchProducts(keyword, pageable);
 		}
-		return ResponseEntity.ok(products.map(this::toListResponse));
+		// D-047: 페이지 상품 전체의 마켓 등록정보를 한 번에 배치 조회(N+1 제거).
+		Map<Long, List<MarketRegistration>> registrationsByProduct = loadRegistrations(products.getContent());
+		return ResponseEntity.ok(products.map(
+			p -> ProductListResponse.from(p, buildMarketMap(registrationsByProduct.getOrDefault(p.getId(), List.of())))));
 	}
 
 	@GetMapping("/{id}")
@@ -92,25 +98,25 @@ public class ProductController {
 	}
 
 	@PutMapping("/{id}/images")
-	public ResponseEntity<Void> uploadImages(
+	public ResponseEntity<ImageUploadResponse> uploadImages(
 		@PathVariable
 		Long id,
 		@RequestPart("images")
 		List<MultipartFile> images) {
 		List<ImageUploadFile> uploadFiles = prepareImageFiles(images);
-		productManageUseCase.updateImagesAndHtml(id, uploadFiles);
-		return ResponseEntity.ok().build();
+		MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, uploadFiles);
+		return ResponseEntity.ok(ImageUploadResponse.from(result));
 	}
 
 	@PutMapping("/{id}/images/by-url")
-	public ResponseEntity<Void> uploadImagesByUrl(
+	public ResponseEntity<ImageUploadResponse> uploadImagesByUrl(
 		@PathVariable
 		Long id,
 		@RequestBody
 		List<String> imageUrls) {
 		List<ImageUploadFile> downloadFiles = imageDownloadClient.downloadAndConvert(imageUrls);
-		productManageUseCase.updateImagesAndHtml(id, downloadFiles);
-		return ResponseEntity.ok().build();
+		MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, downloadFiles);
+		return ResponseEntity.ok(ImageUploadResponse.from(result));
 	}
 
 	@GetMapping("/{id}/images/crawl")
@@ -145,13 +151,20 @@ public class ProductController {
 		return ResponseEntity.ok().build();
 	}
 
-	private ProductListResponse toListResponse(Product p) {
-		Map<String, String> marketMap = getMarketMap(p.getId());
-		return ProductListResponse.from(p, marketMap);
+	/**
+	 * D-047: 페이지에 담긴 상품들의 마켓 등록정보를 배치 조회(findByProductIdIn)하여 productId로 그룹화한다.
+	 * 기존 row별 findByProductId(N+1) 대비 쿼리 1회로 축소(성능 회귀 예방).
+	 */
+	private Map<Long, List<MarketRegistration>> loadRegistrations(List<Product> products) {
+		List<Long> productIds = products.stream().map(Product::getId).toList();
+		if (productIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		return marketRegistrationRepository.findByProductIdIn(productIds).stream()
+			.collect(Collectors.groupingBy(MarketRegistration::getProductId));
 	}
 
-	private Map<String, String> getMarketMap(Long productId) {
-		List<MarketRegistration> registrations = marketRegistrationRepository.findByProductId(productId);
+	private Map<String, String> buildMarketMap(List<MarketRegistration> registrations) {
 		if (registrations.isEmpty()) {
 			return Collections.emptyMap();
 		}

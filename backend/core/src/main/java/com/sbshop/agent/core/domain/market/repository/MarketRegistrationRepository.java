@@ -14,6 +14,8 @@ public interface MarketRegistrationRepository extends JpaRepository<MarketRegist
 
 	List<MarketRegistration> findByProductId(Long productId);
 
+	List<MarketRegistration> findByProductIdIn(List<Long> productIds);
+
 	List<MarketRegistration> findByMarketType(MarketType marketType);
 
 	Optional<MarketRegistration> findByProductIdAndMarketType(Long productId, MarketType marketType);

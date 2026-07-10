@@ -14,6 +14,10 @@ export interface ProductList {
   hostedImages: string[];
   sourcingUrl: string;
   memo: string;
+  // D-047: 마켓별 연동코드 맵. 키는 백엔드 MarketType.name()
+  // (COUPANG / SMART_STORE / ELEVEN_STREET / GMARKET / AUCTION / CAFE24).
+  // 값은 마켓 상품코드(vendorItemId 우선), 없으면 내부 productId 폴백(= row.id).
+  marketRegistrations?: Record<string, string>;
 }
 
 export interface ProductDetail {
@@ -33,6 +37,22 @@ export interface ProductDetail {
   hostedImages: string[];
   detailHtml: string;
   memo: string;
+}
+
+// D-049(반려 재수정): 이미지 업로드 응답. 자사 저장 성공 여부(storageUpdated)와
+// 마켓별 재게시 결과(성공/스킵/실패)를 분리해 담는다. 부분 실패를 사용자에게 표면화하기 위함.
+export interface MarketOutcome {
+  market: string; // MarketType.name() (COUPANG / SMART_STORE / ...)
+  label: string; // 한글 표기 (쿠팡 / 스마트스토어 / ...)
+}
+export interface MarketFailure extends MarketOutcome {
+  error: string;
+}
+export interface ImageUploadResult {
+  storageUpdated: boolean;
+  synced: MarketOutcome[];
+  skipped: MarketOutcome[];
+  failed: MarketFailure[];
 }
 
 export const productApi = {
