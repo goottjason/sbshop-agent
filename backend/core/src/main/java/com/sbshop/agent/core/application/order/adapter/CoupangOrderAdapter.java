@@ -69,7 +69,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		// sellerProductId -> externalVendorSku 매핑 캐시
 		Map<String, String> skuCache = new HashMap<>();
 
-		// D-041: status별 성공/실패 집계. 전량 실패 시 예외 전파 → 서비스 catch → SYNC_FAILED → 에러 토스트.
+		// D-046: status별 성공/실패 집계. 전량 실패 시 예외 전파 → 서비스 catch → SYNC_FAILED → 에러 토스트.
 		// "진짜 0건(예외 없는 빈 응답)"과 "오류로 0건(API 실패)"을 구분한다.
 		int successCount = 0;
 		int failureCount = 0;
@@ -256,6 +256,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 					.marketType(getMarketType())
 					.marketOrderNo(marketOrderNo)
 					.marketProductCode(vendorItemId)
+					.sellerProductId(sellerProductId) // (D-046) 발행 저장 식별자로 역조회·보강하기 위해 전달
 					.quantity(qty)
 					.orderPrice(price)
 					.totalAmount(price.multiply(BigDecimal.valueOf(qty)))

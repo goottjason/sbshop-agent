@@ -21,6 +21,12 @@ public class MarketOrderDto {
 	private MarketType marketType;
 	private String marketOrderNo;
 	private String marketProductCode;
+	/**
+	 * (D-046) 쿠팡 발행 시 marketIdentifiers에 저장되는 식별자(sellerProductId).
+	 * 주문 매칭 키(marketProductCode=vendorItemId)가 저장 식별자와 달라 매칭이 끊기던 결함을
+	 * 역조회·보강으로 잇기 위해 함께 전달한다. 쿠팡 외 마켓은 미사용(null).
+	 */
+	private String sellerProductId;
 	private String productName;
 	private String sellerProductName;
 	private Integer quantity;

@@ -114,6 +114,28 @@ public class MarketRegistration extends BaseEntity {
 		this.marketIdentifiers = marketIdentifiers;
 	}
 
+	/**
+	 * 기존 marketIdentifiers JSON을 보존하며 단일 키를 병합한다.
+	 * (D-046) 발행 시 sellerProductId만 저장되고 vendorItemId를 채우는 write-path가
+	 * 없던 구조적 공백을 메우기 위한 보강 진입점. 값이 비면 no-op.
+	 */
+	public void enrichIdentifier(String key, String value) {
+		if (key == null || key.isEmpty() || value == null || value.isEmpty()) {
+			return;
+		}
+		try {
+			JsonNode existing = isValidJson(marketIdentifiers) ? MAPPER.readTree(marketIdentifiers) : null;
+			com.fasterxml.jackson.databind.node.ObjectNode node =
+				(existing != null && existing.isObject())
+					? (com.fasterxml.jackson.databind.node.ObjectNode)existing
+					: MAPPER.createObjectNode();
+			node.put(key, value);
+			this.marketIdentifiers = MAPPER.writeValueAsString(node);
+		} catch (Exception e) {
+			log.warn("marketIdentifiers 보강 실패: productId={}, key={}, error={}", productId, key, e.getMessage());
+		}
+	}
+
 	public void updateMarketDetailedInfo(String marketDetailedInfo) {
 		this.marketDetailedInfo = marketDetailedInfo;
 	}

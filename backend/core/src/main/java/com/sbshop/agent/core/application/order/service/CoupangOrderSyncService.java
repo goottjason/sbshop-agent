@@ -295,7 +295,7 @@ public class CoupangOrderSyncService {
 	/* ----- MarketRegistration → sb_productId 조회 ----- */
 	private Long resolveProductId(MarketOrderDto dto) {
 		if (dto.getMarketProductCode() != null) {
-			// 1. vendorItemId로 market_registration 검색
+			// 1. vendorItemId로 market_registration 검색 (2회차 이후 동기화는 여기서 직접 매칭)
 			List<MarketRegistration> regs = marketRegistrationRepository
 				.findByMarketTypeAndIdentifiersContaining(MarketType.COUPANG, dto.getMarketProductCode());
 			if (!regs.isEmpty()) {
@@ -304,9 +304,30 @@ public class CoupangOrderSyncService {
 					dto.getMarketProductCode(), sbProductId);
 				return sbProductId;
 			}
-			log.warn("[COUPANG] sb_market_registration에서 productId를 찾을 수 없음: vendorItemId={}",
-				dto.getMarketProductCode());
 		}
+
+		// 2. (D-046) vendorItemId 미스매치 시 sellerProductId로 역조회 후 vendorItemId 보강.
+		//    발행 시 marketIdentifiers에 sellerProductId만 저장되고 vendorItemId를 채우는 write-path가
+		//    없어 매핑이 끊기던 근본원인을, 최초 주문 동기화 시점에 보강해 잇는다.
+		if (dto.getSellerProductId() != null && !dto.getSellerProductId().isEmpty()) {
+			List<MarketRegistration> regsBySeller = marketRegistrationRepository
+				.findByMarketTypeAndIdentifiersContaining(MarketType.COUPANG, dto.getSellerProductId());
+			if (!regsBySeller.isEmpty()) {
+				MarketRegistration reg = regsBySeller.get(0);
+				// vendorItemId를 marketIdentifiers에 보강 → 이후 동기화부터 1의 직접 매칭이 성립
+				if (dto.getMarketProductCode() != null && !dto.getMarketProductCode().isEmpty()) {
+					reg.enrichIdentifier("vendorItemId", dto.getMarketProductCode());
+					marketRegistrationRepository.save(reg);
+				}
+				log.info("[COUPANG] sellerProductId 역조회로 productId 매칭·vendorItemId 보강: "
+						+ "sellerProductId={}, vendorItemId={}, sbProductId={}",
+					dto.getSellerProductId(), dto.getMarketProductCode(), reg.getSbProductId());
+				return reg.getSbProductId();
+			}
+		}
+
+		log.warn("[COUPANG] sb_market_registration에서 productId를 찾을 수 없음: vendorItemId={}, sellerProductId={}",
+			dto.getMarketProductCode(), dto.getSellerProductId());
 		return null;
 	}
 
