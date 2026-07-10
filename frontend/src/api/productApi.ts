@@ -55,6 +55,14 @@ export interface ImageUploadResult {
   failed: MarketFailure[];
 }
 
+// D-060: 가격/재고 저장 시 마켓 동기화 결과(MarketRepublishResult 레코드).
+// synced/skipped = MarketType.name() 배열, failed = {MARKET: 오류메시지}.
+export interface PriceStockSyncResult {
+  synced: string[];
+  skipped: string[];
+  failed: Record<string, string>;
+}
+
 export const productApi = {
   fetchProducts: (page: number, size: number, keyword?: string) =>
     apiClient.get('/api/v1/products', { params: { page, size, keyword } }),

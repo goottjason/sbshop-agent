@@ -3,7 +3,14 @@ import { AgGridReact } from 'ag-grid-react';
 import type { ColDef, CellClickedEvent } from 'ag-grid-community';
 import { Input, Button, Space, Modal, InputNumber, message, Descriptions, Image, Spin, Collapse, Typography, Divider, Pagination, Tooltip } from 'antd';
 import { SearchOutlined, ReloadOutlined, UploadOutlined, LinkOutlined, CloudDownloadOutlined } from '@ant-design/icons';
-import { productApi, type ProductList, type ProductDetail, type ImageUploadResult } from '../api/productApi';
+import { productApi, type ProductList, type ProductDetail, type ImageUploadResult, type PriceStockSyncResult } from '../api/productApi';
+
+// D-060: 마켓 코드 → 한글 라벨
+const MARKET_LABELS: Record<string, string> = {
+  COUPANG: '쿠팡', SMART_STORE: '스토어', ELEVEN_STREET: '11번가',
+  GMARKET: 'G마켓', AUCTION: '옥션', CAFE24: '카페24',
+};
+const marketLabel = (code: string) => MARKET_LABELS[code] || code;
 
 // D-047: 마켓별 연동코드 컬럼 정의. 키는 백엔드 MarketType.name()과 정확히 일치해야 한다.
 // G마켓·옥션은 마켓 상품코드가 없어(ESM+ 연동코드 부재) 컬럼에서 제외한다.
@@ -195,6 +202,24 @@ const ProductPage = () => {
     }
   };
 
+  // D-060: 가격/재고 마켓 동기화 결과 표면화. DB는 저장됐어도 마켓 반영 실패를 명확히 알린다.
+  const surfacePriceStockResult = (result?: PriceStockSyncResult) => {
+    const synced = result?.synced ?? [];
+    const skipped = result?.skipped ?? [];
+    const failedEntries = Object.entries(result?.failed ?? {});
+    const syncedMsg = synced.length > 0 ? ` — ${synced.map(marketLabel).join(', ')} 반영 완료` : '';
+    if (failedEntries.length > 0) {
+      const failedNames = failedEntries.map(([m]) => marketLabel(m)).join(', ');
+      message.warning(`저장됨${syncedMsg}. 단, ${failedEntries.length}개 마켓 반영 실패: ${failedNames}`, 6);
+    } else if (synced.length > 0) {
+      message.success(`수정 완료${syncedMsg}`);
+    } else if (skipped.length > 0) {
+      message.success(`수정 완료 (연동 마켓 없음: ${skipped.map(marketLabel).join(', ')})`);
+    } else {
+      message.success('수정 완료 (연동된 마켓 없음)');
+    }
+  };
+
   // D-036: 파일 업로드 (multipart → uploadImages)
   const handleFilesSelected = async (files: FileList | null) => {
     if (!detailModal.id || !files || files.length === 0) return;
@@ -375,8 +400,9 @@ const ProductPage = () => {
         onOk={async () => {
           if (priceStockModal.id !== undefined) {
             try {
-              await productApi.updatePriceStock(priceStockModal.id, priceStockModal.price || 0, priceStockModal.stock || 0);
-              message.success('수정 완료');
+              const res = await productApi.updatePriceStock(priceStockModal.id, priceStockModal.price || 0, priceStockModal.stock || 0);
+              // D-060: 마켓 동기화 결과(성공/실패 마켓)를 표면화. 자사 DB는 저장됐어도 일부 마켓 반영 실패를 조용히 삼키지 않는다.
+              surfacePriceStockResult(res.data as PriceStockSyncResult);
               setPriceStockModal({ visible: false });
               loadData(currentPage, pageSize, keyword);
             } catch {
