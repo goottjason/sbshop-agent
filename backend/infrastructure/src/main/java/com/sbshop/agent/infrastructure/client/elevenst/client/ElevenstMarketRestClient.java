@@ -1,5 +1,8 @@
 package com.sbshop.agent.infrastructure.client.elevenst.client;
 
+import com.sbshop.agent.core.domain.market.MarketCredential;
+import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
+import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.infrastructure.client.elevenst.config.ElevenstProperties;
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,6 +25,14 @@ public class ElevenstMarketRestClient {
 
 	private static final Charset EUC_KR = Charset.forName("EUC-KR");
 	private final ElevenstProperties properties;
+	// 자격증명 단일 소스: DB(sb_market_credential ELEVEN_STREET.accessKey) 우선, 없으면 env(ElevenstProperties) 폴백.
+	private final MarketCredentialRepository marketCredentialRepository;
+
+	private String resolveApiKey() {
+		MarketCredential c = marketCredentialRepository.findByMarketType(MarketType.ELEVEN_STREET).orElse(null);
+		return (c != null && c.getAccessKey() != null && !c.getAccessKey().isBlank())
+			? c.getAccessKey() : properties.getApiKey();
+	}
 
 	public String get(String path) {
 		return sendRequest(properties.getApiUrl() + path, "GET", null);
@@ -40,7 +51,7 @@ public class ElevenstMarketRestClient {
 		try {
 			conn = (HttpURLConnection)URI.create(urlStr).toURL().openConnection();
 			conn.setRequestMethod(method);
-			conn.setRequestProperty("openapikey", properties.getApiKey());
+			conn.setRequestProperty("openapikey", resolveApiKey());
 			conn.setRequestProperty("Content-Type", "text/xml; charset=EUC-KR");
 			conn.setConnectTimeout(10000);
 			conn.setReadTimeout(30000);

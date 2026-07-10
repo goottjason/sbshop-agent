@@ -2,6 +2,9 @@ package com.sbshop.agent.infrastructure.client.smartstore.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sbshop.agent.core.domain.market.MarketCredential;
+import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
+import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.infrastructure.client.smartstore.config.SmartstoreProperties;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -23,9 +26,25 @@ public class SmartstoreRestClient {
 
 	private final SmartstoreProperties properties;
 	private final ObjectMapper objectMapper;
+	// 자격증명 단일 소스: DB(sb_market_credential SMART_STORE) 우선, 없으면 env(SmartstoreProperties) 폴백.
+	private final MarketCredentialRepository marketCredentialRepository;
 	private final RestClient restClient = RestClient.create();
 
 	private String accessToken;
+
+	private static boolean blank(String s) {
+		return s == null || s.isBlank();
+	}
+
+	private String resolveClientId() {
+		MarketCredential c = marketCredentialRepository.findByMarketType(MarketType.SMART_STORE).orElse(null);
+		return (c != null && !blank(c.getClientId())) ? c.getClientId() : properties.getClientId();
+	}
+
+	private String resolveClientSecret() {
+		MarketCredential c = marketCredentialRepository.findByMarketType(MarketType.SMART_STORE).orElse(null);
+		return (c != null && !blank(c.getSecretKey())) ? c.getSecretKey() : properties.getClientSecret();
+	}
 
 	public synchronized String getValidAccessToken() {
 		if (accessToken == null) {
@@ -35,14 +54,15 @@ public class SmartstoreRestClient {
 	}
 
 	private void fetchAccessToken() {
+		String clientId = resolveClientId();
 		String timestamp = String.valueOf(Instant.now().getEpochSecond());
-		String password = properties.getClientId() + "_" + timestamp;
+		String password = clientId + "_" + timestamp;
 		String clientSecretSign = Base64.getEncoder()
-			.encodeToString(BCrypt.hashpw(password, properties.getClientSecret()).getBytes(StandardCharsets.UTF_8));
+			.encodeToString(BCrypt.hashpw(password, resolveClientSecret()).getBytes(StandardCharsets.UTF_8));
 
 		MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
 		form.add("grant_type", "client_credentials");
-		form.add("client_id", properties.getClientId());
+		form.add("client_id", clientId);
 		form.add("timestamp", timestamp);
 		form.add("client_secret_sign", clientSecretSign);
 		form.add("type", "SELF");
