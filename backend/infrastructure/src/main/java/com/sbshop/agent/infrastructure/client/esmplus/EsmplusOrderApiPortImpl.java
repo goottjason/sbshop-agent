@@ -479,10 +479,15 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 			});
 		} catch (TimeoutException te) {
 			String currentUrl = safeCurrentUrl(driver);
-			log.error("[ESM+] 로그인 실패 — 로그인 페이지 잔류(url={}). 자격증명/추가인증(캡차·2FA·기기인증) 확인 필요.",
-				currentUrl);
+			// D-045(c): 실패 원인(자격증명 오류 vs 캡차/추가인증 vs 셀렉터 드리프트)을 다음 라이브 실행에서
+			// 확정할 수 있도록 로그인 페이지의 HTML 스냅샷과 캡차/에러문구 힌트를 로그·예외에 함께 남긴다.
+			String html = pageHtmlSnapshot(driver);
+			String hint = loginFailureHint(html);
+			log.error("[ESM+] 로그인 실패 — 로그인 페이지 잔류(url={}). {} htmlSnapshot(앞2000자)={}",
+				currentUrl, hint, html);
 			throw new RuntimeException(
-				"ESM+ 로그인 실패(자격증명/추가인증 확인): 로그인 제출 후에도 로그인 페이지에 머무름 url=" + currentUrl);
+				"ESM+ 로그인 실패(자격증명/추가인증 확인): 로그인 제출 후에도 로그인 페이지에 머무름 url="
+					+ currentUrl + " / " + hint);
 		}
 		log.info("[ESM+] 로그인 성공 판별 통과, 현재 URL: {}", safeCurrentUrl(driver));
 
@@ -523,6 +528,25 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 		} catch (Exception e) {
 			return "(url 조회 실패: " + e.getMessage() + ")";
 		}
+	}
+
+	/**
+	 * (D-045c) 로그인 페이지 HTML에서 실패 유형을 추정한다.
+	 * 캡차/보안문자 흔적이 있으면 신규 서버 IP에 대한 ESM+ 추가 인증 가능성(실브라우저 1회 로그인 필요),
+	 * 없으면 자격증명 오류 가능성이 높음을 안내한다. 상세 문구는 호출부가 남기는 htmlSnapshot으로 확인.
+	 */
+	private String loginFailureHint(String html) {
+		if (html == null || html.isEmpty()) {
+			return "[힌트] 페이지 HTML 없음 — 셀렉터 드리프트/렌더 실패 의심.";
+		}
+		String lower = html.toLowerCase();
+		if (lower.contains("captcha") || lower.contains("recaptcha")
+			|| html.contains("보안문자") || html.contains("자동입력방지")) {
+			return "[힌트] 캡차/보안문자 감지 — 신규 서버 IP에 대한 ESM+ 추가 인증 가능성"
+				+ "(실브라우저로 1회 로그인 후 신뢰 등록 필요할 수 있음).";
+		}
+		return "[힌트] 캡차 미감지 — 자격증명 오류 가능성 높음(sb_market_credential ESM+ 행의 masterId/비밀번호 확인). "
+			+ "상세 에러문구는 htmlSnapshot 참조.";
 	}
 
 	private String pageHtmlSnapshot(RemoteWebDriver driver) {
