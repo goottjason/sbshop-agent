@@ -82,6 +82,11 @@ public class EsmplusOrderSyncService {
 		if (!StringUtils.hasText(credential.getAccessKey())) {
 			throw new IllegalArgumentException("ESM+ 크레덴셜 불완전: masterId(access-key) 확인");
 		}
+		// D-045: 비밀번호(secret-key)도 검증 — 빈 비밀번호로 Selenium 로그인이 조용히 실패("성공 0건" 위장)하던 것을
+		// 스크래핑 이전에 명확히 실패시킨다.
+		if (!StringUtils.hasText(credential.getSecretKey())) {
+			throw new IllegalArgumentException("ESM+ 크레덴셜 불완전: 비밀번호(secret-key) 확인");
+		}
 		return credential;
 	}
 

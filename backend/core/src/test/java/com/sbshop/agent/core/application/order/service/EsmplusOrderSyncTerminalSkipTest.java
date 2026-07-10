@@ -58,6 +58,8 @@ class EsmplusOrderSyncTerminalSkipTest {
 	private void stubCredential() {
 		MarketCredential credential = org.mockito.Mockito.mock(MarketCredential.class);
 		when(credential.getAccessKey()).thenReturn("masterId");
+		// D-045: loadAndValidateCredential이 이제 secretKey(비밀번호)도 검증하므로 완전한 자격증명으로 스텁.
+		when(credential.getSecretKey()).thenReturn("password");
 		when(credentialRepository.findByMarketType(MarketType.GMARKET)).thenReturn(Optional.of(credential));
 	}
 

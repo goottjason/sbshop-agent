@@ -20,6 +20,7 @@ import java.util.Map;
 import org.openqa.selenium.By;
 import org.openqa.selenium.Cookie;
 import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.remote.RemoteWebDriver;
@@ -468,6 +469,23 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 		log.info("[ESM+] 로그인 처리 중...");
 		Thread.sleep(5000);
 
+		// D-045(a): 로그인 성공 판별. 로그인 실패(자격증명 무효/추가인증)여도 ESM+는 예외를 던지지 않고
+		// 로그인 페이지(signin.esmplus.com)에 그대로 머무르므로, 무검증으로 주문 페이지까지 진행하면
+		// #innerIFrame 미발견으로 "성공 0건" 위장된다. 성공 시 로그인 도메인을 벗어나는지 확인해 fast-fail.
+		try {
+			wait.until(d -> {
+				String url = d.getCurrentUrl();
+				return url != null && !url.contains("signin.esmplus.com");
+			});
+		} catch (TimeoutException te) {
+			String currentUrl = safeCurrentUrl(driver);
+			log.error("[ESM+] 로그인 실패 — 로그인 페이지 잔류(url={}). 자격증명/추가인증(캡차·2FA·기기인증) 확인 필요.",
+				currentUrl);
+			throw new RuntimeException(
+				"ESM+ 로그인 실패(자격증명/추가인증 확인): 로그인 제출 후에도 로그인 페이지에 머무름 url=" + currentUrl);
+		}
+		log.info("[ESM+] 로그인 성공 판별 통과, 현재 URL: {}", safeCurrentUrl(driver));
+
 		Map<String, String> cookies = new HashMap<>();
 		for (Cookie cookie : driver.manage().getCookies()) {
 			cookies.put(cookie.getName(), cookie.getValue());
@@ -479,11 +497,44 @@ public class EsmplusOrderApiPortImpl implements EsmplusOrderApiPort {
 		Thread.sleep(5000);
 
 		log.info("[ESM+] 3단계: iframe으로 전환");
-		WebElement iframe = driver.findElement(By.id("innerIFrame"));
+		// D-045(b)-2: idInput/esmTab 탐색과 동일하게 WebDriverWait로 감싸 고정 sleep 타이밍 경합 제거.
+		// 미발견은 "로그인은 됐으나 주문 iframe 없음 — 페이지 구조 변경/추가 인증 의심"으로 구분하고,
+		// 후속 라이브 진단(b)-3/4)을 위해 페이지 HTML 스냅샷을 로그로 남긴다.
+		WebElement iframe;
+		try {
+			iframe = wait.until(
+				ExpectedConditions.presenceOfElementLocated(By.id("innerIFrame")));
+		} catch (TimeoutException te) {
+			String currentUrl = safeCurrentUrl(driver);
+			log.error("[ESM+] 주문 iframe(#innerIFrame) 미발견 — 로그인은 성공했으나 페이지 구조 변경 의심. "
+				+ "url={}, htmlSnapshot(앞2000자)={}", currentUrl, pageHtmlSnapshot(driver));
+			throw new RuntimeException(
+				"ESM+ 주문 iframe 없음(#innerIFrame 미발견) — 로그인은 됐으나 페이지 구조 변경 의심 url=" + currentUrl);
+		}
 		driver.switchTo().frame(iframe);
 		Thread.sleep(2000);
 
 		return driver;
+	}
+
+	private String safeCurrentUrl(RemoteWebDriver driver) {
+		try {
+			return driver.getCurrentUrl();
+		} catch (Exception e) {
+			return "(url 조회 실패: " + e.getMessage() + ")";
+		}
+	}
+
+	private String pageHtmlSnapshot(RemoteWebDriver driver) {
+		try {
+			String html = (String)((JavascriptExecutor)driver)
+				.executeScript("return document.documentElement ? document.documentElement.outerHTML : '';");
+			if (html == null)
+				return "(html null)";
+			return html.substring(0, Math.min(2000, html.length()));
+		} catch (Exception e) {
+			return "(html 스냅샷 실패: " + e.getMessage() + ")";
+		}
 	}
 
 	private List<MarketOrderDto> fetchOrdersFromDriver(RemoteWebDriver driver,

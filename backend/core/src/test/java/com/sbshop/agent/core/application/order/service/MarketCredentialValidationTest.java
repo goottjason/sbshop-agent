@@ -110,4 +110,36 @@ class MarketCredentialValidationTest {
 
 		assertIncompleteCredentialFailure(capturedEvents());
 	}
+
+	@Test
+	@DisplayName("D-045: ESM+ 비밀번호(secret-key) 빈 문자열이면 스크래핑 이전에 불완전 실패")
+	void esmplus_emptySecret_failsFast() {
+		MarketCredential c = mock(MarketCredential.class);
+		when(c.getAccessKey()).thenReturn("masterId");
+		when(c.getSecretKey()).thenReturn("");
+		when(credentialRepository.findByMarketType(MarketType.GMARKET)).thenReturn(Optional.of(c));
+
+		EsmplusOrderSyncService service = new EsmplusOrderSyncService(
+			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
+			eventPublisher, esmplusOrderAdapter);
+		service.syncEsmplusOrders();
+
+		assertIncompleteCredentialFailure(capturedEvents());
+	}
+
+	@Test
+	@DisplayName("D-045: ESM+ 비밀번호(secret-key) 공백이면 스크래핑 이전에 불완전 실패")
+	void esmplus_blankSecret_failsFast() {
+		MarketCredential c = mock(MarketCredential.class);
+		when(c.getAccessKey()).thenReturn("masterId");
+		when(c.getSecretKey()).thenReturn("   ");
+		when(credentialRepository.findByMarketType(MarketType.GMARKET)).thenReturn(Optional.of(c));
+
+		EsmplusOrderSyncService service = new EsmplusOrderSyncService(
+			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
+			eventPublisher, esmplusOrderAdapter);
+		service.syncEsmplusOrders();
+
+		assertIncompleteCredentialFailure(capturedEvents());
+	}
 }
