@@ -170,7 +170,9 @@ public class ProductController {
 		}
 		Map<String, String> marketMap = new HashMap<>();
 		for (MarketRegistration reg : registrations) {
-			String marketId = reg.extractVendorItemId();
+			// D-052: 마켓별 실제 상품코드(쿠팡=vendorItemId, 스토어=originProductNo,
+			// 11번가=elevenstId, 카페24=product_no, ESM+=goodsNo). 코드 없으면 productId 폴백('미확인').
+			String marketId = reg.extractMarketCode();
 			if (marketId == null || marketId.isEmpty()) {
 				marketId = String.valueOf(reg.getProductId());
 			}

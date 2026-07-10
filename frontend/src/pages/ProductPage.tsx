@@ -47,7 +47,7 @@ const renderMarketCell = (marketKey: string) => (params: { data?: ProductList })
     return (
       <span
         style={{ color: '#faad14', fontSize: 12 }}
-        title="등록됨 · 마켓 상품코드 미확인 (D-046 매핑 해결 후 정확 표시)"
+        title="등록됨 · 마켓 상품코드 미확인 (해당 마켓 연동정보에 상품코드 키 없음)"
       >
         미확인
       </span>

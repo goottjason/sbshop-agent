@@ -679,7 +679,8 @@
 - 리스크·미확인 가정(라이브·자격증명 관련 — 운영 실행 없이 코드레벨까지만 확인): 실제 masterId/password 유효성은 라이브 로그인 시도 없이는 확정 불가(추정만). (b)-3(추가 인증)·(b)-4(DOM 변경)도 코드로 배제 불가 — 라이브 재현(HTML 덤프/스크린샷) 필요. 수정 검증 시 실 ESM+ 계정으로 로그인 성공 여부를 반드시 확인해야 함(가짜 그린 위험 — 코드는 "덜 무모하게 실패"하게만 바뀌고 근본 원인은 라이브에서만 확정됨).
 - 수정(2026-07-10, 사이클 12 tdd-fixer): 3스코프 — ①`EsmplusOrderSyncService.loadAndValidateCredential:81-89`(core, 태스크 지시문의 infra 경로는 오기)에 secretKey(비밀번호) `hasText` 검증 추가 → 빈/공백 비밀번호로 Selenium 로그인이 조용히 실패("성공 0건" 위장)하던 것을 스크래핑 이전 fast-fail(`"ESM+ 크레덴셜 불완전: 비밀번호(secret-key) 확인"`). **유력 원인.** ②`EsmplusOrderApiPortImpl.loginAndCreateDriver`: 로그인 클릭+sleep 직후 로그인 성공 판별(WebDriverWait로 `signin.esmplus.com` 이탈 확인, 실패 시 `"ESM+ 로그인 실패(자격증명/추가인증 확인)"` 예외) + `#innerIFrame` 탐색을 raw findElement→`WebDriverWait` 교체(미발견 시 htmlSnapshot 로깅 + `"ESM+ 주문 iframe 없음... 페이지 구조 변경 의심"` 구분 예외). 헬퍼 `safeCurrentUrl`/`pageHtmlSnapshot` 추가. `EsmplusDriverFactory`·원격 그리드·드라이버 생성 방식 무접촉. ③`Settings.tsx` AUCTION 탭 제거·GMARKET 탭에 흡수(라벨 "G마켓·옥션 (ESM+ 단일 로그인)")로 무효과 입력 방지(백엔드 GMARKET 행 소비·스키마 무변경). Red: `MarketCredentialValidationTest` esmplus_emptySecret/blankSecret 2건(수정 전 빈 secretKey가 success 이벤트 발행하던 것 실증) Red→Green. 회귀 조정: `EsmplusOrderSyncTerminalSkipTest.stubCredential`에 getSecretKey 스텁 추가. 게이트: `:infrastructure:test :core:test` BUILD SUCCESSFUL, 프론트 `tsc -p tsconfig.app.json`(Settings 신규0)·`npm run build` EXIT0. **근본해결 미확정 — 라이브 검증 필수**(자격증명 유효성·추가 인증·DOM 변경·로그인 성공판별 휴리스틱은 실 ESM+ 계정 라이브에서만 확정). 수정 요지: `_workspace/fixes/recon_D045.md`.
 - 상태: 검증통과(코드)·라이브 근본원인 미확정 (재정합 사이클 — qa PASS 2026-07-10 `_workspace/verify/recon_D045_D050_D051.md`: secretKey 검증·로그인 성공판별·iframe WebDriverWait·Settings 단일화 코드 정합, 기존 `EsmplusOrderSyncTerminalSkipTest` 스텁변경은 D-039 보호 무손상 확인. **iframe 미발견 진짜 원인(자격증명 유효성·추가인증·DOM·로그인판별 휴리스틱)은 실 ESM+ 계정 라이브 검증 전까지 미확정 — 사용자 수동 검증 필수**)
-- 이력: 2026-07-10 발견(사이클 11 심화) → 2026-07-10 수정완료 → 2026-07-10 검증통과(코드, 라이브 미확정)
+- 진단강화(2026-07-10, 사이클 12 리더): 라이브에서 (a) 로그인 성공판별이 실제로 발화(로그인 페이지 잔류 시 예외) 확인됨 → 이제 실패 **원인**(자격증명 오류 vs 캡차/추가인증 vs 셀렉터 드리프트)을 다음 실행에서 확정하기 위해 로그인 실패 catch 블록에 `pageHtmlSnapshot`(앞2000자) + `loginFailureHint(html)`(캡차/보안문자/recaptcha 흔적 감지 → 신규 IP 추가인증 가능성 안내, 미감지 → 자격증명 오류 가능성 안내)를 로그·예외메시지에 포함. 코드만으로 원인 단정 불가 — 다음 라이브 로그의 힌트/HTML로 확정. 헬퍼 `loginFailureHint` 추가, 로그인·iframe 흐름 로직 무변경.
+- 이력: 2026-07-10 발견(사이클 11 심화) → 2026-07-10 수정완료 → 2026-07-10 검증통과(코드, 라이브 미확정) → 2026-07-10 진단강화(사이클 12, 실패원인 확정용 HTML/캡차 힌트 로깅)
 
 ### D-046: 쿠팡 주문↔상품 매핑 끊김 — 발행 시 sellerProductId 저장 vs 주문 매칭 시 vendorItemId 조회 불일치 (사용자 신고 (1))
 
@@ -767,6 +768,16 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 제안 수정 방향: message가 JSON이 아니므로 별도 JSON 포맷터는 불필요 — 행 클릭(`onRow`) 또는 메시지 셀 클릭 시 antd `Modal.info`/커스텀 모달로 `white-space: pre-wrap` 처리된 전체 텍스트 표시(길이 제한 없이). 실패 메시지가 향후 구조화될 가능성(예: 스택트레이스 포함) 대비, 모달에 `<pre>` 또는 코드블록 스타일 적용 권장(가독성 확보, JSON 파싱 시도는 불필요 — 실패해도 원문 그대로 표시하는 방어적 렌더).
 - 재현: 코드 경로 추적(위) — `ellipsis: true` 단독 사용은 antd 기본 동작상 hover 시 title 툴팁만 제공하고 클릭 확장 기능은 없음(정적 사실, antd Table 컬럼 스펙 확인). 브라우저 재현은 message 길이가 컬럼 폭을 넘는 액션 로그(예: D-041/D-043류 403 오류 메시지) 존재 시 즉시 확인 가능.
 - 상태: 검증통과 (재정합 사이클 — qa PASS 2026-07-10 `_workspace/verify/recon_D045_D050_D051.md`). `ProcessStatusPage.tsx` message 컬럼에 `ellipsis: true` 유지 + 클릭 가능한 span 진입점(render) 추가, `messageModal` 상태 + antd `Modal`(`<pre>` white-space:pre-wrap/word-break/max-height:60vh)로 전체 텍스트 표시. import에 `Modal` 추가. JSON 파서 불필요(순수 텍스트, 방어적 원문 렌더). 게이트: tsc 신규 에러 0 + npm run build EXIT 0(modal 청크 번들 확인). 요약: `_workspace/fixes/recon_D050_D051.md`.
+
+### D-052: 상품 그리드 마켓별 연동코드가 쿠팡만 표시·나머지 '미확인' (사용자 신고 후속)
+
+- 심각도: P1 (스토어·11번가·카페24·ESM+ 연동코드 상시 '미확인' — 마켓 상품 바로가기 무력화) · 리스크 등급: 표준
+- 위치: `ProductController.buildMarketMap:172`(`reg.extractVendorItemId()`), `MarketRegistration.extractVendorItemId:99`(쿠팡 전용 `vendorItemId` 키만 읽음), `frontend/src/pages/ProductPage.tsx:40-71`(`renderMarketCell` — code===productId 폴백 시 '미확인' 배지)
+- 근본원인: `buildMarketMap`이 **모든 마켓**의 코드를 쿠팡 전용 `extractVendorItemId()`(marketIdentifiers의 `vendorItemId` 키)로 읽었다. 스마트스토어(`originProductNo`)·11번가(`elevenstId`)·카페24(`product_no`)·ESM+(`goodsNo`)는 해당 키가 없어 항상 null→`productId` 폴백→프론트에서 code===row.id로 '미확인' 배지. 스크린샷 실증(쿠팡 코드 정상, 스토어/11번가/카페24 전부 '미확인'). 각 마켓 클라이언트 저장 키 확인: Coupang `sellerProductId`/`vendorItemId`, Elevenst `elevenstId`, Smartstore `originProductNo`, Cafe24 `product_no`/`product_code`.
+- 수정(2026-07-10, 사이클 12 리더): `MarketRegistration.extractMarketCode()` 신설 — marketType별 실제 키 분기(COUPANG=vendorItemId→sellerProductId, SMART_STORE=originProductNo→channelProductNo, ELEVEN_STREET=elevenstId→prdNo, CAFE24=product_no→product_code, GMARKET/AUCTION=goodsNo→itemNo→goodsCode). `buildMarketMap`이 이를 사용(코드 없으면 기존대로 productId 폴백→'미확인'). 프론트 '미확인' 툴팁을 D-046 한정 문구→"해당 마켓 연동정보에 상품코드 키 없음"으로 일반화. Red: `MarketRegistrationExtractMarketCodeTest`(스토어 코드가 vendorItemId 조회로는 null이나 extractMarketCode로는 OP123 반환하는 회귀 재현 포함). 게이트: `:core:test :api:test :infrastructure:test --rerun-tasks` BUILD SUCCESSFUL, 프론트 tsc(신규0, 기존 D-007 OrderGrid 4건만)·build EXIT0.
+- 미확정 가정: ESM+(GMARKET/AUCTION)의 실제 저장 키가 `goodsNo`인지는 상품 발행 write-path 미확인(라이브 데이터로 확인 필요) — 후보 키 3종(goodsNo/itemNo/goodsCode) 순차 조회로 방어. 스토어/11번가/카페24는 클라이언트 저장 키 코드상 확인.
+- 상태: 수정완료(검증대기 — 리더 게이트 통과, 라이브 표시 확인 대기)
+- 이력: 2026-07-10 발견·수정(사이클 12)
 
 ### 사이클 11 요약 (defect-scout)
 

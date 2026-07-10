@@ -110,6 +110,58 @@ public class MarketRegistration extends BaseEntity {
 		}
 	}
 
+	/**
+	 * (D-052) marketIdentifiers JSON에서 "마켓별 상품코드"를 추출한다.
+	 * extractVendorItemId()는 쿠팡 전용 키(vendorItemId)만 읽어 스토어/11번가/카페24는
+	 * 항상 null→productId 폴백('미확인')이 됐다. 각 마켓 클라이언트가 저장하는 실제 키로 분기한다.
+	 *   COUPANG       : vendorItemId → sellerProductId
+	 *   SMART_STORE   : originProductNo → channelProductNo
+	 *   ELEVEN_STREET : elevenstId → prdNo
+	 *   CAFE24        : product_no → product_code
+	 *   GMARKET/AUCTION(ESM+) : goodsNo → itemNo → goodsCode
+	 */
+	public String extractMarketCode() {
+		if (marketIdentifiers == null || marketIdentifiers.isEmpty()) {
+			return null;
+		}
+		try {
+			JsonNode node = MAPPER.readTree(marketIdentifiers);
+			String[] keys;
+			switch (marketType) {
+				case COUPANG:
+					keys = new String[] {"vendorItemId", "sellerProductId"};
+					break;
+				case SMART_STORE:
+					keys = new String[] {"originProductNo", "channelProductNo"};
+					break;
+				case ELEVEN_STREET:
+					keys = new String[] {"elevenstId", "prdNo"};
+					break;
+				case CAFE24:
+					keys = new String[] {"product_no", "product_code"};
+					break;
+				case GMARKET:
+				case AUCTION:
+					keys = new String[] {"goodsNo", "itemNo", "goodsCode"};
+					break;
+				default:
+					keys = new String[] {};
+					break;
+			}
+			for (String k : keys) {
+				String v = node.path(k).asText(null);
+				if (v != null && !v.isEmpty()) {
+					return v;
+				}
+			}
+			return null;
+		} catch (Exception e) {
+			log.warn("marketCode 파싱 실패: productId={}, marketType={}, error={}",
+				productId, marketType, e.getMessage());
+			return null;
+		}
+	}
+
 	public void updateMarketIdentifiers(String marketIdentifiers) {
 		this.marketIdentifiers = marketIdentifiers;
 	}
