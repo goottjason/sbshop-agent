@@ -928,3 +928,13 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 결론: **D-060 코드 완성·검증**(부분 실패 표면화 포함). 스토어·11번가 라이브 동작. 쿠팡·카페24는 **자격증명 설정만 하면 즉시 동작**(코드 준비 완료). 남은 것은 운영 조치:
   1. 서버에 `COUPANG_ACCESS_KEY`, `COUPANG_SECRET_KEY`(쿠팡 마켓 상품 API 키) 설정.
   2. Cafe24 개발자센터에서 토큰 재발급 후 저장소 갱신.
+
+### D-060 라이브 반복검증·자격증명 통합 (2026-07-11, 무인증 라이브 환경 직접 검증)
+
+사용자 허가로 실서버에서 `PUT /products/1/price-stock`(4마켓 상품, 현재값 유지)로 반복 검증하며 실패를 순차 해소:
+
+1. **쿠팡 4단계 관통**: (a) rawData 의존 접근 오류 → vendor-items 전용 엔드포인트, (b) "Empty key"(env 자격증명 공백) → **CoupangRestClient가 DB `sb_market_credential`(COUPANG) 우선 사용, env 폴백**으로 통합(publish·이미지·가격재고 전체가 DB 키로 동작), (c) "411 Length Required"(JDK HttpClient가 무바디 PUT에 Content-Length 미전송) → 빈 JSON `{}` 바디로 강제, (d) "HMAC format is invalid"(제품 RestClient가 KST·T/Z없는 `generateSignature` 사용) → 주문 클라이언트와 동일한 `generateSignatureUtc`(UTC `yyMMdd'T'HHmmss'Z'`)로 교체 + 중복 signed-date 헤더 제거.
+2. **최종 결과**: `synced=[SMART_STORE, COUPANG, ELEVEN_STREET]` — **3마켓 실 API write 성공(라이브 확정)**. 현재값 유지로 실판매가 무변경.
+3. **카페24만 잔여**: `401 Invalid access_token`. `Cafe24TokenManager`는 DB 리프레시 토큰으로 갱신하는데, 리프레시 토큰이 Cafe24에서 거부(만료/회전소진)돼 access token을 못 얻음 → "Bearer null"→invalid_token. **코드 아님 — 사용자 OAuth 재인증 필요**(Settings UI "정상 연동중"은 토큰 존재만 확인, 유효성 미검증). 재인증 경로: `Cafe24AuthController /api/admin/sync/cafe24/auth/callback` + `generateAuthorizationUrl`.
+- **핵심 부산물**: 마켓 자격증명 2원화(주문=DB, 제품=env) 불일치를 쿠팡에 한해 DB 우선으로 통합. 스토어·11번가는 기존 env로 동작 중이라 미변경(향후 동일 통합 여지).
+- 상태: **D-060 검증통과(3/4 마켓 라이브 확정)**. 카페24는 토큰 재인증 대기(운영·사용자).
