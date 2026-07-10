@@ -97,15 +97,25 @@ public class ProductManageUseCase {
 				synced.add(marketType);
 				log.info("[가격재고동기화] 성공: productId={}, market={}, marketItemId={}", productId, marketType, marketItemId);
 			} catch (Exception e) {
-				failed.put(marketType, e.getMessage());
+				failed.put(marketType, rootMessage(e));
 				log.error("[가격재고동기화] 실패(부분 실패로 수집, 롤백하지 않음): productId={}, market={}, error={}",
-					productId, marketType, e.getMessage(), e);
+					productId, marketType, rootMessage(e), e);
 			}
 		}
 
 		log.info("[가격재고동기화] 완료: productId={}, synced={}, skipped={}, failed={}",
 			productId, synced, skipped, failed.keySet());
 		return new MarketRepublishResult(synced, skipped, failed);
+	}
+
+	/** 예외 체인의 가장 안쪽 메시지(래핑된 실 HTTP 오류)를 표면화용으로 추출. */
+	private String rootMessage(Throwable e) {
+		Throwable cur = e;
+		while (cur.getCause() != null && cur.getCause() != cur) {
+			cur = cur.getCause();
+		}
+		String msg = cur.getMessage();
+		return msg != null ? msg : cur.getClass().getSimpleName();
 	}
 
 	@Transactional
