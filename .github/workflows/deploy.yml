@@ -1,0 +1,64 @@
+name: Deploy to server
+
+# main에 push되면 서버(168.107.31.154)에 SSH로 접속해
+# git pull + docker compose up --build 을 실행한다.
+# 서버가 Docker로 직접 빌드하므로 러너에서 JDK/npm 빌드는 불필요.
+#
+# 필요 설정(1회): 저장소 Settings → Secrets and variables → Actions 에
+#   SBSHOP_DEPLOY_KEY = ssh-key-2026-06-25.key 파일의 전체 내용(개인키)
+# 을 New repository secret 으로 등록.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # 수동 실행도 허용
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false   # 배포 중복 실행 방지(진행 중이면 대기)
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH deploy (git pull + docker compose up --build)
+        env:
+          SSH_KEY: ${{ secrets.SBSHOP_DEPLOY_KEY }}
+          SERVER: 168.107.31.154
+          USER_NAME: ubuntu
+        run: |
+          if [ -z "$SSH_KEY" ]; then
+            echo "::error::SBSHOP_DEPLOY_KEY 시크릿이 없습니다. 저장소 Actions 시크릿에 개인키를 등록하세요."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SERVER" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new "$USER_NAME@$SERVER" bash -se <<'REMOTE'
+            set -euo pipefail
+            cd ~/projects/sbshop-agent
+            git pull origin main
+            cd ~/projects
+            docker compose up -d --build sbshop-api sbshop-frontend
+            # 컨테이너 재생성 후 nginx가 옛 IP를 캐시하므로 reload 필수
+            docker exec projects-nginx-1 nginx -s reload
+          REMOTE
+
+      - name: Healthcheck
+        env:
+          SERVER: 168.107.31.154
+        run: |
+          code=000
+          for i in $(seq 1 18); do
+            sleep 5
+            code=$(curl -s -o /dev/null -w '%{http_code}' -L -k --connect-timeout 5 "https://$SERVER/sbshop-agent/" || echo 000)
+            [ "$code" = "200" ] || [ "$code" = "302" ] && break
+            echo "waiting... (HTTP $code, $i/18)"
+          done
+          echo "HTTP $code"
+          if [ "$code" != "200" ] && [ "$code" != "302" ]; then
+            echo "::error::배포 헬스체크 실패 (HTTP $code)"
+            exit 1
+          fi
+          echo "✅ 배포 성공 (HTTP $code)"
