@@ -849,3 +849,49 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 수정(2026-07-11): `handleSyncProductStock`에 ① 시작 즉시 `toast.info`("재고 동기화를 시작했습니다 …") 명시 피드백, ② 3초 후 refetch+오버레이 해제(기존) 유지, ③ 15초 지연 refetch 추가로 느린 크롤 결과 반영. 오버레이 장시간 고착(그리드 블로킹) 회피. 백엔드 무변경.
 - 상태: 검증통과 (리더 게이트: tsc -p tsconfig.app.json clean + npm run build EXIT0)
 - 미해결(후속): 재고 크롤 완료 이벤트가 없어 갱신 타이밍은 여전히 추정치(15초). 근본 해결은 재고 동기화에도 마켓 동기화처럼 완료 SSE/폴링(배치 진행상태 API 연동)을 붙이는 것 — 별도 개선 트랙(P3).
+
+---
+
+## 사이클 15 (푸시 전 전수 QA — 대시보드/ETC/마켓전파, 2026-07-11, 리더 직접 + 5에이전트 병렬조사)
+
+> 사용자 요청: 모든 메뉴·버튼·액션 전수 조사 후 수정·푸시. 5개 도메인 조사 에이전트(대시보드/OrderGrid/이메일자동추적/마켓전파/기타페이지) 병렬 투입 → 리더가 상충·핵심 재확인. 산출: `docs/normalize/qa-checklist-20260711.md`(전수 체크리스트). 안전 결함 2건 수정(D-058·D-059), 중대 마켓전파 갭 2건 보고(D-060·D-061).
+
+### D-058: 배송정보 미입력 시 택배사가 'ETC'로 표시
+
+- 심각도: P2 (오표기 — 미입력이 '기타'로 보임) · 리스크 등급: 경량
+- 위치: `backend/core/.../domain/order/enums/ShippingCarrier.java:27` `fromMarketCode`
+- 근본원인: `code == null`이면 null 반환하나 **빈 문자열("")/공백은 switch default 분기→ETC("기타")**로 매핑. 마켓(쿠팡/스마트스토어 어댑터가 `fromMarketCode(deliveryCompanyName/Code)` 호출)이 미배송 주문에 빈 택배사를 주면 ETC가 저장돼 그리드에 "ETC" 표시. 그리드 렌더 자체는 빈 값→'-'로 정상(`OrderGrid.tsx:1061`)이므로, 원인은 저장된 값이 실제 'ETC'라는 것.
+- 수정(2026-07-11): `if (code == null || code.isBlank()) return null;` — 빈/공백도 '택배사 없음'(null)으로 처리. 미배송이면 빈칸(`-`). 회귀 테스트 `ShippingCarrierTest`(빈문자열→null, DHL→ETC, 알려진 코드 매핑) 추가.
+- 상태: 검증통과 (`:core:test` ShippingCarrierTest PASS, 프론트 무변경)
+- 참고: 이미 저장된 기존 'ETC' 데이터는 이 수정으로 자동 교정되지 않음(신규 동기화분부터 적용). 필요 시 일괄 UPDATE 별도.
+
+### D-059: 대시보드 지표가 하드코딩 0 (실데이터 미연동)
+
+- 심각도: P2 (핵심 현황 화면 무기능) · 리스크 등급: 표준
+- 위치: `frontend/src/pages/Dashboard.tsx`(전체 하드코딩), 백엔드 통관필터 부재
+- 근본원인: Dashboard.tsx가 useState/useEffect/fetch 전무 — 3개 카드 모두 `0` 리터럴. '통관 오류/대기'는 `OrderSearchCondition`에 통관상태 필터가 없어 집계 불가였음.
+- 수정(2026-07-11): (백엔드) `OrderSearchCondition`에 `List<CustomsStatus> customsStatuses` 추가(쿼리파라미터 자동 바인딩), `OrderRepositoryImpl`에 `customsStatusIn()`(order.customsData.customsStatus.in) 헬퍼를 content·count 쿼리 where에 추가. (프론트) `orderApi.fetchOrderCount(filters)` 경량 카운트 헬퍼(size=1, totalElements) 추가, Dashboard를 7개 지표(전체·미발주·구매준비·배송진행중·배송완료·통관오류대기·배송처리대기)로 재구성 + 병렬 조회 + 새로고침 버튼.
+- 상태: 검증통과 (`:infrastructure:test`·`:api:test` BUILD SUCCESSFUL, 프론트 tsc clean + build EXIT0)
+
+### D-060: 상품 가격/재고 수정이 어느 마켓에도 동기화되지 않음 (호출 경로 부재)
+
+- 심각도: P1 (사용자 기대 기능 미동작 — item 4) · 리스크 등급: **중대(마켓 API 계약·다도메인)** → 요승인
+- 위치: `ProductManageUseCase.updatePriceStock:42`(DB만 저장), `BatchPriceStockService`(3개 메서드 모두 DB만), MarketClient.syncPriceAndStock(마켓별 구현 편차)
+- 근본원인: 단건/배치 가격재고 수정 경로 어디에서도 `MarketClient.syncPriceAndStock()`를 호출하지 않음. 게다가 마켓별 구현도 편차: 스마트스토어·11번가는 실제 API 호출, **쿠팡·카페24는 로컬 Map만 패치(실 API 호출 없음)**, G마켓/옥션은 MarketClient 자체 부재.
+- 제안: (1) `updatePriceStock`/배치 이후 상품의 MarketRegistration을 순회하며 `syncPriceAndStock` 호출하는 경로 신설, (2) 쿠팡·카페24 클라이언트의 실 API 호출 구현, (3) 실패 표면화(부분 실패 마켓 반환). 마켓 API 계약을 실제로 건드리므로 사용자 승인 + 라이브 검증 필수.
+- 상태: 발견(보고) — 미수정. 중대 등급이라 별도 배치·승인 후 진행.
+
+### D-061: 배송 마켓 전파 갭 (배송정보 수정 미전파 + ESM+/카페24 미구현)
+
+- 심각도: P1~P2 · 리스크 등급: **중대(마켓 API 계약)** → 요승인
+- 위치: `OrderController.updateShippingInfo`(DB만), `EsmplusOrderAdapter.shipOrder:71`(log.warn 스텁), Cafe24 OrderAdapter 부재
+- 근본원인: (A) 배송정보 "수정"(updateShippingInfo)은 DB만 갱신하고 마켓 미전파 — 단, 배송"처리"(shipOrders)와 이메일 자동추적 경로는 쿠팡·스토어·11번가 3마켓에 송장 전파함. (B) ESM+(G마켓/옥션)은 shipOrder가 로그만, 카페24는 OrderAdapter 자체가 없어 배송처리 시 예외.
+- 제안: ESM+/카페24 배송 어댑터 구현, updateShippingInfo에도 (정책상 필요 시) 마켓 전파 연결. 중대 등급 — 승인·라이브 검증 필수.
+- 상태: 발견(보고) — 미수정.
+
+### 사이클 15 요약
+
+- 조사: 5에이전트 병렬 전수 감사, 전수 체크리스트 산출. OrderGrid 22액션·기타 페이지 대부분 계약 정상(✅). iHerb 이메일 자동추적 체인 배선·가동 확인(스케줄러 활성 — 초기 FAIL 오판 정정).
+- 수정: D-058(ETC·경량), D-059(대시보드·표준) — 게이트 통과.
+- 보고(요승인·중대): D-060(가격재고 마켓 미동기), D-061(배송 마켓 전파 갭). 프론트 죽은코드 인벤토리(P3).
+- 다음 배치 권고: D-060 우선(사용자 명시 기대) — 승인 후 마켓별 syncPriceAndStock 호출 경로 신설 + 쿠팡/카페24 실 API 구현 + 라이브 검증.
