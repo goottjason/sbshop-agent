@@ -32,6 +32,7 @@ public class BatchPriceStockService {
 	private final ProcessStatusService processStatusService;
 	private final MarginCalculator marginCalculator;
 	private final ApplicationEventPublisher eventPublisher;
+	private final ProductMarketSyncService productMarketSyncService;
 
 	@Async("productBatchExecutor")
 	public void crawlAndUpdatePriceStock(String batchId, List<Long> productIds,
@@ -67,8 +68,13 @@ public class BatchPriceStockService {
 				product.updateRestockDate(result.restockDate());
 				productWriter.save(product);
 
+				// D-060: 배치 갱신분도 연동 마켓에 반영(단건과 동일 경로). 부분 실패는 메시지로 표면화.
+				MarketRepublishResult sync = productMarketSyncService.syncPriceStock(
+					productId, salePrice != null ? salePrice.intValue() : null, result.stock());
 				processStatusService.markSuccess(batchId, product.getSbCode(),
-					String.format("가격:%s, 재고:%d", salePrice, result.stock()));
+					String.format("가격:%s, 재고:%d · 마켓반영 성공%d/스킵%d/실패%d%s",
+						salePrice, result.stock(), sync.synced().size(), sync.skipped().size(), sync.failed().size(),
+						sync.failed().isEmpty() ? "" : " (" + sync.failed().keySet() + ")"));
 				Thread.sleep(500);
 			} catch (Exception e) {
 				log.error("배치 업데이트 실패: productId={}", productId, e);
@@ -110,8 +116,13 @@ public class BatchPriceStockService {
 				product.update(command);
 				productWriter.save(product);
 
+				// D-060: 배치(수동) 갱신분도 연동 마켓에 반영.
+				MarketRepublishResult sync = productMarketSyncService.syncPriceStock(
+					productId, price != null ? price.intValue() : null, stock);
 				processStatusService.markSuccess(batchId, product.getSbCode(),
-					String.format("가격:%s->%s, 재고:%d->%d", oldPrice, price, oldStock, stock));
+					String.format("가격:%s->%s, 재고:%d->%d · 마켓반영 성공%d/스킵%d/실패%d%s",
+						oldPrice, price, oldStock, stock, sync.synced().size(), sync.skipped().size(),
+						sync.failed().size(), sync.failed().isEmpty() ? "" : " (" + sync.failed().keySet() + ")"));
 			} catch (Exception e) {
 				log.error("수동 업데이트 실패: productId={}", productIds.get(i), e);
 				processStatusService.markFailed(batchId, String.valueOf(productIds.get(i)), e.getMessage());

@@ -99,7 +99,8 @@ class BatchPriceStockAsyncPoolTest {
 			};
 			return new BatchPriceStockService(mock(ProductReader.class), mock(ProductWriter.class),
 				mock(ProductRepository.class), mock(ProductStockCrawlerPort.class),
-				mock(ProcessStatusService.class), mock(MarginCalculator.class), recordingPublisher);
+				mock(ProcessStatusService.class), mock(MarginCalculator.class), recordingPublisher,
+				mock(ProductMarketSyncService.class));
 		}
 	}
 }
