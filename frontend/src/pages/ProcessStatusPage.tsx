@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Input, Button, Table, message, Card, Typography, Tag, Space } from 'antd';
+import { Input, Button, Table, message, Card, Typography, Tag, Space, Modal } from 'antd';
 import { batchApi } from '../api/batchApi';
 import { actionLogApi, type ActionLogItem } from '../api/actionLogApi';
 
@@ -9,6 +9,35 @@ const actionStatusColor: Record<string, string> = {
   STARTED: 'blue',
   SUCCESS: 'green',
   FAILED: 'red',
+};
+
+// D-050: 마켓 코드 → 한글 라벨 (OrderGrid.tsx:416 marketLabels 선례 이식)
+const marketTypeLabels: Record<string, string> = {
+  COUPANG: '쿠팡',
+  SMART_STORE: '스마트스토어',
+  ELEVEN_STREET: '11번가',
+  GMARKET: 'G마켓/옥션',
+  AUCTION: '옥션',
+  CAFE24: '카페24',
+  EMAIL: '이메일',
+  COUPANG_SETTLEMENT: '쿠팡 정산',
+};
+
+// D-050: 액션 코드 → 한글 라벨. actionType은 자유문자열(enum 아님)이며 관례상 `{MARKET}_SYNC` 패턴.
+// 명시 라벨 우선, `_SYNC` 접미 패턴은 마켓 라벨+동작으로 조합, 그 외는 원문 폴백(미매칭 시 깨지지 않게).
+const renderMarketType = (v: string | null): string => {
+  if (!v) return '-';
+  return marketTypeLabels[v] || v;
+};
+
+const renderActionType = (v: string): string => {
+  if (!v) return '-';
+  if (v.endsWith('_SYNC')) {
+    const code = v.slice(0, -'_SYNC'.length);
+    const label = marketTypeLabels[code];
+    if (label) return `${label} 동기화`;
+  }
+  return v;
 };
 
 interface ProcessStatusItem {
@@ -30,6 +59,12 @@ const ProcessStatusPage = () => {
   // 활동 로그 (D-042)
   const [actionLogs, setActionLogs] = useState<ActionLogItem[]>([]);
   const [logLoading, setLogLoading] = useState(false);
+
+  // D-051: 메시지 전체보기 모달
+  const [messageModal, setMessageModal] = useState<{ open: boolean; content: string }>({
+    open: false,
+    content: '',
+  });
 
   const loadActionLogs = useCallback(async () => {
     setLogLoading(true);
@@ -80,12 +115,26 @@ const ProcessStatusPage = () => {
   const actionLogColumns = [
     { title: '시간', dataIndex: 'createdAt', width: 180,
       render: (v: string) => (v ? new Date(v).toLocaleString('ko-KR') : '-') },
-    { title: '액션', dataIndex: 'actionType', width: 180 },
+    { title: '액션', dataIndex: 'actionType', width: 180,
+      render: (v: string) => renderActionType(v) },
     { title: '마켓', dataIndex: 'marketType', width: 120,
-      render: (v: string | null) => v || '-' },
+      render: (v: string | null) => renderMarketType(v) },
     { title: '상태', dataIndex: 'actionStatus', width: 100,
       render: (v: string) => <Tag color={actionStatusColor[v] || 'default'}>{v}</Tag> },
-    { title: '메시지', dataIndex: 'message', ellipsis: true },
+    { title: '메시지', dataIndex: 'message', ellipsis: true,
+      // D-051: 셀 클릭 시 전체 메시지를 모달로 표시(줄바꿈 보존). 목록 ellipsis는 유지.
+      render: (v: string) =>
+        v ? (
+          <span
+            style={{ cursor: 'pointer' }}
+            title="클릭하여 전체 메시지 보기"
+            onClick={() => setMessageModal({ open: true, content: v })}
+          >
+            {v}
+          </span>
+        ) : (
+          '-'
+        ) },
   ];
 
   return (
@@ -126,6 +175,28 @@ const ProcessStatusPage = () => {
           scroll={{ y: 500 }}
         />
       </Card>
+
+      {/* D-051: 메시지 전체보기 모달 */}
+      <Modal
+        title="메시지 전체보기"
+        open={messageModal.open}
+        onCancel={() => setMessageModal({ open: false, content: '' })}
+        footer={null}
+        width={640}
+      >
+        <pre
+          style={{
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            margin: 0,
+            fontFamily: 'inherit',
+            maxHeight: '60vh',
+            overflow: 'auto',
+          }}
+        >
+          {messageModal.content}
+        </pre>
+      </Modal>
     </div>
   );
 };
