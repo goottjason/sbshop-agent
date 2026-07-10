@@ -662,14 +662,56 @@
 - 검증(2026-07-08, 리더 라이브): **PASS(드라이버 인프라 한정)**. 재배포 후 ESM+ 동기화 → **원격 Selenium 그리드에서 세션 생성 성공**(chrome 124, Session ID 로그 실측) → 로그인 페이지 접속·로그인 제출·쿠키 6개 획득까지 실행. chromedriver "Unable to obtain"/SIGTRAP 크래시 **완전 소멸**. 이후 `#innerIFrame` 미발견으로 실패하나 이는 드라이버가 아닌 **ESM+ 로그인 성공 여부/페이지 구조** 문제 → [[D-045]]로 분리.
 - 상태: 검증통과 (사이클 10 후속 — chromedriver/드라이버 인프라 해소, 원격 그리드 세션 실증)
 
-### D-045: (후보) ESM+ 로그인 후 주문 iframe(#innerIFrame) 미발견 → 스크래핑 실패
+### D-045: ESM+ 로그인 후 주문 iframe(#innerIFrame) 미발견 → 스크래핑 실패 (근본원인 심화)
 
 - 심각도: P1 (ESM+ 동기화 여전히 불가 — 단 원인이 드라이버가 아님) · 리스크 등급: 표준
-- 위치: `EsmplusOrderApiPortImpl.loginAndCreateDriver:482`(로그인 후 `driver.findElement(By.id("innerIFrame"))`)
-- 증상(라이브): 원격 그리드로 로그인 페이지 접속·제출·쿠키 6개 획득 후 주문 페이지(`/Home/v2/order-integration`)에서 `#innerIFrame` NoSuchElement. 로그인이 완전 성공했다면 iframe 존재해야 함 → **로그인 미성공(자격증명 무효/추가 인증) 또는 ESM+ 페이지 구조 변경** 의심.
-- 원인(미확정): ①ESM+ masterId(access_key)/password(secret_key) 유효성 미검증(사용자 확인 필요) ②ESM+ 로그인 후 리다이렉트/보안 단계 ③페이지 DOM 변경. 로그인 후 URL 로깅으로 성공/실패 판별 보강 권고.
-- 제안: 로그인 성공 검증 단계 추가(로그인 후 URL/요소 확인 실패 시 명확한 "ESM+ 로그인 실패" 예외) + ESM+ 계정 자격증명 유효성 사용자 확인. 페이지 구조 변경이면 셀렉터 갱신.
-- 상태: 후보 (사이클 10 — 드라이버 해소 후 노출된 스크래핑 이슈)
+- 위치: `EsmplusOrderApiPortImpl.loginAndCreateDriver:439-487`(로그인 후 `:482` `driver.findElement(By.id("innerIFrame"))`), `createLoggedInDetailDriver:292-318`(동일 패턴), `EsmplusOrderSyncService.loadAndValidateCredential:77-86`, `EsmplusScraper.java`(진단 전용, 미사용 실경로), `frontend/src/pages/Settings.tsx:59-60,253-315`
+- 증상(라이브): 원격 그리드로 로그인 페이지 접속·제출·쿠키 6개 획득 후 주문 페이지(`/Home/v2/order-integration`)에서 `#innerIFrame` NoSuchElement.
+- **(a) 로그인 성공 판별 로직 — 부재(확인)**: `loginAndCreateDriver`(439-487)는 로그인 버튼 클릭(466) 후 `Thread.sleep(5000)`(469)만 하고 **URL도 페이지 요소도 검증하지 않은 채** 곧바로 주문 페이지로 이동(478)한다. 로그인 실패(잘못된 비밀번호 등)여도 ESM+ 로그인 페이지는 보통 같은 화면에 에러 메시지만 띄우고 예외를 던지지 않으므로, 이 코드는 실패를 성공으로 오인하고 계속 진행한다. `createLoggedInDetailDriver`(292-318)도 동일 — try 블록 내 모든 예외를 뭉뚱그려 "[ESM+] 로그인 실패"로만 던져(316) 로그인 자체의 성공/실패와 후속 단계(요소 못 찾음)의 실패를 구분하지 못한다. 대조: 같은 패키지의 **`EsmplusScraper.loginAndScrapeOrders`(디버그 전용, 아래 참조)는 로그인 후 `currentUrl`(63-64)과 주문 페이지 URL(78-79)을 로깅**하고 iframe 목록을 `querySelectorAll('iframe')`로 열거(86-89)한 뒤 `findElement`를 시도한다 — 즉 진단 도구는 이미 "URL/iframe 존재를 먼저 확인해야 한다"는 패턴을 구현해뒀으나, 실제 동기화 경로(`loginAndCreateDriver`)에는 역이식되지 않았다.
+- **(b) `#innerIFrame` 미발견의 코드상 원인 후보(우선순위순, 미확정)**:
+  1. **로그인 실패(자격증명 무효/불완전) — 유력.** `loadAndValidateCredential`(77-86)이 `access_key`(masterId)의 `hasText`만 검사하고(82-84) **`secret_key`(password)는 전혀 검증하지 않는다.** password가 빈 문자열이어도 그대로 Selenium까지 전달되어 로그인폼에 빈 값이 입력되고, 로그인은 조용히 실패한 채 (a)의 무검증 흐름을 타고 주문 페이지로 진행 → iframe 없음.
+  2. **고정 `Thread.sleep` 타이밍 경합.** 로그인 후 5초(469), 주문 페이지 이동 후 5초(479) 고정 대기 — 네트워크 지연·서버 부하 시 페이지 렌더가 늦으면 `findElement`(482, WebDriverWait 미사용 raw 호출)가 요소 생성 전에 실행돼 NoSuchElement. `idInput`/`esmTab` 탐색(449-457)은 `WebDriverWait`로 감쌌으면서 iframe 탐색(482)만 감싸지 않은 비일관성.
+  3. **추가 인증 단계(캡차/2FA/기기인증).** ESM+ 로그인이 신규 IP(서버 168.107.31.154, D-041 배포기록)에서 추가 보안 절차를 요구할 가능성 — 코드로 확인 불가, 라이브 스크린샷/HTML 덤프 필요.
+  4. **페이지 DOM 변경.** ESM+가 `#innerIFrame` id를 다른 값으로 바꿨을 가능성 — 코드만으로는 배제 불가.
+- **(c) 자격증명 출처(확인)**: `EsmplusOrderSyncService.loadAndValidateCredential:78` — `credentialRepository.findByMarketType(MarketType.GMARKET)`로 **`MarketType.GMARKET` 행 단 하나만** 조회. `EsmplusOrderAdapter.getMarketType()`도 `GMARKET`만 반환하고 `credential.getAccessKey()/getSecretKey()`를 `masterId/password`로 그대로 `EsmplusOrderApiPortImpl.fetchOrders`에 전달한다. 검증은 masterId(accessKey)의 `hasText`뿐(82-84) — secretKey(password) 공백/오류는 Selenium 로그인 단계까지 가서야(그것도 무검증으로) 실패한다.
+- **(d) "Auction 저장 에러" 및 G마켓/옥션 분리 UI — 구조적 불일치(확인)**: `Settings.tsx`는 GMARKET(59)·AUCTION(60) 탭을 완전히 독립된 마켓 연동처럼 노출한다 — 각 탭이 별도 `formData`(활성탭 기준 `credentials.find`)를 갖고 `PUT /api/v1/market-credentials/{marketType}`로 **서로 다른 DB row**(`sb_market_credential`, marketType unique)에 저장한다(253-315). AUCTION 탭 안내문(289-290) "옥션도 G마켓과 동일한 ESM+ 플랫폼을 사용합니다. G마켓과 동일한 마스터 ID/비밀번호를 입력하세요"는 사용자에게 별도 입력을 요구하는 것처럼 읽히지만, **백엔드 동기화 경로는 AUCTION 행을 영구히 읽지 않는다**((c) 참조 — GMARKET 하드코딩). 즉 사용자가 AUCTION 탭에 자격증명을 입력·저장해도(저장 API 자체는 marketType에 특별한 검증/제약이 없어 성공함 — 명시적 "저장 에러"를 일으킬 코드 경로는 발견 못함, 추정) 그 값은 어디에도 소비되지 않는다. 응답 파싱 단계의 `siteId==1 → AUCTION`(`parseSingleOrder:665`)은 **로그인 자격증명과 무관하게 API 응답 안에서 마켓을 구분**하는 로직일 뿐 — 사용자가 이해하는 "옥션 자격증명"과는 다른 층위다. **"Auction 저장 에러" 신고는 실제 HTTP 실패가 아니라, 저장은 성공하나 효과가 전혀 없는 것(동기화가 AUCTION 행을 참조하지 않음)에 대한 사용자 오인일 가능성이 높다(추정 — 라이브 재현 없이 코드만으로는 확정 불가).**
+- 제안 수정(우선순위순): ①`loadAndValidateCredential`에 secretKey `hasText` 검증 추가(masterId와 동일하게 fast-fail). ②`loginAndCreateDriver`에 로그인 성공 판별 단계 추가 — 로그인 후 URL이 `signin.esmplus.com`에 여전히 머물거나 에러 요소가 있으면 명확한 "ESM+ 로그인 실패(자격증명 확인)" 예외로 즉시 중단(현재의 무검증 진행 제거). ③`#innerIFrame` 탐색을 `WebDriverWait`로 감싸 고정 sleep 경합 제거, 타임아웃 시 페이지 HTML 스냅샷을 로그로 남겨 (b)-3/4 후속 진단 가능하게. ④Settings.tsx AUCTION 탭에 "이 값은 저장되지만 동기화에는 사용되지 않습니다(G마켓 계정 통합 사용)" 명시 경고 또는 AUCTION 탭 자체 제거·GMARKET 탭에 흡수 — UX 정정은 백엔드 구조(단일 계정)를 바꿀지, UI를 바꿀지 업무 결정 필요.
+- 리스크·미확인 가정(라이브·자격증명 관련 — 운영 실행 없이 코드레벨까지만 확인): 실제 masterId/password 유효성은 라이브 로그인 시도 없이는 확정 불가(추정만). (b)-3(추가 인증)·(b)-4(DOM 변경)도 코드로 배제 불가 — 라이브 재현(HTML 덤프/스크린샷) 필요. 수정 검증 시 실 ESM+ 계정으로 로그인 성공 여부를 반드시 확인해야 함(가짜 그린 위험 — 코드는 "덜 무모하게 실패"하게만 바뀌고 근본 원인은 라이브에서만 확정됨).
+- 수정(2026-07-10, 사이클 12 tdd-fixer): 3스코프 — ①`EsmplusOrderSyncService.loadAndValidateCredential:81-89`(core, 태스크 지시문의 infra 경로는 오기)에 secretKey(비밀번호) `hasText` 검증 추가 → 빈/공백 비밀번호로 Selenium 로그인이 조용히 실패("성공 0건" 위장)하던 것을 스크래핑 이전 fast-fail(`"ESM+ 크레덴셜 불완전: 비밀번호(secret-key) 확인"`). **유력 원인.** ②`EsmplusOrderApiPortImpl.loginAndCreateDriver`: 로그인 클릭+sleep 직후 로그인 성공 판별(WebDriverWait로 `signin.esmplus.com` 이탈 확인, 실패 시 `"ESM+ 로그인 실패(자격증명/추가인증 확인)"` 예외) + `#innerIFrame` 탐색을 raw findElement→`WebDriverWait` 교체(미발견 시 htmlSnapshot 로깅 + `"ESM+ 주문 iframe 없음... 페이지 구조 변경 의심"` 구분 예외). 헬퍼 `safeCurrentUrl`/`pageHtmlSnapshot` 추가. `EsmplusDriverFactory`·원격 그리드·드라이버 생성 방식 무접촉. ③`Settings.tsx` AUCTION 탭 제거·GMARKET 탭에 흡수(라벨 "G마켓·옥션 (ESM+ 단일 로그인)")로 무효과 입력 방지(백엔드 GMARKET 행 소비·스키마 무변경). Red: `MarketCredentialValidationTest` esmplus_emptySecret/blankSecret 2건(수정 전 빈 secretKey가 success 이벤트 발행하던 것 실증) Red→Green. 회귀 조정: `EsmplusOrderSyncTerminalSkipTest.stubCredential`에 getSecretKey 스텁 추가. 게이트: `:infrastructure:test :core:test` BUILD SUCCESSFUL, 프론트 `tsc -p tsconfig.app.json`(Settings 신규0)·`npm run build` EXIT0. **근본해결 미확정 — 라이브 검증 필수**(자격증명 유효성·추가 인증·DOM 변경·로그인 성공판별 휴리스틱은 실 ESM+ 계정 라이브에서만 확정). 수정 요지: `_workspace/fixes/recon_D045.md`.
+- 상태: 검증통과(코드)·라이브 근본원인 미확정 (재정합 사이클 — qa PASS 2026-07-10 `_workspace/verify/recon_D045_D050_D051.md`: secretKey 검증·로그인 성공판별·iframe WebDriverWait·Settings 단일화 코드 정합, 기존 `EsmplusOrderSyncTerminalSkipTest` 스텁변경은 D-039 보호 무손상 확인. **iframe 미발견 진짜 원인(자격증명 유효성·추가인증·DOM·로그인판별 휴리스틱)은 실 ESM+ 계정 라이브 검증 전까지 미확정 — 사용자 수동 검증 필수**)
+- 이력: 2026-07-10 발견(사이클 11 심화) → 2026-07-10 수정완료 → 2026-07-10 검증통과(코드, 라이브 미확정)
+
+### D-046: 쿠팡 주문↔상품 매핑 끊김 — 발행 시 sellerProductId 저장 vs 주문 매칭 시 vendorItemId 조회 불일치 (사용자 신고 (1))
+
+- 심각도: P1 (쿠팡 주문 그리드 상품정보 공백) · 리스크 등급: 표준
+- 근본원인: 발행 시 `marketIdentifiers`에 `sellerProductId`만 저장되고 `vendorItemId` write-path 부재. 주문 매칭 `resolveProductId`는 vendorItemId LIKE 조회 → 상시 미스매치 → `OrderLineItem.productId=null`. (원격 origin/main base에도 미해소 — 확인.)
+- 수정(재정합 재적용): 주문 응답에 이미 있던 sellerProductId를 `MarketOrderDto`에 실어, `resolveProductId`가 vendorItemId 직접매칭 실패 시 sellerProductId로 `MarketRegistration` 역조회 후 `enrichIdentifier()`로 vendorItemId 보강(최초 동기화 자기치유, 추가 API 호출 없음). 변경: `CoupangOrderSyncService`·`MarketRegistration`·`MarketOrderDto`·`CoupangOrderAdapter` + 테스트 `CoupangOrderProductMappingTest`·`MarketRegistrationEnrichIdentifierTest`.
+- 상태: 검증통과 (재정합 — `:core:test :infrastructure:test :api:test --rerun-tasks` BUILD SUCCESSFUL 2026-07-10)
+- 이력: 2026-07-10 재정합 사이클 — 구 로컬 브랜치(cycle10-local-20260710) D-041 재적용, **원격 D-041(=마켓 오류표면화)과 충돌 방지 위해 D-046으로 번호 재부여**(코드 인라인 주석·커밋 동기화).
+
+### D-047: 상품관리 그리드 — 마켓별 연동코드 컬럼·바로가기 링크 부재 (사용자 신고 (5))
+
+- 심각도: P2 · 리스크 등급: 표준
+- 근본원인: 백엔드 `ProductListResponse.marketRegistrations` 데이터는 있으나 프론트 타입·컬럼 미소비. `getMarketMap` N+1.
+- 수정(재정합 재적용): `productApi.ts` 타입 추가, `ProductPage.tsx` 마켓 컬럼 6종+URL 링크(폴백값은 '미확인' 배지), `ProductController.getMarketMap` N+1→`findByProductIdIn` 배치조회. 마켓 URL 패턴 best-guess(스토어/카페24 미생성) — 미해결 이관. 변경: `ProductController`·`MarketRegistrationRepository`·`productApi.ts`·`ProductPage.tsx` + `ProductControllerMarketMapTest`.
+- 상태: 검증통과 (재정합 — 게이트 BUILD SUCCESSFUL·프론트 tsc0/build0 2026-07-10)
+- 이력: 2026-07-10 재정합 — 구 로컬 D-045 재적용·**D-047 재부여**(원격 D-045=ESM+ iframe과 무관).
+
+### D-048: 상품관리 그리드 — ag-Grid 클라이언트사이드 페이징으로 51번째 이후 미노출 (사용자 신고 (6))
+
+- 심각도: P1 · 리스크 등급: 표준
+- 근본원인: `pagination={true}` + `rowModelType` 미지정(clientSide)으로 최초 50건만 보유, 백엔드 서버 페이징 미연결.
+- 수정(재정합 재적용): ag-Grid 내장 pagination 비활성 + 하단 antd `Pagination`, `onChange→loadData(page-1,size,keyword)` 서버 재호출(total=totalElements, 검색어 유지). 변경: `ProductPage.tsx`.
+- 상태: 검증통과 (재정합 — 프론트 tsc0/build0 2026-07-10)
+- 이력: 2026-07-10 재정합 — 구 로컬 D-046 재적용·**D-048 재부여**.
+
+### D-049: 상품 상세모달 소스이미지 크롤 버튼 — 비-iHerb 무음실패 + 마켓 재게시 미배선 (사용자 신고 (7))
+
+- 심각도: P2 · 리스크 등급: 표준
+- 근본원인: 크롤러 iHerb 전용(비-iHerb 무음 빈응답), `MarketClient.syncImagesAndHtml`(4마켓 구현 완비)이 호출부 0건.
+- 수정(재정합 재적용): (사용자 결정) 비-iHerb 벤더 크롤버튼 비활성+안내. 이미지/HTML 수정 후 `ProductManageUseCase.republishToMarkets`로 연동 마켓 `syncImagesAndHtml` 자동 호출(GMARKET/AUCTION은 클라이언트 부재 스킵, 마켓별 try/catch 격리, 자사DB/성공마켓은 마켓실패와 무관 커밋). 부분실패를 `ImageUploadResponse`(synced/skipped/failed)로 표면화(`message.warning`). 변경: `ProductController`·`ProductManageUseCase`·`ImageUploadResponse`(신규)·`productApi.ts`·`ProductPage.tsx` + `ProductManageUseCaseRepublishTest`·`ProductControllerImageUploadTest`.
+- 상태: 검증통과 (재정합 — `:core:test :api:test` BUILD SUCCESSFUL·프론트 tsc0/build0 2026-07-10). ⚠라이브 마켓 쓰기 — 첫 실행 시 부분실패 안내 실측 권장.
+- 이력: 2026-07-10 재정합 — 구 로컬 D-047(반려→재수정 포함) 재적용·**D-049 재부여**.
 
 ### 후보 기록 (사이클 8 운영 정착 중 관찰)
 
@@ -697,3 +739,41 @@
 - **증상**: 사용자가 `https://168.107.31.154/sbshop-agent` 접속 불가 신고("서버 다운?"). **진단: 서버 정상**(컨테이너 전부 up, http 200) — nginx가 80만 리슨하고 **443/TLS 미설정**이라 https 연결거부(000)였음. docker-compose는 443 매핑하나 nginx conf에 ssl 블록·인증서 없었음.
 - **처리(사용자 결정: 자체서명)**: 서버 `~/projects/nginx/conf.d/`에 자체서명 인증서 생성(`selfsigned.crt/.key`, CN·SAN=`IP:168.107.31.154`, 825일). `default.conf`(백업 `default.conf.bak-c9`) server 블록에 `listen 443 ssl` + ssl_certificate 2줄 추가(80·443 동일 location 서빙). `nginx -t` 통과 후 reload. 검증: https 200(루트·products API), http 무회귀 200, can-agent 200.
 - **주의**: 자체서명이라 브라우저가 "연결이 비공개가 아닙니다/주의 요함" 경고 → 사용자가 "고급 → 계속 진행" 클릭 필요(기능은 정상). 도메인 확보 시 Let's Encrypt로 정식 인증서 전환 가능. 이 변경도 서버 nginx conf(git 미추적)에만 존재.
+
+---
+
+## 사이클 11 (D-045 근본원인 심화 + 액션로그 UX 잔여요구 진단, 2026-07-10, defect-scout — 코드 무수정)
+
+> 컨텍스트: 원격 origin/main이 2026-07-08 사이클 10(D-041~D-045: 동기화 오류표면화·액션로그·ESM+ Selenium 인프라)을 배포한 위에서, 사용자 잔여 신고 3건 진단. 빌드 베이스라인 확인: `cd backend && ./gradlew compileJava compileTestJava` **BUILD SUCCESSFUL**(경고 0, P0 없음) — 정적 진단으로 진행.
+
+D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 후보→발견). 아래는 신규 2건.
+
+### D-050: 활동 로그 actionType/marketType가 Enum 원문(영문 코드)으로 노출
+
+- 심각도: P3 (품질/가독성 — 기능 불능 아님, 비개발자 사용자 판독 곤란) · 리스크 등급: 경량
+- 위치: `frontend/src/pages/ProcessStatusPage.tsx:83`(`{ title: '액션', dataIndex: 'actionType', width: 180 }` — render 없음, 원문 그대로 렌더), `:84-85`(`marketType`도 `v || '-'`만 적용, 라벨화 없음)
+- 증상: 활동 로그 테이블 "액션" 컬럼에 `COUPANG_SYNC`/`SMART_STORE_SYNC`/`ELEVEN_STREET_SYNC`/`GMARKET_SYNC` 같은 내부 코드가 그대로 표시되고, "마켓" 컬럼도 `COUPANG`/`SMART_STORE`/`ELEVEN_STREET`/`GMARKET` 원문이 표시됨.
+- 원인(확인): 백엔드 `ActionLog` 엔티티(`backend/core/.../domain/actionlog/ActionLog.java:29-34`)는 `actionType`·`marketType`을 **Java enum이 아닌 순수 `String` 컬럼**으로 저장한다(`action_type varchar(50)`, `market_type varchar(30)`). `actionType` 값은 실제로는 자유문자열이지만 관례상 `{MarketType.name()}_SYNC` 패턴으로 생성됨 — 확인된 발생처: `ActionLogSyncListener.java:24-25`(`String actionType = marketType + "_SYNC"`, 동기화 성공/실패 이벤트) + `OrderSyncController.java:55,79,103,123`(STARTED 기록 시 하드코딩 리터럴 `"COUPANG_SYNC"`/`"SMART_STORE_SYNC"`/`"ELEVEN_STREET_SYNC"`/`"GMARKET_SYNC"`, marketType은 각각 `"COUPANG"`/`"SMART_STORE"`/`"ELEVEN_STREET"`/`"GMARKET"`). `ActionLogResponse.from()`(`backend/api/.../dto/actionlog/ActionLogResponse.java:17-25`)도 문자열을 그대로 통과시킬 뿐 라벨 변환 없음. **백엔드에 CommonCode/라벨 테이블·API 없음**(레포 전체에서 "라벨"/"CommonCode" 관련 인프라 grep 결과 전무) — 이 프로젝트의 기존 관례는 프론트 로컬 맵이다: `frontend/src/pages/OrderGrid.tsx:416-421`의 `marketLabels: Record<string,string>`(`COUPANG: '쿠팡'` 등, `:524-525`에서 토스트 메시지에 사용)가 이미 동일한 목적의 로컬 매핑 선례로 존재.
+- 제안 수정 방향: 백엔드 변경 불필요(actionType이 자유문자열 관례라 enum화는 별도 리스크 있는 구조 변경) — `ProcessStatusPage.tsx`에 `OrderGrid.tsx:416` 선례를 따라 로컬 `actionTypeLabels`/`marketTypeLabels: Record<string,string>` 맵 추가 후 `render`로 라벨 치환(미매핑 값은 원문 fallback, 신규 마켓 추가 시 자동 깨지지 않게). actionType은 `{marketLabel}_SYNC` 관례가 안정적이므로 marketTypeLabels를 먼저 두고 `actionType.replace('_SYNC','')`로 마켓코드 추출 → 라벨 조합("쿠팡 동기화") 방식도 가능(단, 향후 SYNC 외 actionType 추가 시 깨짐 — 명시적 actionTypeLabels 맵이 더 안전). 두 맵을 `OrderGrid.tsx`와 공유 모듈(`src/constants/marketLabels.ts` 등)로 추출하면 중복도 해소.
+- 재현: 코드 경로 추적(위) — 브라우저 재현은 액션 로그 1건 이상 존재 시 `/process-status` 진행현황 페이지에서 즉시 육안 확인 가능(런타임 실행 없이 코드상 100% 확정, ellipsis/render 부재는 정적 사실).
+- 상태: 검증통과 (재정합 사이클 — qa PASS 2026-07-10 `_workspace/verify/recon_D045_D050_D051.md`). `ProcessStatusPage.tsx`에 `marketTypeLabels` 맵(OrderGrid.tsx:416 이식) + `renderMarketType`/`renderActionType`(`_SYNC` 접미 → `{마켓라벨} 동기화` 조합, 미매칭 원문 폴백) 추가, actionType/marketType 컬럼에 render 연결. 게이트: tsc -p tsconfig.app.json 신규 에러 0(OrderGrid 4건 베이스라인) + npm run build EXIT 0. 요약: `_workspace/fixes/recon_D050_D051.md`.
+
+### D-051: 활동 로그 message 컬럼이 ellipsis 잘림 + 전체보기 부재
+
+- 심각도: P3 (품질 — 정보 손실 아님, 확인 곤란) · 리스크 등급: 경량
+- 위치: `frontend/src/pages/ProcessStatusPage.tsx:88`(`{ title: '메시지', dataIndex: 'message', ellipsis: true }` — Modal/팝오버 없음, 행 클릭 핸들러 없음)
+- 증상: "메시지" 컬럼이 antd `ellipsis: true`로 컬럼 폭(고정폭 미지정 → 나머지 flex 공간)에서 말줄임 처리되고, 전체 텍스트를 볼 방법(모달/팝오버/툴팁 expand)이 없음.
+- 원인(확인): 백엔드가 저장하는 message는 **JSON이 아닌 순수 한글/영문 자유 텍스트**다. `ActionLog.java:43`(`@Column(name="message", length=1000)`, 주석 "예: '동기화 요청', '동기화 실패: 403 ...'`) — 실제 값 확인: `ActionLogSyncListener.java:28`(성공 시 `"동기화 성공"` 고정), `:31-32`(실패 시 `"동기화 실패: " + reason`, reason은 `SyncCompletedEvent.getErrorMessage()` — D-041/D-043에서 확인된 예로 `"쿠팡 API HTTP 오류: 403 FORBIDDEN — IP 허용목록/자격증명 확인"` 등 체이닝된 예외 메시지 텍스트, ESM+ 경로는 `EsmplusOrderApiPortImpl.fetchOrders:53`에서 `"ESM+ 주문 조회 실패: " + e.getMessage()`처럼 중첩 예외 메시지가 누적돼 길어질 수 있음). `OrderSyncController.java:55` 등 STARTED 메시지는 짧은 고정 문구("쿠팡 동기화 요청"). 컬럼 자체는 DB에서 최대 1000자까지 저장 가능하므로, 중첩 예외(RuntimeException wrapping)가 쌓이는 실패 케이스는 화면 폭보다 훨씬 길어질 소지가 큼.
+- 제안 수정 방향: message가 JSON이 아니므로 별도 JSON 포맷터는 불필요 — 행 클릭(`onRow`) 또는 메시지 셀 클릭 시 antd `Modal.info`/커스텀 모달로 `white-space: pre-wrap` 처리된 전체 텍스트 표시(길이 제한 없이). 실패 메시지가 향후 구조화될 가능성(예: 스택트레이스 포함) 대비, 모달에 `<pre>` 또는 코드블록 스타일 적용 권장(가독성 확보, JSON 파싱 시도는 불필요 — 실패해도 원문 그대로 표시하는 방어적 렌더).
+- 재현: 코드 경로 추적(위) — `ellipsis: true` 단독 사용은 antd 기본 동작상 hover 시 title 툴팁만 제공하고 클릭 확장 기능은 없음(정적 사실, antd Table 컬럼 스펙 확인). 브라우저 재현은 message 길이가 컬럼 폭을 넘는 액션 로그(예: D-041/D-043류 403 오류 메시지) 존재 시 즉시 확인 가능.
+- 상태: 검증통과 (재정합 사이클 — qa PASS 2026-07-10 `_workspace/verify/recon_D045_D050_D051.md`). `ProcessStatusPage.tsx` message 컬럼에 `ellipsis: true` 유지 + 클릭 가능한 span 진입점(render) 추가, `messageModal` 상태 + antd `Modal`(`<pre>` white-space:pre-wrap/word-break/max-height:60vh)로 전체 텍스트 표시. import에 `Modal` 추가. JSON 파서 불필요(순수 텍스트, 방어적 원문 렌더). 게이트: tsc 신규 에러 0 + npm run build EXIT 0(modal 청크 번들 확인). 요약: `_workspace/fixes/recon_D050_D051.md`.
+
+### 사이클 11 요약 (defect-scout)
+
+- 신규 결함: 2건(D-050·D-051, 둘 다 P3/경량). 기존 D-045 심화 갱신 1건(상태 후보→발견, 근본원인 4갈래 원인후보·자격증명 경로·GMARKET/AUCTION 구조 불일치 확정).
+- 심각도 분포(사이클 11 신규+심화분): P1 1건(D-045, 심화) · P3 2건(D-050·D-051).
+- 최우선 수정 권고 3건:
+  1. **D-045 (P1)** — ESM+ 동기화 여전히 불가한 상태의 핵심 원인. 우선 `loadAndValidateCredential`에 secretKey 검증 추가(비용 최소, 즉시 가능) + 로그인 성공 판별 단계 추가(라이브 확정 전제). 코드 수정만으로 근본 해결을 단정할 수 없음 — 실 계정 라이브 로그인 검증 필수.
+  2. **D-050 (P3)** — 로컬 라벨 맵 추가만으로 해소 가능한 저리스크·저비용 개선(선례 `OrderGrid.tsx:416` 존재), 사용자 체감 개선 크기 대비 수정 비용 낮음.
+  3. **D-051 (P3)** — 모달 추가만으로 해소, D-050과 동일 파일(`ProcessStatusPage.tsx`) 동시 처리 시 효율적.
+- ESM+(D-045) 관련 미확인 가정 재강조: 실 자격증명 유효성·추가 인증 단계·ESM+ 페이지 DOM 변경 여부는 코드 정적 분석만으로 확정 불가 — 수정 후 반드시 라이브(실 ESM+ 계정) 검증 필요, 가짜 그린 위험 큼.
