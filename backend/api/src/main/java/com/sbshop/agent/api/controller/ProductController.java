@@ -88,13 +88,15 @@ public class ProductController {
 	}
 
 	@PutMapping("/{id}/price-stock")
-	public ResponseEntity<Void> updatePriceStock(
+	public ResponseEntity<ProductManageUseCase.MarketRepublishResult> updatePriceStock(
 		@PathVariable
 		Long id,
 		@RequestBody
 		PriceStockUpdateRequest request) {
-		productManageUseCase.updatePriceStock(id, request.price(), request.stock());
-		return ResponseEntity.ok().build();
+		// D-060: 자사 DB 갱신 + 연동 마켓 가격/재고 반영 결과(성공/스킵/실패 마켓) 반환.
+		ProductManageUseCase.MarketRepublishResult result =
+			productManageUseCase.updatePriceStock(id, request.price(), request.stock());
+		return ResponseEntity.ok(result);
 	}
 
 	@PutMapping("/{id}/images")

@@ -39,7 +39,7 @@ public class ProductManageUseCase {
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Transactional
-	public void updatePriceStock(Long productId, BigDecimal price, Integer stock) {
+	public MarketRepublishResult updatePriceStock(Long productId, BigDecimal price, Integer stock) {
 		Product product = productReader.findById(productId)
 			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
 
@@ -54,6 +54,58 @@ public class ProductManageUseCase {
 		productWriter.save(product);
 
 		log.info("상품 가격/재고 업데이트 완료: id={}, price={}, stock={}", productId, price, stock);
+
+		// D-060: 자사 DB 갱신 후, 연동된 각 마켓에 가격/재고 자동 반영.
+		Integer priceInt = price != null ? price.intValue() : null;
+		return syncPriceStockToMarkets(productId, priceInt, stock);
+	}
+
+	/**
+	 * D-060: 상품의 연동 마켓 목록을 순회하며 각 {@link MarketClient#syncPriceAndStock}을 호출한다.
+	 * {@link #republishToMarkets}와 동일한 규율 — 클라이언트 없는 마켓(GMARKET/AUCTION) 스킵,
+	 * 마켓별 try로 부분 실패 수집(한 마켓 실패가 나머지 마켓·자사 DB 갱신을 롤백하지 않음).
+	 */
+	private MarketRepublishResult syncPriceStockToMarkets(Long productId, Integer price, Integer stock) {
+		List<MarketRegistration> registrations = marketRegistrationRepository.findByProductId(productId);
+		List<MarketType> synced = new ArrayList<>();
+		List<MarketType> skipped = new ArrayList<>();
+		Map<MarketType, String> failed = new LinkedHashMap<>();
+
+		for (MarketRegistration reg : registrations) {
+			MarketType marketType = reg.getMarketType();
+			if (!marketClientRouter.hasClient(marketType)) {
+				skipped.add(marketType);
+				log.info("[가격재고동기화] 마켓 클라이언트 없음 — 스킵: productId={}, market={}", productId, marketType);
+				continue;
+			}
+			try {
+				// 마켓별 실제 상품코드(D-052). 없으면 실 API 호출이 불가하므로 실패로 수집.
+				String marketItemId = reg.extractMarketCode();
+				if (marketItemId == null || marketItemId.isEmpty()) {
+					throw new IllegalStateException("마켓 상품코드 없음(연동정보에 코드 키 부재)");
+				}
+				Map<String, Object> currentRawData = parseRawData(reg.getMarketDetailedInfo());
+
+				MarketClient client = marketClientRouter.getClient(marketType);
+				Map<String, Object> updated = client.syncPriceAndStock(marketItemId, currentRawData, price, stock);
+
+				if (updated != null) {
+					reg.updateMarketDetailedInfo(objectMapper.writeValueAsString(updated));
+				}
+				reg.markSynced();
+				marketRegistrationRepository.save(reg);
+				synced.add(marketType);
+				log.info("[가격재고동기화] 성공: productId={}, market={}, marketItemId={}", productId, marketType, marketItemId);
+			} catch (Exception e) {
+				failed.put(marketType, e.getMessage());
+				log.error("[가격재고동기화] 실패(부분 실패로 수집, 롤백하지 않음): productId={}, market={}, error={}",
+					productId, marketType, e.getMessage(), e);
+			}
+		}
+
+		log.info("[가격재고동기화] 완료: productId={}, synced={}, skipped={}, failed={}",
+			productId, synced, skipped, failed.keySet());
+		return new MarketRepublishResult(synced, skipped, failed);
 	}
 
 	@Transactional

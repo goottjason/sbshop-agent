@@ -160,21 +160,23 @@ public class CoupangMarketClient implements MarketClient {
 	@Override
 	public Map<String, Object> syncPriceAndStock(String marketItemId, Map<String, Object> currentRawData,
 		Integer price, Integer stock) {
-		try {
-			if (currentRawData != null && currentRawData.containsKey("items")) {
-				@SuppressWarnings("unchecked") List<Map<String, Object>> items = (List<Map<String, Object>>)currentRawData
-					.get("items");
-				if (items != null && !items.isEmpty()) {
-					Map<String, Object> firstItem = items.get(0);
-					if (price != null)
-						firstItem.put("salePrice", price);
-					if (stock != null)
-						firstItem.put("maximumBuyCount", stock);
-				}
-			}
-		} catch (Exception e) {
-			log.warn("쿠팡 로컬 Map 패치 중 오류", e);
+		// 원본(seller-product) 페이로드가 없으면 실 반영 불가 → 예외를 전파해 상위에서 '실패 마켓'으로 표면화.
+		if (currentRawData == null || !currentRawData.containsKey("items")) {
+			throw new IllegalStateException("쿠팡 원본 데이터(items)가 없어 가격/재고를 반영할 수 없습니다: " + marketItemId);
 		}
+		@SuppressWarnings("unchecked") List<Map<String, Object>> items = (List<Map<String, Object>>)currentRawData
+			.get("items");
+		if (items == null || items.isEmpty()) {
+			throw new IllegalStateException("쿠팡 원본 데이터(items 비어있음): " + marketItemId);
+		}
+		Map<String, Object> firstItem = items.get(0);
+		if (price != null)
+			firstItem.put("salePrice", price);
+		if (stock != null)
+			firstItem.put("maximumBuyCount", stock);
+		// syncImagesAndHtml과 동일하게 전체 seller-product 페이로드를 PUT (dev 검증된 갱신 패턴).
+		restClient.put("/v2/providers/seller_api/apis/api/v1/marketplace/seller-products", currentRawData);
+		log.info("[쿠팡] 가격/재고 동기화 완료: itemId={}, price={}, stock={}", marketItemId, price, stock);
 		return currentRawData;
 	}
 
