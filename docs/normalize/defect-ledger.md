@@ -789,3 +789,49 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
   2. **D-050 (P3)** — 로컬 라벨 맵 추가만으로 해소 가능한 저리스크·저비용 개선(선례 `OrderGrid.tsx:416` 존재), 사용자 체감 개선 크기 대비 수정 비용 낮음.
   3. **D-051 (P3)** — 모달 추가만으로 해소, D-050과 동일 파일(`ProcessStatusPage.tsx`) 동시 처리 시 효율적.
 - ESM+(D-045) 관련 미확인 가정 재강조: 실 자격증명 유효성·추가 인증 단계·ESM+ 페이지 DOM 변경 여부는 코드 정적 분석만으로 확정 불가 — 수정 후 반드시 라이브(실 ESM+ 계정) 검증 필요, 가짜 그린 위험 큼.
+
+---
+
+## 사이클 13 (사용자 신고 4건 — 시간대·상품정보·호버성능·상품그리드 UX, 2026-07-11, 리더 직접)
+
+> 컨텍스트: 사용자 UI 신고 4건을 병렬 진단(Explore ×2: 주문-상품 매핑, 시간대) 후 리더가 프론트 전용으로 수정. 전 항목 프론트엔드 변경(백엔드 무변경) → 회귀 위험 최소, 경량 등급. 게이트: `tsc -p tsconfig.app.json` 신규 에러 0(기존 OrderGrid ORDER/PRODUCT_COLUMNS 4건도 함께 해소해 **완전 clean**) + `npm run build` EXIT 0.
+
+### D-053: 진행 현황 시간이 UTC(미국시간처럼)로 표시
+
+- 심각도: P2 (판독 오류 — 기능 정상) · 리스크 등급: 경량
+- 위치: `frontend/src/pages/ProcessStatusPage.tsx:117`(활동로그 createdAt), `:112`(배치상태 startedAt, render 부재로 원문 노출)
+- 근본원인: 백엔드 시간 필드가 모두 zone 없는 `LocalDateTime`(`BaseEntity.createdAt`, `ProcessStatus.startedAt` 등) + 컨테이너 TZ=UTC → JSON에 zone 정보 없이 `"2026-07-09T04:22:00"` 형태로 직렬화. 프론트 `new Date(v).toLocaleString('ko-KR')`가 이를 (브라우저 로컬 존으로) 파싱하지만 값 자체가 UTC 벽시계라 9시간 이른 시각 표시. **주의**: `spring.jackson.time-zone`은 `LocalDateTime` 직렬화에 영향 없음(존 없는 타입) — 백엔드 설정만으론 미해결.
+- 수정: `frontend/src/utils/datetime.ts` 신설 — `toKstDate()`(존 없는 문자열을 UTC로 간주 `+Z`), `formatKst()`(ko-KR·Asia/Seoul 강제). ProcessStatusPage의 createdAt·startedAt 컬럼 render에 `formatKst` 연결. 기존/신규 데이터 모두 일괄 교정, 브라우저 존과 무관.
+- 범위 판단: **통합주문관리 주문일시(orderDate)는 의도적으로 미변경** — Coupang 등 한국 마켓 API가 KST를 반환하고 `CoupangOrderAdapter.java:198`에서 `LocalDateTime.parse`로 naive KST 저장하므로 이미 정확. UTC 변환 적용 시 오히려 +9h 어긋남(서버감사시간 UTC와 마켓주문시간 KST의 혼재 의미 구분).
+- 상태: 검증통과 (리더 게이트: tsc clean + build EXIT0)
+
+### D-054: 통합주문관리 상품정보(상품명/영문명) 미표시
+
+- 심각도: P1 (상품 식별 정보 상시 공란) · 리스크 등급: 경량
+- 위치: `frontend/src/api/orderApi.ts:51-57`(ProductDto), `frontend/src/pages/OrderGrid.tsx:958,962,956`
+- 근본원인: 상품코드(`product.sbCode`)는 정상 표시되므로 `product`는 null이 아님(백엔드 조인 정상). 실제 원인은 **프론트 타입/접근 경로 오류** — 백엔드 `Product` 엔티티의 `productName`/`originalName`은 **flat String**인데 `ProductDto`가 `productName: {productName, originalName}` 중첩 객체로 잘못 정의됨. OrderGrid가 `product.productName.productName`으로 접근해 `undefined`. 소싱 URL도 실제 필드는 `SourcingInfo.sourceUrl`인데 `sourcingInfo.url`로 접근.
+- 수정: `ProductDto`를 flat(`productName?: string; originalName?: string; sourcingInfo?: {sourceUrl?: string}`)으로 교정. OrderGrid 상품정보 셀 접근 경로를 `product.productName`(등록상품명 행1)·`product.originalName`(영문명 행2)·`sourcingInfo.sourceUrl`(링크)로 수정.
+- 참고(별개 트랙): 동기화 시 MarketRegistration 매핑 실패로 `OrderLineItem.productId`가 null이 되는 케이스(`CoupangOrderSyncService.resolveProductId`)는 데이터 레벨 이슈로 별도 — 본 증상(상품코드는 뜨는데 이름만 공란)의 원인은 아님.
+- 상태: 검증통과 (리더 게이트: tsc clean + build EXIT0)
+
+### D-055: 통합주문관리 행 호버 음영 지연
+
+- 심각도: P2 (체감 성능 — 마우스 호버 시 회색 음영 지연) · 리스크 등급: 경량
+- 위치: `frontend/src/pages/OrderGrid.tsx:387`(hoveredOrderId state), `:1282`(행별 isHovered/bgCol)
+- 근본원인: 호버를 React state(`hoveredOrderId`)로 처리 → 매 `onMouseEnter`마다 전체 그리드(주문 500건×최대 3행 = 수백~수천 행) 리렌더·전 셀 `flexRender` 재실행. 이 리렌더 비용이 음영 표시 지연으로 체감됨. 추가로 TableRow 내장 per-row 핸들러가 `background=transparent`로 리셋하는 부작용.
+- 수정: `hoveredOrderId` state 제거 → ref + 이벤트 위임(DOM 클래스 토글) 방식. 스크롤 컨테이너에 `onMouseOver`(위임)·`onMouseLeave` 부착, 다른 주문 그룹 진입 시에만 `querySelectorAll('tr[data-order-id="..."]')`로 `.og-row-hover` 클래스 토글(같은 그룹이면 early-return → per-pixel DOM 조회 없음). CSS `.og-row-hover > td { background:#f1f5f9 !important }`로 frozen 셀 인라인 배경까지 즉시 덮음. 각 TableRow에 `data-order-id` 부여, 내장 핸들러는 `onMouseEnter/Leave={undefined}`로 무력화. 리렌더 완전 제거 → 즉시 음영.
+- 상태: 검증통과 (리더 게이트: tsc clean + build EXIT0)
+
+### D-056: 상품관리 그리드 — G마켓/옥션 컬럼 제거 + 디자인 개선 + 가격/재고 버튼
+
+- 심각도: P3 (UX/디자인) · 리스크 등급: 경량
+- 위치: `frontend/src/pages/ProductPage.tsx`
+- 요구/원인: (1) G마켓·옥션은 마켓 상품코드가 없음(D-052 라이브 확정: `sb_market_registration` GMARKET·AUCTION 0건) → 상시 공란 컬럼. (2) ag-grid 오버라이드가 `.ag-theme-alpine`에만 적용(`index.css:191`)돼 실제 사용 테마 `.ag-theme-quartz`엔 미적용 → 기본 스타일로 촌스러움. (3) `가격/재고` 버튼이 무스타일 raw `<button>`.
+- 수정: (1) `MARKET_COLUMNS`에서 GMARKET·AUCTION 제거(쿠팡·스토어·11번가·카페24만). (2) `.sb-product-grid`로 스코프한 quartz 토큰 오버라이드(폰트·헤더·행 hover·테두리·라운드·accent) + 헤더/툴바 카드화 + 제목·건수 표시 + 이미지 셀 라운드/플레이스홀더 + 판매가/재고 우측정렬. (3) `가격/재고`를 `.sb-pricestock-btn`(primary 아웃라인→hover 채움)으로 교체. 타 그리드 영향 없도록 클래스 스코프.
+- 부수: 기존 `OrderGrid.tsx`의 `ORDER_COLUMNS`/`PRODUCT_COLUMNS` 암묵 any[] 타입 에러 4건(베이스라인)도 `: string[]` 명시로 해소 → 타입 게이트 완전 clean.
+- 상태: 검증통과 (리더 게이트: tsc clean + build EXIT0)
+
+### 사이클 13 요약
+
+- 신규 결함 4건(D-053 P2 · D-054 P1 · D-055 P2 · D-056 P3), 전부 프론트 전용·경량. 백엔드 무변경 → 회귀 게이트는 프론트 tsc+build로 충분(전 항목 통과, 타입 게이트 완전 clean 달성).
+- 핵심 판단: 시간대 수정 범위를 서버감사시간(UTC)에 국한하고 마켓주문시간(KST)은 제외 — 의미 혼재 방지. 호버는 React state→DOM 위임으로 리렌더 제거.
