@@ -25,7 +25,10 @@ public enum ShippingCarrier implements EnumMapperType {
 	}
 
 	public static ShippingCarrier fromMarketCode(String code) {
-		if (code == null)
+		// 미배송 주문은 마켓이 택배사를 빈 문자열/공백으로 주는 경우가 있다.
+		// 이때 default 분기로 가 ETC("기타")가 저장되면 화면에 "ETC"로 떠 오해를 부른다(미입력=빈칸이어야 함).
+		// null과 동일하게 '택배사 없음'(null)으로 처리한다.
+		if (code == null || code.isBlank())
 			return null;
 		String normalized = code.toUpperCase().replaceAll("[\\s-_]", "");
 		return switch (normalized) {
