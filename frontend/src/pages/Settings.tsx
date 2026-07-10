@@ -1,12 +1,37 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchCredentials, saveCredential } from '../api/marketApi';
+import { fetchCredentials, saveCredential, getCafe24Status, issueCafe24Token } from '../api/marketApi';
 import type { MarketCredential } from '../api/marketApi';
 
 const Settings = () => {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('COUPANG');
   const [formData, setFormData] = useState<Partial<MarketCredential>>({});
+  const [authCode, setAuthCode] = useState('');
+
+  // Cafe24 실연동 상태(토큰 유효성 실검증) — '존재'가 아니라 실제 API 호출 성공 여부.
+  const { data: cafe24Status, isFetching: cafe24Checking, refetch: refetchCafe24Status } = useQuery({
+    queryKey: ['cafe24-status'],
+    queryFn: getCafe24Status,
+    enabled: activeTab === 'CAFE24',
+    staleTime: 0,
+  });
+
+  const issueTokenMutation = useMutation({
+    mutationFn: (code: string) => issueCafe24Token(code),
+    onSuccess: (res) => {
+      alert(res.message);
+      if (res.connected) setAuthCode('');
+      refetchCafe24Status();
+      queryClient.invalidateQueries({ queryKey: ['market-credentials'] });
+    },
+    onError: () => alert('토큰 발급 요청 중 오류가 발생했습니다.'),
+  });
+
+  const cafe24AuthUrl =
+    formData.clientId && formData.accessKey && formData.redirectUri
+      ? `https://${formData.clientId}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${formData.accessKey}&state=shouldbeshopping&redirect_uri=${formData.redirectUri}&scope=mall.read_product,mall.write_product`
+      : '';
 
   const { data: credentials, isLoading } = useQuery({
     queryKey: ['market-credentials'],
@@ -214,36 +239,73 @@ const Settings = () => {
                 />
               </div>
 
-              {formData.hasRefreshToken && (
-                <div style={{ marginTop: '12px', padding: '12px', backgroundColor: '#ecfdf5', color: '#065f46', borderRadius: '6px' }}>
-                  ✅ 현재 유효한 리프레시 토큰이 등록되어 있습니다. 정상적으로 연동 중입니다.
-                </div>
-              )}
-              {!formData.hasRefreshToken && formData.clientId && formData.accessKey && (
-                <div style={{ marginTop: '12px', padding: '12px', backgroundColor: '#fef2f2', color: '#991b1b', borderRadius: '6px' }}>
-                  🚨 OAuth 인증이 필요합니다. 아래 버튼을 눌러 권한을 승인한 뒤, 반환되는 주소의 `code` 값을 서버 콜백 URL로 보내주세요.
-                  <div style={{ marginTop: '12px' }}>
-                    {formData.redirectUri ? (
-                      <a
-                        href={`https://${formData.clientId}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${formData.accessKey}&state=shouldbeshopping&redirect_uri=${formData.redirectUri}&scope=mall.read_product,mall.write_product`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn-primary"
-                        style={{ display: 'inline-block', textDecoration: 'none' }}
-                      >
-                        Cafe24 인증 페이지로 이동
-                      </a>
-                    ) : (
-                      <div style={{ color: '#b91c1c', fontWeight: 500 }}>
-                        ⚠️ 위 폼에서 Redirect URI를 먼저 입력해주세요 (예: https://younzara.cafe24.com/)
+              {/* 실연동 상태 — 토큰의 '존재'가 아니라 실제 API 호출로 검증한 결과 */}
+              <div
+                style={{
+                  marginTop: '12px', padding: '12px', borderRadius: '6px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                  backgroundColor: cafe24Checking ? '#f3f4f6' : cafe24Status?.connected ? '#ecfdf5' : '#fef2f2',
+                  color: cafe24Checking ? '#374151' : cafe24Status?.connected ? '#065f46' : '#991b1b',
+                }}
+              >
+                <span>
+                  {cafe24Checking
+                    ? '⏳ 연동 상태 확인 중…'
+                    : cafe24Status?.connected
+                      ? `✅ ${cafe24Status.message}`
+                      : `🚨 ${cafe24Status?.message || '연동 상태를 확인할 수 없습니다.'}`}
+                </span>
+                <button type="button" onClick={() => refetchCafe24Status()} className="btn-primary"
+                  style={{ padding: '6px 12px', fontSize: 13, whiteSpace: 'nowrap' }}>
+                  상태 새로고침
+                </button>
+              </div>
+
+              {/* 리프레시 토큰 발급(재인증) — 유효하지 않을 때 강조, 항상 사용 가능 */}
+              {!cafe24Status?.connected && (
+                <div style={{ marginTop: '12px', padding: '16px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px' }}>
+                  <div style={{ fontWeight: 600, marginBottom: 12, color: '#92400e' }}>리프레시 토큰 발급 (재인증)</div>
+                  {!cafe24AuthUrl ? (
+                    <div style={{ color: '#b91c1c', fontWeight: 500 }}>
+                      ⚠️ Mall ID · Client ID · Redirect URI를 먼저 입력·저장해주세요.
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ fontSize: 13, color: '#666' }}>
+                          <b>①</b> 아래 버튼으로 Cafe24 인증 페이지를 열어 승인하면
+                          <code style={{ margin: '0 4px' }}>{formData.redirectUri}?code=...</code>
+                          형태로 이동합니다. 그 주소(또는 code 값)를 복사해 <b>②</b>에 붙여넣고 발급하세요.
+                        </div>
+                        <div>
+                          <a href={cafe24AuthUrl} target="_blank" rel="noopener noreferrer" className="btn-primary"
+                            style={{ display: 'inline-block', textDecoration: 'none' }}>
+                            ① Cafe24 인증 페이지 열기
+                          </a>
+                        </div>
+                        <input
+                          type="text"
+                          value={authCode}
+                          onChange={(e) => setAuthCode(e.target.value)}
+                          className="input-field"
+                          placeholder="② 리다이렉트된 주소 전체 또는 code 값을 붙여넣기"
+                        />
+                        <div>
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            disabled={!authCode.trim() || issueTokenMutation.isPending}
+                            onClick={() => issueTokenMutation.mutate(authCode.trim())}
+                          >
+                            {issueTokenMutation.isPending ? '발급 중…' : '② 리프레시 토큰 발급받기'}
+                          </button>
+                          <span style={{ marginLeft: 10, fontSize: 12, color: '#b45309' }}>
+                            ※ 인증 코드는 1회용·단시간 유효 — 승인 직후 바로 발급하세요.
+                          </span>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                  <div style={{ marginTop: '12px', fontSize: '13px', color: '#666' }}>
-                    인증 후 주소창이 <code>{formData.redirectUri || 'https://younzara.cafe24.com/'}?code=인증코드...</code> 형태로 바뀝니다.<br />
-                    이때 받은 인증코드를 복사하여, 백엔드 콜백 엔드포인트<br/>
-                    <code>{window.location.origin}/sbshop-agent/api/admin/sync/cafe24/auth/callback?code=복사한코드</code> 를 브라우저 주소창에 직접 입력하시면 서버에 영구 토큰이 저장됩니다.
-                  </div>
+                    </>
+                  )}
                 </div>
               )}
             </>

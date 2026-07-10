@@ -27,3 +27,20 @@ export const saveCredential = async (
   const { data } = await apiClient.put(`/api/v1/market-credentials/${marketType}`, credential);
   return data;
 };
+
+// Cafe24 실연동 상태(토큰 유효성 실검증) + 리프레시 토큰 발급
+export interface Cafe24Status {
+  connected: boolean;
+  message: string;
+}
+
+export const getCafe24Status = async (): Promise<Cafe24Status> => {
+  const { data } = await apiClient.get('/api/admin/sync/cafe24/status');
+  return data;
+};
+
+// code 또는 code=... 를 포함한 리다이렉트 전체 URL을 그대로 보내도 서버가 code만 추출
+export const issueCafe24Token = async (code: string): Promise<Cafe24Status> => {
+  const { data } = await apiClient.post('/api/admin/sync/cafe24/issue-token', { code });
+  return data;
+};
