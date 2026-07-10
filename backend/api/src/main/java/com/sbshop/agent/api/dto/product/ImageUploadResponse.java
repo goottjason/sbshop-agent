@@ -1,6 +1,6 @@
 package com.sbshop.agent.api.dto.product;
 
-import com.sbshop.agent.core.application.product.ProductManageUseCase.MarketRepublishResult;
+import com.sbshop.agent.core.application.product.MarketRepublishResult;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import java.util.List;
 

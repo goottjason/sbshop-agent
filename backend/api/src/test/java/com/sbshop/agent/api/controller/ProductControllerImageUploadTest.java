@@ -6,8 +6,8 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.api.dto.product.ImageUploadResponse;
+import com.sbshop.agent.core.application.product.MarketRepublishResult;
 import com.sbshop.agent.core.application.product.ProductManageUseCase;
-import com.sbshop.agent.core.application.product.ProductManageUseCase.MarketRepublishResult;
 import com.sbshop.agent.core.application.product.ProductSearchUseCase;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;

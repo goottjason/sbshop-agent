@@ -6,7 +6,7 @@ import com.sbshop.agent.api.dto.product.ProductDetailResponse;
 import com.sbshop.agent.api.dto.product.ProductListResponse;
 import com.sbshop.agent.api.dto.product.ProductUpdateRequest;
 import com.sbshop.agent.core.application.product.ProductManageUseCase;
-import com.sbshop.agent.core.application.product.ProductManageUseCase.MarketRepublishResult;
+import com.sbshop.agent.core.application.product.MarketRepublishResult;
 import com.sbshop.agent.core.application.product.ProductSearchUseCase;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
@@ -88,13 +88,13 @@ public class ProductController {
 	}
 
 	@PutMapping("/{id}/price-stock")
-	public ResponseEntity<ProductManageUseCase.MarketRepublishResult> updatePriceStock(
+	public ResponseEntity<MarketRepublishResult> updatePriceStock(
 		@PathVariable
 		Long id,
 		@RequestBody
 		PriceStockUpdateRequest request) {
 		// D-060: 자사 DB 갱신 + 연동 마켓 가격/재고 반영 결과(성공/스킵/실패 마켓) 반환.
-		ProductManageUseCase.MarketRepublishResult result =
+		MarketRepublishResult result =
 			productManageUseCase.updatePriceStock(id, request.price(), request.stock());
 		return ResponseEntity.ok(result);
 	}

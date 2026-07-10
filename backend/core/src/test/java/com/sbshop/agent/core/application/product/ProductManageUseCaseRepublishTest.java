@@ -50,6 +50,8 @@ class ProductManageUseCaseRepublishTest {
 	private MarketRegistrationRepository marketRegistrationRepository;
 	@Mock
 	private MarketClientRouter marketClientRouter;
+	@Mock
+	private ProductMarketSyncService productMarketSyncService;
 
 	private ProductManageUseCase useCase;
 
@@ -61,7 +63,7 @@ class ProductManageUseCaseRepublishTest {
 	@BeforeEach
 	void setUp() {
 		useCase = new ProductManageUseCase(productReader, productWriter, imageStorageClient,
-			htmlImageReplacer, marketRegistrationRepository, marketClientRouter);
+			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService);
 
 		lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 		lenient().when(product.getSbCode()).thenReturn("SB1");
