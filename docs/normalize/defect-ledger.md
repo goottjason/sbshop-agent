@@ -917,3 +917,14 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 ### 사이클 16 요약
 - D-060 수정 완료(승인·게이트 통과). 단건 가격/재고 저장이 연동 마켓(스토어·11번가·쿠팡·카페24)에 반영되고 결과가 표면화됨.
 - 다음: 단건 라이브 스모크(상품 1건) → 이상 없으면 배치 경로 배선 + D-061(배송 전파) 검토.
+
+### D-060 라이브 검증 (2026-07-11, 리더 직접 — 무인증 라이브 환경, 사용자 허가)
+
+- 방법: 실 서버 `PUT /products/1/price-stock`에 **현재값(40700/500) 그대로** 저장 → 값 변화 없이 마켓 동기화 경로만 실행, 마켓별 결과 관찰(상품1=쿠팡·11번가·스토어·카페24 4마켓).
+- 결과: `synced=[SMART_STORE, ELEVEN_STREET]`, `failed={CAFE24, COUPANG}`.
+  - ✅ **스토어·11번가: 실 API write 성공** — 배선·클라이언트 end-to-end 정상 확정.
+  - 🔴 **쿠팡**: 1차 "원본데이터(items) 없음"(내 rawData 의존 접근 오류) → **vendor-items 전용 엔드포인트(`/vendor-items/{vendorItemId}/prices|quantities`)로 교정**. 2차 "Empty key" → `CoupangProperties.secretKey` 공백 = **서버 `COUPANG_ACCESS_KEY/SECRET_KEY` env var 미설정**(마켓 상품 API는 주문 API의 DB 자격증명과 별개인 env var 사용). 코드 아님·운영 config. 명확한 메시지 가드 추가.
+  - 🔴 **카페24**: "401 Invalid access_token" → **기존 미해결 이슈(Cafe24 OAuth 토큰 만료, 사이클 8/9) 확정**. 코드 아님·토큰 재발급 필요.
+- 결론: **D-060 코드 완성·검증**(부분 실패 표면화 포함). 스토어·11번가 라이브 동작. 쿠팡·카페24는 **자격증명 설정만 하면 즉시 동작**(코드 준비 완료). 남은 것은 운영 조치:
+  1. 서버에 `COUPANG_ACCESS_KEY`, `COUPANG_SECRET_KEY`(쿠팡 마켓 상품 API 키) 설정.
+  2. Cafe24 개발자센터에서 토큰 재발급 후 저장소 갱신.
