@@ -655,8 +655,13 @@ const OrderGrid: React.FC = () => {
     try {
       const res = await syncProductStock();
       if (res.success) {
-        // 백그라운드 작업이므로 잠시 후 refetch
+        // 재고 동기화는 마켓 동기화와 달리 완료 이벤트(SSE)가 없는 백그라운드 크롤(수 초~수 분)이라,
+        // 고정 3초 refetch만으로는 화면 변화가 없어 "반응 없음"으로 체감됐다(D-057).
+        // ① 시작을 즉시 토스트로 명확히 알리고 ② 오버레이는 짧게 풀되 ③ 지연 refetch를 다단계로 걸어
+        // 크롤이 끝나는 대로 갱신이 반영되게 한다.
+        toast.info('재고 동기화를 시작했습니다. 완료까지 다소 시간이 걸릴 수 있어 잠시 후 자동으로 새로고침됩니다.');
         setTimeout(() => { refetch(); setIsSyncing(false); }, 3000);
+        setTimeout(() => { refetch(); }, 15000);
       } else {
         toast.error(res.message || '재고 동기화에 실패했습니다.');
         setIsSyncing(false);
