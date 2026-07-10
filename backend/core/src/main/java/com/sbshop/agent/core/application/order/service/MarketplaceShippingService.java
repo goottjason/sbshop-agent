@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.order.service;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
@@ -28,11 +29,16 @@ public class MarketplaceShippingService {
 	/** 마켓 타입에 맞는 포트 조회 */
 	public MarketOrderPort getPort(MarketType marketType) {
 
-		return marketOrderPorts.stream()
-			.filter(port -> port.getMarketType() == marketType)
-			.findFirst()
+		return findPort(marketType)
 			.orElseThrow(() -> new IllegalArgumentException(
 				"지원하지 않는 마켓: " + marketType));
+	}
+
+	/** 배송 어댑터가 있는 마켓만 Optional로 반환(미지원 마켓은 empty). */
+	public Optional<MarketOrderPort> findPort(MarketType marketType) {
+		return marketOrderPorts.stream()
+			.filter(port -> port.getMarketType() == marketType)
+			.findFirst();
 	}
 
 	/**
@@ -69,8 +75,14 @@ public class MarketplaceShippingService {
 		Boolean alreadySent = lineItem.getShippingData() != null
 			? lineItem.getShippingData().getTrackingSentToMarket() : null;
 
-		// 마켓 포트 조회
-		MarketOrderPort port = getPort(order.getMarketType());
+		// 마켓 포트 조회 — 배송 어댑터가 없는 마켓(카페24 등)은 크래시 대신 스킵(배송정보 수정 자체는 성공 유지).
+		Optional<MarketOrderPort> portOpt = findPort(order.getMarketType());
+		if (portOpt.isEmpty()) {
+			log.warn("[배송전파] {} 마켓은 배송 어댑터 미지원 — 마켓 전송 스킵(자사 배송정보는 저장됨): order={}",
+				order.getMarketType(), order.getMarketOrderNo());
+			return;
+		}
+		MarketOrderPort port = portOpt.get();
 
 		// 전송 또는 수정 처리
 		if (Boolean.TRUE.equals(alreadySent)) {
