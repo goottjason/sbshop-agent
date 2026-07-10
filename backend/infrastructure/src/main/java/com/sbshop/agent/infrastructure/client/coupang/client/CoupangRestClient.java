@@ -62,15 +62,15 @@ public class CoupangRestClient {
 	private String request(String method, String path, Object body) {
 		try {
 			String[] cred = resolveCredentials();
-			String authorization = CoupangHmacUtil.generateSignature(
+			// 검증된 주문 클라이언트와 동일한 UTC 서명 사용(yyMMdd'T'HHmmss'Z'). signed-date는 CEA Authorization에 내장돼
+			// 별도 헤더 불필요 — 과거의 generateSignature(KST·T/Z 없음)+별도 signed-date 헤더는 "HMAC format is invalid" 유발.
+			String authorization = CoupangHmacUtil.generateSignatureUtc(
 				method, path, cred[0], cred[1]);
-			String datetime = CoupangHmacUtil.generateDatetime();
 
 			var requestSpec = restClient.method(org.springframework.http.HttpMethod.valueOf(method))
 				.uri(properties.getApiUrl() + path)
 				.header(HttpHeaders.AUTHORIZATION, authorization)
-				.header("X-Requested-By", cred[2])
-				.header("signed-date", datetime);
+				.header("X-Requested-By", cred[2]);
 
 			if (body != null) {
 				requestSpec.contentType(MediaType.APPLICATION_JSON).body(body);
