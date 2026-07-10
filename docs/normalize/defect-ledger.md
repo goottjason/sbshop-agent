@@ -950,3 +950,17 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 
 ### D-060 최종 완료 (2026-07-11): 4마켓 전부 라이브 동기화 확정
 - Cafe24 재인증(D-062) 후 `PUT /products/1/price-stock` → `synced:[CAFE24,SMART_STORE,COUPANG,ELEVEN_STREET], failed:{}`. **가격/재고 → 4마켓 전 마켓 라이브 반영 확정.** D-060 종결.
+
+---
+
+## 사이클 17 (D-061 배송 마켓 전파 재진단 — 이전 감사 정정, 2026-07-11)
+
+### D-061 정정: 배송정보 수정 → 마켓 전파는 이미 구현됨
+
+- **이전 감사(사이클 15) 오류 정정**: "배송정보 수정(updateShippingInfo)은 DB만 저장·마켓 미전파"는 **틀렸음**. 리더 직접 확인 결과 `OrderService.updateShippingInfo:306,318`이 이미 `marketplaceShippingService.sendTrackingToMarketplace(item)`를 호출(PURCHASED→SHIPPED 및 SHIPPED 이후 수정 양쪽). 전파 경로: OrderController.updateShippingInfo → OrderService → MarketplaceShippingService(DB MarketCredential) → 마켓별 shipOrder/updateTracking.
+- **실제 배송 전파 매트릭스**: 쿠팡(shipOrder+updateTracking 완전 구현), 스마트스토어·11번가(shipOrder 구현, updateTracking은 MarketOrderPort 기본값=shipOrder 재호출), ESM+(shipOrder가 log.warn 스텁), 카페24(OrderAdapter 자체 부재 → getPort 시 예외).
+- **남은 실제 갭(대형·저가치)**:
+  - ESM+(G마켓/옥션) 송장 등록: Selenium 스크래핑으로만 가능(정규 API 없음), 구현·유지보수 비용 중상. **게다가 ESM+는 주문 데이터 0건(D-052)** — 현재 가치 낮음.
+  - 카페24 OrderAdapter: 주문 조회/배송 어댑터 전무 → **카페24 주문 동기화 자체가 없음**. 배송 전파 이전에 주문 수집부터 필요. 대형 신규 개발.
+- 결론: D-061의 핵심(데이터 있는 3마켓 배송정보 수정→마켓 전파)은 **이미 구현·동작**. ESM+/카페24는 데이터 부재·대형 개발이라 즉시 착수 부적합. 라이브 검증은 실 송장이 필요해(실주문에 실송장 전송) 보류 — 코드 경로는 이메일 자동추적과 동일한 sendTrackingToMarketplace로 확인됨.
+- 상태: D-061 핵심 이미구현 확인(정정). ESM+/카페24 배송은 발견(보고) 유지 — 데이터·우선순위상 후순위.
