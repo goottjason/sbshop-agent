@@ -14,6 +14,7 @@ import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,7 +58,7 @@ class ProductMarketSyncServiceTest {
 		when(marketClientRouter.hasClient(MarketType.COUPANG)).thenReturn(true);
 		when(marketClientRouter.getClient(MarketType.COUPANG)).thenReturn(coupangClient);
 
-		MarketRepublishResult result = service.syncPriceStock(PRODUCT_ID, 40700, 500);
+		MarketRepublishResult result = service.syncPriceStock(PRODUCT_ID, 40700, StockStatus.IN_STOCK);
 
 		verify(coupangClient).syncPriceAndStock(eq("CP123"), any(), eq(40700), eq(999), eq(false));
 		assertThat(result.synced()).containsExactly(MarketType.COUPANG);
@@ -72,7 +73,7 @@ class ProductMarketSyncServiceTest {
 		when(marketClientRouter.hasClient(MarketType.GMARKET)).thenReturn(false);
 		when(marketClientRouter.hasClient(MarketType.AUCTION)).thenReturn(false);
 
-		MarketRepublishResult result = service.syncPriceStock(PRODUCT_ID, 1000, 3);
+		MarketRepublishResult result = service.syncPriceStock(PRODUCT_ID, 1000, StockStatus.IN_STOCK);
 
 		verify(marketClientRouter, never()).getClient(any());
 		assertThat(result.skipped()).containsExactlyInAnyOrder(MarketType.GMARKET, MarketType.AUCTION);
@@ -94,7 +95,7 @@ class ProductMarketSyncServiceTest {
 		when(coupangClient.syncPriceAndStock(any(), any(), any(), anyInt(), anyBoolean()))
 			.thenThrow(new RuntimeException("쿠팡 API 오류"));
 
-		MarketRepublishResult result = service.syncPriceStock(PRODUCT_ID, 1000, 3);
+		MarketRepublishResult result = service.syncPriceStock(PRODUCT_ID, 1000, StockStatus.IN_STOCK);
 
 		verify(storeClient).syncPriceAndStock(eq("OP99"), any(), eq(1000), eq(999), eq(false));
 		assertThat(result.synced()).containsExactly(MarketType.SMART_STORE);

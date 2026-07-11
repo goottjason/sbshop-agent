@@ -37,12 +37,6 @@ public class ProductMarketSyncService {
 		return syncInternal(productId, price, quantity, soldOut);
 	}
 
-	/** 임시 호환 오버로드(기존 caller 유지용). stock<=0 → 품절. Task 4에서 caller 이관 후 제거. */
-	public MarketRepublishResult syncPriceStock(Long productId, Integer price, Integer stock) {
-		StockStatus status = (stock == null || stock <= 0) ? StockStatus.OUT_OF_STOCK : StockStatus.IN_STOCK;
-		return syncPriceStock(productId, price, status);
-	}
-
 	private MarketRepublishResult syncInternal(Long productId, Integer price, int quantity, boolean soldOut) {
 		List<MarketRegistration> registrations = marketRegistrationRepository.findByProductId(productId);
 		List<MarketType> synced = new ArrayList<>();

@@ -8,6 +8,7 @@ import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
 import com.sbshop.agent.core.domain.product.component.ProductWriter;
 import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
+import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import com.sbshop.agent.core.domain.product.service.MarginCalculator;
 import com.sbshop.agent.core.application.product.event.BatchCompletedEvent;
@@ -70,7 +71,7 @@ public class BatchPriceStockService {
 
 				// D-060: 배치 갱신분도 연동 마켓에 반영(단건과 동일 경로). 부분 실패는 메시지로 표면화.
 				MarketRepublishResult sync = productMarketSyncService.syncPriceStock(
-					productId, salePrice != null ? salePrice.intValue() : null, result.stock());
+					productId, salePrice != null ? salePrice.intValue() : null, result.status());
 				processStatusService.markSuccess(batchId, product.getSbCode(),
 					String.format("가격:%s, 재고:%d · 마켓반영 성공%d/스킵%d/실패%d%s",
 						salePrice, result.stock(), sync.synced().size(), sync.skipped().size(), sync.failed().size(),
@@ -117,8 +118,10 @@ public class BatchPriceStockService {
 				productWriter.save(product);
 
 				// D-060: 배치(수동) 갱신분도 연동 마켓에 반영.
+				StockStatus stockStatus = (stock == null || stock <= 0)
+					? StockStatus.OUT_OF_STOCK : StockStatus.IN_STOCK;
 				MarketRepublishResult sync = productMarketSyncService.syncPriceStock(
-					productId, price != null ? price.intValue() : null, stock);
+					productId, price != null ? price.intValue() : null, stockStatus);
 				processStatusService.markSuccess(batchId, product.getSbCode(),
 					String.format("가격:%s->%s, 재고:%d->%d · 마켓반영 성공%d/스킵%d/실패%d%s",
 						oldPrice, price, oldStock, stock, sync.synced().size(), sync.skipped().size(),
