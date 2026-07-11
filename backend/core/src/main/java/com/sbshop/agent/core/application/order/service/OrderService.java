@@ -21,6 +21,7 @@ import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
@@ -138,6 +139,17 @@ public class OrderService {
 		// 주문 조회
 		Order order = orderRepository.findById(id)
 			.orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
+
+		// G마켓/옥션은 Cafe24 주문상태 API로 실제 취소를 전파(그 외 마켓은 현행 로컬-only 유지).
+		MarketType mt = order.getMarketType();
+		if (mt == MarketType.GMARKET || mt == MarketType.AUCTION) {
+			try {
+				marketplaceShippingService.cancelOrderToMarketplace(order);
+			} catch (Exception e) {
+				log.error("마켓 주문취소 전파 실패: order={} ({}): {}", id, order.getMarketOrderNo(), e.getMessage());
+				throw new RuntimeException("마켓 주문취소 실패: " + e.getMessage(), e);
+			}
+		}
 
 		// 라인아이템 배송상태를 CANCELED로 변경
 		List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
