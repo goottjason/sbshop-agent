@@ -1100,3 +1100,35 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - **D-070(후보)**: `ElevenstOrderAdapter.parseOrderElement`(line 325)도 `emptyToNull` 미적용 — complete/packaging/dlvcompleted 경로에서 psnCscUniqNo 태그 부재 시 ""가 null-guard 통과해 기존 통관번호 덮어쓸 잠복 위험(qa-verifier 배치A 발견). D-066과 동일 정규화 적용 권고. 리스크 표준.
 - **D-071(후보)**: `SmartStoreOrderSyncService.postSyncProcess`(line 203) 빈 메서드 — 스마트스토어 취소/반품 동기화 전무(쿠팡 detectCancellations 패턴 미적용). 리스크 표준.
 - **D-072(후보)**: D-069 배송 전송 실패를 컨트롤러/응답 DTO까지 전달해 UI 토스트로 표면화(현재 서비스 로그+상태까지만). 리스크 경량.
+
+---
+
+## 사이클 21 (동기화가 수기 편집을 덮어쓰는 구조적 결함, 2026-07-11, 사용자 신고)
+
+> 출처: `_workspace/scout_report_overwrite.md`. 사용자 통찰: 통관 검증상태(대기중→정상/불일치)를 수기 처리해도 동기화가 다시 덮어씀 — 통관번호에 국한되지 않고 "우리 DB에서만 관리·외부 마켓 미전송" 필드(통관검증상태·주소·우편번호) 전반의 수기보정 보호 문제. 리더 코드 확정: updateCustomsClearanceNo 무조건 PENDING 리셋.
+
+### D-073: 통관 검증상태 무조건 리셋 (OVW-1/OVW-3/OVW-4)
+- 심각도 P1 / 리스크 표준 / 상태 수정완료(검증대기)
+- 수정(사이클 21): `Order.updateCustomsClearanceNo`를 번호 실제 변경 시에만 PENDING/NONE 리셋하도록 변경, 불변이면 기존 상태/검증인 유지. Red 테스트 `OrderCustomsClearanceNoTest`(신규) 3케이스. `:core:test` 전체 통과. 요약 `_workspace/fixes/D-073.md`.
+- 증상: 사용자가 통관 검증 완료(VALID/INVALID_*) 후 다음 마켓 동기화에서 같은 통관번호가 재하달되면 customsStatus=PENDING·verifiedPerson=NONE으로 리셋 → 수기 검증 소실. VALID→PENDING 되돌림이 통관 스케줄러 재검증 루프도 유발(OVW-4).
+- 근본원인(확정): `Order.java:122~128` `updateCustomsClearanceNo`가 번호 변경 여부 무관 항상 PENDING/NONE 세팅. 호출부 5마켓 SyncService(SmartStore:135·Coupang:237·Elevenst:135·Esmplus:153·Cafe24:167) 모두 `if(no!=null)`만 가드 → 번호 불변인데 재호출 시 리셋. 사용자 수기 통관번호 수정 경로(OrderService:214)도 동일(OVW-3).
+- 수정방향(최소안): `updateCustomsClearanceNo`를 "번호가 실제 변경된 경우에만 PENDING/NONE 리셋, 불변이면 기존 상태/검증인 유지"로 변경. Order.java 1메서드만. 5 SyncService 불변. 정책: 번호 변경 시 재검증 필요(사용자 사고모델 일치)로 채택.
+- 영향: `Order.java`
+- 리스크: 낮음(번호 변경 시 기존 무효화 유지).
+
+### D-074: 주소/우편번호 수기보정 동기화 덮어쓰기 (OVW-2)
+- 심각도 P2 / 리스크 표준 / 상태 수정완료(검증대기) — 수정요지 `_workspace/fixes/D-074.md`
+- 증상: 사용자가 주소를 수기 보정해도 스마트스토어/11번가/ESM+ 동기화가 마켓 값으로 덮어씀. 쿠팡·Cafe24는 progressed(진행) 시 protectAddress 가드 있으나 이 3마켓엔 없음. 또 zipcode는 쿠팡·Cafe24 가드에서도 미보호(주소만 null 치환, 우편번호는 마켓 값 덮음).
+- 근본원인(확정): `CoupangOrderSyncService:224`·`Cafe24OrderSyncService:150` protectAddress 존재. `SmartStore/Elevenst/EsmplusOrderSyncService.updateOrderInfoFromDto`는 lineItems 미수신 → 가드 부재, `order.update(...,dto.getAddress(),...)` 무조건. `Order.update`는 non-null이면 덮어씀. zipcode도 세트 보호 필요.
+- 수정방향(표준안): 3마켓 updateOrderInfoFromDto에 lineItems 전달 + 쿠팡/Cafe24 패턴(protectAddress=progressed lineitem 존재)의 주소 보호 이식. 추가로 protectAddress 시 zipcode도 함께 null 치환(전 마켓)해 주소·우편번호 세트 보호.
+- 영향: `SmartStoreOrderSyncService.java`, `ElevenstOrderSyncService.java`, `EsmplusOrderSyncService.java`, `CoupangOrderSyncService.java`, `Cafe24OrderSyncService.java`(zipcode 세트 보호)
+- 리스크: 표준(5 SyncService 다파일).
+
+### 사이클 21 배치
+- D-073(Order.java, P1) + D-074(5 SyncService) 파일 비겹침 → 병렬. 둘 다 행위 변경. 커밋 분리.
+
+### 사이클 21 검증·커밋 결과 (2026-07-11)
+- **검증통과·커밋**: D-073(통관 검증상태 번호변경시에만 리셋, 커밋 33a1b4e), D-074(주소/우편번호 protectAddress 일관화+세트보호, 3fda643). qa PASS(_workspace/verify/cycle21_verdict.md) + 리더 게이트 :core:test 113/0·:api:test 8/0. 리스크 표준(자율 통과).
+- 결함 상태: D-073·D-074 = 검증통과. OVW-3/OVW-4는 D-073로 자동 해소.
+- 라이브 확인 권고: (a) 스마트스토어/11번가/ESM+가 통관번호를 실제 하달하는지(하달 안 하면 OVW-1 해당마켓 미발현). (b) "번호 변경 시 재검증(PENDING)" 정책이 업무규칙에 맞는지 사용자 확인.
+- 미착수 후속(원장 유지): D-070(parseOrderElement emptyToNull)·D-071(스마트스토어 postSyncProcess 취소/반품)·D-072(배송실패 UI 표면화).
