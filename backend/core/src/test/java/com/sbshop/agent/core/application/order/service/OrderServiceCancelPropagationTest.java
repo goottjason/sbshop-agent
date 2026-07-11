@@ -3,6 +3,7 @@ package com.sbshop.agent.core.application.order.service;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -15,8 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import com.sbshop.agent.core.domain.order.Order;
@@ -29,7 +28,6 @@ import com.sbshop.agent.core.domain.order.repository.OrderRepository;
  * 그 외 마켓(쿠팡 등)은 로컬-only(현행 유지)임을 고정한다.
  */
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 class OrderServiceCancelPropagationTest {
 
 	@Mock private OrderRepository orderRepository;
@@ -90,7 +88,9 @@ class OrderServiceCancelPropagationTest {
 	void gmarketCancelFails_throwsRuntimeException() {
 		Order order = orderOf(MarketType.GMARKET);
 		when(orderRepository.findById(4L)).thenReturn(Optional.of(order));
-		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of());
+		// cancelOrderToMarketplace가 예외를 던지면 아이템 루프에 도달하지 않으므로
+		// findByOrderId 스텁은 실행 경로상 사용되지 않는다 — lenient 범위 지정.
+		lenient().when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of());
 		doThrow(new RuntimeException("G마켓 취소 API 오류"))
 			.when(marketplaceShippingService).cancelOrderToMarketplace(order);
 

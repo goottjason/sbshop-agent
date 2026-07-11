@@ -110,17 +110,13 @@ public class MarketplaceShippingService {
 		return MarketShippingResult.ofSent();
 	}
 
-	/** 마켓에 주문 취소 요청 */
+	/** 마켓에 주문 취소 요청. Cafe24 기반(G마켓/옥션)은 마켓 자격증명이 아니라 Cafe24 토큰으로 인증하므로
+	 *  cred가 없어도 포트에 위임한다(송장 역전송 경로와 동일 규율). 포트 호출 실패는 상위로 전파한다. */
 	public void cancelOrderToMarketplace(Order order) {
 
-		// 마켓크레덴셜 조회
+		// 마켓크레덴셜 조회(nullable). Cafe24 기반 취소(G마켓/옥션)는 마켓 자격증명이 아니라
+		// Cafe24 토큰을 쓰므로, cred가 없어도 조기 종료하지 않고 포트에 위임한다.
 		MarketCredential cred = credentialRepository.findByMarketType(order.getMarketType()).orElse(null);
-		if (cred == null) {
-			log.warn("마켓 인증 정보 없음: market={}", order.getMarketType());
-			return;
-		}
-
-		// 마켓에 취소 요청
 		MarketOrderPort port = getPort(order.getMarketType());
 		port.cancelOrder(cred, order);
 
