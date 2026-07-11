@@ -7,7 +7,30 @@ import {
 } from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchOrders, updateOrder, updateOrderLineItem, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, deleteOrder, syncProductStock, fetchSyncStatus } from '../api/orderApi';
-import type { OrderGridDto } from '../api/orderApi';
+import type { OrderGridDto, ProductDto } from '../api/orderApi';
+
+// 재고현황 셀 표시 규칙(순수 함수, 테스트 가능):
+// - IN_STOCK → 구입가능 뱃지만(재입고일 행 없음)
+// - OUT_OF_STOCK + restockDate → 품절 뱃지 + 입고일 행
+// - OUT_OF_STOCK + 무재입고일 → 품절 뱃지만
+// - 그 외(null/undefined) → '-'
+// updatedAt은 존재할 때만 상대시각으로 표시(재고 반영시각 프록시).
+export interface StockCellInfo {
+  badge: 'IN_STOCK' | 'OUT_OF_STOCK' | 'NONE';
+  restockDate?: string;
+  updatedAt?: string;
+}
+export function stockCellInfo(product?: ProductDto): StockCellInfo {
+  const status = product?.stockStatus;
+  const updatedAt = product?.updatedAt || undefined;
+  if (status === 'IN_STOCK') {
+    return { badge: 'IN_STOCK', updatedAt };
+  }
+  if (status === 'OUT_OF_STOCK') {
+    return { badge: 'OUT_OF_STOCK', restockDate: product?.restockDate || undefined, updatedAt };
+  }
+  return { badge: 'NONE', updatedAt };
+}
 import { toast } from 'react-toastify';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 
@@ -1010,15 +1033,19 @@ const OrderGrid: React.FC = () => {
       cell: ({ row }) => {
         if (row.original.rowType === 'product') return null;
         if (row.original.rowType === 'fulfillment') return null;
-        const val = row.original.product?.stockStatus;
-        const restockDate = row.original.product?.restockDate;
+        const info = stockCellInfo(row.original.product);
         let badge = <span style={{ color: '#999' }}>-</span>;
-        if (val === 'IN_STOCK') badge = <span style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>구입가능</span>;
-        if (val === 'OUT_OF_STOCK') badge = <span style={{ backgroundColor: '#ffebee', color: '#c62828', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>품절</span>;
+        if (info.badge === 'IN_STOCK') badge = <span style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>구입가능</span>;
+        if (info.badge === 'OUT_OF_STOCK') badge = <span style={{ backgroundColor: '#ffebee', color: '#c62828', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>품절</span>;
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
             <div>{badge}</div>
-            <div style={{ fontSize: '11px', color: '#666' }}>{restockDate ? `입고: ${restockDate}` : '( - )'}</div>
+            {info.restockDate && (
+              <div style={{ fontSize: '11px', color: '#666' }}>{`입고: ${info.restockDate}`}</div>
+            )}
+            {info.updatedAt && (
+              <div style={{ fontSize: '10px', color: '#999' }}>{timeAgo(info.updatedAt)}</div>
+            )}
           </div>
         );
       }
