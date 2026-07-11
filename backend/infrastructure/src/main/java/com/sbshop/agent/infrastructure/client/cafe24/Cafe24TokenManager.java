@@ -151,9 +151,13 @@ public class Cafe24TokenManager {
 
 	public String generateAuthorizationUrl(MarketCredential credential) {
 		String apiUrl = "https://" + credential.getClientId() + ".cafe24api.com/api/v2";
-		// 주문 조회(read_order)를 추가해야 G마켓/옥션(order_place_id) 주문을 가져올 수 있다.
-		// (송장 등록 write_order·택배사 read_shipping는 배송 역전송 구현 시 추가.)
-		String scope = "mall.read_product,mall.write_product,mall.read_order";
+		// 앱에 허용된 전체 권한(상품·판매분류·주문·배송 읽기+쓰기). 주문 조회(read_order)로 G마켓/옥션 주문을,
+		// write_order/read_shipping로 송장 역전송을 커버.
+		String scope = "mall.read_application,mall.write_application,"
+			+ "mall.read_product,mall.write_product,"
+			+ "mall.read_collection,mall.write_collection,"
+			+ "mall.read_order,mall.write_order,"
+			+ "mall.read_shipping,mall.write_shipping";
 		return String.format(
 			"%s/oauth/authorize?response_type=code&client_id=%s&state=shouldbeshopping&redirect_uri=%s&scope=%s",
 			apiUrl, credential.getAccessKey(), credential.getRedirectUri(), scope);

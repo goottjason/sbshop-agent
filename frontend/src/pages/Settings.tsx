@@ -30,7 +30,7 @@ const Settings = () => {
 
   const cafe24AuthUrl =
     formData.clientId && formData.accessKey && formData.redirectUri
-      ? `https://${formData.clientId}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${formData.accessKey}&state=shouldbeshopping&redirect_uri=${formData.redirectUri}&scope=mall.read_product,mall.write_product,mall.read_order`
+      ? `https://${formData.clientId}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${formData.accessKey}&state=shouldbeshopping&redirect_uri=${formData.redirectUri}&scope=mall.read_application,mall.write_application,mall.read_product,mall.write_product,mall.read_collection,mall.write_collection,mall.read_order,mall.write_order,mall.read_shipping,mall.write_shipping`
       : '';
 
   const { data: credentials, isLoading } = useQuery({
