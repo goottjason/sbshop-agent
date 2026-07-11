@@ -1,8 +1,6 @@
 package com.sbshop.agent.infrastructure.lock;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -21,7 +19,7 @@ class PostgresAdvisoryTokenRefreshLockTest {
 	@Test
 	@DisplayName("advisory lock을 획득하고 action 결과를 반환한다")
 	void acquiresLockThenRunsAction() {
-		when(jdbcTemplate.queryForObject(any(String.class), eq(Object.class), eq(42L)))
+		when(jdbcTemplate.queryForObject("SELECT pg_advisory_xact_lock(?)", Object.class, 42L))
 			.thenReturn(0);
 		var lock = new PostgresAdvisoryTokenRefreshLock(jdbcTemplate);
 
