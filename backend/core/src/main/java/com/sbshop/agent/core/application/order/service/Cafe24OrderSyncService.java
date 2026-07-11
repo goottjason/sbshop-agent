@@ -11,6 +11,7 @@ import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
+import com.sbshop.agent.core.domain.order.vo.CustomsData;
 import com.sbshop.agent.core.domain.order.vo.SettlementData;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import java.math.BigDecimal;
@@ -119,6 +120,7 @@ public class Cafe24OrderSyncService {
 	private void createOrder(JsonNode o, MarketType marketType) {
 		JsonNode receiver = firstOf(o.path("receivers"));
 		JsonNode buyer = o.path("buyer");
+		String pccc = extractPccc(buyer, receiver, o);
 
 		Order order = Order.builder()
 			.marketType(marketType)
@@ -129,6 +131,7 @@ public class Cafe24OrderSyncService {
 			.zipcode(text(receiver, "zipcode"))
 			.address(receiverAddress(receiver))
 			.message(text(receiver, "shipping_message"))
+			.customsData(pccc != null ? CustomsData.builder().customsClearanceNo(pccc).build() : null)
 			.ordererName(firstNonBlank(text(buyer, "name"), text(o, "order_place_name")))
 			.ordererPhone(firstNonBlank(text(buyer, "cellphone"), text(buyer, "phone")))
 			.marketSpecificData(buildMarketSpecific(o))
@@ -158,6 +161,11 @@ public class Cafe24OrderSyncService {
 			firstNonBlank(text(buyer, "cellphone"), text(buyer, "phone")),
 			null,
 			marketType);
+		// 통관번호는 non-blank일 때만 반영(기존값 보존). blank면 갱신하지 않음.
+		String pccc = extractPccc(buyer, receiver, o);
+		if (pccc != null) {
+			order.updateCustomsClearanceNo(pccc);
+		}
 		orderRepository.save(order);
 
 		// 배송상태만 갱신(트래킹은 마켓 전송 가드가 있는 별도 경로에서 관리)
@@ -206,6 +214,43 @@ public class Cafe24OrderSyncService {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * 개인통관고유부호(PCCC)를 buyer/receiver/order 노드에서 방어적으로 추출한다.
+	 * Cafe24 주문 API의 정확한 PCCC 필드명이 문서로 100% 확정되지 않아, 알려진 후보 키들을
+	 * buyer→receiver→order 순으로 순차 시도한다. 모두 blank면 null(기존값 미변경)을 반환하고,
+	 * 못 찾은 경우 노드의 key 목록을 debug로 남겨 라이브 preview에서 실제 필드명을 확정할 수 있게 한다.
+	 * PII 보호: 통관번호 값 자체는 info로 평문 로깅하지 않는다.
+	 */
+	private static final String[] PCCC_KEYS = {
+		"personal_customs_clearance_code", "personal_customs_code", "customs_clearance_code",
+		"clearance_code", "customs_no", "personal_customs_number", "pccc"
+	};
+
+	private String extractPccc(JsonNode buyer, JsonNode receiver, JsonNode order) {
+		for (JsonNode node : new JsonNode[] {buyer, receiver, order}) {
+			for (String key : PCCC_KEYS) {
+				String v = text(node, key);
+				if (v != null && !v.isBlank()) {
+					return v.trim();
+				}
+			}
+		}
+		if (log.isDebugEnabled()) {
+			log.debug("[CAFE24-ORDER] PCCC 미검출 orderId={} buyerKeys={} receiverKeys={}",
+				order.path("order_id").asText(""), fieldNames(buyer), fieldNames(receiver));
+		}
+		return null;
+	}
+
+	private String fieldNames(JsonNode node) {
+		if (node == null || !node.isObject()) {
+			return "[]";
+		}
+		StringBuilder sb = new StringBuilder("[");
+		node.fieldNames().forEachRemaining(n -> sb.append(n).append(","));
+		return sb.append("]").toString();
 	}
 
 	// ── 매핑/파싱 유틸 ──

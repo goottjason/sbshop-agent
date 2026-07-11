@@ -61,13 +61,44 @@ class Cafe24OrderSyncServiceTest {
 			{"orders":[
 			  {"order_id":"20240711-0000001","order_place_id":"gmarket","order_place_name":"지마켓",
 			   "order_date":"2024-07-11T12:00:00+09:00","market_order_no":"GM123",
-			   "buyer":{"name":"홍길동","cellphone":"010-1111-2222"},
+			   "buyer":{"name":"홍길동","cellphone":"010-1111-2222",
+			      "personal_customs_clearance_code":"P012345678901"},
 			   "receivers":[{"name":"김수취","cellphone":"010-3333-4444","zipcode":"12345",
 			      "address_full":"서울시 강남구 테헤란로","shipping_message":"문앞"}],
 			   "items":[{"product_no":"7034","product_code":"P7034","product_name":"테스트상품",
 			      "quantity":2,"payment_amount":"10000","order_status":"N10","tracking_no":""}]},
 			  {"order_id":"CP-999","order_place_id":"coupang","order_date":"2024-07-11T12:00:00+09:00",
 			   "buyer":{},"receivers":[],"items":[]}
+			]}
+			""";
+		return MAPPER.readTree(json).path("orders");
+	}
+
+	/** 통관번호가 receivers 쪽 후보 키(clearance_code)로만 오는 케이스. */
+	private JsonNode ordersJsonPcccOnReceiver() throws Exception {
+		String json = """
+			{"orders":[
+			  {"order_id":"20240711-0000002","order_place_id":"auction","order_place_name":"옥션",
+			   "order_date":"2024-07-11T12:00:00+09:00","market_order_no":"AU123",
+			   "buyer":{"name":"홍길동","cellphone":"010-1111-2222"},
+			   "receivers":[{"name":"김수취","cellphone":"010-3333-4444","zipcode":"12345",
+			      "address_full":"서울시 강남구","clearance_code":"R098765432109"}],
+			   "items":[{"product_no":"7034","quantity":1,"payment_amount":"5000","order_status":"N10"}]}
+			]}
+			""";
+		return MAPPER.readTree(json).path("orders");
+	}
+
+	/** 통관번호 필드가 어디에도 없는 케이스(회귀: null 유지). */
+	private JsonNode ordersJsonNoPccc() throws Exception {
+		String json = """
+			{"orders":[
+			  {"order_id":"20240711-0000003","order_place_id":"gmarket","order_place_name":"지마켓",
+			   "order_date":"2024-07-11T12:00:00+09:00","market_order_no":"GM999",
+			   "buyer":{"name":"홍길동","cellphone":"010-1111-2222"},
+			   "receivers":[{"name":"김수취","cellphone":"010-3333-4444","zipcode":"12345",
+			      "address_full":"서울시 강남구"}],
+			   "items":[{"product_no":"7034","quantity":1,"payment_amount":"5000","order_status":"N10"}]}
 			]}
 			""";
 		return MAPPER.readTree(json).path("orders");
@@ -94,11 +125,56 @@ class Cafe24OrderSyncServiceTest {
 		assertThat(saved.getRecipientPhone()).isEqualTo("010-3333-4444");
 		assertThat(saved.getAddress()).isEqualTo("서울시 강남구 테헤란로");
 		assertThat(saved.getOrdererName()).isEqualTo("홍길동");
+		assertThat(saved.getCustomsData().getCustomsClearanceNo()).isEqualTo("P012345678901"); // buyer PCCC 추출
 
 		ArgumentCaptor<OrderLineItem> itemCaptor = ArgumentCaptor.forClass(OrderLineItem.class);
 		verify(orderLineItemRepository, times(1)).save(itemCaptor.capture());
 		OrderLineItem item = itemCaptor.getValue();
 		assertThat(item.getQuantity()).isEqualTo(2);
 		assertThat(item.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.NEW); // N10 → NEW
+	}
+
+	@Test
+	@DisplayName("통관번호가 receiver 후보 키(clearance_code)에만 있어도 추출해 저장한다")
+	void extractsPcccFromReceiverFallback() throws Exception {
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
+			.thenReturn(ordersJsonPcccOnReceiver());
+		when(orderRepository.findByMarketOrderNo("20240711-0000002")).thenReturn(Optional.empty());
+
+		service.fetchAndPersist(java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now());
+
+		ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+		verify(orderRepository, times(1)).save(orderCaptor.capture());
+		assertThat(orderCaptor.getValue().getCustomsData().getCustomsClearanceNo()).isEqualTo("R098765432109");
+	}
+
+	@Test
+	@DisplayName("통관번호 필드가 없으면 customsClearanceNo는 null로 유지(회귀)")
+	void keepsPcccNullWhenAbsent() throws Exception {
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
+			.thenReturn(ordersJsonNoPccc());
+		when(orderRepository.findByMarketOrderNo("20240711-0000003")).thenReturn(Optional.empty());
+
+		service.fetchAndPersist(java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now());
+
+		ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+		verify(orderRepository, times(1)).save(orderCaptor.capture());
+		assertThat(orderCaptor.getValue().getCustomsData().getCustomsClearanceNo()).isNull();
+	}
+
+	@Test
+	@DisplayName("업데이트 시 PCCC가 있으면 기존 주문에 반영, 없으면 기존값 보존")
+	void updateReflectsPcccWhenPresentOnly() throws Exception {
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
+			.thenReturn(ordersJson());
+		Order existing = Order.builder()
+			.marketType(MarketType.GMARKET).marketOrderNo("20240711-0000001")
+			.orderDate(java.time.LocalDateTime.now()).build();
+		when(orderRepository.findByMarketOrderNo("20240711-0000001")).thenReturn(Optional.of(existing));
+		when(orderLineItemRepository.findByOrderId(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
+
+		service.fetchAndPersist(java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now());
+
+		assertThat(existing.getCustomsData().getCustomsClearanceNo()).isEqualTo("P012345678901");
 	}
 }
