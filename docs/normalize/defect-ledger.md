@@ -1165,3 +1165,35 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 결함 상태: D-075·D-076 = 검증통과.
 - 라이브 확인: D-075 — `GET /api/admin/sync/cafe24/status`로 connected/재인증 필요 판별, 재인증 후 preview 정상 확인. D-076 — 각 액션 클릭 후 진행현황에 STARTED/SUCCESS/FAILED 표시 확인.
 - 후속(원장 유지): 배치(B1~B4) 비동기 완료 SUCCESS/FAILED 기록(2차), 활동로그 AOP 리팩토링(선택). 기존 D-070~072 + 사이클20 라이브 잔여.
+
+---
+
+## 사이클 23 (상품관리 액션 상세로그 + 소스이미지 크롤 무반응, 2026-07-11, 사용자 신고)
+
+> 출처: `_workspace/scout_report_product_actions.md`. 신고 (1) 가격/재고 수정 활동로그가 "성공"만 뜸→마켓별 상세 원함, (2) 소스이미지 크롤 버튼 무반응+진행현황 미표시(이미지 교체 중요).
+
+### D-077: 가격/재고·이미지 활동로그 마켓별 상세 미표시 (PA-1)
+- 심각도 P3 / 리스크 경량 / 상태 수정완료(검증대기) — `_workspace/fixes/D-077_078.md`
+- 증상: `ProductController.updatePriceStock`(:106)이 `MarketRepublishResult`(synced/skipped/failed)를 받고도 "가격/재고 수정 성공 (상품 N)"만 기록. 사용자는 "DB 성공, 쿠팡 7283748383 성공, 스마트스토어 2939395 실패(사유), 카페24 3938 성공" 형태 원함.
+- 근본원인: 컨트롤러가 result 내용을 메시지에 미반영. MarketRepublishResult엔 marketItemId 없음(MarketRegistration.extractMarketCode로 조회 가능, ProductController가 이미 MarketRegistrationRepository 주입).
+- 수정방향(방법 A, 최소): SUCCESS 블록에서 result.synced/skipped/failed + marketRegistrationRepository.findByProductId(id)로 마켓→상품번호 맵 조립해 "DB 저장 완료 | 쿠팡 {번호} 성공, 스마트스토어 {번호} 실패({사유50자})" 포맷. 실패사유 50자 절단, message 1000자 truncate 기존 유지. 동일 패턴 uploadImages·uploadImagesByUrl에도 적용.
+- 영향: `ProductController.java`(주). MarketRepublishResult/프론트 토스트 상품번호는 방법 B(파급 큼)라 후순위.
+
+### D-078: 소스이미지 크롤 버튼 무반응 + 활동로그 미배선 (PA-2)
+- 심각도 P2 / 리스크 표준 / 상태 수정완료(검증대기) — `_workspace/fixes/D-077_078.md`
+- 증상: 상세모달 "소스 이미지 크롤" 버튼 눌러도 무반응, 진행현황 미기록. 이미지 교체 작업 핵심 경로.
+- 근본원인: (a) 프론트 `ProductPage.tsx:535` `disabled={d.vendor!=='IHB'}` — 비-iHerb 버튼 비활성인데 antd disabled 버튼은 Tooltip도 안 떠 "먹통"으로 체감. iHerb라도 크롤 결과 빈응답이면 피드백 없음. (b) 백엔드 `crawlSourceImages`(ProductController:156~)에 activityLog record 미배선(D-076 커버리지 누락), ActionLogConstants에 상수 없음.
+- 수정방향: (프론트) 버튼 항상 클릭 가능+handleCrawl에서 비-iHerb warning·크롤 결과 피드백(N개 수집/없음/실패 토스트)·loading 유지. (백엔드) ActionLogConstants.SOURCE_IMAGE_CRAWL 추가 + crawlSourceImages에 record(성공 이미지수/빈결과/실패). 
+- 영향: `frontend/src/pages/ProductPage.tsx`, `ProductController.java`, `ActionLogConstants.java`
+- 참조: D-049(과거 소스이미지 크롤 비-iHerb 무음실패 수정) 후속.
+
+### 사이클 23 배치
+- D-077·D-078 모두 ProductController.java 수정 → 파일 충돌 방지 위해 단일 fixer 일괄. 행위+기능 변경.
+
+### 사이클 23 검증·커밋 결과 (2026-07-11)
+- **검증통과·커밋**: D-077(가격재고·이미지 활동로그 마켓별 상세), D-078(소스이미지 크롤 무반응+활동로그 배선). 단일 커밋 d8c7b74(ProductController 공유).
+- 리더 직접 게이트: :core:test·:api:test 코드테스트 통과(신규 ProductControllerActionLogDetailTest 5건), 프론트 tsc 0·build ✓. Docker 컨텍스트 스모크 3건은 로컬 환경제약(cycle 무관).
+- 리더 보완: ProcessStatusPage에 SOURCE_IMAGE_CRAWL 한글 라벨 추가(fixer 대상 외 갭).
+- 결함 상태: D-077·D-078 = 검증통과.
+- 라이브 확인: 가격/재고 수정 후 진행현황 마켓별 상세(상품번호 포함) 실측, iHerb 크롤→SOURCE_IMAGE_CRAWL 기록·비-iHerb 클릭→warning 표시.
+- 후속: 프론트 토스트/가격재고 상품번호는 방법B(MarketRepublishResult 확장)로 후순위. 배치 비동기 완료기록·AOP·D-070~072·사이클20 라이브 잔여 유지.
