@@ -28,5 +28,7 @@ class PostgresAdvisoryTokenRefreshLockTest {
 		assertThat(result).isEqualTo("DONE");
 		verify(jdbcTemplate)
 			.queryForObject("SELECT pg_advisory_xact_lock(?)", Object.class, 42L);
+		verify(jdbcTemplate).execute("SET LOCAL statement_timeout = '15000'");
+		verify(jdbcTemplate).execute("SET LOCAL idle_in_transaction_session_timeout = '15000'");
 	}
 }
