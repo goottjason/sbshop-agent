@@ -5,9 +5,6 @@ dependencies {
     implementation 'org.mindrot:jbcrypt:0.4'
     implementation 'org.jsoup:jsoup:1.17.2'
     
-    // Selenium WebDriver (ESM+ 웹 스크래핑용)
-    implementation 'org.seleniumhq.selenium:selenium-java:4.16.1'
-    
     // QueryDSL
     implementation 'com.querydsl:querydsl-jpa:5.0.0:jakarta'
     annotationProcessor "com.querydsl:querydsl-apt:5.0.0:jakarta"

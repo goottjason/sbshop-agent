@@ -16,12 +16,10 @@ import com.sbshop.agent.core.application.order.service.Cafe24OrderSyncService;
 import com.sbshop.agent.core.application.order.service.CoupangOrderSyncService;
 import com.sbshop.agent.core.application.order.service.CustomsOrderSyncService;
 import com.sbshop.agent.core.application.order.service.ElevenstOrderSyncService;
-import com.sbshop.agent.core.application.order.service.EsmplusOrderSyncService;
 import com.sbshop.agent.core.application.order.service.SmartStoreOrderSyncService;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
-import com.sbshop.agent.infrastructure.client.esmplus.EsmplusScraper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,16 +37,11 @@ public class OrderSyncController {
 	private final SmartStoreOrderSyncService smartStoreOrderSyncService;
 	// 11번가 주문 동기화 서비스 의존성
 	private final ElevenstOrderSyncService elevenstOrderSyncService;
-	// ESM+(G마켓/옥션) 주문 동기화 서비스 의존성
-	private final EsmplusOrderSyncService esmplusOrderSyncService;
-
 	private final Cafe24OrderSyncService cafe24OrderSyncService;
 
 	private final Cafe24OrderApiPort cafe24OrderApiPort;
 	// 통관 상태 동기화 서비스 의존성
 	private final CustomsOrderSyncService customsOrderSyncService;
-	// ESM+ 웹 스크래퍼
-	private final EsmplusScraper esmplusScraper;
 	// 동기화 상태 추적 서비스
 	private final SyncStatusService syncStatusService;
 	// 사용자 액션 로그 서비스 (D-042)
@@ -233,51 +226,4 @@ public class OrderSyncController {
 		return ResponseEntity.ok(syncStatusService.getAllStatuses());
 	}
 
-	// ESM+ 로그인 테스트 엔드포인트
-	@PostMapping("/esmplus/test")
-	public ResponseEntity<Map<String, Object>> testEsmplusLogin(@RequestBody
-	Map<String, String> request) {
-		log.info("ESM+ 로그인 테스트 요청 수신됨");
-
-		try {
-			String masterId = request.getOrDefault("masterId", System.getenv().getOrDefault("ESMPLUS_USER_ID", ""));
-			String password = request.getOrDefault("password", System.getenv().getOrDefault("ESMPLUS_PASSWORD", ""));
-			String fromDate = request.getOrDefault("fromDate", "2024-06-01");
-			String toDate = request.getOrDefault("toDate", "2024-06-14");
-
-			// Selenium으로 로그인 후 주문 스크래핑
-			Map<String, Object> result = esmplusScraper.loginAndScrapeOrders(masterId, password, fromDate, toDate);
-
-			return ResponseEntity.ok(result);
-		} catch (Exception e) {
-			log.error("ESM+ 로그인 테스트 실패", e);
-			return ResponseEntity.internalServerError().body(Map.of(
-				"success", false,
-				"message", "ESM+ 로그인 테스트 실패: " + e.getMessage()));
-		}
-	}
-
-	// ESM+ 주문 스크래핑 테스트 엔드포인트
-	@PostMapping("/esmplus/scrape")
-	public ResponseEntity<Map<String, Object>> testEsmplusScrape(@RequestBody
-	Map<String, String> request) {
-		log.info("ESM+ 주문 스크래핑 테스트 요청 수신됨");
-
-		try {
-			String masterId = request.getOrDefault("masterId", System.getenv().getOrDefault("ESMPLUS_USER_ID", ""));
-			String password = request.getOrDefault("password", System.getenv().getOrDefault("ESMPLUS_PASSWORD", ""));
-			String fromDate = request.getOrDefault("fromDate", "2024-06-01");
-			String toDate = request.getOrDefault("toDate", "2024-06-14");
-
-			// 로그인 후 주문 스크래핑 (같은 세션)
-			Map<String, Object> result = esmplusScraper.loginAndScrapeOrders(masterId, password, fromDate, toDate);
-
-			return ResponseEntity.ok(result);
-		} catch (Exception e) {
-			log.error("ESM+ 주문 스크래핑 테스트 실패", e);
-			return ResponseEntity.internalServerError().body(Map.of(
-				"success", false,
-				"message", "ESM+ 주문 스크래핑 테스트 실패: " + e.getMessage()));
-		}
-	}
 }
