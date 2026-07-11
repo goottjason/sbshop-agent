@@ -37,7 +37,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class Cafe24OrderSyncService {
 
-	private static final DateTimeFormatter CAFE24_DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+	// Cafe24 주문 API는 start_date/end_date를 날짜(yyyy-MM-dd)로 받는다(시간 포함 시 422 Invalid date format).
+	private static final DateTimeFormatter CAFE24_DT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 	private static final int PAGE = 100;
 
 	private final Cafe24OrderApiPort cafe24OrderApiPort;
@@ -74,8 +75,8 @@ public class Cafe24OrderSyncService {
 	/** 페이지네이션으로 전 주문을 순회하며 저장. G마켓/옥션(order_place_id)만 처리한다. */
 	@Transactional
 	public int fetchAndPersist(LocalDate from, LocalDate to) {
-		String start = from.atStartOfDay().format(CAFE24_DT);
-		String end = to.atTime(23, 59, 59).format(CAFE24_DT);
+		String start = from.format(CAFE24_DT);
+		String end = to.format(CAFE24_DT);
 		int offset = 0;
 		int processed = 0;
 		while (offset <= 15000) {

@@ -148,9 +148,8 @@ public class OrderSyncController {
 		try {
 			java.time.LocalDate to = java.time.LocalDate.now();
 			java.time.LocalDate from = to.minusDays(7);
-			java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-			var orders = cafe24OrderApiPort.fetchOrders(
-				from.atStartOfDay().format(f), to.atTime(23, 59, 59).format(f), 5, 0);
+			java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd");
+			var orders = cafe24OrderApiPort.fetchOrders(from.format(f), to.format(f), 5, 0);
 			return ResponseEntity.ok(Map.of("success", true, "orders", orders));
 		} catch (Exception e) {
 			log.error("Cafe24 주문 프리뷰 실패", e);

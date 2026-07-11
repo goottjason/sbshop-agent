@@ -50,14 +50,19 @@ public class Cafe24AuthController {
 		}
 		// 주문 조회 권한(mall.read_order) 확인 — G마켓/옥션 주문을 가져오려면 필수.
 		try {
-			java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+			java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd");
 			java.time.LocalDate today = java.time.LocalDate.now();
-			cafe24OrderApiPort.fetchOrders(today.minusDays(1).atStartOfDay().format(f),
-				today.atTime(23, 59, 59).format(f), 1, 0);
+			cafe24OrderApiPort.fetchOrders(today.minusDays(1).format(f), today.format(f), 1, 0);
 		} catch (Exception e) {
-			log.warn("[Cafe24] 상태 점검(주문 권한) 실패 — 재인증 필요: {}", e.getMessage());
-			return ResponseEntity.ok(new Cafe24Status(false,
-				"주문 조회 권한(mall.read_order)이 없습니다. 아래에서 재인증하면 주문 권한이 추가됩니다."));
+			String root = rootMessage(e);
+			// 권한(스코프) 문제와 그 외 오류를 구분해 표시(오표기 방지).
+			if (root.contains("insufficient_scope") || root.contains("403")) {
+				log.warn("[Cafe24] 상태 점검: 주문 권한 없음 — 재인증 필요");
+				return ResponseEntity.ok(new Cafe24Status(false,
+					"주문 조회 권한(mall.read_order)이 없습니다. 아래에서 재인증하면 주문 권한이 추가됩니다."));
+			}
+			log.warn("[Cafe24] 상태 점검(주문 API) 오류: {}", root);
+			return ResponseEntity.ok(new Cafe24Status(false, "주문 API 점검 실패: " + root));
 		}
 		return ResponseEntity.ok(new Cafe24Status(true, "정상 연동 중입니다 (상품·주문 권한 확인됨)."));
 	}
@@ -81,6 +86,14 @@ public class Cafe24AuthController {
 				.body(new Cafe24Status(false, "토큰 발급 실패: " + e.getMessage()
 					+ " (인증 코드는 1회용·단시간 유효 — 인증 직후 즉시 발급하세요)"));
 		}
+	}
+
+	private String rootMessage(Throwable e) {
+		Throwable cur = e;
+		while (cur.getCause() != null && cur.getCause() != cur) {
+			cur = cur.getCause();
+		}
+		return String.valueOf(cur.getMessage());
 	}
 
 	/** 전체 리다이렉트 URL을 붙여넣어도 code 파라미터만 뽑아낸다. */
