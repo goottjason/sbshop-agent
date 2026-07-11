@@ -35,8 +35,9 @@ public class Cafe24OAuthTokenHttpClient implements Cafe24OAuthTokenClient {
 			.onStatus(
 				status -> status.is4xxClientError() || status.is5xxServerError(),
 				(req, resp) -> {
-					String errorBody =
-						new String(resp.getBody().readAllBytes(), StandardCharsets.UTF_8);
+					String errorBody = resp.getBody() != null
+						? new String(resp.getBody().readAllBytes(), StandardCharsets.UTF_8)
+						: "(empty body)";
 					throw new RuntimeException("Cafe24 API Error: " + errorBody);
 				})
 			.body(JsonNode.class);
@@ -45,7 +46,10 @@ public class Cafe24OAuthTokenHttpClient implements Cafe24OAuthTokenClient {
 			throw new RuntimeException("Cafe24 토큰 응답에 access_token이 없습니다");
 		}
 		String accessToken = response.get("access_token").asText();
-		String refreshToken = response.get("refresh_token").asText();
+		String refreshToken = response.has("refresh_token") ? response.get("refresh_token").asText() : null;
+		if (!response.has("expires_at")) {
+			throw new RuntimeException("Cafe24 토큰 응답에 expires_at이 없습니다");
+		}
 		String expiresAtStr = response.get("expires_at").asText().replace(" ", "T");
 		var expiresAt = LocalDateTime.parse(expiresAtStr)
 			.atZone(ZoneId.of("Asia/Seoul")).toInstant();
