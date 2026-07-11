@@ -261,10 +261,15 @@ const Settings = () => {
                 </button>
               </div>
 
-              {/* 리프레시 토큰 발급(재인증) — 유효하지 않을 때 강조, 항상 사용 가능 */}
-              {!cafe24Status?.connected && (
+              {/* 리프레시 토큰 발급(재인증) — 항상 노출. 연동돼 있어도 주문 조회 권한(read_order) 추가 등 스코프 갱신에 필요. */}
+              {true && (
                 <div style={{ marginTop: '12px', padding: '16px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px' }}>
-                  <div style={{ fontWeight: 600, marginBottom: 12, color: '#92400e' }}>리프레시 토큰 발급 (재인증)</div>
+                  <div style={{ fontWeight: 600, marginBottom: 12, color: '#92400e' }}>리프레시 토큰 발급 (재인증 / 권한 갱신)</div>
+                  <div style={{ fontSize: 13, color: '#92400e', marginBottom: 12 }}>
+                    {cafe24Status?.connected
+                      ? '연동돼 있어도 주문 조회 권한(mall.read_order 등)이 없으면 G마켓/옥션 주문을 가져올 수 없습니다. 아래로 재인증하면 주문 권한이 추가됩니다.'
+                      : '토큰이 유효하지 않습니다. 아래로 재인증하세요.'}
+                  </div>
                   {!cafe24AuthUrl ? (
                     <div style={{ color: '#b91c1c', fontWeight: 500 }}>
                       ⚠️ Mall ID · Client ID · Redirect URI를 먼저 입력·저장해주세요.
