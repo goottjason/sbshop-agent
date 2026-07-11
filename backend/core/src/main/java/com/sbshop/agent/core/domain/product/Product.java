@@ -35,6 +35,9 @@ import java.sql.Types;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Product extends BaseEntity {
 
+	/** 판매중 상태에서 마켓에 전송하는 기본 재고 수량(실수량 추적 안 함 — 판매중/품절 이분법). */
+	public static final int DEFAULT_IN_STOCK_QUANTITY = 999;
+
 	// --- 1. 기본 식별 정보 (Flat 필드) ---
 
 	@Column(name = "sb_code", unique = true, nullable = false, length = 50)
@@ -152,10 +155,12 @@ public class Product extends BaseEntity {
 		ImageInfo imageInfo = createImageInfo(command);
 		SourcingInfo sourcingInfo = createSourcingInfo(command, safeBrand, hsCode);
 
-		return new Product(
+		Product created = new Product(
 			sbCode, safeBrand, assembledName, safeBaseName, safeOriginalName,
 			category, priceInfo, logisticsInfo, productSpec, sourcingInfo,
 			imageInfo, searchKeywords, finalDetailHtml, "{}");
+		created.updateStockStatus(command.isAvailable() ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK);
+		return created;
 	}
 
 	// --- 6. 도메인 업데이트 ---
@@ -373,7 +378,7 @@ public class Product extends BaseEntity {
 
 	private static LogisticsInfo createLogisticsInfo(ProductCreateCommand command, int bundleQty) {
 		return LogisticsInfo.builder()
-			.stock(command.isAvailable() ? 999 : 0)
+			.stock(DEFAULT_IN_STOCK_QUANTITY)   // 기존: command.isAvailable() ? 999 : 0
 			.weight(defaultIfNull(command.weight(), BigDecimal.ZERO))
 			.bundleQuantity(bundleQty)
 			.build();
