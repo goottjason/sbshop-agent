@@ -5,6 +5,7 @@ import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import java.util.Optional;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class Cafe24TokenManagerFailFastTest {
 
 	@Mock private MarketCredentialRepository marketCredentialRepository;
+	@Mock private com.sbshop.agent.infrastructure.client.cafe24.Cafe24OAuthTokenClient tokenClient;
 
 	@Test
 	@DisplayName("credential/refresh token이 없어 토큰을 못 얻으면 IllegalStateException으로 즉시 실패한다")
@@ -29,7 +31,13 @@ class Cafe24TokenManagerFailFastTest {
 		when(marketCredentialRepository.findByMarketType(org.mockito.ArgumentMatchers.any()))
 			.thenReturn(Optional.empty());
 
-		Cafe24TokenManager manager = new Cafe24TokenManager(marketCredentialRepository);
+		Cafe24TokenManager manager = new Cafe24TokenManager(
+			marketCredentialRepository, tokenClient,
+			new com.sbshop.agent.core.domain.market.TokenRefreshLock() {
+				@Override public <T> T runExclusively(long key, Supplier<T> a) {
+					return a.get();
+				}
+			});
 
 		assertThatThrownBy(manager::getValidAccessToken)
 			.isInstanceOf(IllegalStateException.class)
