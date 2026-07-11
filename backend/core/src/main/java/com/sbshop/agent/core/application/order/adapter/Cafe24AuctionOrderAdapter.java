@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.order.adapter;
 
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
+import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
 import com.sbshop.agent.core.application.order.port.MarketOrderPort;
 import com.sbshop.agent.core.application.order.service.Cafe24ShipmentService;
 import com.sbshop.agent.core.domain.market.MarketCredential;
@@ -24,6 +25,7 @@ import org.springframework.stereotype.Component;
 public class Cafe24AuctionOrderAdapter implements MarketOrderPort {
 
 	private final Cafe24ShipmentService cafe24ShipmentService;
+	private final Cafe24OrderApiPort cafe24OrderApiPort;
 
 	@Override
 	public MarketType getMarketType() {
@@ -44,7 +46,11 @@ public class Cafe24AuctionOrderAdapter implements MarketOrderPort {
 
 	@Override
 	public void acceptOrders(MarketCredential credential, Order order) {
-		// Cafe24 주문은 배송 등록 시 처리되므로 별도 발주확인 불필요.
-		log.debug("[옥션/Cafe24] 발주확인 스킵: order={}", order.getMarketOrderNo());
+		cafe24OrderApiPort.acceptOrder(order.getMarketOrderNo());
+	}
+
+	@Override
+	public void cancelOrder(MarketCredential credential, Order order) {
+		cafe24OrderApiPort.cancelOrder(order.getMarketOrderNo());
 	}
 }
