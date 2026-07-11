@@ -97,12 +97,14 @@ public class BatchPriceStockService {
 				BigDecimal price = i < prices.size() ? prices.get(i) : null;
 				Integer stock = i < stocks.size() ? stocks.get(i) : null;
 
+				StockStatus oldStatus = product.getStockStatus();
 				BigDecimal oldPrice = product.getSalePrice();
-				Integer oldStock = product.getStock();
+				StockStatus newStatus = (stock == null) ? oldStatus
+					: ((stock <= 0) ? StockStatus.OUT_OF_STOCK : StockStatus.IN_STOCK);
 				boolean priceChanged = price != null && !price.equals(oldPrice);
-				boolean stockChanged = stock != null && !stock.equals(oldStock);
+				boolean statusChanged = newStatus != oldStatus;
 
-				if (!priceChanged && !stockChanged) {
+				if (!priceChanged && !statusChanged) {
 					processStatusService.markSuccess(batchId, product.getSbCode(), "변경사항 없음");
 					continue;
 				}
@@ -110,21 +112,20 @@ public class BatchPriceStockService {
 				ProductUpdateCommand command = new ProductUpdateCommand(
 					null, null, null, null, null,
 					null, null, null, null, price,
-					stock, null, null,
+					null, null, null,
 					null, null, null,
 					null, null, null, null, null,
 					null, null, null, null, null);
 				product.update(command);
+				product.updateStockStatus(newStatus);
 				productWriter.save(product);
 
 				// D-060: 배치(수동) 갱신분도 연동 마켓에 반영.
-				StockStatus stockStatus = (stock == null || stock <= 0)
-					? StockStatus.OUT_OF_STOCK : StockStatus.IN_STOCK;
 				MarketRepublishResult sync = productMarketSyncService.syncPriceStock(
-					productId, price != null ? price.intValue() : null, stockStatus);
+					productId, price != null ? price.intValue() : null, newStatus);
 				processStatusService.markSuccess(batchId, product.getSbCode(),
-					String.format("가격:%s->%s, 재고:%d->%d · 마켓반영 성공%d/스킵%d/실패%d%s",
-						oldPrice, price, oldStock, stock, sync.synced().size(), sync.skipped().size(),
+					String.format("가격:%s->%s, 판매상태:%s->%s · 마켓반영 성공%d/스킵%d/실패%d%s",
+						oldPrice, price, oldStatus, newStatus, sync.synced().size(), sync.skipped().size(),
 						sync.failed().size(), sync.failed().isEmpty() ? "" : " (" + sync.failed().keySet() + ")"));
 			} catch (Exception e) {
 				log.error("수동 업데이트 실패: productId={}", productIds.get(i), e);

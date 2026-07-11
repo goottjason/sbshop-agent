@@ -5,6 +5,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.argThat;
 
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
@@ -13,6 +15,7 @@ import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
 import com.sbshop.agent.core.domain.product.component.ProductWriter;
+import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.service.MarginCalculator;
 import java.math.BigDecimal;
@@ -93,5 +96,28 @@ class BatchForwardsStockStatusTest {
         Thread.sleep(500);
 
         verify(productMarketSyncService).syncPriceStock(eq(PRODUCT_ID), any(), eq(StockStatus.IN_STOCK));
+    }
+
+    @Test
+    @DisplayName("수동 배치 stock=0 입력 시 stockStatus를 OUT_OF_STOCK으로 갱신하고 DB에 재고숫자 0을 쓰지 않는다")
+    void manualUpdate_soldOut_setsStatusAndDoesNotWriteZeroStock() throws InterruptedException {
+        BigDecimal price = new BigDecimal("9900");
+        lenient().when(product.getStockStatus()).thenReturn(StockStatus.IN_STOCK);
+        lenient().when(product.getSalePrice()).thenReturn(new BigDecimal("8800")); // different → priceChanged
+
+        service.manualUpdatePriceStock("batch-manual", List.of(PRODUCT_ID),
+            List.of(price), List.of(0));
+
+        // @Async — small sleep to let the async thread finish
+        Thread.sleep(500);
+
+        // 1. sync is called with OUT_OF_STOCK
+        verify(productMarketSyncService).syncPriceStock(eq(PRODUCT_ID), any(), eq(StockStatus.OUT_OF_STOCK));
+
+        // 2. stockStatus is updated on the product domain object
+        verify(product).updateStockStatus(StockStatus.OUT_OF_STOCK);
+
+        // 3. ProductUpdateCommand passed to product.update(...) must have null at stock slot (index 10)
+        verify(product).update(argThat(cmd -> cmd.stock() == null));
     }
 }
