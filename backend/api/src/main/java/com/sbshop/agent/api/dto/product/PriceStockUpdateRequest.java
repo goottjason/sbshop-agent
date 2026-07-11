@@ -4,5 +4,5 @@ import java.math.BigDecimal;
 
 public record PriceStockUpdateRequest(
 	BigDecimal price,
-	Integer stock) {
+	Boolean soldOut) {
 }

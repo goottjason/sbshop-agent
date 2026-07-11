@@ -2,6 +2,7 @@ package com.sbshop.agent.api.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -86,13 +87,13 @@ class ProductControllerActionLogDetailTest {
 	@Test
 	@DisplayName("updatePriceStock: 활동로그 메시지에 마켓별 상품번호와 성공/스킵/실패 상세가 담긴다")
 	void updatePriceStock_recordsMarketDetail() {
-		when(productManageUseCase.updatePriceStock(anyLong(), any(), any())).thenReturn(mixedResult());
+		when(productManageUseCase.updatePriceStock(anyLong(), any(), anyBoolean())).thenReturn(mixedResult());
 		when(marketRegistrationRepository.findByProductId(1L)).thenReturn(List.of(
 			reg(1L, MarketType.COUPANG, "{\"vendorItemId\":\"7283748383\"}"),
 			reg(1L, MarketType.SMART_STORE, "{\"originProductNo\":\"2939395\"}")));
 
 		controller().updatePriceStock(1L,
-			new com.sbshop.agent.api.dto.product.PriceStockUpdateRequest(BigDecimal.valueOf(1000), 5));
+			new com.sbshop.agent.api.dto.product.PriceStockUpdateRequest(BigDecimal.valueOf(1000), false));
 
 		String message = capturedSuccessMessage(ActionLogConstants.PRODUCT_PRICE_STOCK_UPDATE);
 		assertThat(message).contains("쿠팡 7283748383 성공");
@@ -107,14 +108,14 @@ class ProductControllerActionLogDetailTest {
 	@DisplayName("updatePriceStock: 마켓 실패사유는 50자로 절단되어 기록된다")
 	void updatePriceStock_truncatesFailureReasonTo50Chars() {
 		String longReason = "X".repeat(120);
-		when(productManageUseCase.updatePriceStock(anyLong(), any(), any())).thenReturn(
+		when(productManageUseCase.updatePriceStock(anyLong(), any(), anyBoolean())).thenReturn(
 			new MarketRepublishResult(List.of(), List.of(),
 				Map.of(MarketType.COUPANG, longReason)));
 		when(marketRegistrationRepository.findByProductId(1L)).thenReturn(List.of(
 			reg(1L, MarketType.COUPANG, "{\"vendorItemId\":\"CP1\"}")));
 
 		controller().updatePriceStock(1L,
-			new com.sbshop.agent.api.dto.product.PriceStockUpdateRequest(BigDecimal.valueOf(1000), 5));
+			new com.sbshop.agent.api.dto.product.PriceStockUpdateRequest(BigDecimal.valueOf(1000), false));
 
 		String message = capturedSuccessMessage(ActionLogConstants.PRODUCT_PRICE_STOCK_UPDATE);
 		// 120자 원문이 통째로 들어가지 않고 50자로 절단됨

@@ -102,7 +102,7 @@ public class ProductController {
 		// D-076: 가격/재고 수정 — 결과만 기록(다마켓 동시 반영이므로 marketType null).
 		try {
 			MarketRepublishResult result =
-				productManageUseCase.updatePriceStock(id, request.price(), request.stock());
+				productManageUseCase.updatePriceStock(id, request.price(), Boolean.TRUE.equals(request.soldOut()));
 			actionLogService.record(ActionLogConstants.PRODUCT_PRICE_STOCK_UPDATE, null,
 				ActionStatus.SUCCESS, buildMarketResultMessage(id, "DB 저장 완료", result));
 			return ResponseEntity.ok(result);

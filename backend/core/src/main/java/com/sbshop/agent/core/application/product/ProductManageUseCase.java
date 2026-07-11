@@ -14,6 +14,7 @@ import com.sbshop.agent.core.domain.product.component.HtmlImageReplacer;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
 import com.sbshop.agent.core.domain.product.component.ProductWriter;
 import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
+import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,25 +41,27 @@ public class ProductManageUseCase {
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Transactional
-	public MarketRepublishResult updatePriceStock(Long productId, BigDecimal price, Integer stock) {
+	public MarketRepublishResult updatePriceStock(Long productId, BigDecimal price, boolean soldOut) {
 		Product product = productReader.findById(productId)
 			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
 
+		// 가격만 command로 갱신(수량은 판매중/품절 이분법으로 대체 — DB 수량은 건드리지 않음).
 		ProductUpdateCommand command = new ProductUpdateCommand(
 			null, null, null, null, null,
 			null, null, null, null, price,
-			stock, null, null,
+			null, null, null,
 			null, null, null,
 			null, null, null, null, null,
 			null, null, null, null, null);
 		product.update(command);
+		StockStatus stockStatus = soldOut ? StockStatus.OUT_OF_STOCK : StockStatus.IN_STOCK;
+		product.updateStockStatus(stockStatus);
 		productWriter.save(product);
 
-		log.info("상품 가격/재고 업데이트 완료: id={}, price={}, stock={}", productId, price, stock);
+		log.info("상품 가격/판매상태 업데이트: id={}, price={}, soldOut={}", productId, price, soldOut);
 
-		// D-060: 자사 DB 갱신 후, 연동된 각 마켓에 가격/재고 자동 반영(단건·배치 공용 서비스).
 		Integer priceInt = price != null ? price.intValue() : null;
-		return productMarketSyncService.syncPriceStock(productId, priceInt, stock);
+		return productMarketSyncService.syncPriceStock(productId, priceInt, stockStatus);
 	}
 
 	@Transactional
