@@ -1008,3 +1008,11 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - **라이브 검증**: `/orders/sync/cafe24/preview` 실주문 파싱 정확(order_place_id=gmarket→GMARKET, buyer/receivers.address_full/items.product_no·product_name·quantity/order_status=N30→SHIPPED, order_date ISO+09:00→KST). status=connected(상품·주문 권한 확인). 동기화 트리거 후 통합주문관리에 **G마켓 주문 3건 실제 표시**(20260708-0000011 등).
 - 부수 개선: OAuth scope 전체(app/product/collection/order/shipping RW), status가 주문 권한까지 실검증(오표기 방지), 프리뷰 rootCause 노출.
 - 상태: **검증통과** — G마켓/옥션 주문 조회가 Cafe24 API로 안정 동작(Selenium 철회 완료). 송장 역전송(write_order)은 후속 트랙.
+
+### D-061 후속(완료): G마켓/옥션 송장 역전송 Cafe24 shipments API 구현
+
+- 구현: 배송정보 수정 → MarketplaceShippingService.sendTrackingToMarketplace → 포트(GMARKET=EsmplusOrderAdapter shipOrder 스텁 교체, AUCTION=신규 Cafe24AuctionOrderAdapter) → `Cafe24ShipmentService` → `POST /admin/orders/{order_id}/shipments`(tracking_no·shipping_company_code·status=shipping·order_item_code). marketOrderNo=Cafe24 order_id. 택배사 코드는 `GET /admin/carriers`로 몰별 조회→ShippingCarrier 라벨 매칭(미매칭 실패 표면화), order_item_code는 주문상세(embed=items)에서 획득. `MarketplaceShippingService`의 cred==null 조기종료 완화(Cafe24 배송은 마켓 자격증명 불필요→옥션 커버). 진단 `POST /orders/sync/cafe24/carriers`.
+- 라이브 검증(읽기): 몰 택배사 조회 성공 — 자체배송(0001)·우체국택배(0012)·CJ대한통운(0006). 코드 매칭 정확(CJ→0006, 우체국→0012). 응답 필드 shipping_carrier_code를 방어적 다중 필드조회로 획득.
+- 게이트: `Cafe24ShipmentServiceTest`(코드매칭·order_item_code·바디구성·미매칭예외) PASS, 전체 compileTestJava·:core:test·:api:test BUILD SUCCESSFUL(EsmplusParseSingleOrderTest 생성자 갱신).
+- 미검증(쓰기): 실제 shipments POST는 실주문을 '배송중'으로 바꾸는 부작용이라 가짜 데이터 라이브 테스트 회피 — 첫 실 송장(실 트래킹번호로 실 G마켓 주문 배송처리)이 검증. 코드·택배사코드는 준비 완료.
+- 상태: 구현 완료(읽기 검증), 실 송장 등록은 실사용 시 검증.
