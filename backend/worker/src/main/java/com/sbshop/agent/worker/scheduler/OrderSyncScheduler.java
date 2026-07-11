@@ -30,6 +30,7 @@ public class OrderSyncScheduler {
 	private final CoupangOrderSyncService coupangOrderSyncService;
 	private final ElevenstOrderSyncService elevenstOrderSyncService;
 	private final EsmplusOrderSyncService esmplusOrderSyncService;
+	private final com.sbshop.agent.core.application.order.service.Cafe24OrderSyncService cafe24OrderSyncService;
 	private final CustomsOrderSyncService customsOrderSyncService;
 	private final SyncStatusService syncStatusService;
 
@@ -63,18 +64,18 @@ public class OrderSyncScheduler {
 		}
 	}
 
-	// 매시 10분, 40분 - ESM+(G마켓/옥션) 주문 동기화
-	@Scheduled(cron = "0 10/30 * * * ?") // TODO: 리팩토링 완료 후 활성화
+	// 매시 10분, 40분 - G마켓/옥션 주문 동기화 (Selenium ESM+ → Cafe24 주문 API로 선회)
+	@Scheduled(cron = "0 10/30 * * * ?")
 	public void syncEsmplusOrders() {
-		log.info("ESM+(G마켓/옥션) 주문 동기화 시작...");
+		log.info("G마켓/옥션(Cafe24 주문API) 동기화 시작...");
 		syncStatusService.markRunning(GMARKET);
 		try {
-			esmplusOrderSyncService.syncEsmplusOrders();
+			cafe24OrderSyncService.syncCafe24Orders();
 			syncStatusService.markCompleted(GMARKET);
-			log.info("ESM+(G마켓/옥션) 주문 동기화 완료.");
+			log.info("G마켓/옥션(Cafe24 주문API) 동기화 완료.");
 		} catch (Exception e) {
 			syncStatusService.markFailed(GMARKET, e.getMessage());
-			log.error("ESM+(G마켓/옥션) 주문 동기화 실패: {}", e.getMessage());
+			log.error("G마켓/옥션(Cafe24) 동기화 실패: {}", e.getMessage());
 		}
 	}
 

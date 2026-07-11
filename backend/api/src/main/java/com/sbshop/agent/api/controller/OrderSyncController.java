@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
+import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
+import com.sbshop.agent.core.application.order.service.Cafe24OrderSyncService;
 import com.sbshop.agent.core.application.order.service.CoupangOrderSyncService;
 import com.sbshop.agent.core.application.order.service.CustomsOrderSyncService;
 import com.sbshop.agent.core.application.order.service.ElevenstOrderSyncService;
@@ -38,6 +40,10 @@ public class OrderSyncController {
 	private final ElevenstOrderSyncService elevenstOrderSyncService;
 	// ESM+(G마켓/옥션) 주문 동기화 서비스 의존성
 	private final EsmplusOrderSyncService esmplusOrderSyncService;
+
+	private final Cafe24OrderSyncService cafe24OrderSyncService;
+
+	private final Cafe24OrderApiPort cafe24OrderApiPort;
 	// 통관 상태 동기화 서비스 의존성
 	private final CustomsOrderSyncService customsOrderSyncService;
 	// ESM+ 웹 스크래퍼
@@ -116,23 +122,39 @@ public class OrderSyncController {
 		}
 	}
 
-	// ESM+(G마켓/옥션) 동기화 POST 엔드포인트 매핑
+	// G마켓/옥션 동기화 — Selenium(ESM+) 대신 Cafe24 주문 API로 선회(order_place_id=gmarket/auction).
 	@PostMapping("/esmplus")
 	public ResponseEntity<Map<String, Object>> syncEsmplusOrders() {
-		log.info("ESM+(G마켓/옥션) 주문 동기화 요청 수신됨");
+		log.info("G마켓/옥션(Cafe24 주문API) 동기화 요청 수신됨");
 		actionLogService.record("GMARKET_SYNC", "GMARKET", ActionStatus.STARTED,
-			"ESM+(G마켓/옥션) 동기화 요청");
+			"G마켓/옥션(Cafe24 주문API) 동기화 요청");
 
 		try {
-			esmplusOrderSyncService.syncEsmplusOrders();
+			cafe24OrderSyncService.syncCafe24Orders();
 			return ResponseEntity.ok(Map.of(
 				"success", true,
-				"message", "ESM+(G마켓/옥션) 주문 동기화가 백그라운드에서 시작되었습니다."));
+				"message", "G마켓/옥션 주문 동기화(Cafe24 API)가 백그라운드에서 시작되었습니다."));
 		} catch (Exception e) {
-			log.error("ESM+ 주문 동기화 실패", e);
+			log.error("G마켓/옥션(Cafe24) 주문 동기화 실패", e);
 			return ResponseEntity.internalServerError().body(Map.of(
 				"success", false,
-				"message", "ESM+ 주문 동기화 실패: " + e.getMessage()));
+				"message", "G마켓/옥션 주문 동기화 실패: " + e.getMessage()));
+		}
+	}
+
+	// 진단: Cafe24 주문 API 원시 응답 프리뷰(최근 7일 first page). 파싱 검증·구조 확인용.
+	@PostMapping("/cafe24/preview")
+	public ResponseEntity<Object> previewCafe24Orders() {
+		try {
+			java.time.LocalDate to = java.time.LocalDate.now();
+			java.time.LocalDate from = to.minusDays(7);
+			java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+			var orders = cafe24OrderApiPort.fetchOrders(
+				from.atStartOfDay().format(f), to.atTime(23, 59, 59).format(f), 5, 0);
+			return ResponseEntity.ok(Map.of("success", true, "orders", orders));
+		} catch (Exception e) {
+			log.error("Cafe24 주문 프리뷰 실패", e);
+			return ResponseEntity.internalServerError().body(Map.of("success", false, "message", e.getMessage()));
 		}
 	}
 
