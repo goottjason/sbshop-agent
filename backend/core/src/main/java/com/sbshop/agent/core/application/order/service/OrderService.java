@@ -302,10 +302,9 @@ public class OrderService {
 			item.markAsShipped();
 			orderLineItemRepository.save(item);
 
-			// 마켓플레이스에 송장 전송
-			marketplaceShippingService.sendTrackingToMarketplace(item);
-			item.markTrackingAsSent();
-			orderLineItemRepository.save(item);
+			// 마켓플레이스에 송장 전송 — 실패해도 위의 배송정보 저장은 보존(롤백 없음), 성공 시에만 전송완료 마킹
+			MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item);
+			markSentIfSucceeded(item, sendResult, lineItemId);
 
 			log.info("라인아이템 {} 배송 처리: tracking={}, carrier={}", lineItemId, command.getTrackingNo(),
 				command.getShippingCarrier());
@@ -314,10 +313,9 @@ public class OrderService {
 			item.applyShippingData(command.toShippingData(item.getShippingData()));
 			orderLineItemRepository.save(item);
 
-			// 마켓플레이스에 송장 업데이트
-			marketplaceShippingService.sendTrackingToMarketplace(item);
-			item.markTrackingAsSent();
-			orderLineItemRepository.save(item);
+			// 마켓플레이스에 송장 업데이트 — 실패해도 위의 배송정보 저장은 보존, 성공 시에만 전송완료 마킹
+			MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item);
+			markSentIfSucceeded(item, sendResult, lineItemId);
 
 			log.info("라인아이템 {} 송장번호 업데이트: tracking={}, carrier={}", lineItemId,
 				command.getTrackingNo(), command.getShippingCarrier());
@@ -441,10 +439,9 @@ public class OrderService {
 			.build());
 		orderLineItemRepository.save(item);
 
-		// 마켓플레이스에 송장 전송
-		marketplaceShippingService.sendTrackingToMarketplace(item);
-		item.markTrackingAsSent();
-		orderLineItemRepository.save(item);
+		// 마켓플레이스에 송장 전송 — 실패해도 위의 배송정보 저장은 보존, 성공 시에만 전송완료 마킹
+		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item);
+		markSentIfSucceeded(item, sendResult, lineItemId);
 
 		log.info("라인아이템 {} 배송 처리: tracking={}, carrier={}", lineItemId, trackingNo, carrier);
 	}
@@ -476,10 +473,9 @@ public class OrderService {
 			.build());
 		orderLineItemRepository.save(item);
 
-		// 마켓플레이스에 송장 업데이트
-		marketplaceShippingService.sendTrackingToMarketplace(item);
-		item.markTrackingAsSent();
-		orderLineItemRepository.save(item);
+		// 마켓플레이스에 송장 업데이트 — 실패해도 위의 배송정보 저장은 보존, 성공 시에만 전송완료 마킹
+		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item);
+		markSentIfSucceeded(item, sendResult, lineItemId);
 
 		log.info("라인아이템 {} 송장번호 업데이트: tracking={}, carrier={}", lineItemId, trackingNo, carrier);
 	}
@@ -496,6 +492,21 @@ public class OrderService {
 	}
 
 	// ======================== private ========================
+
+	/**
+	 * 마켓 전송이 실제로 성공한 경우에만 trackingSentToMarket을 마킹하고 저장한다.
+	 * 실패/스킵이면 마킹하지 않아 다음 사이클에 재시도 가능하도록 남긴다(D-069).
+	 * 마켓 전송 실패는 배송정보 저장을 롤백시키지 않는다(예외를 던지지 않음).
+	 */
+	private void markSentIfSucceeded(OrderLineItem item, MarketShippingResult result, Long lineItemId) {
+		if (result.sent()) {
+			item.markTrackingAsSent();
+			orderLineItemRepository.save(item);
+		} else if (result.isFailed()) {
+			log.warn("라인아이템 {} 마켓 송장 전송 실패 — 배송정보는 저장됨, 전송완료 미마킹(재시도 대상): {}",
+				lineItemId, result.failureReason());
+		}
+	}
 
 	/** 접수 완료 여부 판단 */
 	private boolean isOrderFullyPrepared(Order order) {

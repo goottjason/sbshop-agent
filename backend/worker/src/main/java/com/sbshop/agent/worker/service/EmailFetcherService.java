@@ -1,5 +1,6 @@
 package com.sbshop.agent.worker.service;
 
+import com.sbshop.agent.core.application.order.service.MarketShippingResult;
 import com.sbshop.agent.core.application.order.service.MarketplaceShippingService;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
@@ -191,9 +192,14 @@ public class EmailFetcherService {
 				// 마켓 미동기화 건은 재시도
 				log.info("iHerb 주문 {} 배송 처리됨但 마켓 미동기화 (tracking={}) - 재시도",
 					shipmentData.getOrderNo(), shipmentData.getTrackingNo());
-				marketplaceShippingService.sendTrackingToMarketplace(item);
-				item.markTrackingAsSent();
-				orderLineItemRepository.save(item);
+				MarketShippingResult retryResult = marketplaceShippingService.sendTrackingToMarketplace(item);
+				if (retryResult.sent()) {
+					item.markTrackingAsSent();
+					orderLineItemRepository.save(item);
+				} else if (retryResult.isFailed()) {
+					log.warn("iHerb 주문 {} 마켓 재전송 실패 - 미마킹(다음 사이클 재시도): {}",
+						shipmentData.getOrderNo(), retryResult.failureReason());
+				}
 				continue;
 			}
 
@@ -214,10 +220,15 @@ public class EmailFetcherService {
 				log.info("iHerb 발송 처리 완료: itemId={}, tracking={}, carrier={}",
 					item.getId(), shipmentData.getTrackingNo(), carrier);
 
-				// 마켓플러스에 송장 전송
-				marketplaceShippingService.sendTrackingToMarketplace(item);
-				item.markTrackingAsSent();
-				orderLineItemRepository.save(item);
+				// 마켓플러스에 송장 전송 — 실패해도 배송 저장은 보존, 성공 시에만 전송완료 마킹
+				MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item);
+				if (sendResult.sent()) {
+					item.markTrackingAsSent();
+					orderLineItemRepository.save(item);
+				} else if (sendResult.isFailed()) {
+					log.warn("iHerb 주문 {} 마켓 송장 전송 실패 - 미마킹(다음 사이클 재시도): {}",
+						shipmentData.getOrderNo(), sendResult.failureReason());
+				}
 			} else {
 				log.info("iHerb 주문 {} 상태({})가 PURCHASED가 아니어서 배송 처리 스킵",
 					shipmentData.getOrderNo(), currentStatus);

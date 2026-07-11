@@ -46,13 +46,19 @@ public class MarketplaceShippingService {
 	 * - 미전송 상태면 최초 등록 (shipOrder)
 	 * - 전송 완료 상태면 수정 (updateTracking)
 	 * - 취소/반품/교환 상태면 전송 불가
+	 *
+	 * D-069: 마켓 API 실패를 예외로 밖에 던지지 않고 {@link MarketShippingResult}로 표면화한다.
+	 * 호출자의 @Transactional 배송정보 저장이 마켓 전송 실패로 롤백되지 않도록 하기 위함이며,
+	 * 실패(isFailed)인 경우 호출자는 trackingSentToMarket을 마킹하지 말아야 재시도가 가능하다.
 	 */
-	public void sendTrackingToMarketplace(OrderLineItem lineItem) {
+	public MarketShippingResult sendTrackingToMarketplace(OrderLineItem lineItem) {
 
 		// 주문 조회
 		Order order = orderRepository.findById(lineItem.getOrderId()).orElse(null);
-		if (order == null)
-			return;
+		if (order == null) {
+			log.warn("마켓 배송 전송 스킵: 주문 없음 orderId={}", lineItem.getOrderId());
+			return MarketShippingResult.ofSkipped("주문 없음");
+		}
 
 		// 마켓크레덴셜 조회(nullable). Cafe24 기반 배송(G마켓/옥션)은 마켓 자격증명이 아니라
 		// Cafe24 토큰을 쓰므로, cred가 없어도(옥션 등) 조기 종료하지 않고 포트에 위임한다.
@@ -67,7 +73,7 @@ public class MarketplaceShippingService {
 			|| currentStatus == ShippingStatus.RETURNED
 			|| currentStatus == ShippingStatus.EXCHANGED) {
 			log.warn("마켓 배송 전송 불가: 주문 {} 상태가 {}입니다.", order.getMarketOrderNo(), currentStatus);
-			return;
+			return MarketShippingResult.ofSkipped("전송 불가 상태: " + currentStatus);
 		}
 
 		// 송장 전송 여부 확인
@@ -79,22 +85,29 @@ public class MarketplaceShippingService {
 		if (portOpt.isEmpty()) {
 			log.warn("[배송전파] {} 마켓은 배송 어댑터 미지원 — 마켓 전송 스킵(자사 배송정보는 저장됨): order={}",
 				order.getMarketType(), order.getMarketOrderNo());
-			return;
+			return MarketShippingResult.ofSkipped("배송 어댑터 미지원: " + order.getMarketType());
 		}
 		MarketOrderPort port = portOpt.get();
 
-		// 전송 또는 수정 처리
-		if (Boolean.TRUE.equals(alreadySent)) {
-			port.updateTracking(cred, order, lineItem,
-				lineItem.getShippingData().getTrackingNo(),
-				lineItem.getShippingData().getShippingCarrier());
-		} else {
-			port.shipOrder(cred, order, lineItem,
-				lineItem.getShippingData().getTrackingNo(),
-				lineItem.getShippingData().getShippingCarrier());
+		// 전송 또는 수정 처리 — 마켓 API 예외는 삼키지 않고 실패 결과로 반환(롤백 유발 방지, 재시도 보존).
+		try {
+			if (Boolean.TRUE.equals(alreadySent)) {
+				port.updateTracking(cred, order, lineItem,
+					lineItem.getShippingData().getTrackingNo(),
+					lineItem.getShippingData().getShippingCarrier());
+			} else {
+				port.shipOrder(cred, order, lineItem,
+					lineItem.getShippingData().getTrackingNo(),
+					lineItem.getShippingData().getShippingCarrier());
+			}
+		} catch (RuntimeException e) {
+			log.error("마켓 배송 전송 실패: order={}, market={}, reason={}",
+				order.getMarketOrderNo(), order.getMarketType(), e.getMessage(), e);
+			return MarketShippingResult.ofFailed(e.getMessage());
 		}
 
 		log.info("마켓 배송 전송 완료: order={}, market={}", order.getMarketOrderNo(), order.getMarketType());
+		return MarketShippingResult.ofSent();
 	}
 
 	/** 마켓에 주문 취소 요청 */
