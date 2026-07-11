@@ -243,6 +243,10 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			String rcvrBaseAddr = ElevenstXmlUtils.getElementText(element, "rcvrBaseAddr");
 			String rcvrDtlsAddr = ElevenstXmlUtils.getElementText(element, "rcvrDtlsAddr");
 
+			// D-066: 통관번호 파싱 (잠복경로 예방 — 향후 fetchOrderDetail 호출 시 정합).
+			// 태그 부재 시 ""를 null로 정규화(SyncService null-guard로 기존 값 보호).
+			String psnCscUniqNo = emptyToNull(ElevenstXmlUtils.getElementText(element, "psnCscUniqNo"));
+
 			// 발주확인용 필드
 			String ordPrdSeq = ElevenstXmlUtils.getElementText(element, "ordPrdSeq");
 			String addPrdYn = ElevenstXmlUtils.getElementText(element, "addPrdYn");
@@ -279,6 +283,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				.message("")
 				.ordererName("")
 				.ordererPhone("")
+				.customsClearanceNo(psnCscUniqNo)
 				// D-031: 주문상세(claimservice/orderlistalladdr)는 배송 상태 필드를 제공하지 않으므로
 				// 상태를 조작하지 않고 미설정(null)으로 둔다 — enrichment 시 기존 상태를 덮어쓰지 않음.
 				.trackingNo(invcNo)
@@ -389,6 +394,10 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			String ordNo = ElevenstXmlUtils.getElementText(element, "ordNo");
 			String invcNo = ElevenstXmlUtils.getElementText(element, "invcNo");
 			String dlvEtprsCd = ElevenstXmlUtils.getElementText(element, "dlvEtprsCd");
+			// D-066: 배송중 경로에도 통관번호 파싱 추가.
+			// getElementText는 태그 부재 시 ""를 반환하므로 null로 정규화 — SyncService null-guard가
+			// 빈 값으로 기존 통관번호를 덮어쓰지 않게 한다(기존 주문 회귀 방지).
+			String psnCscUniqNo = emptyToNull(ElevenstXmlUtils.getElementText(element, "psnCscUniqNo"));
 
 			if (ordNo == null || ordNo.isEmpty()) {
 				return null;
@@ -412,6 +421,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				.message("")
 				.ordererName("")
 				.ordererPhone("")
+				.customsClearanceNo(psnCscUniqNo)
 				.status(status)
 				.trackingNo(invcNo)
 				.carrier(carrier)
@@ -451,6 +461,10 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		} catch (NumberFormatException e) {
 			return BigDecimal.ZERO;
 		}
+	}
+
+	private String emptyToNull(String value) {
+		return (value == null || value.isEmpty()) ? null : value;
 	}
 
 	private int parseIntValue(String value) {
