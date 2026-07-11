@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
+import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,8 +43,13 @@ public class ProductSyncService {
 				// 6. 소싱 재고수량 업데이트
 				product.updateSourcingStock(result.stock());
 
-				// 7. 입고예정일 업데이트
-				product.updateRestockDate(result.restockDate());
+				// 7. 입고예정일 업데이트 (null 소거 방어, D-065)
+				//    IN_STOCK이면 재입고일은 의미 없으므로 null 반영을 허용해 기존값을 지운다.
+				//    OUT_OF_STOCK 유지 중 크롤이 restockDate=null(일시적 파싱 실패/응답변동)을
+				//    주면 DB의 기존 재입고일을 덮어쓰지 않고 유지한다.
+				if (result.status() == StockStatus.IN_STOCK || result.restockDate() != null) {
+					product.updateRestockDate(result.restockDate());
+				}
 
 				// 8. 변경된 상품 정보 DB 저장
 				productRepository.save(product);
