@@ -108,7 +108,7 @@ public class SmartStoreOrderSyncService {
 			updateLineItemFromDto(item, dto);
 		}
 
-		updateOrderInfoFromDto(order, dto);
+		updateOrderInfoFromDto(order, dto, lineItems);
 		orderRepository.save(order);
 		lineItems.forEach(orderLineItemRepository::save);
 	}
@@ -126,9 +126,12 @@ public class SmartStoreOrderSyncService {
 		item.applyShippingData(cmd.toShippingData(item.getShippingData()));
 	}
 
-	private void updateOrderInfoFromDto(Order order, MarketOrderDto dto) {
+	private void updateOrderInfoFromDto(Order order, MarketOrderDto dto, List<OrderLineItem> lineItems) {
+		// D-074: 진행(PREPARING 이상) lineItem 존재 시 주소·우편번호를 API 값으로 덮지 않음(수기 보정 보호, 세트).
+		boolean protectAddress = lineItems.stream().anyMatch(OrderLineItem::isProgressed);
 		order.update(
-			dto.getRecipientName(), dto.getRecipientPhone(), dto.getZipcode(), dto.getAddress(), dto.getMessage(),
+			dto.getRecipientName(), dto.getRecipientPhone(),
+			protectAddress ? null : dto.getZipcode(), protectAddress ? null : dto.getAddress(), dto.getMessage(),
 			dto.getOrdererName(), dto.getOrdererPhone(), dto.getShipmentBoxId(),
 			dto.getMarketType() != null && dto.getMarketType() != order.getMarketType() ? dto.getMarketType() : null);
 		if (dto.getCustomsClearanceNo() != null) {

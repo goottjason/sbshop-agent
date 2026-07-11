@@ -220,12 +220,12 @@ public class CoupangOrderSyncService {
 
 	/* ----- 주문 정보 업데이트 ----- */
 	private void updateOrderInfoFromDto(Order order, MarketOrderDto dto, List<OrderLineItem> lineItems) {
-		// PREPARING 이상 lineItem 존재 시 address 보호 (API 값으로 덮지 않음)
+		// PREPARING 이상 lineItem 존재 시 address·zipcode 보호 (API 값으로 덮지 않음, 세트 — D-074)
 		boolean protectAddress = lineItems.stream().anyMatch(OrderLineItem::isProgressed);
 		order.update(
 			dto.getRecipientName(),
 			dto.getRecipientPhone(),
-			dto.getZipcode(),
+			protectAddress ? null : dto.getZipcode(),
 			protectAddress ? null : dto.getAddress(),
 			dto.getMessage(),
 			dto.getOrdererName(),

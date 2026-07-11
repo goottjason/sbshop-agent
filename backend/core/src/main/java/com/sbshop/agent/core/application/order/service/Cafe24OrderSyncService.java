@@ -149,12 +149,12 @@ public class Cafe24OrderSyncService {
 		JsonNode buyer = o.path("buyer");
 
 		List<OrderLineItem> lineItems = orderLineItemRepository.findByOrderId(order.getId());
-		// 진행(PREPARING 이상) 라인아이템이 있으면 주소를 API 값으로 덮지 않음(수기 보정 보호)
+		// 진행(PREPARING 이상) 라인아이템이 있으면 주소·우편번호를 API 값으로 덮지 않음(수기 보정 보호, 세트 — D-074)
 		boolean protectAddress = lineItems.stream().anyMatch(OrderLineItem::isProgressed);
 		order.update(
 			text(receiver, "name"),
 			firstNonBlank(text(receiver, "cellphone"), text(receiver, "phone")),
-			text(receiver, "zipcode"),
+			protectAddress ? null : text(receiver, "zipcode"),
 			protectAddress ? null : receiverAddress(receiver),
 			text(receiver, "shipping_message"),
 			firstNonBlank(text(buyer, "name"), text(o, "order_place_name")),
