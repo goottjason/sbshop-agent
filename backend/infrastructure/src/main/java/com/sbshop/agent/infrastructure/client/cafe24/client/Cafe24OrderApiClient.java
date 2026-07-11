@@ -63,6 +63,28 @@ public class Cafe24OrderApiClient implements Cafe24OrderApiPort {
 		return restClient.post("/admin/orders/" + orderId + "/shipments", requestBody);
 	}
 
+	// Cafe24 주문 상태코드 — 라이브 검증 대상(값·필드명·바디형태 확정 필요).
+	private static final String ACCEPT_STATUS = "N20"; // 배송준비중(=발주확인)
+	private static final String CANCEL_STATUS = "C40"; // 취소완료
+
+	@Override
+	public void acceptOrder(String cafe24OrderId) {
+		updateStatus(cafe24OrderId, ACCEPT_STATUS);
+	}
+
+	@Override
+	public void cancelOrder(String cafe24OrderId) {
+		updateStatus(cafe24OrderId, CANCEL_STATUS);
+	}
+
+	private void updateStatus(String cafe24OrderId, String status) {
+		java.util.Map<String, Object> body = java.util.Map.of(
+			"shop_no", 1,
+			"request", java.util.Map.of("status", status));
+		restClient.put("/admin/orders/" + cafe24OrderId, body);
+		log.info("[Cafe24] 주문상태 변경: orderId={}, status={}", cafe24OrderId, status);
+	}
+
 	private String enc(String s) {
 		// 쿼리 값의 공백은 '+'가 아니라 %20으로(일부 서버가 '+'를 공백으로 해석하지 않음).
 		return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20");

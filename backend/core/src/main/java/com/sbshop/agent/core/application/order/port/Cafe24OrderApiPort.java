@@ -28,4 +28,10 @@ public interface Cafe24OrderApiPort {
 
 	/** 송장 등록. POST /admin/orders/{orderId}/shipments. requestBody는 {"request":{...}} 형태. */
 	String registerShipment(String orderId, Object requestBody);
+
+	/** 발주확인 — 주문 상태를 배송준비 상태로 변경. PUT /admin/orders/{id}. */
+	void acceptOrder(String cafe24OrderId);
+
+	/** 주문 취소 — 주문 상태를 취소로 변경. PUT /admin/orders/{id}. */
+	void cancelOrder(String cafe24OrderId);
 }
