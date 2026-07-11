@@ -988,3 +988,16 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 
 ### 사이클 18 요약
 - 사용자 "1,2,3 모두 구현": 1·2 완전 구현·라이브 검증, 3은 안전개선 + 대형 신규(ESM+ Selenium·카페24 주문통합)는 데이터 부재로 별도 스코프 권고.
+
+---
+
+## 사이클 19 (G마켓/옥션 조회를 Cafe24 주문 API로 선회, 2026-07-11, 사용자 요청)
+
+### D-061 후속(방향전환): ESM+ Selenium → Cafe24 주문 API
+
+- 배경(사용자 통찰): G마켓/옥션이 Cafe24에 오픈마켓 연동돼 있어, 불안정한 Selenium 스크래핑 대신 **Cafe24 주문 API로 G마켓/옥션 주문을 안정 조회** 가능.
+- 조사(2에이전트: Cafe24 API 문서 + 기존 sync 아키텍처): `GET /api/v2/admin/orders`(scope `mall.read_order`), **`order_place_id`로 마켓 구분**(gmarket/auction/coupang/…), `embed=items,receivers,buyer`, start/end_date(3개월/콜), 페이지 limit≤1000. 송장: `POST /orders/{id}/shipments`(scope `mall.write_order`). 택배사 코드는 `GET /carriers`로 조회.
+- 구현: `Cafe24OrderApiPort`(core) + `Cafe24OrderApiClient`(infra, 기존 Cafe24RestClient 재사용) + `Cafe24OrderSyncService`(order_place_id→GMARKET/AUCTION 매핑, 타마켓 스킵, receivers/buyer/items 파싱, product_no로 CAFE24 마켓등록→sb상품 매핑, N/C/R/E 상태매핑). `/api/v1/orders/sync/esmplus` 엔드포인트·OrderSyncScheduler·"G마켓/옥션 동기화" 버튼을 Cafe24 방식으로 선회(ESM+ Selenium 철회). 진단용 `POST /orders/sync/cafe24/preview`(원시 응답). OAuth scope에 `mall.read_order,mall.write_order,mall.read_shipping` 추가.
+- 게이트: 전체 compileJava/TestJava SUCCESSFUL, 신규 `Cafe24OrderSyncServiceTest`(gmarket 매핑·타마켓 스킵·필드 파싱) PASS, `:core:test`·`:api:test` BUILD SUCCESSFUL. 부수: 항목2 여파로 깨졌던 `ElevenstRestClientBeanConflictTest`(좁은 스캔에 MarketCredentialRepository 목 미제공)도 수정.
+- **재인증 필요(사용자 액션)**: 기존 토큰은 product scope만 → 주문 조회 불가(preview 500 확인). Settings→카페24 재인증 카드(항상 노출로 변경)로 새 scope 재발급 후 라이브 검증 예정.
+- 상태: 코드 완성·배포. 재인증 후 라이브 검증(preview로 실구조 확인→sync→그리드 표시) 대기.
