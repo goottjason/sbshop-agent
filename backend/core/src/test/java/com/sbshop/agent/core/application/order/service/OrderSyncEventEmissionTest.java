@@ -8,7 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.application.order.adapter.CoupangOrderAdapter;
 import com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter;
-import com.sbshop.agent.core.application.order.adapter.EsmplusOrderAdapter;
+import com.sbshop.agent.core.application.order.adapter.Cafe24GmarketOrderAdapter;
 import com.sbshop.agent.core.application.order.adapter.SmartStoreOrderAdapter;
 import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import com.sbshop.agent.core.application.order.mapper.CoupangStatusMapper;
@@ -62,7 +62,7 @@ class OrderSyncEventEmissionTest {
 	@Mock
 	private ElevenstOrderAdapter elevenstOrderAdapter;
 	@Mock
-	private EsmplusOrderAdapter esmplusOrderAdapter;
+	private Cafe24GmarketOrderAdapter esmplusOrderAdapter;
 
 	private List<SyncCompletedEvent> capturedEvents() {
 		ArgumentCaptor<SyncCompletedEvent> captor = ArgumentCaptor.forClass(SyncCompletedEvent.class);

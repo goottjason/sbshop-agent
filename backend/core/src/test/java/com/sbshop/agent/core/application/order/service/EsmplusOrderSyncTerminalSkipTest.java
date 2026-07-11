@@ -5,7 +5,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.sbshop.agent.core.application.order.adapter.EsmplusOrderAdapter;
+import com.sbshop.agent.core.application.order.adapter.Cafe24GmarketOrderAdapter;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
@@ -47,7 +47,7 @@ class EsmplusOrderSyncTerminalSkipTest {
 	@Mock
 	private ApplicationEventPublisher eventPublisher;
 	@Mock
-	private EsmplusOrderAdapter esmplusOrderAdapter;
+	private Cafe24GmarketOrderAdapter esmplusOrderAdapter;
 
 	private EsmplusOrderSyncService newService() {
 		return new EsmplusOrderSyncService(

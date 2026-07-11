@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.order.adapter;
 
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
+import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
 import com.sbshop.agent.core.application.order.port.MarketOrderPort;
 import com.sbshop.agent.core.application.order.service.Cafe24ShipmentService;
 import com.sbshop.agent.core.domain.market.MarketCredential;
@@ -15,24 +16,26 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * 옥션(AUCTION) 배송 포트. 주문 조회는 Cafe24OrderSyncService가 담당하고,
- * 이 어댑터는 배송(송장 역전송)을 Cafe24 주문 API로 처리한다(GMARKET은 Cafe24GmarketOrderAdapter가 담당).
+ * G마켓(GMARKET) 주문 어댑터 — Cafe24 주문 API 기반(ESM+ Selenium 대체).
+ * 조회는 Cafe24OrderSyncService가 담당하므로 fetchOrders는 미사용(빈 리스트).
+ * 발주확인/취소는 Cafe24 주문상태 API, 송장은 Cafe24 shipments API.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class Cafe24AuctionOrderAdapter implements MarketOrderPort {
+public class Cafe24GmarketOrderAdapter implements MarketOrderPort {
 
+	private final Cafe24OrderApiPort cafe24OrderApiPort;
 	private final Cafe24ShipmentService cafe24ShipmentService;
 
 	@Override
 	public MarketType getMarketType() {
-		return MarketType.AUCTION;
+		return MarketType.GMARKET;
 	}
 
 	@Override
 	public List<MarketOrderDto> fetchOrders(MarketCredential credential, LocalDate fromDate, LocalDate toDate) {
-		// 옥션 주문 조회는 Cafe24OrderSyncService(order_place_id=auction)가 담당 — 여기선 미사용.
+		// G마켓 조회는 Cafe24OrderSyncService(order_place_id=gmarket)가 담당 — 여기선 미사용.
 		return List.of();
 	}
 
@@ -44,7 +47,11 @@ public class Cafe24AuctionOrderAdapter implements MarketOrderPort {
 
 	@Override
 	public void acceptOrders(MarketCredential credential, Order order) {
-		// Cafe24 주문은 배송 등록 시 처리되므로 별도 발주확인 불필요.
-		log.debug("[옥션/Cafe24] 발주확인 스킵: order={}", order.getMarketOrderNo());
+		cafe24OrderApiPort.acceptOrder(order.getMarketOrderNo());
+	}
+
+	@Override
+	public void cancelOrder(MarketCredential credential, Order order) {
+		cafe24OrderApiPort.cancelOrder(order.getMarketOrderNo());
 	}
 }

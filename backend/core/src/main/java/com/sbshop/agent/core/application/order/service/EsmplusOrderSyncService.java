@@ -10,7 +10,7 @@ import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
-import com.sbshop.agent.core.application.order.adapter.EsmplusOrderAdapter;
+import com.sbshop.agent.core.application.order.adapter.Cafe24GmarketOrderAdapter;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.CustomsData;
 import com.sbshop.agent.core.domain.order.vo.SettlementData;
@@ -39,7 +39,7 @@ public class EsmplusOrderSyncService {
 	private final OrderLineItemRepository orderLineItemRepository;
 	private final ProductRepository productRepository;
 	private final ApplicationEventPublisher eventPublisher;
-	private final EsmplusOrderAdapter esmplusOrderAdapter;
+	private final Cafe24GmarketOrderAdapter esmplusOrderAdapter;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
