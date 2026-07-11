@@ -74,4 +74,20 @@ class SmartstoreMarketClientSoldOutTest {
         assertThat(originProduct.get("status")).isEqualTo("SALE");
         assertThat(originProduct.get("stockQuantity")).isEqualTo(999);
     }
+
+    @Test
+    @DisplayName("soldOut=false, 기존 status==SUSPENSION → PUT 바디에 status 여전히 SUSPENSION (잠금 상태 보존)")
+    void inStockDoesNotOverrideLockedStatus() throws Exception {
+        stubGetWithStatus("SUSPENSION");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+
+        client.syncPriceAndStock(ITEM_ID, new HashMap<>(), 1000, 999, false);
+
+        verify(restClient).put(eq("/v2/products/origin-products/" + ITEM_ID), captor.capture());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> originProduct = (Map<String, Object>) captor.getValue().get("originProduct");
+        assertThat(originProduct.get("status")).isEqualTo("SUSPENSION");
+        assertThat(originProduct.get("stockQuantity")).isEqualTo(999);
+    }
 }

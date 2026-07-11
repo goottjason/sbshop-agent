@@ -66,4 +66,20 @@ class Cafe24MarketClientSoldOutTest {
         assertThat(request.get("supply_quantity")).isEqualTo("999");
         assertThat(request.get("selling")).isEqualTo("T");
     }
+
+    @Test
+    @DisplayName("price != null → request.price==\"30000.00\", supply_quantity==\"999\", selling==\"T\"")
+    void withPriceSetsRequestBodyPrice() {
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+
+        client.syncPriceAndStock(ITEM_ID, new HashMap<>(), 30000, 999, false);
+
+        verify(cafe24RestClient).put(eq("/admin/products/" + ITEM_ID), captor.capture());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> request = (Map<String, Object>) captor.getValue().get("request");
+        assertThat(request.get("price")).isEqualTo("30000.00");
+        assertThat(request.get("supply_quantity")).isEqualTo("999");
+        assertThat(request.get("selling")).isEqualTo("T");
+    }
 }

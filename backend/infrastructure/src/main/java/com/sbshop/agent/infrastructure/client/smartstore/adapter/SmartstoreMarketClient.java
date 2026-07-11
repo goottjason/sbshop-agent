@@ -112,7 +112,17 @@ public class SmartstoreMarketClient implements MarketClient {
 			if (price != null)
 				originProduct.put("salePrice", price);
 			originProduct.put("stockQuantity", quantity);
-			originProduct.put("status", soldOut ? "OUTOFSTOCK" : "SALE");
+			if (soldOut) {
+				// 품절은 명시적 사용자/크롤 의도 — 항상 판매중지 상태로.
+				originProduct.put("status", "OUTOFSTOCK");
+			} else {
+				// 판매중 복귀는 SALE/OUTOFSTOCK/미설정 상태에서만 — SUSPENSION/PROHIBITED 등
+				// 마켓 잠금 상태를 자동으로 SALE로 덮어쓰지 않는다.
+				Object current = originProduct.get("status");
+				if (current == null || "SALE".equals(current) || "OUTOFSTOCK".equals(current)) {
+					originProduct.put("status", "SALE");
+				}
+			}
 
 			Map<String, Object> requestBody = new HashMap<>();
 			requestBody.put("originProduct", originProduct);
