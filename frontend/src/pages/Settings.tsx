@@ -81,7 +81,6 @@ const Settings = () => {
     { id: 'SMART_STORE', label: '스마트스토어 (Naver)' },
     { id: 'ELEVEN_STREET', label: '11번가 (11st)' },
     { id: 'CAFE24', label: '카페24 (Cafe24)' },
-    { id: 'GMARKET', label: 'G마켓·옥션 (ESM+ 단일 로그인)' },
   ];
 
   if (isLoading) return <div>로딩 중...</div>;
@@ -312,38 +311,6 @@ const Settings = () => {
                   )}
                 </div>
               )}
-            </>
-          )}
-
-          {activeTab === 'GMARKET' && (
-            <>
-              <div style={{ padding: '16px', backgroundColor: '#f8f9fa', borderRadius: '8px', marginBottom: '16px' }}>
-                <p style={{ margin: 0, fontSize: '14px', color: '#666' }}>
-                  G마켓과 옥션은 ESM+(ESM Plus) 단일 계정으로 통합 로그인됩니다.<br />
-                  여기 한 곳에만 마스터 ID/비밀번호를 입력하면 G마켓·옥션 주문이 모두 수집됩니다(옥션 별도 입력 불필요).
-                </p>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: 500 }}>마스터 ID</label>
-                <input
-                  type="text"
-                  name="accessKey"
-                  value={formData.accessKey || ''}
-                  onChange={handleChange}
-                  className="input-field"
-                  placeholder="예: shouldbeshop"
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: 500 }}>비밀번호</label>
-                <input
-                  type="password"
-                  name="secretKey"
-                  value={formData.secretKey || ''}
-                  onChange={handleChange}
-                  className="input-field"
-                />
-              </div>
             </>
           )}
 
