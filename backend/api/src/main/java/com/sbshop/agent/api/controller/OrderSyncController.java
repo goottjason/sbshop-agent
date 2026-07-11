@@ -154,7 +154,12 @@ public class OrderSyncController {
 			return ResponseEntity.ok(Map.of("success", true, "orders", orders));
 		} catch (Exception e) {
 			log.error("Cafe24 주문 프리뷰 실패", e);
-			return ResponseEntity.internalServerError().body(Map.of("success", false, "message", e.getMessage()));
+			Throwable cur = e;
+			while (cur.getCause() != null && cur.getCause() != cur) {
+				cur = cur.getCause();
+			}
+			return ResponseEntity.internalServerError().body(Map.of("success", false,
+				"message", e.getMessage(), "rootCause", String.valueOf(cur.getMessage())));
 		}
 	}
 

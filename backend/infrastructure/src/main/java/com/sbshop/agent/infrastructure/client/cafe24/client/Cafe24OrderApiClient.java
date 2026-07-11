@@ -39,6 +39,7 @@ public class Cafe24OrderApiClient implements Cafe24OrderApiPort {
 	}
 
 	private String enc(String s) {
-		return URLEncoder.encode(s, StandardCharsets.UTF_8);
+		// 쿼리 값의 공백은 '+'가 아니라 %20으로(일부 서버가 '+'를 공백으로 해석하지 않음).
+		return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20");
 	}
 }
