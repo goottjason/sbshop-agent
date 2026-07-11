@@ -118,12 +118,17 @@ public class Order extends BaseEntity {
 		this.address = address;
 	}
 
-	/** 통관번호 변경 (PENDING, NONE으로 초기화) */
+	/**
+	 * 통관번호 변경. 번호가 실제로 바뀐 경우에만 검증상태를 PENDING/NONE으로 무효화하고,
+	 * 같은 번호가 재하달되면 사용자의 수기 검증상태(VALID/INVALID_*)를 유지한다 (D-073).
+	 */
 	public void updateCustomsClearanceNo(String customsClearanceNo) {
+		boolean numberChanged = customsClearanceNo != null
+			&& !customsClearanceNo.equals(this.customsData.getCustomsClearanceNo());
 		this.customsData = this.customsData.toBuilder()
 			.customsClearanceNo(customsClearanceNo)
-			.customsStatus(CustomsStatus.PENDING)
-			.verifiedPerson(VerifiedPerson.NONE)
+			.customsStatus(numberChanged ? CustomsStatus.PENDING : this.customsData.getCustomsStatus())
+			.verifiedPerson(numberChanged ? VerifiedPerson.NONE : this.customsData.getVerifiedPerson())
 			.build();
 	}
 
