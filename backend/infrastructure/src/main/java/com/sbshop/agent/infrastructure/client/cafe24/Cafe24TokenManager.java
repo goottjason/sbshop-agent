@@ -93,8 +93,9 @@ public class Cafe24TokenManager {
 			log.info("✅ Cafe24 토큰 갱신 완료 (만료: {})", credential.getTokenExpiresAt());
 			return resp.accessToken();
 		} catch (Exception e) {
-			log.error("❌ Cafe24 토큰 갱신 실패 — refresh token 만료/무효 추정", e);
-			return null;
+			log.error("❌ Cafe24 토큰 갱신 실패 — 재인증이 필요할 수 있습니다", e);
+			throw new IllegalStateException(
+				"Cafe24 토큰 갱신 실패 — 재인증이 필요합니다: " + e.getMessage(), e);
 		}
 	}
 
@@ -131,7 +132,7 @@ public class Cafe24TokenManager {
 	public void issueInitialToken(String code) {
 		MarketCredential credential = getCredential();
 		if (credential == null) {
-			throw new RuntimeException("Cafe24 credential not found in DB.");
+			throw new IllegalStateException("Cafe24 credential 미등록 — 재인증이 필요합니다");
 		}
 		String payload = String.format(
 			"grant_type=authorization_code&code=%s&redirect_uri=%s",

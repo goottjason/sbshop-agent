@@ -62,9 +62,10 @@ class Cafe24TokenManagerTest {
 		MarketCredential c = credential("AT-OLD",
 			LocalDateTime.now().minusMinutes(1), "RT1"); // 만료
 		when(repo.findByMarketType(any())).thenReturn(Optional.of(c));
+		java.time.Instant expectedExpiry = java.time.Instant.now().plusSeconds(7200);
 		when(tokenClient.exchange(any(), any(), any(), any()))
 			.thenReturn(new Cafe24OAuthTokenClient.TokenResponse(
-				"AT-NEW", "RT2", Instant.now().plusSeconds(7200)));
+				"AT-NEW", "RT2", expectedExpiry));
 
 		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);
 		String token = manager.getValidAccessToken();
@@ -72,7 +73,8 @@ class Cafe24TokenManagerTest {
 		assertThat(token).isEqualTo("AT-NEW");
 		assertThat(c.getAccessToken()).isEqualTo("AT-NEW");
 		assertThat(c.getRefreshToken()).isEqualTo("RT2");
-		assertThat(c.getTokenExpiresAt()).isNotNull();
+		assertThat(c.getTokenExpiresAt())
+			.isEqualTo(java.time.LocalDateTime.ofInstant(expectedExpiry, java.time.ZoneId.of("Asia/Seoul")));
 		verify(repo).save(c);
 	}
 
