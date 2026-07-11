@@ -37,10 +37,11 @@ public class SmartStoreStatusMapper implements MarketStatusMapper {
 				}
 				yield ShippingStatus.NEW;
 			}
+			case "PAYMENT_WAITING" -> ShippingStatus.NEW;
 			case "PRODUCT_PREPARE" -> ShippingStatus.PREPARING;
 			case "DISPATCHED", "DELIVERING" -> ShippingStatus.SHIPPED;
 			case "DELIVERED", "PURCHASE_DECIDED" -> ShippingStatus.DELIVERED;
-			case "CANCELED" -> ShippingStatus.CANCELED;
+			case "CANCELED", "CANCELED_BY_NOPAYMENT" -> ShippingStatus.CANCELED;
 			case "RETURNED" -> ShippingStatus.RETURNED;
 			case "EXCHANGED" -> ShippingStatus.EXCHANGED;
 			default -> {
