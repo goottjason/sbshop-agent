@@ -1132,3 +1132,36 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 결함 상태: D-073·D-074 = 검증통과. OVW-3/OVW-4는 D-073로 자동 해소.
 - 라이브 확인 권고: (a) 스마트스토어/11번가/ESM+가 통관번호를 실제 하달하는지(하달 안 하면 OVW-1 해당마켓 미발현). (b) "번호 변경 시 재검증(PENDING)" 정책이 업무규칙에 맞는지 사용자 확인.
 - 미착수 후속(원장 유지): D-070(parseOrderElement emptyToNull)·D-071(스마트스토어 postSyncProcess 취소/반품)·D-072(배송실패 UI 표면화).
+
+---
+
+## 사이클 22 (Cafe24 동기화 실패 + 전체 액션 활동로그, 2026-07-11, 사용자 신고)
+
+> 출처: `_workspace/scout_report_cafe24fail.md`, `_workspace/scout_report_actionlog.md`. 사용자 신고 (1) "동기화 실패: Cafe24 API 호출 실패" 버그, (2) 모든 메뉴/기능 액션에 활동로그(진행현황 성공/진행/실패) 기록.
+
+### D-075: Cafe24 동기화 실패 원인 은폐 (CF24-1/2/3)
+- 심각도 P1 / 리스크 표준 / 상태 수정완료(검증대기) — 수정요지 `_workspace/fixes/D-075.md`
+- 증상: 진행현황에 "동기화 실패: Cafe24 API 호출 실패"만 표시, 원인 불명. G마켓/옥션 주문 동기화 중단.
+- 근본원인(확정): `Cafe24TokenManager.getValidAccessToken()`(60~68)이 refresh 실패 시에도 예외 없이 **null 반환** → `Cafe24RestClient.get()`이 "Bearer null"로 호출 → 401 → `catch(Exception)` → `RuntimeException("Cafe24 API 호출 실패", e)`(RestClient:34) → `Cafe24OrderSyncService`(62~67) `e.getMessage()`만 SyncCompletedEvent errorMessage로 전달 → root cause(401/403/422) 은폐.
+- 구분: (라이브) refresh_token 만료/scope 부족이면 사용자 재인증 필요(`GET /api/admin/sync/cafe24/status`로 판별). (코드 수정) CF24-2 getValidAccessToken null 시 즉시 IllegalStateException("재인증 필요") throw; CF24-3 실패 시 root cause chain을 errorMessage에 포함.
+- 수정방향: 코드 수정으로 실패 사유를 명확히 표면화(활동로그·상태에 재인증 필요/scope/HTTP코드 노출). 실제 연결 복구는 사용자 재인증.
+- 영향: `Cafe24TokenManager.java`, `Cafe24RestClient.java`, `Cafe24OrderSyncService.java`
+- 라이브 확인: `GET /api/admin/sync/cafe24/status`(connected 여부·사유), 서버로그 "Cafe24 GET Error".
+
+### D-076: 전체 사용자 액션 활동로그 커버리지 (기능 구현)
+- 심각도 P2(기능 요청) / 리스크 표준 / 상태 발견
+- 배경: 활동로그 인프라(ActionLog/ActionLogService.record STARTED·SUCCESS·FAILED/ActionLogSyncListener/ActionLogController/ProcessStatusPage) 존재하나 커버리지가 4개 마켓 동기화(S1~S4)뿐. 미커버 24개 엔드포인트(통관검증·재고새로고침·구매정보수정·배송정보수정·주문확인/취소/발송/삭제·상품 수정/이미지/삭제/등록/게시·소싱·배치·자격증명저장·Cafe24재인증 등).
+- 설계 결정(채택): **수동 record() 방식**(surveyor 권고 후보 B) + `ActionLogConstants` 상수 클래스 신설. AOP(후보 A)는 spring-boot-starter-aop 의존성·동적 marketType·기존 SyncCompletedEvent 이중기록 복잡성으로 후순위. 동기 단건수정은 결과만(SUCCESS/FAILED), 장시간/비동기(동기화·배치·크롤)는 STARTED+결과. S1~S4는 현행 유지(STARTED+리스너 완료, 이중기록 금지).
+- 인벤토리: `_workspace/scout_report_actionlog.md` §2 전수표 참조.
+- 영향: `ActionLogConstants.java`(신규), api 컨트롤러 8종(OrderSyncController[S5·S6], OrderController[O1~O10], ProductController, ProductSyncController, ProductSourcingController, BatchController, MarketCredentialController, Cafe24AuthController), `frontend/src/pages/ProcessStatusPage.tsx`(actionType→한글 라벨).
+- 리스크: 표준. 스키마 변경 없음(sb_action_log 기존). marketType nullable 허용.
+
+### 사이클 22 배치
+- D-075(Cafe24 client/token/sync)와 D-076(api 컨트롤러+프론트) 파일 비겹침 → 병렬. D-076은 ActionLogConstants 공유 의존으로 단일 fixer 일괄.
+
+### 사이클 22 검증·커밋 결과 (2026-07-11)
+- **검증통과·커밋**: D-075(Cafe24 실패 fail-fast+root cause, 커밋 824f24f), D-076(전체 액션 활동로그 24엔드포인트+ActionLogConstants+프론트 라벨, 368d408). 리더 직접 게이트(세션 재시작으로 팀원 소멸→리더 검증): 코드 테스트 :core/:api/:infrastructure 관련 통과, 프론트 tsc 0·build ✓. record 패턴 FAILED후 예외 재throw로 에러응답 보존 스팟체크.
+- **환경 제약**: 로컬 Docker 미실행으로 testcontainers 컨텍스트 스모크 3건(ApiContextLoadSmokeTest/ApiContextLoadWithBlankR2CredentialsTest/ProductDetailHtmlReadTest) initializationError — cycle-22 코드 무관(미변경), CI/서버(Docker)에서 검증됨.
+- 결함 상태: D-075·D-076 = 검증통과.
+- 라이브 확인: D-075 — `GET /api/admin/sync/cafe24/status`로 connected/재인증 필요 판별, 재인증 후 preview 정상 확인. D-076 — 각 액션 클릭 후 진행현황에 STARTED/SUCCESS/FAILED 표시 확인.
+- 후속(원장 유지): 배치(B1~B4) 비동기 완료 SUCCESS/FAILED 기록(2차), 활동로그 AOP 리팩토링(선택). 기존 D-070~072 + 사이클20 라이브 잔여.
