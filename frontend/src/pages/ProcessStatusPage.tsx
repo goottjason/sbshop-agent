@@ -49,6 +49,7 @@ const actionTypeLabels: Record<string, string> = {
   ORDER_DELETE: '주문 삭제',
   PRODUCT_PRICE_STOCK_UPDATE: '가격/재고 수정',
   PRODUCT_IMAGE_UPDATE: '이미지 수정',
+  SOURCE_IMAGE_CRAWL: '소스이미지 크롤',
   PRODUCT_UPDATE: '상품 정보수정',
   PRODUCT_DELETE: '상품 삭제',
   PRODUCT_SOURCING: '소싱 크롤',

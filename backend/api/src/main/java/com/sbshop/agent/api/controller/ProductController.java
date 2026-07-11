@@ -104,7 +104,7 @@ public class ProductController {
 			MarketRepublishResult result =
 				productManageUseCase.updatePriceStock(id, request.price(), request.stock());
 			actionLogService.record(ActionLogConstants.PRODUCT_PRICE_STOCK_UPDATE, null,
-				ActionStatus.SUCCESS, "가격/재고 수정 성공 (상품 " + id + ")");
+				ActionStatus.SUCCESS, buildMarketResultMessage(id, "DB 저장 완료", result));
 			return ResponseEntity.ok(result);
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.PRODUCT_PRICE_STOCK_UPDATE, null,
@@ -124,7 +124,7 @@ public class ProductController {
 		try {
 			MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, uploadFiles);
 			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
-				ActionStatus.SUCCESS, "이미지 수정 성공 (상품 " + id + ")");
+				ActionStatus.SUCCESS, buildMarketResultMessage(id, "이미지 저장 완료", result));
 			return ResponseEntity.ok(ImageUploadResponse.from(result));
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
@@ -144,7 +144,7 @@ public class ProductController {
 		try {
 			MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, downloadFiles);
 			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
-				ActionStatus.SUCCESS, "이미지 수정 성공 (상품 " + id + ")");
+				ActionStatus.SUCCESS, buildMarketResultMessage(id, "이미지 저장 완료", result));
 			return ResponseEntity.ok(ImageUploadResponse.from(result));
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
@@ -156,16 +156,28 @@ public class ProductController {
 	@GetMapping("/{id}/images/crawl")
 	public ResponseEntity<List<String>> crawlSourceImages(@PathVariable
 	Long id) {
-		Product product = productSearchUseCase.getProductDetail(id);
-		String sourcingUrl = product.getSourcingUrl();
-		if (sourcingUrl == null || sourcingUrl.isEmpty()) {
-			return ResponseEntity.ok(List.of());
+		// D-078: 소스이미지 크롤 활동로그 배선. 마켓 무관(소싱 크롤)이므로 marketType null.
+		// 빈결과(소싱 URL 없음/스크랩 null)도 "왜 비었는지" 사용자에게 보이도록 결과 기록.
+		try {
+			Product product = productSearchUseCase.getProductDetail(id);
+			String sourcingUrl = product.getSourcingUrl();
+			if (sourcingUrl == null || sourcingUrl.isEmpty()) {
+				actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
+					ActionStatus.SUCCESS, "소스이미지 없음 — 소싱 URL 미등록 (상품 " + id + ")");
+				return ResponseEntity.ok(List.of());
+			}
+			ScrapedProductDto scraped = productInfoCrawlerPort.crawlProductInfoAsDto(sourcingUrl);
+			List<String> images = (scraped == null || scraped.sourceImages() == null)
+				? List.of() : scraped.sourceImages();
+			actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
+				ActionStatus.SUCCESS,
+				"소스이미지 크롤 " + images.size() + "개 수집 (상품 " + id + ")");
+			return ResponseEntity.ok(images);
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
+				ActionStatus.FAILED, "소스이미지 크롤 실패 (상품 " + id + "): " + e.getMessage());
+			throw e;
 		}
-		ScrapedProductDto scraped = productInfoCrawlerPort.crawlProductInfoAsDto(sourcingUrl);
-		if (scraped == null || scraped.sourceImages() == null) {
-			return ResponseEntity.ok(List.of());
-		}
-		return ResponseEntity.ok(scraped.sourceImages());
 	}
 
 	@PutMapping("/{id}")
@@ -214,6 +226,48 @@ public class ProductController {
 		}
 		return marketRegistrationRepository.findByProductIdIn(productIds).stream()
 			.collect(Collectors.groupingBy(MarketRegistration::getProductId));
+	}
+
+	/**
+	 * D-077: 마켓별 상세 활동로그 메시지를 조립한다.
+	 * "{prefix} | 쿠팡 {번호} 성공, 스마트스토어 {번호} 실패(사유), G마켓 스킵" 형태.
+	 * 마켓 라벨은 한글(MarketType.getLabel()), 상품번호는 extractMarketCode()(없으면 생략).
+	 * 실패 사유는 50자로 절단(전체 message 1000자는 ActionLogService.truncate가 처리).
+	 */
+	private String buildMarketResultMessage(Long productId, String prefix, MarketRepublishResult result) {
+		Map<MarketType, String> codes = new HashMap<>();
+		for (MarketRegistration reg : marketRegistrationRepository.findByProductId(productId)) {
+			String code = reg.extractMarketCode();
+			if (code != null && !code.isEmpty()) {
+				codes.put(reg.getMarketType(), code);
+			}
+		}
+		List<String> parts = new ArrayList<>();
+		for (MarketType m : result.synced()) {
+			parts.add(marketLabelWithCode(m, codes) + " 성공");
+		}
+		for (Map.Entry<MarketType, String> e : result.failed().entrySet()) {
+			parts.add(marketLabelWithCode(e.getKey(), codes) + " 실패(" + truncateReason(e.getValue()) + ")");
+		}
+		for (MarketType m : result.skipped()) {
+			parts.add(marketLabelWithCode(m, codes) + " 스킵");
+		}
+		if (parts.isEmpty()) {
+			return prefix + " (연동 마켓 없음, 상품 " + productId + ")";
+		}
+		return prefix + " | " + String.join(", ", parts);
+	}
+
+	private String marketLabelWithCode(MarketType market, Map<MarketType, String> codes) {
+		String code = codes.get(market);
+		return (code == null || code.isEmpty()) ? market.getLabel() : market.getLabel() + " " + code;
+	}
+
+	private String truncateReason(String reason) {
+		if (reason == null) {
+			return "";
+		}
+		return reason.length() > 50 ? reason.substring(0, 50) : reason;
 	}
 
 	private Map<String, String> buildMarketMap(List<MarketRegistration> registrations) {

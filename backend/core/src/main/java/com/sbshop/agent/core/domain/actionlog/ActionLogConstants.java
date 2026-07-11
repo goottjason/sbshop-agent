@@ -52,6 +52,8 @@ public final class ActionLogConstants {
 	public static final String PRODUCT_UPDATE = "PRODUCT_UPDATE";
 	/** 상품 삭제 (P5) */
 	public static final String PRODUCT_DELETE = "PRODUCT_DELETE";
+	/** 소스이미지 크롤(소싱처 이미지 URL 수집) (P6, D-078) */
+	public static final String SOURCE_IMAGE_CRAWL = "SOURCE_IMAGE_CRAWL";
 
 	// ── 재고 동기화(ProductSyncController) ───────────────────────────
 	/** 재고 동기화(크롤) (PS1) */

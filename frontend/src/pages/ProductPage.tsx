@@ -273,11 +273,12 @@ const ProductPage = () => {
       const res = await productApi.crawlSourceImages(detailModal.id);
       const urls = (res.data as string[]) || [];
       if (urls.length === 0) {
-        message.info('크롤된 소스 이미지가 없습니다 (소싱 URL을 확인하세요).');
+        // D-078: 빈 결과 무음 제거 — 왜 비었는지(소싱 URL/크롤 실패) 사용자에게 안내.
+        message.warning('소스이미지를 찾지 못했습니다 (소싱 URL/크롤 확인).');
         return;
       }
       setUrlInput(urls.join('\n'));
-      message.success(`${urls.length}개 소스 이미지를 찾았습니다. 'URL로 등록'을 눌러 반영하세요.`);
+      message.success(`${urls.length}개 소스 이미지를 불러왔습니다. 'URL로 등록'을 눌러 반영하세요.`);
     } catch {
       message.error('소스 이미지 크롤에 실패했습니다.');
     } finally {
@@ -523,7 +524,8 @@ const ProductPage = () => {
                   <Button icon={<UploadOutlined />} loading={uploading} onClick={() => fileInputRef.current?.click()}>
                     파일 업로드
                   </Button>
-                  {/* D-049(결정①): 비-iHerb 벤더는 크롤 미지원 — 버튼 비활성 + 사유 안내(무음 실패 제거) */}
+                  {/* D-078: disabled 버튼은 antd Tooltip이 안 떠 "먹통"으로 체감 → 항상 클릭 가능하게 두고
+                      handleCrawl 내 비-iHerb warning으로 사유를 안내(무음 실패 제거). Tooltip은 보조 안내로 유지. */}
                   <Tooltip
                     title={d.vendor !== 'IHB'
                       ? '이 벤더는 아직 소스이미지 크롤을 지원하지 않습니다 (현재 iHerb 상품만 지원).'
@@ -532,7 +534,6 @@ const ProductPage = () => {
                     <Button
                       icon={<CloudDownloadOutlined />}
                       loading={uploading}
-                      disabled={d.vendor !== 'IHB'}
                       onClick={handleCrawl}
                     >
                       소스 이미지 크롤
