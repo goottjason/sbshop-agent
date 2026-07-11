@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
@@ -160,6 +161,25 @@ class Cafe24OrderSyncServiceTest {
 		ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
 		verify(orderRepository, times(1)).save(orderCaptor.capture());
 		assertThat(orderCaptor.getValue().getCustomsData().getCustomsClearanceNo()).isNull();
+	}
+
+	@Test
+	@DisplayName("D-075: 동기화 실패 시 SyncCompletedEvent errorMessage에 원인(root cause)이 담긴다")
+	void surfacesRootCauseInFailureEvent() {
+		// RestClient wrapping을 흉내: 최상위는 "Cafe24 API 호출 실패...", 원인은 재인증 필요 메시지.
+		RuntimeException wrapped = new RuntimeException(
+			"Cafe24 API 호출 실패",
+			new IllegalStateException("Cafe24 access token 획득 실패 — 재인증이 필요합니다"));
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0))).thenThrow(wrapped);
+
+		service.syncCafe24Orders();
+
+		ArgumentCaptor<SyncCompletedEvent> eventCaptor = ArgumentCaptor.forClass(SyncCompletedEvent.class);
+		verify(eventPublisher).publishEvent(eventCaptor.capture());
+		SyncCompletedEvent event = eventCaptor.getValue();
+		assertThat(event.isSuccess()).isFalse();
+		// "Cafe24 API 호출 실패"만이 아니라 root cause(재인증 필요)가 함께 보여야 한다.
+		assertThat(event.getErrorMessage()).contains("재인증");
 	}
 
 	@Test

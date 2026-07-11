@@ -64,6 +64,11 @@ public class Cafe24TokenManager {
 			|| tokenExpiresAt.minusSeconds(300).isBefore(Instant.now())) {
 			refreshAccessToken();
 		}
+		// 갱신 시도 후에도 토큰이 없으면 "Bearer null" 호출로 원인이 은폐되지 않도록 즉시 실패시킨다(fail-fast).
+		if (accessToken == null) {
+			throw new IllegalStateException(
+				"Cafe24 access token 획득 실패 — 재인증이 필요합니다(refresh token 만료/무효 또는 미발급)");
+		}
 		return accessToken;
 	}
 

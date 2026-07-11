@@ -63,14 +63,32 @@ public class Cafe24OrderSyncService {
 			log.info("[CAFE24-ORDER] G마켓/옥션 주문 동기화 완료: {}건", count);
 			success = true;
 		} catch (Exception e) {
-			log.error("[CAFE24-ORDER] 동기화 실패: {}", e.getMessage(), e);
-			eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.GMARKET, false, e.getMessage()));
+			String reason = failureReason(e);
+			log.error("[CAFE24-ORDER] 동기화 실패: {}", reason, e);
+			eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.GMARKET, false, reason));
 		} finally {
 			isSyncing.set(false);
 			if (success) {
 				eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.GMARKET));
 			}
 		}
+	}
+
+	/**
+	 * 실패 이벤트에 담을 사유 문자열을 만든다. wrapping 예외의 최상위 메시지에 더해, 그와 다른
+	 * 최심 root cause 메시지가 있으면 결합해 원인이 은폐되지 않게 한다("Cafe24 API 호출 실패"만 뜨는 문제 해소).
+	 */
+	private String failureReason(Throwable e) {
+		String top = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+		Throwable root = e;
+		while (root.getCause() != null && root.getCause() != root) {
+			root = root.getCause();
+		}
+		String rootMsg = root.getMessage();
+		if (rootMsg != null && !rootMsg.isBlank() && !top.contains(rootMsg)) {
+			return top + " (원인: " + rootMsg + ")";
+		}
+		return top;
 	}
 
 	/** 페이지네이션으로 전 주문을 순회하며 저장. G마켓/옥션(order_place_id)만 처리한다. */

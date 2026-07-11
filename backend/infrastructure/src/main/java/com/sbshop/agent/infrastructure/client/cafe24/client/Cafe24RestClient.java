@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
 
 @Slf4j
@@ -31,8 +32,23 @@ public class Cafe24RestClient {
 				.body(String.class);
 		} catch (Exception e) {
 			log.error("[Cafe24 GET Error] path: {}, msg: {}", path, e.getMessage());
-			throw new RuntimeException("Cafe24 API 호출 실패", e);
+			throw new RuntimeException(enrich("Cafe24 API 호출 실패", e), e);
 		}
+	}
+
+	/**
+	 * 원 예외의 의미를 메시지에 포함해 root cause 은폐를 방지한다.
+	 * HTTP 오류면 상태코드와 응답 본문 앞부분을, 그 외 예외는 원 메시지를 붙인다.
+	 * 토큰 등 시크릿은 본문에 담기지 않는 전제이나, 만약을 대비해 길이를 제한한다.
+	 */
+	private String enrich(String prefix, Exception e) {
+		if (e instanceof HttpStatusCodeException httpEx) {
+			String body = httpEx.getResponseBodyAsString();
+			String snippet = body == null ? "" : body.substring(0, Math.min(body.length(), 300));
+			return prefix + "(" + httpEx.getStatusCode().value() + "): " + snippet;
+		}
+		String msg = e.getMessage();
+		return msg == null ? prefix : prefix + ": " + msg;
 	}
 
 	public String put(String path, Object body) {
