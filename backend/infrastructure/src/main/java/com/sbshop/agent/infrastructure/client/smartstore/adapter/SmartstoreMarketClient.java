@@ -103,7 +103,7 @@ public class SmartstoreMarketClient implements MarketClient {
 
 	@Override
 	public Map<String, Object> syncPriceAndStock(String marketItemId, Map<String, Object> currentRawData,
-		Integer price, Integer stock) {
+		Integer price, int quantity, boolean soldOut) {
 		try {
 			String response = restClient.get("/v2/products/origin-products/" + marketItemId);
 			JsonNode originNode = objectMapper.readTree(response).path("originProduct");
@@ -111,26 +111,25 @@ public class SmartstoreMarketClient implements MarketClient {
 
 			if (price != null)
 				originProduct.put("salePrice", price);
-			if (stock != null) {
-				originProduct.put("stockQuantity", stock);
-				if (stock > 0 && "OUTOFSTOCK".equals(originProduct.get("status"))) {
-					originProduct.put("status", "SALE");
-				}
-			}
+			originProduct.put("stockQuantity", quantity);
+			originProduct.put("status", soldOut ? "OUTOFSTOCK" : "SALE");
 
 			Map<String, Object> requestBody = new HashMap<>();
 			requestBody.put("originProduct", originProduct);
 			restClient.put("/v2/products/origin-products/" + marketItemId, requestBody);
 
-			log.info("[Smartstore] 가격/재고 업데이트 완료: {}", marketItemId);
+			log.info("[Smartstore] 가격/재고/판매상태 업데이트 완료: {}", marketItemId);
 			if (currentRawData != null) {
 				if (price != null)
 					currentRawData.put("salePrice", price);
-				if (stock != null)
-					currentRawData.put("stockQuantity", stock);
+				currentRawData.put("stockQuantity", quantity);
 			}
+		} catch (RuntimeException e) {
+			log.error("[Smartstore] 가격/재고 업데이트 실패: {}", e.getMessage());
+			throw e; // 실패 표면화(SP-A 원칙)
 		} catch (Exception e) {
 			log.error("[Smartstore] 가격/재고 업데이트 실패: {}", e.getMessage());
+			throw new RuntimeException("[Smartstore] 가격/재고 업데이트 실패", e); // 실패 표면화(SP-A 원칙)
 		}
 		return currentRawData;
 	}

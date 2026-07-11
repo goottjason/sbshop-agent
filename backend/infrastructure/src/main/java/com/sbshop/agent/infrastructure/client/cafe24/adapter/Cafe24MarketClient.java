@@ -110,31 +110,30 @@ public class Cafe24MarketClient implements MarketClient {
 
 	@Override
 	public Map<String, Object> syncPriceAndStock(String marketItemId, Map<String, Object> currentRawData,
-		Integer price, Integer stock) {
+		Integer price, int quantity, boolean soldOut) {
 		// publish()의 price/supply_quantity 필드 + syncImagesAndHtml()의 PUT /admin/products/{id} 패턴을 그대로 사용.
 		Map<String, Object> productData = new HashMap<>();
 		productData.put("shop_no", 1);
 		if (price != null) {
 			productData.put("price", price + ".00");
 		}
-		if (stock != null) {
-			productData.put("supply_quantity", String.valueOf(stock));
-		}
+		productData.put("supply_quantity", String.valueOf(quantity)); // 항상 ≥1
+		productData.put("selling", soldOut ? "F" : "T");              // 신규, 라이브 검증 필요
 		Map<String, Object> requestBody = new HashMap<>();
 		requestBody.put("request", productData);
 		// 실패 시 예외 전파 → 상위에서 '실패 마켓'으로 표면화.
 		cafe24RestClient.put("/admin/products/" + marketItemId, requestBody);
-		log.info("[카페24] 가격/재고 동기화 완료: {}, price={}, stock={}", marketItemId, price, stock);
+		log.info("[카페24] 가격/재고/판매상태 동기화 완료: {}, price={}, qty={}, soldOut={}", marketItemId, price, quantity, soldOut);
 
 		if (currentRawData != null) {
 			if (price != null) {
 				currentRawData.put("price", price + ".00");
 			}
-			if (stock != null && currentRawData.containsKey("variants")) {
+			if (currentRawData.containsKey("variants")) {
 				@SuppressWarnings("unchecked") List<Map<String, Object>> variants = (List<Map<String, Object>>)currentRawData
 					.get("variants");
 				if (variants != null && !variants.isEmpty()) {
-					variants.get(0).put("quantity", stock);
+					variants.get(0).put("quantity", quantity);
 				}
 			}
 		}

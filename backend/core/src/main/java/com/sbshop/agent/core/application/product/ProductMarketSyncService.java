@@ -7,6 +7,8 @@ import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.product.Product;
+import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -29,7 +31,19 @@ public class ProductMarketSyncService {
 	private final MarketClientRouter marketClientRouter;
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
+	public MarketRepublishResult syncPriceStock(Long productId, Integer price, StockStatus stockStatus) {
+		boolean soldOut = stockStatus == StockStatus.OUT_OF_STOCK;
+		int quantity = soldOut ? 1 : Product.DEFAULT_IN_STOCK_QUANTITY;
+		return syncInternal(productId, price, quantity, soldOut);
+	}
+
+	/** 임시 호환 오버로드(기존 caller 유지용). stock<=0 → 품절. Task 4에서 caller 이관 후 제거. */
 	public MarketRepublishResult syncPriceStock(Long productId, Integer price, Integer stock) {
+		StockStatus status = (stock == null || stock <= 0) ? StockStatus.OUT_OF_STOCK : StockStatus.IN_STOCK;
+		return syncPriceStock(productId, price, status);
+	}
+
+	private MarketRepublishResult syncInternal(Long productId, Integer price, int quantity, boolean soldOut) {
 		List<MarketRegistration> registrations = marketRegistrationRepository.findByProductId(productId);
 		List<MarketType> synced = new ArrayList<>();
 		List<MarketType> skipped = new ArrayList<>();
@@ -50,7 +64,8 @@ public class ProductMarketSyncService {
 				Map<String, Object> currentRawData = parseRawData(reg.getMarketDetailedInfo());
 
 				MarketClient client = marketClientRouter.getClient(marketType);
-				Map<String, Object> updated = client.syncPriceAndStock(marketItemId, currentRawData, price, stock);
+				Map<String, Object> updated =
+					client.syncPriceAndStock(marketItemId, currentRawData, price, quantity, soldOut);
 
 				if (updated != null) {
 					reg.updateMarketDetailedInfo(objectMapper.writeValueAsString(updated));

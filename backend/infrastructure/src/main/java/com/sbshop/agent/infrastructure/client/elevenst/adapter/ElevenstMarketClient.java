@@ -70,28 +70,25 @@ public class ElevenstMarketClient implements MarketClient {
 
 	@Override
 	public Map<String, Object> syncPriceAndStock(String marketItemId, Map<String, Object> currentRawData,
-		Integer price, Integer stock) {
+		Integer price, int quantity, boolean soldOut) {
 		try {
 			if (price != null) {
 				restClient.get("/rest/prodservices/product/price/" + marketItemId + "/" + price);
 				log.info("[Elevenst] 가격 업데이트: {} -> {}", marketItemId, price);
 			}
-			if (stock != null) {
-				if (stock == 0) {
-					restClient.put("/rest/prodstatservice/stat/stopdisplay/" + marketItemId, "");
-				} else {
-					restClient.put("/rest/prodstatservice/stat/restartdisplay/" + marketItemId, "");
-				}
-				log.info("[Elevenst] 재고 업데이트: {} -> {}", marketItemId, stock);
+			// 11번가는 수량 개념 없음 — 판매상태로만 처리(soldOut 기준).
+			if (soldOut) {
+				restClient.put("/rest/prodstatservice/stat/stopdisplay/" + marketItemId, "");
+			} else {
+				restClient.put("/rest/prodstatservice/stat/restartdisplay/" + marketItemId, "");
 			}
-			if (currentRawData != null) {
-				if (price != null)
-					currentRawData.put("salePrice", price);
-				if (stock != null)
-					currentRawData.put("stockQuantity", stock);
+			log.info("[Elevenst] 판매상태 업데이트: {} -> soldOut={}", marketItemId, soldOut);
+			if (currentRawData != null && price != null) {
+				currentRawData.put("salePrice", price);
 			}
 		} catch (Exception e) {
-			log.error("[Elevenst] 가격/재고 업데이트 실패: {}", e.getMessage());
+			log.error("[Elevenst] 가격/판매상태 업데이트 실패: {}", e.getMessage());
+			throw e; // 실패 표면화(SP-A 원칙)
 		}
 		return currentRawData;
 	}

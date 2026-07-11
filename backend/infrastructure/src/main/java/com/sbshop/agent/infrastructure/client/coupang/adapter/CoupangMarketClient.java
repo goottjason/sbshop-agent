@@ -159,8 +159,8 @@ public class CoupangMarketClient implements MarketClient {
 
 	@Override
 	public Map<String, Object> syncPriceAndStock(String marketItemId, Map<String, Object> currentRawData,
-		Integer price, Integer stock) {
-		// 쿠팡은 vendorItemId 단위 전용 엔드포인트로 가격/재고를 반영한다(저장된 rawData 불필요).
+		Integer price, int quantity, boolean soldOut) {
+		// 쿠팡은 vendorItemId 단위 전용 엔드포인트로 가격/재고/판매상태를 반영한다(저장된 rawData 불필요).
 		// price/quantity는 경로 파라미터, 바디 없음(HMAC는 method+path에 서명).
 		if (marketItemId == null || marketItemId.isEmpty()) {
 			throw new IllegalStateException("쿠팡 vendorItemId 없음");
@@ -172,10 +172,11 @@ public class CoupangMarketClient implements MarketClient {
 		if (price != null) {
 			restClient.put(base + "/prices/" + price, java.util.Map.of());
 		}
-		if (stock != null) {
-			restClient.put(base + "/quantities/" + stock, java.util.Map.of());
-		}
-		log.info("[쿠팡] 가격/재고 동기화 완료: vendorItemId={}, price={}, stock={}", marketItemId, price, stock);
+		restClient.put(base + "/quantities/" + quantity, java.util.Map.of()); // 항상 ≥1
+		// 판매상태: 코드에 없던 신규 경로 — 라이브 검증 필요. 빈 JSON 바디는 기존 411 회피 관습.
+		restClient.put(base + (soldOut ? "/sales/stop" : "/sales/resume"), java.util.Map.of());
+		log.info("[쿠팡] 가격/재고/판매상태: vendorItemId={}, price={}, qty={}, soldOut={}",
+			marketItemId, price, quantity, soldOut);
 		return currentRawData;
 	}
 

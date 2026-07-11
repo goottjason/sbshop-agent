@@ -20,7 +20,8 @@ public interface MarketClient {
 		String marketItemId,
 		Map<String, Object> currentRawData,
 		Integer price,
-		Integer stock);
+		int quantity,
+		boolean soldOut);
 
 	Map<String, Object> syncImagesAndHtml(
 		String marketItemId,

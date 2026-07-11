@@ -2,6 +2,8 @@ package com.sbshop.agent.core.application.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -57,7 +59,7 @@ class ProductMarketSyncServiceTest {
 
 		MarketRepublishResult result = service.syncPriceStock(PRODUCT_ID, 40700, 500);
 
-		verify(coupangClient).syncPriceAndStock(eq("CP123"), any(), eq(40700), eq(500));
+		verify(coupangClient).syncPriceAndStock(eq("CP123"), any(), eq(40700), eq(999), eq(false));
 		assertThat(result.synced()).containsExactly(MarketType.COUPANG);
 		assertThat(result.failed()).isEmpty();
 	}
@@ -89,12 +91,12 @@ class ProductMarketSyncServiceTest {
 		when(marketClientRouter.hasClient(MarketType.SMART_STORE)).thenReturn(true);
 		when(marketClientRouter.getClient(MarketType.COUPANG)).thenReturn(coupangClient);
 		when(marketClientRouter.getClient(MarketType.SMART_STORE)).thenReturn(storeClient);
-		when(coupangClient.syncPriceAndStock(any(), any(), any(), any()))
+		when(coupangClient.syncPriceAndStock(any(), any(), any(), anyInt(), anyBoolean()))
 			.thenThrow(new RuntimeException("쿠팡 API 오류"));
 
 		MarketRepublishResult result = service.syncPriceStock(PRODUCT_ID, 1000, 3);
 
-		verify(storeClient).syncPriceAndStock(eq("OP99"), any(), eq(1000), eq(3));
+		verify(storeClient).syncPriceAndStock(eq("OP99"), any(), eq(1000), eq(999), eq(false));
 		assertThat(result.synced()).containsExactly(MarketType.SMART_STORE);
 		assertThat(result.failed()).containsKey(MarketType.COUPANG);
 	}
