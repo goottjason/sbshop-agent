@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import type { ColDef, CellClickedEvent } from 'ag-grid-community';
-import { Input, Button, Space, Modal, InputNumber, message, Descriptions, Image, Spin, Collapse, Typography, Divider, Pagination, Tooltip } from 'antd';
+import { Input, Button, Space, Modal, InputNumber, message, Descriptions, Image, Spin, Collapse, Typography, Divider, Pagination, Tooltip, Switch } from 'antd';
 import { SearchOutlined, ReloadOutlined, UploadOutlined, LinkOutlined, CloudDownloadOutlined } from '@ant-design/icons';
 import { productApi, type ProductList, type ProductDetail, type ImageUploadResult, type PriceStockSyncResult } from '../api/productApi';
 
@@ -125,7 +125,7 @@ const ProductPage = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [, setLoading] = useState(false);
-  const [priceStockModal, setPriceStockModal] = useState<{ visible: boolean; id?: number; price?: number; stock?: number }>({ visible: false });
+  const [priceStockModal, setPriceStockModal] = useState<{ visible: boolean; id?: number; price?: number; soldOut?: boolean }>({ visible: false });
 
   // D-035: 상품 상세 모달
   const [detailModal, setDetailModal] = useState<{ visible: boolean; loading: boolean; id?: number; data?: ProductDetail }>({ visible: false, loading: false });
@@ -156,7 +156,7 @@ const ProductPage = () => {
       visible: true,
       id: product.id,
       price: product.salePrice ?? 0,
-      stock: product.stock ?? 0,
+      soldOut: false,
     });
   };
 
@@ -401,7 +401,7 @@ const ProductPage = () => {
         onOk={async () => {
           if (priceStockModal.id !== undefined) {
             try {
-              const res = await productApi.updatePriceStock(priceStockModal.id, priceStockModal.price || 0, priceStockModal.stock || 0);
+              const res = await productApi.updatePriceStock(priceStockModal.id, priceStockModal.price || 0, priceStockModal.soldOut === true);
               // D-060: 마켓 동기화 결과(성공/실패 마켓)를 표면화. 자사 DB는 저장됐어도 일부 마켓 반영 실패를 조용히 삼키지 않는다.
               surfacePriceStockResult(res.data as PriceStockSyncResult);
               setPriceStockModal({ visible: false });
@@ -415,11 +415,16 @@ const ProductPage = () => {
         <Space direction="vertical" style={{ width: '100%' }}>
           <div>
             <label>판매가: </label>
-            <InputNumber value={priceStockModal.price} onChange={(v) => setPriceStockModal({ ...priceStockModal, price: v || 0 })} />
+            <InputNumber min={0} value={priceStockModal.price} onChange={(v) => setPriceStockModal({ ...priceStockModal, price: v || 0 })} />
           </div>
           <div>
-            <label>재고: </label>
-            <InputNumber value={priceStockModal.stock} onChange={(v) => setPriceStockModal({ ...priceStockModal, stock: v || 0 })} />
+            <label>판매상태: </label>
+            <Switch
+              checked={priceStockModal.soldOut === true}
+              checkedChildren="품절"
+              unCheckedChildren="판매중"
+              onChange={(checked) => setPriceStockModal({ ...priceStockModal, soldOut: checked })}
+            />
           </div>
         </Space>
       </Modal>

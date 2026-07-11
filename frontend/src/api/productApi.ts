@@ -70,8 +70,8 @@ export const productApi = {
   fetchProductDetail: (id: number) =>
     apiClient.get(`/api/v1/products/${id}`),
 
-  updatePriceStock: (id: number, price: number, stock: number) =>
-    apiClient.put(`/api/v1/products/${id}/price-stock`, { price, stock }),
+  updatePriceStock: (id: number, price: number, soldOut: boolean) =>
+    apiClient.put(`/api/v1/products/${id}/price-stock`, { price, soldOut }),
 
   uploadImages: (id: number, formData: FormData) =>
     apiClient.put(`/api/v1/products/${id}/images`, formData, {
