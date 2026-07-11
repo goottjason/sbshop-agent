@@ -1016,3 +1016,87 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 게이트: `Cafe24ShipmentServiceTest`(코드매칭·order_item_code·바디구성·미매칭예외) PASS, 전체 compileTestJava·:core:test·:api:test BUILD SUCCESSFUL(EsmplusParseSingleOrderTest 생성자 갱신).
 - 미검증(쓰기): 실제 shipments POST는 실주문을 '배송중'으로 바꾸는 부작용이라 가짜 데이터 라이브 테스트 회피 — 첫 실 송장(실 트래킹번호로 실 G마켓 주문 배송처리)이 검증. 코드·택배사코드는 준비 완료.
 - 상태: 구현 완료(읽기 검증), 실 송장 등록은 실사용 시 검증.
+
+---
+
+## 사이클 20 (사용자 신고 5클러스터 병렬 진단, 2026-07-11)
+
+> 출처: `_workspace/scout_report_inventory.md`(재고), `_workspace/scout_report_customs.md`(통관), `_workspace/scout_report_status_sync.md`(상태·배송). 3 scout 병렬. 리더 코드 직접확인으로 Jackson 직렬화 가설 기각·11번가 실경로(parseShippingElement) 확정·scout의 스마트스토어 상태코드 환각(비표준) 정정.
+
+### D-063: 재고현황 UI 표시규칙 오류 (INV-1)
+- 심각도 P2 / 리스크 경량 / 상태 수정완료(검증대기)
+- 증상: 재고현황 셀이 IN_STOCK/품절 무관 재입고일 행 항상 표시, 재입고일 없으면 `( - )`. 사용자 요구: 구입가능이면 부가표시 없음, 품절+재입고일 있을 때만 (날짜).
+- 근본원인: `frontend/src/pages/OrderGrid.tsx:1015~1023` — 조건 미완성(IN_STOCK도 재입고행 렌더, restockDate 없으면 `( - )`).
+- 수정방향: IN_STOCK→뱃지만, OUT_OF_STOCK+restockDate→품절+(날짜), OUT_OF_STOCK+무재입고일→품절만, null→`-`.
+- 영향: `frontend/src/pages/OrderGrid.tsx`
+
+### D-064: 재고 갱신시각 미표시 (INV-2)
+- 심각도 P2 / 리스크 경량 / 상태 수정완료(검증대기)
+- 증상: 재고현황이 언제 갱신된 데이터인지 화면에 표기 없음.
+- 근본원인: `Product`(BaseEntity)에 `updatedAt` 존재하나 프론트 `ProductDto`(`frontend/src/api/orderApi.ts:46~62`)에 필드 부재 + 셀 렌더에 표시코드 부재. `timeAgo()`(`OrderGrid.tsx:430`) 재사용 가능.
+- 수정방향: 백엔드 응답에 재고확인시각 노출(updatedAt 또는 전용 stockCheckedAt) → ProductDto 추가 → 셀에 상대시각 표시.
+- 영향: `frontend/src/api/orderApi.ts`, `frontend/src/pages/OrderGrid.tsx`, (백엔드 DTO 직렬화 확인)
+
+### D-065: 특정 상품 restockDate (-) 버그 (INV-3)
+- 심각도 P1 / 리스크 표준 / 상태 **수정완료(검증대기)** — 코어 null-guard(b) 완료. 파싱부(a)는 라이브확인 잔여.
+- 수정(b): `ProductSyncService.java:45~51`에 null-guard+IN_STOCK 의미론 적용(IN_STOCK이면 null clear 허용, 그 외 restockDate=null이면 기존값 유지). Red 테스트 `ProductSyncServiceRestockDateTest`(신규, 3건). 요약 `_workspace/fixes/D-065.md`.
+- 잔여(a) 라이브확인: DB restock_date 실값 + iHerb 응답 재입고일 필드/포맷(ISO 여부) — 비ISO면 파싱부 후속 수정 필요.
+- 증상: "California Gold Nutrition Magnesium Bisglycinate TRAACS 240 Capsules" 재입고일 있으나 화면 (-).
+- 근본원인(리더 정정): Jackson은 Spring Boot 기본(JavaTimeModule 등록, write-dates-as-timestamps=false)→LocalDate는 ISO 문자열, **직렬화 가설 기각**. 남은 후보 2: (a) 크롤 파싱 실패(`IherbScraperClient.java:134~156` expectedAvailability/backOrderDate 미획득) (b) null 소거(`ProductSyncService.java:47` restockDate null이면 기존값 덮어씀).
+- 수정방향: (b) null-guard(안전, 즉시) + (a) 라이브 확인(DB restock_date 값, iHerb 응답 필드) 필요.
+- 라이브확인: `SELECT restock_date,stock_status,updated_at FROM sb_product WHERE original_name LIKE '%Magnesium Bisglycinate%'`
+- 영향: `ProductSyncService.java`, `IherbScraperClient.java`
+
+### D-066: 11번가 통관번호(개인통관고유부호) 미조회 — 배송중 경로 (CUS-2, 조숙현)
+- 심각도 P2 / 리스크 표준 / 상태 수정완료(검증대기)
+- 수정(fixer): `parseShippingElement`·`parseOrderDetailElement`에 psnCscUniqNo 파싱+customsClearanceNo 매핑 추가. **정정: getElementText는 태그 부재 시 null이 아니라 "" 반환** → `emptyToNull()`로 정규화(SyncService null-guard 실효화, 기존 통관번호 빈값 덮어쓰기 회귀 차단). 재현/회귀 테스트 `ElevenstShippingCustomsClearanceTest`. 게이트 `:core:test` 96 tests green. 요약 `_workspace/fixes/D-066.md`. 라이브확인: 배송중 XML에 psnCscUniqNo 태그 실제 포함 여부.
+- 증상: 11번가 주문(조숙현) customsClearanceNo null.
+- 근본원인(리더 확정): SyncService는 `fetchOrders`만 호출→배송중 주문은 `parseShippingElement`(`ElevenstOrderAdapter.java:387`) 경유하는데 여기 `psnCscUniqNo` 파싱 없음. `parseOrderElement`(line 320/371)엔 이미 존재. 잠복경로 `parseOrderDetailElement`(line 230, 호출 0건)도 누락.
+- 수정방향: `parseShippingElement`에 `psnCscUniqNo` 파싱+`.customsClearanceNo(...)` 추가(태그 없으면 null, 안전). parseOrderDetailElement도 동일 보강.
+- 영향: `ElevenstOrderAdapter.java`
+
+### D-067: G마켓/옥션 통관번호 미조회 — Cafe24 파싱 부재 (CUS-1)
+- 심각도 P2 / 리스크 중대(마켓 API 계약) / 상태 검증통과(코드) — 라이브 PCCC 필드명 확정 필요
+- 검증(2026-07-11 배치B): 경계면 정합(CustomsData 빌더·Order.updateCustomsClearanceNo 실존, Order 널가드로 NPE 안전), 4테스트 Green, `:core:test` 107 전량 통과. 코드판정 PASS. **라이브검증 필요**: 후보키 7종은 방어적 추측 — 실제 Cafe24 응답 PCCC 필드명은 preview 로그로 확정. 판정서 `_workspace/verify/batchB_verdict.md`.
+- 증상: G마켓/옥션 주문(Cafe24 경유) customsClearanceNo 항상 null.
+- 근본원인(확정): `Cafe24OrderSyncService.createOrder/updateOrder`(line 119~170)가 buyer/receivers에서 통관번호 미추출·Order.customsData 미설정. `embed=items,receivers,buyer`로 조회는 함.
+- 수정방향: Cafe24 응답의 실제 PCCC 필드명 확정 후 추출·CustomsData 매핑. **라이브확인 필요**(buyer vs receivers, 필드키). 방어적 구현+미발견시 노드키 로깅 권고.
+- 영향: `Cafe24OrderSyncService.java`, `CustomsData.java`(구조 적합)
+
+### D-068: 스마트스토어 상태 UNKNOWN 오맵핑 (STAT-1, 이명동)
+- 심각도 P2 / 리스크 중대(마켓 계약·배송차단 연계) / 상태 검증통과 — 이명동 실코드 라이브 확인 잔여
+- 검증(2026-07-11 배치B): 표준 누락코드만 추가·비표준 미추가 확인, 기존 매핑 7종·default(UNKNOWN+warn) 회귀 보존, 4테스트 Green, `:core:test` 107 전량 통과. 코드판정 PASS. 잔여: 이명동 실 status는 서버로그로 확정(UNKNOWN+warn 노출 유지). 판정서 `_workspace/verify/batchB_verdict.md`.
+- 수정(사이클20 배치B): 표준 누락코드 `PAYMENT_WAITING`→NEW, `CANCELED_BY_NOPAYMENT`→CANCELED 추가. 기존 케이스·default(UNKNOWN+log.warn) 유지. 비표준 추측코드 미추가. Red→Green(`SmartStoreStatusMapperTest` 신규, `:core:test` BUILD SUCCESSFUL). 상세 `_workspace/fixes/D-068.md`. 잔여: 이명동 실코드는 서버로그로 라이브 확정 필요.
+- 증상: 이명동 주문 "알수없음". 2차피해: `OrderService.java:294~296`이 UNKNOWN이면 배송정보 수정 400 차단.
+- 근본원인: `SmartStoreStatusMapper.java:30~50` 스위치에 표준 네이버 productOrderStatus 일부 누락→default UNKNOWN. **리더 정정: scout 제시 코드(PLACE_ORDER_COMPLETED/IN_PROGRESS 등)는 비표준(환각).** 표준 누락 후보: `PAYMENT_WAITING`(→NEW), `CANCELED_BY_NOPAYMENT`(→CANCELED).
+- 수정방향: 표준 누락코드 추가 + 기존 log.warn이 이명동 실코드 노출하므로 라이브 로그로 확정. UNKNOWN 해소 시 배송차단도 자동 해소.
+- 라이브확인: 서버로그 `"알 수 없는 스마트스토어 주문 상태: {코드}"`
+- 영향: `SmartStoreStatusMapper.java`
+
+### D-069: 배송정보 수정 마켓 미동기화 (SYNC-1)
+- 심각도 P1 / 리스크 중대 / 상태 검증통과 — (c) 실패 표면화 스코프만. (b) postSyncProcess는 별도 후속.
+- 검증(2026-07-11 배치B): 반환형 전환·호출부 6곳(OrderService 4 + worker EmailFetcher 2) 전수 정합(grep 재검증), 성공 시에만 마킹·실패 미마킹 확인, 롤백 제거 의미론 확인, 4테스트 Green. 게이트 `:core:test` 107 통과 + `:worker:clean compileJava` + `:api:test` 8 통과, 회귀 0. 코드판정 PASS. 판정서 `_workspace/verify/batchB_verdict.md`.
+- 수정(2026-07-11): `sendTrackingToMarketplace` void→`MarketShippingResult` 반환, port 예외를 catch해 실패결과로 표면화(예외전파·롤백 제거). 배송정보 DB 저장은 마켓 전송과 독립 커밋. 성공 시에만 `markTrackingAsSent`(실패 시 미마킹→재시도 보존). 호출부 6곳(OrderService 4 + worker EmailFetcherService 2) 정합. Red→Green 테스트 `MarketplaceShippingServiceTest`(4). 게이트 `:core:test` 전체 통과 + `:worker:compileJava`. 요약 `_workspace/fixes/D-069.md`.
+- 판정: D-061 정정(전파 배선 존재)은 **코드상 맞음**(`OrderService:306,318`→sendTrackingToMarketplace). 사용자 재신고 주원인 = **D-068(UNKNOWN)로 인한 입구 400 차단**(이명동). 부차: (b) `SmartStoreOrderSyncService.postSyncProcess`(line 203) 빈 메서드 → 취소/반품 미갱신, (c) `MarketplaceShippingService`(line 86~95) 마켓 API 실패가 예외전파→트랜잭션 롤백(부분실패 미표면화).
+- 수정방향: D-068 우선(이명동 해소). (c) 마켓 실패를 예외전파 대신 부분실패 결과로 표면화(D-060 패턴). (b) postSyncProcess 구현.
+- 영향: `MarketplaceShippingService.java`, `SmartStoreOrderSyncService.java`, `OrderService.java`(차단로직은 정상)
+
+### 사이클 20 배치 계획
+- **배치 A(코드확정·즉시)**: D-063·D-064(프론트 재고 UI, 동일파일 순차), D-065 null-guard(백엔드), D-066(11번가 통관, 백엔드) — 파일 비겹침 병렬.
+- **배치 B(라이브데이터 의존)**: D-067(Cafe24 통관, 필드명 확인), D-068(스마트스토어 상태, 실코드 확인), D-069(배송 전파 표면화). 방어적 구현+라이브검증 관문.
+
+### 사이클 20 검증·커밋 결과 (2026-07-11)
+- **배치 A (검증통과·커밋)**: D-063/D-064(재고 UI 규칙+갱신시각, 커밋 cc6e574), D-065(restockDate null-guard, 6559b5b), D-066(11번가 통관 배송중경로, 3b0de64). qa PASS(_workspace/verify/batchA_verdict.md), :core:test 96/0·tsc 0·build ✓.
+- **배치 B (검증통과·사용자 승인·커밋)**: D-068(스마트스토어 표준 누락코드, f8d4577), D-067(Cafe24 통관 방어적 구현, adf85d7), D-069(배송 전파 실패 표면화, 968d64b). qa PASS(_workspace/verify/batchB_verdict.md), :core:test 107/0·:api:test 8/0·:worker compile OK. 중대 등급 사용자 승인 획득.
+- 결함 상태: D-063·D-064·D-065·D-066·D-067·D-068·D-069 = **검증통과**.
+
+### 사이클 20 라이브 확인 필요(배포 후, 사용자 액션)
+1. **D-067 Cafe24 PCCC 실 필드명**: G마켓/옥션 실주문으로 `POST /orders/sync/cafe24/preview` 후 서버 debug 로그 `[CAFE24-ORDER] PCCC 미검출 ... buyerKeys=[..] receiverKeys=[..]`로 실제 통관번호 필드명 확정 → `Cafe24OrderSyncService.PCCC_KEYS`에 반영(후속). 채워지면 확정 완료.
+2. **D-068 이명동 실 상태코드**: 스마트스토어 동기화 후 서버 로그 `"알 수 없는 스마트스토어 주문 상태: {코드}"` 확인 → 남은 미지 표준코드 있으면 매퍼 추가(후속).
+3. **D-065 iHerb 재입고일**: `SELECT restock_date,stock_status,updated_at FROM sb_product WHERE original_name LIKE '%Magnesium Bisglycinate%'` + iHerb 응답 재입고일 필드/포맷(ISO 여부). 비ISO면 IherbScraperClient 파싱부 후속 결함.
+4. **D-066 11번가 배송중 psnCscUniqNo 태그 실재 여부**: 배송중 XML 응답에 태그 포함 확인.
+
+### 사이클 20 후속 결함 후보 (미착수)
+- **D-070(후보)**: `ElevenstOrderAdapter.parseOrderElement`(line 325)도 `emptyToNull` 미적용 — complete/packaging/dlvcompleted 경로에서 psnCscUniqNo 태그 부재 시 ""가 null-guard 통과해 기존 통관번호 덮어쓸 잠복 위험(qa-verifier 배치A 발견). D-066과 동일 정규화 적용 권고. 리스크 표준.
+- **D-071(후보)**: `SmartStoreOrderSyncService.postSyncProcess`(line 203) 빈 메서드 — 스마트스토어 취소/반품 동기화 전무(쿠팡 detectCancellations 패턴 미적용). 리스크 표준.
+- **D-072(후보)**: D-069 배송 전송 실패를 컨트롤러/응답 DTO까지 전달해 UI 토스트로 표면화(현재 서비스 로그+상태까지만). 리스크 경량.
