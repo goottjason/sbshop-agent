@@ -31,8 +31,41 @@ const renderMarketType = (v: string | null): string => {
   return marketTypeLabels[v] || v;
 };
 
+// D-076: 전체 사용자 액션 activityType → 한글 라벨. ActionLogConstants(백엔드)와 값이 매칭된다.
+// 명시 라벨이 `{MARKET}_SYNC` 패턴보다 우선(CUSTOMS_SYNC/STOCK_SYNC 등은 마켓 라벨 조합이 아니라 고정 라벨).
+const actionTypeLabels: Record<string, string> = {
+  COUPANG_SETTLEMENT_SYNC: '쿠팡 정산 동기화',
+  CUSTOMS_SYNC: '통관상태 동기화',
+  STOCK_SYNC: '재고 동기화',
+  ORDER_CONFIRM: '발주확인',
+  ORDER_CONFIRM_BATCH: '발주 일괄확인',
+  ORDER_CANCEL: '발주취소',
+  ORDER_CANCEL_BATCH: '발주 일괄취소',
+  ORDER_UPDATE: '주문 정보수정',
+  UNIPASS_UPDATE: '유니패스 완료처리',
+  PURCHASE_UPDATE: '구매정보 수정',
+  SHIPPING_UPDATE: '배송정보 수정',
+  ORDER_SHIP: '발송 처리',
+  ORDER_DELETE: '주문 삭제',
+  PRODUCT_PRICE_STOCK_UPDATE: '가격/재고 수정',
+  PRODUCT_IMAGE_UPDATE: '이미지 수정',
+  PRODUCT_UPDATE: '상품 정보수정',
+  PRODUCT_DELETE: '상품 삭제',
+  PRODUCT_SOURCING: '소싱 크롤',
+  PRODUCT_BULK_CREATE: '상품 일괄등록',
+  PRODUCT_PUBLISH: '마켓 게시',
+  BATCH_CRAWL_UPDATE: '배치 크롤 업데이트',
+  BATCH_MANUAL_UPDATE: '배치 수동 업데이트',
+  BATCH_MANUAL_UPDATE_ALL: '배치 전체필드 업데이트',
+  BATCH_BY_SUPPLIER: '소싱업체별 배치',
+  CREDENTIAL_SAVE: 'API 키 저장',
+  CAFE24_AUTH: 'Cafe24 재인증',
+};
+
 const renderActionType = (v: string): string => {
   if (!v) return '-';
+  const explicit = actionTypeLabels[v];
+  if (explicit) return explicit;
   if (v.endsWith('_SYNC')) {
     const code = v.slice(0, -'_SYNC'.length);
     const label = marketTypeLabels[code];

@@ -43,10 +43,12 @@ class ProductControllerImageUploadTest {
 	private ProductInfoCrawlerPort productInfoCrawlerPort;
 	@Mock
 	private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private com.sbshop.agent.core.application.actionlog.ActionLogService actionLogService;
 
 	private ProductController controller() {
 		return new ProductController(productSearchUseCase, productManageUseCase,
-			imageDownloadClient, productInfoCrawlerPort, marketRegistrationRepository);
+			imageDownloadClient, productInfoCrawlerPort, marketRegistrationRepository, actionLogService);
 	}
 
 	/** 성공 1(CAFE24)·스킵 1(GMARKET)·실패 1(COUPANG) 혼재 결과. */

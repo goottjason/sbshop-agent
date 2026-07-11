@@ -46,6 +46,8 @@ class ProductControllerMarketMapTest {
 	private ProductInfoCrawlerPort productInfoCrawlerPort;
 	@Mock
 	private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private com.sbshop.agent.core.application.actionlog.ActionLogService actionLogService;
 
 	@Mock
 	private Product product1;
@@ -54,7 +56,7 @@ class ProductControllerMarketMapTest {
 
 	private ProductController controller() {
 		return new ProductController(productSearchUseCase, productManageUseCase,
-			imageDownloadClient, productInfoCrawlerPort, marketRegistrationRepository);
+			imageDownloadClient, productInfoCrawlerPort, marketRegistrationRepository, actionLogService);
 	}
 
 	private MarketRegistration reg(Long productId, MarketType type, String identifiersJson) {

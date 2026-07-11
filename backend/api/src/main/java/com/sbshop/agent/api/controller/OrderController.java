@@ -28,6 +28,9 @@ import com.sbshop.agent.core.application.order.dto.OrderSearchCondition;
 import com.sbshop.agent.core.application.order.dto.OrderUpdateCommand;
 import com.sbshop.agent.core.application.order.service.OrderService;
 import com.sbshop.agent.core.application.order.service.OrderShipService;
+import com.sbshop.agent.core.application.actionlog.ActionLogService;
+import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
+import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 
@@ -43,6 +46,13 @@ public class OrderController {
 
 	private final OrderService orderService;
 	private final OrderShipService orderShipService;
+	// D-076: 사용자 액션 활동로그 기록 서비스
+	private final ActionLogService actionLogService;
+
+	/** Order의 marketType을 로그용 문자열로(없으면 null). */
+	private static String marketOf(Order order) {
+		return order != null && order.getMarketType() != null ? order.getMarketType().name() : null;
+	}
 
 	// ======================== 조회 ========================
 
@@ -62,8 +72,17 @@ public class OrderController {
 	public ResponseEntity<Order> confirmOrder(@PathVariable
 	Long id) {
 
-		Order order = orderService.confirmOrder(id);
-		return ResponseEntity.ok(order);
+		// D-076: 단건 발주확인 — 결과만 기록(SUCCESS/FAILED). 실패 시 재throw로 기존 에러 응답 보존.
+		try {
+			Order order = orderService.confirmOrder(id);
+			actionLogService.record(ActionLogConstants.ORDER_CONFIRM, marketOf(order),
+				ActionStatus.SUCCESS, "발주확인 성공 (주문 " + id + ")");
+			return ResponseEntity.ok(order);
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.ORDER_CONFIRM, null,
+				ActionStatus.FAILED, "발주확인 실패 (주문 " + id + "): " + e.getMessage());
+			throw e;
+		}
 	}
 
 	/** 선택(일괄) 발주확인 */
@@ -77,8 +96,17 @@ public class OrderController {
 			return ResponseEntity.badRequest().build();
 		}
 
-		BulkConfirmResult result = orderService.bulkConfirmOrders(orderIds);
-		return ResponseEntity.ok(result);
+		// D-076: 일괄 발주확인 — 결과만 기록(다마켓이므로 marketType은 null).
+		try {
+			BulkConfirmResult result = orderService.bulkConfirmOrders(orderIds);
+			actionLogService.record(ActionLogConstants.ORDER_CONFIRM_BATCH, null,
+				ActionStatus.SUCCESS, "일괄 발주확인 성공 (" + orderIds.size() + "건)");
+			return ResponseEntity.ok(result);
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.ORDER_CONFIRM_BATCH, null,
+				ActionStatus.FAILED, "일괄 발주확인 실패 (" + orderIds.size() + "건): " + e.getMessage());
+			throw e;
+		}
 	}
 
 	// ======================== 발주취소 ========================
@@ -88,8 +116,17 @@ public class OrderController {
 	public ResponseEntity<Order> cancelOrder(@PathVariable
 	Long id) {
 
-		Order order = orderService.cancelOrder(id);
-		return ResponseEntity.ok(order);
+		// D-076: 단건 발주취소 — 결과만 기록.
+		try {
+			Order order = orderService.cancelOrder(id);
+			actionLogService.record(ActionLogConstants.ORDER_CANCEL, marketOf(order),
+				ActionStatus.SUCCESS, "발주취소 성공 (주문 " + id + ")");
+			return ResponseEntity.ok(order);
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.ORDER_CANCEL, null,
+				ActionStatus.FAILED, "발주취소 실패 (주문 " + id + "): " + e.getMessage());
+			throw e;
+		}
 	}
 
 	/** 선택(일괄) 발주취소 */
@@ -103,8 +140,17 @@ public class OrderController {
 			return ResponseEntity.badRequest().build();
 		}
 
-		BulkConfirmResult result = orderService.bulkCancelOrders(orderIds);
-		return ResponseEntity.ok(result);
+		// D-076: 일괄 발주취소 — 결과만 기록.
+		try {
+			BulkConfirmResult result = orderService.bulkCancelOrders(orderIds);
+			actionLogService.record(ActionLogConstants.ORDER_CANCEL_BATCH, null,
+				ActionStatus.SUCCESS, "일괄 발주취소 성공 (" + orderIds.size() + "건)");
+			return ResponseEntity.ok(result);
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.ORDER_CANCEL_BATCH, null,
+				ActionStatus.FAILED, "일괄 발주취소 실패 (" + orderIds.size() + "건): " + e.getMessage());
+			throw e;
+		}
 	}
 
 	// ======================== 수정 ========================
@@ -118,8 +164,17 @@ public class OrderController {
 		OrderUpdateRequest request) {
 
 		OrderUpdateCommand command = request.toCommand();
-		Order updated = orderService.updateOrder(id, command);
-		return ResponseEntity.ok(updated);
+		// D-076: 주소/통관번호 수정 — 결과만 기록.
+		try {
+			Order updated = orderService.updateOrder(id, command);
+			actionLogService.record(ActionLogConstants.ORDER_UPDATE, marketOf(updated),
+				ActionStatus.SUCCESS, "주문정보 수정 성공 (주문 " + id + ")");
+			return ResponseEntity.ok(updated);
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.ORDER_UPDATE, null,
+				ActionStatus.FAILED, "주문정보 수정 실패 (주문 " + id + "): " + e.getMessage());
+			throw e;
+		}
 	}
 
 	/** 유니패스완료여부 사용자 수정 */
@@ -131,8 +186,17 @@ public class OrderController {
 		OrderLineItemUpdateRequest request) {
 
 		OrderLineItemUpdateCommand command = request.toCommand();
-		OrderLineItem updated = orderService.updateOrderLineItem(lineItemId, command);
-		return ResponseEntity.ok(updated);
+		// D-076: 유니패스 완료여부 수정 — 결과만 기록(marketType null).
+		try {
+			OrderLineItem updated = orderService.updateOrderLineItem(lineItemId, command);
+			actionLogService.record(ActionLogConstants.UNIPASS_UPDATE, null,
+				ActionStatus.SUCCESS, "유니패스 수정 성공 (품목 " + lineItemId + ")");
+			return ResponseEntity.ok(updated);
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.UNIPASS_UPDATE, null,
+				ActionStatus.FAILED, "유니패스 수정 실패 (품목 " + lineItemId + "): " + e.getMessage());
+			throw e;
+		}
 	}
 
 	/** 라인아이템 소싱(구매) 정보 수정 */
@@ -143,8 +207,17 @@ public class OrderController {
 		@RequestBody
 		SourcingUpdateRequest request) {
 
-		OrderLineItem updated = orderService.updateSourcingInfo(lineItemId, request.toCommand());
-		return ResponseEntity.ok(updated);
+		// D-076: 소싱(구매) 정보 수정 — 결과만 기록.
+		try {
+			OrderLineItem updated = orderService.updateSourcingInfo(lineItemId, request.toCommand());
+			actionLogService.record(ActionLogConstants.PURCHASE_UPDATE, null,
+				ActionStatus.SUCCESS, "구매정보 수정 성공 (품목 " + lineItemId + ")");
+			return ResponseEntity.ok(updated);
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.PURCHASE_UPDATE, null,
+				ActionStatus.FAILED, "구매정보 수정 실패 (품목 " + lineItemId + "): " + e.getMessage());
+			throw e;
+		}
 	}
 
 	/** 라인아이템 배송 정보 수정 */
@@ -155,8 +228,17 @@ public class OrderController {
 		@RequestBody
 		ShippingUpdateRequest request) {
 
-		OrderLineItem updated = orderService.updateShippingInfo(lineItemId, request.toCommand());
-		return ResponseEntity.ok(updated);
+		// D-076: 배송(송장) 정보 수정 — 결과만 기록.
+		try {
+			OrderLineItem updated = orderService.updateShippingInfo(lineItemId, request.toCommand());
+			actionLogService.record(ActionLogConstants.SHIPPING_UPDATE, null,
+				ActionStatus.SUCCESS, "배송정보 수정 성공 (품목 " + lineItemId + ")");
+			return ResponseEntity.ok(updated);
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.SHIPPING_UPDATE, null,
+				ActionStatus.FAILED, "배송정보 수정 실패 (품목 " + lineItemId + "): " + e.getMessage());
+			throw e;
+		}
 	}
 
 	// ======================== 발송 ========================
@@ -166,8 +248,18 @@ public class OrderController {
 	public ResponseEntity<List<Order>> shipOrders(@RequestBody
 	OrderShipRequest request) {
 
-		List<Order> shippedOrders = orderShipService.bulkShipOrders(request.getOrderIds());
-		return ResponseEntity.ok(shippedOrders);
+		// D-076: 일괄 발송 처리 — 결과만 기록(다마켓이므로 marketType null).
+		int reqCount = request.getOrderIds() != null ? request.getOrderIds().size() : 0;
+		try {
+			List<Order> shippedOrders = orderShipService.bulkShipOrders(request.getOrderIds());
+			actionLogService.record(ActionLogConstants.ORDER_SHIP, null,
+				ActionStatus.SUCCESS, "발송 처리 성공 (" + shippedOrders.size() + "건)");
+			return ResponseEntity.ok(shippedOrders);
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.ORDER_SHIP, null,
+				ActionStatus.FAILED, "발송 처리 실패 (" + reqCount + "건): " + e.getMessage());
+			throw e;
+		}
 	}
 
 	// ======================== 삭제 ========================
@@ -177,7 +269,16 @@ public class OrderController {
 	public ResponseEntity<Void> deleteOrder(@PathVariable
 	Long id) {
 
-		orderService.deleteOrder(id);
-		return ResponseEntity.noContent().build();
+		// D-076: 주문 삭제 — 결과만 기록.
+		try {
+			orderService.deleteOrder(id);
+			actionLogService.record(ActionLogConstants.ORDER_DELETE, null,
+				ActionStatus.SUCCESS, "주문 삭제 성공 (주문 " + id + ")");
+			return ResponseEntity.noContent().build();
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.ORDER_DELETE, null,
+				ActionStatus.FAILED, "주문 삭제 실패 (주문 " + id + "): " + e.getMessage());
+			throw e;
+		}
 	}
 }

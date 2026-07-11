@@ -5,6 +5,9 @@ import com.sbshop.agent.api.dto.product.PriceStockUpdateRequest;
 import com.sbshop.agent.api.dto.product.ProductDetailResponse;
 import com.sbshop.agent.api.dto.product.ProductListResponse;
 import com.sbshop.agent.api.dto.product.ProductUpdateRequest;
+import com.sbshop.agent.core.application.actionlog.ActionLogService;
+import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
+import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.application.product.ProductManageUseCase;
 import com.sbshop.agent.core.application.product.MarketRepublishResult;
 import com.sbshop.agent.core.application.product.ProductSearchUseCase;
@@ -56,6 +59,8 @@ public class ProductController {
 	private final ImageDownloadClient imageDownloadClient;
 	private final ProductInfoCrawlerPort productInfoCrawlerPort;
 	private final MarketRegistrationRepository marketRegistrationRepository;
+	// D-076: 사용자 액션 활동로그 기록 서비스
+	private final ActionLogService actionLogService;
 
 	@GetMapping
 	public ResponseEntity<Page<ProductListResponse>> getProducts(
@@ -94,9 +99,18 @@ public class ProductController {
 		@RequestBody
 		PriceStockUpdateRequest request) {
 		// D-060: 자사 DB 갱신 + 연동 마켓 가격/재고 반영 결과(성공/스킵/실패 마켓) 반환.
-		MarketRepublishResult result =
-			productManageUseCase.updatePriceStock(id, request.price(), request.stock());
-		return ResponseEntity.ok(result);
+		// D-076: 가격/재고 수정 — 결과만 기록(다마켓 동시 반영이므로 marketType null).
+		try {
+			MarketRepublishResult result =
+				productManageUseCase.updatePriceStock(id, request.price(), request.stock());
+			actionLogService.record(ActionLogConstants.PRODUCT_PRICE_STOCK_UPDATE, null,
+				ActionStatus.SUCCESS, "가격/재고 수정 성공 (상품 " + id + ")");
+			return ResponseEntity.ok(result);
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.PRODUCT_PRICE_STOCK_UPDATE, null,
+				ActionStatus.FAILED, "가격/재고 수정 실패 (상품 " + id + "): " + e.getMessage());
+			throw e;
+		}
 	}
 
 	@PutMapping("/{id}/images")
@@ -106,8 +120,17 @@ public class ProductController {
 		@RequestPart("images")
 		List<MultipartFile> images) {
 		List<ImageUploadFile> uploadFiles = prepareImageFiles(images);
-		MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, uploadFiles);
-		return ResponseEntity.ok(ImageUploadResponse.from(result));
+		// D-076: 이미지/HTML 수정 — 결과만 기록.
+		try {
+			MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, uploadFiles);
+			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
+				ActionStatus.SUCCESS, "이미지 수정 성공 (상품 " + id + ")");
+			return ResponseEntity.ok(ImageUploadResponse.from(result));
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
+				ActionStatus.FAILED, "이미지 수정 실패 (상품 " + id + "): " + e.getMessage());
+			throw e;
+		}
 	}
 
 	@PutMapping("/{id}/images/by-url")
@@ -117,8 +140,17 @@ public class ProductController {
 		@RequestBody
 		List<String> imageUrls) {
 		List<ImageUploadFile> downloadFiles = imageDownloadClient.downloadAndConvert(imageUrls);
-		MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, downloadFiles);
-		return ResponseEntity.ok(ImageUploadResponse.from(result));
+		// D-076: 이미지(URL) 수정 — 결과만 기록.
+		try {
+			MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, downloadFiles);
+			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
+				ActionStatus.SUCCESS, "이미지 수정 성공 (상품 " + id + ")");
+			return ResponseEntity.ok(ImageUploadResponse.from(result));
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
+				ActionStatus.FAILED, "이미지 수정 실패 (상품 " + id + "): " + e.getMessage());
+			throw e;
+		}
 	}
 
 	@GetMapping("/{id}/images/crawl")
@@ -142,15 +174,33 @@ public class ProductController {
 		Long id,
 		@RequestBody
 		ProductUpdateRequest request) {
-		productManageUseCase.updateProduct(id, request.toCommand());
-		return ResponseEntity.ok().build();
+		// D-076: 상품 정보 수정 — 결과만 기록.
+		try {
+			productManageUseCase.updateProduct(id, request.toCommand());
+			actionLogService.record(ActionLogConstants.PRODUCT_UPDATE, null,
+				ActionStatus.SUCCESS, "상품정보 수정 성공 (상품 " + id + ")");
+			return ResponseEntity.ok().build();
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.PRODUCT_UPDATE, null,
+				ActionStatus.FAILED, "상품정보 수정 실패 (상품 " + id + "): " + e.getMessage());
+			throw e;
+		}
 	}
 
 	@DeleteMapping("/{id}")
 	public ResponseEntity<Void> deleteProduct(@PathVariable
 	Long id) {
-		productManageUseCase.deleteProduct(id);
-		return ResponseEntity.ok().build();
+		// D-076: 상품 삭제 — 결과만 기록.
+		try {
+			productManageUseCase.deleteProduct(id);
+			actionLogService.record(ActionLogConstants.PRODUCT_DELETE, null,
+				ActionStatus.SUCCESS, "상품 삭제 성공 (상품 " + id + ")");
+			return ResponseEntity.ok().build();
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.PRODUCT_DELETE, null,
+				ActionStatus.FAILED, "상품 삭제 실패 (상품 " + id + "): " + e.getMessage());
+			throw e;
+		}
 	}
 
 	/**

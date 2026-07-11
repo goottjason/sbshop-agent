@@ -1,6 +1,9 @@
 package com.sbshop.agent.api.controller;
 
+import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.product.ProductSyncService;
+import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
+import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,9 +27,14 @@ public class ProductSyncController {
 
 	private final ProductSyncService productSyncService;
 	private final OrderLineItemRepository orderLineItemRepository;
+	// D-076: 사용자 액션 활동로그 기록 서비스
+	private final ActionLogService actionLogService;
 
 	@PostMapping("/sync/stock")
 	public ResponseEntity<?> syncAllProductStock() {
+		// D-076: 재고 동기화(백그라운드 크롤) — 시작 기록(STARTED).
+		actionLogService.record(ActionLogConstants.STOCK_SYNC, null,
+			ActionStatus.STARTED, "재고 동기화 요청");
 		try {
 			// 1. 별도의 비동기 스레드 생성 (응답 지연 방지)
 			new Thread(() -> {

@@ -1,8 +1,11 @@
 package com.sbshop.agent.api.controller;
 
+import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.market.MarketCredentialService;
 import com.sbshop.agent.core.application.market.dto.MarketCredentialDto;
 import com.sbshop.agent.core.application.market.dto.MarketCredentialSaveCommand;
+import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
+import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class MarketCredentialController {
 
 	private final MarketCredentialService marketCredentialService;
+	// D-076: 사용자 액션 활동로그 기록 서비스
+	private final ActionLogService actionLogService;
 
 	@GetMapping
 	public ResponseEntity<List<MarketCredentialDto>> getAllCredentials() {
@@ -41,6 +46,16 @@ public class MarketCredentialController {
 		MarketType marketType, @RequestBody
 		MarketCredentialSaveCommand command) {
 		command.setMarketType(marketType);
-		return ResponseEntity.ok(marketCredentialService.saveCredential(command));
+		// D-076: 마켓 API 키 저장 — 결과만 기록(marketType은 경로변수).
+		try {
+			MarketCredentialDto saved = marketCredentialService.saveCredential(command);
+			actionLogService.record(ActionLogConstants.CREDENTIAL_SAVE, marketType.name(),
+				ActionStatus.SUCCESS, "API 키 저장 성공");
+			return ResponseEntity.ok(saved);
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.CREDENTIAL_SAVE, marketType.name(),
+				ActionStatus.FAILED, "API 키 저장 실패: " + e.getMessage());
+			throw e;
+		}
 	}
 }

@@ -19,6 +19,7 @@ import com.sbshop.agent.core.application.order.service.ElevenstOrderSyncService;
 import com.sbshop.agent.core.application.order.service.EsmplusOrderSyncService;
 import com.sbshop.agent.core.application.order.service.SmartStoreOrderSyncService;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
+import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.infrastructure.client.esmplus.EsmplusScraper;
 
@@ -182,6 +183,9 @@ public class OrderSyncController {
 	@PostMapping("/coupang/settlement")
 	public ResponseEntity<Map<String, Object>> syncCoupangSettlement() {
 		log.info("쿠팡 정산 데이터 동기화 요청 수신됨");
+		// D-076: 장시간/비동기 동기화 — 시작 기록(STARTED). 완료는 백그라운드 특성상 생략.
+		actionLogService.record(ActionLogConstants.COUPANG_SETTLEMENT_SYNC, "COUPANG",
+			ActionStatus.STARTED, "쿠팡 정산 동기화 요청");
 
 		try {
 			coupangOrderSyncService.syncCoupangSettlement();
@@ -200,14 +204,23 @@ public class OrderSyncController {
 	@PostMapping("/customs")
 	public ResponseEntity<Map<String, Object>> syncCustomsOrders() {
 		log.info("통관 상태 동기화 요청 수신됨");
+		// D-076: 통관 동기화 — 시작 기록(STARTED).
+		actionLogService.record(ActionLogConstants.CUSTOMS_SYNC, null,
+			ActionStatus.STARTED, "통관 상태 동기화 요청");
 		try {
 			// 통관 상태 동기화 호출
 			customsOrderSyncService.syncCustomsStatus();
+			// D-076: 동기 완료 — 결과 기록(SUCCESS).
+			actionLogService.record(ActionLogConstants.CUSTOMS_SYNC, null,
+				ActionStatus.SUCCESS, "통관 상태 동기화 완료");
 			return ResponseEntity.ok(Map.of(
 				"success", true,
 				"message", "통관 상태 동기화가 완료되었습니다."));
 		} catch (Exception e) {
 			log.error("통관 상태 동기화 실패", e);
+			// D-076: 실패 기록(FAILED). 기존 에러 응답 계약은 그대로 유지.
+			actionLogService.record(ActionLogConstants.CUSTOMS_SYNC, null,
+				ActionStatus.FAILED, "통관 상태 동기화 실패: " + e.getMessage());
 			return ResponseEntity.internalServerError().body(Map.of(
 				"success", false,
 				"message", "통관 상태 동기화 실패: " + e.getMessage()));

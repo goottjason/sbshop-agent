@@ -1,5 +1,8 @@
 package com.sbshop.agent.api.controller;
 
+import com.sbshop.agent.core.application.actionlog.ActionLogService;
+import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
+import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.infrastructure.client.cafe24.Cafe24TokenManager;
 import com.sbshop.agent.infrastructure.client.cafe24.client.Cafe24RestClient;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +26,8 @@ public class Cafe24AuthController {
 	private final Cafe24TokenManager cafe24TokenManager;
 	private final Cafe24RestClient cafe24RestClient;
 	private final com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort cafe24OrderApiPort;
+	// D-076: 사용자 액션 활동로그 기록 서비스
+	private final ActionLogService actionLogService;
 
 	public record Cafe24Status(boolean connected, String message) {
 	}
@@ -79,9 +84,14 @@ public class Cafe24AuthController {
 		}
 		try {
 			cafe24TokenManager.issueInitialToken(code);
+			// D-076: Cafe24 재인증 — 결과 기록(기존 응답 계약 유지).
+			actionLogService.record(ActionLogConstants.CAFE24_AUTH, "CAFE24",
+				ActionStatus.SUCCESS, "Cafe24 재인증 성공");
 			return ResponseEntity.ok(new Cafe24Status(true, "리프레시 토큰이 발급·저장되었습니다. 정상 연동됩니다."));
 		} catch (Exception e) {
 			log.error("[Cafe24] 토큰 발급 실패", e);
+			actionLogService.record(ActionLogConstants.CAFE24_AUTH, "CAFE24",
+				ActionStatus.FAILED, "Cafe24 재인증 실패: " + e.getMessage());
 			return ResponseEntity.internalServerError()
 				.body(new Cafe24Status(false, "토큰 발급 실패: " + e.getMessage()
 					+ " (인증 코드는 1회용·단시간 유효 — 인증 직후 즉시 발급하세요)"));
