@@ -34,6 +34,8 @@ public class EsmplusOrderAdapter implements MarketOrderPort {
 
 	private final EsmplusOrderApiPort esmplusOrderApiPort;
 	private final EsmplusStatusMapper statusMapper;
+	// G마켓/옥션 주문은 Cafe24 연동으로 들어오므로 송장 역전송도 Cafe24 주문 API로 처리한다.
+	private final com.sbshop.agent.core.application.order.service.Cafe24ShipmentService cafe24ShipmentService;
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Override
@@ -71,7 +73,8 @@ public class EsmplusOrderAdapter implements MarketOrderPort {
 	public void shipOrder(MarketCredential credential,
 		Order order, OrderLineItem lineItem,
 		String trackingNo, ShippingCarrier carrier) {
-		log.warn("[ESM+] shipOrder 미구현: order={}", order.getMarketOrderNo());
+		// G마켓 주문은 Cafe24 order_id(marketOrderNo)로 Cafe24 shipments API에 송장 등록.
+		cafe24ShipmentService.ship(order, trackingNo, carrier);
 	}
 
 	@Override

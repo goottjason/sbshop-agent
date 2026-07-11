@@ -54,10 +54,9 @@ public class MarketplaceShippingService {
 		if (order == null)
 			return;
 
-		// 마켓크레덴셜 조회
+		// 마켓크레덴셜 조회(nullable). Cafe24 기반 배송(G마켓/옥션)은 마켓 자격증명이 아니라
+		// Cafe24 토큰을 쓰므로, cred가 없어도(옥션 등) 조기 종료하지 않고 포트에 위임한다.
 		MarketCredential cred = credentialRepository.findByMarketType(order.getMarketType()).orElse(null);
-		if (cred == null)
-			return;
 
 		// 현재 배송상태 확인
 		ShippingStatus currentStatus = lineItem.getShippingData() != null

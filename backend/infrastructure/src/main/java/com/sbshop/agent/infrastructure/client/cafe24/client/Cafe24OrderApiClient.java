@@ -38,6 +38,31 @@ public class Cafe24OrderApiClient implements Cafe24OrderApiPort {
 		}
 	}
 
+	@Override
+	public JsonNode fetchOrderDetail(String orderId) {
+		String response = restClient.get("/admin/orders/" + orderId + "?embed=items");
+		try {
+			return objectMapper.readTree(response).path("order");
+		} catch (Exception e) {
+			throw new RuntimeException("Cafe24 주문상세 파싱 실패", e);
+		}
+	}
+
+	@Override
+	public JsonNode fetchCarriers() {
+		String response = restClient.get("/admin/carriers");
+		try {
+			return objectMapper.readTree(response).path("carriers");
+		} catch (Exception e) {
+			throw new RuntimeException("Cafe24 택배사 파싱 실패", e);
+		}
+	}
+
+	@Override
+	public String registerShipment(String orderId, Object requestBody) {
+		return restClient.post("/admin/orders/" + orderId + "/shipments", requestBody);
+	}
+
 	private String enc(String s) {
 		// 쿼리 값의 공백은 '+'가 아니라 %20으로(일부 서버가 '+'를 공백으로 해석하지 않음).
 		return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20");

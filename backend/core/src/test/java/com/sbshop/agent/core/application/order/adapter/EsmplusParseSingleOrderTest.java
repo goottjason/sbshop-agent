@@ -26,7 +26,9 @@ class EsmplusParseSingleOrderTest {
 	private EsmplusOrderApiPort esmplusOrderApiPort;
 
 	private EsmplusOrderAdapter adapter() {
-		return new EsmplusOrderAdapter(esmplusOrderApiPort, new EsmplusStatusMapper());
+		return new EsmplusOrderAdapter(esmplusOrderApiPort, new EsmplusStatusMapper(),
+			org.mockito.Mockito.mock(
+				com.sbshop.agent.core.application.order.service.Cafe24ShipmentService.class));
 	}
 
 	private String orderJson(String siteOrderNo, int deliveryStatusCode, String deliveryStatus) {

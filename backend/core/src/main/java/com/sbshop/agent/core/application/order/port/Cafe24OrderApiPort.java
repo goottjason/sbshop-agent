@@ -19,4 +19,13 @@ public interface Cafe24OrderApiPort {
 	 * @return 응답의 "orders" 배열 JsonNode (없으면 빈 배열/미싱 노드)
 	 */
 	JsonNode fetchOrders(String startDate, String endDate, int limit, int offset);
+
+	/** 주문 상세 조회(embed=items) — 송장 등록에 필요한 order_item_code 획득용. GET /admin/orders/{id}. */
+	JsonNode fetchOrderDetail(String orderId);
+
+	/** 몰에 등록된 택배사 목록. GET /admin/carriers. shipping_company_code 해석용. */
+	JsonNode fetchCarriers();
+
+	/** 송장 등록. POST /admin/orders/{orderId}/shipments. requestBody는 {"request":{...}} 형태. */
+	String registerShipment(String orderId, Object requestBody);
 }

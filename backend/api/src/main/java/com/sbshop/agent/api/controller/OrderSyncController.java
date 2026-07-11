@@ -153,6 +153,22 @@ public class OrderSyncController {
 			return ResponseEntity.ok(Map.of("success", true, "orders", orders));
 		} catch (Exception e) {
 			log.error("Cafe24 주문 프리뷰 실패", e);
+			Throwable cur0 = e;
+			while (cur0.getCause() != null && cur0.getCause() != cur0) {
+				cur0 = cur0.getCause();
+			}
+			return ResponseEntity.internalServerError().body(Map.of("success", false,
+				"message", e.getMessage(), "rootCause", String.valueOf(cur0.getMessage())));
+		}
+	}
+
+	// 진단: 몰 등록 택배사 목록(shipping_company_code 확인용). 송장 등록 택배사 코드 매핑 검증.
+	@PostMapping("/cafe24/carriers")
+	public ResponseEntity<Object> previewCafe24Carriers() {
+		try {
+			return ResponseEntity.ok(Map.of("success", true, "carriers", cafe24OrderApiPort.fetchCarriers()));
+		} catch (Exception e) {
+			log.error("Cafe24 주문 프리뷰 실패", e);
 			Throwable cur = e;
 			while (cur.getCause() != null && cur.getCause() != cur) {
 				cur = cur.getCause();
