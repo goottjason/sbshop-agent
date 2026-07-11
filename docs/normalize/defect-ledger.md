@@ -1001,3 +1001,10 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 게이트: 전체 compileJava/TestJava SUCCESSFUL, 신규 `Cafe24OrderSyncServiceTest`(gmarket 매핑·타마켓 스킵·필드 파싱) PASS, `:core:test`·`:api:test` BUILD SUCCESSFUL. 부수: 항목2 여파로 깨졌던 `ElevenstRestClientBeanConflictTest`(좁은 스캔에 MarketCredentialRepository 목 미제공)도 수정.
 - **재인증 필요(사용자 액션)**: 기존 토큰은 product scope만 → 주문 조회 불가(preview 500 확인). Settings→카페24 재인증 카드(항상 노출로 변경)로 새 scope 재발급 후 라이브 검증 예정.
 - 상태: 코드 완성·배포. 재인증 후 라이브 검증(preview로 실구조 확인→sync→그리드 표시) 대기.
+
+### D-061 후속(라이브 검증 완료, 2026-07-11): Cafe24 주문 API로 G마켓/옥션 조회 성공
+
+- 재인증 과정 실드리븐: 403 insufficient_scope(앱에 주문 scope 미등록 → 사용자가 Cafe24 개발자센터에서 전 권한 활성화) → 422 Invalid date format(start_date 시간 포함 → **날짜만 yyyy-MM-dd로 수정**) → 성공.
+- **라이브 검증**: `/orders/sync/cafe24/preview` 실주문 파싱 정확(order_place_id=gmarket→GMARKET, buyer/receivers.address_full/items.product_no·product_name·quantity/order_status=N30→SHIPPED, order_date ISO+09:00→KST). status=connected(상품·주문 권한 확인). 동기화 트리거 후 통합주문관리에 **G마켓 주문 3건 실제 표시**(20260708-0000011 등).
+- 부수 개선: OAuth scope 전체(app/product/collection/order/shipping RW), status가 주문 권한까지 실검증(오표기 방지), 프리뷰 rootCause 노출.
+- 상태: **검증통과** — G마켓/옥션 주문 조회가 Cafe24 API로 안정 동작(Selenium 철회 완료). 송장 역전송(write_order)은 후속 트랙.
