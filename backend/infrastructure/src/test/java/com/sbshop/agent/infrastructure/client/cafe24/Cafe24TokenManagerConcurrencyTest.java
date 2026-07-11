@@ -21,10 +21,26 @@ import org.mockito.Mockito;
 
 class Cafe24TokenManagerConcurrencyTest {
 
-	/** JVM 내 ReentrantLock으로 프로세스 간 상호배제를 흉내내는 fake lock. */
-	static class SerializingLock implements TokenRefreshLock {
+	/**
+	 * 모든 스레드가 pre-lock 만료검사를 통과해 임계구역(runExclusively)에 도달할 때까지 CyclicBarrier로 대기시킨 뒤
+	 * ReentrantLock으로 직렬화한다. 첫 refresh 이전에 N개 스레드 전부가 락 안에 있으므로, 이후 재-refresh를 막는 것은
+	 * 오직 '락 내부 double-check'뿐이다 — 그것이 제거되면 exchange가 N회 발생해 테스트가 실패한다.
+	 *
+	 * 주의: Cafe24TokenManager의 in-lock double-check가 제거되면,
+	 * 이 테스트는 exchangeCalls == 12(스레드 수만큼)를 관측하여 실패한다.
+	 */
+	static class BarrierSerializingLock implements TokenRefreshLock {
+		private final java.util.concurrent.CyclicBarrier barrier;
 		private final ReentrantLock lock = new ReentrantLock();
+		BarrierSerializingLock(int parties) {
+			this.barrier = new java.util.concurrent.CyclicBarrier(parties);
+		}
 		@Override public <T> T runExclusively(long key, Supplier<T> action) {
+			try {
+				barrier.await(10, java.util.concurrent.TimeUnit.SECONDS);
+			} catch (Exception e) {
+				throw new RuntimeException("barrier await failed (a thread never reached the lock)", e);
+			}
 			lock.lock();
 			try { return action.get(); } finally { lock.unlock(); }
 		}
@@ -50,9 +66,9 @@ class Cafe24TokenManagerConcurrencyTest {
 				"AT-NEW", "RT2", Instant.now().plusSeconds(7200));
 		};
 
-		var manager = new Cafe24TokenManager(repo, client, new SerializingLock());
-
 		int threads = 12;
+		var manager = new Cafe24TokenManager(repo, client, new BarrierSerializingLock(threads));
+
 		ExecutorService pool = Executors.newFixedThreadPool(threads);
 		CountDownLatch ready = new CountDownLatch(threads);
 		CountDownLatch go = new CountDownLatch(1);
@@ -60,14 +76,15 @@ class Cafe24TokenManagerConcurrencyTest {
 		for (int i = 0; i < threads; i++) {
 			pool.submit(() -> {
 				ready.countDown();
-				try { go.await(); } catch (InterruptedException ignored) {}
+				try { go.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
 				results.add(manager.getValidAccessToken());
 			});
 		}
 		ready.await();
 		go.countDown();
 		pool.shutdown();
-		pool.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS);
+		boolean finished = pool.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS);
+		assertThat(finished).as("all threads finished within timeout").isTrue();
 
 		assertThat(exchangeCalls.get()).isEqualTo(1); // double-check로 단 1회
 		assertThat(results).allMatch("AT-NEW"::equals);
