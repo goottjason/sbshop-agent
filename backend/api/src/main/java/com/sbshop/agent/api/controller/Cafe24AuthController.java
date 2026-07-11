@@ -22,6 +22,7 @@ public class Cafe24AuthController {
 
 	private final Cafe24TokenManager cafe24TokenManager;
 	private final Cafe24RestClient cafe24RestClient;
+	private final com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort cafe24OrderApiPort;
 
 	public record Cafe24Status(boolean connected, String message) {
 	}
@@ -42,12 +43,23 @@ public class Cafe24AuthController {
 		try {
 			// 가벼운 read 호출로 토큰 실유효성 확인(만료 시 tokenManager가 자동 갱신 시도).
 			cafe24RestClient.get("/admin/products?limit=1");
-			return ResponseEntity.ok(new Cafe24Status(true, "정상 연동 중입니다 (토큰 유효 확인됨)."));
 		} catch (Exception e) {
-			log.warn("[Cafe24] 연동 상태 점검 실패 — 재인증 필요: {}", e.getMessage());
+			log.warn("[Cafe24] 상태 점검(상품) 실패 — 재인증 필요: {}", e.getMessage());
 			return ResponseEntity.ok(new Cafe24Status(false,
 				"리프레시 토큰이 만료/무효입니다. 아래에서 재인증을 진행하세요."));
 		}
+		// 주문 조회 권한(mall.read_order) 확인 — G마켓/옥션 주문을 가져오려면 필수.
+		try {
+			java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+			java.time.LocalDate today = java.time.LocalDate.now();
+			cafe24OrderApiPort.fetchOrders(today.minusDays(1).atStartOfDay().format(f),
+				today.atTime(23, 59, 59).format(f), 1, 0);
+		} catch (Exception e) {
+			log.warn("[Cafe24] 상태 점검(주문 권한) 실패 — 재인증 필요: {}", e.getMessage());
+			return ResponseEntity.ok(new Cafe24Status(false,
+				"주문 조회 권한(mall.read_order)이 없습니다. 아래에서 재인증하면 주문 권한이 추가됩니다."));
+		}
+		return ResponseEntity.ok(new Cafe24Status(true, "정상 연동 중입니다 (상품·주문 권한 확인됨)."));
 	}
 
 	/**
