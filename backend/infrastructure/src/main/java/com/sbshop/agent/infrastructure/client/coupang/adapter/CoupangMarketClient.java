@@ -185,34 +185,34 @@ public class CoupangMarketClient implements MarketClient {
 		List<String> hostedImages, String newDetailHtml) {
 		if (currentRawData == null || !currentRawData.containsKey("items"))
 			return currentRawData;
-		try {
-			@SuppressWarnings("unchecked") List<Map<String, Object>> items = (List<Map<String, Object>>)currentRawData
-				.get("items");
-			if (items != null && !items.isEmpty()) {
-				Map<String, Object> firstItem = items.get(0);
-				List<Map<String, Object>> coupangImages = new ArrayList<>();
-				for (int i = 0; i < hostedImages.size(); i++) {
-					Map<String, Object> imgMap = new HashMap<>();
-					imgMap.put("imageOrder", i);
-					imgMap.put("imageType", i == 0 ? "REPRESENTATION" : "DETAIL");
-					imgMap.put("vendorPath", hostedImages.get(i));
-					coupangImages.add(imgMap);
-				}
-				firstItem.put("images", coupangImages);
-
-				List<Map<String, Object>> contents = new ArrayList<>();
-				Map<String, Object> contentMap = new HashMap<>();
-				contentMap.put("contentsType", "HTML");
-				contentMap.put("contentDetails", List.of(Map.of("content", newDetailHtml, "detailType", "TEXT")));
-				contents.add(contentMap);
-				firstItem.put("contents", contents);
+		@SuppressWarnings("unchecked") List<Map<String, Object>> items = (List<Map<String, Object>>)currentRawData
+			.get("items");
+		if (items != null && !items.isEmpty()) {
+			Map<String, Object> firstItem = items.get(0);
+			List<Map<String, Object>> coupangImages = new ArrayList<>();
+			for (int i = 0; i < hostedImages.size(); i++) {
+				Map<String, Object> imgMap = new HashMap<>();
+				imgMap.put("imageOrder", i);
+				imgMap.put("imageType", i == 0 ? "REPRESENTATION" : "DETAIL");
+				imgMap.put("vendorPath", hostedImages.get(i));
+				coupangImages.add(imgMap);
 			}
-			String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
-			restClient.put(path, currentRawData);
-			log.info("[쿠팡] 이미지/HTML 동기화 완료: {}", marketItemId);
-		} catch (Exception e) {
-			log.error("[쿠팡] 이미지/HTML 동기화 실패", e);
+			firstItem.put("images", coupangImages);
+
+			List<Map<String, Object>> contents = new ArrayList<>();
+			Map<String, Object> contentMap = new HashMap<>();
+			contentMap.put("contentsType", "HTML");
+			contentMap.put("contentDetails", List.of(Map.of("content", newDetailHtml, "detailType", "TEXT")));
+			contents.add(contentMap);
+			firstItem.put("contents", contents);
 		}
+		Object sellerProductId = currentRawData.get("sellerProductId");
+		if (sellerProductId == null || String.valueOf(sellerProductId).isBlank()) {
+			throw new IllegalStateException("쿠팡 sellerProductId 없음(rawData) — 이미지 재게시 불가");
+		}
+		String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + sellerProductId;
+		restClient.put(path, currentRawData);
+		log.info("[쿠팡] 이미지/HTML 동기화 완료: {}", marketItemId);
 		return currentRawData;
 	}
 }
