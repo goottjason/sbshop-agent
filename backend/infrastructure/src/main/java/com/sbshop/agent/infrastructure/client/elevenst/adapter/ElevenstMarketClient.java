@@ -96,7 +96,17 @@ public class ElevenstMarketClient implements MarketClient {
 	@Override
 	public Map<String, Object> syncImagesAndHtml(String marketItemId, Map<String, Object> currentRawData,
 		List<String> hostedImages, String newDetailHtml) {
-		log.warn("[Elevenst] 이미지/HTML 개별 업데이트 미지원 (상품 재등록 필요): {}", marketItemId);
+		// 11번가는 이미지/상세를 개별 필드로 못 바꾸나, 상세설명수정 전용 API로 상세HTML(임베드 이미지 포함)을 반영한다.
+		// 대표이미지(prdImage01)는 상품수정 전체전문이 필요해 범위 밖.
+		String xml = "<?xml version=\"1.0\" encoding=\"euc-kr\"?>"
+			+ "<ProductDetailCont>"
+			+ "<prdDescContClob><![CDATA[" + (newDetailHtml == null ? "" : newDetailHtml) + "]]></prdDescContClob>"
+			+ "</ProductDetailCont>";
+		String response = restClient.post("/rest/prodservices/updateProductDetailCont/" + marketItemId, xml);
+		if (response == null || response.contains("ERROR") || response.contains("resultCode>500")) {
+			throw new RuntimeException("[Elevenst] 상세설명 수정 실패: " + response);
+		}
+		log.info("[Elevenst] 상세HTML 재게시 완료: {}", marketItemId);
 		return currentRawData;
 	}
 
