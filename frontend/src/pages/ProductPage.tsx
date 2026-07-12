@@ -262,6 +262,7 @@ const ProductPage = () => {
 
   // D-036(선택): 소싱처 소스 이미지 크롤 → URL 입력창에 채워 검토 후 등록
   // D-049(결정①): 크롤러(IherbScraperClient)가 iHerb 전용이라 비-iHerb 벤더는 미지원 — 무음 실패 대신 명시적 안내.
+  // D-xxx: 크롤→업로드 원클릭화 (Task 6). crawlAndUpload로 크롤·다운로드·업로드·마켓반영을 한 호출에 처리.
   const handleCrawl = async () => {
     if (!detailModal.id) return;
     if (detailModal.data?.vendor !== 'IHB') {
@@ -270,17 +271,11 @@ const ProductPage = () => {
     }
     setUploading(true);
     try {
-      const res = await productApi.crawlSourceImages(detailModal.id);
-      const urls = (res.data as string[]) || [];
-      if (urls.length === 0) {
-        // D-078: 빈 결과 무음 제거 — 왜 비었는지(소싱 URL/크롤 실패) 사용자에게 안내.
-        message.warning('소스이미지를 찾지 못했습니다 (소싱 URL/크롤 확인).');
-        return;
-      }
-      setUrlInput(urls.join('\n'));
-      message.success(`${urls.length}개 소스 이미지를 불러왔습니다. 'URL로 등록'을 눌러 반영하세요.`);
+      const res = await productApi.crawlAndUpload(detailModal.id);
+      surfaceUploadResult('소스이미지 크롤·업로드 완료', res.data as ImageUploadResult);
+      await refreshDetail(detailModal.id);
     } catch {
-      message.error('소스 이미지 크롤에 실패했습니다.');
+      message.error('소스 이미지 크롤·업로드에 실패했습니다.');
     } finally {
       setUploading(false);
     }

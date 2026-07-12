@@ -90,6 +90,9 @@ export const productApi = {
   crawlSourceImages: (id: number) =>
     apiClient.get(`/api/v1/products/${id}/images/crawl`),
 
+  crawlAndUpload: (id: number) =>
+    apiClient.post(`/api/v1/products/${id}/images/crawl-and-upload`),
+
   getMarketRegistrations: (id: number) =>
     apiClient.get(`/api/v1/products/${id}/markets`),
 
