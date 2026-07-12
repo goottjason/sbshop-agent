@@ -43,12 +43,41 @@ class Cafe24ShipmentServiceTest {
 			"{\"items\":[{\"order_item_code\":\"20260708-0000011-01\",\"status_code\":\"N30\"}]}"));
 	}
 
+	/** 재키잉된 실주문: marketOrderNo=마켓 원본번호, cafe24_order_id=Cafe24 자체번호(마켓specific). */
 	private Order gmarketOrder() {
-		return Order.builder()
+		Order order = Order.builder()
 			.marketType(MarketType.GMARKET)
-			.marketOrderNo("20260708-0000011")
+			.marketOrderNo("4466411168")
 			.orderDate(LocalDateTime.now())
 			.build();
+		order.setMarketSpecificDataFromMap(Map.of("cafe24_order_id", "20260708-0000011"));
+		return order;
+	}
+
+	@Test
+	@DisplayName("송장등록/주문상세를 cafe24_order_id(20260708-0000011)로 타깃한다 — 마켓 원본번호(4466411168) 아님(C-1)")
+	void shipTargetsCafe24OrderIdNotNativeNumber() {
+		service.ship(gmarketOrder(), "1234567890", ShippingCarrier.CJ_LOGISTICS);
+
+		// 주문상세 조회도 Cafe24 order_id로 타깃해야 order_item_code를 얻는다(원본번호면 404).
+		verify(port).fetchOrderDetail("20260708-0000011");
+		verify(port).registerShipment(eq("20260708-0000011"), org.mockito.ArgumentMatchers.any());
+	}
+
+	@Test
+	@DisplayName("cafe24_order_id가 없는 레거시 행은 marketOrderNo로 폴백해 타깃한다")
+	void shipFallsBackToMarketOrderNoWhenNoCafe24OrderId() throws Exception {
+		lenient().when(port.fetchOrderDetail("4466411168")).thenReturn(MAPPER.readTree("{\"items\":[]}"));
+		Order legacy = Order.builder()
+			.marketType(MarketType.GMARKET)
+			.marketOrderNo("4466411168")
+			.orderDate(LocalDateTime.now())
+			.build();
+
+		service.ship(legacy, "1234567890", ShippingCarrier.CJ_LOGISTICS);
+
+		verify(port).fetchOrderDetail("4466411168");
+		verify(port).registerShipment(eq("4466411168"), org.mockito.ArgumentMatchers.any());
 	}
 
 	@Test

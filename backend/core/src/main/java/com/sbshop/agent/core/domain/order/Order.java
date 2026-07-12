@@ -182,6 +182,16 @@ public class Order extends BaseEntity {
 		}
 	}
 
+	/**
+	 * Cafe24 주문 API(발주확인/취소/송장등록)가 타깃해야 하는 Cafe24 자체 order_id.
+	 * marketOrderNo는 마켓 원본번호이므로 marketSpecificData의 cafe24_order_id를 우선 사용하고,
+	 * 없으면(레거시 미백필 행) marketOrderNo로 폴백한다.
+	 */
+	public String getCafe24OrderId() {
+		String id = getMarketSpecificDataMap().get("cafe24_order_id");
+		return (id != null && !id.isBlank()) ? id : marketOrderNo;
+	}
+
 	/** Map을 marketSpecificData JSON으로 저장 */
 	public void setMarketSpecificDataFromMap(Map<String, String> map) {
 		if (map == null || map.isEmpty()) {

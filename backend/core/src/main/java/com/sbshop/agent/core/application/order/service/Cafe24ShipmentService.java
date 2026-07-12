@@ -27,9 +27,9 @@ public class Cafe24ShipmentService {
 	// 몰 택배사(이름→코드) 캐시. 최초 1회 /carriers 조회.
 	private volatile Map<String, String> carrierNameToCode;
 
-	/** 송장 등록. order.marketOrderNo == Cafe24 order_id. */
+	/** 송장 등록. Cafe24 order_id는 order.getCafe24OrderId()(marketSpecific의 cafe24_order_id, 없으면 marketOrderNo 폴백)로 타깃한다. */
 	public void ship(Order order, String trackingNo, ShippingCarrier carrier) {
-		String orderId = order.getMarketOrderNo();
+		String orderId = order.getCafe24OrderId();
 		if (orderId == null || orderId.isBlank()) {
 			throw new IllegalStateException("Cafe24 주문번호(order_id) 없음");
 		}
