@@ -1,110 +1,185 @@
 import { useState } from 'react';
-import { Input, Button, Table, Space, message, Typography } from 'antd';
+import { Input, Button, Table, Space, message, Typography, Steps, InputNumber, Select, Result, Tag } from 'antd';
 import { sourcingApi, type SourcingResult } from '../api/sourcingApi';
 
 const { TextArea } = Input;
 const { Title } = Typography;
 
-const ProductRegisterPage = () => {
-  const [urls, setUrls] = useState('');
-  const [scraped, setScraped] = useState<SourcingResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+const VENDOR_OPTIONS = ['IHB', 'AMZ', 'FTN', 'COK', 'OCD', 'TES', 'VTB'];
+const MARKETS = ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24'];
 
+// 크롤 결과 + 보정 입력을 합친 편집 행
+interface EditableRow extends SourcingResult {
+  origin?: string;
+  weight?: number;
+  rawCategory?: string;
+  bundleQuantity: number;
+  marginRate: number;
+  vendor: string;
+}
+
+interface PublishOutcome { productId: number; market: string; ok: boolean; error?: string; }
+
+const ProductRegisterPage = () => {
+  const [current, setCurrent] = useState(0);
+  const [urls, setUrls] = useState('');
+  const [rows, setRows] = useState<EditableRow[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [savedIds, setSavedIds] = useState<number[]>([]);
+  const [selectedMarkets, setSelectedMarkets] = useState<string[]>([]);
+  const [outcomes, setOutcomes] = useState<PublishOutcome[]>([]);
+
+  // Step 1: 크롤
   const handleCrawl = async () => {
-    const urlList = urls.split('\n').filter((u) => u.trim());
-    if (urlList.length === 0) {
-      message.warning('URL을 입력하세요');
-      return;
-    }
+    const urlList = urls.split('\n').map((u) => u.trim()).filter(Boolean);
+    if (urlList.length === 0) { message.warning('URL을 입력하세요'); return; }
     setLoading(true);
     try {
       const res = await sourcingApi.sourceFromIherb(urlList);
-      setScraped(res.data || []);
-      message.success(`${res.data?.length || 0}개 상품 크롤링 완료`);
-    } catch {
-      message.error('크롤링 실패');
-    } finally {
-      setLoading(false);
-    }
+      const scraped = (res.data as SourcingResult[]) || [];
+      setRows(scraped.map((s) => ({ ...s, bundleQuantity: 1, marginRate: 20, vendor: 'IHB' })));
+      setSelectedRowKeys(scraped.map((_, i) => i));
+      message.success(`${scraped.length}개 상품 크롤링 완료`);
+      if (scraped.length > 0) setCurrent(1);
+    } catch { message.error('크롤링 실패'); }
+    finally { setLoading(false); }
   };
 
+  const updateRow = (index: number, patch: Partial<EditableRow>) => {
+    setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  };
+
+  // Step 2 → 저장
   const handleSave = async () => {
-    const selected = scraped.filter((_, i) => selectedRowKeys.includes(i));
-    if (selected.length === 0) {
-      message.warning('저장할 상품을 선택하세요');
-      return;
-    }
+    const selected = rows.filter((_, i) => selectedRowKeys.includes(i));
+    if (selected.length === 0) { message.warning('저장할 상품을 선택하세요'); return; }
     setLoading(true);
     try {
-      await sourcingApi.saveProductsBulk(
+      const res = await sourcingApi.saveProductsBulk(
         selected.map((s) => ({
-          sourceUrl: s.sourceUrl,
-          baseName: s.baseName,
-          originalName: s.originalName,
-          brand: s.brand,
-          costPrice: s.costPrice,
-          capacity: s.capacity,
-          sourceImages: s.sourceImages,
-          isAvailable: s.isAvailable,
-          bundleQuantity: 1,
-          marginRate: 20,
-          vendor: 'IHB',
+          sourceUrl: s.sourceUrl, baseName: s.baseName, originalName: s.originalName,
+          brand: s.brand, costPrice: s.costPrice, origin: s.origin ?? null,
+          weight: s.weight ?? null, capacity: s.capacity, measureUnit: null,
+          sourceImages: s.sourceImages, rawSourceHtml: null, rawCategory: s.rawCategory ?? null,
+          isAvailable: s.isAvailable, bundleQuantity: s.bundleQuantity,
+          marginRate: s.marginRate, vendor: s.vendor,
         }))
       );
-      message.success(`${selected.length}개 상품 저장 완료`);
-      setScraped([]);
-      setSelectedRowKeys([]);
-    } catch {
-      message.error('저장 실패');
-    } finally {
-      setLoading(false);
-    }
+      const ids = (res.data as number[]) || [];
+      setSavedIds(ids);
+      message.success(`${ids.length}개 상품 저장 완료`);
+      setCurrent(2);
+    } catch { message.error('저장 실패'); }
+    finally { setLoading(false); }
   };
 
-  const columns = [
-    { title: '브랜드', dataIndex: 'brand', width: 100 },
+  // Step 3: 마켓 등록 — 저장된 productId × 선택 마켓 루프(단건 publish)
+  const handlePublish = async () => {
+    if (selectedMarkets.length === 0) { message.warning('등록할 마켓을 선택하세요'); return; }
+    setLoading(true);
+    const results: PublishOutcome[] = [];
+    for (const id of savedIds) {
+      for (const market of selectedMarkets) {
+        try {
+          await sourcingApi.publishToMarket(id, market);
+          results.push({ productId: id, market, ok: true });
+        } catch (e) {
+          results.push({ productId: id, market, ok: false, error: (e as Error).message });
+        }
+      }
+    }
+    setOutcomes(results);
+    setLoading(false);
+    const failed = results.filter((r) => !r.ok).length;
+    if (failed === 0) message.success('모든 마켓 등록 완료');
+    else message.warning(`${failed}개 조합 등록 실패 — 결과를 확인하세요`);
+    setCurrent(3);
+  };
+
+  const reset = () => {
+    setCurrent(0); setUrls(''); setRows([]); setSelectedRowKeys([]);
+    setSavedIds([]); setSelectedMarkets([]); setOutcomes([]);
+  };
+
+  const editColumns = [
+    { title: '브랜드', dataIndex: 'brand', width: 90, ellipsis: true },
     { title: '상품명', dataIndex: 'baseName', ellipsis: true },
-    { title: '원본명', dataIndex: 'originalName', ellipsis: true },
-    { title: '원가', dataIndex: 'costPrice', width: 100, render: (v: number) => v ? `$${v}` : '' },
-    { title: '용량', dataIndex: 'capacity', width: 80 },
-    { title: '이미지', dataIndex: 'sourceImages', width: 60, render: (v: string[]) => v?.length || 0 },
-    { title: '재고', dataIndex: 'isAvailable', width: 60, render: (v: boolean) => v ? 'O' : 'X' },
+    { title: '원가($)', dataIndex: 'costPrice', width: 80 },
+    { title: '원산지', width: 110, render: (_: unknown, r: EditableRow, i: number) => (
+      <Input size="small" value={r.origin} onChange={(e) => updateRow(i, { origin: e.target.value })} />) },
+    { title: '중량', width: 90, render: (_: unknown, r: EditableRow, i: number) => (
+      <InputNumber size="small" value={r.weight} onChange={(v) => updateRow(i, { weight: v ?? undefined })} />) },
+    { title: '카테고리', width: 130, render: (_: unknown, r: EditableRow, i: number) => (
+      <Input size="small" value={r.rawCategory} onChange={(e) => updateRow(i, { rawCategory: e.target.value })} />) },
+    { title: '묶음', width: 70, render: (_: unknown, r: EditableRow, i: number) => (
+      <InputNumber size="small" min={1} value={r.bundleQuantity} onChange={(v) => updateRow(i, { bundleQuantity: v ?? 1 })} />) },
+    { title: '마진율(%)', width: 90, render: (_: unknown, r: EditableRow, i: number) => (
+      <InputNumber size="small" min={0} value={r.marginRate} onChange={(v) => updateRow(i, { marginRate: v ?? 0 })} />) },
+    { title: '공급처', width: 100, render: (_: unknown, r: EditableRow, i: number) => (
+      <Select size="small" style={{ width: 90 }} value={r.vendor} options={VENDOR_OPTIONS.map((v) => ({ value: v, label: v }))}
+        onChange={(v) => updateRow(i, { vendor: v })} />) },
   ];
 
   return (
     <div style={{ padding: 24 }}>
       <Title level={3}>신규 상품 등록 (iHerb)</Title>
-      <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
-        <TextArea
-          rows={5}
-          placeholder="iHerb 상품 URL을 한 줄에 하나씩 입력하세요"
-          value={urls}
-          onChange={(e) => setUrls(e.target.value)}
-        />
-        <Space>
+      <Steps current={current} style={{ marginBottom: 24 }} items={[
+        { title: '크롤링' }, { title: '보정·가격' }, { title: '마켓 등록' }, { title: '완료' },
+      ]} />
+
+      {current === 0 && (
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <TextArea rows={5} placeholder="iHerb 상품 URL을 한 줄에 하나씩 입력하세요"
+            value={urls} onChange={(e) => setUrls(e.target.value)} />
           <Button type="primary" loading={loading} onClick={handleCrawl}>크롤링</Button>
-          {scraped.length > 0 && (
+        </Space>
+      )}
+
+      {current === 1 && (
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Table<EditableRow> rowKey={(_, i) => i ?? 0} columns={editColumns} dataSource={rows}
+            rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
+            pagination={false} size="small" scroll={{ y: 460 }} />
+          <Space>
+            <Button onClick={() => setCurrent(0)}>이전</Button>
             <Button type="primary" loading={loading} onClick={handleSave}>
               선택한 상품 저장 ({selectedRowKeys.length}개)
             </Button>
-          )}
+          </Space>
         </Space>
-      </Space>
+      )}
 
-      {scraped.length > 0 && (
-        <Table<SourcingResult>
-          rowKey={(_, i) => i ?? 0}
-          columns={columns}
-          dataSource={scraped}
-          rowSelection={{
-            selectedRowKeys,
-            onChange: setSelectedRowKeys,
-          }}
-          pagination={{ pageSize: 20 }}
-          size="small"
-          scroll={{ y: 500 }}
-        />
+      {current === 2 && (
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <div>저장된 상품 {savedIds.length}개. 등록할 마켓을 선택하세요.</div>
+          <Select mode="multiple" style={{ width: 400 }} placeholder="마켓 선택"
+            value={selectedMarkets} onChange={setSelectedMarkets}
+            options={MARKETS.map((m) => ({ value: m, label: m }))} />
+          <Space>
+            <Button type="primary" loading={loading} onClick={handlePublish}>
+              마켓 등록 ({savedIds.length}상품 × {selectedMarkets.length}마켓)
+            </Button>
+            <Button onClick={reset}>마켓 등록 건너뛰고 종료</Button>
+          </Space>
+        </Space>
+      )}
+
+      {current === 3 && (
+        <Result status={outcomes.every((o) => o.ok) ? 'success' : 'warning'}
+          title="마켓 등록 결과"
+          subTitle={`성공 ${outcomes.filter((o) => o.ok).length} / 실패 ${outcomes.filter((o) => !o.ok).length}`}
+          extra={[
+            <Space key="list" direction="vertical" style={{ textAlign: 'left' }}>
+              {outcomes.map((o, i) => (
+                <div key={i}>
+                  <Tag color={o.ok ? 'green' : 'red'}>{o.ok ? '성공' : '실패'}</Tag>
+                  상품 {o.productId} · {o.market}{o.error ? ` — ${o.error}` : ''}
+                </div>
+              ))}
+            </Space>,
+            <Button key="new" type="primary" onClick={reset}>새 등록</Button>,
+          ]} />
       )}
     </div>
   );
