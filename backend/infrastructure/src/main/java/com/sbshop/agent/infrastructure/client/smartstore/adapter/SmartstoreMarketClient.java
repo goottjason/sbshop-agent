@@ -154,6 +154,9 @@ public class SmartstoreMarketClient implements MarketClient {
 
 			if (!hostedImages.isEmpty()) {
 				originProduct.put("representativeImage", hostedImages.get(0));
+				if (hostedImages.size() > 1) {
+					originProduct.put("optionalImages", hostedImages.subList(1, hostedImages.size()));
+				}
 			}
 			if (newDetailHtml != null) {
 				originProduct.put("detailContent", newDetailHtml.replace("\"", "\\\"").replace("\n", ""));
@@ -170,8 +173,12 @@ public class SmartstoreMarketClient implements MarketClient {
 				if (newDetailHtml != null)
 					currentRawData.put("detailContent", newDetailHtml);
 			}
+		} catch (RuntimeException e) {
+			log.error("[Smartstore] 이미지/HTML 동기화 실패: {}", e.getMessage());
+			throw e; // 실패 표면화(SP-A/SP-C 원칙)
 		} catch (Exception e) {
 			log.error("[Smartstore] 이미지/HTML 동기화 실패: {}", e.getMessage());
+			throw new RuntimeException("[Smartstore] 이미지/HTML 동기화 실패: " + e.getMessage(), e); // 실패 표면화(SP-A/SP-C 원칙)
 		}
 		return currentRawData;
 	}
