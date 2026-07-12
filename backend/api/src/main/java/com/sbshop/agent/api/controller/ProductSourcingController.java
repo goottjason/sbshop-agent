@@ -58,17 +58,19 @@ public class ProductSourcingController {
 	}
 
 	@PostMapping("/products/bulk")
-	public ResponseEntity<Void> saveProductsBulk(@RequestBody
+	public ResponseEntity<List<Long>> saveProductsBulk(@RequestBody
 	List<ProductSaveRequest> requests) {
 		List<com.sbshop.agent.core.domain.product.dto.ProductCreateCommand> commands = requests.stream()
 			.map(ProductSaveRequest::toCommand)
 			.toList();
-		// D-076: 신규 상품 일괄 등록 — 결과만 기록.
+		// SP-D: 신규 상품 일괄 등록 — 생성된 productId 목록 반환(마켓등록 연결용).
 		try {
-			productCreateUseCase.createBulk(commands);
+			List<Long> ids = productCreateUseCase.createBulk(commands).stream()
+				.map(com.sbshop.agent.core.domain.product.Product::getId)
+				.toList();
 			actionLogService.record(ActionLogConstants.PRODUCT_BULK_CREATE, null,
-				ActionStatus.SUCCESS, "상품 일괄등록 성공 (" + commands.size() + "건)");
-			return ResponseEntity.ok().build();
+				ActionStatus.SUCCESS, "상품 일괄등록 성공 (" + ids.size() + "건)");
+			return ResponseEntity.ok(ids);
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.PRODUCT_BULK_CREATE, null,
 				ActionStatus.FAILED, "상품 일괄등록 실패 (" + commands.size() + "건): " + e.getMessage());
