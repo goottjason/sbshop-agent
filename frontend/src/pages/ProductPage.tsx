@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import type { ColDef, CellClickedEvent } from 'ag-grid-community';
-import { Input, Button, Space, Modal, InputNumber, message, Descriptions, Image, Spin, Collapse, Typography, Divider, Pagination, Tooltip, Switch } from 'antd';
+import { Input, Button, Space, Modal, InputNumber, message, Descriptions, Image, Spin, Collapse, Typography, Divider, Pagination, Tooltip, Switch, Popconfirm } from 'antd';
 import { SearchOutlined, ReloadOutlined, UploadOutlined, LinkOutlined, CloudDownloadOutlined } from '@ant-design/icons';
 import { productApi, type ProductList, type ProductDetail, type ImageUploadResult, type PriceStockSyncResult } from '../api/productApi';
 
@@ -526,19 +526,26 @@ const ProductPage = () => {
                   </Button>
                   {/* D-078: disabled 버튼은 antd Tooltip이 안 떠 "먹통"으로 체감 → 항상 클릭 가능하게 두고
                       handleCrawl 내 비-iHerb warning으로 사유를 안내(무음 실패 제거). Tooltip은 보조 안내로 유지. */}
-                  <Tooltip
-                    title={d.vendor !== 'IHB'
-                      ? '이 벤더는 아직 소스이미지 크롤을 지원하지 않습니다 (현재 iHerb 상품만 지원).'
-                      : ''}
+                  <Popconfirm
+                    title="소스 이미지 크롤·업로드"
+                    description="크롤한 이미지를 R2에 업로드하고 연동된 모든 마켓(쿠팡·스마트스토어·11번가·카페24)에 즉시 재게시합니다. 쿠팡은 재심사가 발생할 수 있습니다. 진행할까요?"
+                    okText="진행"
+                    cancelText="취소"
+                    onConfirm={handleCrawl}
                   >
-                    <Button
-                      icon={<CloudDownloadOutlined />}
-                      loading={uploading}
-                      onClick={handleCrawl}
+                    <Tooltip
+                      title={d.vendor !== 'IHB'
+                        ? '이 벤더는 아직 소스이미지 크롤을 지원하지 않습니다 (현재 iHerb 상품만 지원).'
+                        : ''}
                     >
-                      소스 이미지 크롤
-                    </Button>
-                  </Tooltip>
+                      <Button
+                        icon={<CloudDownloadOutlined />}
+                        loading={uploading}
+                      >
+                        소스 이미지 크롤
+                      </Button>
+                    </Tooltip>
+                  </Popconfirm>
                 </Space>
                 <Input.TextArea
                   placeholder="이미지 URL을 줄바꿈 또는 쉼표로 구분해 입력하세요"
