@@ -117,6 +117,19 @@ const ProcessStatusPage = () => {
     loadActionLogs();
   }, [loadActionLogs]);
 
+  useEffect(() => {
+    const eventSource = new EventSource('/sbshop-agent/api/v1/notifications/subscribe');
+    const onBatch = () => { loadActionLogs(); };
+    eventSource.addEventListener('BATCH_COMPLETED', onBatch);
+    eventSource.addEventListener('BATCH_FAILED', onBatch);
+    eventSource.onerror = () => {
+      if (eventSource.readyState === EventSource.CLOSED) {
+        eventSource.close();
+      }
+    };
+    return () => eventSource.close();
+  }, [loadActionLogs]);
+
   const handleSearch = async () => {
     if (!batchId) {
       message.warning('batchId를 입력하세요');
