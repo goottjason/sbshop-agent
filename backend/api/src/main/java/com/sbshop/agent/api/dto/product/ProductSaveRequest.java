@@ -18,6 +18,7 @@ public record ProductSaveRequest(
 	MeasureUnit measureUnit,
 	List<String> sourceImages,
 	String rawSourceHtml,
+	String rawCategory,
 	boolean isAvailable,
 	Integer bundleQuantity,
 	BigDecimal marginRate,
@@ -27,6 +28,6 @@ public record ProductSaveRequest(
 		return new ProductCreateCommand(
 			sourceUrl, costPrice, baseName, originalName, brand, origin,
 			weight, capacity, measureUnit, sourceImages, null, rawSourceHtml,
-			null, isAvailable, bundleQuantity, marginRate, vendor);
+			rawCategory, isAvailable, bundleQuantity, marginRate, vendor);
 	}
 }
