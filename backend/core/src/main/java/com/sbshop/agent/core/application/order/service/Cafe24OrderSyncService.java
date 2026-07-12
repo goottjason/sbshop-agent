@@ -122,11 +122,11 @@ public class Cafe24OrderSyncService {
 		if (marketType == null) {
 			return false; // Cafe24에 연동된 오픈마켓(G마켓/옥션) 외 주문은 스킵(직접몰·타마켓 중복 방지)
 		}
-		String orderId = o.path("order_id").asText("");
-		if (orderId.isBlank()) {
+		String marketOrderNo = resolveMarketOrderNo(o);
+		if (marketOrderNo.isBlank()) {
 			return false;
 		}
-		Optional<Order> existing = orderRepository.findByMarketOrderNo(orderId);
+		Optional<Order> existing = orderRepository.findByMarketOrderNo(marketOrderNo);
 		if (existing.isPresent()) {
 			updateOrder(existing.get(), o, marketType);
 		} else {
@@ -142,7 +142,7 @@ public class Cafe24OrderSyncService {
 
 		Order order = Order.builder()
 			.marketType(marketType)
-			.marketOrderNo(o.path("order_id").asText())
+			.marketOrderNo(resolveMarketOrderNo(o))
 			.orderDate(parseDate(o.path("order_date").asText(null)))
 			.recipientName(text(receiver, "name"))
 			.recipientPhone(firstNonBlank(text(receiver, "cellphone"), text(receiver, "phone")))
@@ -184,6 +184,8 @@ public class Cafe24OrderSyncService {
 		if (pccc != null) {
 			order.updateCustomsClearanceNo(pccc);
 		}
+		// 기존 행에도 cafe24_order_id를 채워 발주확인·취소가 Cafe24 order_id로 타깃하게 한다(마켓번호 전환 대응)
+		refreshMarketSpecific(order, o);
 		orderRepository.save(order);
 
 		// 배송상태만 갱신(트래킹은 마켓 전송 가드가 있는 별도 경로에서 관리)
@@ -335,10 +337,30 @@ public class Cafe24OrderSyncService {
 		return firstNonBlank(a1, "") + (a2 != null && !a2.isBlank() ? " " + a2 : "");
 	}
 
+	/**
+	 * 화면 표시·유니크키로 쓸 마켓 원본 주문번호. 오픈마켓(G마켓/옥션)은 항상 market_order_no가 있으며,
+	 * 없을 때만 Cafe24 order_id로 방어적 폴백한다(레거시/이상 데이터 대비).
+	 */
+	private String resolveMarketOrderNo(JsonNode o) {
+		String marketOrderNo = o.path("market_order_no").asText("");
+		return !marketOrderNo.isBlank() ? marketOrderNo : o.path("order_id").asText("");
+	}
+
 	private String buildMarketSpecific(JsonNode o) {
-		return String.format("{\"order_place_id\":\"%s\",\"order_place_name\":\"%s\",\"market_order_no\":\"%s\"}",
+		return String.format(
+			"{\"order_place_id\":\"%s\",\"order_place_name\":\"%s\",\"market_order_no\":\"%s\",\"cafe24_order_id\":\"%s\"}",
 			o.path("order_place_id").asText(""), o.path("order_place_name").asText(""),
-			o.path("market_order_no").asText(""));
+			o.path("market_order_no").asText(""), o.path("order_id").asText(""));
+	}
+
+	/** updateOrder에서 기존 행의 marketSpecificData를 갱신해 cafe24_order_id를 채운다(레거시 행 보정). */
+	private void refreshMarketSpecific(Order order, JsonNode o) {
+		java.util.Map<String, String> map = new java.util.LinkedHashMap<>();
+		map.put("order_place_id", o.path("order_place_id").asText(""));
+		map.put("order_place_name", o.path("order_place_name").asText(""));
+		map.put("market_order_no", o.path("market_order_no").asText(""));
+		map.put("cafe24_order_id", o.path("order_id").asText(""));
+		order.setMarketSpecificDataFromMap(map);
 	}
 
 	private JsonNode firstOf(JsonNode array) {
