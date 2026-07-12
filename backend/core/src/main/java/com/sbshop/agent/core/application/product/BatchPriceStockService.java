@@ -38,6 +38,7 @@ public class BatchPriceStockService {
 	@Async("productBatchExecutor")
 	public void crawlAndUpdatePriceStock(String batchId, List<Long> productIds,
 		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice) {
+		int failCount = 0;
 		for (Long productId : productIds) {
 			try {
 				Product product = productReader.findById(productId)
@@ -80,14 +81,18 @@ public class BatchPriceStockService {
 			} catch (Exception e) {
 				log.error("배치 업데이트 실패: productId={}", productId, e);
 				processStatusService.markFailed(batchId, String.valueOf(productId), e.getMessage());
+				failCount++;
 			}
 		}
-		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId, true, "배치 완료"));
+		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId,
+			com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_CRAWL_UPDATE,
+			failCount == 0, failCount == 0 ? "배치 완료" : "배치 완료(실패 " + failCount + "건)"));
 	}
 
 	@Async("productBatchExecutor")
 	public void manualUpdatePriceStock(String batchId, List<Long> productIds,
 		List<BigDecimal> prices, List<Integer> stocks) {
+		int failCount = 0;
 		for (int i = 0; i < productIds.size(); i++) {
 			try {
 				Long productId = productIds.get(i);
@@ -130,14 +135,18 @@ public class BatchPriceStockService {
 			} catch (Exception e) {
 				log.error("수동 업데이트 실패: productId={}", productIds.get(i), e);
 				processStatusService.markFailed(batchId, String.valueOf(productIds.get(i)), e.getMessage());
+				failCount++;
 			}
 		}
-		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId, true, "수동 배치 완료"));
+		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId,
+			com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_MANUAL_UPDATE,
+			failCount == 0, failCount == 0 ? "수동 배치 완료" : "수동 배치 완료(실패 " + failCount + "건)"));
 	}
 
 	@Async("productBatchExecutor")
 	public void manualUpdateAllFields(String batchId, List<Long> productIds,
 		List<com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand> commands) {
+		int failCount = 0;
 		for (int i = 0; i < productIds.size(); i++) {
 			try {
 				Long productId = productIds.get(i);
@@ -152,9 +161,12 @@ public class BatchPriceStockService {
 			} catch (Exception e) {
 				log.error("전체 필드 업데이트 실패: productId={}", productIds.get(i), e);
 				processStatusService.markFailed(batchId, String.valueOf(productIds.get(i)), e.getMessage());
+				failCount++;
 			}
 		}
-		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId, true, "전체 필드 배치 완료"));
+		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId,
+			com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_MANUAL_UPDATE_ALL,
+			failCount == 0, failCount == 0 ? "전체 필드 배치 완료" : "전체 필드 배치 완료(실패 " + failCount + "건)"));
 	}
 
 	public List<Long> getProductIdsByVendor(VendorType vendor) {
