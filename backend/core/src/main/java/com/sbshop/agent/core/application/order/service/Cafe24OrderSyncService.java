@@ -189,11 +189,22 @@ public class Cafe24OrderSyncService {
 		orderRepository.save(order);
 
 		// 배송상태만 갱신(트래킹은 마켓 전송 가드가 있는 별도 경로에서 관리)
-		JsonNode firstItem = firstOf(o.path("items"));
-		ShippingStatus status = mapStatus(text(firstItem, "order_status"));
-		for (OrderLineItem item : lineItems) {
-			item.applyShippingData(item.getShippingData().toBuilder().shippingStatus(status).build());
-			orderLineItemRepository.save(item);
+		JsonNode itemsArr = o.path("items");
+		if (itemsArr.isArray() && itemsArr.size() == lineItems.size()) {
+			// 개수가 일치하면 아이템별로 매핑(create 경로와 일관)
+			for (int i = 0; i < lineItems.size(); i++) {
+				ShippingStatus st = mapStatus(text(itemsArr.get(i), "order_status"));
+				OrderLineItem li = lineItems.get(i);
+				li.applyShippingData(li.getShippingData().toBuilder().shippingStatus(st).build());
+				orderLineItemRepository.save(li);
+			}
+		} else {
+			// 개수 불일치 시 첫 아이템 상태를 전체에 적용(sbshop 라인아이템은 order_item_code 미보존, 방어적)
+			ShippingStatus st = mapStatus(text(firstOf(itemsArr), "order_status"));
+			for (OrderLineItem li : lineItems) {
+				li.applyShippingData(li.getShippingData().toBuilder().shippingStatus(st).build());
+				orderLineItemRepository.save(li);
+			}
 		}
 	}
 
@@ -303,11 +314,14 @@ public class Cafe24OrderSyncService {
 			return ShippingStatus.EXCHANGED;
 		}
 		return switch (c) {
-			case "N00", "N10" -> ShippingStatus.NEW;
-			case "N20", "N21", "N22" -> ShippingStatus.PREPARING;
-			case "N30" -> ShippingStatus.SHIPPED;
-			case "N40", "N50" -> ShippingStatus.DELIVERED;
-			default -> ShippingStatus.NEW;
+			case "N00", "N02" -> ShippingStatus.NEW;              // 입금전/주문접수중 = 결제완료(신규)
+			case "N10", "N20", "N21", "N22" -> ShippingStatus.PREPARING; // 상품준비중/배송준비중/배송대기/배송보류 = 구매준비
+			case "N30" -> ShippingStatus.SHIPPED;                 // 배송중
+			case "N40", "N50" -> ShippingStatus.DELIVERED;        // 배송완료/구매확정
+			default -> {
+				log.warn("[CAFE24-ORDER] 미매핑 order_status 코드={} → NEW 폴백(매핑표 확인 필요)", code);
+				yield ShippingStatus.NEW;
+			}
 		};
 	}
 

@@ -109,11 +109,13 @@ class Cafe24OrderSyncServiceTest {
 	@DisplayName("gmarket 주문은 GMARKET으로 저장하고, coupang 등 타마켓은 스킵한다")
 	void mapsGmarketAndSkipsOthers() throws Exception {
 		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0))).thenReturn(ordersJson());
-		when(orderRepository.findByMarketOrderNo("20240711-0000001")).thenReturn(Optional.empty());
+		when(orderRepository.findByMarketOrderNo("GM123")).thenReturn(Optional.empty());
 
 		int processed = service.fetchAndPersist(java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now());
 
 		assertThat(processed).isEqualTo(1); // gmarket 1건만, coupang 스킵
+		// 조회는 마켓 원본번호(market_order_no)로 하며, Cafe24 order_id로는 조회하지 않는다
+		verify(orderRepository, never()).findByMarketOrderNo("20240711-0000001");
 		// coupang 주문은 조회조차 하지 않음
 		verify(orderRepository, never()).findByMarketOrderNo("CP-999");
 
@@ -121,7 +123,10 @@ class Cafe24OrderSyncServiceTest {
 		verify(orderRepository, times(1)).save(orderCaptor.capture());
 		Order saved = orderCaptor.getValue();
 		assertThat(saved.getMarketType()).isEqualTo(MarketType.GMARKET);
-		assertThat(saved.getMarketOrderNo()).isEqualTo("20240711-0000001");
+		// marketOrderNo는 마켓 원본번호(market_order_no=GM123)여야 하며 Cafe24 order_id가 아니다
+		assertThat(saved.getMarketOrderNo()).isEqualTo("GM123");
+		// Cafe24 order_id는 marketSpecificData의 cafe24_order_id로 보관(발주확인·취소 타깃용)
+		assertThat(saved.getMarketSpecificDataMap().get("cafe24_order_id")).isEqualTo("20240711-0000001");
 		assertThat(saved.getRecipientName()).isEqualTo("김수취");
 		assertThat(saved.getRecipientPhone()).isEqualTo("010-3333-4444");
 		assertThat(saved.getAddress()).isEqualTo("서울시 강남구 테헤란로");
@@ -132,7 +137,8 @@ class Cafe24OrderSyncServiceTest {
 		verify(orderLineItemRepository, times(1)).save(itemCaptor.capture());
 		OrderLineItem item = itemCaptor.getValue();
 		assertThat(item.getQuantity()).isEqualTo(2);
-		assertThat(item.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.NEW); // N10 → NEW
+		// N10(상품준비중=발주확인 후) → PREPARING(구매준비). 절대 NEW(결제완료)가 아니다.
+		assertThat(item.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.PREPARING);
 	}
 
 	@Test
@@ -140,7 +146,7 @@ class Cafe24OrderSyncServiceTest {
 	void extractsPcccFromReceiverFallback() throws Exception {
 		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
 			.thenReturn(ordersJsonPcccOnReceiver());
-		when(orderRepository.findByMarketOrderNo("20240711-0000002")).thenReturn(Optional.empty());
+		when(orderRepository.findByMarketOrderNo("AU123")).thenReturn(Optional.empty());
 
 		service.fetchAndPersist(java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now());
 
@@ -154,7 +160,7 @@ class Cafe24OrderSyncServiceTest {
 	void keepsPcccNullWhenAbsent() throws Exception {
 		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
 			.thenReturn(ordersJsonNoPccc());
-		when(orderRepository.findByMarketOrderNo("20240711-0000003")).thenReturn(Optional.empty());
+		when(orderRepository.findByMarketOrderNo("GM999")).thenReturn(Optional.empty());
 
 		service.fetchAndPersist(java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now());
 
@@ -188,13 +194,93 @@ class Cafe24OrderSyncServiceTest {
 		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
 			.thenReturn(ordersJson());
 		Order existing = Order.builder()
-			.marketType(MarketType.GMARKET).marketOrderNo("20240711-0000001")
+			.marketType(MarketType.GMARKET).marketOrderNo("GM123")
 			.orderDate(java.time.LocalDateTime.now()).build();
-		when(orderRepository.findByMarketOrderNo("20240711-0000001")).thenReturn(Optional.of(existing));
+		when(orderRepository.findByMarketOrderNo("GM123")).thenReturn(Optional.of(existing));
 		when(orderLineItemRepository.findByOrderId(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
 
 		service.fetchAndPersist(java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now());
 
 		assertThat(existing.getCustomsData().getCustomsClearanceNo()).isEqualTo("P012345678901");
+		// D-SP-E: 기존 행도 marketSpecificData가 갱신돼 cafe24_order_id가 채워진다(레거시 보정)
+		assertThat(existing.getMarketSpecificDataMap().get("cafe24_order_id")).isEqualTo("20240711-0000001");
+	}
+
+	private JsonNode ordersWithStatus(String status) throws Exception {
+		String json = """
+			{"orders":[
+			  {"order_id":"20240711-0000009","order_place_id":"gmarket","order_place_name":"지마켓",
+			   "order_date":"2024-07-11T12:00:00+09:00","market_order_no":"GM555",
+			   "buyer":{"name":"홍길동"},
+			   "receivers":[{"name":"김수취","address_full":"서울"}],
+			   "items":[{"product_no":"7034","quantity":1,"payment_amount":"5000","order_status":"%s"}]}
+			]}
+			""".formatted(status);
+		return MAPPER.readTree(json).path("orders");
+	}
+
+	private ShippingStatus statusForCode(String code) throws Exception {
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
+			.thenReturn(ordersWithStatus(code));
+		when(orderRepository.findByMarketOrderNo("GM555")).thenReturn(Optional.empty());
+		service.fetchAndPersist(java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now());
+		ArgumentCaptor<OrderLineItem> itemCaptor = ArgumentCaptor.forClass(OrderLineItem.class);
+		verify(orderLineItemRepository).save(itemCaptor.capture());
+		return itemCaptor.getValue().getShippingData().getShippingStatus();
+	}
+
+	@Test
+	@DisplayName("상태 매핑: N10→PREPARING(버그였음), N20→PREPARING, N30→SHIPPED, N40→DELIVERED, N00→NEW")
+	void mapsStatusCodes() throws Exception {
+		assertThat(statusForCode("N10")).isEqualTo(ShippingStatus.PREPARING);
+	}
+
+	@Test
+	@DisplayName("N20은 PREPARING")
+	void n20Preparing() throws Exception {
+		assertThat(statusForCode("N20")).isEqualTo(ShippingStatus.PREPARING);
+	}
+
+	@Test
+	@DisplayName("N30은 SHIPPED")
+	void n30Shipped() throws Exception {
+		assertThat(statusForCode("N30")).isEqualTo(ShippingStatus.SHIPPED);
+	}
+
+	@Test
+	@DisplayName("N40은 DELIVERED")
+	void n40Delivered() throws Exception {
+		assertThat(statusForCode("N40")).isEqualTo(ShippingStatus.DELIVERED);
+	}
+
+	@Test
+	@DisplayName("N00은 NEW(결제완료/신규)")
+	void n00New() throws Exception {
+		assertThat(statusForCode("N00")).isEqualTo(ShippingStatus.NEW);
+	}
+
+	@Test
+	@DisplayName("persistOrder는 market_order_no로 기존 주문을 찾아 갱신한다(order_id 아님)")
+	void updatesExistingFoundByMarketOrderNo() throws Exception {
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0))).thenReturn(ordersJson());
+		Order existing = Order.builder()
+			.marketType(MarketType.GMARKET).marketOrderNo("GM123")
+			.orderDate(java.time.LocalDateTime.now()).build();
+		when(orderRepository.findByMarketOrderNo("GM123")).thenReturn(Optional.of(existing));
+		OrderLineItem li = OrderLineItem.builder()
+			.orderId(1L).quantity(1)
+			.shippingData(com.sbshop.agent.core.domain.order.vo.ShippingData.builder()
+				.shippingStatus(ShippingStatus.NEW).build())
+			.build();
+		when(orderLineItemRepository.findByOrderId(org.mockito.ArgumentMatchers.any()))
+			.thenReturn(List.of(li));
+
+		service.fetchAndPersist(java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now());
+
+		// createOrder(신규 save)로 가지 않고 기존 행 갱신 경로를 타야 한다: 신규 주문 save는 없음
+		verify(orderRepository, never()).save(org.mockito.ArgumentMatchers.argThat(
+			ord -> ord != existing));
+		// 라인아이템 상태가 N10 → PREPARING로 갱신
+		assertThat(li.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.PREPARING);
 	}
 }
