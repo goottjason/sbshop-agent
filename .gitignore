@@ -45,3 +45,7 @@ _workspace/
 # SSH Keys
 *.key
 *.pem
+
+# superpowers 내부 작업 산출물(어느 모듈 경로든)
+.superpowers/
+backend/.superpowers/
