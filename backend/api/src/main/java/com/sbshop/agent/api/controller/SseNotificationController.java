@@ -70,4 +70,25 @@ public class SseNotificationController {
 			}
 		}
 	}
+
+	static String batchEventName(boolean success) {
+		return success ? "BATCH_COMPLETED" : "BATCH_FAILED";
+	}
+
+	static String batchPayload(String batchId, boolean success) {
+		return batchId + "|" + success;
+	}
+
+	@EventListener
+	public void onBatchCompleted(com.sbshop.agent.core.application.product.event.BatchCompletedEvent event) {
+		String name = batchEventName(event.isSuccess());
+		String data = batchPayload(event.getBatchId(), event.isSuccess());
+		for (SseEmitter emitter : emitters) {
+			try {
+				emitter.send(SseEmitter.event().name(name).data(data));
+			} catch (java.io.IOException e) {
+				emitters.remove(emitter);
+			}
+		}
+	}
 }
