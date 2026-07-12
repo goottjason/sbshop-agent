@@ -82,7 +82,7 @@ class SmartstoreMarketClientImagesTest {
 
         assertThatThrownBy(() ->
             client.syncImagesAndHtml(ITEM_ID, new HashMap<>(), List.of("u0"), null)
-        ).isInstanceOf(Exception.class)
+        ).isInstanceOf(RuntimeException.class)
          .hasMessageContaining("네트워크 오류");
     }
 }
