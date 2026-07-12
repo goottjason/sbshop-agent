@@ -125,7 +125,7 @@ class ProductManageUseCaseRepublishTest {
 		MarketClient cafe24Client = org.mockito.Mockito.mock(MarketClient.class);
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID))
 			.thenReturn(List.of(reg(MarketType.COUPANG, "{\"vendorItemId\":\"CP123\"}"),
-				reg(MarketType.CAFE24, "{\"vendorItemId\":\"C24\"}")));
+				reg(MarketType.CAFE24, "{\"product_no\":\"C24\"}")));
 		when(marketClientRouter.hasClient(MarketType.COUPANG)).thenReturn(true);
 		when(marketClientRouter.hasClient(MarketType.CAFE24)).thenReturn(true);
 		when(marketClientRouter.getClient(MarketType.COUPANG)).thenReturn(coupangClient);

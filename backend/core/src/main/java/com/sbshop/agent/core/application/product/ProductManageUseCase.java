@@ -113,9 +113,9 @@ public class ProductManageUseCase {
 				continue;
 			}
 			try {
-				String marketItemId = reg.extractVendorItemId();
+				String marketItemId = reg.extractMarketCode();
 				if (marketItemId == null || marketItemId.isEmpty()) {
-					marketItemId = String.valueOf(reg.getProductId());
+					throw new IllegalStateException("마켓 상품코드 없음(연동정보에 코드 키 부재)");
 				}
 				Map<String, Object> currentRawData = parseRawData(reg.getMarketDetailedInfo());
 
