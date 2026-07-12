@@ -156,7 +156,8 @@ const ProductPage = () => {
       visible: true,
       id: product.id,
       price: product.salePrice ?? 0,
-      soldOut: false,
+      // SP-B: 현재 저장된 판매상태로 시드 — 항상 판매중(false)으로 열리던 버그 수정.
+      soldOut: product.stockStatus === 'OUT_OF_STOCK',
     });
   };
 

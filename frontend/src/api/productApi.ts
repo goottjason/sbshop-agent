@@ -18,6 +18,8 @@ export interface ProductList {
   // (COUPANG / SMART_STORE / ELEVEN_STREET / GMARKET / AUCTION / CAFE24).
   // 값은 마켓 상품코드(vendorItemId 우선), 없으면 내부 productId 폴백(= row.id).
   marketRegistrations?: Record<string, string>;
+  // SP-B: 백엔드 StockStatus 열거값. 가격/재고 모달 열 때 현재 판매상태 시드에 사용.
+  stockStatus?: 'IN_STOCK' | 'OUT_OF_STOCK';
 }
 
 export interface ProductDetail {

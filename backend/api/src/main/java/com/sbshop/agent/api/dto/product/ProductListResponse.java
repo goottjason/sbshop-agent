@@ -2,6 +2,7 @@ package com.sbshop.agent.api.dto.product;
 
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.enums.ProductCategory;
+import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import java.math.BigDecimal;
 import java.util.List;
@@ -18,6 +19,7 @@ public record ProductListResponse(
 	VendorType vendor,
 	BigDecimal salePrice,
 	Integer stock,
+	StockStatus stockStatus,
 	String repImageUrl,
 	List<String> hostedImages,
 	String sourcingUrl,
@@ -36,6 +38,7 @@ public record ProductListResponse(
 			p.getVendor(),
 			p.getSalePrice(),
 			p.getStock(),
+			p.getStockStatus(),
 			p.getRepImageUrl(),
 			p.getHostedImages(),
 			p.getSourcingUrl(),
@@ -55,6 +58,7 @@ public record ProductListResponse(
 			p.getVendor(),
 			p.getSalePrice(),
 			p.getStock(),
+			p.getStockStatus(),
 			p.getRepImageUrl(),
 			p.getHostedImages(),
 			p.getSourcingUrl(),
