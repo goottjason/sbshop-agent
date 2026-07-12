@@ -85,7 +85,11 @@ const ProductRegisterPage = () => {
           await sourcingApi.publishToMarket(id, market);
           results.push({ productId: id, market, ok: true });
         } catch (e) {
-          results.push({ productId: id, market, ok: false, error: (e as Error).message });
+          const err = e as { response?: { data?: { message?: string } | string }; message?: string };
+          const reason =
+            (typeof err.response?.data === 'object' ? err.response?.data?.message : err.response?.data) ??
+            err.message ?? '알 수 없는 오류';
+          results.push({ productId: id, market, ok: false, error: reason });
         }
       }
     }
