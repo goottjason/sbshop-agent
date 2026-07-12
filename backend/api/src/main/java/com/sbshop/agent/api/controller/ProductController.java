@@ -183,7 +183,6 @@ public class ProductController {
 
 	@PostMapping("/{id}/images/crawl-and-upload")
 	public ResponseEntity<ImageUploadResponse> crawlAndUpload(@PathVariable Long id) {
-		// SP-C Task 5: 크롤→다운로드→업로드 원클릭 파이프라인.
 		try {
 			Product product = productSearchUseCase.getProductDetail(id);
 			String sourcingUrl = product.getSourcingUrl();

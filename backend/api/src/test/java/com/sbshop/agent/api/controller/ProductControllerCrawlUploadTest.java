@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
 
 import com.sbshop.agent.api.dto.product.ImageUploadResponse;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
@@ -76,13 +77,13 @@ class ProductControllerCrawlUploadTest {
 
         MarketRepublishResult result = new MarketRepublishResult(List.of(), List.of(), Map.of());
         when(productManageUseCase.updateImagesAndHtml(7L, files)).thenReturn(result);
-        when(marketRegistrationRepository.findByProductId(7L)).thenReturn(List.of());
 
         ResponseEntity<ImageUploadResponse> response = controller().crawlAndUpload(7L);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
-        verify(imageDownloadClient).downloadAndConvert(eq(List.of("http://img/u0.jpg", "http://img/u1.jpg")));
-        verify(productManageUseCase).updateImagesAndHtml(eq(7L), eq(files));
+        org.mockito.InOrder inOrderVerify = inOrder(imageDownloadClient, productManageUseCase);
+        inOrderVerify.verify(imageDownloadClient).downloadAndConvert(eq(List.of("http://img/u0.jpg", "http://img/u1.jpg")));
+        inOrderVerify.verify(productManageUseCase).updateImagesAndHtml(eq(7L), eq(files));
     }
 
     @Test
