@@ -37,7 +37,7 @@ public class BatchPriceStockService {
 
 	@Async("productBatchExecutor")
 	public void crawlAndUpdatePriceStock(String batchId, List<Long> productIds,
-		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice) {
+		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice, String actionType) {
 		int failCount = 0;
 		for (Long productId : productIds) {
 			try {
@@ -47,6 +47,7 @@ public class BatchPriceStockService {
 				String sourceUrl = product.getSourcingUrl();
 				if (sourceUrl == null || sourceUrl.isEmpty()) {
 					processStatusService.markFailed(batchId, product.getSbCode(), "소싱 URL 없음");
+					failCount++;
 					continue;
 				}
 
@@ -85,7 +86,7 @@ public class BatchPriceStockService {
 			}
 		}
 		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId,
-			com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_CRAWL_UPDATE,
+			actionType,
 			failCount == 0, failCount == 0 ? "배치 완료" : "배치 완료(실패 " + failCount + "건)"));
 	}
 

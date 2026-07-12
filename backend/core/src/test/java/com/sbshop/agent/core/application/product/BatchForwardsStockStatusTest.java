@@ -74,7 +74,8 @@ class BatchForwardsStockStatusTest {
             .thenReturn(crawlResult);
 
         service.crawlAndUpdatePriceStock("batch-1", List.of(PRODUCT_ID),
-            new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO);
+            new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO,
+            com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_CRAWL_UPDATE);
 
         // @Async — small sleep to let the async thread finish
         Thread.sleep(500);
@@ -91,7 +92,8 @@ class BatchForwardsStockStatusTest {
             .thenReturn(crawlResult);
 
         service.crawlAndUpdatePriceStock("batch-1", List.of(PRODUCT_ID),
-            new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO);
+            new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO,
+            com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_CRAWL_UPDATE);
 
         Thread.sleep(500);
 

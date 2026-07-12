@@ -54,7 +54,8 @@ public class BatchController {
 			batchId, request.productIds(),
 			request.marginRate() != null ? request.marginRate() : new BigDecimal("15"),
 			request.couponRate() != null ? request.couponRate() : new BigDecimal("20"),
-			request.minMarginPrice() != null ? request.minMarginPrice() : new BigDecimal("5000"));
+			request.minMarginPrice() != null ? request.minMarginPrice() : new BigDecimal("5000"),
+			ActionLogConstants.BATCH_CRAWL_UPDATE);
 		return ResponseEntity.ok(Map.of("batchId", batchId, "message", "크롤 기반 일괄 업데이트가 시작되었습니다."));
 	}
 
@@ -113,7 +114,8 @@ public class BatchController {
 			batchId, productIds,
 			request.marginRate() != null ? request.marginRate() : new BigDecimal("15"),
 			request.couponRate() != null ? request.couponRate() : new BigDecimal("20"),
-			request.minMarginPrice() != null ? request.minMarginPrice() : new BigDecimal("5000"));
+			request.minMarginPrice() != null ? request.minMarginPrice() : new BigDecimal("5000"),
+			ActionLogConstants.BATCH_BY_SUPPLIER);
 		return ResponseEntity.ok(Map.of("batchId", batchId, "count", String.valueOf(productIds.size())));
 	}
 

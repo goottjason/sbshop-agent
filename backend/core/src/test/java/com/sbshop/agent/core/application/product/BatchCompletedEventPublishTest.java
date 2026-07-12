@@ -81,6 +81,46 @@ class BatchCompletedEventPublishTest {
 	}
 
 	@Test
+	void crawlAndUpdatePriceStock_소싱URL없는항목_failCount증가로_success_false() {
+		// Arrange: product with null sourcingUrl → markFailed+skip path → failCount++
+		Product product = mock(Product.class);
+		when(product.getSbCode()).thenReturn("SB-010");
+		when(product.getSourcingUrl()).thenReturn(null);
+		when(productReader.findById(10L)).thenReturn(Optional.of(product));
+
+		ArgumentCaptor<ApplicationEvent> captor = ArgumentCaptor.forClass(ApplicationEvent.class);
+
+		// Act — @Async bypassed in plain Mockito (no Spring context)
+		service.crawlAndUpdatePriceStock("B-URL", List.of(10L),
+			new java.math.BigDecimal("15"), new java.math.BigDecimal("20"),
+			new java.math.BigDecimal("5000"), ActionLogConstants.BATCH_CRAWL_UPDATE);
+
+		// Assert: failCount > 0 → success=false
+		org.mockito.Mockito.verify(eventPublisher).publishEvent(captor.capture());
+		BatchCompletedEvent event = (BatchCompletedEvent) captor.getValue();
+		assertThat(event.getActionType()).isEqualTo(ActionLogConstants.BATCH_CRAWL_UPDATE);
+		assertThat(event.isSuccess()).isFalse();
+	}
+
+	@Test
+	void crawlAndUpdatePriceStock_B4경로_actionType_BATCH_BY_SUPPLIER() {
+		// Arrange: empty product list → no items processed → failCount=0 → success=true
+		// Verify that the actionType passed in is threaded through to the event
+		ArgumentCaptor<ApplicationEvent> captor = ArgumentCaptor.forClass(ApplicationEvent.class);
+
+		// Act — empty list, passes BATCH_BY_SUPPLIER
+		service.crawlAndUpdatePriceStock("B-B4", List.of(),
+			new java.math.BigDecimal("15"), new java.math.BigDecimal("20"),
+			new java.math.BigDecimal("5000"), ActionLogConstants.BATCH_BY_SUPPLIER);
+
+		// Assert: event.getActionType() == BATCH_BY_SUPPLIER
+		org.mockito.Mockito.verify(eventPublisher).publishEvent(captor.capture());
+		BatchCompletedEvent event = (BatchCompletedEvent) captor.getValue();
+		assertThat(event.getActionType()).isEqualTo(ActionLogConstants.BATCH_BY_SUPPLIER);
+		assertThat(event.isSuccess()).isTrue();
+	}
+
+	@Test
 	void manualUpdateAllFields_전량성공이면_success_true() {
 		// Arrange: both products present
 		Product product1 = mock(Product.class);

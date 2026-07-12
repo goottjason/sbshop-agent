@@ -2,6 +2,7 @@ package com.sbshop.agent.worker.scheduler;
 
 import com.sbshop.agent.core.application.product.BatchPriceStockService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
+import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import java.math.BigDecimal;
 import java.util.List;
@@ -32,7 +33,8 @@ public class BatchScheduler {
 			productCodes);
 		batchPriceStockService.crawlAndUpdatePriceStock(
 			batchId, productIds,
-			new BigDecimal("15"), new BigDecimal("20"), new BigDecimal("5000"));
+			new BigDecimal("15"), new BigDecimal("20"), new BigDecimal("5000"),
+			ActionLogConstants.BATCH_CRAWL_UPDATE);
 		log.info("iHerb 정기 가격/재고 업데이트 배치 시작: batchId={}, count={}", batchId, productIds.size());
 	}
 }

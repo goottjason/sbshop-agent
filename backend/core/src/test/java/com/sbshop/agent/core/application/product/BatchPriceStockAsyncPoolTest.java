@@ -54,7 +54,8 @@ class BatchPriceStockAsyncPoolTest {
 	@Test
 	void crawlBatchRunsOnDedicatedProductBatchPoolInCoreOnlyContext() throws InterruptedException {
 		service.crawlAndUpdatePriceStock("batch-1", List.of(), BigDecimal.ONE, BigDecimal.ZERO,
-			BigDecimal.ZERO);
+			BigDecimal.ZERO,
+			com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_CRAWL_UPDATE);
 
 		assertThat(testBeans.completed.await(5, TimeUnit.SECONDS))
 			.as("배치가 비동기로 실행되어 완료 이벤트를 발행해야 함").isTrue();
