@@ -2,7 +2,6 @@ package com.sbshop.agent.infrastructure.client.smartstore;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,7 +20,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * SP-B Task 2: SmartstoreMarketClient soldOut → status OUTOFSTOCK/SALE + quantity≥1 특성화 테스트.
+ * SP-B Fix ①: SmartstoreMarketClient 품절 처리 — 재고 0 자동품절 방식.
+ * statusType OUTOFSTOCK 는 v2 수정 API에서 무효(400)이므로 stockQuantity=0으로 품절을 표현한다.
  */
 @ExtendWith(MockitoExtension.class)
 class SmartstoreMarketClientSoldOutTest {
@@ -37,16 +37,16 @@ class SmartstoreMarketClientSoldOutTest {
         client = new SmartstoreMarketClient(restClient, new ObjectMapper());
     }
 
-    private void stubGetWithStatus(String status) throws Exception {
+    private void stubGetWithStatusType(String statusType) throws Exception {
         String json = "{\"originProduct\":{\"productName\":\"Test\",\"salePrice\":1000,"
-            + "\"stockQuantity\":10,\"status\":\"" + status + "\"}}";
+            + "\"stockQuantity\":10,\"statusType\":\"" + statusType + "\"}}";
         when(restClient.get(any())).thenReturn(json);
     }
 
     @Test
-    @DisplayName("soldOut=true → PUT 바디에 status==OUTOFSTOCK, stockQuantity==1")
-    void soldOutSetsOutOfStockStatusAndQuantityOne() throws Exception {
-        stubGetWithStatus("SALE");
+    @DisplayName("soldOut=true → PUT 바디 stockQuantity==0, status/statusType OUTOFSTOCK 없음 (자동품절)")
+    void soldOutSendsStockQuantityZeroAndNoOutofstockField() throws Exception {
+        stubGetWithStatusType("SALE");
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
 
@@ -55,14 +55,17 @@ class SmartstoreMarketClientSoldOutTest {
         verify(restClient).put(eq("/v2/products/origin-products/" + ITEM_ID), captor.capture());
         @SuppressWarnings("unchecked")
         Map<String, Object> originProduct = (Map<String, Object>) captor.getValue().get("originProduct");
-        assertThat(originProduct.get("status")).isEqualTo("OUTOFSTOCK");
-        assertThat(originProduct.get("stockQuantity")).isEqualTo(1);
+        // 재고 0 → API가 자동 품절 처리
+        assertThat(originProduct.get("stockQuantity")).isEqualTo(0);
+        // 수정 API에서 무효인 OUTOFSTOCK 값을 직접 지정하지 않음
+        assertThat(originProduct.get("status")).isNotEqualTo("OUTOFSTOCK");
+        assertThat(originProduct.get("statusType")).isNotEqualTo("OUTOFSTOCK");
     }
 
     @Test
-    @DisplayName("soldOut=false → PUT 바디에 status==SALE, stockQuantity==999")
-    void inStockSetsSaleStatusAndQuantity999() throws Exception {
-        stubGetWithStatus("OUTOFSTOCK");
+    @DisplayName("soldOut=false → PUT 바디 stockQuantity==999, statusType==SALE")
+    void inStockSetsSaleStatusTypeAndQuantity999() throws Exception {
+        stubGetWithStatusType("OUTOFSTOCK");
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
 
@@ -71,14 +74,14 @@ class SmartstoreMarketClientSoldOutTest {
         verify(restClient).put(eq("/v2/products/origin-products/" + ITEM_ID), captor.capture());
         @SuppressWarnings("unchecked")
         Map<String, Object> originProduct = (Map<String, Object>) captor.getValue().get("originProduct");
-        assertThat(originProduct.get("status")).isEqualTo("SALE");
         assertThat(originProduct.get("stockQuantity")).isEqualTo(999);
+        assertThat(originProduct.get("statusType")).isEqualTo("SALE");
     }
 
     @Test
-    @DisplayName("soldOut=false, 기존 status==SUSPENSION → PUT 바디에 status 여전히 SUSPENSION (잠금 상태 보존)")
-    void inStockDoesNotOverrideLockedStatus() throws Exception {
-        stubGetWithStatus("SUSPENSION");
+    @DisplayName("soldOut=false, 기존 statusType==SUSPENSION → statusType 여전히 SUSPENSION (잠금 상태 보존)")
+    void inStockDoesNotOverrideLockedStatusType() throws Exception {
+        stubGetWithStatusType("SUSPENSION");
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
 
@@ -87,7 +90,7 @@ class SmartstoreMarketClientSoldOutTest {
         verify(restClient).put(eq("/v2/products/origin-products/" + ITEM_ID), captor.capture());
         @SuppressWarnings("unchecked")
         Map<String, Object> originProduct = (Map<String, Object>) captor.getValue().get("originProduct");
-        assertThat(originProduct.get("status")).isEqualTo("SUSPENSION");
+        assertThat(originProduct.get("statusType")).isEqualTo("SUSPENSION");
         assertThat(originProduct.get("stockQuantity")).isEqualTo(999);
     }
 }

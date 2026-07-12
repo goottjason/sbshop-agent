@@ -111,16 +111,16 @@ public class SmartstoreMarketClient implements MarketClient {
 
 			if (price != null)
 				originProduct.put("salePrice", price);
-			originProduct.put("stockQuantity", quantity);
 			if (soldOut) {
-				// 품절은 명시적 사용자/크롤 의도 — 항상 판매중지 상태로.
-				originProduct.put("status", "OUTOFSTOCK");
+				// 스마트스토어: 재고 0이면 API가 자동으로 OUTOFSTOCK(품절) 처리(statusType 무시됨).
+				// OUTOFSTOCK은 수정 API에서 직접 지정 불가라 재고 0으로 품절을 표현한다.
+				originProduct.put("stockQuantity", 0);
 			} else {
-				// 판매중 복귀는 SALE/OUTOFSTOCK/미설정 상태에서만 — SUSPENSION/PROHIBITED 등
-				// 마켓 잠금 상태를 자동으로 SALE로 덮어쓰지 않는다.
-				Object current = originProduct.get("status");
+				originProduct.put("stockQuantity", quantity);
+				// 판매중 복귀: 마켓 잠금상태(SUSPENSION/PROHIBITION)는 보존, 그 외에만 SALE.
+				Object current = originProduct.get("statusType");
 				if (current == null || "SALE".equals(current) || "OUTOFSTOCK".equals(current)) {
-					originProduct.put("status", "SALE");
+					originProduct.put("statusType", "SALE");
 				}
 			}
 
@@ -132,7 +132,7 @@ public class SmartstoreMarketClient implements MarketClient {
 			if (currentRawData != null) {
 				if (price != null)
 					currentRawData.put("salePrice", price);
-				currentRawData.put("stockQuantity", quantity);
+				currentRawData.put("stockQuantity", soldOut ? 0 : quantity);
 			}
 		} catch (RuntimeException e) {
 			log.error("[Smartstore] 가격/재고 업데이트 실패: {}", e.getMessage());
