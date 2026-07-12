@@ -59,7 +59,8 @@ public class IherbScraperClient implements ProductStockCrawlerPort, ProductInfoC
 					.header("User-Agent",
 						"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 					.header("Accept", "application/json")
-					.header("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8")
+					.header("Accept-Language", "en-US,en;q=0.9")
+					.header("Referer", "https://www.iherb.com/")
 					.GET()
 					.build();
 
@@ -194,7 +195,7 @@ public class IherbScraperClient implements ProductStockCrawlerPort, ProductInfoC
 					.header("User-Agent",
 						"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 					.header("Accept", "application/json")
-					.header("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8")
+					.header("Accept-Language", "en-US,en;q=0.9")
 					.header("Referer", "https://www.iherb.com/")
 					.GET()
 					.build();
@@ -263,7 +264,8 @@ public class IherbScraperClient implements ProductStockCrawlerPort, ProductInfoC
 			.build();
 	}
 
-	private IherbProductInfo parseProductInfo(String body, String sourceUrl) {
+	// package-private for unit testing
+	IherbProductInfo parseProductInfo(String body, String sourceUrl) {
 		try {
 			JsonNode root = objectMapper.readTree(body);
 
@@ -279,34 +281,21 @@ public class IherbScraperClient implements ProductStockCrawlerPort, ProductInfoC
 
 			boolean isAvailable = root.path("isAvailableToPurchase").asBoolean(false);
 
+			// iHerb 현행 API: partNumber + imageIndices(정수 배열)로 cloudinary URL 조합.
+			// (구 필드 imageGroups/mainImage는 API 변경으로 제거되어 항상 0장이었음.)
 			List<String> imageLinks = new ArrayList<>();
-			JsonNode imagesNode = root.path("imageGroups");
-			if (imagesNode.isArray()) {
-				for (JsonNode imgGroup : imagesNode) {
-					JsonNode images = imgGroup.path("images");
-					if (images.isArray()) {
-						for (JsonNode img : images) {
-							String imgUrl = img.path("url").asText("");
-							if (!imgUrl.isEmpty()) {
-								if (!imgUrl.startsWith("http")) {
-									imgUrl = "https://s3.images-iherb.com" + imgUrl;
-								}
-								imageLinks.add(imgUrl);
-							}
-						}
-					}
-				}
-			}
-			if (imageLinks.isEmpty()) {
-				JsonNode mainImg = root.path("mainImage");
-				if (!mainImg.isMissingNode()) {
-					String imgUrl = mainImg.path("url").asText("");
-					if (!imgUrl.isEmpty()) {
-						if (!imgUrl.startsWith("http")) {
-							imgUrl = "https://s3.images-iherb.com" + imgUrl;
-						}
-						imageLinks.add(imgUrl);
-					}
+			String partNumber = root.path("partNumber").asText(null);
+			JsonNode imageIndices = root.path("imageIndices");
+			if (partNumber != null && imageIndices.isArray()) {
+				String brandLike = partNumber.split("-")[0].toLowerCase();   // "-" 앞 첫 segment
+				String part = partNumber.toLowerCase().replace("-", "");
+				int count = 0;
+				for (JsonNode idxNode : imageIndices) {
+					if (count >= 5) break;                                   // 최대 5장(메인1+추가4)
+					imageLinks.add(String.format(
+						"https://cloudinary.images-iherb.com/image/upload/f_auto,q_auto:eco/images/%s/%s/l/%d.jpg",
+						brandLike, part, idxNode.asInt()));
+					count++;
 				}
 			}
 
