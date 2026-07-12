@@ -47,11 +47,20 @@ public class Cafe24GmarketOrderAdapter implements MarketOrderPort {
 
 	@Override
 	public void acceptOrders(MarketCredential credential, Order order) {
-		cafe24OrderApiPort.acceptOrder(order.getMarketOrderNo());
+		cafe24OrderApiPort.acceptOrder(cafe24OrderId(order));
 	}
 
 	@Override
 	public void cancelOrder(MarketCredential credential, Order order) {
-		cafe24OrderApiPort.cancelOrder(order.getMarketOrderNo());
+		cafe24OrderApiPort.cancelOrder(cafe24OrderId(order));
+	}
+
+	/**
+	 * Cafe24 주문 변경 API가 요구하는 order_id를 marketSpecificData에서 읽는다.
+	 * marketOrderNo는 이제 G마켓 원본번호이므로 사용 불가. cafe24_order_id가 없는 레거시 행은 marketOrderNo로 폴백.
+	 */
+	private String cafe24OrderId(Order order) {
+		String id = order.getMarketSpecificDataMap().get("cafe24_order_id");
+		return (id != null && !id.isBlank()) ? id : order.getMarketOrderNo();
 	}
 }

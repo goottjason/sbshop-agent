@@ -1,13 +1,15 @@
 package com.sbshop.agent.core.application.order.adapter;
 
-import static org.mockito.Mockito.verify;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
 import com.sbshop.agent.core.application.order.service.Cafe24ShipmentService;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,20 +32,30 @@ class Cafe24GmarketOrderAdapterTest {
 	}
 
 	@Test
-	@DisplayName("acceptOrders는 Cafe24 acceptOrder(marketOrderNo) 호출")
-	void accept() {
-		org.mockito.Mockito.when(order.getMarketOrderNo()).thenReturn("O777");
+	@DisplayName("acceptOrders는 marketSpecific의 cafe24_order_id로 Cafe24를 타깃한다(마켓번호 아님)")
+	void acceptUsesCafe24OrderId() {
+		when(order.getMarketSpecificDataMap()).thenReturn(Map.of("cafe24_order_id", "20260708-0000011"));
 		var adapter = new Cafe24GmarketOrderAdapter(cafe24OrderApiPort, cafe24ShipmentService);
 		adapter.acceptOrders(credential, order);
-		verify(cafe24OrderApiPort).acceptOrder("O777");
+		verify(cafe24OrderApiPort).acceptOrder("20260708-0000011");
 	}
 
 	@Test
-	@DisplayName("cancelOrder는 Cafe24 cancelOrder(marketOrderNo) 호출")
-	void cancel() {
-		org.mockito.Mockito.when(order.getMarketOrderNo()).thenReturn("O777");
+	@DisplayName("cancelOrder는 marketSpecific의 cafe24_order_id로 Cafe24를 타깃한다")
+	void cancelUsesCafe24OrderId() {
+		when(order.getMarketSpecificDataMap()).thenReturn(Map.of("cafe24_order_id", "20260708-0000011"));
 		var adapter = new Cafe24GmarketOrderAdapter(cafe24OrderApiPort, cafe24ShipmentService);
 		adapter.cancelOrder(credential, order);
-		verify(cafe24OrderApiPort).cancelOrder("O777");
+		verify(cafe24OrderApiPort).cancelOrder("20260708-0000011");
+	}
+
+	@Test
+	@DisplayName("cafe24_order_id가 없는 레거시 행은 marketOrderNo로 폴백한다")
+	void fallsBackToMarketOrderNoWhenNoCafe24OrderId() {
+		when(order.getMarketSpecificDataMap()).thenReturn(Map.of());
+		when(order.getMarketOrderNo()).thenReturn("4466411168");
+		var adapter = new Cafe24GmarketOrderAdapter(cafe24OrderApiPort, cafe24ShipmentService);
+		adapter.acceptOrders(credential, order);
+		verify(cafe24OrderApiPort).acceptOrder("4466411168");
 	}
 }
