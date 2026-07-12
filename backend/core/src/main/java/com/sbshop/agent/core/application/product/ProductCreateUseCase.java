@@ -33,18 +33,14 @@ public class ProductCreateUseCase {
 		String prefix = today + "IHB";
 
 		List<Product> products = new ArrayList<>();
-		int seq = 0;
+		// 배치 시작 시퀀스를 1회만 조회하고 로컬 증가(항목마다 재조회 시 미저장분을 못 봐 충돌·시퀀스 건너뜀 발생).
+		String firstCode = productReader.getNextSbCodeSequence(prefix);
+		int seq = Integer.parseInt(firstCode.substring(prefix.length()));
 
 		for (ProductCreateCommand command : commands) {
 			try {
-				String sbCode = productReader.getNextSbCodeSequence(prefix);
-				if (seq > 0) {
-					String maxCode = productReader.getNextSbCodeSequence(prefix);
-					int currentSeq = Integer.parseInt(maxCode.substring(prefix.length()));
-					seq = currentSeq;
-				}
+				String sbCode = prefix + String.format("%03d", seq);
 				seq++;
-				sbCode = prefix + String.format("%03d", seq);
 
 				ProductCreateCommand enrichedCommand = enrichWithHostedImages(command);
 
