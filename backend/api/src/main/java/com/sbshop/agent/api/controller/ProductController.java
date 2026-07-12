@@ -39,6 +39,7 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -176,6 +177,40 @@ public class ProductController {
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
 				ActionStatus.FAILED, "소스이미지 크롤 실패 (상품 " + id + "): " + e.getMessage());
+			throw e;
+		}
+	}
+
+	@PostMapping("/{id}/images/crawl-and-upload")
+	public ResponseEntity<ImageUploadResponse> crawlAndUpload(@PathVariable Long id) {
+		// SP-C Task 5: 크롤→다운로드→업로드 원클릭 파이프라인.
+		try {
+			Product product = productSearchUseCase.getProductDetail(id);
+			String sourcingUrl = product.getSourcingUrl();
+			if (sourcingUrl == null || sourcingUrl.isEmpty()) {
+				actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
+					ActionStatus.SUCCESS, "소스이미지 없음 — 소싱 URL 미등록 (상품 " + id + ")");
+				return ResponseEntity.ok(ImageUploadResponse.from(
+					new MarketRepublishResult(List.of(), List.of(), Map.of())));
+			}
+			ScrapedProductDto scraped = productInfoCrawlerPort.crawlProductInfoAsDto(sourcingUrl);
+			List<String> images = (scraped == null || scraped.sourceImages() == null)
+				? List.of() : scraped.sourceImages();
+			if (images.isEmpty()) {
+				actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
+					ActionStatus.SUCCESS, "소스이미지 0개 — 크롤 결과 없음 (상품 " + id + ")");
+				return ResponseEntity.ok(ImageUploadResponse.from(
+					new MarketRepublishResult(List.of(), List.of(), Map.of())));
+			}
+			List<ImageUploadFile> files = imageDownloadClient.downloadAndConvert(images);
+			MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, files);
+			actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
+				ActionStatus.SUCCESS,
+				buildMarketResultMessage(id, "소스이미지 " + images.size() + "개 크롤·업로드 완료", result));
+			return ResponseEntity.ok(ImageUploadResponse.from(result));
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
+				ActionStatus.FAILED, "소스이미지 크롤·업로드 실패 (상품 " + id + "): " + e.getMessage());
 			throw e;
 		}
 	}
