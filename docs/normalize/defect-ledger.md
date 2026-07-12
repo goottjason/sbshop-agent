@@ -1197,3 +1197,17 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 결함 상태: D-077·D-078 = 검증통과.
 - 라이브 확인: 가격/재고 수정 후 진행현황 마켓별 상세(상품번호 포함) 실측, iHerb 크롤→SOURCE_IMAGE_CRAWL 기록·비-iHerb 클릭→warning 표시.
 - 후속: 프론트 토스트/가격재고 상품번호는 방법B(MarketRepublishResult 확장)로 후순위. 배치 비동기 완료기록·AOP·D-070~072·사이클20 라이브 잔여 유지.
+
+### D-079: Cafe24 동기화가 내부 이행상태(PURCHASED 구매완료)를 매 사이클 되돌림 (SP-E 후속 I-1)
+- 심각도 P3 / 리스크 표준 / 상태 미착수(후속) — 출처: fix-live-defects-b-c-e 최종 리뷰
+- 증상: 운영자가 G마켓/옥션 라인아이템을 수기로 PURCHASED(구매완료, order=2)로 진행시켜도, 30분 주기 Cafe24 동기화가 실제코드(N10/N20)를 매핑해 PREPARING(order=1)으로 덮어 되돌림.
+- 근본원인: `Cafe24OrderSyncService.updateOrder`(:191~208)가 shippingStatus를 무조건 덮어씀(단조 가드 없음). main에도 존재한 선행결함이나, d3d40dc가 N10 클로버 대상을 NEW→PREPARING으로 바꿔 체감 노출. `ShippingStatus.PURCHASED`는 Cafe24 코드 매핑이 없음(내부 전용).
+- 수정방향: N계열 매핑 적용 시 `if (newStatus.getOrder() > current.getOrder())`로 상향만 허용(내부 진행 downgrade 금지), C*/R*/E*(취소·반품·교환) 전이는 예외적으로 항상 허용.
+- 영향: `Cafe24OrderSyncService.java`.
+
+### D-080: marketSpecificData JSON 파서가 순진한 문자열 split (SP-E 후속 I-2)
+- 심각도 P4 / 리스크 경량 / 상태 미착수(후속) — 출처: fix-live-defects-b-c-e 최종 리뷰
+- 증상: 잠재. 현재는 안전(값에 `,`/`:` 없음). 단 accept/cancel/송장의 cafe24_order_id 조회가 이 파서에 의존하게 되어, 향후 `order_place_name` 등 값에 `,`/`:`가 섞이면 파싱 붕괴→cafe24_order_id 오독→마켓 원본번호로 폴백→Cafe24에 잘못된 id 전송 위험.
+- 근본원인: `Order.getMarketSpecificDataMap()`(:160~183)이 `,`·`:` split + 따옴표 strip 방식.
+- 수정방향: Jackson(ObjectMapper)로 실제 JSON 파싱 교체. setMarketSpecificDataFromMap도 대칭적으로 직렬화.
+- 영향: `Order.java`.
