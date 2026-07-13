@@ -46,7 +46,8 @@ public class BatchPriceStockService {
 
 				String sourceUrl = product.getSourcingUrl();
 				if (sourceUrl == null || sourceUrl.isEmpty()) {
-					processStatusService.markFailed(batchId, product.getSbCode(), "소싱 URL 없음");
+					processStatusService.markFailed(batchId, String.valueOf(productId),
+						product.getSbCode() + ": 소싱 URL 없음");
 					failCount++;
 					continue;
 				}
@@ -74,9 +75,10 @@ public class BatchPriceStockService {
 				// D-060: 배치 갱신분도 연동 마켓에 반영(단건과 동일 경로). 부분 실패는 메시지로 표면화.
 				MarketRepublishResult sync = productMarketSyncService.syncPriceStock(
 					productId, salePrice != null ? salePrice.intValue() : null, result.status());
-				processStatusService.markSuccess(batchId, product.getSbCode(),
-					String.format("가격:%s, 재고:%d · 마켓반영 성공%d/스킵%d/실패%d%s",
-						salePrice, result.stock(), sync.synced().size(), sync.skipped().size(), sync.failed().size(),
+				processStatusService.markSuccess(batchId, String.valueOf(productId),
+					String.format("[%s] 가격:%s, 재고:%d · 마켓반영 성공%d/스킵%d/실패%d%s",
+						product.getSbCode(), salePrice, result.stock(), sync.synced().size(), sync.skipped().size(),
+						sync.failed().size(),
 						sync.failed().isEmpty() ? "" : " (" + sync.failed().keySet() + ")"));
 				Thread.sleep(500);
 			} catch (Exception e) {
@@ -111,7 +113,8 @@ public class BatchPriceStockService {
 				boolean statusChanged = newStatus != oldStatus;
 
 				if (!priceChanged && !statusChanged) {
-					processStatusService.markSuccess(batchId, product.getSbCode(), "변경사항 없음");
+					processStatusService.markSuccess(batchId, String.valueOf(productId),
+						"[" + product.getSbCode() + "] 변경사항 없음");
 					continue;
 				}
 
@@ -129,9 +132,10 @@ public class BatchPriceStockService {
 				// D-060: 배치(수동) 갱신분도 연동 마켓에 반영.
 				MarketRepublishResult sync = productMarketSyncService.syncPriceStock(
 					productId, price != null ? price.intValue() : null, newStatus);
-				processStatusService.markSuccess(batchId, product.getSbCode(),
-					String.format("가격:%s->%s, 판매상태:%s->%s · 마켓반영 성공%d/스킵%d/실패%d%s",
-						oldPrice, price, oldStatus, newStatus, sync.synced().size(), sync.skipped().size(),
+				processStatusService.markSuccess(batchId, String.valueOf(productId),
+					String.format("[%s] 가격:%s->%s, 판매상태:%s->%s · 마켓반영 성공%d/스킵%d/실패%d%s",
+						product.getSbCode(), oldPrice, price, oldStatus, newStatus, sync.synced().size(),
+						sync.skipped().size(),
 						sync.failed().size(), sync.failed().isEmpty() ? "" : " (" + sync.failed().keySet() + ")"));
 			} catch (Exception e) {
 				log.error("수동 업데이트 실패: productId={}", productIds.get(i), e);
@@ -158,7 +162,8 @@ public class BatchPriceStockService {
 				product.update(command);
 				productWriter.save(product);
 
-				processStatusService.markSuccess(batchId, product.getSbCode(), "전체 필드 수정 완료");
+				processStatusService.markSuccess(batchId, String.valueOf(productId),
+					"[" + product.getSbCode() + "] 전체 필드 수정 완료");
 			} catch (Exception e) {
 				log.error("전체 필드 업데이트 실패: productId={}", productIds.get(i), e);
 				processStatusService.markFailed(batchId, String.valueOf(productIds.get(i)), e.getMessage());
