@@ -159,8 +159,8 @@ public class EmailFetcherService {
 		}
 	}
 
-	// iHerb 발송 처리
-	private void processIherbShipment(OrderEmailParser.IherbShipmentData shipmentData) {
+	// iHerb 발송 처리 (테스트 접근을 위해 package-private)
+	void processIherbShipment(OrderEmailParser.IherbShipmentData shipmentData) {
 		// iHerb 주문번호로 소싱 데이터 조회
 		List<OrderLineItem> items = orderLineItemRepository.findBySourcingData_SourcingOrderNo(
 			shipmentData.getOrderNo());
@@ -200,6 +200,34 @@ public class EmailFetcherService {
 				} else if (retryResult.isFailed()) {
 					log.warn("iHerb 주문 {} 마켓 재전송 실패 - 미마킹(다음 사이클 재시도): {}",
 						shipmentData.getOrderNo(), retryResult.failureReason());
+				}
+				continue;
+			}
+
+			// 이미 SHIPPED이지만 송장번호가 다른 경우: 취소 방지용 가짜 송장을 진짜 송장으로 교정.
+			// (예: 운영자가 가짜 송장 선입력 → 이메일로 진짜 송장 도착 → 반드시 수정 반영)
+			if (currentStatus == ShippingStatus.SHIPPED) {
+				ShippingCarrier carrier = mapCarrier(shipmentData.getCarrier());
+				ShippingData currentShipping = item.getShippingData() != null
+					? item.getShippingData() : ShippingData.builder().build();
+				// 이메일 택배사가 없거나 미지원(ETC)로 매핑되면 기존 택배사 유지
+				ShippingCarrier finalCarrier = (carrier != null && carrier != ShippingCarrier.ETC)
+					? carrier : currentShipping.getShippingCarrier();
+				item.applyShippingData(currentShipping.toBuilder()
+					.trackingNo(shipmentData.getTrackingNo())
+					.shippingCarrier(finalCarrier)
+					.build()); // 상태는 SHIPPED 유지
+				orderLineItemRepository.save(item);
+				log.info("iHerb 주문 {} 송장 변경 감지(기존={} → 신규={}) - 마켓 수정 반영",
+					shipmentData.getOrderNo(), existingTracking, shipmentData.getTrackingNo());
+				// 마켓엔 이미 (가짜)송장이 존재 → 수정(updateTracking) 경로: 두번째 인자 true.
+				MarketShippingResult updResult = marketplaceShippingService.sendTrackingToMarketplace(item, true);
+				if (updResult.sent()) {
+					item.markTrackingAsSent();
+					orderLineItemRepository.save(item);
+				} else if (updResult.isFailed()) {
+					log.warn("iHerb 주문 {} 마켓 송장 수정 실패 - 미마킹(다음 사이클 재시도): {}",
+						shipmentData.getOrderNo(), updResult.failureReason());
 				}
 				continue;
 			}
