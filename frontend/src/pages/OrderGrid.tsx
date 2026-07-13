@@ -409,11 +409,18 @@ const OrderGrid: React.FC = () => {
   });
   const sourcingMutation = useMutation({
     mutationFn: ({ id, updates }: { id: number; updates: { sourcingAmount?: number; logisticsCost?: number; sourcingAccount?: string; sourcingVendor?: string; sourcingOrderNo?: string; discountCode?: string } }) => updateSourcingInfo(id, updates),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
+    onSuccess: () => {
+      toast.success('구매 정보가 저장되었습니다.');
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
   });
   const shippingMutation = useMutation({
     mutationFn: ({ id, updates }: { id: number; updates: { trackingNo?: string; shippingCarrier?: string } }) => updateShippingInfo(id, updates),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
+    // 200 응답 = 마켓 전파가 실제로 성공한 경우만(실패는 백엔드가 롤백 후 500). 성공을 초록 토스트로 확인.
+    onSuccess: () => {
+      toast.success('송장/배송 정보가 마켓에 반영되었습니다.');
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
     // 마켓 반영 실패 시 백엔드가 @Transactional 롤백 후 500을 반환한다.
     // 사유를 토스트로 표면화하고, 그리드 셀이 롤백된 원본 값으로 되돌아오도록 orders 쿼리를 무효화(refetch)한다.
     onError: (err: unknown) => {
