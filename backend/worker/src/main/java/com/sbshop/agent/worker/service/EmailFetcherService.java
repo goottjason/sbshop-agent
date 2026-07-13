@@ -192,7 +192,8 @@ public class EmailFetcherService {
 				// 마켓 미동기화 건은 재시도
 				log.info("iHerb 주문 {} 배송 처리됨但 마켓 미동기화 (tracking={}) - 재시도",
 					shipmentData.getOrderNo(), shipmentData.getTrackingNo());
-				MarketShippingResult retryResult = marketplaceShippingService.sendTrackingToMarketplace(item);
+				// 마켓 미동기화(재시도) — 마켓에 아직 송장이 없으므로 초기등록(shipOrder) 경로.
+				MarketShippingResult retryResult = marketplaceShippingService.sendTrackingToMarketplace(item, false);
 				if (retryResult.sent()) {
 					item.markTrackingAsSent();
 					orderLineItemRepository.save(item);
@@ -221,7 +222,8 @@ public class EmailFetcherService {
 					item.getId(), shipmentData.getTrackingNo(), carrier);
 
 				// 마켓플러스에 송장 전송 — 실패해도 배송 저장은 보존, 성공 시에만 전송완료 마킹
-				MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item);
+				// PURCHASED 최초 발송 — 마켓에 아직 송장이 없으므로 초기등록(shipOrder) 경로.
+				MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, false);
 				if (sendResult.sent()) {
 					item.markTrackingAsSent();
 					orderLineItemRepository.save(item);
