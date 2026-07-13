@@ -40,8 +40,8 @@ public enum ShippingCarrier implements EnumMapperType {
 			case "KGB", "로젠택배", "로젠" -> LOTTE_LOGISTICS;
 			case "ROCKET", "쿠팡로켓" -> ROCKET;
 			default -> {
-				log.warn("알 수 없는 택배사 코드: '{}' → ETC로 매핑", code);
-				yield ETC;
+				log.warn("알 수 없는 택배사 코드: '{}' → 미매핑(null) 처리", code);
+				yield null;
 			}
 		};
 	}

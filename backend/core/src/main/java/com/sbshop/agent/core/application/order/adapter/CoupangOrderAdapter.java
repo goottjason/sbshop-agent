@@ -555,8 +555,8 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 				if (item.getShippingData() == null)
 					continue;
 
-				boolean needsCarrierFix = item.getShippingData()
-					.getShippingCarrier() == ShippingCarrier.ETC
+				ShippingCarrier currentCarrier = item.getShippingData().getShippingCarrier();
+				boolean needsCarrierFix = (currentCarrier == null || currentCarrier == ShippingCarrier.ETC)
 					&& apiOrder.getCarrier() != null
 					&& apiOrder.getCarrier() != ShippingCarrier.ETC;
 

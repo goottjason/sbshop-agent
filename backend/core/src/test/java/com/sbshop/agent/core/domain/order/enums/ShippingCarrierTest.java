@@ -25,13 +25,16 @@ class ShippingCarrierTest {
 	@DisplayName("알려진 택배사 코드는 정확히 매핑된다")
 	void knownCodesMap() {
 		assertThat(ShippingCarrier.fromMarketCode("CJGLS")).isEqualTo(ShippingCarrier.CJ_LOGISTICS);
+		assertThat(ShippingCarrier.fromMarketCode("HANJIN")).isEqualTo(ShippingCarrier.HANJIN);
+		assertThat(ShippingCarrier.fromMarketCode("LOTTE")).isEqualTo(ShippingCarrier.LOTTE_LOGISTICS);
 		assertThat(ShippingCarrier.fromMarketCode("한진택배")).isEqualTo(ShippingCarrier.HANJIN);
 		assertThat(ShippingCarrier.fromMarketCode("우체국")).isEqualTo(ShippingCarrier.KOREA_POST);
 	}
 
 	@Test
-	@DisplayName("실제 값이 있으나 인식 불가한 코드만 ETC로 매핑된다")
-	void unknownNonBlankMapsToEtc() {
-		assertThat(ShippingCarrier.fromMarketCode("DHL")).isEqualTo(ShippingCarrier.ETC);
+	@DisplayName("인식 불가한 코드는 ETC가 아니라 미매핑(null)으로 처리된다 — 화면에 'ETC' 노출 방지")
+	void unknownCodeMapsToNull() {
+		assertThat(ShippingCarrier.fromMarketCode("SOME_UNKNOWN_XYZ")).isNull();
+		assertThat(ShippingCarrier.fromMarketCode("DHL")).isNull();
 	}
 }
