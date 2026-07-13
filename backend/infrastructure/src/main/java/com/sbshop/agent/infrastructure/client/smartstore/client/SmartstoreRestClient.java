@@ -55,7 +55,7 @@ public class SmartstoreRestClient {
 
 	private void fetchAccessToken() {
 		String clientId = resolveClientId();
-		String timestamp = String.valueOf(Instant.now().getEpochSecond());
+		String timestamp = String.valueOf(Instant.now().toEpochMilli());
 		String password = clientId + "_" + timestamp;
 		String clientSecretSign = Base64.getEncoder()
 			.encodeToString(BCrypt.hashpw(password, resolveClientSecret()).getBytes(StandardCharsets.UTF_8));
@@ -100,7 +100,7 @@ public class SmartstoreRestClient {
 			var spec = restClient.method(org.springframework.http.HttpMethod.valueOf(method))
 				.uri(properties.getApiUrl() + path)
 				.header(HttpHeaders.AUTHORIZATION, "Bearer " + getValidAccessToken())
-				.header("X-Time-Stamp", String.valueOf(Instant.now().getEpochSecond()));
+				.header("X-Time-Stamp", String.valueOf(Instant.now().toEpochMilli()));
 			if (body != null) {
 				spec.contentType(MediaType.APPLICATION_JSON).body(body);
 			}
