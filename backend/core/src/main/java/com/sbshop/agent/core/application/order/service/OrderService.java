@@ -314,8 +314,13 @@ public class OrderService {
 			item.markAsShipped();
 			orderLineItemRepository.save(item);
 
-			// 마켓플레이스에 송장 전송 — 실패해도 위의 배송정보 저장은 보존(롤백 없음), 성공 시에만 전송완료 마킹
+			// 마켓플레이스에 송장 전송 — 반영 실패 시 자사 저장을 롤백해 DB/마켓 정합을 유지(@Transactional),
+			// 스킵(전송 대상 아님)은 로컬 편집 유지, 성공 시에만 전송완료 마킹.
 			MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item);
+			if (sendResult.isFailed()) {
+				throw new IllegalStateException("마켓(" + marketTypeOf(item)
+					+ ") 송장 반영 실패로 저장을 롤백합니다: " + sendResult.failureReason());
+			}
 			markSentIfSucceeded(item, sendResult, lineItemId);
 
 			log.info("라인아이템 {} 배송 처리: tracking={}, carrier={}", lineItemId, command.getTrackingNo(),
@@ -325,8 +330,13 @@ public class OrderService {
 			item.applyShippingData(command.toShippingData(item.getShippingData()));
 			orderLineItemRepository.save(item);
 
-			// 마켓플레이스에 송장 업데이트 — 실패해도 위의 배송정보 저장은 보존, 성공 시에만 전송완료 마킹
+			// 마켓플레이스에 송장 업데이트 — 반영 실패 시 자사 저장을 롤백해 DB/마켓 정합을 유지(@Transactional),
+			// 스킵(전송 대상 아님)은 로컬 편집 유지, 성공 시에만 전송완료 마킹.
 			MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item);
+			if (sendResult.isFailed()) {
+				throw new IllegalStateException("마켓(" + marketTypeOf(item)
+					+ ") 송장 반영 실패로 저장을 롤백합니다: " + sendResult.failureReason());
+			}
 			markSentIfSucceeded(item, sendResult, lineItemId);
 
 			log.info("라인아이템 {} 송장번호 업데이트: tracking={}, carrier={}", lineItemId,
@@ -505,18 +515,27 @@ public class OrderService {
 
 	// ======================== private ========================
 
+	/** 라인아이템이 속한 주문의 마켓 타입(에러 메시지용, 조회 실패 시 UNKNOWN 표기). */
+	private String marketTypeOf(OrderLineItem item) {
+		return orderRepository.findById(item.getOrderId())
+			.map(Order::getMarketType)
+			.map(Object::toString)
+			.orElse("UNKNOWN");
+	}
+
 	/**
 	 * 마켓 전송이 실제로 성공한 경우에만 trackingSentToMarket을 마킹하고 저장한다.
-	 * 실패/스킵이면 마킹하지 않아 다음 사이클에 재시도 가능하도록 남긴다(D-069).
-	 * 마켓 전송 실패는 배송정보 저장을 롤백시키지 않는다(예외를 던지지 않음).
+	 * 스킵(전송 대상 아님)이면 마킹하지 않는다 — 로컬 편집은 그대로 보존된다.
+	 * 실패(isFailed)는 호출부에서 예외를 던져 @Transactional 롤백으로 처리하므로 이 지점에 도달하지 않는다.
+	 * (종전 D-069는 실패 시에도 저장을 보존했으나, DB/마켓 정합을 위해 실패는 롤백하도록 계약을 변경함.)
 	 */
 	private void markSentIfSucceeded(OrderLineItem item, MarketShippingResult result, Long lineItemId) {
 		if (result.sent()) {
 			item.markTrackingAsSent();
 			orderLineItemRepository.save(item);
 		} else if (result.isFailed()) {
-			log.warn("라인아이템 {} 마켓 송장 전송 실패 — 배송정보는 저장됨, 전송완료 미마킹(재시도 대상): {}",
-				lineItemId, result.failureReason());
+			// 도달 불가(호출부가 isFailed에서 이미 throw). 방어적 로깅만 유지.
+			log.warn("라인아이템 {} 마켓 송장 전송 실패 — 롤백 예정: {}", lineItemId, result.failureReason());
 		}
 	}
 

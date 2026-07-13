@@ -414,6 +414,14 @@ const OrderGrid: React.FC = () => {
   const shippingMutation = useMutation({
     mutationFn: ({ id, updates }: { id: number; updates: { trackingNo?: string; shippingCarrier?: string } }) => updateShippingInfo(id, updates),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
+    // 마켓 반영 실패 시 백엔드가 @Transactional 롤백 후 500을 반환한다.
+    // 사유를 토스트로 표면화하고, 그리드 셀이 롤백된 원본 값으로 되돌아오도록 orders 쿼리를 무효화(refetch)한다.
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        || (err instanceof Error ? err.message : '배송정보 저장 중 오류가 발생했습니다.');
+      toast.error(msg);
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
   });
 
   // sibling: 배송 엔드포인트(trackingNo+shippingCarrier 동시 전송)에서 편집하지 않은 반대편 필드의
