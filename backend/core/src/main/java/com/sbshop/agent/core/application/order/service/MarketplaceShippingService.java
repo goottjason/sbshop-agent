@@ -107,11 +107,29 @@ public class MarketplaceShippingService {
 		} catch (RuntimeException e) {
 			log.error("마켓 배송 전송 실패: order={}, market={}, reason={}",
 				order.getMarketOrderNo(), order.getMarketType(), e.getMessage(), e);
+			// 마켓 상태 잠금(배송중/배송완료 등)으로 인한 영구 거부는 재시도해도 성공 불가 → 종결(D-E6).
+			if (isNonRetryableMarketState(e.getMessage())) {
+				return MarketShippingResult.ofTerminal(e.getMessage());
+			}
 			return MarketShippingResult.ofFailed(e.getMessage());
 		}
 
 		log.info("마켓 배송 전송 완료: order={}, market={}", order.getMarketOrderNo(), order.getMarketType());
 		return MarketShippingResult.ofSent();
+	}
+
+	/**
+	 * 재시도 불가한 마켓 상태 잠금 오류인지 판별한다(D-E6).
+	 * 쿠팡은 주문이 배송중/배송완료로 넘어가면 송장 업로드·수정을 거부하며
+	 * "배송진행상태가 유효하지 않습니다" 메시지를 반환한다 — 이 경우 재시도해도 절대 성공하지 못한다.
+	 */
+	private boolean isNonRetryableMarketState(String message) {
+		if (message == null) {
+			return false;
+		}
+		return message.contains("배송진행상태가 유효하지 않습니다")
+			|| message.contains("이미 배송완료")
+			|| message.contains("배송완료된");
 	}
 
 	/** 마켓에 주문 취소 요청. Cafe24 기반(G마켓/옥션)은 마켓 자격증명이 아니라 Cafe24 토큰으로 인증하므로

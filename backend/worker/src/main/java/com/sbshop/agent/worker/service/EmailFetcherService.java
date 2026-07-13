@@ -1,7 +1,10 @@
 package com.sbshop.agent.worker.service;
 
+import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.order.service.MarketShippingResult;
 import com.sbshop.agent.core.application.order.service.MarketplaceShippingService;
+import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
+import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
@@ -32,6 +35,7 @@ public class EmailFetcherService {
 	private final OrderLineItemRepository orderLineItemRepository;
 	private final OrderRepository orderRepository;
 	private final MarketplaceShippingService marketplaceShippingService;
+	private final ActionLogService actionLogService;
 
 	@Transactional
 	public void fetchAndProcessEmails() {
@@ -199,13 +203,7 @@ public class EmailFetcherService {
 					shipmentData.getOrderNo(), shipmentData.getTrackingNo());
 				// 마켓 미동기화(재시도) — 마켓에 아직 송장이 없으므로 초기등록(shipOrder) 경로.
 				MarketShippingResult retryResult = marketplaceShippingService.sendTrackingToMarketplace(item, false);
-				if (retryResult.sent()) {
-					item.markTrackingAsSent();
-					orderLineItemRepository.save(item);
-				} else if (retryResult.isFailed()) {
-					log.warn("iHerb 주문 {} 마켓 재전송 실패 - 미마킹(다음 사이클 재시도): {}",
-						shipmentData.getOrderNo(), retryResult.failureReason());
-				}
+				handleMarketResult(item, retryResult, shipmentData.getOrderNo(), "재시도");
 				continue;
 			}
 
@@ -227,13 +225,7 @@ public class EmailFetcherService {
 					shipmentData.getOrderNo(), existingTracking, shipmentData.getTrackingNo());
 				// 마켓엔 이미 (가짜)송장이 존재 → 수정(updateTracking) 경로: 두번째 인자 true.
 				MarketShippingResult updResult = marketplaceShippingService.sendTrackingToMarketplace(item, true);
-				if (updResult.sent()) {
-					item.markTrackingAsSent();
-					orderLineItemRepository.save(item);
-				} else if (updResult.isFailed()) {
-					log.warn("iHerb 주문 {} 마켓 송장 수정 실패 - 미마킹(다음 사이클 재시도): {}",
-						shipmentData.getOrderNo(), updResult.failureReason());
-				}
+				handleMarketResult(item, updResult, shipmentData.getOrderNo(), "송장교정");
 				continue;
 			}
 
@@ -257,18 +249,43 @@ public class EmailFetcherService {
 				// 마켓플러스에 송장 전송 — 실패해도 배송 저장은 보존, 성공 시에만 전송완료 마킹
 				// PURCHASED 최초 발송 — 마켓에 아직 송장이 없으므로 초기등록(shipOrder) 경로.
 				MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, false);
-				if (sendResult.sent()) {
-					item.markTrackingAsSent();
-					orderLineItemRepository.save(item);
-				} else if (sendResult.isFailed()) {
-					log.warn("iHerb 주문 {} 마켓 송장 전송 실패 - 미마킹(다음 사이클 재시도): {}",
-						shipmentData.getOrderNo(), sendResult.failureReason());
-				}
+				handleMarketResult(item, sendResult, shipmentData.getOrderNo(), "최초발송");
 			} else {
 				log.info("iHerb 주문 {} 상태({})가 PURCHASED가 아니어서 배송 처리 스킵",
 					shipmentData.getOrderNo(), currentStatus);
 			}
 		}
+	}
+
+	/**
+	 * 마켓 송장 전송 결과 후처리 (D-E6).
+	 * - sent: 전송 성공 → trackingSentToMarket 마킹.
+	 * - terminal: 마켓 배송상태 잠금(쿠팡 배송중/배송완료)으로 재시도 불가 → 재시도 루프를 끊기 위해
+	 *   전송종결로 마킹하고(실송장은 이미 DB 기록됨), 실제 성공과 구분되도록 감사 로그(ActionLog)를 남긴다.
+	 * - failed(일시): 미마킹 → 다음 사이클 재시도.
+	 */
+	private void handleMarketResult(OrderLineItem item, MarketShippingResult result,
+		String orderNo, String phase) {
+		if (result.sent()) {
+			item.markTrackingAsSent();
+			orderLineItemRepository.save(item);
+			return;
+		}
+		if (result.isTerminal()) {
+			// 재시도해도 성공 불가 → 종결 마킹으로 30분 재시도 루프 중단. 실송장은 DB에 보존됨.
+			item.markTrackingAsSent();
+			orderLineItemRepository.save(item);
+			String tracking = item.getShippingData() != null ? item.getShippingData().getTrackingNo() : null;
+			actionLogService.record(ActionLogConstants.SHIPPING_UPDATE, "COUPANG", ActionStatus.FAILED,
+				"쿠팡 배송상태 잠금으로 마켓 송장 전송 종결(재시도 중단, " + phase + "): iHerb주문 " + orderNo
+					+ " — 실송장(" + tracking + ")은 DB 기록됨, 마켓 반영 불가. 사유: " + result.failureReason());
+			log.warn("iHerb 주문 {} 마켓 배송상태 잠금 - 전송 종결({}): {}",
+				orderNo, phase, result.failureReason());
+			return;
+		}
+		// 일시 실패: 미마킹(다음 사이클 재시도)
+		log.warn("iHerb 주문 {} 마켓 송장 전송 실패 - 미마킹(다음 사이클 재시도, {}): {}",
+			orderNo, phase, result.failureReason());
 	}
 
 	// iHerb 주문 확인 처리 (실구매가 자동 기록)
