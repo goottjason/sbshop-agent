@@ -36,6 +36,11 @@ sbshop:
         username: ${EMAIL_USERNAME_2}
         password: ${EMAIL_PASSWORD_2}
         protocol: imaps
+      - host: imap.gmail.com
+        port: 993
+        username: ${EMAIL_USERNAME_3:}
+        password: ${EMAIL_PASSWORD_3:}
+        protocol: imaps
 
 logging:
   level:
