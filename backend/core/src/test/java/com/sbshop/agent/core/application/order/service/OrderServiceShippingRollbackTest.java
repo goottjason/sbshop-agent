@@ -2,7 +2,11 @@ package com.sbshop.agent.core.application.order.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
@@ -63,7 +67,7 @@ class OrderServiceShippingRollbackTest {
 		when(orderLineItemRepository.findById(1L)).thenReturn(Optional.of(item));
 		lenient().when(orderRepository.findById(10L))
 			.thenReturn(Optional.of(Order.builder().marketType(MarketType.COUPANG).build()));
-		when(marketplaceShippingService.sendTrackingToMarketplace(item))
+		when(marketplaceShippingService.sendTrackingToMarketplace(same(item), anyBoolean()))
 			.thenReturn(MarketShippingResult.ofFailed("쿠팡 거부: 유효하지 않은 송장번호"));
 
 		assertThatThrownBy(() -> service().updateShippingInfo(1L, command()))
@@ -79,7 +83,7 @@ class OrderServiceShippingRollbackTest {
 	void marketSent_noThrow_returnsUpdatedItem() {
 		OrderLineItem item = shippedItem();
 		when(orderLineItemRepository.findById(2L)).thenReturn(Optional.of(item));
-		when(marketplaceShippingService.sendTrackingToMarketplace(item))
+		when(marketplaceShippingService.sendTrackingToMarketplace(same(item), anyBoolean()))
 			.thenReturn(MarketShippingResult.ofSent());
 
 		OrderLineItem result = service().updateShippingInfo(2L, command());
@@ -94,7 +98,7 @@ class OrderServiceShippingRollbackTest {
 	void marketSkipped_noThrow_localKept() {
 		OrderLineItem item = shippedItem();
 		when(orderLineItemRepository.findById(3L)).thenReturn(Optional.of(item));
-		when(marketplaceShippingService.sendTrackingToMarketplace(item))
+		when(marketplaceShippingService.sendTrackingToMarketplace(same(item), anyBoolean()))
 			.thenReturn(MarketShippingResult.ofSkipped("배송 어댑터 미지원"));
 
 		OrderLineItem result = service().updateShippingInfo(3L, command());
@@ -102,5 +106,46 @@ class OrderServiceShippingRollbackTest {
 		assertThat(result.getShippingData().getTrackingNo()).isEqualTo("123456789");
 		// 스킵은 전송완료로 마킹하지 않는다.
 		assertThat(result.getShippingData().getTrackingSentToMarket()).isNotEqualTo(Boolean.TRUE);
+	}
+
+	@Test
+	@DisplayName("SHIPPED + 기존 송장 존재 → sendTrackingToMarketplace(item, true) 호출(수정)")
+	void updateShipping_shippedWithExistingInvoice_passesTrue() {
+		// 이미 송장(TRK-OLD)이 있는 SHIPPED 아이템 — 동기화 유입분 포함. trackingSentToMarket은 false여도 무관.
+		OrderLineItem item = OrderLineItem.builder()
+			.orderId(10L)
+			.quantity(1)
+			.shippingData(ShippingData.builder()
+				.shippingStatus(ShippingStatus.SHIPPED)
+				.trackingNo("TRK-OLD")
+				.build())
+			.build();
+		when(orderLineItemRepository.findById(4L)).thenReturn(Optional.of(item));
+		when(marketplaceShippingService.sendTrackingToMarketplace(same(item), eq(true)))
+			.thenReturn(MarketShippingResult.ofSent());
+
+		service().updateShippingInfo(4L, command());
+
+		verify(marketplaceShippingService).sendTrackingToMarketplace(same(item), eq(true));
+	}
+
+	@Test
+	@DisplayName("PURCHASED + 기존 송장 없음 → sendTrackingToMarketplace(item, false) 호출(최초 등록)")
+	void updateShipping_purchasedWithoutInvoice_passesFalse() {
+		// 송장이 없는 PURCHASED 아이템 — 진짜 최초 배송처리.
+		OrderLineItem item = OrderLineItem.builder()
+			.orderId(10L)
+			.quantity(1)
+			.shippingData(ShippingData.builder()
+				.shippingStatus(ShippingStatus.PURCHASED)
+				.build())
+			.build();
+		when(orderLineItemRepository.findById(5L)).thenReturn(Optional.of(item));
+		when(marketplaceShippingService.sendTrackingToMarketplace(same(item), eq(false)))
+			.thenReturn(MarketShippingResult.ofSent());
+
+		service().updateShippingInfo(5L, command());
+
+		verify(marketplaceShippingService).sendTrackingToMarketplace(same(item), eq(false));
 	}
 }

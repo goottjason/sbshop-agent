@@ -87,7 +87,7 @@ class MarketplaceShippingServiceTest {
 			orderRepository, credentialRepository, List.of(port));
 
 		OrderLineItem item = shippedItem(1L, false);
-		MarketShippingResult result = service.sendTrackingToMarketplace(item);
+		MarketShippingResult result = service.sendTrackingToMarketplace(item, false);
 
 		assertThat(result.isFailed()).isTrue();
 		assertThat(result.sent()).isFalse();
@@ -107,7 +107,7 @@ class MarketplaceShippingServiceTest {
 		MarketplaceShippingService service = new MarketplaceShippingService(
 			orderRepository, credentialRepository, List.of(port));
 
-		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(1L, false));
+		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(1L, false), false);
 
 		assertThat(result.sent()).isTrue();
 		assertThat(result.isFailed()).isFalse();
@@ -125,14 +125,14 @@ class MarketplaceShippingServiceTest {
 		MarketplaceShippingService service = new MarketplaceShippingService(
 			orderRepository, credentialRepository, List.of());
 
-		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(1L, false));
+		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(1L, false), false);
 
 		assertThat(result.skipped()).isTrue();
 		assertThat(result.isFailed()).isFalse();
 	}
 
 	@Test
-	@DisplayName("이미 전송된 건: updateTracking 사용, 예외 시 실패 결과")
+	@DisplayName("이미 송장 존재(invoiceAlreadyExists=true): updateTracking 사용, 예외 시 실패 결과")
 	void alreadySent_updateTrackingException_returnsFailure() {
 		Order order = order(MarketType.COUPANG);
 		when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
@@ -146,9 +146,49 @@ class MarketplaceShippingServiceTest {
 		MarketplaceShippingService service = new MarketplaceShippingService(
 			orderRepository, credentialRepository, List.of(port));
 
-		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(1L, true));
+		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(1L, true), true);
 
 		assertThat(result.isFailed()).isTrue();
 		verify(port, never()).shipOrder(any(), any(), any(), anyString(), any());
+	}
+
+	@Test
+	@DisplayName("invoiceAlreadyExists=true ⇒ updateTracking 호출, shipOrder 미호출(마켓에 송장 이미 존재)")
+	void invoiceExists_usesUpdateTracking_notShipOrder() {
+		Order order = order(MarketType.COUPANG);
+		when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+		when(credentialRepository.findByMarketType(MarketType.COUPANG))
+			.thenReturn(Optional.of(mock(MarketCredential.class)));
+
+		MarketOrderPort port = portFor(MarketType.COUPANG);
+		MarketplaceShippingService service = new MarketplaceShippingService(
+			orderRepository, credentialRepository, List.of(port));
+
+		// trackingSentToMarket=false여도 invoiceAlreadyExists=true면 수정 API를 쓴다(동기화 유입분 결함 수정).
+		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(1L, false), true);
+
+		assertThat(result.sent()).isTrue();
+		verify(port).updateTracking(any(), any(), any(), anyString(), any());
+		verify(port, never()).shipOrder(any(), any(), any(), anyString(), any());
+	}
+
+	@Test
+	@DisplayName("invoiceAlreadyExists=false ⇒ shipOrder 호출, updateTracking 미호출(진짜 최초 등록)")
+	void invoiceAbsent_usesShipOrder_notUpdateTracking() {
+		Order order = order(MarketType.COUPANG);
+		when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+		when(credentialRepository.findByMarketType(MarketType.COUPANG))
+			.thenReturn(Optional.of(mock(MarketCredential.class)));
+
+		MarketOrderPort port = portFor(MarketType.COUPANG);
+		MarketplaceShippingService service = new MarketplaceShippingService(
+			orderRepository, credentialRepository, List.of(port));
+
+		// trackingSentToMarket=true여도 invoiceAlreadyExists=false면 초기등록 API를 쓴다(판단은 인자로만).
+		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(1L, true), false);
+
+		assertThat(result.sent()).isTrue();
+		verify(port).shipOrder(any(), any(), any(), anyString(), any());
+		verify(port, never()).updateTracking(any(), any(), any(), anyString(), any());
 	}
 }

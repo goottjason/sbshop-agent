@@ -43,15 +43,23 @@ public class MarketplaceShippingService {
 
 	/**
 	 * 마켓에 송장번호 전송
-	 * - 미전송 상태면 최초 등록 (shipOrder)
-	 * - 전송 완료 상태면 수정 (updateTracking)
+	 * - 마켓에 송장이 아직 없으면(최초) 등록 (shipOrder)
+	 * - 마켓에 송장이 이미 존재하면 수정 (updateTracking)
 	 * - 취소/반품/교환 상태면 전송 불가
+	 *
+	 * <p>초기등록/수정 판단은 {@code invoiceAlreadyExists}(이번 편집 이전에 이미 마켓에 송장이
+	 * 존재했는지)로 결정한다. 과거에는 {@code trackingSentToMarket}(우리 시스템이 전송한 적 있는지)로
+	 * 판단했으나, 판매자/마켓이 마켓에서 직접 송장을 등록·수정한 뒤 동기화로 우리 DB에 유입된 경우
+	 * 이 플래그가 false로 남아 이미 배송진행된 주문에 초기등록 API를 호출해 쿠팡이 거부하는 결함이
+	 * 있었다(“배송진행상태가 유효하지 않습니다”). 이 판단은 호출자가 편집 이전 상태로 계산해 넘긴다.
 	 *
 	 * D-069: 마켓 API 실패를 예외로 밖에 던지지 않고 {@link MarketShippingResult}로 표면화한다.
 	 * 호출자의 @Transactional 배송정보 저장이 마켓 전송 실패로 롤백되지 않도록 하기 위함이며,
 	 * 실패(isFailed)인 경우 호출자는 trackingSentToMarket을 마킹하지 말아야 재시도가 가능하다.
+	 *
+	 * @param invoiceAlreadyExists 이번 편집 이전에 마켓에 송장이 이미 존재했는지 — true면 수정, false면 최초 등록
 	 */
-	public MarketShippingResult sendTrackingToMarketplace(OrderLineItem lineItem) {
+	public MarketShippingResult sendTrackingToMarketplace(OrderLineItem lineItem, boolean invoiceAlreadyExists) {
 
 		// 주문 조회
 		Order order = orderRepository.findById(lineItem.getOrderId()).orElse(null);
@@ -76,10 +84,6 @@ public class MarketplaceShippingService {
 			return MarketShippingResult.ofSkipped("전송 불가 상태: " + currentStatus);
 		}
 
-		// 송장 전송 여부 확인
-		Boolean alreadySent = lineItem.getShippingData() != null
-			? lineItem.getShippingData().getTrackingSentToMarket() : null;
-
 		// 마켓 포트 조회 — 배송 어댑터가 없는 마켓(카페24 등)은 크래시 대신 스킵(배송정보 수정 자체는 성공 유지).
 		Optional<MarketOrderPort> portOpt = findPort(order.getMarketType());
 		if (portOpt.isEmpty()) {
@@ -91,7 +95,7 @@ public class MarketplaceShippingService {
 
 		// 전송 또는 수정 처리 — 마켓 API 예외는 삼키지 않고 실패 결과로 반환(롤백 유발 방지, 재시도 보존).
 		try {
-			if (Boolean.TRUE.equals(alreadySent)) {
+			if (invoiceAlreadyExists) {
 				port.updateTracking(cred, order, lineItem,
 					lineItem.getShippingData().getTrackingNo(),
 					lineItem.getShippingData().getShippingCarrier());

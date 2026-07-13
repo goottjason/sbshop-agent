@@ -299,6 +299,12 @@ public class OrderService {
 		OrderLineItem item = orderLineItemRepository.findById(lineItemId)
 			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + lineItemId));
 
+		// 이번 편집 이전에 마켓에 송장이 이미 존재했는지(=동기화로 유입된 송장 포함) — 초기등록/수정 판단 근거.
+		// 반드시 applyShippingData로 새 송장을 덮어쓰기 전에 계산한다.
+		boolean invoiceAlreadyExists = item.getShippingData() != null
+			&& item.getShippingData().getTrackingNo() != null
+			&& !item.getShippingData().getTrackingNo().isBlank();
+
 		// NEW/UNKNOWN/PREPARING 상태이면 수정 차단
 		ShippingStatus currentStatus = item.getShippingData() != null
 			? item.getShippingData().getShippingStatus() : null;
@@ -316,7 +322,7 @@ public class OrderService {
 
 			// 마켓플레이스에 송장 전송 — 반영 실패 시 자사 저장을 롤백해 DB/마켓 정합을 유지(@Transactional),
 			// 스킵(전송 대상 아님)은 로컬 편집 유지, 성공 시에만 전송완료 마킹.
-			MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item);
+			MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, invoiceAlreadyExists);
 			if (sendResult.isFailed()) {
 				throw new IllegalStateException("마켓(" + marketTypeOf(item)
 					+ ") 송장 반영 실패로 저장을 롤백합니다: " + sendResult.failureReason());
@@ -332,7 +338,7 @@ public class OrderService {
 
 			// 마켓플레이스에 송장 업데이트 — 반영 실패 시 자사 저장을 롤백해 DB/마켓 정합을 유지(@Transactional),
 			// 스킵(전송 대상 아님)은 로컬 편집 유지, 성공 시에만 전송완료 마킹.
-			MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item);
+			MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, invoiceAlreadyExists);
 			if (sendResult.isFailed()) {
 				throw new IllegalStateException("마켓(" + marketTypeOf(item)
 					+ ") 송장 반영 실패로 저장을 롤백합니다: " + sendResult.failureReason());
@@ -449,6 +455,11 @@ public class OrderService {
 			throw new IllegalStateException("배송 처리는 PURCHASED 상태에서만 가능합니다. 현재: " + currentStatus);
 		}
 
+		// 이번 편집 이전에 마켓에 송장이 이미 존재했는지 — 초기등록/수정 판단 근거(applyShippingData 전에 계산).
+		boolean invoiceAlreadyExists = item.getShippingData() != null
+			&& item.getShippingData().getTrackingNo() != null
+			&& !item.getShippingData().getTrackingNo().isBlank();
+
 		// 배송 데이터 적용 및 SHIPPED로 변경
 		ShippingData currentShipping = item.getShippingData();
 		if (currentShipping == null) {
@@ -462,7 +473,7 @@ public class OrderService {
 		orderLineItemRepository.save(item);
 
 		// 마켓플레이스에 송장 전송 — 실패해도 위의 배송정보 저장은 보존, 성공 시에만 전송완료 마킹
-		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item);
+		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, invoiceAlreadyExists);
 		markSentIfSucceeded(item, sendResult, lineItemId);
 
 		log.info("라인아이템 {} 배송 처리: tracking={}, carrier={}", lineItemId, trackingNo, carrier);
@@ -495,8 +506,9 @@ public class OrderService {
 			.build());
 		orderLineItemRepository.save(item);
 
-		// 마켓플레이스에 송장 업데이트 — 실패해도 위의 배송정보 저장은 보존, 성공 시에만 전송완료 마킹
-		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item);
+		// 마켓플레이스에 송장 업데이트 — 실패해도 위의 배송정보 저장은 보존, 성공 시에만 전송완료 마킹.
+		// 이 메서드는 SHIPPED 상태에서만 진입하므로(위 가드) 마켓에 송장이 이미 존재 → 항상 수정(updateTracking).
+		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, true);
 		markSentIfSucceeded(item, sendResult, lineItemId);
 
 		log.info("라인아이템 {} 송장번호 업데이트: tracking={}, carrier={}", lineItemId, trackingNo, carrier);
