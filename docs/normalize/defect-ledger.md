@@ -1221,3 +1221,42 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 영향: `infrastructure/.../smartstore/client/SmartstoreRestClient.java`.
 - 잔여(비차단): 테스트가 private final restClient에 리플렉션 주입(RestClient.create() 하드코딩, 생성자 seam 없음) — 향후 JDK 하드닝 시 취약. 근본 개선은 RestClient 생성자 주입화(별도).
 - 참고: 쿠팡 배치 부분실패는 코드 무관 외부 상태(쿠팡 판매중지 상품 판매재개 거부·stale vendorItemId not found·일시 504) — 정직 표면화(SP-F), 결함 아님.
+
+## 2026-07-13 라이브 개선 사이클 (통합주문/배치/배송 — 배포·검증 완료)
+> superpowers 흐름으로 진행, main 직접 배포. 아래 전부 수정완료·배포됨.
+
+### D-082: 배치 진행추적 키 불일치 — 진행률 영구 PENDING
+- 심각도 P2 / 상태 수정완료·배포·라이브검증 (main `43d1171`+요약엔드포인트/프론트)
+- 증상: 배치 실행 후 811건 처리해도 `sb_process_status`가 전부 PENDING → 진행률 표시 불가.
+- 근본원인: `ProcessStatusService.startBatch`는 productId를 product_code 키로 저장하는데, `BatchPriceStockService`의 markSuccess/markFailed는 `product.getSbCode()`로 갱신 → 키 불일치로 매칭 실패, 상태 미갱신.
+- 수정: 3개 배치 메서드의 mark* 호출을 `String.valueOf(productId)`로 통일 + 경량 `GET /api/v1/products/batch/status/{batchId}/summary`(total/success/failed/pending/done/percent) + 프론트 진행바(30초 폴링·localStorage로 새로고침 복원).
+- 검증: 라이브 배치 da9a3bdf done 23→31→38→42 증가, 2145/2145 SUCCESS 확인.
+
+### D-083: 배송정보 택배사 맵핑 미흡 — ETC/원본 enum 노출 + carrier 유실
+- 심각도 P3 / 상태 수정완료·배포 (main `34af0b2`·프론트 `dffb101`)
+- 증상: 배송정보에 "ETC"·"HANJIN" 등 원본 문자열 노출, 쿠팡 일부 주문 carrier 유실(-).
+- 근본원인: (a) 프론트 한글맵이 CJ/우체국/롯데 3개만, (b) 백엔드 `ShippingCarrier.fromMarketCode` default→ETC(주석은 null이라면서 모순), (c) `CoupangOrderAdapter` 보정패스가 현재값 ETC일 때만 복구(null 방치).
+- 수정: 프론트 전체 택배사 한글맵 + ETC/미매핑/빈값→'-'; fromMarketCode default→null; 쿠팡 보정패스 null carrier도 복구.
+- 전수조사(라이브): CJ103·우체국33·롯데24 정상, null 20(송장있는데 carrier null 11=쿠팡 deliveryCompanyName 빈값), ETC 2. GMARKET 중복행 없음.
+
+### D-084: 쿠팡 송장 반영 조용한 성공 위장 + DB/마켓 비동기화
+- 심각도 P2 / 상태 수정완료·배포·라이브검증 (main `c07b7cd`·`aa2e9ae`)
+- 증상: 송장수정이 DB엔 저장됐는데 쿠팡엔 반영 안 됨, 화면엔 성공 토스트.
+- 근본원인: (a) `CoupangInvoiceResponse.isSuccessful()`이 최상위 code만 보고 `data.responseList[].succeed`(항목별 결과)를 무시 → 쿠팡 항목거부를 성공으로 오인. (b) `updateShippingInfo`가 마켓 실패해도 DB 저장 보존(D-069) → 화면 성공.
+- 수정: isSuccessful이 항목별 succeed 검사 + `failureReason()` 표면화; `updateShippingInfo`가 `isFailed()` 시 throw→@Transactional 롤백(D-069 반전, DB/마켓 싱크); 프론트 실패 토스트 + orders 재조회.
+- 검증: 라이브 백정환 건 "쿠팡 송장업로드 실패: 배송진행상태가 유효하지 않습니다" 사유 표시 + DB 롤백 확인.
+
+### D-085: 송장 초기등록/수정 판단이 우리 전송여부(trackingSentToMarket)에 의존
+- 심각도 P2 / 상태 수정완료·배포 (main `3711e32`)
+- 증상: 쿠팡 동기화로 유입된 송장(우리가 안 보냄) 편집 시 초기등록 API(shipOrder) 타서 "배송진행상태가 유효하지 않습니다" 거부. 백정환(플래그 false) 실패 vs 김창식(플래그 true) 성공.
+- 근본원인: `MarketplaceShippingService.sendTrackingToMarketplace`가 `trackingSentToMarket`(우리 전송 여부)로 shipOrder/updateTracking 결정 → 판매자/쿠팡 직접 등록·수정을 반영 못 함.
+- 수정: 시그니처 `(OrderLineItem, boolean invoiceAlreadyExists)`. 판단을 "마켓에 송장 이미 존재(편집 전 trackingNo 존재/동기화 상태)"로 → 있으면 updateTracking(수정), 진짜 최초발송만 shipOrder. 4개 호출부(updateShippingInfo 2·ship·updateTrackingInfo)+worker EmailFetcherService 2곳 관통. **주의: 시그니처 변경이 worker 호출부 누락으로 첫 배포 컴파일 실패 → hotfix `4968d24`. 이후 공유 시그니처 변경은 전 모듈 컴파일 필수.**
+
+### D-086: 이메일 송장 교정 누락 — SHIPPED-다른송장 미처리(가짜→진짜)
+- 심각도 P2 / 상태 수정완료·배포 (main `a545497`)
+- 증상: 취소 방지용 가짜 송장 선입력(상태 SHIPPED) 후 이메일로 진짜 송장(다른 번호) 도착해도 반영 안 됨.
+- 근본원인: `EmailFetcherService.processIherbShipment`가 `SHIPPED+동일송장`(alreadyShipped) 또는 `PURCHASED`만 처리, `SHIPPED+다른송장`은 else로 빠져 무처리.
+- 수정: alreadyShipped 다음·PURCHASED 앞에 `SHIPPED이고 이메일송장≠기존` 분기 추가 → 송장/택배사 교정 + 마켓 `updateTracking`(수정, invoiceAlreadyExists=true) 전파. 미지 해외택배사(DHL/FedEx 등 mapCarrier→ETC)는 기존 택배사 유지. worker 테스트 2건.
+
+### UX 개선(비결함, 동반 배포)
+- 배치 업데이트 진행바(D-082 동반), 상품관리 가격/재고 stockStatus 모달 시드, 통합주문 그리드 **구매/배송정보 셀 병합(rowSpan, 배송사/송장·계정/공급처/주문#/할인 stack) + 더블클릭 통합 인라인편집(택배사+송장 한 세트 1회 저장→마켓 1회 호출) + placeholder + 수정버튼/모달 제거**, 인라인 성공/실패 토스트.
