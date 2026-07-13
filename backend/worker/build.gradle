@@ -3,6 +3,9 @@ dependencies {
     implementation project(':infrastructure')
     
     implementation 'org.springframework.boot:spring-boot-starter'
+    // server.port:8081 + Dockerfile EXPOSE 8081 + start.sh --server.port=8081 전제였으나
+    // 레거시 병합에서 web 스타터가 누락됨(D-E3). 내부 트리거/헬스 엔드포인트 위해 복구.
+    implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'com.fasterxml.jackson.core:jackson-databind'

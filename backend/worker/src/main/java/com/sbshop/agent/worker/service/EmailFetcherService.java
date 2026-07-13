@@ -79,6 +79,11 @@ public class EmailFetcherService {
 	 * Gmail IMAP은 SubjectTerm을 지원하지 않으므로 최근 메일을 가져와서 필터링
 	 */
 	private void searchInAccountForOrderNo(EmailAccountProperties.Account account, String orderNo) {
+		// 미설정 계정(빈 username)은 스킵 — 빈 자격증명으로 Gmail 로그인 실패 반복 방지 (D-E4)
+		if (account.getUsername() == null || account.getUsername().isBlank()) {
+			log.debug("이메일 계정 username 미설정 - 스킵 (orderNo={})", orderNo);
+			return;
+		}
 		log.debug("IMAP 연결 시도: account={}, orderNo={}", account.getUsername(), orderNo);
 		Properties props = new Properties();
 		props.put("mail.store.protocol", account.getProtocol());
