@@ -382,7 +382,9 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 			case CJ_LOGISTICS -> "CJGLS";
 			case HANJIN -> "HANJIN";
 			case KOREA_POST -> "EPOST";
-			case LOTTE_LOGISTICS -> "LOTTE";
+			// 쿠팡은 롯데택배를 구(舊) 현대택배 코드 "HYUNDAI"로 식별한다.
+			// "LOTTE"는 쿠팡 미지원 → 400 "Delivery company code not supported" (라이브 확인, D-E5).
+			case LOTTE_LOGISTICS -> "HYUNDAI";
 			case ROCKET -> "COUPANG";
 			default -> "CJGLS";
 		};
