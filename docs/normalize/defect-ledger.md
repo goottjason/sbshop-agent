@@ -1211,3 +1211,13 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 근본원인: `Order.getMarketSpecificDataMap()`(:160~183)이 `,`·`:` split + 따옴표 strip 방식.
 - 수정방향: Jackson(ObjectMapper)로 실제 JSON 파싱 교체. setMarketSpecificDataFromMap도 대칭적으로 직렬화.
 - 영향: `Order.java`.
+
+### D-081: 스마트스토어 토큰 발급 timestamp 초/ms 오류 — 가격/재고 배치 스마트스토어 100% 실패 (라이브)
+- 심각도 P1 / 리스크 표준 / 상태 수정완료·배포·라이브검증 (main `a92b1b7`)
+- 증상: 소싱업체별/가격·재고 배치에서 스마트스토어만 100% 실패. Naver `/oauth2/token` 400 `"timestamp 항목의 유효 시간이 만료되었습니다"` → `[Smartstore] 토큰 발급 실패` → 해당 상품 SMART_STORE 갱신 실패. (Cafe24·11번가·쿠팡은 정상.)
+- 근본원인: `SmartstoreRestClient.fetchAccessToken()`(:58)이 서명·전송 timestamp를 `Instant.now().getEpochSecond()`(epoch 초, 10자리)로 생성. Naver Commerce는 **밀리초** 요구 → 초값을 ms로 해석 시 1970년대 → 유효창 밖 "만료". 라이브 로그 `timestamp=[1783909089]`(10자리)가 증거. 형제 클라이언트 `SmartStoreOrderApiClient`는 `System.currentTimeMillis()`(ms) 사용해 정상 — 두 클라이언트 단위 불일치.
+- 수정: `SmartstoreRestClient.java:58` `getEpochSecond()`→`toEpochMilli()`. 같은 `timestamp` 변수가 BCrypt 서명(:59)·form 필드(:66) 양쪽에 쓰여 한 줄로 정합 유지. L103 `X-Time-Stamp` 헤더도 동일 초/ms 잠재버그라 ms로 동반 교정. TDD: revert→RED, fix→GREEN(SmartstoreRestClientTest, MockRestServiceServer, ms 13자리/≥1e12 검증).
+- 라이브검증(2026-07-13 재배포 후 배치 47059d54): 스마트스토어 46/46 성공, `timestamp 만료`·`토큰 발급 실패` 0건. 이전 100% 실패 완전 해소.
+- 영향: `infrastructure/.../smartstore/client/SmartstoreRestClient.java`.
+- 잔여(비차단): 테스트가 private final restClient에 리플렉션 주입(RestClient.create() 하드코딩, 생성자 seam 없음) — 향후 JDK 하드닝 시 취약. 근본 개선은 RestClient 생성자 주입화(별도).
+- 참고: 쿠팡 배치 부분실패는 코드 무관 외부 상태(쿠팡 판매중지 상품 판매재개 거부·stale vendorItemId not found·일시 504) — 정직 표면화(SP-F), 결함 아님.
