@@ -132,6 +132,90 @@ function InlineEditCell({ value, display, onSave, type = 'text', options }: {
   );
 }
 
+// 배송 정보(택배사+송장) 통합 인라인 편집 셀.
+// 택배사와 송장번호는 한 세트 → 더블클릭 시 두 컨트롤이 함께 열리고, 편집 종료 시
+// 두 값을 1회 onSave로 넘겨 shippingMutation(=updateShippingInfo)을 한 번만 호출한다.
+// 이렇게 하면 "택배사만 바꿔서 새 택배사 + 옛 송장"이 마켓에 전송되는 불일치가 사라진다.
+//   - 더블클릭 → 편집 모드(택배사 select autofocus + 송장 input)
+//   - 컨테이너 blur(포커스가 두 컨트롤 밖으로 나감) 또는 Enter → 저장
+//   - Escape → 취소
+//   - 실제로 값이 바뀐 경우에만 onSave 호출(무의미한 마켓 호출 방지)
+function ShippingEditCell({ carrier, trackingNo, onSave }: {
+  carrier: string;
+  trackingNo: string;
+  onSave: (v: { shippingCarrier: string; trackingNo: string }) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draftCarrier, setDraftCarrier] = useState(carrier);
+  const [draftTracking, setDraftTracking] = useState(trackingNo);
+  const selectRef = useRef<HTMLSelectElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setDraftCarrier(carrier);
+      setDraftTracking(trackingNo);
+      setTimeout(() => selectRef.current?.focus(), 0);
+    }
+  }, [editing, carrier, trackingNo]);
+
+  // 편집 종료 시 실제로 바뀐 경우에만 저장(한 세트로 1회 호출).
+  const commit = (nextCarrier: string, nextTracking: string) => {
+    setEditing(false);
+    if (nextCarrier !== carrier || nextTracking !== trackingNo) {
+      onSave({ shippingCarrier: nextCarrier, trackingNo: nextTracking });
+    }
+  };
+
+  if (editing) {
+    return (
+      <div
+        style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}
+        onClick={(e) => e.stopPropagation()}
+        // 컨테이너 밖(다른 컨트롤/행)으로 포커스가 나갈 때만 저장. 내부 select↔input 이동은 유지.
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            commit(draftCarrier, draftTracking);
+          }
+        }}
+      >
+        <select
+          ref={selectRef}
+          value={draftCarrier}
+          style={{ ...inputStyle, textAlign: 'center' }}
+          onChange={(e) => setDraftCarrier(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit(draftCarrier, draftTracking);
+            else if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); }
+          }}
+        >
+          {CARRIER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <input
+          type="text"
+          value={draftTracking}
+          placeholder="송장번호"
+          style={{ ...inputStyle, textAlign: 'center' }}
+          onChange={(e) => setDraftTracking(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit(draftCarrier, draftTracking);
+            else if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); }
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <span
+      onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
+      title="더블클릭하여 택배사·송장 함께 편집"
+      style={{ display: 'block', cursor: 'text', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+    >
+      {carrierLabel(carrier)} · {trackingNo || '-'}
+    </span>
+  );
+}
+
 // 주문 전체 병합 컬럼 (rowSpan = 해당 주문의 전체 행 수)
 const ORDER_SPANNED_COLUMNS = ['select', 'orderInfo', 'shippingStatus'];
 
@@ -431,9 +515,10 @@ const OrderGrid: React.FC = () => {
     },
   });
 
-  // sibling: 배송 엔드포인트(trackingNo+shippingCarrier 동시 전송)에서 편집하지 않은 반대편 필드의
-  // 현재 행 값을 함께 보내기 위한 선택 인자. 배송 모달이 두 필드를 함께 저장하던 동작을 그대로 유지한다.
+  // 배송 정보(택배사+송장)는 한 세트로 통합 편집 셀(ShippingEditCell)에서만 저장한다.
+  // field 'lineItem.shipping' → value는 { shippingCarrier, trackingNo } 객체 → shippingMutation 1회 호출.
   const handleUpdate = useCallback((orderId: number, lineItemId: number, field: string, value: unknown, sibling?: string) => {
+    void sibling;
     if (field.startsWith('order.')) {
       const actualField = field.replace('order.', '');
       orderMutation.mutate({ id: orderId, updates: { [actualField]: value } });
@@ -453,11 +538,10 @@ const OrderGrid: React.FC = () => {
       sourcingMutation.mutate({ id: lineItemId, updates: { sourcingOrderNo: value as string } });
     } else if (field === 'lineItem.discountCode') {
       sourcingMutation.mutate({ id: lineItemId, updates: { discountCode: value as string } });
-    } else if (field === 'lineItem.trackingNo') {
-      // 배송 엔드포인트는 trackingNo+shippingCarrier를 함께 받는다(배송 모달과 동일). 반대편은 현재 행 값 유지.
-      shippingMutation.mutate({ id: lineItemId, updates: { trackingNo: value as string, shippingCarrier: sibling ?? '' } });
-    } else if (field === 'lineItem.shippingCarrier') {
-      shippingMutation.mutate({ id: lineItemId, updates: { shippingCarrier: value as string, trackingNo: sibling ?? '' } });
+    } else if (field === 'lineItem.shipping') {
+      // 택배사+송장을 한 세트로 1회 전송 → updateShippingInfo 1회 → 마켓 API 1회 호출.
+      const v = value as { shippingCarrier: string; trackingNo: string };
+      shippingMutation.mutate({ id: lineItemId, updates: { trackingNo: v.trackingNo, shippingCarrier: v.shippingCarrier } });
     }
   }, [orderMutation, lineItemMutation, sourcingMutation, shippingMutation]);
 
@@ -953,24 +1037,22 @@ const OrderGrid: React.FC = () => {
         const carrier = row.original.lineItem?.shippingData?.shippingCarrier || '';
         const trackingNo = row.original.lineItem?.shippingData?.trackingNo || '';
         if (row.original.rowType === 'product') {
-          // 상품 행: 송장번호 (더블클릭 인라인 편집). 배송 엔드포인트는 택배사도 함께 받으므로 sibling으로 현재 택배사 전달.
+          // 상품 행: 택배사+송장 통합 편집(한 세트로 1회 저장 → updateShippingInfo 1회 → 마켓 1회).
           return (
             <div style={{ fontSize: '12px', textAlign: 'center' }}>
-              <InlineEditCell value={trackingNo} display={trackingNo || '-'} onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.trackingNo', v, carrier)} />
+              <ShippingEditCell
+                carrier={carrier}
+                trackingNo={trackingNo}
+                onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.shipping', v)}
+              />
             </div>
           );
         }
         if (row.original.rowType === 'fulfillment') return null;
-        // 주문 행: 택배사 select (더블클릭 인라인 편집). 미매핑/ETC/빈값은 '-'로 표시.
+        // 주문 행: 편집은 상품 행의 통합 셀에서만. 여기서는 읽기 전용 표시(택배사·송장).
         return (
           <div style={{ fontSize: '12px', color: '#666', textAlign: 'center' }}>
-            <InlineEditCell
-              type="select"
-              options={CARRIER_OPTIONS}
-              value={carrier}
-              display={carrierLabel(carrier)}
-              onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.shippingCarrier', v, trackingNo)}
-            />
+            {carrierLabel(carrier)} · {trackingNo || '-'}
           </div>
         );
       }
