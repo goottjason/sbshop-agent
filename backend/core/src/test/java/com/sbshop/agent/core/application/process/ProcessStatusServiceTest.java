@@ -48,4 +48,35 @@ class ProcessStatusServiceTest {
 		assertThat(result).hasSize(1);
 		assertThat(result.get(0).getProductCode()).isEqualTo("P001");
 	}
+
+	@Test
+	@DisplayName("getBatchSummary는 total/success/failed count로 done/pending/percent를 산출한다")
+	void getBatchSummary_computesAggregate() {
+		when(repository.countByBatchId("b-10")).thenReturn(10L);
+		when(repository.countByBatchIdAndProcessStatus("b-10", ProcessStatusType.SUCCESS)).thenReturn(3L);
+		when(repository.countByBatchIdAndProcessStatus("b-10", ProcessStatusType.FAILED)).thenReturn(1L);
+
+		var summary = service.getBatchSummary("b-10");
+
+		assertThat(summary.batchId()).isEqualTo("b-10");
+		assertThat(summary.total()).isEqualTo(10L);
+		assertThat(summary.success()).isEqualTo(3L);
+		assertThat(summary.failed()).isEqualTo(1L);
+		assertThat(summary.done()).isEqualTo(4L);
+		assertThat(summary.pending()).isEqualTo(6L);
+		assertThat(summary.percent()).isEqualTo(40);
+	}
+
+	@Test
+	@DisplayName("getBatchSummary는 total=0이면 percent 0(0 나눗셈 방지)")
+	void getBatchSummary_zeroTotal_percentZero() {
+		when(repository.countByBatchId("empty")).thenReturn(0L);
+		when(repository.countByBatchIdAndProcessStatus("empty", ProcessStatusType.SUCCESS)).thenReturn(0L);
+		when(repository.countByBatchIdAndProcessStatus("empty", ProcessStatusType.FAILED)).thenReturn(0L);
+
+		var summary = service.getBatchSummary("empty");
+
+		assertThat(summary.percent()).isEqualTo(0);
+		assertThat(summary.done()).isEqualTo(0L);
+	}
 }

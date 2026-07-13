@@ -64,6 +64,14 @@ public class ProcessStatusService {
 	}
 
 	@Transactional(readOnly = true)
+	public BatchSummary getBatchSummary(String batchId) {
+		long total = processStatusRepository.countByBatchId(batchId);
+		long success = processStatusRepository.countByBatchIdAndProcessStatus(batchId, ProcessStatusType.SUCCESS);
+		long failed = processStatusRepository.countByBatchIdAndProcessStatus(batchId, ProcessStatusType.FAILED);
+		return BatchSummary.of(batchId, total, success, failed);
+	}
+
+	@Transactional(readOnly = true)
 	public List<String> getAllBatchIds() {
 		List<ProcessStatus> all = processStatusRepository.findAll();
 		return all.stream()

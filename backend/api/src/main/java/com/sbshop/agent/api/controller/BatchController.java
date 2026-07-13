@@ -125,6 +125,13 @@ public class BatchController {
 		return ResponseEntity.ok(processStatusService.getBatchStatus(batchId));
 	}
 
+	// 폴링용 경량 집계(전체 행 대신 count 쿼리). /status/{batchId}는 상세 조회용으로 유지.
+	@GetMapping("/status/{batchId}/summary")
+	public ResponseEntity<com.sbshop.agent.core.application.process.BatchSummary> getBatchSummary(@PathVariable
+	String batchId) {
+		return ResponseEntity.ok(processStatusService.getBatchSummary(batchId));
+	}
+
 	@GetMapping("/status")
 	public ResponseEntity<List<String>> getAllBatchIds() {
 		return ResponseEntity.ok(processStatusService.getAllBatchIds());
