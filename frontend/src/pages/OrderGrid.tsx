@@ -205,14 +205,16 @@ function ShippingEditCell({ carrier, trackingNo, onSave }: {
     );
   }
 
+  // 표시 모드: 택배사(1줄) / 송장번호(2줄)를 세로로 stack하여 병합 셀 중앙에 표시.
   return (
-    <span
+    <div
       onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
       title="더블클릭하여 택배사·송장 함께 편집"
-      style={{ display: 'block', cursor: 'text', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', cursor: 'text' }}
     >
-      {carrierLabel(carrier)} · {trackingNo || '-'}
-    </span>
+      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{carrierLabel(carrier)}</div>
+      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{trackingNo || '-'}</div>
+    </div>
   );
 }
 
@@ -220,10 +222,10 @@ function ShippingEditCell({ carrier, trackingNo, onSave }: {
 const ORDER_SPANNED_COLUMNS = ['select', 'orderInfo', 'shippingStatus'];
 
 // 라인아이템 병합 컬럼 (rowSpan = 3)
-const LINEITEM_SPANNED_COLUMNS = ['sbCode', 'stockInfo', 'quantity', 'unipass'];
+const LINEITEM_SPANNED_COLUMNS = ['sbCode', 'stockInfo', 'quantity', 'unipass', 'fulfillmentInfoPair'];
 
 // 2줄 컬럼 (행1, 행2에만 표시, 행3에서는 셀 자체를 렌더링하지 않음)
-const TWO_ROW_COLUMNS = ['ordererInfo', 'customsInfo', 'shippingInfoPair', 'productNamePair', 'sourcingInfoPair', 'fulfillmentInfoPair', 'financialInfoPair'];
+const TWO_ROW_COLUMNS = ['ordererInfo', 'customsInfo', 'shippingInfoPair', 'productNamePair', 'sourcingInfoPair', 'financialInfoPair'];
 
 // Row 1 전용 컬럼 (주문 행에만 표시)
 const ORDER_COLUMNS: string[] = [];
@@ -1031,28 +1033,20 @@ const OrderGrid: React.FC = () => {
       id: 'fulfillmentInfoPair',
       header: '배송 정보',
       size: 150,
+      // 라인아이템 병합 셀(rowSpan=3): 상품코드처럼 라인아이템 첫 행에 1회만 렌더된다.
+      // 택배사+송장을 2줄 stack으로 표시하고, 더블클릭 시 통합 편집(한 세트로 1회 저장).
       cell: ({ row }) => {
-        const orderId = row.original.order?.id || 0;
-        const lineItemId = row.original.lineItem?.id || 0;
         const carrier = row.original.lineItem?.shippingData?.shippingCarrier || '';
         const trackingNo = row.original.lineItem?.shippingData?.trackingNo || '';
-        if (row.original.rowType === 'product') {
-          // 상품 행: 택배사+송장 통합 편집(한 세트로 1회 저장 → updateShippingInfo 1회 → 마켓 1회).
-          return (
-            <div style={{ fontSize: '12px', textAlign: 'center' }}>
-              <ShippingEditCell
-                carrier={carrier}
-                trackingNo={trackingNo}
-                onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.shipping', v)}
-              />
-            </div>
-          );
-        }
-        if (row.original.rowType === 'fulfillment') return null;
-        // 주문 행: 편집은 상품 행의 통합 셀에서만. 여기서는 읽기 전용 표시(택배사·송장).
+        const orderId = row.original.order?.id || 0;
+        const lineItemId = row.original.lineItem?.id || 0;
         return (
-          <div style={{ fontSize: '12px', color: '#666', textAlign: 'center' }}>
-            {carrierLabel(carrier)} · {trackingNo || '-'}
+          <div style={{ fontSize: '12px', textAlign: 'center' }}>
+            <ShippingEditCell
+              carrier={carrier}
+              trackingNo={trackingNo}
+              onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.shipping', v)}
+            />
           </div>
         );
       }
