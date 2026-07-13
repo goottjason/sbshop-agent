@@ -34,237 +34,109 @@ export function stockCellInfo(product?: ProductDto): StockCellInfo {
 import { toast } from 'react-toastify';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 
-// 구매/배송 처리 모달
-interface ProcessingModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmit: (data: any) => void;
-  lineItem: OrderGridDto | null;
-  mode: 'sourcing' | 'shipping';
-}
-
-const ProcessingModal: React.FC<ProcessingModalProps> = ({ isOpen, onClose, onSubmit, lineItem, mode }) => {
-  const [vendorType, setVendorType] = useState<'iherb' | 'other'>('iherb');
-  const [emailAccount, setEmailAccount] = useState('');
-  const [sourcingOrderNo, setSourcingOrderNo] = useState('');
-  const [discountCode, setDiscountCode] = useState('');
-  const [vendorName, setVendorName] = useState('');
-  const [trackingNo, setTrackingNo] = useState('');
-  const [carrier, setCarrier] = useState('CJ_LOGISTICS');
-
-  useEffect(() => {
-    if (isOpen && lineItem) {
-      // 초기화
-      const shipping = lineItem.lineItem?.shippingData;
-      
-      if (mode === 'sourcing') {
-        setSourcingOrderNo(lineItem.lineItem?.sourcingData?.sourcingOrderNo || '');
-        setDiscountCode(lineItem.lineItem?.sourcingData?.discountCode || '');
-        setEmailAccount(lineItem.lineItem?.sourcingData?.sourcingAccount || '');
-        setVendorName(lineItem.lineItem?.sourcingData?.sourcingVendor || '');
-      } else if (mode === 'shipping') {
-        setTrackingNo(shipping?.trackingNo || '');
-        setCarrier(shipping?.shippingCarrier || 'CJ_LOGISTICS');
-      }
-    }
-  }, [isOpen, lineItem, mode]);
-
-  if (!isOpen) return null;
-
-  const title = mode === 'sourcing' ? '구매 정보 입력 및 수정' : '배송 정보 입력 및 수정';
-
-  return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center',
-      zIndex: 1000
-    }}>
-      <div style={{
-        backgroundColor: 'white', borderRadius: '8px', padding: '24px', width: '400px',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-      }}>
-        <h3 style={{ margin: '0 0 20px 0', fontSize: '18px', fontWeight: 600, color: '#1e293b' }}>{title}</h3>
-        
-        {mode === 'sourcing' && (
-          <>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500 }}>공급업체</label>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                  <input type="radio" name="vendorType" value="iherb" checked={vendorType === 'iherb'} onChange={() => setVendorType('iherb')} style={{ marginRight: '6px' }} />
-                  아이허브
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                  <input type="radio" name="vendorType" value="other" checked={vendorType === 'other'} onChange={() => setVendorType('other')} style={{ marginRight: '6px' }} />
-                  기타
-                </label>
-              </div>
-            </div>
-
-            {vendorType === 'iherb' ? (
-              <>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500 }}>이메일 계정 *</label>
-                  <select
-                    value={emailAccount}
-                    onChange={e => setEmailAccount(e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px' }}
-                  >
-                    <option value="">선택하세요</option>
-                    <option value="shouldbe.shopping@gmail.com">shouldbe.shopping@gmail.com</option>
-                    <option value="kimjw8712@gmail.com">kimjw8712@gmail.com</option>
-                    <option value="369butterfly369@gmail.com">369butterfly369@gmail.com</option>
-                    <option value="mariahcarey0815@gmail.com">mariahcarey0815@gmail.com</option>
-                    <option value="goottjason@gmail.com">goottjason@gmail.com</option>
-                    <option value="kimsubi.0007@gmail.com">kimsubi.0007@gmail.com</option>
-                    <option value="tonyworld@hanmail.net">tonyworld@hanmail.net</option>
-                    <option value="younzara@naver.com">younzara@naver.com</option>
-                    <option value="younzara@nate.com">younzara@nate.com</option>
-                    <option value="dnglglzpzp@hanmail.net">dnglglzpzp@hanmail.net</option>
-                    <option value="kimjongwon0907@gmail.com">kimjongwon0907@gmail.com</option>
-                    <option value="oasis_0907@hanmail.net">oasis_0907@hanmail.net</option>
-                    <option value="palme86@naver.com">palme86@naver.com</option>
-                    <option value="younzara@gmail.com">younzara@gmail.com</option>
-                    <option value="inegg@gmail.com">inegg@gmail.com</option>
-                    <option value="spreadyourwings33@gmail.com">spreadyourwings33@gmail.com</option>
-                    <option value="tomkim8712@gmail.com">tomkim8712@gmail.com</option>
-                    <option value="kimshou825@gmail.com">kimshou825@gmail.com</option>
-                    <option value="kimshou31@gmail.com">kimshou31@gmail.com</option>
-                    <option value="ordinary_things@naver.com">ordinary_things@naver.com</option>
-                    <option value="jongwon@g.skku.edu">jongwon@g.skku.edu</option>
-                    <option value="gootkimjw8712@gmail.com">gootkimjw8712@gmail.com</option>
-                  </select>
-                </div>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500 }}>아이허브 주문번호 *</label>
-                  <input
-                    type="text"
-                    value={sourcingOrderNo}
-                    onChange={e => setSourcingOrderNo(e.target.value)}
-                    placeholder="예: 12345678"
-                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px' }}
-                  />
-                </div>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500 }}>할인코드</label>
-                  <input
-                    type="text"
-                    value={discountCode}
-                    onChange={e => setDiscountCode(e.target.value)}
-                    placeholder="선택사항"
-                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px' }}
-                  />
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500 }}>공급업체명 *</label>
-                  <input
-                    type="text"
-                    value={vendorName}
-                    onChange={e => setVendorName(e.target.value)}
-                    placeholder="예: 오카도, 윌코 등"
-                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px' }}
-                  />
-                </div>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500 }}>공급업체 주문번호 *</label>
-                  <input
-                    type="text"
-                    value={sourcingOrderNo}
-                    onChange={e => setSourcingOrderNo(e.target.value)}
-                    placeholder="예: VENDOR-12345"
-                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px' }}
-                  />
-                </div>
-              </>
-            )}
-          </>
-        )}
-        {mode === 'shipping' && (
-          <>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500 }}>택배사</label>
-              <select
-                value={carrier}
-                onChange={e => setCarrier(e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px' }}
-              >
-                <option value="CJ_LOGISTICS">CJ대한통운</option>
-                <option value="HANJIN">한진택배</option>
-                <option value="KOREA_POST">우체국택배</option>
-                <option value="LOTTE_LOGISTICS">롯데택배</option>
-                <option value="HYUNDAI_LOGISTICS">현대택배</option>
-                <option value="ROCKET">쿠팡로켓</option>
-                <option value="ETC">기타</option>
-              </select>
-            </div>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500 }}>송장번호 *</label>
-              <input
-                type="text"
-                value={trackingNo}
-                onChange={e => setTrackingNo(e.target.value)}
-                placeholder="송장번호 입력"
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px' }}
-              />
-            </div>
-          </>
-        )}
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '20px' }}>
-          <button
-            onClick={onClose}
-            style={{ padding: '8px 16px', backgroundColor: '#f5f5f5', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}
-          >
-            취소
-          </button>
-          <button
-            onClick={() => {
-              if (mode === 'sourcing') {
-                if (vendorType === 'iherb' && (!emailAccount || !sourcingOrderNo)) {
-                  toast.warning('이메일 계정과 아이허브 주문번호를 입력해주세요.');
-                  return;
-                }
-                if (vendorType === 'other' && (!vendorName || !sourcingOrderNo)) {
-                  toast.warning('공급업체명과 주문번호를 입력해주세요.');
-                  return;
-                }
-                onSubmit({
-                  sourcingAccount: vendorType === 'iherb' ? emailAccount : '',
-                  sourcingOrderNo,
-                  discountCode,
-                  sourcingVendor: vendorType === 'other' ? vendorName : 'IHB'
-                });
-              } else if (mode === 'shipping') {
-                if (!trackingNo) {
-                  toast.warning('송장번호를 입력해주세요.');
-                  return;
-                }
-                onSubmit({ trackingNo, shippingCarrier: carrier });
-              }
-            }}
-            style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
-          >
-            {mode === 'sourcing' ? '구매정보저장' : '배송정보저장'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 type RowData = OrderGridDto & { isFirstLineItem?: boolean; lineItemCount?: number; totalRowCount?: number; rowType?: string; isSecondRow?: boolean; isThirdRow?: boolean };
 const columnHelper = createColumnHelper<RowData>();
 
 const inputStyle = { width: '100%', padding: '4px 6px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '4px', boxSizing: 'border-box' as const, outline: 'none', backgroundColor: '#fdfdfd' };
 
+// 택배사 enum → 한글 표시명 (단일 출처). 매핑되지 않은 값(ETC, 빈값, null 등)은 '-'로 표시.
+const CARRIER_LABELS: Record<string, string> = {
+  CJ_LOGISTICS: 'CJ대한통운',
+  HANJIN: '한진택배',
+  KOREA_POST: '우체국',
+  LOTTE_LOGISTICS: '롯데택배',
+  HYUNDAI_LOGISTICS: '현대택배',
+  ROCKET: '쿠팡로켓',
+};
+const carrierLabel = (c?: string | null) => (c && CARRIER_LABELS[c]) ? CARRIER_LABELS[c] : '-';
+// 인라인 select용 택배사 옵션(빈값=지우기 → '-')
+const CARRIER_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: '-' },
+  ...Object.entries(CARRIER_LABELS).map(([value, label]) => ({ value, label })),
+];
+
+// 더블클릭 → 편집, blur/Enter 저장, Escape 취소하는 인라인 편집 셀.
+// value가 바뀐 경우에만 onSave 호출. 행 선택 등 상위 이벤트로의 전파는 막는다.
+function InlineEditCell({ value, display, onSave, type = 'text', options }: {
+  value: string;
+  display?: string;
+  onSave: (v: string) => void;
+  type?: 'text' | 'select';
+  options?: { value: string; label: string }[];
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const selectRef = useRef<HTMLSelectElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setDraft(value);
+      // autofocus (다음 tick에 ref가 마운트됨)
+      setTimeout(() => {
+        if (type === 'select') selectRef.current?.focus();
+        else { inputRef.current?.focus(); inputRef.current?.select(); }
+      }, 0);
+    }
+  }, [editing, value, type]);
+
+  const commit = (next: string) => {
+    setEditing(false);
+    if (next !== value) onSave(next);
+  };
+
+  if (editing) {
+    if (type === 'select') {
+      return (
+        <select
+          ref={selectRef}
+          value={draft}
+          style={{ ...inputStyle, textAlign: 'center' }}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={(e) => commit(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit((e.target as HTMLSelectElement).value);
+            else if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); }
+          }}
+        >
+          {(options || []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      );
+    }
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={draft}
+        style={{ ...inputStyle, textAlign: 'center' }}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit((e.target as HTMLInputElement).value);
+          else if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); }
+        }}
+      />
+    );
+  }
+
+  return (
+    <span
+      onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
+      title="더블클릭하여 편집"
+      style={{ display: 'block', cursor: 'text', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+    >
+      {display ?? value ?? '-'}
+    </span>
+  );
+}
+
 // 주문 전체 병합 컬럼 (rowSpan = 해당 주문의 전체 행 수)
 const ORDER_SPANNED_COLUMNS = ['select', 'orderInfo', 'shippingStatus'];
 
 // 라인아이템 병합 컬럼 (rowSpan = 3)
-const LINEITEM_SPANNED_COLUMNS = ['sbCode', 'stockInfo', 'quantity', 'unipass', 'actions'];
+const LINEITEM_SPANNED_COLUMNS = ['sbCode', 'stockInfo', 'quantity', 'unipass'];
 
 // 2줄 컬럼 (행1, 행2에만 표시, 행3에서는 셀 자체를 렌더링하지 않음)
 const TWO_ROW_COLUMNS = ['ordererInfo', 'customsInfo', 'shippingInfoPair', 'productNamePair', 'sourcingInfoPair', 'fulfillmentInfoPair', 'financialInfoPair'];
@@ -403,9 +275,6 @@ const OrderGrid: React.FC = () => {
   // isSyncing의 최신값을 SSE onerror 콜백(이펙트 클로저)에서 stale 없이 읽기 위한 ref (D-023)
   const isSyncingRef = useRef(false);
   useEffect(() => { isSyncingRef.current = isSyncing; }, [isSyncing]);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<'sourcing' | 'shipping'>('sourcing');
-  const [selectedLineItem, setSelectedLineItem] = useState<OrderGridDto | null>(null);
 
   // 행 호버(같은 주문 그룹 전체 음영): React state 대신 DOM 클래스 토글로 처리한다.
   // 이전엔 hoveredOrderId state가 매 호버마다 전체 그리드(수백~수천 행)를 리렌더해 음영 지연이 발생했다.
@@ -539,11 +408,17 @@ const OrderGrid: React.FC = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
   });
   const sourcingMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: number; updates: { sourcingAmount?: number; logisticsCost?: number } }) => updateSourcingInfo(id, updates),
+    mutationFn: ({ id, updates }: { id: number; updates: { sourcingAmount?: number; logisticsCost?: number; sourcingAccount?: string; sourcingVendor?: string; sourcingOrderNo?: string; discountCode?: string } }) => updateSourcingInfo(id, updates),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
+  });
+  const shippingMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: number; updates: { trackingNo?: string; shippingCarrier?: string } }) => updateShippingInfo(id, updates),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
   });
 
-  const handleUpdate = useCallback((orderId: number, lineItemId: number, field: string, value: unknown) => {
+  // sibling: 배송 엔드포인트(trackingNo+shippingCarrier 동시 전송)에서 편집하지 않은 반대편 필드의
+  // 현재 행 값을 함께 보내기 위한 선택 인자. 배송 모달이 두 필드를 함께 저장하던 동작을 그대로 유지한다.
+  const handleUpdate = useCallback((orderId: number, lineItemId: number, field: string, value: unknown, sibling?: string) => {
     if (field.startsWith('order.')) {
       const actualField = field.replace('order.', '');
       orderMutation.mutate({ id: orderId, updates: { [actualField]: value } });
@@ -555,8 +430,21 @@ const OrderGrid: React.FC = () => {
     } else if (field === 'lineItem.logisticsCost') {
       // 물류비도 SourcingData 필드 → 소싱 엔드포인트로 전송
       sourcingMutation.mutate({ id: lineItemId, updates: { logisticsCost: value as number } });
+    } else if (field === 'lineItem.sourcingAccount') {
+      sourcingMutation.mutate({ id: lineItemId, updates: { sourcingAccount: value as string } });
+    } else if (field === 'lineItem.sourcingVendor') {
+      sourcingMutation.mutate({ id: lineItemId, updates: { sourcingVendor: value as string } });
+    } else if (field === 'lineItem.sourcingOrderNo') {
+      sourcingMutation.mutate({ id: lineItemId, updates: { sourcingOrderNo: value as string } });
+    } else if (field === 'lineItem.discountCode') {
+      sourcingMutation.mutate({ id: lineItemId, updates: { discountCode: value as string } });
+    } else if (field === 'lineItem.trackingNo') {
+      // 배송 엔드포인트는 trackingNo+shippingCarrier를 함께 받는다(배송 모달과 동일). 반대편은 현재 행 값 유지.
+      shippingMutation.mutate({ id: lineItemId, updates: { trackingNo: value as string, shippingCarrier: sibling ?? '' } });
+    } else if (field === 'lineItem.shippingCarrier') {
+      shippingMutation.mutate({ id: lineItemId, updates: { shippingCarrier: value as string, trackingNo: sibling ?? '' } });
     }
-  }, [orderMutation, lineItemMutation, sourcingMutation]);
+  }, [orderMutation, lineItemMutation, sourcingMutation, shippingMutation]);
 
   useEffect(() => {
     const eventSource = new EventSource('/sbshop-agent/api/v1/notifications/subscribe');
@@ -751,46 +639,6 @@ const OrderGrid: React.FC = () => {
       toast.success(`${orderIdsToCancel.length}건 취소(거부) 처리되었습니다.`);
     } catch {
       toast.error('주문 취소 처리 중 오류가 발생했습니다.');
-    }
-  };
-
-  // 구매/소싱 처리 모달 열기
-  const openSourcingModal = (lineItem: OrderGridDto) => {
-    setSelectedLineItem(lineItem);
-    setModalMode('sourcing');
-    setModalOpen(true);
-  };
-
-  // 배송/송장 처리 모달 열기
-  const openShippingModal = (lineItem: OrderGridDto) => {
-    setSelectedLineItem(lineItem);
-    setModalMode('shipping');
-    setModalOpen(true);
-  };
-
-  // 모달 제출 핸들러
-  const handleModalSubmit = async (data: any) => {
-    if (!selectedLineItem) return;
-    
-    const lineItemId = selectedLineItem.lineItem?.id;
-    if (!lineItemId) {
-      toast.error('라인아이템 ID를 찾을 수 없습니다.');
-      return;
-    }
-
-    try {
-      if (modalMode === 'sourcing') {
-        await updateSourcingInfo(lineItemId, data);
-        toast.success('구매 정보가 수정되었습니다.');
-      } else if (modalMode === 'shipping') {
-        await updateShippingInfo(lineItemId, data);
-        toast.success('배송 정보가 수정되었습니다.');
-      }
-      setModalOpen(false);
-      refetch();
-    } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message || '처리 중 오류가 발생했습니다.';
-      toast.error(msg);
     }
   };
 
@@ -1055,19 +903,29 @@ const OrderGrid: React.FC = () => {
       header: '구매 정보',
       size: 200,
       cell: ({ row }) => {
+        const orderId = row.original.order?.id || 0;
+        const lineItemId = row.original.lineItem?.id || 0;
         if (row.original.rowType === 'product') {
+          // 상품 행: 구매주문번호 / 할인코드 (더블클릭 인라인 편집)
           const sourcingOrderNo = row.original.lineItem?.sourcingData?.sourcingOrderNo || '';
           const discountCode = row.original.lineItem?.sourcingData?.discountCode || '';
           return (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '12px', justifyContent: 'center' }}>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{sourcingOrderNo || '-'}</span>
-              <span style={{ color: '#666' }}>{discountCode ? `(${discountCode})` : ''}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '12px', textAlign: 'center' }}>
+              <InlineEditCell value={sourcingOrderNo} display={sourcingOrderNo || '-'} onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.sourcingOrderNo', v)} />
+              <InlineEditCell value={discountCode} display={discountCode ? `(${discountCode})` : '-'} onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.discountCode', v)} />
             </div>
           );
         }
         if (row.original.rowType === 'fulfillment') return null;
+        // 주문 행: 구매계정 / 공급처 (더블클릭 인라인 편집)
         const account = row.original.lineItem?.sourcingData?.sourcingAccount || '';
-        return <div style={{ textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600, color: '#1565c0' }}>{account || '-'}</div>;
+        const vendor = row.original.lineItem?.sourcingData?.sourcingVendor || '';
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '12px', textAlign: 'center', fontWeight: 600, color: '#1565c0' }}>
+            <InlineEditCell value={account} display={account || '-'} onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.sourcingAccount', v)} />
+            <InlineEditCell value={vendor} display={vendor || '-'} onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.sourcingVendor', v)} />
+          </div>
+        );
       }
     }),
     columnHelper.display({
@@ -1075,17 +933,31 @@ const OrderGrid: React.FC = () => {
       header: '배송 정보',
       size: 150,
       cell: ({ row }) => {
+        const orderId = row.original.order?.id || 0;
+        const lineItemId = row.original.lineItem?.id || 0;
+        const carrier = row.original.lineItem?.shippingData?.shippingCarrier || '';
+        const trackingNo = row.original.lineItem?.shippingData?.trackingNo || '';
         if (row.original.rowType === 'product') {
-          const trackingNo = row.original.lineItem?.shippingData?.trackingNo || '-';
-          return <div style={{ fontSize: '12px', textAlign: 'center' }}>{trackingNo}</div>;
+          // 상품 행: 송장번호 (더블클릭 인라인 편집). 배송 엔드포인트는 택배사도 함께 받으므로 sibling으로 현재 택배사 전달.
+          return (
+            <div style={{ fontSize: '12px', textAlign: 'center' }}>
+              <InlineEditCell value={trackingNo} display={trackingNo || '-'} onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.trackingNo', v, carrier)} />
+            </div>
+          );
         }
         if (row.original.rowType === 'fulfillment') return null;
-        const carrier = row.original.lineItem?.shippingData?.shippingCarrier || '';
-        let carrierName = carrier;
-        if (carrier === 'CJ_LOGISTICS') carrierName = 'CJ대한통운';
-        else if (carrier === 'KOREA_POST') carrierName = '우체국';
-        else if (carrier === 'LOTTE_LOGISTICS') carrierName = '롯데택배';
-        return <div style={{ fontSize: '12px', color: '#666', textAlign: 'center' }}>{carrierName || '-'}</div>;
+        // 주문 행: 택배사 select (더블클릭 인라인 편집). 미매핑/ETC/빈값은 '-'로 표시.
+        return (
+          <div style={{ fontSize: '12px', color: '#666', textAlign: 'center' }}>
+            <InlineEditCell
+              type="select"
+              options={CARRIER_OPTIONS}
+              value={carrier}
+              display={carrierLabel(carrier)}
+              onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.shippingCarrier', v, trackingNo)}
+            />
+          </div>
+        );
       }
     }),
     columnHelper.display({
@@ -1159,27 +1031,7 @@ const OrderGrid: React.FC = () => {
         );
       }
     }),
-    columnHelper.display({
-      id: 'actions',
-      header: '처리',
-      size: 120,
-      cell: ({ row }) => {
-        if (row.original.rowType !== 'order') return null;
-        const lineItem = row.original;
-        // 구매정보수정 및 배송정보수정 버튼 항상 노출
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center', justifyContent: 'center' }}>
-            <button onClick={() => openSourcingModal(lineItem)} style={{ padding: '4px 6px', backgroundColor: '#e8f5e9', color: '#2e7d32', border: '1px solid #c8e6c9', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 600 }}>
-              구매정보수정
-            </button>
-            <button onClick={() => openShippingModal(lineItem)} style={{ padding: '4px 6px', backgroundColor: '#e3f2fd', color: '#1565c0', border: '1px solid #bbdefb', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 600 }}>
-              배송정보수정
-            </button>
-          </div>
-        );
-      }
-    }),
-  ], [handleUpdate, commonCodes, getCommonLabel, openSourcingModal, openShippingModal]);
+  ], [handleUpdate, commonCodes, getCommonLabel]);
 
   const table = useReactTable({
     data: processedData,
@@ -1397,15 +1249,6 @@ const OrderGrid: React.FC = () => {
             </Table>
         </div>
       </div>
-      
-      {/* 구매/배송 처리 모달 */}
-      <ProcessingModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSubmit={handleModalSubmit}
-        lineItem={selectedLineItem}
-        mode={modalMode}
-      />
     </div>
   );
 };
