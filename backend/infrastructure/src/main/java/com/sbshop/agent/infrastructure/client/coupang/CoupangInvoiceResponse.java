@@ -34,6 +34,27 @@ public record CoupangInvoiceResponse(
 	}
 
 	public boolean isSuccessful() {
-		return "200".equals(code) || "SUCCESS".equals(message);
+		boolean envelopeOk = "200".equals(code) || "SUCCESS".equals(message);
+		if (!envelopeOk) {
+			return false;
+		}
+		if (data != null && data.responseList() != null && !data.responseList().isEmpty()) {
+			return data.responseList().stream().allMatch(InvoiceResult::succeed);
+		}
+		return true; // 항목 결과가 없으면 봉투 성공으로 간주
+	}
+
+	public String failureReason() {
+		if (data != null && data.responseList() != null) {
+			String itemMsgs = data.responseList().stream()
+				.filter(r -> !r.succeed())
+				.map(InvoiceResult::resultMessage)
+				.filter(m -> m != null && !m.isBlank())
+				.collect(java.util.stream.Collectors.joining("; "));
+			if (!itemMsgs.isBlank()) {
+				return itemMsgs;
+			}
+		}
+		return (message != null && !message.isBlank()) ? message : "쿠팡 송장 반영 거부(사유 미상)";
 	}
 }

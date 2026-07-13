@@ -124,7 +124,7 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 			CoupangInvoiceResponse invoiceResponse = objectMapper.readValue(response, CoupangInvoiceResponse.class);
 			if (!invoiceResponse.isSuccessful()) {
 				throw new RuntimeException(
-					"쿠팡 송장업로드 실패: " + invoiceResponse.message());
+					"쿠팡 송장업로드 실패: " + invoiceResponse.failureReason());
 			}
 		} catch (RuntimeException e) {
 			throw e;
@@ -159,7 +159,7 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 			CoupangInvoiceResponse invoiceResponse = objectMapper.readValue(response, CoupangInvoiceResponse.class);
 			if (!invoiceResponse.isSuccessful()) {
 				throw new RuntimeException(
-					"쿠팡 송장업데이트 실패: " + invoiceResponse.message());
+					"쿠팡 송장업데이트 실패: " + invoiceResponse.failureReason());
 			}
 		} catch (RuntimeException e) {
 			throw e;
