@@ -1,11 +1,90 @@
-import { useState } from 'react';
-import { Form, Input, InputNumber, Button, Radio, message, Card } from 'antd';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Form, Input, InputNumber, Button, Radio, message, Card, Progress, Space, Typography } from 'antd';
 import { batchApi } from '../api/batchApi';
+
+const ACTIVE_BATCH_KEY = 'sbshop.activeBatchId';
+const POLL_INTERVAL_MS = 30000;
+
+interface BatchSummary {
+  batchId: string;
+  total: number;
+  success: number;
+  failed: number;
+  pending: number;
+  done: number;
+  percent: number;
+}
 
 const BatchUpdatePage = () => {
   const [mode, setMode] = useState<'supplier' | 'manual'>('supplier');
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
+
+  const [batchId, setBatchId] = useState<string | null>(null);
+  const [summary, setSummary] = useState<BatchSummary | null>(null);
+
+  // setState-after-unmount 가드 + 인터벌 핸들
+  const mountedRef = useRef(true);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearPoll = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
+  const stopTracking = useCallback(() => {
+    clearPoll();
+    localStorage.removeItem(ACTIVE_BATCH_KEY);
+    if (mountedRef.current) {
+      setBatchId(null);
+      setSummary(null);
+    }
+  }, [clearPoll]);
+
+  // 단발 요약 조회. 완료면 폴링 중단. 404/에러는 조용히 추적 해제(폴링마다 토스트 스팸 방지).
+  const fetchSummary = useCallback(async (id: string) => {
+    try {
+      const res = await batchApi.getBatchSummary(id);
+      const data = res.data as BatchSummary;
+      if (!mountedRef.current) return;
+      setSummary(data);
+      if (data.total > 0 && data.done >= data.total) {
+        clearPoll();
+      }
+    } catch {
+      // 알 수 없는/정리된 batchId 등 → 조용히 카드 숨김
+      stopTracking();
+    }
+  }, [clearPoll, stopTracking]);
+
+  // batchId 추적 시작: localStorage 저장 + 즉시 조회 + 폴링(30초)
+  const startTracking = useCallback((id: string) => {
+    localStorage.setItem(ACTIVE_BATCH_KEY, id);
+    setBatchId(id);
+    setSummary(null);
+    clearPoll();
+    void fetchSummary(id);
+    intervalRef.current = setInterval(() => {
+      void fetchSummary(id);
+    }, POLL_INTERVAL_MS);
+  }, [clearPoll, fetchSummary]);
+
+  // 새로고침 복원: 마운트 시 저장된 batchId가 있으면 즉시 조회 후 폴링 재개
+  useEffect(() => {
+    mountedRef.current = true;
+    const saved = localStorage.getItem(ACTIVE_BATCH_KEY);
+    if (saved) {
+      startTracking(saved);
+    }
+    return () => {
+      mountedRef.current = false;
+      clearPoll();
+    };
+    // 마운트 시 1회만 실행
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = async (values: {
     supplierCode?: string;
@@ -27,6 +106,7 @@ const BatchUpdatePage = () => {
         const data = res.data as { batchId?: string; count?: string; message?: string };
         if (data.batchId) {
           message.success(`배치 시작: ${data.count}개 상품 (batchId: ${data.batchId})`);
+          startTracking(data.batchId);
         } else {
           message.info(data.message || '해당 소싱업체의 상품이 없습니다.');
         }
@@ -37,7 +117,11 @@ const BatchUpdatePage = () => {
           return;
         }
         const res = await batchApi.crawlAndUpdate(ids, values.marginRate, values.couponRate, values.minMarginPrice);
-        message.success(`배치 시작 (batchId: ${res.data.batchId})`);
+        const startedId = (res.data as { batchId?: string }).batchId;
+        message.success(`배치 시작 (batchId: ${startedId})`);
+        if (startedId) {
+          startTracking(startedId);
+        }
       }
     } catch {
       message.error('배치 시작 실패');
@@ -45,6 +129,13 @@ const BatchUpdatePage = () => {
       setLoading(false);
     }
   };
+
+  const isComplete = !!summary && summary.total > 0 && summary.done >= summary.total;
+  const progressStatus = !summary
+    ? 'active'
+    : isComplete
+      ? (summary.failed === 0 ? 'success' : 'exception')
+      : 'active';
 
   return (
     <div style={{ padding: 24 }}>
@@ -57,7 +148,7 @@ const BatchUpdatePage = () => {
         <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ marginRate: 15, couponRate: 20, minMarginPrice: 5000 }}>
           {mode === 'supplier' ? (
             <Form.Item name="supplierCode" label="소싱업체 코드" initialValue="IHB">
-              <InputNumber style={{ width: 200 }} />
+              <Input style={{ width: 200 }} />
             </Form.Item>
           ) : (
             <Form.Item name="productIds" label="상품 ID (콤마 구분)">
@@ -78,6 +169,38 @@ const BatchUpdatePage = () => {
           </Form.Item>
         </Form>
       </Card>
+
+      {batchId && (
+        <Card
+          title="배치 진행현황"
+          style={{ marginTop: 16 }}
+          extra={
+            <Button size="small" onClick={() => void fetchSummary(batchId)}>새로고침</Button>
+          }
+        >
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <Progress percent={summary?.percent ?? 0} status={progressStatus} />
+            {summary ? (
+              <>
+                <Typography.Text strong>
+                  {summary.done} / {summary.total} ({summary.percent}%)
+                </Typography.Text>
+                <Typography.Text type="secondary">
+                  성공 {summary.success} · 실패 {summary.failed} · 대기 {summary.pending}
+                </Typography.Text>
+                {isComplete && (
+                  <Typography.Text type={summary.failed === 0 ? 'success' : 'danger'} strong>
+                    완료 (성공 {summary.success} / 실패 {summary.failed})
+                  </Typography.Text>
+                )}
+              </>
+            ) : (
+              <Typography.Text type="secondary">진행현황 불러오는 중…</Typography.Text>
+            )}
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>batchId: {batchId}</Typography.Text>
+          </Space>
+        </Card>
+      )}
     </div>
   );
 };

@@ -18,4 +18,7 @@ export const batchApi = {
 
   getBatchStatus: (batchId: string) =>
     apiClient.get(`/api/v1/products/batch/status/${batchId}`),
+
+  getBatchSummary: (batchId: string) =>
+    apiClient.get(`/api/v1/products/batch/status/${batchId}/summary`),
 };
