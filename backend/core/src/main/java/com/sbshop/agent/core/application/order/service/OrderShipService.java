@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.service;
 
+import com.sbshop.agent.core.application.order.dto.BulkShipResult;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
@@ -29,27 +30,49 @@ public class OrderShipService {
 	private final MarketplaceShippingService marketplaceShippingService;
 
 	@Transactional
-	public List<Order> bulkShipOrders(List<Long> orderIds) {
-		List<Order> shippedOrders = new ArrayList<>();
+	public BulkShipResult bulkShipOrders(List<Long> orderIds) {
+		int successCount = 0;
+		int skippedCount = 0;
+		List<Long> failedIds = new ArrayList<>();
+		List<String> errors = new ArrayList<>();
+
+		if (orderIds == null) {
+			return BulkShipResult.builder()
+				.successCount(0).failedCount(0).skippedCount(0)
+				.failedIds(failedIds).errors(null)
+				.build();
+		}
 
 		for (Long orderId : orderIds) {
 			Order order = orderRepository.findById(orderId).orElse(null);
-			if (order == null)
+			if (order == null) {
+				// 존재하지 않는 주문은 요청 자체가 잘못된 것 — 실패로 표면화(F-ORD-30/SP-3).
+				failedIds.add(orderId);
+				errors.add("주문 " + orderId + ": 주문 없음");
 				continue;
+			}
 
 			MarketCredential cred = credentialRepository.findByMarketType(order.getMarketType()).orElse(null);
 			if (cred == null) {
 				log.warn("마켓 유형 {}에 대한 인증 정보가 없습니다.", order.getMarketType());
+				failedIds.add(orderId);
+				errors.add("주문 " + orderId + ": 마켓 인증정보 없음(" + order.getMarketType() + ")");
 				continue;
 			}
 
 			List<OrderLineItem> lineItems = orderLineItemRepository.findByOrderId(orderId);
+			// 주문 단위 집계: 하나라도 발송 성공하면 shipped, 하나라도 실패하면 그 주문을 failed로 본다.
 			boolean orderShipped = false;
+			boolean orderFailed = false;
+			boolean anyProcessable = false;
+			String firstError = null;
 
 			for (OrderLineItem item : lineItems) {
 				String trackingNo = item.getShippingData() != null ? item.getShippingData().getTrackingNo() : null;
-				if (trackingNo == null || trackingNo.isEmpty())
+				if (trackingNo == null || trackingNo.isEmpty()) {
+					// 송장 없는 라인은 정상 스킵(발송 대상 아님).
 					continue;
+				}
 
 				// 이미 발송(SHIPPED)·배송완료(DELIVERED)·종료(취소/반품/교환) 상태면 재발송하지 않는다(F-ORD-29).
 				ShippingStatus status = item.getShippingData() != null
@@ -61,6 +84,7 @@ public class OrderShipService {
 					continue;
 				}
 
+				anyProcessable = true;
 				ShippingCarrier carrier = item.getShippingData() != null
 					? item.getShippingData().getShippingCarrier() : null;
 
@@ -77,13 +101,33 @@ public class OrderShipService {
 					orderLineItemRepository.save(item);
 					orderShipped = true;
 				} catch (Exception e) {
+					// 마켓 shipOrder 실패를 삼키지 않고 표면화한다(F-ORD-30). 로그만 남기던 종전 동작을 교체.
 					log.error("라인아이템 {} 배송 처리 실패: {}", item.getId(), e.getMessage());
+					orderFailed = true;
+					if (firstError == null) {
+						firstError = e.getMessage();
+					}
 				}
 			}
-			if (orderShipped)
-				shippedOrders.add(order);
+
+			if (orderFailed) {
+				failedIds.add(orderId);
+				errors.add("주문 " + orderId + ": " + (firstError != null ? firstError : "발송 실패"));
+			} else if (orderShipped) {
+				successCount++;
+			} else if (!anyProcessable) {
+				// 발송할 라인이 하나도 없었던 주문(전부 이미 발송/송장없음) — 정상 스킵으로 집계.
+				skippedCount++;
+			}
 		}
-		return shippedOrders;
+
+		return BulkShipResult.builder()
+			.successCount(successCount)
+			.failedCount(failedIds.size())
+			.skippedCount(skippedCount)
+			.failedIds(failedIds)
+			.errors(errors.isEmpty() ? null : errors)
+			.build();
 	}
 
 	static void calculateSettlement(OrderLineItem item) {

@@ -21,6 +21,7 @@ import com.sbshop.agent.api.dto.OrderUpdateRequest;
 import com.sbshop.agent.api.dto.ShippingUpdateRequest;
 import com.sbshop.agent.api.dto.SourcingUpdateRequest;
 import com.sbshop.agent.core.application.order.dto.BulkConfirmResult;
+import com.sbshop.agent.core.application.order.dto.BulkShipResult;
 import com.sbshop.agent.core.application.order.dto.OrderDetailDto;
 import com.sbshop.agent.core.application.order.dto.OrderLineItemUpdateCommand;
 import com.sbshop.agent.core.application.order.dto.OrderSearchCondition;
@@ -61,6 +62,15 @@ public class OrderController {
 	/** 라인아이템이 속한 주문의 마켓 타입을 로그용 문자열로 해석(없으면 null). SP-6. */
 	private String marketNameOfLineItem(Long lineItemId) {
 		return nameOf(orderService.marketTypeOfLineItem(lineItemId));
+	}
+
+	/**
+	 * 일괄 처리 결과를 활동로그 상태로 매핑한다(SP-3).
+	 * 실패가 하나라도 있으면 FAILED, 전건 성공이면 SUCCESS. 부분성공도 FAILED로 표면화한다
+	 * (성공N/실패M 요지는 메시지에 별도 기재).
+	 */
+	private static ActionStatus statusOf(int failedCount) {
+		return failedCount == 0 ? ActionStatus.SUCCESS : ActionStatus.FAILED;
 	}
 
 	// ======================== 조회 ========================
@@ -105,11 +115,12 @@ public class OrderController {
 			return ResponseEntity.badRequest().build();
 		}
 
-		// D-076: 일괄 발주확인 — 결과만 기록(다마켓이므로 marketType은 null).
+		// D-076/SP-3: 일괄 발주확인 — 결과 기반으로 상태 기록(전건 실패·부분실패를 SUCCESS로 남기지 않음, F-ORD-9).
 		try {
 			BulkConfirmResult result = orderService.bulkConfirmOrders(orderIds);
 			actionLogService.record(ActionLogConstants.ORDER_CONFIRM_BATCH, null,
-				ActionStatus.SUCCESS, "일괄 발주확인 성공 (" + orderIds.size() + "건)");
+				statusOf(result.getFailedCount()),
+				"일괄 발주확인 (성공 " + result.getSuccessCount() + "건 / 실패 " + result.getFailedCount() + "건)");
 			return ResponseEntity.ok(result);
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.ORDER_CONFIRM_BATCH, null,
@@ -149,11 +160,12 @@ public class OrderController {
 			return ResponseEntity.badRequest().build();
 		}
 
-		// D-076: 일괄 발주취소 — 결과만 기록.
+		// D-076/SP-3: 일괄 발주취소 — 결과 기반으로 상태 기록(전건 실패·부분실패를 SUCCESS로 남기지 않음, F-ORD-17).
 		try {
 			BulkConfirmResult result = orderService.bulkCancelOrders(orderIds);
 			actionLogService.record(ActionLogConstants.ORDER_CANCEL_BATCH, null,
-				ActionStatus.SUCCESS, "일괄 발주취소 성공 (" + orderIds.size() + "건)");
+				statusOf(result.getFailedCount()),
+				"일괄 발주취소 (성공 " + result.getSuccessCount() + "건 / 실패 " + result.getFailedCount() + "건)");
 			return ResponseEntity.ok(result);
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.ORDER_CANCEL_BATCH, null,
@@ -254,16 +266,19 @@ public class OrderController {
 
 	/** 일괄 발송 처리 */
 	@PostMapping("/ship")
-	public ResponseEntity<List<Order>> shipOrders(@RequestBody
+	public ResponseEntity<BulkShipResult> shipOrders(@RequestBody
 	OrderShipRequest request) {
 
-		// D-076: 일괄 발송 처리 — 결과만 기록(다마켓이므로 marketType null).
+		// D-076/SP-3: 일괄 발송 처리 — 부분실패를 결과로 표면화하고 결과 기반으로 상태 기록(F-ORD-30).
+		// 다마켓이므로 marketType은 null. 실패가 하나라도 있으면 FAILED로 남긴다(무조건 SUCCESS 금지).
 		int reqCount = request.getOrderIds() != null ? request.getOrderIds().size() : 0;
 		try {
-			List<Order> shippedOrders = orderShipService.bulkShipOrders(request.getOrderIds());
+			BulkShipResult result = orderShipService.bulkShipOrders(request.getOrderIds());
 			actionLogService.record(ActionLogConstants.ORDER_SHIP, null,
-				ActionStatus.SUCCESS, "발송 처리 성공 (" + shippedOrders.size() + "건)");
-			return ResponseEntity.ok(shippedOrders);
+				statusOf(result.getFailedCount()),
+				"발송 처리 (성공 " + result.getSuccessCount() + "건 / 실패 " + result.getFailedCount()
+					+ "건 / 스킵 " + result.getSkippedCount() + "건)");
+			return ResponseEntity.ok(result);
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.ORDER_SHIP, null,
 				ActionStatus.FAILED, "발송 처리 실패 (" + reqCount + "건): " + e.getMessage());
