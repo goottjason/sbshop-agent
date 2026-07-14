@@ -228,11 +228,6 @@ export const cancelOrder = async (id: number): Promise<unknown> => {
   return data;
 };
 
-export const deleteOrder = async (id: number): Promise<unknown> => {
-  const { data } = await apiClient.delete(`/api/v1/orders/${id}`);
-  return data;
-};
-
 export interface SyncStatus {
   marketType: string;
   status: string;
