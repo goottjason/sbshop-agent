@@ -54,6 +54,16 @@ public class OrderController {
 		return order != null && order.getMarketType() != null ? order.getMarketType().name() : null;
 	}
 
+	/** MarketType을 로그용 문자열로(없으면 null). */
+	private static String nameOf(com.sbshop.agent.core.domain.order.enums.MarketType type) {
+		return type != null ? type.name() : null;
+	}
+
+	/** 라인아이템이 속한 주문의 마켓 타입을 로그용 문자열로 해석(없으면 null). SP-6. */
+	private String marketNameOfLineItem(Long lineItemId) {
+		return nameOf(orderService.marketTypeOfLineItem(lineItemId));
+	}
+
 	// ======================== 조회 ========================
 
 	/** 주문 그리드 조회 */
@@ -186,10 +196,10 @@ public class OrderController {
 		OrderLineItemUpdateRequest request) {
 
 		OrderLineItemUpdateCommand command = request.toCommand();
-		// D-076: 유니패스 완료여부 수정 — 결과만 기록(marketType null).
+		// D-076/SP-6: 유니패스 완료여부 수정 — 성공 시 라인아이템 마켓을 해석해 기록(F-ORD-27).
 		try {
 			OrderLineItem updated = orderService.updateOrderLineItem(lineItemId, command);
-			actionLogService.record(ActionLogConstants.UNIPASS_UPDATE, null,
+			actionLogService.record(ActionLogConstants.UNIPASS_UPDATE, marketNameOfLineItem(lineItemId),
 				ActionStatus.SUCCESS, "유니패스 수정 성공 (품목 " + lineItemId + ")");
 			return ResponseEntity.ok(updated);
 		} catch (Exception e) {
@@ -207,10 +217,10 @@ public class OrderController {
 		@RequestBody
 		SourcingUpdateRequest request) {
 
-		// D-076: 소싱(구매) 정보 수정 — 결과만 기록.
+		// D-076/SP-6: 소싱(구매) 정보 수정 — 성공 시 라인아이템 마켓을 해석해 기록(F-S6).
 		try {
 			OrderLineItem updated = orderService.updateSourcingInfo(lineItemId, request.toCommand());
-			actionLogService.record(ActionLogConstants.PURCHASE_UPDATE, null,
+			actionLogService.record(ActionLogConstants.PURCHASE_UPDATE, marketNameOfLineItem(lineItemId),
 				ActionStatus.SUCCESS, "구매정보 수정 성공 (품목 " + lineItemId + ")");
 			return ResponseEntity.ok(updated);
 		} catch (Exception e) {
@@ -228,10 +238,10 @@ public class OrderController {
 		@RequestBody
 		ShippingUpdateRequest request) {
 
-		// D-076: 배송(송장) 정보 수정 — 결과만 기록.
+		// D-076/SP-6: 배송(송장) 정보 수정 — 성공 시 라인아이템 마켓을 해석해 기록(F-H6).
 		try {
 			OrderLineItem updated = orderService.updateShippingInfo(lineItemId, request.toCommand());
-			actionLogService.record(ActionLogConstants.SHIPPING_UPDATE, null,
+			actionLogService.record(ActionLogConstants.SHIPPING_UPDATE, marketNameOfLineItem(lineItemId),
 				ActionStatus.SUCCESS, "배송정보 수정 성공 (품목 " + lineItemId + ")");
 			return ResponseEntity.ok(updated);
 		} catch (Exception e) {
@@ -269,10 +279,11 @@ public class OrderController {
 	public ResponseEntity<Void> deleteOrder(@PathVariable
 	Long id) {
 
-		// D-076: 주문 삭제 — 결과만 기록.
+		// D-076/SP-6: 주문 삭제 — 삭제 후에는 조회 불가하므로 마켓을 삭제 전에 확보(F-ORD-37).
+		String market = nameOf(orderService.marketTypeOfOrder(id));
 		try {
 			orderService.deleteOrder(id);
-			actionLogService.record(ActionLogConstants.ORDER_DELETE, null,
+			actionLogService.record(ActionLogConstants.ORDER_DELETE, market,
 				ActionStatus.SUCCESS, "주문 삭제 성공 (주문 " + id + ")");
 			return ResponseEntity.noContent().build();
 		} catch (Exception e) {

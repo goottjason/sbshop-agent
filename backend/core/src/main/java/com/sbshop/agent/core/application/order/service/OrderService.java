@@ -525,6 +525,30 @@ public class OrderService {
 		orderRepository.deleteById(id);
 	}
 
+	// ======================== 로그용 조회 (부작용 없음) ========================
+
+	/**
+	 * 라인아이템이 속한 주문의 마켓 타입을 반환한다(활동로그용 read-only 조회).
+	 * 라인아이템·주문·마켓이 하나라도 없으면 null. (F-ORD-27/F-S6/F-H6)
+	 */
+	public MarketType marketTypeOfLineItem(Long lineItemId) {
+		return orderLineItemRepository.findById(lineItemId)
+			.map(OrderLineItem::getOrderId)
+			.flatMap(orderRepository::findById)
+			.map(Order::getMarketType)
+			.orElse(null);
+	}
+
+	/**
+	 * 주문의 마켓 타입을 반환한다(활동로그용 read-only 조회).
+	 * 주문·마켓이 없으면 null. (F-ORD-37)
+	 */
+	public MarketType marketTypeOfOrder(Long orderId) {
+		return orderRepository.findById(orderId)
+			.map(Order::getMarketType)
+			.orElse(null);
+	}
+
 	// ======================== private ========================
 
 	/** 라인아이템이 속한 주문의 마켓 타입(에러 메시지용, 조회 실패 시 UNKNOWN 표기). */
