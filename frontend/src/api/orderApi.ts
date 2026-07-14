@@ -203,7 +203,18 @@ export const syncProductStock = async (): Promise<{ success: boolean; message: s
   return data;
 };
 
-export const shipOrders = async (orderIds: number[]): Promise<unknown> => {
+export interface BulkResult {
+  successCount: number;
+  failedCount: number;
+  failedIds: number[];
+  errors?: string[];
+}
+
+export interface BulkShipResult extends BulkResult {
+  skippedCount?: number;
+}
+
+export const shipOrders = async (orderIds: number[]): Promise<BulkShipResult> => {
   const { data } = await apiClient.post('/api/v1/orders/ship', { orderIds });
   return data;
 };
@@ -213,12 +224,7 @@ export const confirmOrder = async (id: number): Promise<unknown> => {
   return data;
 };
 
-export const confirmOrdersBatch = async (orderIds: number[]): Promise<{
-  successCount: number;
-  failedCount: number;
-  failedIds: number[];
-  errors?: string[];
-}> => {
+export const confirmOrdersBatch = async (orderIds: number[]): Promise<BulkResult> => {
   const { data } = await apiClient.post('/api/v1/orders/confirm/batch', { orderIds });
   return data;
 };

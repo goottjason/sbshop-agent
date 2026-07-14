@@ -1137,9 +1137,21 @@ const OrderGrid: React.FC = () => {
       return;
     }
     try {
-      await shipOrders(orderIds as number[]);
+      const result = await shipOrders(orderIds as number[]);
+      const skippedSuffix = result.skippedCount ? `, ${result.skippedCount}건 건너뜀` : '';
+      if (result.failedCount === 0) {
+        toast.success(`${result.successCount}건 발송 처리되었습니다.${skippedSuffix}`);
+      } else {
+        const failDetail = result.failedIds?.length
+          ? ` (실패 주문번호: ${result.failedIds.join(', ')})`
+          : '';
+        if (result.successCount > 0) {
+          toast.warn(`${result.successCount}건 성공, ${result.failedCount}건 실패${skippedSuffix}${failDetail} · ${result.errors?.[0] || ''}`);
+        } else {
+          toast.error(`발송 실패: ${result.errors?.[0] || '알 수 없는 오류'}${failDetail}`);
+        }
+      }
       refetch();
-      toast.success(`${orderIds.length}건 발송 처리되었습니다.`);
     } catch {
       toast.error('발송 처리 중 오류가 발생했습니다.');
     }
