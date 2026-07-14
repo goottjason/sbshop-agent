@@ -26,7 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * marketType이 null이 아니라 실제 마켓으로 채워지는지 검증한다.
  *
  * <p>대상은 단일 마켓으로 해석되는 성공 경로에 한정한다:
- * 라인아이템 유니패스/소싱/배송 수정, 단건 삭제. (일괄 발주확인/취소/발송은 다마켓이라 null 유지가 의도.)
+ * 라인아이템 유니패스/소싱/배송 수정. (일괄 발주확인/취소/발송은 다마켓이라 null 유지가 의도.)
  */
 @ExtendWith(MockitoExtension.class)
 class OrderControllerMarketTypeLogTest {
@@ -84,15 +84,5 @@ class OrderControllerMarketTypeLogTest {
 		controller().updateShippingInfo(12L, new com.sbshop.agent.api.dto.ShippingUpdateRequest());
 
 		assertThat(capturedMarketType(ActionLogConstants.SHIPPING_UPDATE)).isEqualTo("GMARKET");
-	}
-
-	@Test
-	@DisplayName("주문 삭제 성공: 삭제 전 조회한 마켓으로 활동로그 marketType이 채워진다")
-	void deleteOrder_recordsMarketResolvedBeforeDelete() {
-		when(orderService.marketTypeOfOrder(20L)).thenReturn(MarketType.AUCTION);
-
-		controller().deleteOrder(20L);
-
-		assertThat(capturedMarketType(ActionLogConstants.ORDER_DELETE)).isEqualTo("AUCTION");
 	}
 }

@@ -6,6 +6,7 @@ import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
+import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import java.math.BigDecimal;
@@ -49,6 +50,16 @@ public class OrderShipService {
 				String trackingNo = item.getShippingData() != null ? item.getShippingData().getTrackingNo() : null;
 				if (trackingNo == null || trackingNo.isEmpty())
 					continue;
+
+				// 이미 발송(SHIPPED)·배송완료(DELIVERED)·종료(취소/반품/교환) 상태면 재발송하지 않는다(F-ORD-29).
+				ShippingStatus status = item.getShippingData() != null
+					? item.getShippingData().getShippingStatus() : null;
+				if (status == ShippingStatus.SHIPPED || status == ShippingStatus.DELIVERED
+					|| status == ShippingStatus.CANCELED || status == ShippingStatus.RETURNED
+					|| status == ShippingStatus.EXCHANGED) {
+					log.info("라인아이템 {} 스킵 — 이미 {} 상태(재발송 대상 아님)", item.getId(), status);
+					continue;
+				}
 
 				ShippingCarrier carrier = item.getShippingData() != null
 					? item.getShippingData().getShippingCarrier() : null;

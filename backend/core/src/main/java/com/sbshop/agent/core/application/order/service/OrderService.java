@@ -67,9 +67,21 @@ public class OrderService {
 			throw new IllegalStateException("Market type is not set for order: " + id);
 		}
 
-		// 이미 접수 완료된 주문이면 스킵
-		if (isOrderFullyPrepared(order)) {
-			return order;
+		// 이미 진행(PREPARING 이상)·종료(취소/반품/교환) 상태의 라인아이템이 있으면 재확인 차단 —
+		// 발주확인은 결제완료(NEW) 상태에서만 최초 1회 수행한다(F-ORD-6, F-ORD-29).
+		List<OrderLineItem> currentItems = orderLineItemRepository.findByOrderId(order.getId());
+		boolean hasProgressedOrEnded = currentItems.stream().anyMatch(item -> {
+			ShippingStatus status = item.getShippingData() != null ? item.getShippingData().getShippingStatus() : null;
+			if (status == null) {
+				return false;
+			}
+			boolean progressed = status.getOrder() >= ShippingStatus.PREPARING.getOrder();
+			boolean ended = status == ShippingStatus.CANCELED || status == ShippingStatus.RETURNED
+				|| status == ShippingStatus.EXCHANGED;
+			return progressed || ended;
+		});
+		if (hasProgressedOrEnded) {
+			throw new IllegalStateException("이미 발주확인되었거나 종료된 주문은 재확인할 수 없습니다.");
 		}
 
 		// 마켓 크레덴셜 조회 및 접수 API 호출
@@ -85,8 +97,7 @@ public class OrderService {
 		}
 
 		// NEW 상태 라인아이템을 PREPARING으로 변경
-		List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
-		for (OrderLineItem item : items) {
+		for (OrderLineItem item : currentItems) {
 			ShippingStatus currentStatus = item.getShippingData() != null
 				? item.getShippingData().getShippingStatus() : null;
 			if (currentStatus == ShippingStatus.NEW) {
@@ -140,6 +151,17 @@ public class OrderService {
 		Order order = orderRepository.findById(id)
 			.orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
 
+		// 발주취소는 NEW(결제완료·미접수) 상태에서만 허용 — 이미 접수/구매/배송/종료된 건은
+		// 취소가 아니라 각 마켓의 반품·교환 절차 대상이므로 여기서 차단한다(F-ORD-13).
+		List<OrderLineItem> lineItems = orderLineItemRepository.findByOrderId(order.getId());
+		boolean allNew = lineItems.stream().allMatch(item -> {
+			ShippingStatus status = item.getShippingData() != null ? item.getShippingData().getShippingStatus() : null;
+			return status == ShippingStatus.NEW;
+		});
+		if (!allNew) {
+			throw new IllegalStateException("발주취소는 결제완료(NEW) 상태에서만 가능합니다.");
+		}
+
 		// G마켓/옥션은 Cafe24 주문상태 API로 실제 취소를 전파(그 외 마켓은 현행 로컬-only 유지).
 		MarketType mt = order.getMarketType();
 		if (mt == MarketType.GMARKET || mt == MarketType.AUCTION) {
@@ -152,8 +174,7 @@ public class OrderService {
 		}
 
 		// 라인아이템 배송상태를 CANCELED로 변경
-		List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
-		for (OrderLineItem item : items) {
+		for (OrderLineItem item : lineItems) {
 			if (item.getShippingData() != null) {
 				ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
 					.trackingNo(item.getShippingData().getTrackingNo())
@@ -237,13 +258,7 @@ public class OrderService {
 		OrderLineItem lineItem = orderLineItemRepository.findById(id)
 			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + id));
 
-		// NEW/UNKNOWN 상태이면 수정 차단
-		ShippingStatus currentStatus = lineItem.getShippingData() != null
-			? lineItem.getShippingData().getShippingStatus() : null;
-
-		if (currentStatus == null || currentStatus == ShippingStatus.NEW || currentStatus == ShippingStatus.UNKNOWN) {
-			throw new IllegalStateException("발주확인 전에는 라인아이템 정보를 수정할 수 없습니다.");
-		}
+		// 유니패스 신고여부는 관리용 정보로, 배송상태와 무관하게 언제든 수정 가능(F-ORD-25 종결).
 
 		// 유니패스완료여부 수정
 		if (command.getIsUnipassDone() != null) {
@@ -305,10 +320,16 @@ public class OrderService {
 			&& item.getShippingData().getTrackingNo() != null
 			&& !item.getShippingData().getTrackingNo().isBlank();
 
-		// NEW/UNKNOWN/PREPARING 상태이면 수정 차단
 		ShippingStatus currentStatus = item.getShippingData() != null
 			? item.getShippingData().getShippingStatus() : null;
 
+		// 종료(취소/반품/교환) 상태는 송장 수정 대상이 아니다 — 마켓이 진실 원본이므로 로컬 저장도 하지 않고 차단(F-H2).
+		if (currentStatus == ShippingStatus.CANCELED || currentStatus == ShippingStatus.RETURNED
+			|| currentStatus == ShippingStatus.EXCHANGED) {
+			throw new IllegalStateException("종료된 주문(취소/반품/교환)은 마켓 송장 전송 대상이 아닙니다.");
+		}
+
+		// NEW/UNKNOWN/PREPARING 상태이면 수정 차단
 		if (currentStatus == null || currentStatus == ShippingStatus.NEW || currentStatus == ShippingStatus.UNKNOWN
 			|| currentStatus == ShippingStatus.PREPARING) {
 			throw new IllegalStateException("발주확인 또는 구매완료 전에는 배송 정보를 수정할 수 없습니다.");
@@ -323,10 +344,7 @@ public class OrderService {
 			// 마켓플레이스에 송장 전송 — 반영 실패 시 자사 저장을 롤백해 DB/마켓 정합을 유지(@Transactional),
 			// 스킵(전송 대상 아님)은 로컬 편집 유지, 성공 시에만 전송완료 마킹.
 			MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, invoiceAlreadyExists);
-			if (sendResult.isFailed()) {
-				throw new IllegalStateException("마켓(" + marketTypeOf(item)
-					+ ") 송장 반영 실패로 저장을 롤백합니다: " + sendResult.failureReason());
-			}
+			failIfNotSent(item, sendResult);
 			markSentIfSucceeded(item, sendResult, lineItemId);
 
 			log.info("라인아이템 {} 배송 처리: tracking={}, carrier={}", lineItemId, command.getTrackingNo(),
@@ -339,10 +357,7 @@ public class OrderService {
 			// 마켓플레이스에 송장 업데이트 — 반영 실패 시 자사 저장을 롤백해 DB/마켓 정합을 유지(@Transactional),
 			// 스킵(전송 대상 아님)은 로컬 편집 유지, 성공 시에만 전송완료 마킹.
 			MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, invoiceAlreadyExists);
-			if (sendResult.isFailed()) {
-				throw new IllegalStateException("마켓(" + marketTypeOf(item)
-					+ ") 송장 반영 실패로 저장을 롤백합니다: " + sendResult.failureReason());
-			}
+			failIfNotSent(item, sendResult);
 			markSentIfSucceeded(item, sendResult, lineItemId);
 
 			log.info("라인아이템 {} 송장번호 업데이트: tracking={}, carrier={}", lineItemId,
@@ -514,17 +529,6 @@ public class OrderService {
 		log.info("라인아이템 {} 송장번호 업데이트: tracking={}, carrier={}", lineItemId, trackingNo, carrier);
 	}
 
-	// ======================== 삭제 ========================
-
-	/** 주문 삭제 */
-	@Transactional
-	public void deleteOrder(Long id) {
-
-		List<OrderLineItem> lineItems = orderLineItemRepository.findByOrderId(id);
-		orderLineItemRepository.deleteAll(lineItems);
-		orderRepository.deleteById(id);
-	}
-
 	// ======================== 로그용 조회 (부작용 없음) ========================
 
 	/**
@@ -539,16 +543,6 @@ public class OrderService {
 			.orElse(null);
 	}
 
-	/**
-	 * 주문의 마켓 타입을 반환한다(활동로그용 read-only 조회).
-	 * 주문·마켓이 없으면 null. (F-ORD-37)
-	 */
-	public MarketType marketTypeOfOrder(Long orderId) {
-		return orderRepository.findById(orderId)
-			.map(Order::getMarketType)
-			.orElse(null);
-	}
-
 	// ======================== private ========================
 
 	/** 라인아이템이 속한 주문의 마켓 타입(에러 메시지용, 조회 실패 시 UNKNOWN 표기). */
@@ -557,6 +551,22 @@ public class OrderService {
 			.map(Order::getMarketType)
 			.map(Object::toString)
 			.orElse("UNKNOWN");
+	}
+
+	/**
+	 * 마켓 전송이 실패(전송 대상이었으나 반영 실패)면 예외를 던져 @Transactional 롤백으로 DB/마켓 정합을 유지한다.
+	 * terminal(마켓이 배송중/완료로 영구 잠금)과 일시 failed를 구분된 메시지로 표면화한다(F-H1).
+	 */
+	private void failIfNotSent(OrderLineItem item, MarketShippingResult result) {
+		if (!result.isFailed()) {
+			return;
+		}
+		if (result.isTerminal()) {
+			throw new IllegalStateException("마켓(" + marketTypeOf(item)
+				+ ")이 배송중/완료 상태라 송장 수정 불가 — 마켓 송장이 동기화로 반영됩니다: " + result.failureReason());
+		}
+		throw new IllegalStateException("마켓(" + marketTypeOf(item)
+			+ ") 송장 반영 실패로 저장을 롤백합니다: " + result.failureReason());
 	}
 
 	/**
@@ -573,17 +583,6 @@ public class OrderService {
 			// 도달 불가(호출부가 isFailed에서 이미 throw). 방어적 로깅만 유지.
 			log.warn("라인아이템 {} 마켓 송장 전송 실패 — 롤백 예정: {}", lineItemId, result.failureReason());
 		}
-	}
-
-	/** 접수 완료 여부 판단 */
-	private boolean isOrderFullyPrepared(Order order) {
-		List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
-		return !items.isEmpty() && items.stream().allMatch(item -> {
-			ShippingStatus status = item.getShippingData() != null
-				? item.getShippingData().getShippingStatus() : null;
-			return status == ShippingStatus.PREPARING || status == ShippingStatus.SHIPPED
-				|| status == ShippingStatus.DELIVERED;
-		});
 	}
 
 	/** 마켓플레이스 주문 접수 API 호출 */

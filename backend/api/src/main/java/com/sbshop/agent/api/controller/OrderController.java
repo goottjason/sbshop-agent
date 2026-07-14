@@ -7,7 +7,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -272,24 +271,6 @@ public class OrderController {
 		}
 	}
 
-	// ======================== 삭제 ========================
-
-	/** 주문 삭제 */
-	@DeleteMapping("/{id}")
-	public ResponseEntity<Void> deleteOrder(@PathVariable
-	Long id) {
-
-		// D-076/SP-6: 주문 삭제 — 삭제 후에는 조회 불가하므로 마켓을 삭제 전에 확보(F-ORD-37).
-		String market = nameOf(orderService.marketTypeOfOrder(id));
-		try {
-			orderService.deleteOrder(id);
-			actionLogService.record(ActionLogConstants.ORDER_DELETE, market,
-				ActionStatus.SUCCESS, "주문 삭제 성공 (주문 " + id + ")");
-			return ResponseEntity.noContent().build();
-		} catch (Exception e) {
-			actionLogService.record(ActionLogConstants.ORDER_DELETE, null,
-				ActionStatus.FAILED, "주문 삭제 실패 (주문 " + id + "): " + e.getMessage());
-			throw e;
-		}
-	}
+	// 주문 삭제 엔드포인트(DELETE /{id})는 제거됨 — 물리삭제는 복구불가·연관데이터 고아를 유발하므로
+	// 운영 정책상 지원하지 않는다(사용자 결정, 2026-07-14).
 }
