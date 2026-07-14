@@ -1,89 +1,78 @@
-version: '3.8'
-
+# sbshop-agent 전용 compose (2026-07-14 배포 라인 분리).
+# 공유 인프라(postgres·nginx)는 ~/projects/infra 에서 별도 관리하며,
+# 여기 컨테이너들은 external network 'shared-net' 에 붙어 postgres/nginx 와 통신한다.
+# 배포: cd ~/projects/sbshop-agent && docker compose up -d --build  (GitHub Actions 가 수행)
 services:
-  # ===== 기존 서비스 (can-agent) =====
-  nginx:
-    image: nginx:alpine
-    container_name: projects-nginx-1
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-    depends_on:
-      - can-agent
-      - sbshop-api
-      - sbshop-frontend
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:16-alpine
-    container_name: projects-postgres-1
-    environment:
-      POSTGRES_DB: canagent
-      POSTGRES_USER: canagent
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432"
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    container_name: projects-redis-1
-    ports:
-      - "6379"
-    restart: unless-stopped
-
-  can-agent:
-    build: ./can-agent
-    container_name: projects-can-agent-1
-    environment:
-      SPRING_PROFILES_ACTIVE: prod
-      DB_URL: jdbc:postgresql://postgres:5432/canagent
-      DB_USERNAME: canagent
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
-    depends_on:
-      - postgres
-    restart: unless-stopped
-
-  # ===== 신규 서비스 (sbshop-agent) =====
   sbshop-api:
     build:
-      context: ./sbshop-agent
+      context: .
       dockerfile: Dockerfile.backend
     container_name: projects-sbshop-api-1
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      DB_URL: jdbc:postgresql://postgres:5432/sbshop
-      DB_USERNAME: sbshop
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
-      COUPANG_ACCESS_KEY: ${COUPANG_ACCESS_KEY:-}
-      COUPANG_SECRET_KEY: ${COUPANG_SECRET_KEY:-}
-      COUPANG_CLIENT_ID: ${COUPANG_CLIENT_ID:-}
-      SMARTSTORE_CLIENT_ID: ${SMARTSTORE_CLIENT_ID:-}
-      SMARTSTORE_CLIENT_SECRET: ${SMARTSTORE_CLIENT_SECRET:-}
-      ELEVENST_CLIENT_ID: ${ELEVENST_CLIENT_ID:-}
-      ELEVENST_CLIENT_SECRET: ${ELEVENST_CLIENT_SECRET:-}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-sbshop}
+      DB_USERNAME: ${DB_USERNAME:-sbshop}
+      DB_PASSWORD: ${PG_PASSWORD:-canagent1234}
+      COUPANG_ACCESS_KEY: ${COUPANG_ACCESS_KEY}
+      COUPANG_SECRET_KEY: ${COUPANG_SECRET_KEY}
+      COUPANG_VENDOR_ID: ${COUPANG_VENDOR_ID}
+      SMARTSTORE_CLIENT_ID: ${SMARTSTORE_CLIENT_ID}
+      SMARTSTORE_CLIENT_SECRET: ${SMARTSTORE_CLIENT_SECRET}
+      SMARTSTORE_MALL_ID: ${SMARTSTORE_MALL_ID}
+      SMARTSTORE_ACCESS_TOKEN: ${SMARTSTORE_ACCESS_TOKEN}
+      SMARTSTORE_REFRESH_TOKEN: ${SMARTSTORE_REFRESH_TOKEN}
+      SMARTSTORE_TOKEN_EXPIRES_AT: ${SMARTSTORE_TOKEN_EXPIRES_AT}
+      SMARTSTORE_SECRET_KEY: ${SMARTSTORE_SECRET_KEY}
+      NAVER_SHOPPING_CLIENT_ID: ${NAVER_SHOPPING_CLIENT_ID:-}
+      NAVER_SHOPPING_CLIENT_SECRET: ${NAVER_SHOPPING_CLIENT_SECRET:-}
+      ELEVENST_API_KEY: ${ELEVENST_API_KEY}
+      ELEVENST_SECRET_KEY: ${ELEVENST_SECRET_KEY}
+      ELEVENST_SELLER_NO: ${ELEVENST_SELLER_NO}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_BUCKET_NAME: ${R2_BUCKET_NAME}
+      R2_PUBLIC_DOMAIN: ${R2_PUBLIC_DOMAIN}
       CLOUDFLARE_R2_ENDPOINT: ${CLOUDFLARE_R2_ENDPOINT:-}
       CLOUDFLARE_R2_ACCESS_KEY: ${CLOUDFLARE_R2_ACCESS_KEY:-}
       CLOUDFLARE_R2_SECRET_KEY: ${CLOUDFLARE_R2_SECRET_KEY:-}
       CLOUDFLARE_R2_BUCKET: ${CLOUDFLARE_R2_BUCKET:-sbshop-images}
       CLOUDFLARE_R2_PUBLIC_URL: ${CLOUDFLARE_R2_PUBLIC_URL:-}
+      EMAIL_ADDRESS: ${EMAIL_ADDRESS}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
       EMAIL_USERNAME_1: ${EMAIL_USERNAME_1:-}
       EMAIL_PASSWORD_1: ${EMAIL_PASSWORD_1:-}
       EMAIL_USERNAME_2: ${EMAIL_USERNAME_2:-}
       EMAIL_PASSWORD_2: ${EMAIL_PASSWORD_2:-}
+      EMAIL_USERNAME_3: ${EMAIL_USERNAME_3:-}
+      EMAIL_PASSWORD_3: ${EMAIL_PASSWORD_3:-}
+      SELENIUM_REMOTE_URL: http://sbshop-selenium:4444/wd/hub
     depends_on:
-      - postgres
+      - sbshop-selenium
+    networks:
+      - shared-net
+    restart: unless-stopped
+
+  # ESM+(G마켓/옥션) Selenium 스크래핑용 원격 그리드 (ARM64 지원 이미지)
+  sbshop-selenium:
+    image: seleniarm/standalone-chromium:latest
+    container_name: projects-sbshop-selenium-1
+    shm_size: "2g"
+    networks:
+      - shared-net
     restart: unless-stopped
 
   sbshop-frontend:
     build:
-      context: ./sbshop-agent
+      context: .
       dockerfile: Dockerfile.frontend
     container_name: projects-sbshop-frontend-1
+    networks:
+      - shared-net
     restart: unless-stopped
 
-volumes:
-  pgdata:
+networks:
+  shared-net:
+    external: true

@@ -18,6 +18,11 @@ token_info.json
 refresh_token.txt
 *.token
 
+# 고객 PII 포함 데이터/작업파일 (커밋 금지)
+order_list.xlsx
+~$*.xlsx
+order_fill_*.csv
+
 # IDE & OS
 .DS_Store
 .idea/
