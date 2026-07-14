@@ -1,5 +1,7 @@
 # POST /confirm/batch — 일괄 발주확인
 
+> **[P3 반영 2026-07-14]** F-ORD-9 해결 — 전건/부분 실패를 SUCCESS로 남기던 활동로그를 결과기반 SUCCESS/FAILED로 교정 (커밋 `ffdaed3`).
+
 ## 1. 개요
 
 | 항목 | 내용 |

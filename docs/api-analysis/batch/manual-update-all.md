@@ -1,5 +1,7 @@
 # POST /manual-update-all — 전체 필드 수동 일괄 업데이트
 
+> **[P3 반영 2026-07-14]** F-BATCH-A2 해결 — productIds/commands 길이 불일치 500→400 가드 (커밋 `6095f1b`).
+
 ## 1. 개요
 
 | 항목 | 내용 |

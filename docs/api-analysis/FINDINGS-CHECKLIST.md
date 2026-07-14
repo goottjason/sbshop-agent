@@ -32,7 +32,7 @@
 |-------|---------|------|------|
 | **P1 관측성·오류시맨틱** | SP-6, SP-7 | ✅ 완료 (일부 오탐 확정) | `60b02fe`(SP-7) · `6e320e0`(SP-6) |
 | **P2 상태가드** | SP-4 | ✅ 완료 (정책확정: 데이터 주인 기준) | `dfcf8b3`(order) · `aad006e`(batch) · `6c396f4`(web) |
-| P3 부분실패 표면화 | SP-3 | ⏳ 대기 | — |
+| **P3 부분실패 표면화** | SP-3 | ✅ 완료 (order 도메인, 상품은 후속) | `ffdaed3`(order) · `6095f1b`(batch) · `dbfefec`(web) |
 | P4 비동기·영속상태 | SP-1, SP-2 | ⏳ 대기 | — |
 | P5 구조 리팩토링 | SP-9, SP-11 | ⏳ 대기 | — |
 | P5b 보안(최소) | SP-10(축소) | ⏳ 대기 | 시크릿 마스킹+접근제어만 |
@@ -61,7 +61,7 @@
   근거: F-SYNC-2(CoupangOrderSyncService.java:54), F-SYNC-23(OrderSyncScheduler.java:52-63), F-MISC-8(ProductSyncController.java:40-53), F-BATCH-2(BatchPriceStockService.java:38-93). → 동기화·크롤·배치 전반의 "성공했는데 실제로는 실패" 근원.
 - [ ] **SP-2 · 상태 저장소가 JVM 로컬 인메모리 → 멀티-JVM(api+worker) 토폴로지에서 상태 UI 무력화**
   근거: F-SYNC-1(SyncStatusService.java:15, 조회는 api·갱신은 worker), F-SYNC-25(맵 휘발), F-MISC-16(SSE emitter가 api JVM 로컬), F-BATCH-2(재시작 시 PENDING 영구잔류). → `[[deployment-two-jvm-topology]]` 규율(공유상태는 DB+advisory lock) 위반.
-- [ ] **SP-3 · 일괄/부분 처리의 부분실패 은폐 + 결과 미반영**
+- [~] **SP-3 · 일괄/부분 처리의 부분실패 은폐 + 결과 미반영** — order 도메인 완료(P3), 상품(F-PSRC/F-PROD) 후속
   실패 라인이 응답·로그에 안 드러나거나 요청↔결과 매핑 불가.
   근거: F-ORD-30·F-ORD-9·F-ORD-17(발송/발주 부분실패), F-SYNC-3, F-BATCH-A2, F-PSRC-2·F-PSRC-6, F-PROD-12·F-PROD-16.
 - [x] **SP-4 · 종료 상태(CANCELED/RETURNED/EXCHANGED)·배송완료 상태 가드 부재** — ✅ P2 완료(정책확정)
@@ -101,7 +101,7 @@
 - [ ] **F-MISC-8** · product-sync · raw `new Thread` 비동기 — 트랜잭션/예외/풀 이탈 · `ProductSyncController.java:40-53` · 크롤 실패 미포착·스레드 고갈
 - [ ] **F-MISC-18** · email-fetch · 재진입/중복처리 방지 없음, 스케줄러와 동시 실행 · `EmailFetchController.java:33`+`OrderSyncScheduler.java:36` · 동일 orderNo 이중처리 → 마켓 중복 송장전송
 - [ ] **F-PSRC-14** · product-sourcing · 마켓 publish 성공 후 DB save 실패 시 마켓/DB 불일치(외부 롤백 불가) · `ProductPublishUseCase.java:31,44,62` · 마켓 게시됐으나 DB 등록 없는 고아
-- [ ] **F-ORD-30** · order · 일괄 발송이 마켓 shipOrder 실패를 삼켜 부분실패 미표면화 · `OrderShipService.java:68-70` · 미발송 라인 인지불가, 로그는 성공
+- [x] **F-ORD-30** · 일괄발송 BulkShipResult로 부분실패 표면화(응답·로그·UI) · ✅ `ffdaed3`/`dbfefec`
 - [ ] **F-SUP-UC-1** · supplier · "생성" API가 기존 통화 환율을 무경고 덮어씀(upsert vs create) · `SupplierController.java:51-52` · 환율 교체 → 정산·매입원가 왜곡
 - [ ] **F-CRED-1** · market-credential · 목록 응답 secretKey·accessKey·clientId 평문 · `MarketCredentialDto.java:22-24` · 무인증 API로 전 마켓 시크릿 유출
 - [ ] **F-CRED-7** · market-credential · 저장 성공 응답이 방금 저장한 secretKey 평문 반환 · `MarketCredentialService.java:47` · 저장 왕복 전구간 시크릿 노출
@@ -119,10 +119,10 @@
 - [ ] **F-ORD-5** · 발주확인 실패 로그 marketType null · `OrderController.java:82`
 - [x] **F-ORD-6** · 진행/종료분 발주확인 재호출 차단 · ✅ `dfcf8b3`
 - [ ] **F-ORD-8** · 마켓 접수 실패를 RuntimeException으로 뭉갬(유형 소실) · `OrderService.java:81-85`
-- [ ] **F-ORD-9** · 일괄 발주확인 전건 실패여도 활동로그 SUCCESS · `OrderService.java:107-131`
+- [x] **F-ORD-9** · 컨트롤러 결과기반 SUCCESS/FAILED 기록 · ✅ `ffdaed3`
 - [x] **F-ORD-13** · 발주취소 NEW-only 가드 · ✅ `dfcf8b3`
 - [ ] **F-ORD-15** · 발주취소 실패 로그 marketType null · `OrderController.java:126`
-- [ ] **F-ORD-17** · 일괄 발주취소 전건 실패여도 활동로그 SUCCESS · `OrderService.java:171-195`
+- [x] **F-ORD-17** · 컨트롤러 결과기반 SUCCESS/FAILED 기록 · ✅ `ffdaed3`
 - [ ] **F-ORD-22** · 라인아이템 없는 주문이 발주확인 전 가드 통과 · `OrderService.java:215`
 - [x] **F-ORD-25** · 정책확정: 유니패스는 상태무관 허용(관리용) — 가드 제거·종결 · ✅ `dfcf8b3`
 - [ ] **F-ORD-26** · isUnipassDone null이면 무변경인데 200+성공로그 · `OrderService.java:249-251`
@@ -160,7 +160,7 @@
 - [ ] **F-BATCH-1** · 동시 배치 중복 실행 방지 부재(advisory lock 없음) · `ProcessStatusService.java:23-39`
 - [ ] **F-BATCH-4** · 요청 검증 부재(productIds null/빈) · `BatchController.java:44`
 - [ ] **F-BATCH-A1** · 전체필드 배치만 마켓 재전송 없음 · `BatchPriceStockService.java:151-176`
-- [ ] **F-BATCH-A2** · commands/productIds 길이 불일치 시 IndexOutOfBounds · `BatchPriceStockService.java:161`
+- [x] **F-BATCH-A2** · manual-update-all 길이 불일치 → 400 가드 · ✅ `6095f1b`
 - [x] **F-BATCH-B1** · bad-enum 이미 400 + null→400 가드 추가로 완결 · ✅ `aad006e`
 - [ ] **F-BATCH-S2** · 미존재 batchId도 빈 배열+200(404 아님) · `ProcessStatusService.java:63`
 - [ ] **F-BATCH-SM1** · 미존재 batchId와 0% 진행중 동일 응답 · `ProcessStatusService.java:66-72`

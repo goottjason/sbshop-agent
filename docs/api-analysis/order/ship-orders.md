@@ -1,5 +1,7 @@
 # POST /ship — 일괄 발송 처리
 
+> **[P3 반영 2026-07-14]** F-ORD-30 해결 — 일괄발송 부분실패를 BulkShipResult(성공/실패/스킵)로 표면화, 응답·활동로그·UI 반영 (커밋 `ffdaed3`/`dbfefec`).
+
 > **[P2 반영 2026-07-14]** F-ORD-29 해결 — 일괄발송 시 이미 SHIPPED/DELIVERED/종료 라인 재발송 스킵 (커밋 `dfcf8b3`).
 
 ## 1. 개요
