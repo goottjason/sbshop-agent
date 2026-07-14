@@ -97,6 +97,9 @@ public class BatchController {
 	@PostMapping("/by-supplier")
 	public ResponseEntity<Map<String, String>> updateBySupplier(@RequestBody
 	SupplierBatchRequest request) {
+		if (request.supplierCode() == null || request.supplierCode().isBlank()) {
+			throw new IllegalArgumentException("supplierCode는 필수입니다.");
+		}
 		VendorType vendor = VendorType.valueOf(request.supplierCode().toUpperCase());
 		List<Long> productIds = batchPriceStockService.getProductIdsByVendor(vendor);
 		if (productIds.isEmpty()) {
