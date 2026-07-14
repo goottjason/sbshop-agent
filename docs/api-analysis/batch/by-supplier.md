@@ -1,5 +1,7 @@
 # POST /by-supplier — 소싱업체별 크롤 일괄 업데이트
 
+> **[P2 반영 2026-07-14]** F-BATCH-B1 해결 — supplierCode null/blank → NPE 500 대신 400 (커밋 `aad006e`).
+
 ## 1. 개요
 
 | 항목 | 내용 |

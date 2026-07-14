@@ -31,7 +31,7 @@
 | Phase | 대상 SP | 상태 | 커밋 |
 |-------|---------|------|------|
 | **P1 관측성·오류시맨틱** | SP-6, SP-7 | ✅ 완료 (일부 오탐 확정) | `60b02fe`(SP-7) · `6e320e0`(SP-6) |
-| P2 상태가드 | SP-4 | ⏳ 대기 | — |
+| **P2 상태가드** | SP-4 | ✅ 완료 (정책확정: 데이터 주인 기준) | `dfcf8b3`(order) · `aad006e`(batch) · `6c396f4`(web) |
 | P3 부분실패 표면화 | SP-3 | ⏳ 대기 | — |
 | P4 비동기·영속상태 | SP-1, SP-2 | ⏳ 대기 | — |
 | P5 구조 리팩토링 | SP-9, SP-11 | ⏳ 대기 | — |
@@ -41,8 +41,14 @@
 
 ### P1 결과 요약 (2026-07-14)
 - **TDD로 확정된 오탐**: "잘못된 enum → 500" 주장 중 실제 500은 `GET /market-credentials/{marketType}`(enum 경로변수 직접 바인딩)뿐. F-PROD-2·F-PSRC-12·F-MREG-3·F-BATCH-B1 은 `String`+`valueOf` 구조라 **이미 400**(기존 IllegalArgumentException 핸들러) — 회귀방지 테스트로 고정.
-- **신규 파생 결함**: `BatchController` supplierCode=**null** → `toUpperCase()` NPE → 500 (bad-enum과 별개, 미해결 → 후속).
+- **신규 파생 결함**: `BatchController` supplierCode=**null** → `toUpperCase()` NPE → 500 → **P2에서 400으로 해결**(2-7).
 - SP-6 는 **성공 경로**만 marketType 채움. 발주확인/취소 **실패 경로**(F-ORD-5·15)는 조회 실패 가능성으로 보류.
+
+### P2 결과 요약 (2026-07-14) — "데이터 주인" 기준 케이스별 정책
+- **우리 소유**(유니패스·소싱): 상태 무관 자유 수정. 유니패스 가드 제거(F-ORD-25 종결). 소싱은 END 상태에서도 수정+빈문자열 클리어(이미 동작 — F-S1·S2 정책상 의도로 확정).
+- **마켓 소유**(송장): 마켓이 진실 원본. END 상태 송장수정 400 차단(F-H2). terminal(마켓 배송중/완료 잠금)은 일시실패와 구분되는 "동기화로 반영" 메시지로 롤백(F-H1) — 로컬 단독저장 안 함(동기화가 덮음).
+- **마켓 미러**: 발주취소 NEW-only(F-ORD-13). **주문삭제 엔드포인트 제거**(F-ORD-34·35·36 무효화). 발주확인/일괄발송 재실행 차단(F-ORD-6·29).
+- 프론트: 주문 삭제 UI 제거. **일부 200→400 전환** — 프론트 메시지 표시 검증은 후속.
 
 ---
 
@@ -58,16 +64,16 @@
 - [ ] **SP-3 · 일괄/부분 처리의 부분실패 은폐 + 결과 미반영**
   실패 라인이 응답·로그에 안 드러나거나 요청↔결과 매핑 불가.
   근거: F-ORD-30·F-ORD-9·F-ORD-17(발송/발주 부분실패), F-SYNC-3, F-BATCH-A2, F-PSRC-2·F-PSRC-6, F-PROD-12·F-PROD-16.
-- [ ] **SP-4 · 종료 상태(CANCELED/RETURNED/EXCHANGED)·배송완료 상태 가드 부재**
+- [x] **SP-4 · 종료 상태(CANCELED/RETURNED/EXCHANGED)·배송완료 상태 가드 부재** — ✅ P2 완료(정책확정)
   종료된 건에 소싱/송장/유니패스/취소/삭제가 무제한 허용.
   근거: F-S1, F-H2, F-ORD-13·25·29·35, F-PROD-27.
 - [ ] **SP-5 · 응답에 도메인 엔티티 직접 노출(수정계열 전반)**
   DTO 없이 `Order`/`OrderLineItem`/`Product`/`Supplier`/`Currency`/`ProcessStatus`/`SyncStatus`/`MarketRegistration` 직렬화 → 도메인 변경에 API 계약 결합, 내부/민감 필드 유출.
   근거: F-ORD-1·7·16·24·28, F-PROD-6, F-SUP-1·LC-1, F-BATCH-S1, F-SYNC-24, F-MREG-4, F-CRED-1·7.
-- [ ] **SP-6 · 활동로그 marketType 항상 null(해석 가능함에도)**
+- [x] **SP-6 · 활동로그 marketType 항상 null(해석 가능함에도)** — ✅ P1(성공경로), 실패경로 보류
   마켓 필터·집계에서 이벤트 누락 분류.
   근거: F-ORD-5·15·27·37, F-SYNC-22, F-BATCH-7, (sourcing/shipping F-S6·F-H6).
-- [ ] **SP-7 · 미존재 id / 잘못된 enum → 404·400 아닌 500 또는 조용한 204**
+- [~] **SP-7 · 미존재 id / 잘못된 enum → 404·400 아닌 500 또는 조용한 204** — bad-enum·supplierCode·삭제조용204 해소; 404 시맨틱 잔존
   근거: F-PROD-5·26·29, F-MREG-3, F-CRED-4, F-BATCH-B1, F-PSRC-12, F-ORD-34, F-CAFE(콜백 에러 미처리).
 - [ ] **SP-8 · null-skip 병합으로 필드 "삭제" 불가**
   근거: F-S2, F-ORD-23, F-PROD-13. (반대로 F-CRED-8 은 null도 덮어써 기존값 소실 — 정책 불일치)
@@ -99,32 +105,32 @@
 - [ ] **F-SUP-UC-1** · supplier · "생성" API가 기존 통화 환율을 무경고 덮어씀(upsert vs create) · `SupplierController.java:51-52` · 환율 교체 → 정산·매입원가 왜곡
 - [ ] **F-CRED-1** · market-credential · 목록 응답 secretKey·accessKey·clientId 평문 · `MarketCredentialDto.java:22-24` · 무인증 API로 전 마켓 시크릿 유출
 - [ ] **F-CRED-7** · market-credential · 저장 성공 응답이 방금 저장한 secretKey 평문 반환 · `MarketCredentialService.java:47` · 저장 왕복 전구간 시크릿 노출
-- [ ] **F-H1** · order(shipping) · 대화형 API가 terminal(영구거부)을 failed와 동일 롤백 → 사용자 편집 소실·복구불가 · `OrderService.java:326,342`+`MarketShippingResult.java:33` · 마켓 잠금 시 로컬 송장조차 못 남김
+- [x] **F-H1** · order(shipping) · terminal/failed 구분 메시지로 해결(마켓이 진실원본 — 롤백 유지, 동기화 반영 안내) · ✅ `dfcf8b3`
 
 ---
 
 ## 🟠 P1 — GAP (미처리 케이스·검증 누락, 조건부 오동작)
 
 ### order (F-ORD / F-S / F-H)
-- [ ] **F-S1** · 종료/배송상태에서도 소싱 수정 무제한 허용 · `OrderService.java:268`
-- [ ] **F-H2** · 종료 상태 shipping 서비스단 가드 부재 · `OrderService.java:312-315`
+- [~] **F-S1** · 정책확정: 소싱은 종료상태에서도 수정 허용(의도) — 결함 아님
+- [x] **F-H2** · 종료상태 송장수정 400 차단 · ✅ `dfcf8b3`
 - [ ] **F-H4** · trackingNo/shippingCarrier 필수 검증 부재 · `ShippingUpdateCommand.java:20-27`
 - [ ] **F-ORD-2** · 기간 필터 한쪽 날짜만 오면 조용히 무시 · `OrderRepositoryImpl.java:189-194`
 - [ ] **F-ORD-5** · 발주확인 실패 로그 marketType null · `OrderController.java:82`
-- [ ] **F-ORD-6** · 종료/혼재 상태에서 발주확인 재호출 가능 · `OrderService.java:555-563`
+- [x] **F-ORD-6** · 진행/종료분 발주확인 재호출 차단 · ✅ `dfcf8b3`
 - [ ] **F-ORD-8** · 마켓 접수 실패를 RuntimeException으로 뭉갬(유형 소실) · `OrderService.java:81-85`
 - [ ] **F-ORD-9** · 일괄 발주확인 전건 실패여도 활동로그 SUCCESS · `OrderService.java:107-131`
-- [ ] **F-ORD-13** · 발주취소가 상태 가드 없이 무조건 CANCELED 덮어씀 · `OrderService.java:155-165`
+- [x] **F-ORD-13** · 발주취소 NEW-only 가드 · ✅ `dfcf8b3`
 - [ ] **F-ORD-15** · 발주취소 실패 로그 marketType null · `OrderController.java:126`
 - [ ] **F-ORD-17** · 일괄 발주취소 전건 실패여도 활동로그 SUCCESS · `OrderService.java:171-195`
 - [ ] **F-ORD-22** · 라인아이템 없는 주문이 발주확인 전 가드 통과 · `OrderService.java:215`
-- [ ] **F-ORD-25** · 종료 상태에서 유니패스 수정 무제한 허용 · `OrderService.java:244`
+- [x] **F-ORD-25** · 정책확정: 유니패스는 상태무관 허용(관리용) — 가드 제거·종결 · ✅ `dfcf8b3`
 - [ ] **F-ORD-26** · isUnipassDone null이면 무변경인데 200+성공로그 · `OrderService.java:249-251`
-- [ ] **F-ORD-29** · 일괄 발송에 진입 상태 가드 전무 · `OrderShipService.java:48-66`
+- [x] **F-ORD-29** · 일괄발송 SHIPPED/DELIVERED/END 재발송 스킵 · ✅ `dfcf8b3`
 - [ ] **F-ORD-31** · 발송 단일 트랜잭션 부분성공 후 예외 시 전체 롤백(마켓엔 발송됨) · `OrderShipService.java:30,60-66`
 - [ ] **F-ORD-33** · 발송 orderIds null 시 서비스 NPE · `OrderShipService.java:34`
-- [ ] **F-ORD-34** · 미존재 id 삭제가 조용히 204 성공 · `OrderService.java:523-525`
-- [ ] **F-ORD-35** · 배송중/완료·마켓접수 주문도 가드 없이 물리삭제 · `OrderService.java:520-526`
+- [x] **F-ORD-34** · 삭제 엔드포인트 제거로 무효화 · ✅ `dfcf8b3`/`6c396f4`
+- [x] **F-ORD-35** · 삭제 엔드포인트 제거로 무효화 · ✅ `dfcf8b3`/`6c396f4`
 
 ### order-sync (F-SYNC)
 - [ ] **F-SYNC-13** · preview 무인증 노출 + 주문 원시 PII 반환 · `OrderSyncController.java:140-157`
@@ -155,7 +161,7 @@
 - [ ] **F-BATCH-4** · 요청 검증 부재(productIds null/빈) · `BatchController.java:44`
 - [ ] **F-BATCH-A1** · 전체필드 배치만 마켓 재전송 없음 · `BatchPriceStockService.java:151-176`
 - [ ] **F-BATCH-A2** · commands/productIds 길이 불일치 시 IndexOutOfBounds · `BatchPriceStockService.java:161`
-- [~] **F-BATCH-B1** · 잘못된 supplierCode는 **이미 400**(오탐); **null→NPE→500 잔존**(후속) · `BatchController.java:100`
+- [x] **F-BATCH-B1** · bad-enum 이미 400 + null→400 가드 추가로 완결 · ✅ `aad006e`
 - [ ] **F-BATCH-S2** · 미존재 batchId도 빈 배열+200(404 아님) · `ProcessStatusService.java:63`
 - [ ] **F-BATCH-SM1** · 미존재 batchId와 0% 진행중 동일 응답 · `ProcessStatusService.java:66-72`
 - [ ] **F-BATCH-ST2** · `/status` 목록에 정렬·시각·상태 없음 · `ProcessStatusService.java:74-81`
@@ -295,10 +301,10 @@
 - [ ] **F-ORD-14** 쿠팡 등은 취소가 마켓에 미전파(로컬 only) · `OrderService.java:144-152`
 - [ ] **F-ORD-23** null-skip 병합으로 주소/통관번호 삭제 불가 · `OrderService.java:220,225`
 - [x] **F-ORD-27** 유니패스 로그 marketType 성공경로도 null · `OrderController.java:192` — ✅ `6e320e0`
-- [ ] **F-ORD-36** 물리삭제라 복구불가·연관데이터 고아 · `OrderService.java:524-525`
-- [ ] **F-S2** null-skip으로 소싱 필드 삭제 불가 · `SourcingUpdateCommand.java:20-34`
+- [x] **F-ORD-36** 삭제 엔드포인트 제거로 무효화 · ✅ `dfcf8b3`
+- [x] **F-S2** · 정책확정: 빈문자열로 클리어 가능(이미 동작) — 회귀테스트 추가 · ✅ `dfcf8b3`
 - [ ] **F-S4** 소싱 금액 필드 검증 부재 · (SourcingUpdateRequest)
-- [x] **F-S6** 소싱 활동로그 marketType null · `OrderController.java:213` — ✅ `6e320e0`
+- [x] **F-S6** 소싱 활동로그 marketType null — ✅ `6e320e0`
 - [~] **F-H6** marketType null은 해결(`6e320e0`); 응답 엔티티 노출(SP-5)은 P6 잔존 · `OrderController.java:225,234`
 
 ### order-sync
