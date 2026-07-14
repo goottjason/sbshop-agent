@@ -81,6 +81,15 @@ public class BatchController {
 	@PostMapping("/manual-update-all")
 	public ResponseEntity<Map<String, String>> manualUpdateAll(@RequestBody
 	ManualUpdateAllRequest request) {
+		// F-BATCH-A2/SP-3: commands는 productIds와 index 위치로 매핑되므로 길이가 일치해야 한다.
+		// 불일치 시 서비스에서 IndexOutOfBounds(500)가 나므로, 진입부에서 400으로 명확히 거부한다.
+		if (request.productIds() == null || request.commands() == null
+			|| request.productIds().size() != request.commands().size()) {
+			throw new IllegalArgumentException(
+				"productIds와 commands의 개수가 일치해야 합니다 (productIds="
+					+ (request.productIds() == null ? "null" : request.productIds().size())
+					+ ", commands=" + (request.commands() == null ? "null" : request.commands().size()) + ")");
+		}
 		List<String> productCodes = request.productIds().stream()
 			.map(String::valueOf)
 			.toList();
