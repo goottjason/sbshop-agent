@@ -8,10 +8,20 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+	// SP-7/F-CRED-4: 잘못된 enum·타입 경로변수/파라미터 바인딩 실패는 사용자 입력 오류 → 500이 아닌 400.
+	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
+	public ResponseEntity<Map<String, Object>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+		log.warn("경로변수/파라미터 타입 오류: {}={}", e.getName(), e.getValue());
+		return ResponseEntity.badRequest().body(Map.of(
+			"success", false,
+			"message", "잘못된 값입니다: " + e.getName() + "=" + e.getValue()));
+	}
 
 	@ExceptionHandler(IllegalStateException.class)
 	public ResponseEntity<Map<String, Object>> handleIllegalState(IllegalStateException e) {
