@@ -81,4 +81,55 @@ class ProductTest {
 		assertThat(product.getLogisticsInfo().getStock()).isEqualTo(100);
 		assertThat(product.getLogisticsInfo().getBundleQuantity()).isEqualTo(1);
 	}
+
+	@Test
+	@DisplayName("F-PROD-13: 빈 이미지 리스트로 업데이트하면 기존 이미지가 전부 제거된다")
+	void update_emptyImageList_clearsAllImages() {
+		ProductCreateCommand createCmd = new ProductCreateCommand(
+			"url", new BigDecimal("10"), "base", "orig", "brand", "US",
+			BigDecimal.ONE, BigDecimal.TEN, MeasureUnit.TABLET,
+			List.of("https://img.iherb.com/1.jpg"), List.of("https://r2.dev/img.jpg"),
+			"html", "비타민",
+			true, 1, BigDecimal.ZERO, VendorType.IHB);
+		Product product = Product.create("260707IHB003", createCmd);
+		assertThat(product.getSourceImages()).hasSize(1);
+		assertThat(product.getHostedImages()).hasSize(1);
+
+		ProductUpdateCommand clearImages = new ProductUpdateCommand(
+			null, null, null, null, null,
+			null, null, null, null, null,
+			null, null, null,
+			null, null, null,
+			null, null, null, null, null,
+			List.of(), List.of(), null, null, null);
+		product.update(clearImages);
+
+		assertThat(product.getSourceImages()).isEmpty();
+		assertThat(product.getHostedImages()).isEmpty();
+	}
+
+	@Test
+	@DisplayName("F-PROD-13: null 이미지 리스트로 업데이트하면 기존 이미지가 유지된다")
+	void update_nullImageList_keepsExistingImages() {
+		ProductCreateCommand createCmd = new ProductCreateCommand(
+			"url", new BigDecimal("10"), "base", "orig", "brand", "US",
+			BigDecimal.ONE, BigDecimal.TEN, MeasureUnit.TABLET,
+			List.of("https://img.iherb.com/1.jpg"), List.of("https://r2.dev/img.jpg"),
+			"html", "비타민",
+			true, 1, BigDecimal.ZERO, VendorType.IHB);
+		Product product = Product.create("260707IHB004", createCmd);
+
+		ProductUpdateCommand keepImages = new ProductUpdateCommand(
+			null, "새이름", null, null, null,
+			null, null, null, null, null,
+			null, null, null,
+			null, null, null,
+			null, null, null, null, null,
+			null, null, null, null, null);
+		product.update(keepImages);
+
+		assertThat(product.getProductName()).isEqualTo("새이름");
+		assertThat(product.getSourceImages()).containsExactly("https://img.iherb.com/1.jpg");
+		assertThat(product.getHostedImages()).containsExactly("https://r2.dev/img.jpg");
+	}
 }

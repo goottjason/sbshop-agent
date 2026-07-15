@@ -269,9 +269,10 @@ public class Product extends BaseEntity {
 			return;
 		ImageInfo.ImageInfoBuilder builder = this.imageInfo != null
 			? this.imageInfo.toBuilder() : ImageInfo.builder();
-		if (command.sourceImages() != null && !command.sourceImages().isEmpty())
+		// null이면 스킵(기존 이미지 유지), 빈 리스트(non-null)면 전체 제거 (F-PROD-13)
+		if (command.sourceImages() != null)
 			builder.sourceImages(command.sourceImages());
-		if (command.hostedImages() != null && !command.hostedImages().isEmpty())
+		if (command.hostedImages() != null)
 			builder.hostedImages(command.hostedImages());
 		this.imageInfo = builder.build();
 	}
