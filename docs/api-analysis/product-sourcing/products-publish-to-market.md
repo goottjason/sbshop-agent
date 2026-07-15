@@ -1,5 +1,7 @@
 # POST /products/{id}/markets/{marketType} — 상품 마켓 게시(등록)
 
+> **[반영 2026-07-15]** F-PSRC-14(🔴) 해결 — PENDING 선저장→publish(tx 밖)→SYNCED로 마켓 게시 후 저장실패 고아 방지 (커밋 `50b161c`).
+
 ## 1. 개요
 
 | 항목 | 내용 |

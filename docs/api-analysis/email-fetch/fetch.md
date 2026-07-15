@@ -1,5 +1,7 @@
 # POST /internal/email/fetch — 이메일 IMAP 수집·송장 처리 즉시 트리거 (worker)
 
+> **[반영 2026-07-15]** F-MISC-18(🔴) 해결 — AtomicBoolean CAS 재진입 가드로 수동/스케줄러 동시실행 중복 송장 차단 (커밋 `c8e2bb8`).
+
 ## 1. 개요
 
 | 항목 | 내용 |

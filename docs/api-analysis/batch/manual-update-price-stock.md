@@ -1,5 +1,7 @@
 # POST /manual-update-price-stock — 가격·재고 수동 일괄 업데이트
 
+> **[반영 2026-07-15]** F-BATCH-M1(🔴) 해결 — prices/stocks 위치결합을 PriceStockItem 쌍 객체로 대체(엉뚱한 상품 오적용 방지) (커밋 `8d0953b`).
+
 ## 1. 개요
 
 | 항목 | 내용 |

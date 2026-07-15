@@ -96,13 +96,13 @@
 - [x] **F-SYNC-23** · 스케줄러 조기 markCompleted 제거, 서비스 자기기록 · ✅ `059ed79`
 - [ ] **F-SYNC-19** · order-sync · customs 동기 트랜잭션 내 Thread.sleep×배치 → HTTP스레드·DB커넥션 장기점유 · `CustomsOrderSyncService.java:32,70` · 대상 多면 타임아웃·긴 트랜잭션 락
 - [x] **F-BATCH-2** · 부팅 시 고아 PENDING→FAILED 복구(ApplicationReadyEvent) · ✅ `03ea176`
-- [ ] **F-BATCH-M1** · batch · prices/stocks가 productIds와 index 위치로만 정렬 · `BatchPriceStockService.java:105-106` · 순서 어긋나면 엉뚱한 상품에 적용, 조용히 SUCCESS
+- [x] **F-BATCH-M1** · 쌍 객체(PriceStockItem)로 위치결합 제거 · ✅ `8d0953b`
 - [ ] **F-BATCH-ST1** · batch · `/status`가 findAll 전체 로드 후 메모리 distinct · `ProcessStatusService.java:76` · 이력 누적 시 OOM·지연
 - [x] **F-MISC-8** · 관리 @Async(syncTaskExecutor)+ActionLog 실패기록으로 교체 · ✅ `bbf0e1c` (상품별 크롤예외 표면화는 SP-3 상품 후속)
-- [ ] **F-MISC-18** · email-fetch · 재진입/중복처리 방지 없음, 스케줄러와 동시 실행 · `EmailFetchController.java:33`+`OrderSyncScheduler.java:36` · 동일 orderNo 이중처리 → 마켓 중복 송장전송
-- [ ] **F-PSRC-14** · product-sourcing · 마켓 publish 성공 후 DB save 실패 시 마켓/DB 불일치(외부 롤백 불가) · `ProductPublishUseCase.java:31,44,62` · 마켓 게시됐으나 DB 등록 없는 고아
+- [x] **F-MISC-18** · AtomicBoolean CAS 재진입 가드(이중처리 창 차단) · ✅ `c8e2bb8`
+- [x] **F-PSRC-14** · PENDING 선저장→publish→SYNCED로 고아 방지 · ✅ `50b161c`
 - [x] **F-ORD-30** · 일괄발송 BulkShipResult로 부분실패 표면화(응답·로그·UI) · ✅ `ffdaed3`/`dbfefec`
-- [ ] **F-SUP-UC-1** · supplier · "생성" API가 기존 통화 환율을 무경고 덮어씀(upsert vs create) · `SupplierController.java:51-52` · 환율 교체 → 정산·매입원가 왜곡
+- [x] **F-SUP-UC-1** · 중복 통화 생성 거부(400, 기존환율 불변) · ✅ `e69496e`
 - [ ] **F-CRED-1** · market-credential · 목록 응답 secretKey·accessKey·clientId 평문 · `MarketCredentialDto.java:22-24` · 무인증 API로 전 마켓 시크릿 유출
 - [ ] **F-CRED-7** · market-credential · 저장 성공 응답이 방금 저장한 secretKey 평문 반환 · `MarketCredentialService.java:47` · 저장 왕복 전구간 시크릿 노출
 - [x] **F-H1** · order(shipping) · terminal/failed 구분 메시지로 해결(마켓이 진실원본 — 롤백 유지, 동기화 반영 안내) · ✅ `dfcf8b3`
@@ -176,10 +176,10 @@
 - [ ] **F-PSRC-13** · 게시 멱등성 부재 — 재호출 시 MarketRegistration 중복 생성 · `ProductPublishUseCase.java:53-62`
 
 ### supplier (F-SUP)
-- [ ] **F-SUP-UC-2** · exchangeRate 값 검증 부재(0·음수·과대) · `SupplierController.java:49-52`
+- [x] **F-SUP-UC-2** · 환율 null/≤0 거부 · ✅ `e69496e`
 - [ ] **F-SUP-CS-1** · supplierCode/Name 입력 검증 부재 · `SupplierController.java:35-40`
 - [ ] **F-SUP-CS-2** · 중복 supplierCode 사전검증 없이 DB unique 예외 의존 · `SupplierController.java:39-40`
-- [ ] **F-SUP-UC-3** · currencyCode 형식/길이 검증 부재 · `SupplierController.java:49-52`
+- [x] **F-SUP-UC-3** · currencyCode blank 거부 · ✅ `e69496e`
 - [ ] **F-SUP-2** · RecordStatus 필터 부재로 ARCHIVED/DELETED 공급사까지 조회 · `SupplierRepository.java:7`
 
 ### market-credential (F-CRED)
