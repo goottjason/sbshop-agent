@@ -73,11 +73,8 @@ public class ProcessStatusService {
 
 	@Transactional(readOnly = true)
 	public List<String> getAllBatchIds() {
-		List<ProcessStatus> all = processStatusRepository.findAll();
-		return all.stream()
-			.map(ProcessStatus::getBatchId)
-			.distinct()
-			.toList();
+		// 전 행을 메모리에 로드 후 distinct 하던 방식은 이력 누적 시 OOM 위험 → DB distinct 쿼리로 대체(F-BATCH-ST1).
+		return processStatusRepository.findDistinctBatchIds();
 	}
 
 	@Transactional(readOnly = true)

@@ -110,4 +110,17 @@ class ProcessStatusServiceTest {
 
 		assertThat(recovered).isZero();
 	}
+
+	@Test
+	@DisplayName("getAllBatchIds는 DB distinct 쿼리로 batchId만 조회하고 전 행 findAll을 호출하지 않는다(F-BATCH-ST1 OOM 방지)")
+	void getAllBatchIds_usesDistinctQuery_notFindAll() {
+		when(repository.findDistinctBatchIds())
+			.thenReturn(List.of("batch-1", "batch-2"));
+
+		List<String> result = service.getAllBatchIds();
+
+		assertThat(result).containsExactly("batch-1", "batch-2");
+		verify(repository, times(1)).findDistinctBatchIds();
+		verify(repository, never()).findAll();
+	}
 }
