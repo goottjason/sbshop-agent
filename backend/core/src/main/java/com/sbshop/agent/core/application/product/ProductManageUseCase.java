@@ -40,8 +40,16 @@ public class ProductManageUseCase {
 	private final ProductMarketSyncService productMarketSyncService;
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
+	/**
+	 * 가격/재고상태 수정.
+	 *
+	 * <p>F-PROD-7: {@code soldOut}은 nullable이다. null이면 재고상태를 변경하지 않고(가격만 수정하려는 요청),
+	 * 상품의 현재 재고상태를 그대로 마켓에 전파한다. 과거엔 null이 조용히 false→IN_STOCK으로 붕괴돼
+	 * 품절 상품이 가격 수정만으로 판매재개 상태가 마켓에 전파되는 결함이 있었다.
+	 * true/false면 각각 품절/판매중으로 재고상태를 갱신하고 그 상태를 마켓에 전파한다.
+	 */
 	@Transactional
-	public MarketRepublishResult updatePriceStock(Long productId, BigDecimal price, boolean soldOut) {
+	public MarketRepublishResult updatePriceStock(Long productId, BigDecimal price, Boolean soldOut) {
 		Product product = productReader.findById(productId)
 			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
 
@@ -54,8 +62,14 @@ public class ProductManageUseCase {
 			null, null, null, null, null,
 			null, null, null, null, null);
 		product.update(command);
-		StockStatus stockStatus = soldOut ? StockStatus.OUT_OF_STOCK : StockStatus.IN_STOCK;
-		product.updateStockStatus(stockStatus);
+		// F-PROD-7: soldOut=null이면 재고상태 미변경 — 현재 상태를 유지하고 마켓에도 현재 상태를 전파한다.
+		StockStatus stockStatus;
+		if (soldOut == null) {
+			stockStatus = product.getStockStatus();
+		} else {
+			stockStatus = soldOut ? StockStatus.OUT_OF_STOCK : StockStatus.IN_STOCK;
+			product.updateStockStatus(stockStatus);
+		}
 		productWriter.save(product);
 
 		log.info("상품 가격/판매상태 업데이트: id={}, price={}, soldOut={}", productId, price, soldOut);

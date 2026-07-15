@@ -102,9 +102,14 @@ public class ProductController {
 		PriceStockUpdateRequest request) {
 		// D-060: 자사 DB 갱신 + 연동 마켓 가격/재고 반영 결과(성공/스킵/실패 마켓) 반환.
 		// D-076: 가격/재고 수정 — 결과만 기록(다마켓 동시 반영이므로 marketType null).
+		// F-PROD-8: 음수 가격은 잘못된 입력 → 400으로 거부(마켓에 음수 가격이 전파되지 않도록 진입부에서 차단).
+		if (request.price() != null && request.price().signum() < 0) {
+			throw new IllegalArgumentException("가격은 0 이상이어야 합니다: " + request.price());
+		}
 		try {
+			// F-PROD-7: soldOut을 nullable 그대로 전달 — null이면 재고상태 미변경(판매재개 오전파 방지).
 			MarketRepublishResult result =
-				productManageUseCase.updatePriceStock(id, request.price(), Boolean.TRUE.equals(request.soldOut()));
+				productManageUseCase.updatePriceStock(id, request.price(), request.soldOut());
 			actionLogService.record(ActionLogConstants.PRODUCT_PRICE_STOCK_UPDATE, null,
 				ActionStatus.SUCCESS, buildMarketResultMessage(id, "DB 저장 완료", result));
 			return ResponseEntity.ok(result);
@@ -134,6 +139,10 @@ public class ProductController {
 		Long id,
 		@RequestBody
 		List<String> imageUrls) {
+		// F-PROD-11: 이미지 URL이 없으면(누락/빈 목록) 처리할 대상이 없다 → 400으로 명확히 거부.
+		if (imageUrls == null || imageUrls.isEmpty()) {
+			throw new IllegalArgumentException("등록할 이미지 URL이 최소 1개 필요합니다.");
+		}
 		// F-PROD-16: 개별 URL 다운로드 실패를 조용히 드롭하지 않고 집계해 응답에 표면화.
 		ImageProcessResult downloaded = imageDownloadClient.downloadAndConvertDetailed(imageUrls);
 		return uploadPreparedImages(id, downloaded,
@@ -256,6 +265,8 @@ public class ProductController {
 		Long id,
 		@RequestBody
 		ProductUpdateRequest request) {
+		// F-PROD-23: 전체수정에 금액·수량 음수 검증이 전무했다 → 음수 금액/재고를 진입부에서 400으로 거부.
+		validateNonNegative(request);
 		// D-076: 상품 정보 수정 — 결과만 기록.
 		try {
 			productManageUseCase.updateProduct(id, request.toCommand());
@@ -282,6 +293,34 @@ public class ProductController {
 			actionLogService.record(ActionLogConstants.PRODUCT_DELETE, null,
 				ActionStatus.FAILED, "상품 삭제 실패 (상품 " + id + "): " + e.getMessage());
 			throw e;
+		}
+	}
+
+	/**
+	 * F-PROD-23: 전체수정 요청의 금액·수량 필드가 음수가 아닌지 검증한다(null은 미변경 → 통과).
+	 * 음수는 잘못된 입력이므로 {@link IllegalArgumentException}으로 던져 400으로 매핑한다.
+	 */
+	private void validateNonNegative(ProductUpdateRequest request) {
+		requireNonNegative("원가(costPrice)", request.costPrice());
+		requireNonNegative("환율(exchangeRate)", request.exchangeRate());
+		requireNonNegative("배송비(deliveryFee)", request.deliveryFee());
+		requireNonNegative("마진율(marginRate)", request.marginRate());
+		requireNonNegative("판매가(salePrice)", request.salePrice());
+		requireNonNegative("무게(weight)", request.weight());
+		requireNonNegative("용량(capacity)", request.capacity());
+		requireNonNegative("재고(stock)", request.stock());
+		requireNonNegative("묶음수량(bundleQuantity)", request.bundleQuantity());
+	}
+
+	private void requireNonNegative(String label, java.math.BigDecimal value) {
+		if (value != null && value.signum() < 0) {
+			throw new IllegalArgumentException(label + "는 0 이상이어야 합니다: " + value);
+		}
+	}
+
+	private void requireNonNegative(String label, Integer value) {
+		if (value != null && value < 0) {
+			throw new IllegalArgumentException(label + "는 0 이상이어야 합니다: " + value);
 		}
 	}
 
