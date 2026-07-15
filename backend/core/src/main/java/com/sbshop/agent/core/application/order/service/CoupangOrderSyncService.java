@@ -23,7 +23,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -180,22 +179,10 @@ public class CoupangOrderSyncService {
 
 	/* ----- 주문 목록 저장/업데이트 ----- */
 	private void processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential) {
-		for (MarketOrderDto dto : marketOrders) {
-			log.info("[COUPANG] 처리 중: orderNo={}, status={}", dto.getMarketOrderNo(), dto.getStatus());
-			// 1. 기존 주문 여부 확인
-			Optional<Order> existingOrder = orderRepository.findByMarketOrderNo(dto.getMarketOrderNo());
-
-			if (existingOrder.isPresent()) {
-				log.info("[COUPANG] 기존 주문 발견: id={}, orderNo={}",
-					existingOrder.get().getId(), dto.getMarketOrderNo());
-				// 2a. 기존 주문 업데이트
-				updateExistingOrder(existingOrder.get(), dto);
-			} else {
-				log.info("[COUPANG] 신규 주문 생성 시도: orderNo={}", dto.getMarketOrderNo());
-				// 2b. 신규 주문 생성
-				createNewOrder(dto);
-			}
-		}
+		// F-SYNC-5: 기존/신규 판정·분기 골격만 공통 헬퍼에 위임. 갱신/생성의 쿠팡 고유 로직
+		// (trackingSentToMarket 보존 가드, 정산액 ×0.89, sellerProductId 역조회 보강 등)은 아래 콜백에 그대로 남는다.
+		MarketOrderUpsertDispatcher.dispatch(
+			marketOrders, orderRepository, "COUPANG", this::updateExistingOrder, this::createNewOrder);
 	}
 
 	/* ----- 기존 주문 업데이트 ----- */

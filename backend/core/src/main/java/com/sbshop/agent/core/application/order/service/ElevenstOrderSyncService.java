@@ -19,7 +19,6 @@ import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -92,19 +91,11 @@ public class ElevenstOrderSyncService {
 	}
 
 	private void processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential) {
-		for (MarketOrderDto dto : marketOrders) {
-			log.info("[ELEVEN_STREET] 처리 중: orderNo={}, status={}", dto.getMarketOrderNo(), dto.getStatus());
-			Optional<Order> existingOrder = orderRepository.findByMarketOrderNo(dto.getMarketOrderNo());
-
-			if (existingOrder.isPresent()) {
-				log.info("[ELEVEN_STREET] 기존 주문 발견: id={}, orderNo={}",
-					existingOrder.get().getId(), dto.getMarketOrderNo());
-				updateExistingOrder(existingOrder.get(), dto);
-			} else {
-				log.info("[ELEVEN_STREET] 신규 주문 생성 시도: orderNo={}", dto.getMarketOrderNo());
-				createNewOrder(dto);
-			}
-		}
+		// F-SYNC-5: 기존/신규 판정·분기 골격만 공통 헬퍼에 위임. 갱신/생성의 11번가 고유 로직
+		// (findBySbCode 매핑, marketSpecificData 반영, marketType 조건부 갱신 등)은 아래 콜백에 그대로 남는다.
+		// 취소 감지(detectCancellations)는 postSyncProcess 경로에 그대로 유지된다.
+		MarketOrderUpsertDispatcher.dispatch(
+			marketOrders, orderRepository, "ELEVEN_STREET", this::updateExistingOrder, this::createNewOrder);
 	}
 
 	private void updateExistingOrder(Order order, MarketOrderDto dto) {
