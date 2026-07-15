@@ -1,5 +1,7 @@
 # POST /sync/elevenstreet — 11번가 주문 동기화 트리거
 
+> **[P4a 반영 2026-07-15]** F-SYNC-1·2·23·25 해결 — 동기화 상태 DB화(sb_market_sync_status, 두 JVM 공유) + @Async 메서드 자기기록(조기 완료마킹 제거) (커밋 `059ed79`).
+
 ## 1. 개요
 
 | 항목 | 내용 |

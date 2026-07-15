@@ -33,7 +33,7 @@
 | **P1 관측성·오류시맨틱** | SP-6, SP-7 | ✅ 완료 (일부 오탐 확정) | `60b02fe`(SP-7) · `6e320e0`(SP-6) |
 | **P2 상태가드** | SP-4 | ✅ 완료 (정책확정: 데이터 주인 기준) | `dfcf8b3`(order) · `aad006e`(batch) · `6c396f4`(web) |
 | **P3 부분실패 표면화** | SP-3 | ✅ 완료 (order 도메인, 상품은 후속) | `ffdaed3`(order) · `6095f1b`(batch) · `dbfefec`(web) |
-| P4 비동기·영속상태 | SP-1, SP-2 | ⏳ 대기 | — |
+| **P4 비동기·영속상태** | SP-1, SP-2 | 🔄 P4a 완료(sync), P4b·c·d 대기 | `059ed79`(sync) · `4268d71`(ddl-auto) |
 | P5 구조 리팩토링 | SP-9, SP-11 | ⏳ 대기 | — |
 | P5b 보안(최소) | SP-10(축소) | ⏳ 대기 | 시크릿 마스킹+접근제어만 |
 | P6 응답 DTO | SP-5 | ⏳ 대기 | 마지막, 프론트 계약 병행 |
@@ -56,10 +56,10 @@
 
 개별 결함보다 먼저 볼 것. 한 곳을 고치면 여러 API가 함께 해결되는 **횡단 근본원인**들이다.
 
-- [ ] **SP-1 · 비동기 예외 은폐 → 실패가 HTTP 200 성공으로 표면화**
+- [~] **SP-1 · 비동기 예외 은폐 → 실패가 HTTP 200 성공으로 표면화** — sync 완료(P4a); ProductSync(F-MISC-8)·batch(F-BATCH-2) 후속
   `@Async`/`new Thread` 로 돌린 작업의 예외가 컨트롤러 try/catch·트랜잭션 밖에서 죽어, 응답은 항상 성공.
   근거: F-SYNC-2(CoupangOrderSyncService.java:54), F-SYNC-23(OrderSyncScheduler.java:52-63), F-MISC-8(ProductSyncController.java:40-53), F-BATCH-2(BatchPriceStockService.java:38-93). → 동기화·크롤·배치 전반의 "성공했는데 실제로는 실패" 근원.
-- [ ] **SP-2 · 상태 저장소가 JVM 로컬 인메모리 → 멀티-JVM(api+worker) 토폴로지에서 상태 UI 무력화**
+- [~] **SP-2 · 상태 저장소가 JVM 로컬 인메모리 → 멀티-JVM 상태 UI 무력화** — sync 상태 DB화 완료(P4a); SSE(F-MISC-16) 후속
   근거: F-SYNC-1(SyncStatusService.java:15, 조회는 api·갱신은 worker), F-SYNC-25(맵 휘발), F-MISC-16(SSE emitter가 api JVM 로컬), F-BATCH-2(재시작 시 PENDING 영구잔류). → `[[deployment-two-jvm-topology]]` 규율(공유상태는 DB+advisory lock) 위반.
 - [~] **SP-3 · 일괄/부분 처리의 부분실패 은폐 + 결과 미반영** — order 도메인 완료(P3), 상품(F-PSRC/F-PROD) 후속
   실패 라인이 응답·로그에 안 드러나거나 요청↔결과 매핑 불가.
@@ -91,9 +91,9 @@
 
 > BUG(후보) 다수는 비동기/멀티-JVM 가정에 근거 — **재현 테스트로 확정 후** normalize 사이클에서 수정.
 
-- [ ] **F-SYNC-1** · order-sync · /status 조회(api)와 갱신(worker) 저장소 분리 → 동기화 상태 UI 항상 빈 값 · `SyncStatusService.java:15` · 동기화 상태 UI 전면 무력화
-- [ ] **F-SYNC-2** · order-sync · `@Async` 예외가 컨트롤러 try/catch로 안 옴 → 실패가 200 은폐 · `CoupangOrderSyncService.java:54` · success:true, catch/500 죽은코드
-- [ ] **F-SYNC-23** · order-sync · @Async 호출 직후 markCompleted → RUNNING/COMPLETED가 실제 실행과 무관 · `OrderSyncScheduler.java:52-63` · 시작 즉시 COMPLETED, 비동기 실패 미기록
+- [x] **F-SYNC-1** · SyncStatusService DB화(sb_market_sync_status) — 두 JVM 상태 공유 · ✅ `059ed79`
+- [x] **F-SYNC-2** · 각 @Async sync가 자기 스레드서 markFailed 기록(검증됨: 정확) · ✅ `059ed79`
+- [x] **F-SYNC-23** · 스케줄러 조기 markCompleted 제거, 서비스 자기기록 · ✅ `059ed79`
 - [ ] **F-SYNC-19** · order-sync · customs 동기 트랜잭션 내 Thread.sleep×배치 → HTTP스레드·DB커넥션 장기점유 · `CustomsOrderSyncService.java:32,70` · 대상 多면 타임아웃·긴 트랜잭션 락
 - [ ] **F-BATCH-2** · batch · 배치 중 재시작 시 PENDING 영구잔류(진행중 배치 유실) · `ProcessStatusService.java:52-59` · 완료판정 불가 (↔ `[[deploy-interrupts-running-batch]]`)
 - [ ] **F-BATCH-M1** · batch · prices/stocks가 productIds와 index 위치로만 정렬 · `BatchPriceStockService.java:105-106` · 순서 어긋나면 엉뚱한 상품에 적용, 조용히 SUCCESS
@@ -313,7 +313,7 @@
 - [ ] **F-SYNC-16** preview·carriers 응답 ResponseEntity<Object> 원시 JsonNode · `OrderSyncController.java:141,161`
 - [ ] **F-SYNC-18** 정산: sbCode 미보유·미배송 lineItem 조용히 누락 · `CoupangOrderSyncService.java:120-131`
 - [ ] **F-SYNC-22** customs ActionLog marketType=null(전 마켓 공통, 의도적) · `OrderSyncController.java:201`
-- [ ] **F-SYNC-25** /status 맵 휘발성·TTL/정리 없음 · `SyncStatusService.java:15`
+- [x] **F-SYNC-25** DB 영속화로 재시작에도 상태 보존 · ✅ `059ed79`
 
 ### product
 - [ ] **F-PROD-3** 조회계열 활동로그 미기록 · `ProductController.java:66-94`
