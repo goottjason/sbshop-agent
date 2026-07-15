@@ -15,7 +15,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.sbshop.agent.api.dto.OrderLineItemResponse;
 import com.sbshop.agent.api.dto.OrderLineItemUpdateRequest;
+import com.sbshop.agent.api.dto.OrderResponse;
 import com.sbshop.agent.api.dto.OrderShipRequest;
 import com.sbshop.agent.api.dto.OrderUpdateRequest;
 import com.sbshop.agent.api.dto.ShippingUpdateRequest;
@@ -88,7 +90,7 @@ public class OrderController {
 
 	/** 단건 발주확인 */
 	@PostMapping("/{id}/confirm")
-	public ResponseEntity<Order> confirmOrder(@PathVariable
+	public ResponseEntity<OrderResponse> confirmOrder(@PathVariable
 	Long id) {
 
 		// D-076: 단건 발주확인 — 결과만 기록(SUCCESS/FAILED). 실패 시 재throw로 기존 에러 응답 보존.
@@ -96,7 +98,7 @@ public class OrderController {
 			Order order = orderService.confirmOrder(id);
 			actionLogService.record(ActionLogConstants.ORDER_CONFIRM, marketOf(order),
 				ActionStatus.SUCCESS, "발주확인 성공 (주문 " + id + ")");
-			return ResponseEntity.ok(order);
+			return ResponseEntity.ok(OrderResponse.from(order));
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.ORDER_CONFIRM, null,
 				ActionStatus.FAILED, "발주확인 실패 (주문 " + id + "): " + e.getMessage());
@@ -133,7 +135,7 @@ public class OrderController {
 
 	/** 단건 발주취소 */
 	@PostMapping("/{id}/cancel")
-	public ResponseEntity<Order> cancelOrder(@PathVariable
+	public ResponseEntity<OrderResponse> cancelOrder(@PathVariable
 	Long id) {
 
 		// D-076: 단건 발주취소 — 결과만 기록.
@@ -141,7 +143,7 @@ public class OrderController {
 			Order order = orderService.cancelOrder(id);
 			actionLogService.record(ActionLogConstants.ORDER_CANCEL, marketOf(order),
 				ActionStatus.SUCCESS, "발주취소 성공 (주문 " + id + ")");
-			return ResponseEntity.ok(order);
+			return ResponseEntity.ok(OrderResponse.from(order));
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.ORDER_CANCEL, null,
 				ActionStatus.FAILED, "발주취소 실패 (주문 " + id + "): " + e.getMessage());
@@ -178,7 +180,7 @@ public class OrderController {
 
 	/** 주소/통관번호 사용자 수정 */
 	@PatchMapping("/{id}")
-	public ResponseEntity<Order> updateOrder(
+	public ResponseEntity<OrderResponse> updateOrder(
 		@PathVariable
 		Long id,
 		@RequestBody
@@ -190,7 +192,7 @@ public class OrderController {
 			Order updated = orderService.updateOrder(id, command);
 			actionLogService.record(ActionLogConstants.ORDER_UPDATE, marketOf(updated),
 				ActionStatus.SUCCESS, "주문정보 수정 성공 (주문 " + id + ")");
-			return ResponseEntity.ok(updated);
+			return ResponseEntity.ok(OrderResponse.from(updated));
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.ORDER_UPDATE, null,
 				ActionStatus.FAILED, "주문정보 수정 실패 (주문 " + id + "): " + e.getMessage());
@@ -200,7 +202,7 @@ public class OrderController {
 
 	/** 유니패스완료여부 사용자 수정 */
 	@PatchMapping("/line-items/{lineItemId}")
-	public ResponseEntity<OrderLineItem> updateOrderLineItem(
+	public ResponseEntity<OrderLineItemResponse> updateOrderLineItem(
 		@PathVariable
 		Long lineItemId,
 		@RequestBody
@@ -212,7 +214,7 @@ public class OrderController {
 			OrderLineItem updated = orderService.updateOrderLineItem(lineItemId, command);
 			actionLogService.record(ActionLogConstants.UNIPASS_UPDATE, marketNameOfLineItem(lineItemId),
 				ActionStatus.SUCCESS, "유니패스 수정 성공 (품목 " + lineItemId + ")");
-			return ResponseEntity.ok(updated);
+			return ResponseEntity.ok(OrderLineItemResponse.from(updated));
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.UNIPASS_UPDATE, null,
 				ActionStatus.FAILED, "유니패스 수정 실패 (품목 " + lineItemId + "): " + e.getMessage());
@@ -222,7 +224,7 @@ public class OrderController {
 
 	/** 라인아이템 소싱(구매) 정보 수정 */
 	@PatchMapping("/line-items/{lineItemId}/sourcing")
-	public ResponseEntity<OrderLineItem> updateSourcingInfo(
+	public ResponseEntity<OrderLineItemResponse> updateSourcingInfo(
 		@PathVariable
 		Long lineItemId,
 		@RequestBody
@@ -233,7 +235,7 @@ public class OrderController {
 			OrderLineItem updated = orderService.updateSourcingInfo(lineItemId, request.toCommand());
 			actionLogService.record(ActionLogConstants.PURCHASE_UPDATE, marketNameOfLineItem(lineItemId),
 				ActionStatus.SUCCESS, "구매정보 수정 성공 (품목 " + lineItemId + ")");
-			return ResponseEntity.ok(updated);
+			return ResponseEntity.ok(OrderLineItemResponse.from(updated));
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.PURCHASE_UPDATE, null,
 				ActionStatus.FAILED, "구매정보 수정 실패 (품목 " + lineItemId + "): " + e.getMessage());
@@ -243,7 +245,7 @@ public class OrderController {
 
 	/** 라인아이템 배송 정보 수정 */
 	@PatchMapping("/line-items/{lineItemId}/shipping")
-	public ResponseEntity<OrderLineItem> updateShippingInfo(
+	public ResponseEntity<OrderLineItemResponse> updateShippingInfo(
 		@PathVariable
 		Long lineItemId,
 		@RequestBody
@@ -254,7 +256,7 @@ public class OrderController {
 			OrderLineItem updated = orderService.updateShippingInfo(lineItemId, request.toCommand());
 			actionLogService.record(ActionLogConstants.SHIPPING_UPDATE, marketNameOfLineItem(lineItemId),
 				ActionStatus.SUCCESS, "배송정보 수정 성공 (품목 " + lineItemId + ")");
-			return ResponseEntity.ok(updated);
+			return ResponseEntity.ok(OrderLineItemResponse.from(updated));
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.SHIPPING_UPDATE, null,
 				ActionStatus.FAILED, "배송정보 수정 실패 (품목 " + lineItemId + "): " + e.getMessage());
