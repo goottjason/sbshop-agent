@@ -112,4 +112,48 @@ class EmailFetcherServiceTest {
 		verify(marketplaceShippingService, never()).sendTrackingToMarketplace(any(), eq(true));
 		verify(orderLineItemRepository, never()).save(any());
 	}
+
+	// F-MISC-18: 재진입/동시실행 가드
+	// EmailFetchController(수동)와 OrderSyncScheduler(cron) 가 같은 worker JVM에서
+	// fetchAndProcessEmails()를 동시에 호출하면 같은 발송메일을 이중 처리 → 마켓 중복 송장 전송.
+	// 이미 실행 중이면 두 번째 호출은 본처리(DB 조회)를 스킵해야 한다.
+
+	@Test
+	void 이미_실행중이면_두번째_fetchAndProcessEmails_호출은_본처리를_스킵한다() throws Exception {
+		when(properties.getAccounts())
+			.thenReturn(List.of(new EmailAccountProperties.Account()));
+
+		// 첫 호출이 락을 잡고 본처리 진입한 순간, 같은 서비스로 재호출 시도.
+		// 첫 호출의 본처리(DB 조회) 지점에서 재진입을 유발하여 두 번째가 스킵되는지 검증.
+		java.util.concurrent.atomic.AtomicBoolean reentrantProcessed =
+			new java.util.concurrent.atomic.AtomicBoolean(false);
+		when(orderLineItemRepository.findIherbItemsNeedingEmailProcessing())
+			.thenAnswer(inv -> {
+				// 락을 보유한 채 재진입 — 두 번째 호출은 스킵되어야 하므로
+				// 이 스텁이 두 번 호출되면 안 된다.
+				if (reentrantProcessed.compareAndSet(false, true)) {
+					service.fetchAndProcessEmails(); // 재진입 시도
+				}
+				return List.of();
+			});
+
+		service.fetchAndProcessEmails();
+
+		// 본처리(findIherbItemsNeedingEmailProcessing)는 재진입에도 불구하고 정확히 1회만 실행.
+		verify(orderLineItemRepository, times(1)).findIherbItemsNeedingEmailProcessing();
+	}
+
+	@Test
+	void 실행_종료후_락이_해제되어_다음_호출은_정상_진행한다() {
+		when(properties.getAccounts())
+			.thenReturn(List.of(new EmailAccountProperties.Account()));
+		when(orderLineItemRepository.findIherbItemsNeedingEmailProcessing())
+			.thenReturn(List.of());
+
+		service.fetchAndProcessEmails();
+		service.fetchAndProcessEmails();
+
+		// 순차 호출은 매번 본처리 진입 (락 정상 해제)
+		verify(orderLineItemRepository, times(2)).findIherbItemsNeedingEmailProcessing();
+	}
 }

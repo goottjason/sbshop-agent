@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,35 +38,54 @@ public class EmailFetcherService {
 	private final MarketplaceShippingService marketplaceShippingService;
 	private final ActionLogService actionLogService;
 
+	// F-MISC-18: 재진입/동시실행 가드.
+	// EmailFetchController(수동 /internal/email/fetch)와 OrderSyncScheduler(cron 0/30)가
+	// 같은 worker JVM에서 fetchAndProcessEmails()를 동시에 호출하면 같은 발송메일을 이중 처리 →
+	// 마켓에 중복 송장 전송되는 창이 있다(PURCHASED 아이템을 두 실행이 동시에 읽어 각각 shipOrder).
+	// 인-JVM 플래그로 이미 실행 중이면 두 번째 호출은 본처리를 스킵하고 즉시 반환한다.
+	// (cross-JVM 아님 — 컨트롤러·스케줄러 모두 worker JVM이라 인-JVM 가드로 충분.)
+	// AtomicBoolean은 서로 다른 스레드 간 겹침은 물론 같은 스레드의 재진입도 막는다
+	// (ReentrantLock은 동일 스레드 재진입을 허용하므로 부적합).
+	private final AtomicBoolean fetching = new AtomicBoolean(false);
+
 	@Transactional
 	public void fetchAndProcessEmails() {
-		if (properties.getAccounts() == null || properties.getAccounts().isEmpty()) {
-			log.warn("IMAP 이메일 계정이 설정되지 않았습니다.");
+		// 재진입/동시실행 가드: 이미 실행 중이면 본처리를 스킵하고 즉시 반환.
+		if (!fetching.compareAndSet(false, true)) {
+			log.info("이메일 수집·처리가 이미 실행 중입니다 - 이번 호출은 스킵(중복 실행 방지, F-MISC-18)");
 			return;
 		}
-
-		// 1. DB에서 이메일 처리가 필요한 iHerb 주문번호 조회
-		List<OrderLineItem> items = orderLineItemRepository.findIherbItemsNeedingEmailProcessing();
-		if (items.isEmpty()) {
-			log.debug("이메일 처리가 필요한 iHerb 주문이 없습니다.");
-			return;
-		}
-
-		// 2. 소싱 주문번호 추출 및 중복 제거
-		Set<String> orderNos = new HashSet<>();
-		for (OrderLineItem item : items) {
-			String orderNo = item.getSourcingData() != null
-				? item.getSourcingData().getSourcingOrderNo() : null;
-			if (orderNo != null && !orderNo.isBlank()) {
-				orderNos.add(orderNo);
+		try {
+			if (properties.getAccounts() == null || properties.getAccounts().isEmpty()) {
+				log.warn("IMAP 이메일 계정이 설정되지 않았습니다.");
+				return;
 			}
-		}
 
-		log.info("이메일 검색 대상 iHerb 주문번호 {}건: {}", orderNos.size(), orderNos);
+			// 1. DB에서 이메일 처리가 필요한 iHerb 주문번호 조회
+			List<OrderLineItem> items = orderLineItemRepository.findIherbItemsNeedingEmailProcessing();
+			if (items.isEmpty()) {
+				log.debug("이메일 처리가 필요한 iHerb 주문이 없습니다.");
+				return;
+			}
 
-		// 3. 각 주문번호별로 이메일 계정 순회하며 검색
-		for (String orderNo : orderNos) {
-			searchAndProcessForOrderNo(orderNo);
+			// 2. 소싱 주문번호 추출 및 중복 제거
+			Set<String> orderNos = new HashSet<>();
+			for (OrderLineItem item : items) {
+				String orderNo = item.getSourcingData() != null
+					? item.getSourcingData().getSourcingOrderNo() : null;
+				if (orderNo != null && !orderNo.isBlank()) {
+					orderNos.add(orderNo);
+				}
+			}
+
+			log.info("이메일 검색 대상 iHerb 주문번호 {}건: {}", orderNos.size(), orderNos);
+
+			// 3. 각 주문번호별로 이메일 계정 순회하며 검색
+			for (String orderNo : orderNos) {
+				searchAndProcessForOrderNo(orderNo);
+			}
+		} finally {
+			fetching.set(false);
 		}
 	}
 
