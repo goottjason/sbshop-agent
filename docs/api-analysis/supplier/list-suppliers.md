@@ -1,5 +1,7 @@
 # GET /suppliers — 공급사(매입처) 목록 조회
 
+> **[E 반영 2026-07-15]** F-SUP-1 — SupplierResponse DTO, LAZY 유출 차단 (커밋 `d556697`).
+
 ## 1. 개요
 
 | 항목 | 내용 |

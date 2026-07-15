@@ -34,9 +34,9 @@
 | **P2 상태가드** | SP-4 | ✅ 완료 (정책확정: 데이터 주인 기준) | `dfcf8b3`(order) · `aad006e`(batch) · `6c396f4`(web) |
 | **P3 부분실패 표면화** | SP-3 | ✅ 완료 (order 도메인, 상품은 후속) | `ffdaed3`(order) · `6095f1b`(batch) · `dbfefec`(web) |
 | **P4 비동기·영속상태** | SP-1, SP-2 | ✅ 완료 (a·b·c·d) | `059ed79`·`4268d71`·`bbf0e1c`·`03ea176`·`e58e218` |
-| P5 구조 리팩토링 | SP-9, SP-11 | ⏳ 대기 | — |
-| P5b 보안(최소) | SP-10(축소) | ⏳ 대기 | 시크릿 마스킹+접근제어만 |
-| P6 응답 DTO | SP-5 | ⏳ 대기 | 마지막, 프론트 계약 병행 |
+| **P5 구조 리팩토링** | SP-9, SP-11 | ✅ SP-9 완료·SP-11 부분 | `d81fa42`·`04062a9` |
+| **P5b 보안(최소)** | SP-10(축소) | ✅ 완료 | `019e20d`·`97b5b79` |
+| **P6 응답 DTO** | SP-5 | ✅ 완료(계약보존) | `c2b4e47`·`5ff8890`·`d556697`·`54087b6` |
 | (보류) 삭제 시맨틱 | SP-8 | ⛔ 제품결정 필요 | — |
 
 ### P1 결과 요약 (2026-07-14)
@@ -67,7 +67,7 @@
 - [x] **SP-4 · 종료 상태(CANCELED/RETURNED/EXCHANGED)·배송완료 상태 가드 부재** — ✅ P2 완료(정책확정)
   종료된 건에 소싱/송장/유니패스/취소/삭제가 무제한 허용.
   근거: F-S1, F-H2, F-ORD-13·25·29·35, F-PROD-27.
-- [ ] **SP-5 · 응답에 도메인 엔티티 직접 노출(수정계열 전반)**
+- [x] **SP-5 · 응답에 도메인 엔티티 직접 노출** — ✅ order 쓰기·product·supplier·batch·sync·mreg DTO화(E), CRED 마스킹(P5b). F-ORD-1 그리드 DTO 내부래핑은 잔여
   DTO 없이 `Order`/`OrderLineItem`/`Product`/`Supplier`/`Currency`/`ProcessStatus`/`SyncStatus`/`MarketRegistration` 직렬화 → 도메인 변경에 API 계약 결합, 내부/민감 필드 유출.
   근거: F-ORD-1·7·16·24·28, F-PROD-6, F-SUP-1·LC-1, F-BATCH-S1, F-SYNC-24, F-MREG-4, F-CRED-1·7.
 - [x] **SP-6 · 활동로그 marketType 항상 null(해석 가능함에도)** — ✅ P1(성공경로), 실패경로 보류
@@ -82,7 +82,7 @@
   근거: F-SUP-CS-3·UC-4, F-MREG-6, F-MISC-9.
 - [~] **SP-10 · 인증/접근제어 부재 + `@CrossOrigin("*")` 전역 + 시크릿 평문** — 축소완료(P5b): 시크릿 마스킹+internal/트리거 가드. CORS·preview PII·CAFE 등은 범위 밖
   근거: F-CRED-1·7·2(시크릿 평문 응답/저장), F-MISC-7·13·17(무인증 트리거/SSE/internal), F-SYNC-13(preview PII), F-CAFE-14, F-MISC-3.
-- [ ] **SP-11 · 중복 분기/로직(수정 시 N곳 동기화 필요)**
+- [~] **SP-11 · 중복 분기/로직** — 발주batch·root-cause(D) 완료; 마켓sync골격·이미지3경로·batch트리거 후속
   근거: F-ORD-18(cancel/confirm batch), F-BATCH-3(트리거 4종)·B3, F-PROD-15·19·20(이미지 3경로), F-SYNC-5(마켓 sync 4종)·14, F-CAFE-12.
 
 ---
@@ -217,7 +217,7 @@
 
 ### order
 - [ ] **F-ORD-1** 조회 응답 도메인 엔티티 노출 · `OrderDetailDto.java:14-23`
-- [ ] **F-ORD-7 / 16 / 24 / 28** 발주확인/취소/수정/유니패스 응답 엔티티 직접 노출 · `OrderController.java:72,116,160,182`
+- [x] **F-ORD-7/16/24/28** OrderResponse/OrderLineItemResponse DTO화(계약보존) · ✅ `c2b4e47`
 - [ ] **F-ORD-10 / 19** confirm/cancel-batch 컨트롤러 catch 죽은코드 · `OrderController.java:105-108,149-152`
 - [x] **F-ORD-18** bulkOperate 헬퍼로 통합 · ✅ `04062a9`
 - [ ] **F-ORD-21** `OrderUpdateCommand.toCustomsData()` 미사용 죽은코드 · `OrderUpdateCommand.java:14-19`
@@ -232,14 +232,14 @@
 - [ ] **F-SYNC-5** 4개 마켓 sync upsert 골격 중복 · `CoupangOrderSyncService.java:168-293`
 - [ ] **F-SYNC-8** 스마트스토어·11번가 송장병합에 trackingSentToMarket 보존 가드 없음(쿠팡과 비대칭) · `SmartStoreOrderSyncService.java:116-127`
 - [ ] **F-SYNC-4** 정산 수수료율 0.89 하드코딩 · `CoupangOrderSyncService.java:276`
-- [ ] **F-SYNC-14** root cause 추출 3곳 복붙 · `OrderSyncController.java:150-169`
+- [x] **F-SYNC-14** RootCauseExtractor 유틸로 통합 · ✅ `04062a9`
 - [ ] **F-SYNC-15** carriers 실패 로그가 "주문 프리뷰 실패"로 오기재 · `OrderSyncController.java:165`
 - [ ] **F-SYNC-21** customs 배치크기 30·딜레이 1000ms 매직넘버 · `CustomsOrderSyncService.java:54,71`
-- [ ] **F-SYNC-24** /status 응답이 내부 정적클래스 직접 노출 · `OrderSyncController.java:225`
+- [x] **F-SYNC-24** SyncStatusResponse DTO · ✅ `54087b6`
 
 ### product
 - [ ] **F-PROD-1** marketFilter·keyword 배타, keyword 무시 · `ProductController.java:75-82`
-- [ ] **F-PROD-6** 상세응답 도메인 VO 직접 노출 · `ProductDetailResponse.java:22-33`
+- [x] **F-PROD-6** 중첩 record DTO 래핑 · ✅ `5ff8890`
 - [ ] **F-PROD-10 / 14** price-stock·images가 26필드 커맨드 1~2칸만 채움(위치기반 오배치 위험) · `ProductManageUseCase.java:49-84`
 - [ ] **F-PROD-15** images/by-url 본문로직 완전중복 · `ProductController.java:117-155`
 - [ ] **F-PROD-19 / 20** 크롤 앞·뒷단이 crawl-and-upload와 중복(최대 3곳) · `ProductController.java:163-209`
@@ -252,7 +252,7 @@
 - [ ] **F-BATCH-M3** 변경없음 판정 price=equals vs stock=status 비대칭 · `BatchPriceStockService.java:112-113`
 - [ ] **F-BATCH-A3** 배치 3종 부수효과·완충 정책 제각각 · `BatchPriceStockService.java:38/95/151`
 - [ ] **F-BATCH-B3** by-supplier가 crawl-and-update와 거의 동일 · `BatchController.java:97-120`
-- [ ] **F-BATCH-S1** 도메인 엔티티 ProcessStatus 직접 노출 · `BatchController.java:123`
+- [x] **F-BATCH-S1** ProcessStatusResponse DTO · ✅ `54087b6`
 
 ### product-sourcing
 - [ ] **F-PSRC-3** 대량 URL 소싱 순차·블로킹 → 톰캣 스레드 장기점유 · `IherbScraperClient.java:227-240`
@@ -261,10 +261,10 @@
 - [ ] **F-PSRC-15** 마켓 미지원 검증이 hasClient/getClient 이중 · `ProductPublishUseCase.java:36-43`
 
 ### supplier
-- [ ] **F-SUP-1** 응답 Supplier 엔티티 노출 + LAZY currency 유출 위험 · `SupplierController.java:30`
+- [x] **F-SUP-1** SupplierResponse DTO(LAZY 유출 차단) · ✅ `d556697`
 - [x] **F-SUP-CS-3** SupplierService 추출 · ✅ `d81fa42`
 - [x] **F-SUP-UC-4** SupplierService @Transactional · ✅ `d81fa42`
-- [ ] **F-SUP-LC-1** 응답 Currency 엔티티 직접 노출 · `SupplierController.java:44`
+- [x] **F-SUP-LC-1** CurrencyResponse DTO · ✅ `d556697`
 
 ### market-credential
 - [ ] **F-CRED-10** 저장 실패 활동로그에 e.getMessage() 원문 노출 · `MarketCredentialController.java:57`
@@ -277,7 +277,7 @@
 - [ ] **F-CAFE-3** 상품 실패를 무조건 "토큰 만료/무효"로 단정 · `Cafe24AuthController.java:51-55`
 
 ### market-registration
-- [ ] **F-MREG-4** 응답 도메인 엔티티(+원시 JSON 식별자) 노출 · `MarketRegistrationController.java:31,38`
+- [x] **F-MREG-4** MarketRegistrationResponse DTO(원시식별자 형태 보존) · ✅ `54087b6`
 - [x] **F-MREG-6** MarketRegistrationService 추출 · ✅ `d81fa42`
 
 ### misc

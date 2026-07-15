@@ -1,5 +1,7 @@
 # GET /products/{productId}/markets — 상품의 마켓 등록현황 목록 조회
 
+> **[E 반영 2026-07-15]** F-MREG-4 — MarketRegistrationResponse DTO (커밋 `54087b6`).
+
 ## 1. 개요
 
 | 항목 | 내용 |
