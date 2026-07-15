@@ -185,10 +185,16 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 		return orderFields.or(hasMatchingLineItem);
 	}
 
-	/** 기간 필터 */
-	private BooleanExpression dateBetween(LocalDateTime startDate, LocalDateTime endDate) {
+	/** 기간 필터 (한쪽만 주어져도 그 경계는 적용한다 — F-ORD-2) */
+	BooleanExpression dateBetween(LocalDateTime startDate, LocalDateTime endDate) {
 		if (startDate != null && endDate != null) {
 			return order.orderDate.between(startDate, endDate);
+		}
+		if (startDate != null) {
+			return order.orderDate.goe(startDate);
+		}
+		if (endDate != null) {
+			return order.orderDate.loe(endDate);
 		}
 		return null;
 	}

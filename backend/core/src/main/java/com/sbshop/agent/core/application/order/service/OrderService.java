@@ -69,7 +69,13 @@ public class OrderService {
 
 		// 이미 진행(PREPARING 이상)·종료(취소/반품/교환) 상태의 라인아이템이 있으면 재확인 차단 —
 		// 발주확인은 결제완료(NEW) 상태에서만 최초 1회 수행한다(F-ORD-6, F-ORD-29).
-		List<OrderLineItem> currentItems = orderLineItemRepository.findByOrderId(order.getId());
+		List<OrderLineItem> currentItems = orderLineItemRepository.findByOrderId(id);
+
+		// 라인아이템이 하나도 없는 주문은 발주확인이 무의미하다 — 마켓 접수 API 호출 전에 차단(F-ORD-22).
+		if (currentItems.isEmpty()) {
+			throw new IllegalStateException("라인아이템이 없는 주문은 발주확인할 수 없습니다.");
+		}
+
 		boolean hasProgressedOrEnded = currentItems.stream().anyMatch(item -> {
 			ShippingStatus status = item.getShippingData() != null ? item.getShippingData().getShippingStatus() : null;
 			if (status == null) {
@@ -252,10 +258,13 @@ public class OrderService {
 
 		// 유니패스 신고여부는 관리용 정보로, 배송상태와 무관하게 언제든 수정 가능(F-ORD-25 종결).
 
-		// 유니패스완료여부 수정
-		if (command.getIsUnipassDone() != null) {
-			lineItem.updateUnipassDone(command.getIsUnipassDone());
+		// isUnipassDone이 없는 요청은 변경할 것이 없다 — no-op을 성공으로 오인해 로그를 남기지 않도록 차단(F-ORD-26).
+		if (command.getIsUnipassDone() == null) {
+			throw new IllegalArgumentException("유니패스 완료여부(isUnipassDone)는 필수입니다.");
 		}
+
+		// 유니패스완료여부 수정
+		lineItem.updateUnipassDone(command.getIsUnipassDone());
 
 		return orderLineItemRepository.save(lineItem);
 	}
@@ -329,6 +338,11 @@ public class OrderService {
 
 		// PURCHASED면 배송 처리 (PURCHASED -> SHIPPED)
 		if (currentStatus == ShippingStatus.PURCHASED) {
+			// PURCHASED→SHIPPED 최초 전이에는 송장번호가 필수 — 없으면 송장 없이 SHIPPED로 넘어가는 것을 차단(F-H4).
+			// (소싱의 sourcingOrderNo 가드와 대칭. SHIPPED 이후 단순수정은 아래 else 분기로 기존대로 허용.)
+			if (command.getTrackingNo() == null || command.getTrackingNo().isBlank()) {
+				throw new IllegalStateException("배송 처리 시 송장번호는 필수입니다.");
+			}
 			item.applyShippingData(command.toShippingData(item.getShippingData()));
 			item.markAsShipped();
 			orderLineItemRepository.save(item);
