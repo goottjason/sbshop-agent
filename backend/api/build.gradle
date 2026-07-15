@@ -18,8 +18,9 @@ dependencies {
     // Swagger/OpenAPI docs
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
 
-    // PostgreSQL
-    runtimeOnly 'org.postgresql:postgresql'
+    // PostgreSQL — LISTEN/NOTIFY SSE 브리지(F-MISC-16)가 org.postgresql.PGConnection/PGNotification을
+    // 컴파일 타임에 참조하므로 implementation으로 승격(기존 runtimeOnly는 드라이버 로딩만 가능).
+    implementation 'org.postgresql:postgresql'
 
     // Testcontainers — 실 PostgreSQL 기반 @SpringBootTest 컨텍스트/마이그레이션 검증 (D-013)
     testImplementation 'org.testcontainers:junit-jupiter'
