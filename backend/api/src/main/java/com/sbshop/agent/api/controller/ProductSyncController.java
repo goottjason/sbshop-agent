@@ -4,9 +4,12 @@ import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.product.ProductSyncService;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
+import com.sbshop.agent.core.config.InternalAccessGuard;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -22,9 +25,17 @@ public class ProductSyncController {
 	private final ProductSyncService productSyncService;
 	// D-076: 사용자 액션 활동로그 기록 서비스
 	private final ActionLogService actionLogService;
+	// F-MISC-7: 공유시크릿 헤더 가드. INTERNAL_API_TOKEN 미설정 시 비활성(무파손, 프론트 옵트인).
+	private final InternalAccessGuard internalAccessGuard;
 
 	@PostMapping("/sync/stock")
-	public ResponseEntity<?> syncAllProductStock() {
+	public ResponseEntity<?> syncAllProductStock(
+			@RequestHeader(value = InternalAccessGuard.HEADER_NAME, required = false) String internalToken) {
+		// F-MISC-7: 가드 활성 시 시크릿 헤더 불일치/누락은 동기화 트리거 전 403으로 차단.
+		if (!internalAccessGuard.isAllowed(internalToken)) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN)
+				.body(Map.of("success", false, "message", "forbidden: invalid internal token"));
+		}
 		// D-076: 재고 동기화(백그라운드 크롤) — 트리거 시점 기록(STARTED).
 		actionLogService.record(ActionLogConstants.STOCK_SYNC, null,
 			ActionStatus.STARTED, "재고 동기화 요청");
