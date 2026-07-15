@@ -50,11 +50,19 @@ export interface MarketOutcome {
 export interface MarketFailure extends MarketOutcome {
   error: string;
 }
+// F-PROD-12·F-PROD-16: 개별 이미지 처리(리사이즈/다운로드) 부분 실패. ref=원본 URL/파일명, reason=사유.
+export interface ImageProcessFailure {
+  ref: string;
+  reason: string;
+}
 export interface ImageUploadResult {
   storageUpdated: boolean;
   synced: MarketOutcome[];
   skipped: MarketOutcome[];
   failed: MarketFailure[];
+  // F-PROD-12·F-PROD-16: 저장에 성공한 이미지 장수와, 조용히 드롭되지 않은 개별 실패 목록.
+  imagesSucceeded: number;
+  imagesFailed: ImageProcessFailure[];
 }
 
 // D-060: 가격/재고 저장 시 마켓 동기화 결과(MarketRepublishResult 레코드).

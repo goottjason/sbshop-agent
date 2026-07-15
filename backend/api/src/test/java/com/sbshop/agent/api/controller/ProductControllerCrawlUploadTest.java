@@ -19,6 +19,7 @@ import com.sbshop.agent.core.application.sourcing.dto.ScrapedProductDto;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
+import com.sbshop.agent.core.domain.product.client.dto.ImageProcessResult;
 import com.sbshop.agent.core.domain.product.client.dto.ImageUploadFile;
 import java.io.ByteArrayInputStream;
 import java.util.List;
@@ -60,7 +61,7 @@ class ProductControllerCrawlUploadTest {
     }
 
     @Test
-    @DisplayName("crawlAndUpload: 정상 경로 — 크롤 URL 목록 downloadAndConvert 후 updateImagesAndHtml 호출")
+    @DisplayName("crawlAndUpload: 정상 경로 — 크롤 URL 목록 downloadAndConvertDetailed 후 updateImagesAndHtml 호출")
     void crawlAndUpload_happyPath_callsDownloadAndUpdate() {
         Product product = org.mockito.Mockito.mock(Product.class);
         when(productSearchUseCase.getProductDetail(7L)).thenReturn(product);
@@ -72,8 +73,8 @@ class ProductControllerCrawlUploadTest {
                 .build());
 
         List<ImageUploadFile> files = List.of(dummyFile("u0.jpg"), dummyFile("u1.jpg"));
-        when(imageDownloadClient.downloadAndConvert(List.of("http://img/u0.jpg", "http://img/u1.jpg")))
-            .thenReturn(files);
+        when(imageDownloadClient.downloadAndConvertDetailed(List.of("http://img/u0.jpg", "http://img/u1.jpg")))
+            .thenReturn(ImageProcessResult.of(files, List.of()));
 
         MarketRepublishResult result = new MarketRepublishResult(List.of(), List.of(), Map.of());
         when(productManageUseCase.updateImagesAndHtml(7L, files)).thenReturn(result);
@@ -82,7 +83,7 @@ class ProductControllerCrawlUploadTest {
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         org.mockito.InOrder inOrderVerify = inOrder(imageDownloadClient, productManageUseCase);
-        inOrderVerify.verify(imageDownloadClient).downloadAndConvert(eq(List.of("http://img/u0.jpg", "http://img/u1.jpg")));
+        inOrderVerify.verify(imageDownloadClient).downloadAndConvertDetailed(eq(List.of("http://img/u0.jpg", "http://img/u1.jpg")));
         inOrderVerify.verify(productManageUseCase).updateImagesAndHtml(eq(7L), eq(files));
     }
 

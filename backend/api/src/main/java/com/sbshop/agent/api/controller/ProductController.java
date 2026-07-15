@@ -16,6 +16,7 @@ import com.sbshop.agent.core.domain.market.repository.MarketRegistrationReposito
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
+import com.sbshop.agent.core.domain.product.client.dto.ImageProcessResult;
 import com.sbshop.agent.core.domain.product.client.dto.ImageUploadFile;
 import com.sbshop.agent.core.application.product.port.ProductInfoCrawlerPort;
 import com.sbshop.agent.core.application.sourcing.dto.ScrapedProductDto;
@@ -120,13 +121,15 @@ public class ProductController {
 		Long id,
 		@RequestPart("images")
 		List<MultipartFile> images) {
-		List<ImageUploadFile> uploadFiles = prepareImageFiles(images);
+		// F-PROD-12: 개별 이미지 리사이즈 실패를 조용히 드롭하지 않고 집계해 응답에 표면화.
+		ImageProcessResult prepared = prepareImageFiles(images);
+		List<ImageUploadFile> uploadFiles = prepared.succeeded();
 		// D-076: 이미지/HTML 수정 — 결과만 기록.
 		try {
 			MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, uploadFiles);
 			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
-				ActionStatus.SUCCESS, buildMarketResultMessage(id, "이미지 저장 완료", result));
-			return ResponseEntity.ok(ImageUploadResponse.from(result));
+				ActionStatus.SUCCESS, buildImageResultMessage(id, "이미지 저장 완료", result, prepared));
+			return ResponseEntity.ok(ImageUploadResponse.from(result, prepared, uploadFiles.size()));
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
 				ActionStatus.FAILED, "이미지 수정 실패 (상품 " + id + "): " + e.getMessage());
@@ -140,13 +143,15 @@ public class ProductController {
 		Long id,
 		@RequestBody
 		List<String> imageUrls) {
-		List<ImageUploadFile> downloadFiles = imageDownloadClient.downloadAndConvert(imageUrls);
+		// F-PROD-16: 개별 URL 다운로드 실패를 조용히 드롭하지 않고 집계해 응답에 표면화.
+		ImageProcessResult downloaded = imageDownloadClient.downloadAndConvertDetailed(imageUrls);
+		List<ImageUploadFile> downloadFiles = downloaded.succeeded();
 		// D-076: 이미지(URL) 수정 — 결과만 기록.
 		try {
 			MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, downloadFiles);
 			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
-				ActionStatus.SUCCESS, buildMarketResultMessage(id, "이미지 저장 완료", result));
-			return ResponseEntity.ok(ImageUploadResponse.from(result));
+				ActionStatus.SUCCESS, buildImageResultMessage(id, "이미지 저장 완료", result, downloaded));
+			return ResponseEntity.ok(ImageUploadResponse.from(result, downloaded, downloadFiles.size()));
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
 				ActionStatus.FAILED, "이미지 수정 실패 (상품 " + id + "): " + e.getMessage());
@@ -201,12 +206,14 @@ public class ProductController {
 				return ResponseEntity.ok(ImageUploadResponse.from(
 					new MarketRepublishResult(List.of(), List.of(), Map.of())));
 			}
-			List<ImageUploadFile> files = imageDownloadClient.downloadAndConvert(images);
+			// F-PROD-16: 개별 URL 다운로드 실패를 조용히 드롭하지 않고 집계해 응답에 표면화.
+			ImageProcessResult downloaded = imageDownloadClient.downloadAndConvertDetailed(images);
+			List<ImageUploadFile> files = downloaded.succeeded();
 			MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, files);
 			actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
 				ActionStatus.SUCCESS,
-				buildMarketResultMessage(id, "소스이미지 " + images.size() + "개 크롤·업로드 완료", result));
-			return ResponseEntity.ok(ImageUploadResponse.from(result));
+				buildImageResultMessage(id, "소스이미지 " + images.size() + "개 크롤·업로드", result, downloaded));
+			return ResponseEntity.ok(ImageUploadResponse.from(result, downloaded, files.size()));
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
 				ActionStatus.FAILED, "소스이미지 크롤·업로드 실패 (상품 " + id + "): " + e.getMessage());
@@ -321,8 +328,13 @@ public class ProductController {
 		return marketMap;
 	}
 
-	private List<ImageUploadFile> prepareImageFiles(List<MultipartFile> images) {
+	/**
+	 * F-PROD-12: 개별 이미지 리사이즈 실패를 조용히 드롭하지 않고, 성공 파일과 실패 항목(파일명·사유)을
+	 * {@link ImageProcessResult}로 함께 반환한다. 실패는 응답의 imagesFailed로 표면화된다.
+	 */
+	private ImageProcessResult prepareImageFiles(List<MultipartFile> images) {
 		List<ImageUploadFile> uploadFiles = new ArrayList<>();
+		List<ImageProcessResult.ImageFailure> failures = new ArrayList<>();
 		for (MultipartFile mf : images) {
 			try {
 				byte[] rawBytes = mf.getBytes();
@@ -341,8 +353,25 @@ public class ProductController {
 					optimizedBytes.length));
 			} catch (Exception e) {
 				log.error("이미지 리사이즈 실패: {}", mf.getOriginalFilename(), e);
+				String reason = (e.getMessage() == null || e.getMessage().isBlank())
+					? e.getClass().getSimpleName() : e.getMessage();
+				failures.add(new ImageProcessResult.ImageFailure(mf.getOriginalFilename(), reason));
 			}
 		}
-		return uploadFiles;
+		return ImageProcessResult.of(uploadFiles, failures);
+	}
+
+	/**
+	 * F-PROD-12·F-PROD-16: 마켓 재게시 메시지에 개별 이미지 부분 실패(성공 N/실패 M)를 덧붙인다.
+	 * 이미지 실패가 없으면 기존 마켓 메시지를 그대로 반환한다.
+	 */
+	private String buildImageResultMessage(
+		Long productId, String prefix, MarketRepublishResult result, ImageProcessResult images) {
+		int failed = images.failed().size();
+		if (failed == 0) {
+			return buildMarketResultMessage(productId, prefix, result);
+		}
+		String imgPrefix = prefix + " (이미지 " + images.succeeded().size() + "장 성공, " + failed + "장 실패)";
+		return buildMarketResultMessage(productId, imgPrefix, result);
 	}
 }

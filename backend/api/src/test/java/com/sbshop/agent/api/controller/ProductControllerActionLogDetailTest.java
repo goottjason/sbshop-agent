@@ -126,7 +126,8 @@ class ProductControllerActionLogDetailTest {
 	@Test
 	@DisplayName("uploadImagesByUrl: 활동로그 메시지에도 마켓별 상세가 담긴다")
 	void uploadImagesByUrl_recordsMarketDetail() {
-		when(imageDownloadClient.downloadAndConvert(any())).thenReturn(List.of());
+		when(imageDownloadClient.downloadAndConvertDetailed(any())).thenReturn(
+			com.sbshop.agent.core.domain.product.client.dto.ImageProcessResult.of(List.of(), List.of()));
 		when(productManageUseCase.updateImagesAndHtml(anyLong(), any())).thenReturn(mixedResult());
 		when(marketRegistrationRepository.findByProductId(1L)).thenReturn(List.of(
 			reg(1L, MarketType.COUPANG, "{\"vendorItemId\":\"7283748383\"}")));

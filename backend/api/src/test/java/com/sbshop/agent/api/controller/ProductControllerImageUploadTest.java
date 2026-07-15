@@ -62,7 +62,9 @@ class ProductControllerImageUploadTest {
 	@Test
 	@DisplayName("uploadImagesByUrl: 마켓 부분 실패가 응답 본문의 failed 목록에 실려 반환된다")
 	void uploadImagesByUrl_surfacesPartialMarketFailure() {
-		when(imageDownloadClient.downloadAndConvert(any())).thenReturn(List.<ImageUploadFile>of());
+		when(imageDownloadClient.downloadAndConvertDetailed(any())).thenReturn(
+			com.sbshop.agent.core.domain.product.client.dto.ImageProcessResult.of(
+				List.<ImageUploadFile>of(), List.of()));
 		when(productManageUseCase.updateImagesAndHtml(anyLong(), any())).thenReturn(mixedResult());
 
 		ResponseEntity<ImageUploadResponse> res =

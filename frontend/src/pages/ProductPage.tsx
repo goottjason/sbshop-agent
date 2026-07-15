@@ -185,7 +185,19 @@ const ProductPage = () => {
 
   // D-049(반려 재수정): 업로드 응답의 마켓별 재게시 결과를 사용자에게 표면화.
   // 자사 저장(R2/DB)은 성공했더라도 일부 마켓 재게시가 실패하면 조용히 삼키지 않고 경고로 노출한다.
+  // F-PROD-12·F-PROD-16: 개별 이미지 처리(리사이즈/다운로드) 부분 실패도 조용히 드롭하지 않고 경고로 노출.
   const surfaceUploadResult = (baseMsg: string, result?: ImageUploadResult) => {
+    const imagesFailed = result?.imagesFailed ?? [];
+    if (imagesFailed.length > 0) {
+      const okCount = result?.imagesSucceeded ?? 0;
+      const sample = imagesFailed.slice(0, 2).map((f) => f.reason).join('; ');
+      message.warning(
+        `${baseMsg} — 이미지 ${imagesFailed.length}장 처리 실패 (성공 ${okCount}장): ${sample}` +
+          (imagesFailed.length > 2 ? ' 외' : ''),
+        6,
+      );
+      return;
+    }
     const failed = result?.failed ?? [];
     if (failed.length > 0) {
       const failedNames = failed.map((f) => f.label).join(', ');

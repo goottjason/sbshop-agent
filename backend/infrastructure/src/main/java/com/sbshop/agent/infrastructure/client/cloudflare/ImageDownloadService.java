@@ -1,6 +1,7 @@
 package com.sbshop.agent.infrastructure.client.cloudflare;
 
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
+import com.sbshop.agent.core.domain.product.client.dto.ImageProcessResult;
 import com.sbshop.agent.core.domain.product.client.dto.ImageUploadFile;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -27,7 +28,21 @@ public class ImageDownloadService implements ImageDownloadClient {
 
 	@Override
 	public List<ImageUploadFile> downloadAndConvert(List<String> imageUrls) {
+		List<ImageUploadFile> results = downloadAndConvertDetailed(imageUrls).succeeded();
+		if (results.isEmpty()) {
+			throw new RuntimeException("모든 이미지 다운로드에 실패했습니다.");
+		}
+		return results;
+	}
+
+	/**
+	 * F-PROD-16(D-092): downloadAndConvert의 다운로드·변환 로직을 공유하되, 개별 URL 실패를 로그만
+	 * 남기고 드롭하지 않고 실패 항목(URL·사유)으로 수집해 성공 파일과 함께 반환한다.
+	 */
+	@Override
+	public ImageProcessResult downloadAndConvertDetailed(List<String> imageUrls) {
 		List<ImageUploadFile> results = new ArrayList<>();
+		List<ImageProcessResult.ImageFailure> failures = new ArrayList<>();
 
 		for (int i = 0; i < imageUrls.size(); i++) {
 			String url = imageUrls.get(i);
@@ -54,14 +69,16 @@ public class ImageDownloadService implements ImageDownloadClient {
 				log.info("이미지 다운로드 및 최적화 완료 [{}/{}]: {}", i + 1, imageUrls.size(), url);
 			} catch (Exception e) {
 				log.error("이미지 다운로드 실패 [{}/{}]: {} - {}", i + 1, imageUrls.size(), url, e.getMessage());
+				failures.add(new ImageProcessResult.ImageFailure(url, describe(e)));
 			}
 		}
 
-		if (results.isEmpty()) {
-			throw new RuntimeException("모든 이미지 다운로드에 실패했습니다.");
-		}
+		return ImageProcessResult.of(results, failures);
+	}
 
-		return results;
+	private String describe(Exception e) {
+		return (e.getMessage() == null || e.getMessage().isBlank())
+			? e.getClass().getSimpleName() : e.getMessage();
 	}
 
 	@Override
