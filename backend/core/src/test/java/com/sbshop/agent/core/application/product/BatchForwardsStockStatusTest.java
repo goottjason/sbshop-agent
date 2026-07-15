@@ -107,8 +107,8 @@ class BatchForwardsStockStatusTest {
         lenient().when(product.getStockStatus()).thenReturn(StockStatus.IN_STOCK);
         lenient().when(product.getSalePrice()).thenReturn(new BigDecimal("8800")); // different → priceChanged
 
-        service.manualUpdatePriceStock("batch-manual", List.of(PRODUCT_ID),
-            List.of(price), List.of(0));
+        service.manualUpdatePriceStock("batch-manual", List.of(
+            new com.sbshop.agent.core.application.product.dto.PriceStockItem(PRODUCT_ID, price, 0)));
 
         // @Async — small sleep to let the async thread finish
         Thread.sleep(500);

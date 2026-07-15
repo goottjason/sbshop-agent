@@ -93,17 +93,17 @@ public class BatchPriceStockService {
 	}
 
 	@Async("productBatchExecutor")
-	public void manualUpdatePriceStock(String batchId, List<Long> productIds,
-		List<BigDecimal> prices, List<Integer> stocks) {
+	public void manualUpdatePriceStock(String batchId,
+		List<com.sbshop.agent.core.application.product.dto.PriceStockItem> items) {
 		int failCount = 0;
-		for (int i = 0; i < productIds.size(); i++) {
+		for (com.sbshop.agent.core.application.product.dto.PriceStockItem item : items) {
+			Long productId = item.productId();
 			try {
-				Long productId = productIds.get(i);
 				Product product = productReader.findById(productId)
 					.orElseThrow(() -> new IllegalArgumentException("상품 없음: " + productId));
 
-				BigDecimal price = i < prices.size() ? prices.get(i) : null;
-				Integer stock = i < stocks.size() ? stocks.get(i) : null;
+				BigDecimal price = item.price();
+				Integer stock = item.stock();
 
 				StockStatus oldStatus = product.getStockStatus();
 				BigDecimal oldPrice = product.getSalePrice();
@@ -138,8 +138,8 @@ public class BatchPriceStockService {
 						sync.skipped().size(),
 						sync.failed().size(), sync.failed().isEmpty() ? "" : " (" + sync.failed().keySet() + ")"));
 			} catch (Exception e) {
-				log.error("수동 업데이트 실패: productId={}", productIds.get(i), e);
-				processStatusService.markFailed(batchId, String.valueOf(productIds.get(i)), e.getMessage());
+				log.error("수동 업데이트 실패: productId={}", productId, e);
+				processStatusService.markFailed(batchId, String.valueOf(productId), e.getMessage());
 				failCount++;
 			}
 		}

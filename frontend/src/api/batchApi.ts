@@ -6,9 +6,10 @@ export const batchApi = {
       productIds, marginRate, couponRate, minMarginPrice,
     }),
 
-  manualUpdate: (productIds: number[], prices: number[], stocks: number[]) =>
+  // F-BATCH-M1: productId·price·stock을 쌍(items)으로 전송해 값이 엉뚱한 상품에 적용되는 오염을 차단한다.
+  manualUpdate: (items: { productId: number; price?: number | null; stock?: number | null }[]) =>
     apiClient.post('/api/v1/products/batch/manual-update-price-stock', {
-      productIds, prices, stocks,
+      items,
     }),
 
   updateBySupplier: (supplierCode: string, marginRate: number, couponRate: number, minMarginPrice: number) =>

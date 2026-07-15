@@ -7,6 +7,7 @@ import com.sbshop.agent.api.dto.batch.SupplierBatchRequest;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.BatchPriceStockService;
+import com.sbshop.agent.core.application.product.dto.PriceStockItem;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.process.ProcessStatus;
@@ -62,8 +63,10 @@ public class BatchController {
 	@PostMapping("/manual-update-price-stock")
 	public ResponseEntity<Map<String, String>> manualUpdate(@RequestBody
 	ManualUpdateRequest request) {
-		List<String> productCodes = request.productIds().stream()
-			.map(String::valueOf)
+		// F-BATCH-M1: productId·price·stock을 쌍(items)으로 받아 각 값이 자기 상품에 묶여 전달된다.
+		List<PriceStockItem> items = request.items() != null ? request.items() : new ArrayList<>();
+		List<String> productCodes = items.stream()
+			.map(item -> String.valueOf(item.productId()))
 			.toList();
 		String batchId = processStatusService.startBatch(
 			com.sbshop.agent.core.domain.process.enums.JobType.MANUAL_UPDATE_PRICE_STOCK,
@@ -71,10 +74,7 @@ public class BatchController {
 		// D-076: 수동 일괄 업데이트 — 시작 기록.
 		actionLogService.record(ActionLogConstants.BATCH_MANUAL_UPDATE, null,
 			ActionStatus.STARTED, "수동 일괄 업데이트 시작 (batchId=" + batchId + ", " + productCodes.size() + "건)");
-		batchPriceStockService.manualUpdatePriceStock(
-			batchId, request.productIds(),
-			request.prices() != null ? request.prices() : new ArrayList<>(),
-			request.stocks() != null ? request.stocks() : new ArrayList<>());
+		batchPriceStockService.manualUpdatePriceStock(batchId, items);
 		return ResponseEntity.ok(Map.of("batchId", batchId, "message", "수동 일괄 업데이트가 시작되었습니다."));
 	}
 

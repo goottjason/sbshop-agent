@@ -101,8 +101,9 @@ class BatchProcessStatusKeyTest {
         lenient().when(product.getStockStatus()).thenReturn(StockStatus.IN_STOCK);
         lenient().when(product.getSalePrice()).thenReturn(new BigDecimal("8800"));
 
-        service.manualUpdatePriceStock("batch-manual", List.of(PRODUCT_ID),
-            List.of(new BigDecimal("9900")), List.of(50));
+        service.manualUpdatePriceStock("batch-manual", List.of(
+            new com.sbshop.agent.core.application.product.dto.PriceStockItem(
+                PRODUCT_ID, new BigDecimal("9900"), 50)));
 
         verify(processStatusService).markSuccess(eq("batch-manual"), eq(PRODUCT_ID_KEY), anyString());
         verify(processStatusService, never()).markSuccess(eq("batch-manual"), eq(SB_CODE), anyString());
