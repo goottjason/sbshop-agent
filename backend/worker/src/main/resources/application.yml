@@ -14,7 +14,9 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: none
+      # 엔티티 변경을 스키마에 자동 반영(추가만; DROP/변경 없음). 사용자 결정 2026-07-15.
+      # 환경변수 DDL_AUTO로 오버라이드 가능(문제 시 none/validate로). create/create-drop 금지(데이터 삭제).
+      ddl-auto: ${DDL_AUTO:update}
     properties:
       hibernate:
         format_sql: true
