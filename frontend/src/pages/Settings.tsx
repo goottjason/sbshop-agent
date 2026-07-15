@@ -3,6 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchCredentials, saveCredential, getCafe24Status, issueCafe24Token } from '../api/marketApi';
 import type { MarketCredential } from '../api/marketApi';
 
+// 시크릿 입력칸 플레이스홀더: 서버에 이미 저장돼 있으면(hasXxx=true) '설정됨' 안내를 보이고,
+// 비운 채 저장하면 기존 값이 유지된다(F-CRED-8). 미설정이면 기본 안내(예시 등)를 사용한다.
+const secretPlaceholder = (hasValue?: boolean, fallback = ''): string =>
+  hasValue ? '설정됨 — 변경하려면 새 값 입력 (비우면 기존 값 유지)' : fallback;
+
 const Settings = () => {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('COUPANG');
@@ -42,7 +47,10 @@ const Settings = () => {
     if (credentials) {
       const cred = credentials.find((c) => c.marketType === activeTab);
       if (cred) {
-        setFormData(cred);
+        // 시크릿(accessKey·secretKey)은 서버가 마스킹해 내려주지 않는다(응답엔 hasAccessKey/hasSecretKey만).
+        // 입력칸은 항상 빈 상태로 시작하며, 비운 채 저장하면 서버가 기존 값을 유지한다(F-CRED-8).
+        // 새 값을 입력한 경우에만 갱신된다.
+        setFormData({ ...cred, accessKey: '', secretKey: '' });
       } else {
         setFormData({
           marketType: activeTab,
@@ -135,6 +143,7 @@ const Settings = () => {
                   value={formData.accessKey || ''}
                   onChange={handleChange}
                   className="input-field"
+                  placeholder={secretPlaceholder(formData.hasAccessKey)}
                 />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -145,6 +154,7 @@ const Settings = () => {
                   value={formData.secretKey || ''}
                   onChange={handleChange}
                   className="input-field"
+                  placeholder={secretPlaceholder(formData.hasSecretKey)}
                 />
               </div>
             </>
@@ -171,6 +181,7 @@ const Settings = () => {
                   value={formData.secretKey || ''}
                   onChange={handleChange}
                   className="input-field"
+                  placeholder={secretPlaceholder(formData.hasSecretKey)}
                 />
               </div>
             </>
@@ -186,7 +197,7 @@ const Settings = () => {
                   value={formData.accessKey || ''}
                   onChange={handleChange}
                   className="input-field"
-                  placeholder="예: b7ac38eb89852b178b17a6a73da0b0c2"
+                  placeholder={secretPlaceholder(formData.hasAccessKey, '예: b7ac38eb89852b178b17a6a73da0b0c2')}
                 />
               </div>
             </>
@@ -213,7 +224,7 @@ const Settings = () => {
                   value={formData.accessKey || ''}
                   onChange={handleChange}
                   className="input-field"
-                  placeholder="예: r0Z9nXoDDNfOrf5F6wYzTA"
+                  placeholder={secretPlaceholder(formData.hasAccessKey, '예: r0Z9nXoDDNfOrf5F6wYzTA')}
                 />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -224,6 +235,7 @@ const Settings = () => {
                   value={formData.secretKey || ''}
                   onChange={handleChange}
                   className="input-field"
+                  placeholder={secretPlaceholder(formData.hasSecretKey)}
                 />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

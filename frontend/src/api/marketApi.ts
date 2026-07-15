@@ -4,9 +4,14 @@ export interface MarketCredential {
   id?: number;
   marketType: string;
   clientId: string;
-  accessKey: string;
-  secretKey: string;
   redirectUri: string;
+  // 시크릿(accessKey·secretKey)은 서버 응답에서 마스킹되어 내려오지 않는다(F-CRED-1·7).
+  // 응답에는 '설정 여부' 플래그만 담기며, 폼 입력용으로만 optional 문자열로 유지한다.
+  // 빈 값으로 저장하면 서버가 기존 시크릿을 유지한다(F-CRED-8).
+  accessKey?: string;
+  secretKey?: string;
+  hasAccessKey?: boolean;
+  hasSecretKey?: boolean;
   hasRefreshToken?: boolean;
 }
 
