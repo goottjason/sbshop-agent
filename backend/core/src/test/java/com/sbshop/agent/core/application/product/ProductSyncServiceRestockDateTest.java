@@ -31,6 +31,8 @@ class ProductSyncServiceRestockDateTest {
 
 	@Mock private ProductRepository productRepository;
 	@Mock private ProductStockCrawlerPort productStockCrawlerPort;
+	@Mock private com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository orderLineItemRepository;
+	@Mock private com.sbshop.agent.core.application.actionlog.ActionLogService actionLogService;
 
 	private ProductSyncService service;
 	private static final Long PRODUCT_ID = 1L;
@@ -38,7 +40,8 @@ class ProductSyncServiceRestockDateTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new ProductSyncService(productRepository, productStockCrawlerPort);
+		service = new ProductSyncService(
+			productRepository, productStockCrawlerPort, orderLineItemRepository, actionLogService);
 	}
 
 	@Test

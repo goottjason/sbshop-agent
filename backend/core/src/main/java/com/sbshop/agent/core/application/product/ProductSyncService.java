@@ -1,13 +1,22 @@
 package com.sbshop.agent.core.application.product;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
+import com.sbshop.agent.core.application.actionlog.ActionLogService;
+import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
+import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
+import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.sbshop.agent.core.application.product.port.ProductStockCrawlerPort;
@@ -19,6 +28,44 @@ public class ProductSyncService {
 
 	private final ProductRepository productRepository;
 	private final ProductStockCrawlerPort productStockCrawlerPort;
+	// F-MISC-9: 대상선정(NEW·PREPARING 주문 상품ID 조회)을 컨트롤러에서 이 서비스로 이동.
+	private final OrderLineItemRepository orderLineItemRepository;
+	// F-MISC-8: @Async 자기기록 — 크롤 성공/실패를 활동로그에 남긴다.
+	private final ActionLogService actionLogService;
+
+	/**
+	 * F-MISC-8/9/10: 재고 동기화 오케스트레이션(비동기).
+	 *
+	 * <p>컨트롤러의 원시 {@code new Thread}를 대체한다. 관리되는 {@code syncTaskExecutor}에서 실행되어
+	 * 스레드 고갈을 막고, 크롤 예외가 스레드에서 조용히 죽지 않도록 결과를 ActionLog로 기록한다.
+	 * 대상선정(NEW·PREPARING 상품ID 조회·중복제거)도 이 서비스가 담당한다(F-MISC-9).
+	 */
+	@Async("syncTaskExecutor")
+	public void syncStockForPreparingOrdersAsync() {
+		try {
+			// 1. 대상선정: '결제완료(NEW)' + '배송준비(PREPARING)' 상태 주문 상품ID 조회 후 중복 제거
+			List<Long> productIdsNew = orderLineItemRepository
+				.findProductIdsByShippingStatus(ShippingStatus.NEW);
+			List<Long> productIdsPreparing = orderLineItemRepository
+				.findProductIdsByShippingStatus(ShippingStatus.PREPARING);
+
+			Set<Long> mergedIds = new LinkedHashSet<>(productIdsNew);
+			mergedIds.addAll(productIdsPreparing);
+
+			// 2. 필터링된 상품 ID 목록만 동기화 (안전한 크롤링)
+			syncStockForPreparingOrders(new ArrayList<>(mergedIds));
+
+			// 3. 성공 기록
+			actionLogService.record(ActionLogConstants.STOCK_SYNC, null,
+				ActionStatus.SUCCESS,
+				"재고 동기화 완료 (대상 " + mergedIds.size() + "개 상품)");
+		} catch (Exception e) {
+			// 4. 실패 기록 — 예외를 삼키지 않고 로그·활동로그에 남긴다(async라 재던지기는 의미 적음)
+			log.error("재고 동기화 오케스트레이션 실패", e);
+			actionLogService.record(ActionLogConstants.STOCK_SYNC, null,
+				ActionStatus.FAILED, "재고 동기화 실패: " + e.getMessage());
+		}
+	}
 
 	@Transactional
 	public void syncProductStock(Long productId) {
