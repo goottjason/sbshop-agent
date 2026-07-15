@@ -13,4 +13,6 @@ public interface ProcessStatusRepository extends JpaRepository<ProcessStatus, Lo
 	long countByBatchId(String batchId);
 
 	long countByBatchIdAndProcessStatus(String batchId, ProcessStatusType status);
+
+	List<ProcessStatus> findByProcessStatus(ProcessStatusType status);
 }

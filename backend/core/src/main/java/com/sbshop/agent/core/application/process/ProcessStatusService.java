@@ -84,4 +84,26 @@ public class ProcessStatusService {
 	public List<ProcessStatus> getAllBatches() {
 		return processStatusRepository.findAll();
 	}
+
+	/**
+	 * 냉기동 시점에 남아있는 PENDING 행을 FAILED로 복구한다.
+	 *
+	 * <p>배치는 api JVM에서 실행되고 배포는 api를 재시작하므로(동시 2인스턴스 아님) 부팅 시점엔
+	 * 진행 중 배치가 없다. 따라서 부팅 때 존재하는 PENDING은 전부 이전(죽은) 실행의 고아이며,
+	 * 방치하면 getBatchSummary가 완료 판정을 못 한다(F-BATCH-2). 부팅 훅에서 1회만 호출한다.
+	 *
+	 * @return 복구한 행 수
+	 */
+	@Transactional
+	public int recoverOrphanedPending() {
+		List<ProcessStatus> orphans = processStatusRepository.findByProcessStatus(ProcessStatusType.PENDING);
+		for (ProcessStatus orphan : orphans) {
+			orphan.updateStep(ProcessStep.UPDATE_PRODUCT_ERROR, ProcessStatusType.FAILED,
+				"이전 실행 중단으로 복구 처리(재시작)");
+		}
+		if (!orphans.isEmpty()) {
+			log.warn("고아 PENDING 배치 상태 복구: {}건을 FAILED로 처리", orphans.size());
+		}
+		return orphans.size();
+	}
 }

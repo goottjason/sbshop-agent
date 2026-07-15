@@ -79,4 +79,35 @@ class ProcessStatusServiceTest {
 		assertThat(summary.percent()).isEqualTo(0);
 		assertThat(summary.done()).isEqualTo(0L);
 	}
+
+	@Test
+	@DisplayName("recoverOrphanedPending은 남아있는 PENDING 행을 FAILED로 복구하고 복구 건수를 반환한다")
+	void recoverOrphanedPending_marksPendingAsFailed() {
+		ProcessStatus orphan1 = ProcessStatus.builder()
+			.batchId("dead-1").productCode("P001")
+			.processStatus(ProcessStatusType.PENDING).build();
+		ProcessStatus orphan2 = ProcessStatus.builder()
+			.batchId("dead-1").productCode("P002")
+			.processStatus(ProcessStatusType.PENDING).build();
+		when(repository.findByProcessStatus(ProcessStatusType.PENDING))
+			.thenReturn(List.of(orphan1, orphan2));
+
+		int recovered = service.recoverOrphanedPending();
+
+		assertThat(recovered).isEqualTo(2);
+		assertThat(orphan1.getProcessStatus()).isEqualTo(ProcessStatusType.FAILED);
+		assertThat(orphan2.getProcessStatus()).isEqualTo(ProcessStatusType.FAILED);
+		assertThat(orphan1.getMessage()).contains("재시작");
+	}
+
+	@Test
+	@DisplayName("recoverOrphanedPending은 PENDING 행이 없으면 0을 반환하고 아무것도 저장하지 않는다")
+	void recoverOrphanedPending_noPending_returnsZero() {
+		when(repository.findByProcessStatus(ProcessStatusType.PENDING))
+			.thenReturn(List.of());
+
+		int recovered = service.recoverOrphanedPending();
+
+		assertThat(recovered).isZero();
+	}
 }
