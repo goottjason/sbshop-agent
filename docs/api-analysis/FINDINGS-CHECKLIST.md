@@ -114,8 +114,8 @@
 ### order (F-ORD / F-S / F-H)
 - [~] **F-S1** · 정책확정: 소싱은 종료상태에서도 수정 허용(의도) — 결함 아님
 - [x] **F-H2** · 종료상태 송장수정 400 차단 · ✅ `dfcf8b3`
-- [ ] **F-H4** · trackingNo/shippingCarrier 필수 검증 부재 · `ShippingUpdateCommand.java:20-27`
-- [ ] **F-ORD-2** · 기간 필터 한쪽 날짜만 오면 조용히 무시 · `OrderRepositoryImpl.java:189-194`
+- [x] **F-H4** · trackingNo/shippingCarrier 필수 검증 부재 · `ShippingUpdateCommand.java:20-27` · ✅ `aff9814`
+- [x] **F-ORD-2** · 기간 필터 한쪽 날짜만 오면 조용히 무시 · `OrderRepositoryImpl.java:189-194` · ✅ `aff9814`
 - [ ] **F-ORD-5** · 발주확인 실패 로그 marketType null · `OrderController.java:82`
 - [x] **F-ORD-6** · 진행/종료분 발주확인 재호출 차단 · ✅ `dfcf8b3`
 - [ ] **F-ORD-8** · 마켓 접수 실패를 RuntimeException으로 뭉갬(유형 소실) · `OrderService.java:81-85`
@@ -123,9 +123,9 @@
 - [x] **F-ORD-13** · 발주취소 NEW-only 가드 · ✅ `dfcf8b3`
 - [ ] **F-ORD-15** · 발주취소 실패 로그 marketType null · `OrderController.java:126`
 - [x] **F-ORD-17** · 컨트롤러 결과기반 SUCCESS/FAILED 기록 · ✅ `ffdaed3`
-- [ ] **F-ORD-22** · 라인아이템 없는 주문이 발주확인 전 가드 통과 · `OrderService.java:215`
+- [x] **F-ORD-22** · 라인아이템 없는 주문이 발주확인 전 가드 통과 · `OrderService.java:215` · ✅ `aff9814`
 - [x] **F-ORD-25** · 정책확정: 유니패스는 상태무관 허용(관리용) — 가드 제거·종결 · ✅ `dfcf8b3`
-- [ ] **F-ORD-26** · isUnipassDone null이면 무변경인데 200+성공로그 · `OrderService.java:249-251`
+- [x] **F-ORD-26** · isUnipassDone null이면 무변경인데 200+성공로그 · `OrderService.java:249-251` · ✅ `aff9814`
 - [x] **F-ORD-29** · 일괄발송 SHIPPED/DELIVERED/END 재발송 스킵 · ✅ `dfcf8b3`
 - [ ] **F-ORD-31** · 발송 단일 트랜잭션 부분성공 후 예외 시 전체 롤백(마켓엔 발송됨) · `OrderShipService.java:30,60-66`
 - [ ] **F-ORD-33** · 발송 orderIds null 시 서비스 NPE · `OrderShipService.java:34`
@@ -144,21 +144,21 @@
 
 ### product (F-PROD)
 - [ ] **F-PROD-27** · 마켓 등록 있어도 상품 하드삭제 → 고아 연동 잔존 · `ProductManageUseCase.java:165-171`
-- [ ] **F-PROD-7** · soldOut=null이 조용히 "판매중"으로 처리 · `ProductManageUseCase.java:56-58`
-- [ ] **F-PROD-8** · price 음수 검증 부재 · `Product.java:201-210`
-- [ ] **F-PROD-11** · 빈/누락 이미지 입력 검증 부재(3경로 공통) · `ProductController.java:117-135`
+- [x] **F-PROD-7** · soldOut=null이 조용히 "판매중"으로 처리 · `ProductManageUseCase.java:56-58` · ✅ `c41dee3`
+- [x] **F-PROD-8** · price 음수 검증 부재 · `Product.java:201-210` · ✅ `c41dee3`
+- [x] **F-PROD-11** · 빈/누락 이미지 입력 검증 부재(3경로 공통) · `ProductController.java:117-135` · ✅ `c41dee3`
 - [x] **F-PROD-12** · imagesFailed로 리사이즈 실패 표면화 · ✅ `fee0baa`
 - [x] **F-PROD-16** · imagesFailed로 다운로드 실패 표면화 · ✅ `fee0baa`
 - [~] **F-PROD-2** · ~~500~~ → **오탐: 실제 400** (valueOf→IllegalArgumentException) · `ProductController.java:78`
 - [ ] **F-PROD-5** · 미존재 id가 404 아닌 500 · `ProductSearchUseCase.java:27`
 - [ ] **F-PROD-18** · 크롤 이미지 URL 유효성/중복 검증 없음 · `ProductController.java:170-172`
 - [ ] **F-PROD-22** · 크롤 전량 무선별 다운로드(상한 없음) · `ProductController.java:196-204`
-- [ ] **F-PROD-23** · 전체수정 금액·수량 음수 검증 전무 · `Product.java:193-244`
+- [x] **F-PROD-23** · 전체수정 금액·수량 음수 검증 전무 · `Product.java:193-244` · ✅ `c41dee3`
 - [ ] **F-PROD-28** · 확인/멱등성 없는 하드딜리트 · `ProductWriterImpl.java:27-28`
 
 ### batch (F-BATCH)
 - [ ] **F-BATCH-1** · 동시 배치 중복 실행 방지 부재(advisory lock 없음) · `ProcessStatusService.java:23-39`
-- [ ] **F-BATCH-4** · 요청 검증 부재(productIds null/빈) · `BatchController.java:44`
+- [x] **F-BATCH-4** · 요청 검증 부재(productIds null/빈) · `BatchController.java:44` · ✅ `3970dd1`
 - [ ] **F-BATCH-A1** · 전체필드 배치만 마켓 재전송 없음 · `BatchPriceStockService.java:151-176`
 - [x] **F-BATCH-A2** · manual-update-all 길이 불일치 → 400 가드 · ✅ `6095f1b`
 - [x] **F-BATCH-B1** · bad-enum 이미 400 + null→400 가드 추가로 완결 · ✅ `aad006e`
@@ -167,20 +167,20 @@
 - [ ] **F-BATCH-ST2** · `/status` 목록에 정렬·시각·상태 없음 · `ProcessStatusService.java:74-81`
 
 ### product-sourcing (F-PSRC)
-- [ ] **F-PSRC-1** · urls==null 시 STARTED 로그만 남기고 NPE · `ProductSourcingController.java:42,46`
+- [x] **F-PSRC-1** · urls==null 시 STARTED 로그만 남기고 NPE · `ProductSourcingController.java:42,46` · ✅ `3970dd1`
 - [x] **F-PSRC-2** · SourcingCrawlResult로 실패 URL·사유 표면화 · ✅ `139a581`
 - [x] **F-PSRC-6** · BulkProductCreateResult로 실패 항목 표면화(결번 F-PSRC-9 잔존) · ✅ `139a581`
-- [ ] **F-PSRC-7** · requests==null 시 컨트롤러 진입부 NPE(로그도 없음) · `ProductSourcingController.java:63,67`
+- [x] **F-PSRC-7** · requests==null 시 컨트롤러 진입부 NPE(로그도 없음) · `ProductSourcingController.java:63,67` · ✅ `3970dd1`
 - [ ] **F-PSRC-8** · 이미지 다운로드·R2 업로드를 트랜잭션 안에서 → 장시간 트랜잭션·고아 이미지 · `ProductCreateUseCase.java:30,45,67-68`
 - [~] **F-PSRC-12** · ~~500~~ → **오탐: 실제 400** · `ProductSourcingController.java:87` (로그없이 처리되는 점은 잔존)
 - [ ] **F-PSRC-13** · 게시 멱등성 부재 — 재호출 시 MarketRegistration 중복 생성 · `ProductPublishUseCase.java:53-62`
 
 ### supplier (F-SUP)
 - [x] **F-SUP-UC-2** · 환율 null/≤0 거부 · ✅ `e69496e`
-- [ ] **F-SUP-CS-1** · supplierCode/Name 입력 검증 부재 · `SupplierController.java:35-40`
-- [ ] **F-SUP-CS-2** · 중복 supplierCode 사전검증 없이 DB unique 예외 의존 · `SupplierController.java:39-40`
+- [x] **F-SUP-CS-1** · supplierCode/Name 입력 검증 부재 · `SupplierController.java:35-40` · ✅ `3970dd1`
+- [x] **F-SUP-CS-2** · 중복 supplierCode 사전검증 없이 DB unique 예외 의존 · `SupplierController.java:39-40` · ✅ `3970dd1`
 - [x] **F-SUP-UC-3** · currencyCode blank 거부 · ✅ `e69496e`
-- [ ] **F-SUP-2** · RecordStatus 필터 부재로 ARCHIVED/DELETED 공급사까지 조회 · `SupplierRepository.java:7`
+- [x] **F-SUP-2** · RecordStatus 필터 부재로 ARCHIVED/DELETED 공급사까지 조회 · `SupplierRepository.java:7` · ✅ `3970dd1`
 
 ### market-credential (F-CRED)
 - [ ] **F-CRED-2** · 저장 시 암호화 부재 → DB 평문 저장 · `MarketCredential.java:39-58`
@@ -337,7 +337,7 @@
 ### product-sourcing
 - [ ] **F-PSRC-4** ProductInfoCrawlerPort가 iHerb 단일 구현 종속 · `IherbScraperClient.java:263`
 - [ ] **F-PSRC-5** iHerb 입력 검증 전무(URL 형식·개수·중복) · `ProductSourcingController.java`
-- [ ] **F-PSRC-11** bulk 입력 검증 부재(금액 음수·빈 목록·상한) · `ProductSaveRequest.java`
+- [x] **F-PSRC-11** bulk 입력 검증 부재(금액 음수·빈 목록·상한) · `ProductSaveRequest.java` · ✅ `3970dd1`
 - [ ] **F-PSRC-16** identifiers JSON 직렬화 실패를 "{}"로 삼켜 식별자 유실 · `ProductPublishUseCase.java:47-51`
 - [ ] **F-PSRC-17** MarketRegistration의 productId·sbProductId에 동일 값 주입 · `ProductPublishUseCase.java:54-55`
 
