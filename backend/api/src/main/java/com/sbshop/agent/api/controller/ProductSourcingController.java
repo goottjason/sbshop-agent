@@ -39,8 +39,13 @@ public class ProductSourcingController {
 	@PostMapping("/sourcing/iherb")
 	public ResponseEntity<IherbSourcingResponse> sourceFromIherb(@RequestBody
 	List<String> urls) {
+		// F-PSRC-1: urls가 null/빈이면 UseCase에서 NPE(500)가 나기 전에 진입부에서 400으로 거부한다
+		// (STARTED 로그만 남기고 실패하는 것을 방지).
+		if (urls == null || urls.isEmpty()) {
+			throw new IllegalArgumentException("urls는 필수이며 비어 있을 수 없습니다.");
+		}
 		// D-076: iHerb 소싱 크롤(장시간) — 시작+결과 기록.
-		int reqCount = urls != null ? urls.size() : 0;
+		int reqCount = urls.size();
 		actionLogService.record(ActionLogConstants.PRODUCT_SOURCING, null,
 			ActionStatus.STARTED, "iHerb 소싱 크롤 요청 (" + reqCount + "건)");
 		try {
@@ -61,6 +66,17 @@ public class ProductSourcingController {
 	@PostMapping("/products/bulk")
 	public ResponseEntity<BulkProductCreateResponse> saveProductsBulk(@RequestBody
 	List<ProductSaveRequest> requests) {
+		// F-PSRC-7: requests가 null이면 진입부 .stream() NPE(500, 로그도 없음) 대신 400으로 거부.
+		// F-PSRC-11: 빈 목록도 거부(처리할 대상 없음).
+		if (requests == null || requests.isEmpty()) {
+			throw new IllegalArgumentException("requests는 필수이며 비어 있을 수 없습니다.");
+		}
+		// F-PSRC-11: 금액(costPrice) 음수는 데이터 오염이므로 거부한다.
+		for (ProductSaveRequest request : requests) {
+			if (request.costPrice() != null && request.costPrice().signum() < 0) {
+				throw new IllegalArgumentException("costPrice는 음수일 수 없습니다: " + request.costPrice());
+			}
+		}
 		List<com.sbshop.agent.core.domain.product.dto.ProductCreateCommand> commands = requests.stream()
 			.map(ProductSaveRequest::toCommand)
 			.toList();

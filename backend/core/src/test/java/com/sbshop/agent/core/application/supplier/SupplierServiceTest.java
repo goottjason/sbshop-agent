@@ -118,4 +118,52 @@ class SupplierServiceTest {
 			.hasMessageContaining("ZZZ");
 		verify(supplierRepository, never()).save(org.mockito.ArgumentMatchers.any());
 	}
+
+	@Test
+	@DisplayName("supplierCode blank → 거부(IllegalArgumentException), 통화 조회/save 안 됨 (F-SUP-CS-1)")
+	void blankSupplierCode_rejected() {
+		assertThatThrownBy(() -> service().createSupplier(new CreateSupplierCommand("   ", "이름", "USD")))
+			.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> service().createSupplier(new CreateSupplierCommand(null, "이름", "USD")))
+			.isInstanceOf(IllegalArgumentException.class);
+		verify(currencyRepository, never()).findById(org.mockito.ArgumentMatchers.any());
+		verify(supplierRepository, never()).save(org.mockito.ArgumentMatchers.any());
+	}
+
+	@Test
+	@DisplayName("supplierName blank → 거부(IllegalArgumentException), 통화 조회/save 안 됨 (F-SUP-CS-1)")
+	void blankSupplierName_rejected() {
+		assertThatThrownBy(() -> service().createSupplier(new CreateSupplierCommand("SUP01", "   ", "USD")))
+			.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> service().createSupplier(new CreateSupplierCommand("SUP01", null, "USD")))
+			.isInstanceOf(IllegalArgumentException.class);
+		verify(currencyRepository, never()).findById(org.mockito.ArgumentMatchers.any());
+		verify(supplierRepository, never()).save(org.mockito.ArgumentMatchers.any());
+	}
+
+	@Test
+	@DisplayName("중복 supplierCode → 사전검증으로 거부(IllegalStateException), save 안 됨 (F-SUP-CS-2)")
+	void duplicateSupplierCode_rejected() {
+		when(supplierRepository.existsBySupplierCode("SUP01")).thenReturn(true);
+
+		assertThatThrownBy(() -> service().createSupplier(new CreateSupplierCommand("SUP01", "이름", "USD")))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("SUP01");
+		verify(supplierRepository, never()).save(org.mockito.ArgumentMatchers.any());
+	}
+
+	@Test
+	@DisplayName("공급사 목록 조회는 ACTIVE만 반환한다 — findByStatus(ACTIVE) 위임 (F-SUP-2)")
+	void getSuppliers_returnsOnlyActive() {
+		Supplier active = new Supplier("SUP01", "활성공급사",
+			new Currency("USD", new BigDecimal("1400")));
+		when(supplierRepository.findByStatus(
+			com.sbshop.agent.core.domain.common.RecordStatus.ACTIVE))
+			.thenReturn(java.util.List.of(active));
+
+		java.util.List<Supplier> result = service().getSuppliers();
+
+		assertThat(result).containsExactly(active);
+		verify(supplierRepository, never()).findAll();
+	}
 }

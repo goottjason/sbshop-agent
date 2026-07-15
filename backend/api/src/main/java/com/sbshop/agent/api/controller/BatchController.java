@@ -58,6 +58,10 @@ public class BatchController {
 	@PostMapping("/crawl-and-update")
 	public ResponseEntity<Map<String, String>> crawlAndUpdate(@RequestBody
 	CrawlAndUpdateRequest request) {
+		// F-BATCH-4: productIds가 null/빈이면 NPE(500)나 빈 배치 대신 400으로 명확히 거부한다.
+		if (request.productIds() == null || request.productIds().isEmpty()) {
+			throw new IllegalArgumentException("productIds는 필수이며 비어 있을 수 없습니다.");
+		}
 		List<String> productCodes = request.productIds().stream()
 			.map(String::valueOf)
 			.toList();

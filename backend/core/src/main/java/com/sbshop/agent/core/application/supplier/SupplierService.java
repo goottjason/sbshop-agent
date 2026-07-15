@@ -2,6 +2,7 @@ package com.sbshop.agent.core.application.supplier;
 
 import com.sbshop.agent.core.application.supplier.dto.CreateCurrencyCommand;
 import com.sbshop.agent.core.application.supplier.dto.CreateSupplierCommand;
+import com.sbshop.agent.core.domain.common.RecordStatus;
 import com.sbshop.agent.core.domain.supplier.Currency;
 import com.sbshop.agent.core.domain.supplier.Supplier;
 import com.sbshop.agent.core.domain.supplier.repository.CurrencyRepository;
@@ -22,11 +23,23 @@ public class SupplierService {
 	private final CurrencyRepository currencyRepository;
 
 	public List<Supplier> getSuppliers() {
-		return supplierRepository.findAll();
+		// F-SUP-2: 소프트삭제(ARCHIVED/DELETED)를 제외하고 ACTIVE만 반환한다.
+		return supplierRepository.findByStatus(RecordStatus.ACTIVE);
 	}
 
 	@Transactional
 	public Supplier createSupplier(CreateSupplierCommand command) {
+		// F-SUP-CS-1: supplierCode/supplierName 필수 (데이터 오염 예방)
+		if (command.supplierCode() == null || command.supplierCode().isBlank()) {
+			throw new IllegalArgumentException("공급사 코드는 필수입니다");
+		}
+		if (command.supplierName() == null || command.supplierName().isBlank()) {
+			throw new IllegalArgumentException("공급사명은 필수입니다");
+		}
+		// F-SUP-CS-2: 중복 코드는 DB unique 예외 대신 사전검증으로 명확히 거부(F-SUP-UC-1 통화 중복거부와 대칭).
+		if (supplierRepository.existsBySupplierCode(command.supplierCode())) {
+			throw new IllegalStateException("이미 존재하는 공급사 코드입니다: " + command.supplierCode());
+		}
 		Currency currency = currencyRepository.findById(command.currencyCode())
 			.orElseThrow(() -> new IllegalArgumentException("통화 없음: " + command.currencyCode()));
 		Supplier supplier = new Supplier(command.supplierCode(), command.supplierName(), currency);
