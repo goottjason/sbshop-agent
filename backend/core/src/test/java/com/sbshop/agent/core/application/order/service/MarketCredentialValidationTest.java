@@ -49,6 +49,8 @@ class MarketCredentialValidationTest {
 	private SmartStoreOrderAdapter smartStoreOrderAdapter;
 	@Mock
 	private ElevenstOrderAdapter elevenstOrderAdapter;
+	@Mock
+	private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 
 	private List<SyncCompletedEvent> capturedEvents() {
 		ArgumentCaptor<SyncCompletedEvent> captor = ArgumentCaptor.forClass(SyncCompletedEvent.class);
@@ -72,7 +74,7 @@ class MarketCredentialValidationTest {
 
 		SmartStoreOrderSyncService service = new SmartStoreOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, smartStoreOrderAdapter);
+			eventPublisher, smartStoreOrderAdapter, syncStatusService);
 		service.syncSmartStoreOrders();
 
 		assertIncompleteCredentialFailure(capturedEvents());
@@ -87,7 +89,7 @@ class MarketCredentialValidationTest {
 
 		ElevenstOrderSyncService service = new ElevenstOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, elevenstOrderAdapter);
+			eventPublisher, elevenstOrderAdapter, syncStatusService);
 		service.syncElevenstOrders();
 
 		assertIncompleteCredentialFailure(capturedEvents());

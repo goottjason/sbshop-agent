@@ -46,6 +46,7 @@ public class CoupangOrderSyncService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final CoupangOrderAdapter coupangOrderAdapter;
 	private final CoupangStatusMapper statusMapper;
+	private final com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 
 	// -- 상태 --
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
@@ -60,6 +61,8 @@ public class CoupangOrderSyncService {
 			return;
 		}
 
+		// F-SYNC-2: 상태 기록을 async 스레드(이 본문) 안에서 수행.
+		syncStatusService.markRunning(com.sbshop.agent.core.application.sync.SyncMarketKeys.COUPANG);
 		boolean success = false;
 		try {
 			// 2. 크레덴셜 로드
@@ -74,8 +77,11 @@ public class CoupangOrderSyncService {
 
 			log.info("[COUPANG] 주문 동기화 완료: {}건 처리", orders.size());
 			success = true;
+			syncStatusService.markCompleted(com.sbshop.agent.core.application.sync.SyncMarketKeys.COUPANG);
 		} catch (Exception e) {
 			log.error("[COUPANG] 주문 동기화 실패: {}", e.getMessage(), e);
+			syncStatusService.markFailed(
+				com.sbshop.agent.core.application.sync.SyncMarketKeys.COUPANG, e.getMessage());
 			eventPublisher.publishEvent(
 				new SyncCompletedEvent(this, MarketType.COUPANG, false, e.getMessage()));
 		} finally {
@@ -91,6 +97,8 @@ public class CoupangOrderSyncService {
 	@Async("syncTaskExecutor")
 	@Transactional
 	public void syncCoupangSettlement() {
+		// F-SYNC-2: 정산 동기화도 자기 상태를 async 스레드 안에서 기록.
+		syncStatusService.markRunning(com.sbshop.agent.core.application.sync.SyncMarketKeys.COUPANG_SETTLEMENT);
 		try {
 			// 1. 크레덴셜 로드
 			MarketCredential credential = loadAndValidateCredential();
@@ -106,6 +114,8 @@ public class CoupangOrderSyncService {
 
 			if (settlementMap.isEmpty()) {
 				log.info("쿠팡 정산 데이터 없음");
+				syncStatusService.markCompleted(
+					com.sbshop.agent.core.application.sync.SyncMarketKeys.COUPANG_SETTLEMENT);
 				return;
 			}
 
@@ -146,8 +156,12 @@ public class CoupangOrderSyncService {
 			}
 
 			log.info("쿠팡 정산 동기화 완료: {}건 업데이트", updatedCount);
+			syncStatusService.markCompleted(
+				com.sbshop.agent.core.application.sync.SyncMarketKeys.COUPANG_SETTLEMENT);
 		} catch (Exception e) {
 			log.error("쿠팡 정산 동기화 실패: {}", e.getMessage());
+			syncStatusService.markFailed(
+				com.sbshop.agent.core.application.sync.SyncMarketKeys.COUPANG_SETTLEMENT, e.getMessage());
 		}
 	}
 

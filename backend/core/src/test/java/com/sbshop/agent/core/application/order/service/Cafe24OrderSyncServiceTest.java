@@ -46,13 +46,14 @@ class Cafe24OrderSyncServiceTest {
 	@Mock private OrderLineItemRepository orderLineItemRepository;
 	@Mock private MarketRegistrationRepository marketRegistrationRepository;
 	@Mock private ApplicationEventPublisher eventPublisher;
+	@Mock private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 
 	private Cafe24OrderSyncService service;
 
 	@BeforeEach
 	void setUp() {
 		service = new Cafe24OrderSyncService(cafe24OrderApiPort, orderRepository,
-			orderLineItemRepository, marketRegistrationRepository, eventPublisher);
+			orderLineItemRepository, marketRegistrationRepository, eventPublisher, syncStatusService);
 		lenient().when(marketRegistrationRepository.findByMarketTypeAndIdentifiersContaining(
 			org.mockito.ArgumentMatchers.any(), anyString())).thenReturn(List.of());
 	}

@@ -58,6 +58,8 @@ class CoupangOrderProductMappingTest {
 	private CoupangOrderAdapter coupangOrderAdapter;
 	@Mock
 	private CoupangStatusMapper statusMapper;
+	@Mock
+	private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 	@InjectMocks
 	private CoupangOrderSyncService service;
 

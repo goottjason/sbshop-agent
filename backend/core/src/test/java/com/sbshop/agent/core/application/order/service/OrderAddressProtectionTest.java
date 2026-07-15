@@ -47,6 +47,7 @@ class OrderAddressProtectionTest {
 	@Mock private SmartStoreOrderAdapter smartStoreOrderAdapter;
 	@Mock private CoupangOrderAdapter coupangOrderAdapter;
 	@Mock private CoupangStatusMapper coupangStatusMapper;
+	@Mock private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 
 	private static final String MANUAL_ADDRESS = "서울시 강남구 수기보정로 99";
 	private static final String MANUAL_ZIP = "06000";
@@ -89,7 +90,8 @@ class OrderAddressProtectionTest {
 
 	private SmartStoreOrderSyncService smartStoreService() {
 		return new SmartStoreOrderSyncService(credentialRepository, orderRepository,
-			orderLineItemRepository, productRepository, eventPublisher, smartStoreOrderAdapter);
+			orderLineItemRepository, productRepository, eventPublisher, smartStoreOrderAdapter,
+			syncStatusService);
 	}
 
 	@Test
@@ -153,7 +155,8 @@ class OrderAddressProtectionTest {
 
 		CoupangOrderSyncService service = new CoupangOrderSyncService(credentialRepository,
 			orderRepository, orderLineItemRepository, productRepository,
-			marketRegistrationRepository, eventPublisher, coupangOrderAdapter, coupangStatusMapper);
+			marketRegistrationRepository, eventPublisher, coupangOrderAdapter, coupangStatusMapper,
+			syncStatusService);
 		service.syncCoupangOrders();
 
 		assertThat(order.getAddress()).isEqualTo(MANUAL_ADDRESS);

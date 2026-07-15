@@ -60,6 +60,8 @@ class OrderSyncEventEmissionTest {
 	private CoupangStatusMapper coupangStatusMapper;
 	@Mock
 	private ElevenstOrderAdapter elevenstOrderAdapter;
+	@Mock
+	private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 
 	private List<SyncCompletedEvent> capturedEvents() {
 		ArgumentCaptor<SyncCompletedEvent> captor = ArgumentCaptor.forClass(SyncCompletedEvent.class);
@@ -75,7 +77,7 @@ class OrderSyncEventEmissionTest {
 		when(credentialRepository.findByMarketType(MarketType.SMART_STORE)).thenReturn(Optional.empty());
 		SmartStoreOrderSyncService service = new SmartStoreOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, smartStoreOrderAdapter);
+			eventPublisher, smartStoreOrderAdapter, syncStatusService);
 
 		service.syncSmartStoreOrders();
 
@@ -90,7 +92,8 @@ class OrderSyncEventEmissionTest {
 		when(credentialRepository.findByMarketType(MarketType.COUPANG)).thenReturn(Optional.empty());
 		CoupangOrderSyncService service = new CoupangOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			marketRegistrationRepository, eventPublisher, coupangOrderAdapter, coupangStatusMapper);
+			marketRegistrationRepository, eventPublisher, coupangOrderAdapter, coupangStatusMapper,
+			syncStatusService);
 
 		service.syncCoupangOrders();
 
@@ -105,7 +108,7 @@ class OrderSyncEventEmissionTest {
 		when(credentialRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(Optional.empty());
 		ElevenstOrderSyncService service = new ElevenstOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, elevenstOrderAdapter);
+			eventPublisher, elevenstOrderAdapter, syncStatusService);
 
 		service.syncElevenstOrders();
 
@@ -126,7 +129,7 @@ class OrderSyncEventEmissionTest {
 		when(smartStoreOrderAdapter.fetchOrders(any(), any(), any())).thenReturn(List.of());
 		SmartStoreOrderSyncService service = new SmartStoreOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, smartStoreOrderAdapter);
+			eventPublisher, smartStoreOrderAdapter, syncStatusService);
 
 		service.syncSmartStoreOrders();
 

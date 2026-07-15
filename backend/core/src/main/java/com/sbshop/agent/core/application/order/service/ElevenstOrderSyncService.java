@@ -40,6 +40,7 @@ public class ElevenstOrderSyncService {
 	private final ProductRepository productRepository;
 	private final ApplicationEventPublisher eventPublisher;
 	private final ElevenstOrderAdapter elevenstOrderAdapter;
+	private final com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -51,6 +52,8 @@ public class ElevenstOrderSyncService {
 			return;
 		}
 
+		// F-SYNC-2: 상태 기록을 async 스레드(이 본문) 안에서 수행.
+		syncStatusService.markRunning(com.sbshop.agent.core.application.sync.SyncMarketKeys.ELEVEN_STREET);
 		boolean success = false;
 		try {
 			MarketCredential credential = loadAndValidateCredential();
@@ -62,8 +65,11 @@ public class ElevenstOrderSyncService {
 
 			log.info("[ELEVEN_STREET] 주문 동기화 완료: {}건 처리", orders.size());
 			success = true;
+			syncStatusService.markCompleted(com.sbshop.agent.core.application.sync.SyncMarketKeys.ELEVEN_STREET);
 		} catch (Exception e) {
 			log.error("[ELEVEN_STREET] 주문 동기화 실패: {}", e.getMessage(), e);
+			syncStatusService.markFailed(
+				com.sbshop.agent.core.application.sync.SyncMarketKeys.ELEVEN_STREET, e.getMessage());
 			eventPublisher.publishEvent(
 				new SyncCompletedEvent(this, MarketType.ELEVEN_STREET, false, e.getMessage()));
 		} finally {

@@ -16,13 +16,9 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class OrderSyncScheduler {
 
+	// EMAIL은 sync 서비스가 아니라 스케줄러가 직접 EmailFetcherService를 호출하므로 여기서 상태를 기록한다.
+	// 나머지 마켓 상태 기록은 각 sync 서비스가 자기 async 스레드 안에서 직접 수행한다(F-SYNC-2).
 	private static final String EMAIL = "EMAIL";
-	private static final String COUPANG = "COUPANG";
-	private static final String SMART_STORE = "SMART_STORE";
-	private static final String ELEVEN_STREET = "ELEVEN_STREET";
-	private static final String GMARKET = "GMARKET";
-	private static final String COUPANG_SETTLEMENT = "COUPANG_SETTLEMENT";
-	private static final String CUSTOMS = "CUSTOMS";
 
 	private final EmailFetcherService emailFetcherService;
 	private final SmartStoreOrderSyncService smartStoreOrderSyncService;
@@ -50,89 +46,51 @@ public class OrderSyncScheduler {
 	// 매시 5분, 35분 - 쿠팡 주문 동기화
 	@Scheduled(cron = "0 5/30 * * * ?")
 	public void syncCoupangOrders() {
-		log.info("쿠팡 주문 동기화 시작...");
-		syncStatusService.markRunning(COUPANG);
-		try {
-			coupangOrderSyncService.syncCoupangOrders();
-			syncStatusService.markCompleted(COUPANG);
-			log.info("쿠팡 주문 동기화 완료.");
-		} catch (Exception e) {
-			syncStatusService.markFailed(COUPANG, e.getMessage());
-			log.error("쿠팡 주문 동기화 실패: {}", e.getMessage());
-		}
+		// 상태 기록은 CoupangOrderSyncService가 async 스레드에서 직접 수행(F-SYNC-2). 스케줄러는 호출만.
+		log.info("쿠팡 주문 동기화 트리거...");
+		coupangOrderSyncService.syncCoupangOrders();
 	}
 
 	// 매시 10분, 40분 - G마켓/옥션 주문 동기화 (Selenium ESM+ → Cafe24 주문 API로 선회)
 	@Scheduled(cron = "0 10/30 * * * ?")
 	public void syncEsmplusOrders() {
-		log.info("G마켓/옥션(Cafe24 주문API) 동기화 시작...");
-		syncStatusService.markRunning(GMARKET);
-		try {
-			cafe24OrderSyncService.syncCafe24Orders();
-			syncStatusService.markCompleted(GMARKET);
-			log.info("G마켓/옥션(Cafe24 주문API) 동기화 완료.");
-		} catch (Exception e) {
-			syncStatusService.markFailed(GMARKET, e.getMessage());
-			log.error("G마켓/옥션(Cafe24) 동기화 실패: {}", e.getMessage());
-		}
+		// 상태 기록은 Cafe24OrderSyncService가 async 스레드에서 직접 수행(F-SYNC-2). 스케줄러는 호출만.
+		log.info("G마켓/옥션(Cafe24 주문API) 동기화 트리거...");
+		cafe24OrderSyncService.syncCafe24Orders();
 	}
 
 	// 매시 15분, 45분 - 스마트스토어 주문 동기화
 	@Scheduled(cron = "0 15/30 * * * ?")
 	public void syncSmartStoreOrders() {
-		log.info("스마트스토어 주문 동기화 시작...");
-		syncStatusService.markRunning(SMART_STORE);
-		try {
-			smartStoreOrderSyncService.syncSmartStoreOrders();
-			syncStatusService.markCompleted(SMART_STORE);
-			log.info("스마트스토어 주문 동기화 완료.");
-		} catch (Exception e) {
-			syncStatusService.markFailed(SMART_STORE, e.getMessage());
-			log.error("스마트스토어 주문 동기화 실패: {}", e.getMessage());
-		}
+		// 상태 기록은 SmartStoreOrderSyncService가 async 스레드에서 직접 수행(F-SYNC-2). 스케줄러는 호출만.
+		log.info("스마트스토어 주문 동기화 트리거...");
+		smartStoreOrderSyncService.syncSmartStoreOrders();
 	}
 
 	// 매시 20분, 50분 - 11번가 주문 동기화
 	@Scheduled(cron = "0 20/30 * * * ?")
 	public void syncElevenstOrders() {
-		log.info("11번가 주문 동기화 시작...");
-		syncStatusService.markRunning(ELEVEN_STREET);
-		try {
-			elevenstOrderSyncService.syncElevenstOrders();
-			syncStatusService.markCompleted(ELEVEN_STREET);
-			log.info("11번가 주문 동기화 완료.");
-		} catch (Exception e) {
-			syncStatusService.markFailed(ELEVEN_STREET, e.getMessage());
-			log.error("11번가 주문 동기화 실패: {}", e.getMessage());
-		}
+		// 상태 기록은 ElevenstOrderSyncService가 async 스레드에서 직접 수행(F-SYNC-2). 스케줄러는 호출만.
+		log.info("11번가 주문 동기화 트리거...");
+		elevenstOrderSyncService.syncElevenstOrders();
 	}
 
 	// 매일 새벽 2시 - 쿠팡 정산 데이터 동기화
 	@Scheduled(cron = "0 0 2 * * ?")
 	public void syncCoupangSettlement() {
-		log.info("쿠팡 정산 데이터 동기화 시작...");
-		syncStatusService.markRunning(COUPANG_SETTLEMENT);
-		try {
-			coupangOrderSyncService.syncCoupangSettlement();
-			syncStatusService.markCompleted(COUPANG_SETTLEMENT);
-			log.info("쿠팡 정산 데이터 동기화 완료.");
-		} catch (Exception e) {
-			syncStatusService.markFailed(COUPANG_SETTLEMENT, e.getMessage());
-			log.error("쿠팡 정산 데이터 동기화 실패: {}", e.getMessage());
-		}
+		// 상태 기록은 CoupangOrderSyncService가 async 스레드에서 직접 수행(F-SYNC-2). 스케줄러는 호출만.
+		log.info("쿠팡 정산 데이터 동기화 트리거...");
+		coupangOrderSyncService.syncCoupangSettlement();
 	}
 
 	// 매 시간 정각 - 통관 상태 동기화 (GSI Express 검증)
 	@Scheduled(cron = "0 0 * * * ?")
 	public void syncCustomsStatus() {
-		log.info("통관 상태 동기화 시작...");
-		syncStatusService.markRunning(CUSTOMS);
+		// 상태 기록은 CustomsOrderSyncService가 직접 수행(F-SYNC-2). 스케줄러는 호출만(예외는 서비스가 로깅 후 rethrow).
+		log.info("통관 상태 동기화 트리거...");
 		try {
 			customsOrderSyncService.syncCustomsStatus();
-			syncStatusService.markCompleted(CUSTOMS);
-			log.info("통관 상태 동기화 완료.");
 		} catch (Exception e) {
-			syncStatusService.markFailed(CUSTOMS, e.getMessage());
 			log.error("통관 상태 동기화 실패: {}", e.getMessage());
 		}
 	}

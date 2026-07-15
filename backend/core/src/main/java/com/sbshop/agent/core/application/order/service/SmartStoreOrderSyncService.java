@@ -39,6 +39,7 @@ public class SmartStoreOrderSyncService {
 	private final ProductRepository productRepository;
 	private final ApplicationEventPublisher eventPublisher;
 	private final SmartStoreOrderAdapter smartStoreOrderAdapter;
+	private final com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -50,6 +51,8 @@ public class SmartStoreOrderSyncService {
 			return;
 		}
 
+		// F-SYNC-2: 상태 기록을 async 스레드(이 본문) 안에서 수행.
+		syncStatusService.markRunning(com.sbshop.agent.core.application.sync.SyncMarketKeys.SMART_STORE);
 		boolean success = false;
 		try {
 			MarketCredential credential = loadAndValidateCredential();
@@ -61,8 +64,11 @@ public class SmartStoreOrderSyncService {
 
 			log.info("[SMART_STORE] 주문 동기화 완료: {}건 처리", orders.size());
 			success = true;
+			syncStatusService.markCompleted(com.sbshop.agent.core.application.sync.SyncMarketKeys.SMART_STORE);
 		} catch (Exception e) {
 			log.error("[SMART_STORE] 주문 동기화 실패: {}", e.getMessage(), e);
+			syncStatusService.markFailed(
+				com.sbshop.agent.core.application.sync.SyncMarketKeys.SMART_STORE, e.getMessage());
 			eventPublisher.publishEvent(
 				new SyncCompletedEvent(this, MarketType.SMART_STORE, false, e.getMessage()));
 		} finally {

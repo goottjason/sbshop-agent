@@ -3,6 +3,8 @@ package com.sbshop.agent.core.application.order.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
+import com.sbshop.agent.core.application.sync.SyncMarketKeys;
+import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
@@ -47,6 +49,7 @@ public class Cafe24OrderSyncService {
 	private final OrderLineItemRepository orderLineItemRepository;
 	private final MarketRegistrationRepository marketRegistrationRepository;
 	private final ApplicationEventPublisher eventPublisher;
+	private final SyncStatusService syncStatusService;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -57,14 +60,18 @@ public class Cafe24OrderSyncService {
 			log.warn("[CAFE24-ORDER] 동기화 중복 실행 방지");
 			return;
 		}
+		// F-SYNC-2: 상태 기록을 async 스레드(이 본문) 안에서 수행 — 스케줄러가 조기 markCompleted 하던 문제 해소.
+		syncStatusService.markRunning(SyncMarketKeys.GMARKET);
 		boolean success = false;
 		try {
 			int count = fetchAndPersist(LocalDate.now().minusDays(30), LocalDate.now());
 			log.info("[CAFE24-ORDER] G마켓/옥션 주문 동기화 완료: {}건", count);
 			success = true;
+			syncStatusService.markCompleted(SyncMarketKeys.GMARKET);
 		} catch (Exception e) {
 			String reason = failureReason(e);
 			log.error("[CAFE24-ORDER] 동기화 실패: {}", reason, e);
+			syncStatusService.markFailed(SyncMarketKeys.GMARKET, reason);
 			eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.GMARKET, false, reason));
 		} finally {
 			isSyncing.set(false);

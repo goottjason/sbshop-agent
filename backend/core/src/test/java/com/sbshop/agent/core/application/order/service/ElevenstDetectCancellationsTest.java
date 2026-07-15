@@ -47,11 +47,13 @@ class ElevenstDetectCancellationsTest {
 	private ApplicationEventPublisher eventPublisher;
 	@Mock
 	private ElevenstOrderAdapter elevenstOrderAdapter;
+	@Mock
+	private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 
 	private ElevenstOrderSyncService service() {
 		return new ElevenstOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository,
-			productRepository, eventPublisher, elevenstOrderAdapter);
+			productRepository, eventPublisher, elevenstOrderAdapter, syncStatusService);
 	}
 
 	private void stubCredentialAndEmptyApi() {

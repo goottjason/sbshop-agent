@@ -19,6 +19,7 @@ public class CustomsOrderSyncService {
 
 	private final OrderRepository orderRepository;
 	private final CustomsClearancePort customsClearancePort;
+	private final com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 
 	/**
 	 * 통관 상태 동기화 프로세스
@@ -32,49 +33,61 @@ public class CustomsOrderSyncService {
 	@Transactional
 	public void syncCustomsStatus() {
 		log.info("GSI Scraper를 통한 통관 상태 동기화 프로세스 시작...");
+		// F-SYNC-2: 동기 메서드지만 일관성을 위해 자기 상태를 스스로 기록(스케줄러에서 이동).
+		syncStatusService.markRunning(com.sbshop.agent.core.application.sync.SyncMarketKeys.CUSTOMS);
+		try {
+			// 1. 통관 검증 대상: PENDING 또는 INVALID 상태인 주문
+			//    - PENDING: 통관번호 입력 후 아직 검증 안 된 경우
+			//    - INVALID_*: 이전 검증에서 실패한 경우 (재검증)
+			List<Order> targetOrders = orderRepository.findByCustomsData_CustomsStatusIn(
+				List.of(
+					CustomsStatus.PENDING,
+					CustomsStatus.INVALID_PCCC,
+					CustomsStatus.INVALID_PHONE,
+					CustomsStatus.INVALID_ZIPCODE));
 
-		// 1. 통관 검증 대상: PENDING 또는 INVALID 상태인 주문
-		//    - PENDING: 통관번호 입력 후 아직 검증 안 된 경우
-		//    - INVALID_*: 이전 검증에서 실패한 경우 (재검증)
-		List<Order> targetOrders = orderRepository.findByCustomsData_CustomsStatusIn(
-			List.of(
-				CustomsStatus.PENDING,
-				CustomsStatus.INVALID_PCCC,
-				CustomsStatus.INVALID_PHONE,
-				CustomsStatus.INVALID_ZIPCODE));
+			log.info("PENDING/INVALID_* 통관 상태를 가진 후보 주문 {}건 발견",
+				targetOrders.size());
 
-		log.info("PENDING/INVALID_* 통관 상태를 가진 후보 주문 {}건 발견",
-			targetOrders.size());
-
-		if (targetOrders.isEmpty()) {
-			return;
-		}
-
-		// 2. GSI Express 사이트를 통한 벌크 검증 (30개씩 끊어서 요청)
-		int batchSize = 30;
-		for (int i = 0; i < targetOrders.size(); i += batchSize) {
-			int end = Math.min(i + batchSize, targetOrders.size());
-			List<Order> batch = targetOrders.subList(i, end);
-
-			log.info("배치 {} ~ {} / {}건의 통관 상태 검증 중", i + 1, end, targetOrders.size());
-			Map<Long, CustomsVerificationResult> resultMap = customsClearancePort.verifyBulk(batch);
-
-			// 3. 결과 반영 (상태 + 검증된 사람)
-			for (Order order : batch) {
-				CustomsVerificationResult result = resultMap.getOrDefault(order.getId(),
-					CustomsVerificationResult.pending());
-				order.updateCustomsStatus(result.getStatus(), result.getVerifiedPerson());
+			if (targetOrders.isEmpty()) {
+				syncStatusService.markCompleted(
+					com.sbshop.agent.core.application.sync.SyncMarketKeys.CUSTOMS);
+				return;
 			}
 
-			// 배치 사이에 약간의 딜레이를 주어 서버에 무리가 가지 않도록 함
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				log.warn("통관 동기화 배치 스레드 중단됨");
-			}
-		}
+			// 2. GSI Express 사이트를 통한 벌크 검증 (30개씩 끊어서 요청)
+			int batchSize = 30;
+			for (int i = 0; i < targetOrders.size(); i += batchSize) {
+				int end = Math.min(i + batchSize, targetOrders.size());
+				List<Order> batch = targetOrders.subList(i, end);
 
-		log.info("통관 상태 동기화 프로세스 완료.");
+				log.info("배치 {} ~ {} / {}건의 통관 상태 검증 중", i + 1, end, targetOrders.size());
+				Map<Long, CustomsVerificationResult> resultMap = customsClearancePort.verifyBulk(batch);
+
+				// 3. 결과 반영 (상태 + 검증된 사람)
+				for (Order order : batch) {
+					CustomsVerificationResult result = resultMap.getOrDefault(order.getId(),
+						CustomsVerificationResult.pending());
+					order.updateCustomsStatus(result.getStatus(), result.getVerifiedPerson());
+				}
+
+				// 배치 사이에 약간의 딜레이를 주어 서버에 무리가 가지 않도록 함
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					log.warn("통관 동기화 배치 스레드 중단됨");
+				}
+			}
+
+			log.info("통관 상태 동기화 프로세스 완료.");
+			syncStatusService.markCompleted(
+				com.sbshop.agent.core.application.sync.SyncMarketKeys.CUSTOMS);
+		} catch (RuntimeException e) {
+			log.error("통관 상태 동기화 실패: {}", e.getMessage(), e);
+			syncStatusService.markFailed(
+				com.sbshop.agent.core.application.sync.SyncMarketKeys.CUSTOMS, e.getMessage());
+			throw e;
+		}
 	}
 }
