@@ -34,10 +34,10 @@
 | **P2 상태가드** | SP-4 | ✅ 완료 (정책확정: 데이터 주인 기준) | `dfcf8b3`(order) · `aad006e`(batch) · `6c396f4`(web) |
 | **P3 부분실패 표면화** | SP-3 | ✅ 완료 (order 도메인, 상품은 후속) | `ffdaed3`(order) · `6095f1b`(batch) · `dbfefec`(web) |
 | **P4 비동기·영속상태** | SP-1, SP-2 | ✅ 완료 (a·b·c·d) | `059ed79`·`4268d71`·`bbf0e1c`·`03ea176`·`e58e218` |
-| **P5 구조 리팩토링** | SP-9, SP-11 | ✅ SP-9 완료·SP-11 부분 | `d81fa42`·`04062a9` |
+| **P5 구조 리팩토링** | SP-9, SP-11 | ✅ 완료 | `d81fa42`·`04062a9`·`682d95f`·`5549f67`·`87bb414`·`baad6ff` |
 | **P5b 보안(최소)** | SP-10(축소) | ✅ 완료 | `019e20d`·`97b5b79` |
 | **P6 응답 DTO** | SP-5 | ✅ 완료(계약보존) | `c2b4e47`·`5ff8890`·`d556697`·`54087b6` |
-| (보류) 삭제 시맨틱 | SP-8 | ⛔ 제품결정 필요 | — |
+| **삭제 시맨틱** | SP-8 | ✅ 완료(둘 다 클리어) | `a6d2759`·`70cfe2c` |
 
 ### P1 결과 요약 (2026-07-14)
 - **TDD로 확정된 오탐**: "잘못된 enum → 500" 주장 중 실제 500은 `GET /market-credentials/{marketType}`(enum 경로변수 직접 바인딩)뿐. F-PROD-2·F-PSRC-12·F-MREG-3·F-BATCH-B1 은 `String`+`valueOf` 구조라 **이미 400**(기존 IllegalArgumentException 핸들러) — 회귀방지 테스트로 고정.
@@ -75,14 +75,14 @@
   근거: F-ORD-5·15·27·37, F-SYNC-22, F-BATCH-7, (sourcing/shipping F-S6·F-H6).
 - [~] **SP-7 · 미존재 id / 잘못된 enum → 404·400 아닌 500 또는 조용한 204** — bad-enum·supplierCode·삭제조용204 해소; 404 시맨틱 잔존
   근거: F-PROD-5·26·29, F-MREG-3, F-CRED-4, F-BATCH-B1, F-PSRC-12, F-ORD-34, F-CAFE(콜백 에러 미처리).
-- [ ] **SP-8 · null-skip 병합으로 필드 "삭제" 불가**
+- [x] **SP-8 · null-skip 병합으로 필드 "삭제" 불가** — ✅ 소싱(F-S2)·주소/통관(F-ORD-23)·이미지(F-PROD-13) 클리어 완결
   근거: F-S2, F-ORD-23, F-PROD-13. (반대로 F-CRED-8 은 null도 덮어써 기존값 소실 — 정책 불일치)
 - [x] **SP-9 · 서비스 계층 없이 컨트롤러가 Repository/Router 직접 조립** — ✅ Supplier·MarketRegistration(D)+ProductSync(P4b)
   트랜잭션·검증·재사용·테스트가 컨트롤러에 결박.
   근거: F-SUP-CS-3·UC-4, F-MREG-6, F-MISC-9.
 - [~] **SP-10 · 인증/접근제어 부재 + `@CrossOrigin("*")` 전역 + 시크릿 평문** — 축소완료(P5b): 시크릿 마스킹+internal/트리거 가드. CORS·preview PII·CAFE 등은 범위 밖
   근거: F-CRED-1·7·2(시크릿 평문 응답/저장), F-MISC-7·13·17(무인증 트리거/SSE/internal), F-SYNC-13(preview PII), F-CAFE-14, F-MISC-3.
-- [~] **SP-11 · 중복 분기/로직** — 발주batch·root-cause(D) 완료; 마켓sync골격·이미지3경로·batch트리거 후속
+- [x] **SP-11 · 중복 분기/로직** — ✅ 발주batch·root-cause·batch트리거·이미지3경로·cafe24·마켓sync골격(Cafe24 보류) 완료
   근거: F-ORD-18(cancel/confirm batch), F-BATCH-3(트리거 4종)·B3, F-PROD-15·19·20(이미지 3경로), F-SYNC-5(마켓 sync 4종)·14, F-CAFE-12.
 
 ---
@@ -229,7 +229,7 @@
 - [ ] **F-H5** `markSentIfSucceeded` isFailed 분기 도달불가 죽은코드 · `OrderService.java:548-551`
 
 ### order-sync
-- [ ] **F-SYNC-5** 4개 마켓 sync upsert 골격 중복 · `CoupangOrderSyncService.java:168-293`
+- [x] **F-SYNC-5** DTO 트리오 dispatch 골격 통합(Cafe24 보류) · ✅ `baad6ff`
 - [ ] **F-SYNC-8** 스마트스토어·11번가 송장병합에 trackingSentToMarket 보존 가드 없음(쿠팡과 비대칭) · `SmartStoreOrderSyncService.java:116-127`
 - [ ] **F-SYNC-4** 정산 수수료율 0.89 하드코딩 · `CoupangOrderSyncService.java:276`
 - [x] **F-SYNC-14** RootCauseExtractor 유틸로 통합 · ✅ `04062a9`
@@ -241,17 +241,17 @@
 - [ ] **F-PROD-1** marketFilter·keyword 배타, keyword 무시 · `ProductController.java:75-82`
 - [x] **F-PROD-6** 중첩 record DTO 래핑 · ✅ `5ff8890`
 - [ ] **F-PROD-10 / 14** price-stock·images가 26필드 커맨드 1~2칸만 채움(위치기반 오배치 위험) · `ProductManageUseCase.java:49-84`
-- [ ] **F-PROD-15** images/by-url 본문로직 완전중복 · `ProductController.java:117-155`
-- [ ] **F-PROD-19 / 20** 크롤 앞·뒷단이 crawl-and-upload와 중복(최대 3곳) · `ProductController.java:163-209`
+- [x] **F-PROD-15** uploadPreparedImages 헬퍼로 통합 · ✅ `5549f67`
+- [x] **F-PROD-19/20** crawlSourceImageUrls+uploadPreparedImages 통합 · ✅ `5549f67`
 - [ ] **F-PROD-24** 전체수정 로그가 변경필드 정보 없음 · `ProductController.java:226-227`
 
 ### batch
-- [ ] **F-BATCH-3** 트리거 4종 로직 중복 · `BatchController.java:41-120`
+- [x] **F-BATCH-3** startBatchWithLog 헬퍼로 통합 · ✅ `682d95f`
 - [ ] **F-BATCH-5** startBatch 상품별 1행씩 개별 save · `ProcessStatusService.java:26-36`
 - [ ] **F-BATCH-M2** 수동 경로엔 crawl의 sleep(500) rate-limit 없음 · `BatchPriceStockService.java:83`
 - [ ] **F-BATCH-M3** 변경없음 판정 price=equals vs stock=status 비대칭 · `BatchPriceStockService.java:112-113`
 - [ ] **F-BATCH-A3** 배치 3종 부수효과·완충 정책 제각각 · `BatchPriceStockService.java:38/95/151`
-- [ ] **F-BATCH-B3** by-supplier가 crawl-and-update와 거의 동일 · `BatchController.java:97-120`
+- [x] **F-BATCH-B3** 트리거 dedup에 포함 · ✅ `682d95f`
 - [x] **F-BATCH-S1** ProcessStatusResponse DTO · ✅ `54087b6`
 
 ### product-sourcing
@@ -271,7 +271,7 @@
 
 ### cafe24-auth
 - [ ] **F-CAFE-8** 인가코드 URL 미인코딩·OAuth 오류본문 무제한 로그 · `Cafe24TokenManager.java:137-139`
-- [ ] **F-CAFE-12** 콜백/issue-token 중복이나 활동로그·응답 비대칭 · `Cafe24AuthController.java:88-138`
+- [x] **F-CAFE-12** exchangeAuthorizationCode 헬퍼로 통합(비대칭 보존) · ✅ `87bb414`
 - [ ] **F-CAFE-13** 인가코드가 GET 쿼리스트링으로 access.log 노출 · `Cafe24AuthController.java:130`
 - [ ] **F-CAFE-1** /status가 외부호출 2~3회 유발(무거운 헬스체크) · `Cafe24AuthController.java:50-60`
 - [ ] **F-CAFE-3** 상품 실패를 무조건 "토큰 만료/무효"로 단정 · `Cafe24AuthController.java:51-55`
@@ -299,7 +299,7 @@
 - [ ] **F-ORD-11 / 20** confirm/cancel-batch 요청 DTO 없이 Map 직접 바인딩 · `OrderController.java:90-92,134-136`
 - [ ] **F-ORD-12** 일괄 발주확인 부분실패가 200 반환 · `OrderController.java:104`
 - [ ] **F-ORD-14** 쿠팡 등은 취소가 마켓에 미전파(로컬 only) · `OrderService.java:144-152`
-- [ ] **F-ORD-23** null-skip 병합으로 주소/통관번호 삭제 불가 · `OrderService.java:220,225`
+- [x] **F-ORD-23** 빈문자열로 이미 클리어됨(오탐) — 회귀테스트 고정 · ✅ `a6d2759`
 - [x] **F-ORD-27** 유니패스 로그 marketType 성공경로도 null · `OrderController.java:192` — ✅ `6e320e0`
 - [x] **F-ORD-36** 삭제 엔드포인트 제거로 무효화 · ✅ `dfcf8b3`
 - [x] **F-S2** · 정책확정: 빈문자열로 클리어 가능(이미 동작) — 회귀테스트 추가 · ✅ `dfcf8b3`
@@ -319,7 +319,7 @@
 - [ ] **F-PROD-3** 조회계열 활동로그 미기록 · `ProductController.java:66-94`
 - [ ] **F-PROD-4** marketMap 폴백(productId)과 실코드 미구분 · `ProductController.java:315-318`
 - [ ] **F-PROD-9** price.intValue() 소수점 절사 후 전송 · `ProductManageUseCase.java:63`
-- [ ] **F-PROD-13** 빈 이미지 리스트로 삭제 불가 · `Product.java:272-275`
+- [x] **F-PROD-13** 빈 리스트=전체삭제 · ✅ `70cfe2c`
 - [ ] **F-PROD-17** 빈결과/크롤실패 구분(설계 모범 — 유지 권장) · `ProductController.java:161-176`
 - [ ] **F-PROD-21** 소싱없음/0개/업로드완료 동일 액션타입 · `ProductController.java:190-206`
 - [ ] **F-PROD-25** 전체수정이 마켓에 전파 안 됨 · `ProductManageUseCase.java:156-163`
