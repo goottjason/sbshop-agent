@@ -20,6 +20,7 @@ import com.sbshop.agent.core.application.order.service.SmartStoreOrderSyncServic
 import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
+import com.sbshop.agent.core.domain.common.RootCauseExtractor;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -147,12 +148,8 @@ public class OrderSyncController {
 			return ResponseEntity.ok(Map.of("success", true, "orders", orders));
 		} catch (Exception e) {
 			log.error("Cafe24 주문 프리뷰 실패", e);
-			Throwable cur0 = e;
-			while (cur0.getCause() != null && cur0.getCause() != cur0) {
-				cur0 = cur0.getCause();
-			}
 			return ResponseEntity.internalServerError().body(Map.of("success", false,
-				"message", e.getMessage(), "rootCause", String.valueOf(cur0.getMessage())));
+				"message", e.getMessage(), "rootCause", String.valueOf(RootCauseExtractor.rootMessage(e))));
 		}
 	}
 
@@ -163,12 +160,8 @@ public class OrderSyncController {
 			return ResponseEntity.ok(Map.of("success", true, "carriers", cafe24OrderApiPort.fetchCarriers()));
 		} catch (Exception e) {
 			log.error("Cafe24 주문 프리뷰 실패", e);
-			Throwable cur = e;
-			while (cur.getCause() != null && cur.getCause() != cur) {
-				cur = cur.getCause();
-			}
 			return ResponseEntity.internalServerError().body(Map.of("success", false,
-				"message", e.getMessage(), "rootCause", String.valueOf(cur.getMessage())));
+				"message", e.getMessage(), "rootCause", String.valueOf(RootCauseExtractor.rootMessage(e))));
 		}
 	}
 

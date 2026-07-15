@@ -117,28 +117,7 @@ public class OrderService {
 	/** 주문 일괄 접수 */
 	@Transactional
 	public BulkConfirmResult bulkConfirmOrders(List<Long> ids) {
-
-		int successCount = 0;
-		List<Long> failedIds = new ArrayList<>();
-		List<String> errors = new ArrayList<>();
-
-		for (Long id : ids) {
-			try {
-				confirmOrder(id);
-				successCount++;
-			} catch (Exception e) {
-				failedIds.add(id);
-				errors.add("Order " + id + ": " + e.getMessage());
-				log.warn("주문 {} 접수 확인 실패: {}", id, e.getMessage());
-			}
-		}
-
-		return BulkConfirmResult.builder()
-			.successCount(successCount)
-			.failedCount(failedIds.size())
-			.failedIds(failedIds)
-			.errors(errors.isEmpty() ? null : errors)
-			.build();
+		return bulkOperate(ids, this::confirmOrder, "접수 확인");
 	}
 
 	// ======================== 발주취소 ========================
@@ -191,6 +170,19 @@ public class OrderService {
 	/** 주문 일괄 취소 */
 	@Transactional
 	public BulkConfirmResult bulkCancelOrders(List<Long> ids) {
+		return bulkOperate(ids, this::cancelOrder, "취소");
+	}
+
+	/**
+	 * 주문 ID 목록을 순회하며 건별 작업(op)을 수행하고, 성공 카운트·실패 ID·에러 메시지를 집계한다.
+	 * 건별 실패는 배치를 중단시키지 않고 수집만 한다(부분 성공 허용).
+	 * bulkConfirmOrders/bulkCancelOrders의 동일 루프를 통합한 공통 헬퍼(F-ORD-18).
+	 *
+	 * @param op 건별 처리(confirmOrder/cancelOrder). 예외를 던지면 실패로 집계된다.
+	 * @param actionLabel 실패 로그에 쓰는 작업명(예: "접수 확인", "취소").
+	 */
+	private BulkConfirmResult bulkOperate(List<Long> ids, java.util.function.LongConsumer op,
+		String actionLabel) {
 
 		int successCount = 0;
 		List<Long> failedIds = new ArrayList<>();
@@ -198,12 +190,12 @@ public class OrderService {
 
 		for (Long id : ids) {
 			try {
-				cancelOrder(id);
+				op.accept(id);
 				successCount++;
 			} catch (Exception e) {
 				failedIds.add(id);
 				errors.add("Order " + id + ": " + e.getMessage());
-				log.warn("주문 {} 취소 실패: {}", id, e.getMessage());
+				log.warn("주문 {} {} 실패: {}", id, actionLabel, e.getMessage());
 			}
 		}
 

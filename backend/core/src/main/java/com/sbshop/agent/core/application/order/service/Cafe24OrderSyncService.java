@@ -5,6 +5,7 @@ import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
 import com.sbshop.agent.core.application.sync.SyncMarketKeys;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
+import com.sbshop.agent.core.domain.common.RootCauseExtractor;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
@@ -87,11 +88,7 @@ public class Cafe24OrderSyncService {
 	 */
 	private String failureReason(Throwable e) {
 		String top = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-		Throwable root = e;
-		while (root.getCause() != null && root.getCause() != root) {
-			root = root.getCause();
-		}
-		String rootMsg = root.getMessage();
+		String rootMsg = RootCauseExtractor.rootMessage(e);
 		if (rootMsg != null && !rootMsg.isBlank() && !top.contains(rootMsg)) {
 			return top + " (원인: " + rootMsg + ")";
 		}
