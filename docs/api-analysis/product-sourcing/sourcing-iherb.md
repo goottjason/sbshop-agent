@@ -1,5 +1,7 @@
 # POST /sourcing/iherb — iHerb 상품 소싱(크롤)
 
+> **[C 반영 2026-07-15]** F-PSRC-2 해결 — 실패 URL·사유를 SourcingCrawlResult로 표면화 (커밋 `139a581`).
+
 ## 1. 개요
 
 | 항목 | 내용 |

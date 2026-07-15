@@ -61,7 +61,7 @@
   근거: F-SYNC-2(CoupangOrderSyncService.java:54), F-SYNC-23(OrderSyncScheduler.java:52-63), F-MISC-8(ProductSyncController.java:40-53), F-BATCH-2(BatchPriceStockService.java:38-93). → 동기화·크롤·배치 전반의 "성공했는데 실제로는 실패" 근원.
 - [x] **SP-2 · 상태 저장소가 JVM 로컬 인메모리 → 멀티-JVM 상태 UI 무력화** — ✅ sync DB화(P4a) + SSE cross-JVM 브리지(P4d) 완료
   근거: F-SYNC-1(SyncStatusService.java:15, 조회는 api·갱신은 worker), F-SYNC-25(맵 휘발), F-MISC-16(SSE emitter가 api JVM 로컬), F-BATCH-2(재시작 시 PENDING 영구잔류). → `[[deployment-two-jvm-topology]]` 규율(공유상태는 DB+advisory lock) 위반.
-- [~] **SP-3 · 일괄/부분 처리의 부분실패 은폐 + 결과 미반영** — order 도메인 완료(P3), 상품(F-PSRC/F-PROD) 후속
+- [x] **SP-3 · 일괄/부분 처리의 부분실패 은폐 + 결과 미반영** — ✅ order(P3)+상품 소싱/이미지(C) 완료; ProductSync 상품별 크롤예외만 잔존
   실패 라인이 응답·로그에 안 드러나거나 요청↔결과 매핑 불가.
   근거: F-ORD-30·F-ORD-9·F-ORD-17(발송/발주 부분실패), F-SYNC-3, F-BATCH-A2, F-PSRC-2·F-PSRC-6, F-PROD-12·F-PROD-16.
 - [x] **SP-4 · 종료 상태(CANCELED/RETURNED/EXCHANGED)·배송완료 상태 가드 부재** — ✅ P2 완료(정책확정)
@@ -147,8 +147,8 @@
 - [ ] **F-PROD-7** · soldOut=null이 조용히 "판매중"으로 처리 · `ProductManageUseCase.java:56-58`
 - [ ] **F-PROD-8** · price 음수 검증 부재 · `Product.java:201-210`
 - [ ] **F-PROD-11** · 빈/누락 이미지 입력 검증 부재(3경로 공통) · `ProductController.java:117-135`
-- [ ] **F-PROD-12** · 개별 리사이즈 실패 조용히 삭제(부분손실) · `ProductController.java:342-344`
-- [ ] **F-PROD-16** · 개별 URL 다운로드 실패 불투명 · `ProductController.java:143`
+- [x] **F-PROD-12** · imagesFailed로 리사이즈 실패 표면화 · ✅ `fee0baa`
+- [x] **F-PROD-16** · imagesFailed로 다운로드 실패 표면화 · ✅ `fee0baa`
 - [~] **F-PROD-2** · ~~500~~ → **오탐: 실제 400** (valueOf→IllegalArgumentException) · `ProductController.java:78`
 - [ ] **F-PROD-5** · 미존재 id가 404 아닌 500 · `ProductSearchUseCase.java:27`
 - [ ] **F-PROD-18** · 크롤 이미지 URL 유효성/중복 검증 없음 · `ProductController.java:170-172`
@@ -168,8 +168,8 @@
 
 ### product-sourcing (F-PSRC)
 - [ ] **F-PSRC-1** · urls==null 시 STARTED 로그만 남기고 NPE · `ProductSourcingController.java:42,46`
-- [ ] **F-PSRC-2** · iHerb 부분 실패 URL 조용히 누락 · `IherbScraperClient.java:224-242`
-- [ ] **F-PSRC-6** · bulk 부분 실패 항목 응답 미반영·SB코드 결번 · `ProductCreateUseCase.java:42-52`
+- [x] **F-PSRC-2** · SourcingCrawlResult로 실패 URL·사유 표면화 · ✅ `139a581`
+- [x] **F-PSRC-6** · BulkProductCreateResult로 실패 항목 표면화(결번 F-PSRC-9 잔존) · ✅ `139a581`
 - [ ] **F-PSRC-7** · requests==null 시 컨트롤러 진입부 NPE(로그도 없음) · `ProductSourcingController.java:63,67`
 - [ ] **F-PSRC-8** · 이미지 다운로드·R2 업로드를 트랜잭션 안에서 → 장시간 트랜잭션·고아 이미지 · `ProductCreateUseCase.java:30,45,67-68`
 - [~] **F-PSRC-12** · ~~500~~ → **오탐: 실제 400** · `ProductSourcingController.java:87` (로그없이 처리되는 점은 잔존)

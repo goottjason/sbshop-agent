@@ -1,5 +1,7 @@
 # POST /products/bulk — 상품 대량(일괄) 등록
 
+> **[C 반영 2026-07-15]** F-PSRC-6 해결 — 실패 항목을 BulkProductCreateResult로 표면화 (커밋 `139a581`).
+
 ## 1. 개요
 
 | 항목 | 내용 |
