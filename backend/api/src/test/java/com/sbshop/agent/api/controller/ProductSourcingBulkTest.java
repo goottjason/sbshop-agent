@@ -5,9 +5,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.sbshop.agent.api.dto.product.BulkProductCreateResponse;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.product.ProductCreateUseCase;
 import com.sbshop.agent.core.application.product.ProductPublishUseCase;
+import com.sbshop.agent.core.application.product.dto.BulkProductCreateResult;
 import com.sbshop.agent.core.application.sourcing.ProductSourcingUseCase;
 import com.sbshop.agent.core.domain.product.Product;
 import java.util.List;
@@ -39,17 +41,24 @@ class ProductSourcingBulkTest {
     }
 
     @Test
-    @DisplayName("saveProductsBulk: 생성된 Product 의 id 목록을 응답 바디로 반환한다")
+    @DisplayName("saveProductsBulk: 성공 항목(index·productId·sbCode)을 응답 바디로 반환한다")
     void saveProductsBulk_returnsCreatedIds() {
         Product p1 = mock(Product.class);
         Product p2 = mock(Product.class);
         when(p1.getId()).thenReturn(1L);
         when(p2.getId()).thenReturn(2L);
-        when(productCreateUseCase.createBulk(any())).thenReturn(List.of(p1, p2));
+        BulkProductCreateResult result = new BulkProductCreateResult(
+            List.of(new BulkProductCreateResult.Success(0, p1),
+                new BulkProductCreateResult.Success(1, p2)),
+            List.of());
+        when(productCreateUseCase.createBulk(any())).thenReturn(result);
 
-        ResponseEntity<List<Long>> response = controller().saveProductsBulk(List.of());
+        ResponseEntity<BulkProductCreateResponse> response = controller().saveProductsBulk(List.of());
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
-        assertThat(response.getBody()).containsExactly(1L, 2L);
+        assertThat(response.getBody().succeeded())
+            .extracting(BulkProductCreateResponse.Success::productId)
+            .containsExactly(1L, 2L);
+        assertThat(response.getBody().failed()).isEmpty();
     }
 }

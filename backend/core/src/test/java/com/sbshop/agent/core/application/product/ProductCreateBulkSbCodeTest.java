@@ -58,12 +58,12 @@ class ProductCreateBulkSbCodeTest {
 		// 1) getNextSbCodeSequence는 정확히 1회만 호출되어야 한다
 		verify(productReader, times(1)).getNextSbCodeSequence(anyString());
 
-		// 2) 결과 3개
-		assertThat(result).hasSize(3);
+		// 2) 성공 3개
+		assertThat(result.succeeded()).hasSize(3);
 
 		// 3) sbCode 끝 3자리가 006, 007, 008로 연속
-		assertThat(result.get(0).getSbCode()).endsWith("IHB006");
-		assertThat(result.get(1).getSbCode()).endsWith("IHB007");
-		assertThat(result.get(2).getSbCode()).endsWith("IHB008");
+		assertThat(result.succeeded().get(0).product().getSbCode()).endsWith("IHB006");
+		assertThat(result.succeeded().get(1).product().getSbCode()).endsWith("IHB007");
+		assertThat(result.succeeded().get(2).product().getSbCode()).endsWith("IHB008");
 	}
 }

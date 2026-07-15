@@ -12,6 +12,18 @@ export interface SourcingResult {
   unit: string;
 }
 
+// F-PSRC-2: iHerb 소싱 응답 — 성공 상품 + 실패 URL(사유) 집계.
+export interface IherbSourcingResponse {
+  succeeded: SourcingResult[];
+  failed: { url: string; reason: string }[];
+}
+
+// F-PSRC-6: 대량 등록 응답 — 성공/실패 항목 집계.
+export interface BulkProductCreateResponse {
+  succeeded: { index: number; productId: number; sbCode: string }[];
+  failed: { index: number; baseName: string; reason: string }[];
+}
+
 export const sourcingApi = {
   sourceFromIherb: (urls: string[]) =>
     apiClient.post('/api/v1/sourcing/iherb', urls),

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Input, Button, Table, Space, message, Typography, Steps, InputNumber, Select, Result, Tag } from 'antd';
-import { sourcingApi, type SourcingResult } from '../api/sourcingApi';
+import { Input, Button, Table, Space, message, Typography, Steps, InputNumber, Select, Result, Tag, Alert } from 'antd';
+import { sourcingApi, type SourcingResult, type IherbSourcingResponse, type BulkProductCreateResponse } from '../api/sourcingApi';
 
 const { TextArea } = Input;
 const { Title } = Typography;
@@ -29,6 +29,8 @@ const ProductRegisterPage = () => {
   const [savedIds, setSavedIds] = useState<number[]>([]);
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>([]);
   const [outcomes, setOutcomes] = useState<PublishOutcome[]>([]);
+  const [crawlFailures, setCrawlFailures] = useState<{ url: string; reason: string }[]>([]);
+  const [saveFailures, setSaveFailures] = useState<{ index: number; baseName: string; reason: string }[]>([]);
 
   // Step 1: 크롤
   const handleCrawl = async () => {
@@ -37,10 +39,15 @@ const ProductRegisterPage = () => {
     setLoading(true);
     try {
       const res = await sourcingApi.sourceFromIherb(urlList);
-      const scraped = (res.data as SourcingResult[]) || [];
+      const data = res.data as IherbSourcingResponse;
+      const scraped = data.succeeded || [];
+      const failed = data.failed || [];
       setRows(scraped.map((s) => ({ ...s, bundleQuantity: 1, marginRate: 20, vendor: 'IHB' })));
       setSelectedRowKeys(scraped.map((_, i) => i));
-      message.success(`${scraped.length}개 상품 크롤링 완료`);
+      setCrawlFailures(failed);
+      // F-PSRC-2: 실패한 URL은 조용히 누락하지 않고 사용자에게 표면화한다.
+      if (failed.length > 0) message.warning(`${scraped.length}개 크롤링 완료, ${failed.length}개 실패`);
+      else message.success(`${scraped.length}개 상품 크롤링 완료`);
       if (scraped.length > 0) setCurrent(1);
     } catch { message.error('크롤링 실패'); }
     finally { setLoading(false); }
@@ -66,9 +73,15 @@ const ProductRegisterPage = () => {
           marginRate: s.marginRate, vendor: s.vendor,
         }))
       );
-      const ids = (res.data as number[]) || [];
+      const data = res.data as BulkProductCreateResponse;
+      const succeeded = data.succeeded || [];
+      const failed = data.failed || [];
+      const ids = succeeded.map((s) => s.productId);
       setSavedIds(ids);
-      message.success(`${ids.length}개 상품 저장 완료`);
+      setSaveFailures(failed);
+      // F-PSRC-6: 저장 실패 항목을 조용히 누락하지 않고 사용자에게 표면화한다.
+      if (failed.length > 0) message.warning(`${ids.length}개 저장 완료, ${failed.length}개 실패`);
+      else message.success(`${ids.length}개 상품 저장 완료`);
       setCurrent(2);
     } catch { message.error('저장 실패'); }
     finally { setLoading(false); }
@@ -104,6 +117,7 @@ const ProductRegisterPage = () => {
   const reset = () => {
     setCurrent(0); setUrls(''); setRows([]); setSelectedRowKeys([]);
     setSavedIds([]); setSelectedMarkets([]); setOutcomes([]);
+    setCrawlFailures([]); setSaveFailures([]);
   };
 
   const editColumns = [
@@ -142,6 +156,17 @@ const ProductRegisterPage = () => {
 
       {current === 1 && (
         <Space direction="vertical" style={{ width: '100%' }}>
+          {crawlFailures.length > 0 && (
+            <Alert type="warning" showIcon
+              message={`크롤링 실패 ${crawlFailures.length}건`}
+              description={
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {crawlFailures.map((f, i) => (
+                    <li key={i}>{f.url} — {f.reason}</li>
+                  ))}
+                </ul>
+              } />
+          )}
           <Table<EditableRow> rowKey={(_, i) => i ?? 0} columns={editColumns} dataSource={rows}
             rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
             pagination={false} size="small" scroll={{ y: 460 }} />
@@ -156,6 +181,17 @@ const ProductRegisterPage = () => {
 
       {current === 2 && (
         <Space direction="vertical" style={{ width: '100%' }}>
+          {saveFailures.length > 0 && (
+            <Alert type="warning" showIcon
+              message={`저장 실패 ${saveFailures.length}건`}
+              description={
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {saveFailures.map((f) => (
+                    <li key={f.index}>{f.baseName} — {f.reason}</li>
+                  ))}
+                </ul>
+              } />
+          )}
           <div>저장된 상품 {savedIds.length}개. 등록할 마켓을 선택하세요.</div>
           <Select mode="multiple" style={{ width: 400 }} placeholder="마켓 선택"
             value={selectedMarkets} onChange={setSelectedMarkets}

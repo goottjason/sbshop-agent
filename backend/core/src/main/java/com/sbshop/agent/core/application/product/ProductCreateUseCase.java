@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.product;
 
+import com.sbshop.agent.core.application.product.dto.BulkProductCreateResult;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
 import com.sbshop.agent.core.domain.product.client.ImageStorageClient;
@@ -28,16 +29,19 @@ public class ProductCreateUseCase {
 	private final ImageStorageClient imageStorageClient;
 
 	@Transactional
-	public List<Product> createBulk(List<ProductCreateCommand> commands) {
+	public BulkProductCreateResult createBulk(List<ProductCreateCommand> commands) {
 		String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
 		String prefix = today + "IHB";
 
+		List<BulkProductCreateResult.Success> succeeded = new ArrayList<>();
+		List<BulkProductCreateResult.Failure> failed = new ArrayList<>();
 		List<Product> products = new ArrayList<>();
 		// 배치 시작 시퀀스를 1회만 조회하고 로컬 증가(항목마다 재조회 시 미저장분을 못 봐 충돌·시퀀스 건너뜀 발생).
 		String firstCode = productReader.getNextSbCodeSequence(prefix);
 		int seq = Integer.parseInt(firstCode.substring(prefix.length()));
 
-		for (ProductCreateCommand command : commands) {
+		for (int i = 0; i < commands.size(); i++) {
+			ProductCreateCommand command = commands.get(i);
 			try {
 				String sbCode = prefix + String.format("%03d", seq);
 				seq++;
@@ -46,9 +50,12 @@ public class ProductCreateUseCase {
 
 				Product product = Product.create(sbCode, enrichedCommand);
 				products.add(product);
+				succeeded.add(new BulkProductCreateResult.Success(i, product));
 				log.info("상품 생성: sbCode={}, name={}", sbCode, product.getProductName());
 			} catch (Exception e) {
+				// 실패 항목을 응답에서 누락하지 않고 요청 index·식별자·사유와 함께 표면화(F-PSRC-6).
 				log.error("상품 생성 실패: {}", command.baseName(), e);
+				failed.add(new BulkProductCreateResult.Failure(i, command.baseName(), e.getMessage()));
 			}
 		}
 
@@ -56,7 +63,7 @@ public class ProductCreateUseCase {
 			productWriter.saveAll(products);
 			log.info("{}개 상품 일괄 저장 완료", products.size());
 		}
-		return products;
+		return new BulkProductCreateResult(succeeded, failed);
 	}
 
 	private ProductCreateCommand enrichWithHostedImages(ProductCreateCommand command) {

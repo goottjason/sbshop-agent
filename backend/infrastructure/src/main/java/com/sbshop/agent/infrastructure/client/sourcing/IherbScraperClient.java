@@ -6,6 +6,7 @@ import com.sbshop.agent.core.application.product.dto.StockCheckResult;
 import com.sbshop.agent.core.application.product.port.ProductInfoCrawlerPort;
 import com.sbshop.agent.core.application.product.port.ProductStockCrawlerPort;
 import com.sbshop.agent.core.application.sourcing.dto.ScrapedProductDto;
+import com.sbshop.agent.core.application.sourcing.dto.SourcingCrawlResult;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import com.sbshop.agent.infrastructure.client.sourcing.dto.IherbProductInfo;
@@ -222,13 +223,17 @@ public class IherbScraperClient implements ProductStockCrawlerPort, ProductInfoC
 	}
 
 	@Override
-	public List<ScrapedProductDto> crawlProducts(List<String> urls) {
-		List<ScrapedProductDto> results = new ArrayList<>();
+	public SourcingCrawlResult crawlProducts(List<String> urls) {
+		List<ScrapedProductDto> succeeded = new ArrayList<>();
+		List<SourcingCrawlResult.SourcingFailure> failed = new ArrayList<>();
 		for (String url : urls) {
 			try {
 				ScrapedProductDto dto = crawlProductInfoAsDto(url);
 				if (dto != null) {
-					results.add(dto);
+					succeeded.add(dto);
+				} else {
+					// null = 크롤 결과 없음(상품 ID 추출 실패·차단·응답 파싱 실패 등). 조용히 누락 금지.
+					failed.add(new SourcingCrawlResult.SourcingFailure(url, "크롤 결과를 가져오지 못했습니다"));
 				}
 				Thread.sleep(500 + (long)(Math.random() * 500));
 			} catch (InterruptedException e) {
@@ -236,9 +241,10 @@ public class IherbScraperClient implements ProductStockCrawlerPort, ProductInfoC
 				break;
 			} catch (Exception e) {
 				log.error("소싱 실패: {}", url, e);
+				failed.add(new SourcingCrawlResult.SourcingFailure(url, e.getMessage()));
 			}
 		}
-		return results;
+		return new SourcingCrawlResult(succeeded, failed);
 	}
 
 	private ScrapedProductDto toScrapedDto(IherbProductInfo info) {

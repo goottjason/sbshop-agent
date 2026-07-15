@@ -53,9 +53,10 @@ class ProductCreateUseCaseTest {
 
 		var result = useCase.createBulk(List.of(cmd));
 
-		assertThat(result).hasSize(1);
-		assertThat(result.get(0).getSbCode()).contains("IHB");
-		assertThat(result.get(0).getHostedImages()).contains("https://r2.dev/img.jpg");
+		assertThat(result.succeeded()).hasSize(1);
+		assertThat(result.failed()).isEmpty();
+		assertThat(result.succeeded().get(0).product().getSbCode()).contains("IHB");
+		assertThat(result.succeeded().get(0).product().getHostedImages()).contains("https://r2.dev/img.jpg");
 		verify(productWriter).saveAll(any());
 	}
 
@@ -75,7 +76,7 @@ class ProductCreateUseCaseTest {
 
 		var result = useCase.createBulk(List.of(cmd));
 
-		assertThat(result).hasSize(1);
-		assertThat(result.get(0).getHostedImages()).isEmpty();
+		assertThat(result.succeeded()).hasSize(1);
+		assertThat(result.succeeded().get(0).product().getHostedImages()).isEmpty();
 	}
 }
