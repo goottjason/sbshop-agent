@@ -1,5 +1,7 @@
 package com.sbshop.agent.api.controller;
 
+import com.sbshop.agent.api.dto.supplier.CurrencyResponse;
+import com.sbshop.agent.api.dto.supplier.SupplierResponse;
 import com.sbshop.agent.core.application.supplier.SupplierService;
 import com.sbshop.agent.core.application.supplier.dto.CreateCurrencyCommand;
 import com.sbshop.agent.core.application.supplier.dto.CreateSupplierCommand;
@@ -27,29 +29,29 @@ public class SupplierController {
 	private final SupplierService supplierService;
 
 	@GetMapping("/suppliers")
-	public ResponseEntity<List<Supplier>> getSuppliers() {
-		return ResponseEntity.ok(supplierService.getSuppliers());
+	public ResponseEntity<List<SupplierResponse>> getSuppliers() {
+		return ResponseEntity.ok(supplierService.getSuppliers().stream().map(SupplierResponse::from).toList());
 	}
 
 	@PostMapping("/suppliers")
-	public ResponseEntity<Supplier> createSupplier(@RequestBody
+	public ResponseEntity<SupplierResponse> createSupplier(@RequestBody
 	SupplierRequest request) {
 		Supplier supplier = supplierService.createSupplier(
 			new CreateSupplierCommand(request.supplierCode(), request.supplierName(), request.currencyCode()));
-		return ResponseEntity.ok(supplier);
+		return ResponseEntity.ok(SupplierResponse.from(supplier));
 	}
 
 	@GetMapping("/currencies")
-	public ResponseEntity<List<Currency>> getCurrencies() {
-		return ResponseEntity.ok(supplierService.getCurrencies());
+	public ResponseEntity<List<CurrencyResponse>> getCurrencies() {
+		return ResponseEntity.ok(supplierService.getCurrencies().stream().map(CurrencyResponse::from).toList());
 	}
 
 	@PostMapping("/currencies")
-	public ResponseEntity<Currency> createCurrency(@RequestBody
+	public ResponseEntity<CurrencyResponse> createCurrency(@RequestBody
 	CurrencyRequest request) {
 		Currency currency = supplierService.createCurrency(
 			new CreateCurrencyCommand(request.currencyCode(), request.exchangeRate()));
-		return ResponseEntity.ok(currency);
+		return ResponseEntity.ok(CurrencyResponse.from(currency));
 	}
 
 	public record SupplierRequest(String supplierCode, String supplierName, String currencyCode) {
