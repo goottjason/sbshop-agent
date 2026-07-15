@@ -95,19 +95,23 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-SYNC-15 · 🟡 SMELL — 실패 로그 메시지가 "Cafe24 주문 프리뷰 실패"로 오기재(preview 문구 복사)
+> ⬜ **미해결(백로그)**.
 - **근거:** `previewCafe24Carriers()` 의 catch 로그가 `log.error("Cafe24 주문 프리뷰 실패", e)`(OrderSyncController.java:165) — 실제로는 **택배사 조회** 실패인데 preview 엔드포인트의 문구를 그대로 복사했다.
 - **영향:** 운영 로그에서 택배사 조회 실패가 주문 프리뷰 실패로 오인 분류되어 원인 추적이 흐려진다.
 - **제안:** `"Cafe24 택배사 조회 실패"` 로 교정.
 
 ### F-SYNC-14 · 🟡 SMELL — root cause 추출 로직 중복 (공통)
+> ✅ **해결됨** (커밋 `04062a9`) — 체크리스트 기준.
 - **근거:** preview 와 동일한 `while(cur.getCause()!=null...)` 복붙(166-169). [[cafe24-preview.md]] F-SYNC-14 참조.
 - **제안:** 공용 유틸로 통합.
 
 ### F-SYNC-13 · 🟠 GAP — 진단 엔드포인트가 인증 없이 운영에 노출 (공통, 단 PII 없음)
+> ⬜ **미해결(백로그)**.
 - **근거:** carriers 도 인증/프로파일 가드 없이 `@CrossOrigin(origins="*")` 하에 노출. preview 와 달리 PII 는 없으나, Cafe24 연동 존재·택배사 구성 정보가 외부에 드러난다.
 - **영향/제안:** [[cafe24-preview.md]] F-SYNC-13 과 함께 프로파일 가드로 일괄 차단 권장(심각도는 preview 보다 낮음 — PII 없음).
 
 ### F-SYNC-16 · 🔵 NOTE — 응답 타입 `ResponseEntity<Object>` — 원시 JsonNode 노출
+> ⬜ **미해결(백로그)**.
 - **근거:** 반환 타입 `Object`(161). [[cafe24-preview.md]] F-SYNC-16 과 동일 성격.
 
 ## 8. 테스트 커버리지 메모

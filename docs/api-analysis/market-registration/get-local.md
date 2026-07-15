@@ -99,16 +99,22 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-MREG-3 · 🟠 GAP — `marketType` 유효성·미존재를 `IllegalArgumentException` 으로만 처리(상태코드 불명확)
+> 🔶 **부분/오탐** — bad-enum은 이미 400(오탐), 404 시맨틱 구분 부재는 잔존.
+
 - **근거:** `MarketRegistrationController.java:43` 의 `MarketType.valueOf(marketType.toUpperCase())` 는 매핑 실패 시 `IllegalArgumentException` 을 던지고, `java:46` 의 `orElseThrow` 도 동일하게 `IllegalArgumentException` 을 던진다. 별도 `@ExceptionHandler`/`ResponseStatus` 매핑이 컨트롤러에 없다.
 - **영향:** (a) "잘못된 마켓명"과 (b) "등록 정보 없음"이 **같은 예외 타입**이라 클라이언트가 원인을 구분하기 어렵다. (b) 는 의미상 404 여야 하나 전역 핸들러 설정에 따라 400/500 으로 전파될 수 있다. `MarketType.UNKNOWN` 이 enum 에 존재하므로 `"unknown"` 문자열은 예외 없이 통과해 "등록 없음"으로 흘러가는 점도 혼동 요인.
 - **제안:** 미존재는 404(`NoSuchElementException`/전용 예외), 잘못된 마켓명은 400 으로 분리. `UNKNOWN` 을 조회 대상에서 명시적으로 배제할지 정책 확인.
 
 ### F-MREG-4 · 🟡 SMELL — 응답으로 도메인 엔티티(`MarketRegistration`) 직접 노출
+> ✅ **해결됨** (커밋 `54087b6`) — 체크리스트 기준.
+
 - **근거:** `MarketRegistrationController.java:38` 반환 타입 `MarketRegistration`. `marketIdentifiers`/`marketDetailedInfo` 원시 JSON 및 내부 필드 전체 노출.
 - **영향:** `list-registrations` 의 F-MREG-4 와 동일 — 직렬화가 영속 모델에 결합, 내부 식별자 노출.
 - **제안:** 조회 응답 DTO 도입(전 API 공통).
 
 ### F-MREG-6 · 🟡 SMELL — 컨트롤러가 Repository 직접 호출(서비스 계층 부재)
+> ✅ **해결됨** (커밋 `d81fa42`) — 체크리스트 기준.
+
 - **근거:** `MarketRegistrationController.java:44-46` — enum 파싱·조회·예외를 컨트롤러가 직접 수행.
 - **제안:** `list-registrations` 의 F-MREG-6 참조. 조회 유스케이스로 이관 검토.
 

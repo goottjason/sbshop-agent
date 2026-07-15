@@ -137,23 +137,28 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-SYNC-1 · 🔴 BUG — status 미갱신 + 크로스-JVM 미공유 (공통)
+> ✅ **해결됨** (커밋 `059ed79`) — 체크리스트 기준.
 - **근거:** 컨트롤러가 `SyncStatusService` 미갱신. writer 는 worker 의 `OrderSyncScheduler.java:99-105` 뿐, 인메모리 미공유.
 - **영향/제안:** [[sync-coupang.md]] F-SYNC-1 참조.
 
 ### F-SYNC-2 · 🔴 BUG — `@Async` 예외가 컨트롤러 catch 로 오지 않음 (공통)
+> ✅ **해결됨** (커밋 `059ed79`) — 체크리스트 기준.
 - **근거:** `syncElevenstOrders()` `@Async`(46). 컨트롤러 try/catch(106-116) 사실상 도달 불가.
 - **영향/제안:** [[sync-coupang.md]] F-SYNC-2 참조.
 
 ### F-SYNC-10 · 🟠 GAP — 취소감지가 orderDate 기준 30일 창 밖 주문을 건너뜀 → 오래된 취소 누락
+> ⬜ **미해결(백로그)**.
 - **근거:** `detectCancellations()`(238-244)는 `order.getOrderDate()` 가 `[now-30d, now]` 밖이면 `continue`. 그런데 `orderDate == null` 인 주문은 창 필터를 통과(240 `if(orderDate != null)`)해 감지 대상이 된다.
 - **영향:** ① 31일 이상 지난 뒤 취소된 주문은 감지 안 됨(fetchOrders 도 30일이라 대체로 정합하나, 경계에서 미탐 가능). ② `orderDate == null` 주문은 창 무관하게 매번 감지 후보가 되어 성능/오탐 여지. 대체로 의도된 범위 한정이나 문서화 필요.
 - **제안:** 감지 창을 fetchOrders 창과 명시적으로 동기화하고, `orderDate == null` 처리 방침(스킵 vs 포함)을 확정.
 
 ### F-SYNC-8 · 🟡 SMELL — 송장 병합에 `trackingSentToMarket` 가드 없음 (스마트스토어와 동일)
+> ⬜ **미해결(백로그)**.
 - **근거:** `updateLineItemFromDto()`(116-127)가 마켓 송장을 무조건 병합. 쿠팡의 보존 가드 부재.
 - **영향/제안:** [[sync-smartstore.md]] F-SYNC-8 참조.
 
 ### F-SYNC-5 · 🟡 SMELL — upsert 골격 중복 (공통)
+> ✅ **해결됨** (커밋 `baad6ff`) — 체크리스트 기준 (Cafe24 보류).
 - **근거:** 쿠팡/스마트스토어와 거의 동일 골격 + `detectCancellations` 는 이미 이 서비스에도 인라인 복제됨(쿠팡 어댑터 정본을 이식). [[sync-coupang.md]] F-SYNC-5 참조.
 
 ## 8. 테스트 커버리지 메모

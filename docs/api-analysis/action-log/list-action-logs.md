@@ -115,16 +115,22 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-MISC-1 · 🟡 SMELL — 페이징 없이 `PageRequest` 를 개수 상한(limit)으로만 사용
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `ActionLogService.java:47` 은 `PageRequest.of(0, safeLimit)` 로 항상 **0페이지 고정**. 실질적으로 `findTop{N}` 을 흉내낸 것이며 offset/page 파라미터가 없다. `findTop100ByOrderByCreatedAtDesc`(`ActionLogRepository.java:11`)와 역할이 중복.
 - **영향:** 501번째 이후 과거 로그에 접근할 수단이 없다(항상 최신 최대 500건). 운영 이력이 쌓이면 과거 조회 불가.
 - **제안:** 실제 페이징(page/size) 요구가 있으면 파라미터 추가. 없으면 미사용 `findTop100...` 제거로 중복 정리.
 
 ### F-MISC-2 · 🔵 NOTE — limit 상·하한 방어가 서비스에만 있고 컨트롤러 계약에 노출 안 됨
+> ⬜ **미해결(백로그)**.
+
 - **근거:** 컨트롤러는 `@RequestParam int limit` 를 그대로 받고(`ActionLogController.java:27-28`) `@Min/@Max` 등 Bean Validation이 없다. 클램프는 `ActionLogService.java:46` 에만 존재.
 - **영향:** API 사용자는 `limit=999999` 를 보내도 오류 없이 조용히 500으로 절삭됨(요청과 다른 동작). 계약이 코드 안에 숨어 있음.
 - **제안:** 상한을 API 계약(문서/검증 애너테이션)으로 승격하거나, 초과 시 400 반환 여부를 정책으로 확정.
 
 ### F-MISC-3 · 🔵 NOTE — `@CrossOrigin(origins = "*")` 전역 허용
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `ActionLogController.java:20`. 5개 조회/조작 컨트롤러 다수에 동일 패턴(공통 이슈).
 - **영향:** 운영 이력(내부 활동 로그)을 임의 오리진에서 조회 가능. 보안 비중요 정책이라면 무해하나 문서화 필요.
 - **제안:** 전 API 공통 CORS 정책으로 승격 검토(개별 `origins="*"` 산재 제거).

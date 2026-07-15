@@ -144,16 +144,19 @@ flowchart TD
 > 횡단 이슈(F-BATCH-1·2·3·4·7)는 [crawl-and-update.md](crawl-and-update.md) 참조. 본 문서는 전체필드 경로 고유 발견을 다룬다.
 
 ### F-BATCH-A1 · 🟠 GAP — 전체필드 배치만 마켓 재전송이 없어 마켓과 로컬이 어긋남
+> ⬜ **미해결(백로그)**.
 - **근거:** `manualUpdateAllFields`(`BatchPriceStockService.java:151-176`)는 `product.update(command)` + `save`만 하고 `productMarketSyncService.syncPriceStock` 호출이 없다. crawl(76)·manual(133) 경로는 모두 마켓 재전송을 한다.
 - **영향:** 전체필드 배치로 **가격/재고를 바꿔도 연동 마켓엔 반영되지 않는다.** command에 가격·재고가 포함될 수 있으므로(ProductUpdateCommand는 전 필드 포괄), 로컬 DB와 마켓 판매가가 조용히 불일치하게 된다.
 - **제안:** command에 가격/재고 변경이 포함되면 마켓 재전송을 태우거나, 이 경로는 마켓 미반영임을 API 계약·응답 메시지에 명시.
 
 ### F-BATCH-A2 · 🟠 GAP — commands와 productIds 길이 불일치 시 IndexOutOfBounds로 개별 FAILED
+> ✅ **해결됨** (커밋 `6095f1b`) — 체크리스트 기준.
 - **근거:** `commands.get(i)`(`BatchPriceStockService.java:161`)는 `productIds.size()` 기준 루프(155)를 도는데, `commands.size() < productIds.size()`면 `IndexOutOfBoundsException`. try-catch(156-171)가 이를 잡아 해당 건 markFailed 처리하나, 근본은 **위치 정렬 계약**(F-BATCH-M1과 동형).
 - **영향:** 길이 어긋난 요청이 부분 성공/부분 실패로 흘러 결과가 예측 불가. 어긋난 index부터 엉뚱한 command가 적용될 수도 있다.
 - **제안:** `productIds.size() == commands.size()` 사전 검증(불일치 시 400). `{productId, command}` 튜플 DTO 권장.
 
 ### F-BATCH-A3 · 🟡 SMELL — 다른 두 경로와 부수효과·완충이 제각각 (마켓반영 유무·sleep 유무)
+> ⬜ **미해결(백로그)**.
 - **근거:** crawl=크롤+마켓반영+sleep, manual=마켓반영+sleep없음, manual-all=마켓반영없음+sleep없음. 세 async 메서드(`BatchPriceStockService`)가 부수효과 정책이 서로 다르다.
 - **제안:** 배치 3종의 "상품 저장 후 마켓 반영·완충" 공통 스텝을 추출해 정책을 통일하면 F-BATCH-A1/M2가 함께 해소.
 

@@ -98,21 +98,25 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-SUP-1 · 🟡 SMELL — 응답으로 도메인 엔티티(`Supplier`) 직접 노출 + LAZY 연관 유출 위험
+> ✅ **해결됨** (커밋 `d556697`) — 체크리스트 기준.
 - **근거:** `SupplierController.java:30` 반환 타입이 `ResponseEntity<List<Supplier>>`. `Supplier.currency` 는 `@ManyToOne(fetch = FetchType.LAZY)` (`Supplier.java:26`). 트랜잭션 없는 컨트롤러 반환 시점에 Jackson 이 `currency` 를 직렬화하려 하면 LazyInitialization 또는 예상치 못한 추가 쿼리가 발생할 수 있다.
 - **영향:** 직렬화 형태가 도메인 변경에 결합. `BaseEntity` 의 `status`·감사 필드까지 클라이언트에 노출된다. order 계열의 F-S5/F-H6 과 동일한 횡단 이슈.
 - **제안:** `SupplierDto(id, supplierCode, supplierName, currencyCode)` 응답 DTO 도입. 전 API 공통 개선 항목으로 승격 검토.
 
 ### F-SUP-2 · 🟠 GAP — `RecordStatus` 필터 부재로 ARCHIVED/DELETED 공급사까지 조회됨
+> ✅ **해결됨** (커밋 `3970dd1`) — 체크리스트 기준.
 - **근거:** `findAll()` (`SupplierRepository.java:7`) 은 소프트삭제 상태를 구분하지 않는다. `BaseEntity` 는 `archive()`·`delete()` 로 `status` 를 변경하는 소프트삭제 모델(`BaseEntity.java:34-40`)을 가지지만, 조회는 `status` 를 무시하고 전부 반환한다.
 - **영향:** 삭제/보관 처리한 공급사가 목록·드롭다운에 계속 나타난다. 소프트삭제 규약이 조회 경로에서 지켜지지 않음.
 - **제안:** 소프트삭제를 실제 운용한다면 `findAllByStatus(ACTIVE)` 로 좁히거나 `@Where`/`@SQLRestriction` 도입. 운용하지 않는다면 `archive/delete` 미사용임을 문서화.
 
 ### F-SUP-3 · 🔵 NOTE — 활동로그(ActionLog) 미기록
+> ⬜ **미해결(백로그)**.
 - **근거:** 다른 컨트롤러(`OrderController`, `ProductController` 등 9개)는 `ActionLogService` 를 주입해 이벤트를 남기지만 `SupplierController` 는 주입조차 없다(`SupplierController.java:26-27`).
 - **영향:** 조회는 로그 불필요가 일반적이라 낮은 우선순위. 다만 등록 계열(create-supplier/upsert-currency)에서도 동일하게 로그가 없어(F-SUP-CS-*, F-SUP-UC-*) 마스터 데이터 변경 이력이 전무하다.
 - **제안:** 조회는 유지, **등록/수정** 계열에 한해 ActionLog 도입 검토.
 
 ### F-SUP-4 · 🔵 NOTE — 정렬·페이징 부재
+> ⬜ **미해결(백로그)**.
 - **근거:** `findAll()` 은 정렬 순서를 보장하지 않고 전량 반환한다(`SupplierController.java:31`).
 - **영향:** 공급사 수가 적은 마스터 데이터라 실무 영향은 낮으나, 화면 표시 순서가 DB 물리 순서에 의존한다.
 - **제안:** `findAll(Sort.by("supplierName"))` 등 안정 정렬만이라도 부여 검토.

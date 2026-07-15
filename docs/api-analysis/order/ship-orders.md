@@ -151,27 +151,32 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-ORD-29 · 🟠 GAP — 발송 처리에 진입 상태 가드가 전혀 없음(송장만 있으면 아무 상태나 SHIPPED)
+> ✅ **해결됨** (커밋 `dfcf8b3`) — 일괄발송 SHIPPED/DELIVERED/END 재발송 스킵. 체크리스트 기준.
 - **근거:** `OrderShipService.java:48-66` 은 `trackingNo` 존재만 확인하고 현재 `shippingStatus` 를 검사하지 않는다. `updateShippingInfo`(단건, PATCH /shipping)는 PURCHASED 만 SHIPPED 로 전이하는 명시 가드(`OrderService.java:312-318`)를 가진 것과 대조적.
 - **영향:** NEW/PREPARING/CANCELED/RETURNED/이미 SHIPPED 인 라인도 송장만 있으면 마켓 `shipOrder`(최초등록)를 호출하고 SHIPPED 로 덮어쓴다. 종료 상태 재발송·이미 배송건 중복 등록으로 마켓이 거부하거나 정합 붕괴 가능.
 - **제안:** PURCHASED(또는 발송 가능 상태) 가드 추가. 단건 배송 경로의 `invoiceAlreadyExists` 기반 등록/수정 분기와 정합화.
 
 ### F-ORD-30 · 🔴 BUG(후보) — 마켓 `shipOrder` 실패를 삼켜 부분 실패가 응답·활동로그에 드러나지 않음
+> ✅ **해결됨** (커밋 `ffdaed3`/`dbfefec`) — BulkShipResult로 부분실패 표면화(응답·로그·UI). 체크리스트 기준.
 - **근거:** `OrderShipService.java:68-70` 라인별 catch 가 `log.error` 만 하고 예외를 재던지지 않는다. 발송된 라인이 하나라도 있으면 그 주문은 `shippedOrders` 에 담겨 성공처럼 반환된다. 컨트롤러(`OrderController.java:254-257`)는 예외가 없으니 항상 `record(SUCCESS, ...)`.
 - **영향:** 한 주문 내 일부 라인 발송이 실패해도 응답엔 그 주문이 "발송됨" 으로 포함되고, 활동로그는 "발송 처리 성공 (N건)"(N=성공 주문 수). 실패한 라인은 **어디에도 집계되지 않아** 운영자가 미발송 라인을 인지할 방법이 없다. confirm/cancel 배치는 최소한 `failedIds/errors` 를 집계하는데, 발송은 그조차 없다.
 - **제안:** 라인별 실패를 집계해 응답 구조(성공/실패 라인)로 표면화하고, 부분 실패 시 활동로그 상태를 분기. 단건 배송의 `MarketShippingResult`(sent/skipped/failed/terminal) 계약과 통일 검토.
 - **연관:** 배송 경로 F-H1(terminal 롤백)·D-069 계약과 맞물림 → 원장 등재 권장.
 
 ### F-ORD-31 · 🟠 GAP — 발송 성공 라인만 `SHIPPED` 로 저장되나, 마켓 `shipOrder` 는 성공하고 이후 정산/저장이 예외나면 전체 롤백됨
+> ⬜ **미해결(백로그)**.
 - **근거:** `bulkShipOrders` 전체가 단일 `@Transactional`(`OrderShipService.java:30`). 마켓 `shipOrder` 는 트랜잭션 밖 외부 호출인데, `calculateSettlement`/`save`(60-66) 또는 이후 다른 주문 루프에서 언체크 예외(catch 밖)가 나면 앞서 성공 저장된 모든 라인의 SHIPPED 저장이 함께 롤백된다. 그러나 마켓엔 이미 발송 등록이 나간 상태 → DB/마켓 불일치.
 - **영향:** 부분 성공을 개별 커밋하지 못하는 배치 트랜잭션 경계 문제. confirm/cancel 배치가 건별 `@Transactional` 위임으로 격리한 것과 달리, 발송은 하나의 큰 트랜잭션.
 - **제안:** 주문(또는 라인) 단위 트랜잭션 분리로 성공분 확정. 최소한 마켓 전송과 로컬 저장의 정합 실패 시나리오 문서화.
 
 ### F-ORD-32 · 🟡 SMELL — 정산 계산 상수 `0.89` 가 서비스에 하드코딩
+> ⬜ **미해결(백로그)**.
 - **근거:** `OrderShipService.java:81` `currentSettlement.multiply(new BigDecimal("0.89"))`. 수수료율(11%로 추정)이 상수 리터럴로 박혀 있고, 발송 시점에만 정산을 재계산.
 - **영향:** 마켓별 상이한 수수료율 반영 불가. 발송 경로에서만 정산이 재계산되는 이유가 불명확.
 - **제안:** 수수료율을 마켓/상품 설정으로 외부화하고 정산 계산 책임 위치 재검토.
 
 ### F-ORD-33 · 🟠 GAP — `orderIds` null 시 서비스에서 NPE 위험(컨트롤러는 대비, 서비스는 무방비)
+> ⬜ **미해결(백로그)**.
 - **근거:** `OrderController.java:252` 는 `request.getOrderIds() != null ? size : 0` 로 방어하지만, `OrderShipService.java:34` `for (Long orderId : orderIds)` 는 null 이면 즉시 NPE. 컨트롤러가 null 을 걸러내지 않고 그대로 서비스에 넘긴다.
 - **영향:** 빈/누락 바디 요청 시 500(NPE). confirm/cancel 배치가 `null/empty → 400` 을 명시 처리한 것과 비대칭.
 - **제안:** 컨트롤러 또는 서비스 진입부에 null/empty → 400 가드 추가.

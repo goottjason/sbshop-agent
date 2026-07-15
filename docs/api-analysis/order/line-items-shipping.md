@@ -168,30 +168,36 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-H1 · 🔴 BUG(후보) — 대화형 API가 `terminal`(영구거부)을 `failed`와 동일하게 롤백 → 사용자 편집이 소실되고 재시도로도 복구 불가
+> ✅ **해결됨** (커밋 `dfcf8b3`) — terminal/failed 구분 메시지로 해결(마켓이 진실원본 — 롤백 유지, "동기화로 반영" 안내). 체크리스트 기준.
 - **근거:** `OrderService.java:326·342` 는 `sendResult.isFailed()` 로만 분기하고, `isFailed()`(`MarketShippingResult.java:33`)는 `!sent && !skipped` 라 **terminal 도 true**. 따라서 쿠팡 배송중/배송완료 잠금("배송진행상태가 유효하지 않습니다", `MarketplaceShippingService.java:110-113,126-133`)으로 `ofTerminal` 이 와도 예외→`@Transactional` 롤백.
 - **영향:** 마켓이 이미 배송중/완료라 **송장 수정이 원천 불가**한 상황에서, 운영자가 자사 DB의 송장 오타를 고치려 해도 저장이 롤백되어 **로컬 값조차 못 남긴다.** `ofTerminal`/`isTerminal()` 을 만들어 둔 D-E6 의도(영구실패는 재시도 종결)가 이 동기 경로에서는 사장됨.
 - **제안:** terminal 은 롤백 대신 **로컬 저장 유지 + 경고 반환**(마켓엔 못 보냈지만 자사 기록은 갱신)이 자연스러운지 정책 확인. 최소한 failed(일시)와 terminal(영구)의 사용자 피드백을 분리.
 - **연관:** 결함 원장 D-E6, D-069 계약과 직접 맞물림 → 원장 등재 권장.
 
 ### F-H2 · 🟠 GAP — 종료 상태(CANCELED/RETURNED/EXCHANGED)에 대한 서비스단 가드 부재
+> ✅ **해결됨** (커밋 `dfcf8b3`) — 종료상태 송장수정 400 차단(송장은 마켓이 진실원본). 체크리스트 기준.
 - **근거:** `OrderService.java:312-315` 가드는 `null/NEW/UNKNOWN/PREPARING` 만 차단. CANCELED/RETURNED/EXCHANGED/DELIVERED 는 else 분기로 진입해 `applyShippingData`+`save` 로 **로컬 저장이 성공**한다. 마켓 전송은 `MarketplaceShippingService.java:80-85` 가 `ofSkipped` 로 걸러 미전송.
 - **영향:** 취소/반품/교환된 라인아이템에 송장번호가 조용히 기록되고 API 는 200 을 반환한다(전송은 안 됐는데 성공처럼 보임). 배송 리포트/집계 왜곡 가능.
 - **제안:** 종료 상태는 서비스 진입 가드에서 명시적으로 차단하거나, skipped 사유를 응답에 실어 "저장했으나 전송 안 함"을 사용자에게 노출.
 
 ### F-H3 · 🟡 SMELL — PURCHASED 분기와 else 분기가 거의 동일(중복)
+> ⬜ **미해결(백로그)**.
 - **근거:** `OrderService.java:318-333`(PURCHASED) 과 `334-350`(else) 는 `applyShippingData → save → sendTracking → isFailed 검사·throw → markSentIfSucceeded → log` 를 **통째로 중복**. 유일한 차이는 `markAsShipped()` 한 줄.
 - **제안:** `markAsShipped()` 만 조건부로 두고 나머지를 단일 흐름으로 통합. 중복 제거로 F-H1 수정 시 한 곳만 고치면 됨.
 
 ### F-H4 · 🟠 GAP — `trackingNo`/`shippingCarrier` 필수 검증 부재
+> ✅ **해결됨** (커밋 `aff9814`) — 체크리스트 기준.
 - **근거:** 요청·커맨드·서비스 어디에도 null/blank 검증 없음. `toShippingData` 는 null-skip(`ShippingUpdateCommand.java:20-27`)이라 빈 요청이면 **기존 값 유지한 채** `markAsShipped()` 로 SHIPPED 전이 후 마켓에 기존(혹은 null) 송장 전송 시도.
 - **영향:** PURCHASED 상태에서 빈 바디 요청 시 송장 없이 SHIPPED 로 넘어가 마켓 전송이 이상 동작할 수 있음(소싱 API 는 주문번호를 명시 검증하는 것과 비대칭).
 - **제안:** PURCHASED→SHIPPED 전이 시 `trackingNo` 필수 검증 추가(소싱의 `sourcingOrderNo` 가드와 대칭).
 
 ### F-H5 · 🟡 SMELL — `markSentIfSucceeded` 의 `isFailed` 분기는 도달 불가한 방어 코드
+> ⬜ **미해결(백로그)**.
 - **근거:** `OrderService.java:548-551` — 주석대로 호출부가 이미 isFailed 에서 throw 하므로 이 else-if 는 절대 실행되지 않음.
 - **제안:** 죽은 분기임을 주석에 명시(현재 되어 있음)했으나, F-H1 수정으로 계약이 바뀌면 이 분기의 처리가 실제로 필요해질 수 있으니 함께 재검토.
 
 ### F-H6 · 🔵 NOTE — 응답 도메인 엔티티 직접 노출 / 활동로그 marketType null
+> 🔶 **부분/오탐** — marketType null은 해결(커밋 `6e320e0`); 응답 엔티티 노출(SP-5)은 P6 잔존. 체크리스트 기준.
 - **근거:** `OrderController.java:225`(반환 `OrderLineItem`), `234/238`(market=null). 소싱 API 의 F-S5·F-S6 과 동일한 횡단 이슈.
 - **제안:** 전 API 공통 개선 항목으로 승격 검토.
 

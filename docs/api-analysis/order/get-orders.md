@@ -108,21 +108,25 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-ORD-1 · 🟡 SMELL — 응답으로 도메인 엔티티(`Order`/`OrderLineItem`/`Product`)를 그대로 노출
+> ⬜ **미해결(백로그)** — SP-5 중 그리드 DTO 내부래핑은 잔여.
 - **근거:** `OrderDetailDto.java:14-23` 이 `Order`·`OrderLineItem`·`Product`·`MarketRegistration` 엔티티를 필드로 직접 담는다. `OrderController.java:61` 반환도 `Page<OrderDetailDto>`.
 - **영향:** 직렬화 형태가 엔티티 내부 표현에 결합. 지연로딩·내부 필드(예: `marketSpecificData` 원본 JSON, 크레덴셜 연관) 유출 위험. 수정계열 API(F-ORD 소싱/배송)와 함께 전 API 공통 이슈.
 - **제안:** 조회 응답 전용 뷰 DTO(필드 화이트리스트)로 매핑.
 
 ### F-ORD-2 · 🟠 GAP — 기간 필터가 `startDate`·`endDate` 중 하나만 오면 조용히 무시됨
+> ✅ **해결됨** (커밋 `aff9814`) — 체크리스트 기준.
 - **근거:** `OrderRepositoryImpl.java:189-194` `dateBetween` 은 `startDate != null && endDate != null` 일 때만 `between` 을 적용하고, 하나만 있으면 `null`(필터 없음)을 반환한다.
 - **영향:** "이 날짜 이후" 같은 편측 조회 요청 시 필터가 통째로 사라져 전체 기간이 조회된다(운영자는 필터가 걸린 줄 안다). 오해 소지 있는 조용한 무시.
 - **제안:** 편측 조건(`goe`/`loe`)을 각각 지원하거나, 한쪽만 온 경우 400 으로 명시 거부.
 
 ### F-ORD-3 · 🔵 NOTE — `shippingStatuses` 필터는 EXISTS 라 주문 단위로 걸림(부분 매칭)
+> ⬜ **미해결(백로그)**.
 - **근거:** `OrderRepositoryImpl.java:139-150` `shippingStatusIn` 은 "해당 상태 라인아이템이 하나라도 존재하는 주문" 을 반환하는 EXISTS 서브쿼리다.
 - **영향:** 한 주문에 여러 라인아이템이 있으면, 필터 상태가 아닌 라인아이템도 응답에 함께 실려온다(주문 통째 반환). 그리드 UI 가 라인 단위 필터를 기대하면 표시 불일치 가능.
 - **제안:** 의도된 설계(주문 단위 그리드)면 문서화. 라인 단위 필터가 필요하면 별도 처리.
 
 ### F-ORD-4 · 🔵 NOTE — 조회 API 는 활동로그를 남기지 않음
+> ⬜ **미해결(백로그)**.
 - **근거:** `OrderController.getOrders()` (60-66) 에만 `actionLogService.record` 호출이 없다(다른 8개 엔드포인트는 전부 기록).
 - **영향:** 의도된 설계(조회는 로그 대상 아님)로 보이나, 나머지 API 와의 대칭성 관점에서 명시해 둘 가치가 있음.
 - **제안:** 조회는 로그 제외가 정책이면 그대로 유지.

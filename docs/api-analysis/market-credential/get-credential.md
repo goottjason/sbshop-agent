@@ -110,16 +110,22 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-CRED-4 · 🟠 GAP — 미정의 `marketType` 경로변수가 400/404 아닌 500 으로 응답
+> ✅ **해결됨** (커밋 `60b02fe`) — 체크리스트 기준.
+
 - **근거:** `@PathVariable MarketType marketType`(`MarketCredentialController.java:37-38`)의 String→enum 변환 실패는 Spring `MethodArgumentTypeMismatchException` 을 던진다. `GlobalExceptionHandler`(`api/.../exception/GlobalExceptionHandler.java`)에는 `IllegalStateException`(400)·`IllegalArgumentException`(400)·`Exception`(500) 핸들러만 있고 **타입 미스매치 전용 핸들러가 없어** `handleGeneral` 로 흘러 `500` + "서버 내부 오류" 를 반환한다(`GlobalExceptionHandler.java:32-43`).
 - **영향:** 클라이언트 입력 오류(잘못된 마켓 코드)가 서버 오류(5xx)로 잘못 표면화된다. 재시도·모니터링·알람이 5xx 스파이크로 오탐. 응답 메시지에 내부 예외 문자열 노출.
 - **제안:** `MethodArgumentTypeMismatchException`(또는 `HttpMessageNotReadableException` 포함) 핸들러를 추가해 `400 Bad Request` 로 정규화. 전 컨트롤러 공통 이슈이므로 `GlobalExceptionHandler` 레벨 수정.
 
 ### F-CRED-5 · 🔵 NOTE — `UNKNOWN` 이 유효 enum이라 조회/저장 대상이 됨
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `MarketType.UNKNOWN`(`MarketType.java:16`)은 실 마켓이 아닌 fallback 값이나 enum 상수로 존재. 따라서 `GET /market-credentials/UNKNOWN` 은 변환 성공하여 조회 경로로 진입한다(404 or 200).
 - **영향:** 실 마켓이 아닌 `UNKNOWN` 자격증명이 조회·(PUT 시) 생성될 수 있어 데이터에 의미 없는 레코드가 생길 여지. 동작 오류는 아니나 의도 확인 필요.
 - **제안:** `UNKNOWN` 을 자격증명 API 대상에서 제외할지(400) 정책 확인. 제외 시 서비스 진입 가드 추가.
 
 ### F-CRED-6 · 🔵 NOTE — 404 응답이 바디 없이 반환되어 프론트 파싱과 비대칭
+> ⬜ **미해결(백로그)**.
+
 - **근거:** 미존재 시 `ResponseEntity.notFound().build()`(`MarketCredentialController.java:40`)로 **빈 바디** 404. 프론트 `fetchCredential`(`marketApi.ts:18-21`)은 `data` 를 `MarketCredential` 로 기대하므로 404 는 axios 에러로 처리된다(설정 화면은 목록 API 를 주로 사용).
 - **영향:** 신규 마켓(미등록) 단건 조회 시 정상 흐름임에도 4xx 에러 로그가 남는다. `GlobalExceptionHandler` 의 `{success,message}` 규격과도 다른 형태(빈 바디).
 - **제안:** 미등록을 "빈 자격증명 200" 으로 볼지 "404" 로 볼지 계약 통일. 유지한다면 프론트에서 404 를 정상 케이스로 처리.

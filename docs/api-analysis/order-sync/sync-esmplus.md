@@ -147,28 +147,34 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-SYNC-1 · 🔴 BUG — status 미갱신 + 크로스-JVM 미공유 (공통)
+> ✅ **해결됨** (커밋 `059ed79`) — 체크리스트 기준.
 - **근거:** 컨트롤러가 `SyncStatusService` 미갱신. writer 는 worker 의 `OrderSyncScheduler.java:69-75`(GMARKET) 뿐, 인메모리 미공유.
 - **영향/제안:** [[sync-coupang.md]] F-SYNC-1 참조.
 
 ### F-SYNC-2 · 🔴 BUG — `@Async` 예외가 컨트롤러 catch 로 오지 않음 (공통)
+> ✅ **해결됨** (커밋 `059ed79`) — 체크리스트 기준.
 - **근거:** `syncCafe24Orders()` `@Async`(53). 컨트롤러 try/catch(126-136) 사실상 도달 불가. (단, 서비스가 `failureReason` 로 근본원인을 이벤트에 담아 은폐를 완화 — 79-92.)
 - **영향/제안:** [[sync-coupang.md]] F-SYNC-2 참조.
 
 ### F-SYNC-11 · 🟠 GAP — items 개수 불일치 시 첫 아이템 상태를 전체 lineItem 에 일괄 적용
+> ⬜ **미해결(백로그)**.
 - **근거:** `updateOrder()`(201-208): Cafe24 items 배열 크기 ≠ 자사 lineItem 수이면 `firstOf(itemsArr)` 의 `order_status` 를 **모든 lineItem 에 동일 적용**. 주석대로 sbshop 은 order_item_code 를 보존하지 않아 정확 매핑 불가한 방어적 처리.
 - **영향:** 한 주문에 서로 다른 상태의 아이템이 섞여 있으면(부분 배송/부분 취소), 실제와 다른 상태가 일부 lineItem 에 기록될 수 있다.
 - **제안:** order_item_code 를 lineItem 에 보존해 정확 매핑을 복원하거나, 불일치 시 상태를 갱신하지 않는 보수적 정책 검토.
 
 ### F-SYNC-12 · 🟠 GAP — PCCC 필드명이 미확정이라 후보 키 순차 시도(추출 실패 시 통관번호 누락 가능)
+> ⬜ **미해결(백로그)**.
 - **근거:** `extractPccc()`(262-276)가 `PCCC_KEYS`(257-260) 7개 후보를 buyer→receiver→order 순으로 시도. 실제 Cafe24 필드명이 문서로 100% 확정 안 됨(주석 명시). 모두 blank 면 null(기존값 미변경).
 - **영향:** Cafe24 응답의 실제 PCCC 필드가 후보에 없으면 통관번호가 채워지지 않아, 이후 `customs` 동기화([[customs.md]])의 검증 대상에서 누락된다.
 - **제안:** `cafe24/preview` 로 실제 응답 키를 확인해 정확 필드명을 확정([[cafe24-preview.md]] 목적과 직결).
 
 ### F-SYNC-6 · 🟠 GAP — 취소감지 부재 (스마트스토어와 동일)
+> ⬜ **미해결(백로그)**.
 - **근거:** `Cafe24OrderSyncService` 에 detectCancellations 경로 없음. Cafe24 API 가 종료건도 반환하면 mapStatus 로 CANCELED/RETURNED/EXCHANGED 가 갱신되지만, 응답에서 사라진 주문의 잔류 여부는 미처리.
 - **영향/제안:** Cafe24 주문 API 가 취소건을 계속 반환하는지 확인. 반환 안 하면 [[sync-elevenstreet.md]] 의 detectCancellations 패턴 필요.
 
 ### F-SYNC-7 · 🔵 NOTE — offset 상한 15000 초과 시 조용히 절단
+> ⬜ **미해결(백로그)**.
 - **근거:** `fetchAndPersist()`(101) `while(offset <= 15000)`. 30일 주문이 15100건을 넘으면 초과분이 조용히 누락된다(Cafe24 offset 상한 제약이나 로그 경고 없음).
 - **제안:** 상한 도달 시 경고 로그·기간 분할 순회 검토.
 

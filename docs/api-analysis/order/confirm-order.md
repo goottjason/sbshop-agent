@@ -129,20 +129,24 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-ORD-5 · 🟠 GAP — 실패 활동로그가 항상 `marketType=null`
+> ⬜ **미해결(백로그)** — SP-6 실패경로는 조회 실패 가능성으로 보류.
 - **근거:** `OrderController.java:82` catch 분기가 `marketOf(order)` 가 아니라 상수 `null` 로 기록한다. 성공 분기(78)는 `marketOf(order)` 를 쓴다.
 - **영향:** 접수 실패 이벤트가 마켓 필터/집계에서 마켓 미상으로 분류된다. `id` 로 주문을 다시 조회하면 마켓을 알 수 있음에도 생략. 소싱 API 의 F-S6 과 동형 이슈지만, 여기선 실패 원인이 조회 실패가 아니라 마켓 API 실패이므로 마켓을 알 수 있어 더 아쉽다.
 - **제안:** 성공/실패 모두 주문 조회 후 마켓 채우기(단, findById 실패 케이스만 null 유지).
 
 ### F-ORD-6 · 🟠 GAP — 종료/혼재 상태에서 접수 API 가 재호출될 수 있음
+> ✅ **해결됨** (커밋 `dfcf8b3`) — 진행/종료분 발주확인 재호출 차단. 체크리스트 기준.
 - **근거:** `OrderService.java:555-563` `isOrderFullyPrepared` 는 **모든 라인이 PREPARING/SHIPPED/DELIVERED** 여야 true. 한 라인이라도 CANCELED/RETURNED/EXCHANGED/UNKNOWN 이면 false → 접수 API 재호출 후 `NEW` 라인만 전이(88-100).
 - **영향:** 이미 배송 진행 중이거나 일부 취소된 주문에 마켓 접수 API 가 다시 나가 마켓이 거부하거나 중복 접수될 수 있음. NEW 라인이 하나도 없어도 접수 API 는 호출된다.
 - **제안:** "미접수 라인이 실제로 존재할 때만" 접수 API 를 호출하도록 가드 강화(예: NEW 라인 존재 여부 선판정).
 
 ### F-ORD-7 · 🟡 SMELL — 응답으로 도메인 엔티티(`Order`) 직접 노출
+> ✅ **해결됨** (커밋 `c2b4e47`) — OrderResponse DTO화(계약 보존). 체크리스트 기준.
 - **근거:** `OrderController.java:72` 반환 타입 `ResponseEntity<Order>`. 조회계열이 `OrderDetailDto` 를 쓰는 것과 비대칭. 전 수정계열 공통(F-ORD-1 참조).
 - **제안:** 응답 DTO 도입 검토.
 
 ### F-ORD-8 · 🔵 NOTE — 마켓 접수 실패를 `RuntimeException` 으로 뭉갬(원인 유형 소실)
+> ⬜ **미해결(백로그)**.
 - **근거:** `OrderService.java:81-85` 가 모든 예외를 `RuntimeException("마켓플레이스 주문 접수 실패: ...")` 로 재포장. 크레덴셜 없음은 별도 `RuntimeException`(77).
 - **영향:** 호출부(일괄 접수)가 실패 유형(일시/영구/인증)을 구분하지 못해 재시도 정책을 세울 수 없다. 컨트롤러 응답도 일괄 500 계열.
 - **제안:** 실패 유형 분류(배송 경로의 `MarketShippingResult` 처럼) 또는 최소한 원인 예외 타입 보존.

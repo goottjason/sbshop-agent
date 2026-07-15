@@ -113,20 +113,24 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-ORD-9 · 🟠 GAP — 전건 실패여도 컨트롤러가 활동로그를 SUCCESS 로 남김
+> ✅ **해결됨** (커밋 `ffdaed3`) — 컨트롤러 결과기반 SUCCESS/FAILED 기록. 체크리스트 기준.
 - **근거:** `OrderService.bulkConfirmOrders`(107-131) 는 예외를 던지지 않고 항상 `BulkConfirmResult` 를 반환한다. 따라서 `OrderController.java:100-104` 의 try 블록은 예외 없이 통과해 **항상 `record(SUCCESS, ...)`** 를 남긴다(catch(105-108)는 사실상 도달 불가).
 - **영향:** `failedCount>0` 또는 전건 실패여도 활동로그엔 "일괄 발주확인 성공 (N건)" 으로 기록된다. 로그 메시지의 N 은 실패 포함 요청 건수(`orderIds.size()`)라 성공 건수와도 불일치. 운영 감사 로그가 실제 결과를 왜곡.
 - **제안:** `result.getFailedCount()>0` 이면 부분성공/실패로 로그 상태·메시지 분기.
 
 ### F-ORD-10 · 🟡 SMELL — `bulkConfirmOrders` 의 catch 분기는 도달 불가한 죽은 코드
+> ⬜ **미해결(백로그)**.
 - **근거:** `OrderController.java:105-108`. 서비스가 개별 실패를 내부에서 삼키므로(118-122) 외부로 예외가 나오지 않음. 유일한 예외 경로는 서비스 진입 전 인프라 오류 정도.
 - **제안:** F-ORD-9 수정과 함께 결과 기반 로깅으로 대체하면 이 분기 존치 여부가 정리됨.
 
 ### F-ORD-11 · 🔵 NOTE — 요청 DTO 없이 `Map<String,List<Long>>` 직접 바인딩
+> ⬜ **미해결(백로그)**.
 - **근거:** `OrderController.java:90-92`. 타입 계약이 문서화되지 않고 `orderIds` 키가 문자열 상수로 흩어짐(취소 배치·발송과 제각각: 발송은 `OrderShipRequest` DTO 사용).
 - **영향:** 키 오타·스키마 변경에 취약. 배치 3종(confirm/cancel/ship)의 요청 형태 비대칭.
 - **제안:** 전용 요청 DTO(`OrderIdsRequest`)로 통일.
 
 ### F-ORD-12 · 🔵 NOTE — 부분 실패가 200 으로 반환됨(HTTP 의미 관점)
+> ⬜ **미해결(백로그)**.
 - **근거:** 전건 실패여도 `ResponseEntity.ok(result)`(104). 결과 본문에 실패가 담기지만 상태코드는 성공.
 - **영향:** 클라이언트가 상태코드만 보면 성공으로 오인. 부분성공(207 유사) 시맨틱 부재.
 - **제안:** 프런트가 본문 `failedCount` 를 반드시 확인하도록 계약 명문화(현행 설계 존중 시) 또는 부분성공 표현 도입.

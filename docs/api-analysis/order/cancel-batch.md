@@ -113,19 +113,23 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-ORD-17 · 🟠 GAP — 전건 실패여도 컨트롤러가 활동로그를 SUCCESS 로 남김 (confirm-batch F-ORD-9 와 동형)
+> ✅ **해결됨** (커밋 `ffdaed3`) — 컨트롤러 결과기반 SUCCESS/FAILED 기록. 체크리스트 기준.
 - **근거:** `OrderService.bulkCancelOrders`(171-195) 는 예외 없이 항상 `BulkConfirmResult` 를 반환 → `OrderController.java:144-148` try 가 무조건 통과해 `record(SUCCESS, ...)`. catch(149-152)는 도달 불가.
 - **영향:** `failedCount>0`/전건 실패여도 "일괄 발주취소 성공 (N건)" 으로 기록. N 은 요청 건수라 성공 건수와 불일치. 감사 로그 왜곡.
 - **제안:** `result.getFailedCount()` 기반으로 로그 상태·메시지 분기.
 
 ### F-ORD-18 · 🟡 SMELL — confirm-batch 와 거의 동일한 구조의 코드 중복
+> ✅ **해결됨** (커밋 `04062a9`) — bulkOperate 헬퍼로 통합. 체크리스트 기준.
 - **근거:** `OrderService.bulkCancelOrders`(171-195) 와 `bulkConfirmOrders`(107-131) 는 `for + try/catch + successCount/failedIds/errors 수집 + BulkConfirmResult 조립` 을 통째로 중복. 유일 차이는 위임 메서드(`cancelOrder` vs `confirmOrder`)와 로그 문구. 컨트롤러단(89-110 vs 133-154)도 대칭 중복.
 - **제안:** `bulkProcess(ids, Consumer<Long> perItem)` 같은 공통 배치 헬퍼로 추출.
 
 ### F-ORD-19 · 🟡 SMELL — cancel-batch 의 catch 분기는 도달 불가한 죽은 코드
+> ⬜ **미해결(백로그)**.
 - **근거:** `OrderController.java:149-152`. 서비스가 개별 실패를 삼키므로(182-186) 외부로 예외가 나오지 않음.
 - **제안:** F-ORD-17 수정과 함께 결과 기반 로깅으로 대체 시 정리됨.
 
 ### F-ORD-20 · 🔵 NOTE — 요청 DTO 없이 `Map<String,List<Long>>` 직접 바인딩 (F-ORD-11 과 동형)
+> ⬜ **미해결(백로그)**.
 - **근거:** `OrderController.java:134-136`. confirm-batch 와 동일하게 `orderIds` 문자열 키 사용. 발송(`/ship`)만 `OrderShipRequest` DTO 사용해 비대칭.
 - **제안:** 전용 요청 DTO 로 배치 3종 통일.
 

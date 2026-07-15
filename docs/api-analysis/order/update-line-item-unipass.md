@@ -119,21 +119,25 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-ORD-25 · 🟠 GAP — 종료 상태(CANCELED/RETURNED/EXCHANGED)에서도 유니패스 수정이 무제한 허용됨
+> ✅ **해결됨** (커밋 `dfcf8b3`) — 정책확정: 유니패스는 우리 소유라 상태무관 허용(관리용) — 가드 제거·종결. 체크리스트 기준.
 - **근거:** `OrderService.java:244` 가드는 `null/NEW/UNKNOWN` 만 차단. 나머지 모든 상태(종료·배송완료 포함)는 통과해 `updateUnipassDone` 이 실행된다(소싱 F-S1·배송 F-H2 와 동형 패턴).
 - **영향:** 취소/반품/교환된 라인아이템의 통관 신고 완료 플래그를 사후 변경 가능. 통관 리포트가 종료 건 사후 수정에 노출.
 - **제안:** 종료 상태 잠금 정책을 소싱/배송과 대칭으로 결정.
 
 ### F-ORD-26 · 🟠 GAP — `isUnipassDone` null 이면 조용히 아무것도 안 하고 200 반환
+> ✅ **해결됨** (커밋 `aff9814`) — 체크리스트 기준.
 - **근거:** `OrderService.java:249-251` 는 `getIsUnipassDone() != null` 일 때만 갱신. 빈 바디(`{}`)면 아무 변경 없이 `save`(무의미) 후 200.
 - **영향:** 클라이언트는 수정 성공으로 인지하나 실제 변경 없음. 활동로그엔 "유니패스 수정 성공" 이 남아 오해 소지. 삭제(null 로 되돌리기)도 불가.
 - **제안:** null 요청을 400(필수)로 거부하거나, 무변경임을 응답에 표시.
 
 ### F-ORD-27 · 🔵 NOTE — 활동로그 `marketType` 항상 null (성공 경로에서도 채울 수 있음)
+> ✅ **해결됨** (커밋 `6e320e0`) — 체크리스트 기준.
 - **근거:** `OrderController.java:192/196` 모두 `market=null`. lineItem→orderId→order 로 마켓 해석 가능함에도 성공 경로에서도 생략(소싱 F-S6 과 동형이나, 여기선 성공 경로도 null 인 점이 더 아쉬움).
 - **영향:** 유니패스 수정 이벤트가 마켓 집계에서 누락 분류.
 - **제안:** 성공 시 조회한 item→order 로 마켓 채우기.
 
 ### F-ORD-28 · 🟡 SMELL — 응답 도메인 엔티티(`OrderLineItem`) 직접 노출
+> ✅ **해결됨** (커밋 `c2b4e47`) — OrderLineItemResponse DTO화(계약 보존). 체크리스트 기준.
 - **근거:** `OrderController.java:182` 반환 `OrderLineItem`. 전 수정계열 공통(F-ORD-1).
 - **제안:** 응답 DTO 도입 검토.
 

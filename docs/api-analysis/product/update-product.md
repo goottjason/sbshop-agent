@@ -120,21 +120,25 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-PROD-23 · 🟠 GAP — 금액·수량 필드 음수 검증 전무
+> ✅ **해결됨** (커밋 `c41dee3`) — 체크리스트 기준.
 - **근거:** `ProductUpdateRequest`·`ProductUpdateCommand`·`Product.update`(`Product.java:193-244`) 어디에도 `costPrice/salePrice/deliveryFee/marginRate/stock/weight/capacity ≥ 0` 검증이 없다. null-skip 만 존재.
 - **영향:** 음수 판매가·음수 재고 등이 자사 DB 에 그대로 저장된다. price-stock(F-PROD-8)·소싱(F-S4)과 동일 계열의 광범위한 입력검증 공백.
 - **제안:** 도메인 `update`에 값 범위 불변식 도입(전 상품 API 공통).
 
 ### F-PROD-24 · 🟡 SMELL — 성공/실패 활동로그가 마켓·변경필드 정보 없이 상수 문자열만 기록
+> ⬜ **미해결(백로그)**.
 - **근거:** `ProductController.java:226-227` — `"상품정보 수정 성공 (상품 " + id + ")"`. price-stock/images 는 `buildMarketResultMessage`로 마켓별 상세를 남기는데, 이 API 는 어떤 필드가 바뀌었는지 로그에 남지 않는다(market=null 도 이 API 는 마켓 무관이라 타당).
 - **영향:** 감사/추적 시 "무엇을 바꿨는지" 활동로그로 알 수 없다.
 - **제안:** 변경 필드 요약을 message 에 포함 검토(선택).
 
 ### F-PROD-25 · 🔵 NOTE — 전체수정이 마켓에 전파되지 않음(가격/이미지도 이 경로로는 로컬만 변경)
+> ⬜ **미해결(백로그)**.
 - **근거:** `ProductManageUseCase.updateProduct`(156-163)는 `republishToMarkets`/`syncPriceStock`를 호출하지 않는다. 반면 `salePrice`·`hostedImages`·`detailHtml`는 이 커맨드로도 변경 가능하다.
 - **영향:** 운영자가 `PUT /{id}`로 판매가/이미지를 바꾸면 자사 DB 만 갱신되고 마켓은 옛 값을 유지 — 전용 엔드포인트(price-stock/images)를 써야만 마켓 반영. 두 경로의 결과 차이가 문서화되지 않으면 정합성 오해 소지.
 - **제안:** "전체수정은 로컬 전용, 마켓 반영은 전용 API"임을 계약에 명시하거나, 마켓 반영 필요 필드 변경 시 재게시 트리거 검토.
 
 ### F-PROD-26 · 🔵 NOTE — 미존재 id가 404 아닌 500 (get-product F-PROD-5와 동형)
+> ⬜ **미해결(백로그)**.
 - **근거:** `ProductManageUseCase.java:159` `orElseThrow(IllegalArgumentException)`. FAILED 로그는 남으나 상태코드는 500.
 - **제안:** 전역 예외 매핑에서 "없음→404" 처리 여부 점검(공통).
 

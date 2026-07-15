@@ -179,32 +179,38 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-PSRC-6 · 🟠 GAP — 부분 실패 항목이 응답에 반영되지 않음 (부분성공 리포팅 부재)
+> ✅ **해결됨** (커밋 `139a581`) — 체크리스트 기준.
 - **근거:** `ProductCreateUseCase.createBulk`의 항목 루프는 생성 실패 시 `catch (Exception e) { log.error(...) }`(`ProductCreateUseCase.java:50-52`)로 삼키고 계속한다. 반환은 성공한 `products`만. 컨트롤러는 `ids.size()`만 SUCCESS 로그(`ProductSourcingController.java:72`)에 남긴다.
 - **영향:** 100건 요청 중 10건이 실패해도 API는 200 + 90개 id를 반환. 호출자는 어떤 요청이 왜 누락됐는지 알 수 없고, 요청 순서와 반환 id의 대응도 보장되지 않는다(실패분만큼 밀림). 전건 실패도 200 + `[]`.
 - **영향(SB코드 시퀀스):** 실패 항목에도 `seq++`가 이미 소비되어(`ProductCreateUseCase.java:42-43`) SB코드 순번에 **구멍**이 생긴다(예: IHB006 성공, IHB007 생성실패로 누락, IHB008 성공 → 007 결번). 데이터 정합상 치명적이진 않으나 순번 연속성 가정을 깬다.
 - **제안:** 요청↔결과 매핑이 드러나는 결과 DTO(예: `{index, productId?, status, reason}`) 반환. 또는 최소한 요청건수 대비 성공건수 불일치를 응답에 노출.
 
 ### F-PSRC-7 · 🟠 GAP — `requests == null` 요청 시 컨트롤러 진입부에서 NPE
+> ✅ **해결됨** (커밋 `3970dd1`) — 체크리스트 기준.
 - **근거:** `saveProductsBulk`는 `requests.stream().map(...)`(`ProductSourcingController.java:63`)을 곧바로 호출. `requests`가 `null`이면 이 지점에서 `NullPointerException`. 이 예외는 try 블록(67) **밖**에서 발생하므로 FAILED 활동로그조차 남지 않는다.
 - **영향:** 잘못된 요청이 400이 아닌 500. sourcing/iherb(F-PSRC-1)와 달리 활동로그 FAILED도 누락되어 사후 추적성이 더 낮다.
 - **제안:** 컨트롤러/UseCase에서 `null`·빈 리스트 명시 검증(400). 최소한 stream 호출을 try 안으로 이동.
 
 ### F-PSRC-8 · 🟠 GAP — 이미지 다운로드·R2 업로드를 트랜잭션 안에서 수행 → 장시간 트랜잭션·고아 이미지
+> ⬜ **미해결(백로그)**.
 - **근거:** `createBulk`는 `@Transactional`(`ProductCreateUseCase.java:30`)이며, 루프 안 `enrichWithHostedImages`(45)가 항목마다 외부 `imageDownloadClient.downloadAndConvert` + `imageStorageClient.uploadImages`(67-68)를 호출한다. 즉 **외부 네트워크 I/O가 DB 트랜잭션 경계 내부**에서 항목 수만큼 순차 실행된다.
 - **영향:** ① 항목이 많으면 트랜잭션이 수십 초~분 단위로 열려 DB 커넥션·락을 오래 점유. ② `saveAll`에서 예외로 롤백되면 DB는 되돌아가나 **이미 R2에 업로드된 이미지는 삭제되지 않아 고아 파일**로 남는다.
 - **제안:** 이미지 업로드를 트랜잭션 밖(사전 단계)에서 수행하거나, 트랜잭션을 항목 단위로 분리. 롤백 시 업로드 이미지 정리(보상 트랜잭션) 검토.
 
 ### F-PSRC-9 · 🟡 SMELL — SB코드 순번 로컬 증가가 배치 실패/재시도 시 시퀀스 소비를 되돌리지 않음
+> ⬜ **미해결(백로그)**.
 - **근거:** `getNextSbCodeSequence`(`ProductReaderImpl.java:51-60`)는 DB의 max SB코드+1을 반환하고, `createBulk`는 이후 `seq`를 **메모리에서만** 증가(`ProductCreateUseCase.java:42-43`). 부분 실패(F-PSRC-6)나 배치 롤백(F-PSRC-8) 시 소비된 seq가 되돌아가지 않는다.
 - **영향:** 결번 발생(F-PSRC-6). 롤백 시엔 저장이 안 되므로 다음 배치가 같은 시작점을 다시 잡아 큰 문제는 아니나, 부분 성공 시엔 실제 결번이 남는다. 또한 동시 배치 실행 시 `max+1`이 DB advisory lock 없이 계산되어 **경합 시 중복 SB코드** 가능성.
 - **제안:** SB코드 채번을 DB 시퀀스/원자적 채번으로 이관하거나, 배치 실행에 advisory lock 적용(동시 배치 방지).
 
 ### F-PSRC-10 · 🟡 SMELL — 컨트롤러가 core 도메인 타입을 정규화되지 않은 FQCN으로 직접 참조
+> ⬜ **미해결(백로그)**.
 - **근거:** `ProductSourcingController.java:63`의 `com.sbshop.agent.core.domain.product.dto.ProductCreateCommand`, `69`의 `com.sbshop.agent.core.domain.product.Product`를 import 없이 인라인 FQCN으로 사용.
 - **영향:** 가독성 저하이자, API 계층이 core 도메인 엔티티(`Product`)를 직접 다룸(응답은 id만 노출해 유출은 없으나 결합).
 - **제안:** import 정리. 도메인 반환을 UseCase 계층에서 id 목록으로 축약해 API가 `Product`를 몰라도 되게 정리 검토.
 
 ### F-PSRC-11 · 🔵 NOTE — 입력 검증 부재(costPrice/marginRate 음수·빈 목록·항목 수 상한)
+> ✅ **해결됨** (커밋 `3970dd1`) — 체크리스트 기준.
 - **근거:** 요청·커맨드·도메인 어디에도 금액 음수/과대, 빈 목록, 배치 크기 상한 검증이 없다. `Product.create` 내부 검증 여부는 별도 확인 필요.
 - **영향:** 대량 요청(수천 건)이 단일 트랜잭션+이미지 업로드(F-PSRC-8)와 결합하면 타임아웃·리소스 고갈.
 - **제안:** 배치 크기 상한, 금액 `>= 0` 검증 도입.

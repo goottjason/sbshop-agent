@@ -114,21 +114,25 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-ORD-13 · 🟠 GAP — 이미 배송중/배송완료여도 상태 가드 없이 무조건 CANCELED 로 덮어씀
+> ✅ **해결됨** (커밋 `dfcf8b3`) — 발주취소 NEW-only 가드. 체크리스트 기준.
 - **근거:** `OrderService.java:155-165` 는 `shippingData != null` 만 확인하고 현재 상태와 무관하게 모든 라인을 `CANCELED` 로 전이한다(진입 상태 검증 없음).
 - **영향:** SHIPPED/DELIVERED 인 라인아이템도 로컬에서 CANCELED 로 바뀐다. 배송·정산 리포트가 실제 물류 상태와 어긋난다. 특히 쿠팡 등 마켓 미전파 마켓은 마켓엔 배송중인데 로컬만 취소로 남는 불일치.
 - **제안:** 취소 허용 상태(예: NEW/PREPARING/PURCHASED)만 CANCELED 로 전이하거나, 배송 진행 상태는 취소 거부.
 
 ### F-ORD-14 · 🔵 NOTE — 쿠팡/스마트스토어/11번가/Cafe24 는 마켓에 취소가 전파되지 않음(로컬 only)
+> ⬜ **미해결(백로그)**.
 - **근거:** `OrderService.java:144-152` 는 `GMARKET`·`AUCTION` 에서만 `cancelOrderToMarketplace` 를 호출. 나머지 마켓은 로컬 CANCELED 전이만 한다(주석 143 이 "현행 로컬-only 유지" 명시).
 - **영향:** 의도된 현행 설계지만, 운영자는 "취소" 가 마켓에 반영됐다고 오해할 수 있음. 마켓엔 여전히 접수 상태로 남음.
 - **제안:** 응답/로그에 "로컬 취소(마켓 미전파)" 임을 명시하거나, 마켓별 취소 어댑터 확장 로드맵으로 관리.
 
 ### F-ORD-15 · 🟠 GAP — 실패 활동로그가 항상 `marketType=null`
+> ⬜ **미해결(백로그)** — SP-6 실패경로는 조회 실패 가능성으로 보류.
 - **근거:** `OrderController.java:126` catch 분기가 `null` 로 기록(성공 분기 122 는 `marketOf(order)`). confirm(F-ORD-5)·소싱(F-S6) 과 동형.
 - **영향:** 취소 실패 이벤트가 마켓 집계에서 누락 분류. G마켓/옥션 마켓 API 실패 시 특히 마켓을 알 수 있음에도 null.
 - **제안:** 실패 로그도 조회한 order 로 마켓 채우기(findById 실패만 null).
 
 ### F-ORD-16 · 🟡 SMELL — 응답 도메인 엔티티(`Order`) 직접 노출
+> ✅ **해결됨** (커밋 `c2b4e47`) — OrderResponse DTO화(계약 보존). 체크리스트 기준.
 - **근거:** `OrderController.java:116` 반환 `ResponseEntity<Order>`. 전 수정계열 공통(F-ORD-1).
 - **제안:** 응답 DTO 도입 검토.
 

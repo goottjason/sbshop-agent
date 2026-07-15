@@ -144,24 +144,29 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-SYNC-1 · 🔴 BUG — status 미갱신 + 크로스-JVM 미공유 (공통)
+> ✅ **해결됨** (커밋 `059ed79`) — 체크리스트 기준.
 - **근거:** 컨트롤러가 `SyncStatusService` 미갱신. writer 는 worker 의 `OrderSyncScheduler.java:114-120`(COUPANG_SETTLEMENT) 뿐, 인메모리 미공유.
 - **영향/제안:** [[sync-coupang.md]] F-SYNC-1 참조.
 
 ### F-SYNC-2 · 🔴 BUG — `@Async` 예외가 컨트롤러 catch 로 오지 않음 (공통, 여기선 더 심함)
+> ✅ **해결됨** (커밋 `059ed79`) — 체크리스트 기준.
 - **근거:** `syncCoupangSettlement()` `@Async`(91). 게다가 서비스 내부 catch(149-151)는 `log.error` **만** 하고 스택도 안 남기며 이벤트도 안 낸다. 컨트롤러 catch(188-193)는 도달 불가.
 - **영향:** 정산 동기화 실패는 **어디에도 사용자-관측 신호가 남지 않는다**(주문 동기화는 최소한 SyncCompletedEvent(failed) 라도 냄). 완전 침묵 실패.
 - **제안:** 최소한 ActionLog FAILED 기록 또는 이벤트 발행 추가.
 
 ### F-SYNC-17 · 🟠 GAP — 정산 동기화에 중복 실행 가드(isSyncing) 없음
+> ⬜ **미해결(백로그)**.
 - **근거:** 주문 동기화(`syncCoupangOrders`)는 `isSyncing.compareAndSet` 가드가 있으나, `syncCoupangSettlement`(91-152)에는 **없다**. 정산 전용 락도 없음.
 - **영향:** 정산 트리거를 연타하거나 스케줄러(새벽 2시)와 수동 트리거가 겹치면 동일 정산 처리가 병렬 실행되어 중복 write·경합 발생 가능.
 - **제안:** 정산 전용 `AtomicBoolean` 가드 또는 DB advisory lock([[deployment-two-jvm-topology]] — 크로스-JVM 경합까지 막으려면 advisory lock 필수).
 
 ### F-SYNC-4 · 🟡 SMELL — 최초 추정 정산액 `0.89` 하드코딩과의 이원화
+> ⬜ **미해결(백로그)**.
 - **근거:** 최초 정산 추정치는 `buildLineItemFromDto`(`CoupangOrderSyncService.java:276`)의 `×0.89`, 실제 확정은 이 API. 두 값의 근거(수수료율)가 코드에 상수로 분산.
 - **영향/제안:** [[sync-coupang.md]] F-SYNC-4 와 동일. 수수료율 외부화 시 함께 정리.
 
 ### F-SYNC-18 · 🔵 NOTE — sbCode 미보유·미배송 lineItem 은 조용히 정산 누락
+> ⬜ **미해결(백로그)**.
 - **근거:** DELIVERED 아니거나 productId/sbCode 없으면 스킵(120-131). 정산 대상에서 빠졌다는 신호(카운트/로그)가 없어 `updatedCount` 만 집계.
 - **영향:** 실제 정산됐어야 할 건이 매핑 누락으로 빠져도 관측되지 않음.
 - **제안:** 스킵 사유별 카운트 로그 추가로 정산 누락 가시화.

@@ -157,26 +157,36 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-MREG-1 · 🟠 GAP — POST/`sync` 인데 자사 DB를 전혀 갱신하지 않음(읽기 전용) — 이름·메서드·의미 불일치
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `MarketRegistrationController.java:50-69` 전체에 저장 호출이 없다. `reg.markSynced()`(`MarketRegistration.java:91-94`), `updateMarketIdentifiers`, `save` 어느 것도 호출하지 않고 조회한 `MarketItemInfo` 를 그대로 반환한다. `markSynced()` 를 호출하는 곳은 상품 발행/관리 유스케이스뿐(`ProductPublishUseCase.java:61`, `ProductManageUseCase.java:128`, `ProductMarketSyncService.java:67`)이고 이 엔드포인트와 무관하다.
 - **영향:** 엔티티에 `isSynced`·`lastSyncedAt` 필드가 있음에도 이 "sync" 는 그 값을 갱신하지 않는다. 사용자가 "동기화 완료"로 인지하지만 자사 상태는 그대로다. 또한 부수효과 없는 조회에 **POST** 를 사용해 HTTP 시맨틱(GET 이 적절)과도 어긋난다.
 - **제안:** (a) 진짜 동기화(라이브 조회 → 로컬 반영 + `markSynced()`)를 의도했다면 반영 로직 추가, (b) 순수 라이브 조회가 의도라면 엔드포인트를 GET + `/live` 류로 개명하고 `isSynced` 갱신 책임을 명확히 분리. **정책 확인 필요.**
 
 ### F-MREG-5 · 🟠 GAP — `vendorItemId` 부재 시 `productId`(자사 PK)로 폴백해 마켓 API를 오조회
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `MarketRegistrationController.java:61-64` — `extractVendorItemId()` 가 null/빈값이면 `marketItemId = String.valueOf(reg.getProductId())` 로 대체한다. `extractVendorItemId()`(`MarketRegistration.java:99-111`)는 **쿠팡 전용 키 `vendorItemId` 만** 읽으므로, 스마트스토어/11번가/카페24 등록은 대개 null → 폴백을 탄다(도메인 주석 D-052, `MarketRegistration.java:113-122` 가 이 한계를 명시하고 `extractMarketCode()` 를 별도 제공하나 컨트롤러는 여전히 `extractVendorItemId()` 를 씀).
 - **영향:** 자사 `productId` 를 마켓 상품ID로 넘겨 `extractMarketItem` 을 호출하면 **엉뚱한/존재하지 않는 마켓 상품을 조회**하거나 예외가 난다. 비-쿠팡 마켓에서 `sync` 가 사실상 오동작할 가능성.
 - **제안:** 폴백 대신 마켓별 정확한 코드 추출(`extractMarketCode()`, `MarketRegistration.java:123`)로 교체하고, 코드가 없으면 폴백 대신 **명시적 예외**로 실패시킬지 검토.
 
 ### F-MREG-7 · 🟠 GAP — ESM(GMARKET/AUCTION) 마켓타입은 어댑터 미존재로 `sync`/`local` 대상에서 사실상 배제
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `MarketType` enum 은 `GMARKET`·`AUCTION` 을 정의(`MarketType.java:13-14`)하고 `extractMarketCode()` 도 이들을 분기 처리하나, `infrastructure/.../client/` 하위에 이 두 마켓의 `MarketClient` 구현이 없다(존재: cafe24/coupang/elevenst/smartstore). 따라서 `marketClientRouter.getClient(GMARKET)`(`MarketClientRouter.java:19-25`)은 "지원하지 않는 마켓입니다"로 예외를 던진다.
 - **영향:** ESM 등록건에 대해 `sync` 호출 시 항상 실패. 프론트/운영자에게 "미지원"이 조회 시점에야 예외로 노출된다.
 - **제안:** ESM 어댑터 도입 계획 확인, 또는 미지원 마켓을 사전 필터/명시적 안내로 처리. `MarketClientRouter.hasClient()`(`java:27-29`)가 이미 있으므로 컨트롤러에서 사전 체크 가능.
 
 ### F-MREG-3 · 🟠 GAP — `marketType` 유효성·미존재를 `IllegalArgumentException` 으로만 처리
+> 🔶 **부분/오탐** — bad-enum은 이미 400(오탐), 404 시맨틱 구분 부재는 잔존.
+
 - **근거:** `MarketRegistrationController.java:56`(enum 파싱)·`:59`(orElseThrow) 모두 `IllegalArgumentException`. `get-local` 의 F-MREG-3 과 동일 계열(같은 컨트롤러 반복 패턴).
 - **영향:** 잘못된 마켓명·등록 없음·미지원 마켓(F-MREG-7)이 서로 다른 원인인데 상태코드 구분이 불명확.
 - **제안:** 예외→상태코드 매핑 정비(400/404/501 분리). `get-local` F-MREG-3 과 함께 처리.
 
 ### F-MREG-6 · 🟡 SMELL — 컨트롤러가 Repository·Router·도메인 로직을 직접 조립(서비스 계층 부재)
+> ✅ **해결됨** (커밋 `d81fa42`) — 체크리스트 기준.
+
 - **근거:** `MarketRegistrationController.java:56-67` — enum 파싱·조회·`extractVendorItemId` 폴백·라우팅·외부 호출을 컨트롤러가 직접 수행. 트랜잭션 경계 없음.
 - **영향:** 재사용·테스트·정책 변경(F-MREG-1/5)이 컨트롤러에 묶인다.
 - **제안:** `MarketSyncUseCase`(또는 서비스)로 이관. 세 엔드포인트 공통(list/local 문서 F-MREG-6 참조).

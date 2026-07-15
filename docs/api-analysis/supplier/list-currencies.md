@@ -90,16 +90,19 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-SUP-LC-1 · 🟡 SMELL — 응답으로 도메인 엔티티(`Currency`) 직접 노출
+> ✅ **해결됨** (커밋 `d556697`) — 체크리스트 기준.
 - **근거:** `SupplierController.java:44` 반환 타입 `ResponseEntity<List<Currency>>`. JPA `@Entity` 를 그대로 직렬화한다.
 - **영향:** `Currency` 는 연관·감사 필드가 없어 유출 위험은 낮으나(F-SUP-1 대비 경미), 직렬화 형태가 엔티티 변경에 결합되는 횡단 이슈는 동일.
 - **제안:** 전 API 공통 DTO 정책에 포함. 단독 우선순위는 낮음.
 
 ### F-SUP-LC-2 · 🔵 NOTE — 정렬 부재
+> ⬜ **미해결(백로그)**.
 - **근거:** `findAll()`(`SupplierController.java:45`)은 정렬 순서를 보장하지 않는다.
 - **영향:** 통화 수가 소수라 실무 영향 미미. 화면 표시 순서가 DB 물리 순서 의존.
 - **제안:** `findAll(Sort.by("currencyCode"))` 안정 정렬 검토.
 
 ### F-SUP-LC-3 · 🔵 NOTE — 소프트삭제 개념 없음
+> ⬜ **미해결(백로그)**.
 - **근거:** `Currency` 는 `BaseEntity` 를 상속하지 않아(`Currency.java:16`) `status`(ACTIVE/ARCHIVED/DELETED) 개념이 없다. list-suppliers 의 F-SUP-2 와 달리 삭제 상태 필터 이슈는 발생하지 않는다.
 - **영향:** 통화는 물리 삭제만 가능. 참조 중인 공급사가 있으면 FK 로 삭제 차단됨(별도 삭제 API 는 미제공).
 - **제안:** 삭제 API 부재 자체가 의도인지 확인(현재 등록만 가능).

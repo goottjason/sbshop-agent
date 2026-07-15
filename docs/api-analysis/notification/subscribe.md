@@ -154,25 +154,35 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-MISC-12 · 🟠 GAP — SSE emitter 누수 위험: heartbeat/keepalive 없음 + 24h 초장기 타임아웃
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `SseNotificationController.java:26` 타임아웃 24시간, 그리고 구독 후 이벤트가 없으면 서버가 **주기적 ping을 보내지 않는다**(INIT 1회뿐). remove는 오직 `send()`가 IOException을 던질 때만(`:69,:90`) 일어난다.
 - **영향:** 프록시(nginx)·클라가 조용히 끊긴 "half-open" 커넥션이 **다음 push까지(최대 24h) 목록에 잔존**. 유휴 시간대(이벤트 없는 밤 등)에는 죽은 emitter가 계속 쌓여 메모리/커넥션 누수 가능. 브라우저 자동 재연결까지 겹치면 중복 등록.
 - **제안:** 주기적 heartbeat(예: 15~30s 코멘트/ping) 전송으로 죽은 커넥션을 조기 감지·제거하고, 타임아웃을 현실적 값으로 하향.
 
 ### F-MISC-13 · 🟠 GAP — 인증·구독자 수 상한 없음(무제한 등록)
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `:23` `@GetMapping` 은 인증 검사가 없고 `@CrossOrigin("*")`(`:17`). `emitters.add`(`:29`)에 상한이 없다.
 - **영향:** 임의 오리진/미인증 클라가 무제한 SSE 커넥션을 열 수 있음 → 리소스 소진(간이 DoS 표면). 브라우저 재연결 루프가 상한 없이 목록을 부풀릴 수 있음.
 - **제안:** 인증/세션 요구 및 사용자당·전역 커넥션 상한 도입 검토(보안 비중요 정책이면 최소한 상한만).
 
 ### F-MISC-14 · 🟡 SMELL — push 실패 처리가 `remove`뿐, 부분 전송/재전송·순서 보장 없음
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `onSyncCompleted`·`onBatchCompleted` 는 IOException 시 해당 emitter를 목록에서 빼기만 한다(`:69,:90`). 놓친 이벤트를 클라가 복구할 `Last-Event-ID`/id 필드가 없다.
 - **영향:** 재연결한 클라는 끊긴 사이의 SYNC/BATCH 알림을 영구 유실. 프론트가 알림을 놓치면 상태 불일치.
 - **제안:** SSE `id` 부여 + `Last-Event-ID` 기반 재전송, 또는 클라가 재연결 시 상태를 REST로 재조회하는 보정 경로 명시.
 
 ### F-MISC-15 · 🟡 SMELL — 두 리스너의 "순회+send+IOException remove" 로직 중복
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `:55-71`(sync)과 `:86-92`(batch)가 동일한 브로드캐스트 패턴을 중복 구현. `SyncCompletedEvent`(`SyncCompletedEvent.java`)·`BatchCompletedEvent`(`BatchCompletedEvent.java`) 페이로드만 다름.
 - **제안:** `broadcast(String name, String data)` 공통 메서드로 추출해 remove 규칙을 한 곳에 두면 F-MISC-12/14 개선도 단일 지점에서 가능.
 
 ### F-MISC-16 · 🔵 NOTE — 컨트롤러가 전역 가변 상태(emitters)를 필드로 보유
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `:21` `CopyOnWriteArrayList<SseEmitter> emitters` 를 컨트롤러 인스턴스 필드로 둠. 스레드-세이프 컬렉션이라 자료구조 자체는 안전하나, 알림 브로드캐스트 책임이 컨트롤러에 결합.
 - **영향:** 멀티 JVM(api/worker 2 프로세스) 토폴로지에서 **worker에서 발행된 이벤트는 api 프로세스의 emitters에 닿지 않음** — SSE는 api JVM 로컬 이벤트만 브로드캐스트(worker의 스케줄러 동기화 알림은 별도 경로가 아니면 프론트에 안 감). 배포 토폴로지상 확인 필요.
 - **제안:** SSE 브로드캐스트를 전용 컴포넌트로 분리하고, 크로스-JVM 알림이 필요하면 Redis pub/sub 등 공유 채널 경유 검토.

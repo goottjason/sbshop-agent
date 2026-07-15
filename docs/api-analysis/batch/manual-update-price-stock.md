@@ -162,16 +162,19 @@ flowchart TD
 > 횡단 이슈(F-BATCH-1 동시중복·F-BATCH-2 재시작유실·F-BATCH-3 트리거중복·F-BATCH-4 검증부재·F-BATCH-7 활동로그)는 [crawl-and-update.md](crawl-and-update.md) 에 상세. 본 문서는 수동 경로 고유 발견을 다룬다.
 
 ### F-BATCH-M1 · 🔴 BUG(후보) — prices/stocks가 productIds와 위치(index)로만 정렬 → 짝 어긋나면 엉뚱한 상품에 적용
+> ✅ **해결됨** (커밋 `8d0953b`) — 체크리스트 기준.
 - **근거:** `BatchPriceStockService.java:105-106` 은 `price = i < prices.size() ? prices.get(i) : null`, `stock = i < stocks.size() ? stocks.get(i) : null` 로 **productIds[i]에 prices[i]/stocks[i]를 위치 매칭**한다. 요청 DTO(`ManualUpdateRequest`)는 세 리스트를 독립 배열로 받을 뿐 길이 일치·정렬 보장이 없다.
 - **영향:** 프론트가 리스트 순서를 어긋나게 보내거나 일부 상품의 price를 누락(리스트 길이 불일치)하면, **의도와 다른 상품에 가격/재고가 적용**되어 마켓에 잘못된 가격이 전송된다. 조용히 성공(SUCCESS) 처리되어 탐지도 어렵다.
 - **제안:** `{productId, price, stock}` 튜플 리스트로 DTO 구조 변경하거나, 최소한 세 리스트 길이 일치 검증. 위치 정렬은 취약한 계약.
 
 ### F-BATCH-M2 · 🟡 SMELL — crawl 경로엔 있는 `Thread.sleep(500)` rate-limit이 수동 경로엔 없음
+> ⬜ **미해결(백로그)**.
 - **근거:** `crawlAndUpdatePriceStock`은 루프 말미 `Thread.sleep(500)`(`BatchPriceStockService.java:83`)로 마켓 재전송을 완충하지만, `manualUpdatePriceStock`(95-149)에는 sleep이 없다.
 - **영향:** 수동 배치가 대량이면 `syncPriceStock`(마켓 API)을 무완충 연속 호출 → 마켓 rate-limit/차단 위험. 두 경로 모두 마켓에 쓰는데 완충이 비대칭.
 - **제안:** 두 경로의 마켓 재전송 완충 정책을 통일(공통 유틸로 추출, F-BATCH-3와 연계).
 
 ### F-BATCH-M3 · 🔵 NOTE — 변경 없음 판정이 price는 equals, stock은 status 파생 비교라 비대칭
+> ⬜ **미해결(백로그)**.
 - **근거:** `BatchPriceStockService.java:112-113` — `priceChanged`는 `!price.equals(oldPrice)`(BigDecimal equals는 scale 민감, 예: `1000` vs `1000.00`이 다름)로, `statusChanged`는 stock→StockStatus 파생 후 비교. stock 실수치 자체 변경은 status가 안 바뀌면 "변경 없음"으로 스킵된다.
 - **영향:** BigDecimal scale 차이로 실제 동일 가격이 변경으로 오판되거나(불필요 마켓 전송), stock 수치만 바뀐 건이 스킵될 수 있다.
 - **제안:** 가격 비교는 `compareTo(...) != 0`, 재고는 수치 비교로 명시.

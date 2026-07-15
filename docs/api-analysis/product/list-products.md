@@ -129,21 +129,25 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-PROD-1 · 🟡 SMELL — `marketFilter`와 `keyword`가 상호배타적이며 keyword가 조용히 무시됨
+> ⬜ **미해결(백로그)**.
 - **근거:** `ProductController.java:75-82` — `marketFilter`가 있으면 `searchByMarket`로 분기하고 `keyword`는 사용하지 않는다. 두 파라미터를 동시에 보내도 오류 없이 keyword만 버려진다.
 - **영향:** "쿠팡 등록분 중 키워드 검색" 같은 조합 질의가 불가능하며, 클라이언트가 두 값을 함께 보내면 결과가 기대와 달라도 피드백이 없다.
 - **제안:** 의도된 배타 관계라면 문서/응답에 명시. 조합 검색 요구가 있으면 Reader 쿼리에 marketType + keyword 동시 필터 지원.
 
 ### F-PROD-2 · 🟠 GAP — 유효하지 않은 `marketFilter` 값이 `MarketType.valueOf`에서 500으로 터짐
+> 🔶 **부분/오탐** — 실제로는 400 응답(`valueOf`→`IllegalArgumentException`이 기존 핸들러로 400). 500 주장은 오탐.
 - **근거:** `ProductController.java:78` `MarketType.valueOf(marketName.toUpperCase())` — 존재하지 않는 마켓명(오타 등)이면 `IllegalArgumentException`이 그대로 전파되어 500이 된다. 이 API 에는 컨트롤러 `try/catch`도 없다.
 - **영향:** 잘못된 필터 입력이 400(Bad Request)이 아니라 500(Server Error)으로 보이며, 원인이 불명확하다.
 - **제안:** valueOf 를 안전 파싱으로 감싸 알 수 없는 마켓명은 400 + 명확한 메시지로 응답.
 
 ### F-PROD-3 · 🔵 NOTE — 조회 계열이라 활동로그를 남기지 않음(수정 계열과 비대칭)
+> ⬜ **미해결(백로그)**.
 - **근거:** `getProducts`(66-87)·`getProduct`(89-94)에는 `actionLogService.record` 호출이 없다. P1~P6 수정/크롤 API 는 모두 기록.
 - **영향:** 의도된 설계(조회는 로그 미기록)로 보이나, 마켓 미등록 필터 조회 등 감사 대상이 필요하면 공백.
 - **제안:** 현행 유지가 자연스러우나 감사 요건 확인.
 
 ### F-PROD-4 · 🔵 NOTE — `buildMarketMap` 폴백 값(productId)과 실제 마켓코드가 응답에서 구분되지 않음
+> ⬜ **미해결(백로그)**.
 - **근거:** `ProductController.java:315-318` — `extractMarketCode()`가 null/empty면 `productId`를 문자열로 넣는다. `ProductListResponse.marketRegistrations`는 이 폴백값과 실제 마켓코드를 구별할 수단이 없다.
 - **영향:** 프론트가 표시하는 "마켓 상품번호"가 실제로는 자사 productId 폴백일 수 있는데, 사용자는 진짜 마켓코드로 오인할 수 있다(`buildMarketMap`의 폴백은 '미확인' 의도이나 라벨이 없음).
 - **제안:** 폴백 여부 플래그 또는 별도 표기('미확인') 를 응답에 반영 검토.

@@ -124,21 +124,25 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-ORD-21 · 🟡 SMELL — `OrderUpdateCommand.toCustomsData()` 는 사용되지 않는 죽은 코드
+> ⬜ **미해결(백로그)**.
 - **근거:** `OrderUpdateCommand.java:14-19` 의 `toCustomsData(existing)` 는 어디서도 호출되지 않는다. 서비스(`OrderService.java:225-227`)는 대신 도메인 메서드 `order.updateCustomsClearanceNo()` 를 직접 호출한다. (소싱/배송 커맨드의 `toXxxData` 병합 패턴을 흉내 냈으나 실제로는 미사용.)
 - **영향:** 소싱/배송의 null-skip 병합과 달리 통관은 도메인 메서드가 검증상태 무효화까지 처리하므로 `toCustomsData` 는 불필요. 존재만으로 "여기서 병합한다" 는 오해 유발.
 - **제안:** `toCustomsData` 삭제(또는 서비스가 이를 쓰도록 일원화). 현행은 도메인 메서드 경로가 정답이므로 커맨드 헬퍼 제거가 자연스러움.
 
 ### F-ORD-22 · 🟠 GAP — 라인아이템이 없는 주문은 발주확인 전 가드를 통과함
+> ✅ **해결됨** (커밋 `aff9814`) — 체크리스트 기준.
 - **근거:** `OrderService.java:215` `if (isAllNew && !lineItems.isEmpty())`. `allMatch` 는 빈 리스트에 대해 true 지만, `!isEmpty()` 조건 때문에 라인 없는 주문은 가드를 건너뛴다.
 - **영향:** 라인아이템이 아직 없는(동기화 중이거나 이상 데이터) 주문의 주소/통관번호를 발주확인 전에도 수정 가능. 가드 의도(발주 전 잠금)와 경계 케이스에서 어긋남.
 - **제안:** 라인 없는 주문의 수정 허용 여부를 명시적으로 결정(허용이 의도면 주석, 아니면 빈 주문도 차단).
 
 ### F-ORD-23 · 🔵 NOTE — null-skip 병합으로 주소/통관번호를 "지울" 수 없음
+> ✅ **해결됨** (커밋 `a6d2759`) — 빈문자열로 이미 클리어됨(오탐), 회귀테스트 고정. 체크리스트 기준.
 - **근거:** `OrderService.java:220·225` 는 각 필드가 `!= null` 일 때만 수정. 빈 문자열과 null 구분 없음.
 - **영향:** 잘못 입력한 값을 빈 값으로 정정하는 경로 없음(소싱 F-S2 와 동형). PATCH 부분 업데이트 의미로는 자연스러우나 "삭제" 요구엔 미충족.
 - **제안:** 삭제 요구 실재 여부 확인.
 
 ### F-ORD-24 · 🟡 SMELL — 응답 도메인 엔티티(`Order`) 직접 노출 / 실패 로그 marketType null
+> ✅ **해결됨** (커밋 `c2b4e47`) — OrderResponse DTO화(계약 보존). 체크리스트 기준.
 - **근거:** `OrderController.java:160`(반환 `Order`), `174`(catch 에서 market=null). 전 수정계열 공통(F-ORD-1)·실패로그 공통(F-ORD-5).
 - **제안:** 응답 DTO + 실패 로그 마켓 채우기 공통 개선으로 승격.
 

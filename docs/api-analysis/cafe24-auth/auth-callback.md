@@ -141,26 +141,36 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-CAFE-10 · 🟠 GAP — 콜백이 OAuth `state` 를 수신·검증하지 않음(CSRF)
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `handleCafe24AuthCode` 는 `@RequestParam("code")` 만 받고 state 파라미터를 선언조차 하지 않는다(`Cafe24AuthController.java:129-131`). 인가 URL 의 state 는 고정 상수 `shouldbeshopping`(`Cafe24TokenManager.java:128`)이라 무작위성도 없다.
 - **영향:** 브라우저 직접 진입 콜백에서 공격자가 `?code=<attacker_code>` 로 유도하면 그대로 교환되어 **피해자 자격증명이 공격자 계정에 연결**될 수 있는 OAuth CSRF. `issue-token` 의 F-CAFE-5 와 동일 위협의 콜백판.
 - **제안:** state 를 서버 세션에 발급·저장 후 콜백에서 대조. 관리자 단일 사용자 전제로 수용한다면 명시 문서화. (레거시 경로이므로 폐지도 선택지.)
 
 ### F-CAFE-11 · 🟠 GAP — 콜백 에러 파라미터(`error`, `error_description`) 미처리
+> ⬜ **미해결(백로그)**.
+
 - **근거:** Cafe24 가 인가 거부 시 `redirect_uri?error=access_denied&error_description=...`(code 없음)로 리다이렉트하는데, 이 엔드포인트는 `code` 를 필수(`@RequestParam("code")`)로 요구한다(`:130`).
 - **영향:** 사용자가 인가를 거부/실패하면 code 가 없어 Spring 바인딩 예외(500)만 나고, "사용자가 거부함" 같은 원인을 안내하지 못한다.
 - **제안:** `error` 파라미터를 optional 로 받아 우선 감지·전용 안내. (또는 레거시 폐지.)
 
 ### F-CAFE-12 · 🟡 SMELL — `issue-token` 과 로직 중복이나 활동로그·응답형태가 비대칭
+> ✅ **해결됨** (커밋 `87bb414`) — 체크리스트 기준.
+
 - **근거:** 두 엔드포인트 모두 `extractCode`→`issueInitialToken`→(성공/실패) 동일 흐름이나, `issue-token` 은 `actionLogService.record(CAFE24_AUTH, ...)` 을 남기고 JSON 을 반환(`Cafe24AuthController.java:88-98`)하는 반면 콜백은 **로그를 남기지 않고** 평문 텍스트를 반환(`:132-138`)한다.
 - **영향:** 콜백 경로로 재인증하면 활동로그에 흔적이 없어 감사/추적이 끊긴다. 성공/실패 표현도 채널마다 달라 프런트/모니터링 처리가 이원화.
 - **제안:** 콜백에도 동일 활동로그 기록. 중복 흐름을 private 메서드로 추출해 두 엔드포인트가 공유(로그·저장 로직 단일화).
 
 ### F-CAFE-13 · 🟡 SMELL — 인가 코드가 access.log 등에 GET 쿼리스트링으로 노출
+> ⬜ **미해결(백로그)**.
+
 - **근거:** 코드가 GET URL 파라미터(`?code=...`)로 전달되어(`:130`) 서블릿/프록시 access log, 브라우저 히스토리, Referer 에 평문 잔류 가능. 성공 시에도 로그(`:132`)가 남는다(값 자체는 로그에 없으나 요청 라인엔 남을 수 있음).
 - **영향:** 1회용·단시간 유효라 위험은 제한적이나, 인가 코드 유출은 토큰 탈취로 이어질 수 있음.
 - **제안:** 콜백 폐지 후 서버측 교환만 사용하거나, 최소한 프록시 access log 에서 쿼리스트링 마스킹.
 
 ### F-CAFE-14 · 🔵 NOTE — CORS 전체 허용(`@CrossOrigin(origins = "*")`)이 인증 컨트롤러에 적용
+> ⬜ **미해결(백로그)**.
+
 - **근거:** 컨트롤러 클래스에 `@CrossOrigin(origins = "*")`(`Cafe24AuthController.java:23`)가 붙어 `/status`·`/issue-token`·`/auth/callback` 모두 임의 오리진에서 호출 가능.
 - **영향:** 토큰 발급·상태 점검 엔드포인트가 모든 오리진에 열려 있어, 관리자 브라우저 세션을 악용한 크로스오리진 호출 표면이 넓다(인증/인가 게이트가 별도로 없다면 더 큼).
 - **제안:** 관리 콘솔 오리진으로 CORS 화이트리스트 축소. 인증 계층(관리자 세션/토큰) 존재 여부 확인.

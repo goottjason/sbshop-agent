@@ -165,16 +165,19 @@ flowchart TD
 > 횡단 이슈(F-BATCH-1·2·3·4·6·7)는 [crawl-and-update.md](crawl-and-update.md) 참조. 특히 이 엔드포인트는 `crawlAndUpdatePriceStock`을 그대로 호출하므로 F-BATCH-3(트리거 중복)·F-BATCH-6(couponRate 미사용)이 직접 적용된다.
 
 ### F-BATCH-B1 · 🟠 GAP — 잘못된 supplierCode가 500(IllegalArgumentException)으로 노출, null이면 NPE
+> ✅ **해결됨** (커밋 `aad006e`) — 체크리스트 기준.
 - **근거:** `BatchController.java:100` — `VendorType.valueOf(request.supplierCode().toUpperCase())`. `supplierCode`가 enum에 없으면 `IllegalArgumentException`, null이면 `.toUpperCase()`에서 NPE. 방어·400 매핑 없음.
 - **영향:** 사용자 입력 오류가 400이 아닌 500으로 반환되어 클라이언트가 "서버 오류"로 오인. 유효한 vendor 목록도 응답에서 안내되지 않음.
 - **제안:** supplierCode 검증 후 미매칭 시 400 + 허용값 목록 반환. null/blank 가드 추가.
 
 ### F-BATCH-B2 · 🔵 NOTE — 대상 0건과 처리 진행의 응답 형태가 비대칭 (batchId 유무)
+> ⬜ **미해결(백로그)**.
 - **근거:** 대상 있음은 `{batchId, count}`(119), 대상 없음은 `{message}`(103). 두 응답의 키 집합이 달라 클라이언트가 분기 처리해야 한다. 다른 세 트리거는 항상 `{batchId, message}`.
 - **영향:** 프론트가 by-supplier만 응답 스키마를 다르게 다뤄야 함. batchId 부재 시 status 폴링 대상이 없다.
 - **제안:** 대상 0건도 `{batchId:null 또는 빈 배치, message}`로 스키마 통일하거나, 4 트리거 공통 응답 DTO 도입(F-BATCH-3 연계).
 
 ### F-BATCH-B3 · 🟡 SMELL — crawl-and-update와 거의 동일 (대상 소스만 상이)
+> ✅ **해결됨** (커밋 `682d95f`) — 체크리스트 기준.
 - **근거:** `updateBySupplier`(97-120)는 대상 조회 부분(100-104)을 빼면 `crawlAndUpdate`(41-60)와 JobType·async 메서드·기본값·응답 골격이 동일. 활동로그 actionType만 `BATCH_BY_SUPPLIER`로 다름.
 - **제안:** vendor→productIds 해석 후 공통 crawl 트리거 헬퍼로 위임(F-BATCH-3 통합 대상).
 

@@ -135,24 +135,29 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-SYNC-19 · 🔴 BUG — 동기 트랜잭션 안에서 `Thread.sleep(1000)` × 배치 → 대상 많으면 DB 트랜잭션·HTTP 스레드 장기 점유
+> ✅ **해결됨** (커밋 `1ef9a6f`) — 체크리스트 기준.
 - **근거:** `syncCustomsStatus()` 는 `@Transactional`(32) **동기** 실행이고 배치마다 `Thread.sleep(1000)`(70)을 한다. 대상 300건이면 sleep 만 10초 + GSI 스크래핑 시간. 이 전 구간이 **하나의 트랜잭션**이며 **HTTP 요청 스레드**를 붙잡는다.
 - **영향:** ① 요청 타임아웃 위험, ② 긴 트랜잭션이 DB 커넥션·락을 장시간 점유, ③ 스크래핑 지연이 그대로 HTTP 응답 지연. 다른 sync 는 `@Async` 인데 유독 통관만 동기라 장시간 블로킹.
 - **제안:** `@Async` 화(다른 sync 와 정합)하거나 배치 커밋 분리(트랜잭션을 배치 단위로 쪼갬). sleep 은 트랜잭션 밖으로.
 
 ### F-SYNC-20 · 🟠 GAP — 배치 단위 예외 시 전체 롤백 — 앞 배치의 검증 결과까지 소실
+> ⬜ **미해결(백로그)**.
 - **근거:** 단일 `@Transactional` 이라 마지막 배치에서 `verifyBulk` 예외가 나면 앞서 반영한 모든 배치의 `updateCustomsStatus` 가 롤백된다. 컨트롤러는 FAILED 기록 후 500.
 - **영향:** 300건 중 290건 검증 성공 후 마지막에 실패하면 290건 결과도 날아가 재검증 필요.
 - **제안:** 배치별 트랜잭션 분리로 부분 성공 보존. F-SYNC-19 와 함께 해결 가능.
 
 ### F-SYNC-21 · 🟡 SMELL — 배치 크기(30)·딜레이(1000ms) 매직넘버 하드코딩
+> ⬜ **미해결(백로그)**.
 - **근거:** `batchSize=30`(54), `Thread.sleep(1000)`(71) 이 코드 상수. GSI 부하 정책이 코드에 박힘.
 - **제안:** 설정값으로 외부화(운영 튜닝 용이).
 
 ### F-SYNC-3-note · 🔵 NOTE — 이 엔드포인트만 ActionLog SUCCESS/FAILED 를 남긴다(모범 사례이자 대조군)
+> 🔶 **부분/오탐** — 결함이 아니라 모범 사례 대조군(customs 만 SUCCESS/FAILED 기록). 체크리스트에 결함 항목 없음.
 - **근거:** 동기 실행 덕에 `OrderSyncController.java:207/215` 가 SUCCESS/FAILED 를 기록한다. 나머지 sync 는 `@Async` 라 STARTED 만 남는다(F-SYNC-3).
 - **영향/제안:** 다른 sync 를 이벤트 리스너 기반으로 개선할 때 이 완결 로깅 계약을 목표 상태로 삼을 것. [[sync-coupang.md]] F-SYNC-3 참조.
 
 ### F-SYNC-22 · 🔵 NOTE — `marketType=null` 로 ActionLog 기록(통관은 마켓 무관)
+> ⬜ **미해결(백로그)** — marketType=null 은 통관 특성상 의도적(NOTE).
 - **근거:** `record(CUSTOMS_SYNC, null, ...)`(201/207/215). 통관은 전 마켓 공통이라 의도적 null.
 - **영향:** ActionLog 마켓 필터에서 통관 이벤트가 "마켓 없음"으로 분류됨. 의도된 설계이나 집계 시 인지 필요.
 

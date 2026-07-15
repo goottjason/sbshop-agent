@@ -148,21 +148,25 @@ flowchart TD
 > 이미지 등록 3경로(**images / by-url / crawl-and-upload**) 공통 이슈는 이 문서에 대표 등재하고 나머지 두 문서에서 참조한다.
 
 ### F-PROD-11 · 🟠 GAP — 빈/누락 이미지 입력 검증 부재 (3경로 공통)
+> ✅ **해결됨** (커밋 `c41dee3`) — 체크리스트 기준.
 - **근거:** `uploadImages`(117-135)는 `images`가 빈 리스트여도 그대로 진행한다. `prepareImageFiles`(324-347)가 빈 리스트를 받으면 빈 `uploadFiles` 반환 → `updateImagesAndHtml`가 빈 이미지로 실행되어 `hostedImages` 갱신 없이(빈리스트는 `updateImageInfo`에서 스킵, `Product.java:272-275`) HTML 만 재조립될 수 있다.
 - **영향:** 이미지 0장 요청이 200 으로 성공 처리되며, `by-url`(137-155)도 빈 URL 리스트에 동일. 사용자는 이미지가 반영됐다고 오인할 수 있다.
 - **제안:** 3경로 공통으로 빈/누락 입력 시 400 반환 또는 명시적 no-op 응답.
 
 ### F-PROD-12 · 🟠 GAP — 개별 이미지 리사이즈 실패가 조용히 삼켜짐(부분 손실)
+> ✅ **해결됨** (커밋 `fee0baa`) — 체크리스트 기준.
 - **근거:** `prepareImageFiles`(342-344) — 리사이즈 예외 시 `log.error`만 하고 해당 파일을 `uploadFiles`에 넣지 않는다. 호출부는 몇 장이 누락됐는지 알 수 없다.
 - **영향:** 10장 중 3장이 손상/변환 실패해도 API 는 7장으로 200 을 반환하며, 사용자·마켓은 누락을 인지하지 못한다.
 - **제안:** 실패 건수를 응답/로그 메시지에 포함하거나, 전량 성공을 요구하면 실패 시 예외.
 
 ### F-PROD-13 · 🔵 NOTE — `updateImageInfo`가 빈 리스트를 "미변경"으로 취급(이미지 삭제 불가)
+> ✅ **해결됨** (커밋 `70cfe2c`) — 체크리스트 기준.
 - **근거:** `Product.java:272-275` — `sourceImages`/`hostedImages`가 `!= null && !isEmpty()`일 때만 덮어쓴다. 빈 리스트로는 기존 이미지를 지울 수 없다.
 - **영향:** 모든 이미지를 제거하려는 편집 경로가 없다(부분 업데이트 의미로는 자연스러우나 "전체 교체/삭제" 요구 시 미충족). by-url 로 빈 배열을 보내도 no-op.
 - **제안:** 삭제 요구 여부 확인. 있으면 sentinel 규칙 도입(소싱 F-S2 와 동형 이슈).
 
 ### F-PROD-14 · 🟡 SMELL — `updateImagesAndHtml`이 26-필드 커맨드를 2칸만 채워 생성
+> ⬜ **미해결(백로그)**.
 - **근거:** `ProductManageUseCase.java:78-84` — hostedImages/newHtml 위치만 세팅한 위치 기반 생성자. `updatePriceStock`(F-PROD-10)과 동형. 필드 순서 변경 시 오배치 위험.
 - **제안:** 부분 업데이트 전용 빌더/팩토리.
 

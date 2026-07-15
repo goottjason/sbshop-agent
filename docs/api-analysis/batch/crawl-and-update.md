@@ -173,35 +173,42 @@ flowchart TD
 > 아래 항목 중 **동시 배치 중복 방지·재시작 유실·트리거 4종 중복·status 조회 3종·존재하지 않는 batchId** 는 배치 컨트롤러 전반의 횡단 이슈로, 4개 트리거 문서에서 공통 참조한다. 상세 근거는 본 문서에 집약한다.
 
 ### F-BATCH-1 · 🟠 GAP — 동시 배치 중복 실행 방지 장치 부재 (advisory lock·in-flight 가드 없음)
+> ⬜ **미해결(백로그)**.
 - **근거:** `ProcessStatusService.startBatch`(`ProcessStatusService.java:23-39`)는 매 호출마다 새 `batchId`(UUID 8자)를 발급하고 무조건 PENDING 행을 만든다. 실행 전 "이미 도는 배치가 있는지" 확인하는 로직이 없다. `BatchPriceStockService`(전체)와 `ProcessStatusService`(전체) 어디에도 `pg_advisory_lock`/DB 락/멱등 키가 없다. `productBatchExecutor` 풀은 core=2/max=5(`AsyncConfig.java:34-35`)라 **여러 배치가 물리적으로 동시에 돈다.**
 - **영향:** 같은 상품집합을 대상으로 크롤 배치를 연달아 트리거하면 동일 상품에 대해 크롤·저장·마켓 재전송이 중복 실행된다. 마켓 재전송(`syncPriceStock`)이 중복 호출되어 외부 마켓에 불필요한 쓰기가 발생하고, 마지막 쓰기 승자(last-writer-wins)로 결과가 비결정적이 된다.
 - **제안:** JobType별(또는 상품집합 해시별) 진행 중 배치 존재 시 409 반환, 혹은 `pg_advisory_xact_lock`으로 직렬화. [[deployment-two-jvm-topology]] 상 api·worker 2 JVM이 같은 배치를 트리거할 수 있어 프로세스 간 락이 필요.
 
 ### F-BATCH-2 · 🔴 BUG(후보) — 배치 진행 중 배포/재시작 시 PENDING 행이 영구 잔류 (진행중 배치 유실)
+> ✅ **해결됨** (커밋 `03ea176`) — 체크리스트 기준.
 - **근거:** 상태 전이는 오직 `markSuccess`/`markFailed`(`ProcessStatusService.java:52-59`)로만 PENDING→종결된다. 이 호출은 async 스레드가 각 상품을 **끝까지 처리해야** 실행된다. main push=자동배포=api 재시작으로 async 스레드가 중단되면 남은 상품은 PENDING인 채 갱신되지 않는다. 재기동 시 미완 배치를 이어받거나 FAILED로 정리하는 복구 로직이 없다(`ProcessStatusService`·`BatchPriceStockService` 전체에 재개/타임아웃 로직 없음).
 - **영향:** [[deploy-interrupts-running-batch]] 그대로 — 배치 중 배포하면 진행중 배치가 잘리고, summary의 `percent`가 100에 도달하지 못한 채 멈춘다(`pending = total - done`이 영구 잔존). 운영자는 완료/실패 판정을 할 수 없다.
 - **제안:** 재기동 시 `startedAt` 기준 오래된 PENDING을 TIMEOUT/FAILED로 정리하거나, 배치 상태에 heartbeat를 두고 stale 감지. 최소한 배치 중 배포 금지 운영 규율([[deploy-interrupts-running-batch]]) 문서화.
 
 ### F-BATCH-3 · 🟡 SMELL — 4개 트리거 엔드포인트의 컨트롤러 로직 중복
+> ✅ **해결됨** (커밋 `682d95f`) — 체크리스트 기준.
 - **근거:** `crawlAndUpdate`(41-60)·`manualUpdate`(62-79)·`manualUpdateAll`(81-95)·`updateBySupplier`(97-120)가 **동일 골격**(productIds→productCodes 변환 → `startBatch` → 활동로그 STARTED → async 서비스 호출 → `{batchId,message}` 반환)을 반복한다. 특히 `crawlAndUpdate`와 `updateBySupplier`는 JobType(`CRAWL_AND_UPDATE_PRICE_STOCK`)·서비스 호출(`crawlAndUpdatePriceStock`)까지 사실상 동일하고 상품 소스만 다르다.
 - **제안:** productCodes 변환·startBatch·활동로그 STARTED를 공통 헬퍼로 추출. `updateBySupplier`는 vendor→productIds 해석 후 `crawlAndUpdate` 경로로 위임하면 중복 제거.
 
 ### F-BATCH-4 · 🟠 GAP — 요청 검증 부재 (productIds null/빈 리스트, marketType, marginRate 범위)
+> ✅ **해결됨** (커밋 `3970dd1`) — 체크리스트 기준.
 - **근거:** `CrawlAndUpdateRequest`(record, 검증 애노테이션 없음)와 `BatchController.crawlAndUpdate`에 `@Valid`·null/empty 체크가 없다. `request.productIds().stream()`(`BatchController.java:44`)은 `productIds`가 null이면 NPE. 빈 리스트면 0건짜리 batchId가 발급되어 즉시 완료 이벤트만 남는 무의미 배치가 생긴다.
 - **영향:** 잘못된 요청이 500(NPE) 또는 빈 배치로 흘러 활동로그·process_status를 오염시킨다.
 - **제안:** `productIds` non-null·non-empty 검증, `marginRate`/`couponRate` 범위 검증 추가.
 
 ### F-BATCH-5 · 🟡 SMELL — `startBatch`가 상품별 1행씩 개별 save (배치 insert 아님)
+> ⬜ **미해결(백로그)**.
 - **근거:** `ProcessStatusService.java:26-36` 루프에서 `processStatusRepository.save(status)`를 건별 호출. 2145건 규모(BatchSummary 주석 언급) 배치면 트랜잭션 내 2145 insert.
 - **영향:** startBatch가 동기라 대량 상품 트리거 시 컨트롤러 응답이 지연될 수 있다.
 - **제안:** `saveAll` 배치 insert 또는 JDBC batch로 개선.
 
 ### F-BATCH-6 · 🔵 NOTE — `couponRate`가 crawl 경로에서 수집만 되고 미사용
+> ⬜ **미해결(백로그)**.
 - **근거:** 컨트롤러가 `couponRate`(기본 20)를 서비스에 넘기지 않는다. `crawlAndUpdatePriceStock` 시그니처(`BatchPriceStockService.java:39-40`)는 `couponRate`를 받지만 본문(38-93)에서 `marginCalculator.calculateSalePrice`에 `couponRate`를 전달하지 않는다(`buyPrice, bundleQty, marginRate, minMarginPrice`만 사용). 요청 필드 `couponRate`는 컨트롤러에서 기본값만 채워지고 실제 계산에 반영 안 됨.
 - **영향:** API 계약상 쿠폰율을 받는 듯 보이나 판매가 계산에 무영향 — 사용자 오해 소지.
 - **제안:** 쿠폰율이 판매가에 반영돼야 하는지 정책 확인 후, 미사용이면 파라미터 제거 또는 계산 반영.
 
 ### F-BATCH-7 · 🔵 NOTE — 활동로그 STARTED/완료가 이원화, marketType 항상 null
+> ⬜ **미해결(백로그)**.
 - **근거:** 컨트롤러가 STARTED를 직접 기록(`BatchController.java:51`)하고 완료는 async 이벤트 리스너(`ActionLogBatchListener.java:25`)가 기록. 둘 다 `market=null`. 상품집합에 걸친 배치라 단일 마켓 귀속이 불가한 건 타당하나(order API의 F-S6과 유사 횡단 이슈), STARTED와 완료가 분리돼 조회 시 짝 맞추기가 batchId 문자열 파싱에 의존한다.
 - **제안:** 활동로그에 batchId 컬럼(구조화)로 짝을 명시하면 STARTED/완료 연결이 견고해진다.
 

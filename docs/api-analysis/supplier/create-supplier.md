@@ -115,26 +115,31 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-SUP-CS-1 · 🟠 GAP — `supplierCode`/`supplierName` 입력 검증 부재
+> ✅ **해결됨** (커밋 `3970dd1`) — 체크리스트 기준.
 - **근거:** `SupplierController.java:35-40` 어디에도 `request.supplierCode()`·`request.supplierName()` 에 대한 null/blank/길이 검증이 없다. `SupplierRequest` record(`:55`)에 `@NotBlank` 등 Bean Validation 도, `@Valid` 도 없다. 유일한 방어선은 DB 제약(`Supplier.java:20-24`: `nullable=false`, `length=10/100`).
 - **영향:** blank(`""`) code/name 이 앱을 통과해 DB 까지 도달한다. length 초과·null 은 DB 예외(500)로만 거부되어 사용자에게 원인이 불명확한 500 이 반환된다.
 - **제안:** `SupplierRequest` 에 `@NotBlank`·`@Size` 부여 + 컨트롤러 파라미터에 `@Valid`, 또는 서비스 진입 검증. `currencyCode` 만 명시 검증되는 현재 비대칭 해소.
 
 ### F-SUP-CS-2 · 🟠 GAP — 중복 `supplierCode` 를 사전 검증하지 않고 DB unique 예외에 의존
+> ✅ **해결됨** (커밋 `3970dd1`) — 체크리스트 기준.
 - **근거:** `supplierCode` 는 `unique=true`(`Supplier.java:20`)이고 `SupplierRepository.findBySupplierCode`(`:8`)라는 조회 메서드가 **이미 존재**하지만, `createSupplier` 는 이를 호출하지 않고 곧장 `save` 한다(`SupplierController.java:39-40`). 중복 시 `DataIntegrityViolationException`(23505) 이 그대로 전파된다.
 - **영향:** 중복 등록 시도 시 사용자에게 "이미 존재하는 공급사 코드" 같은 도메인 메시지 대신 raw 500(제약 위반)이 반환된다. `currencyCode` 미존재는 친절한 `IllegalArgumentException("통화 없음: ...")` 로 처리하면서 `supplierCode` 중복은 방치 — 처리 대칭성 결여.
 - **제안:** `findBySupplierCode(code).isPresent()` 사전 체크 후 명시적 예외(409/도메인 메시지). 기존 미사용 리포지토리 메서드 활용.
 
 ### F-SUP-CS-3 · 🟡 SMELL — 등록 로직이 서비스 없이 컨트롤러에 직접 존재
+> ✅ **해결됨** (커밋 `d81fa42`) — 체크리스트 기준.
 - **근거:** `SupplierController.java:37-40` 이 통화 조회 → 도메인 생성 → 저장의 유스케이스를 컨트롤러에서 직접 수행한다. order/product 계열이 `OrderService` 등 서비스 계층에 로직을 두는 것과 비대칭.
 - **영향:** 트랜잭션 경계·검증·재사용성이 컨트롤러에 묶인다. 테스트 시 웹 계층 없이는 로직 검증이 어렵다.
 - **제안:** `SupplierService.createSupplier(command)` 추출. 다른 도메인과 계층 규약 일치.
 
 ### F-SUP-CS-4 · 🔵 NOTE — 트랜잭션 경계 없음
+> ⬜ **미해결(백로그)**.
 - **근거:** `createSupplier` 에 `@Transactional` 없음(`SupplierController.java:34`). `findById` 와 `save` 가 각각 별도 트랜잭션(또는 OSIV 세션)에서 수행된다.
 - **영향:** 단일 INSERT 이므로 원자성 문제는 현재 없으나, 검증/저장 로직 확장 시 경계 부재가 잠재 위험. `Supplier.currency` LAZY 참조 직렬화도 OSIV 의존.
 - **제안:** 서비스 계층 도입(F-SUP-CS-3) 시 `@Transactional` 부여.
 
 ### F-SUP-CS-5 · 🔵 NOTE — 응답 도메인 엔티티 직접 노출 + 활동로그 미기록
+> ⬜ **미해결(백로그)**.
 - **근거:** `SupplierController.java:35`(반환 `Supplier`), ActionLog 미주입(`:26-27`). list-suppliers 의 F-SUP-1·F-SUP-3 과 동일.
 - **영향:** `BaseEntity` 내부 필드·LAZY `currency` 유출 위험 + 공급사 생성 이력 부재.
 - **제안:** 응답 DTO + (선택) ActionLog. 전 API 공통 개선 항목.

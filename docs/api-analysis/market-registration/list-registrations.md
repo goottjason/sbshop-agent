@@ -96,16 +96,22 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-MREG-2 · 🟠 GAP — 존재하지 않는 `productId` 도 빈 리스트 + 200 을 반환(존재 검증 없음)
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `MarketRegistrationController.java:33` 은 `findByProductId(productId)` 결과를 검증 없이 그대로 반환한다. `Product` 존재 여부를 확인하지 않는다.
 - **영향:** 잘못된/삭제된 `productId` 요청과 "등록이 하나도 없는 정상 상품" 요청이 응답상 구분되지 않는다. 프론트가 404 로 오류 처리하려 해도 불가.
 - **제안:** 목록 조회는 빈 리스트 반환이 자연스러운 REST 관례이므로 **의도라면 NOTE 로 격하**. 다만 `sync`/`local` 엔드포인트는 404 성격(IllegalArgumentException)을 던지므로 **동일 컨트롤러 내 일관성**을 위해 정책 확인 권장.
 
 ### F-MREG-4 · 🟡 SMELL — 응답으로 도메인 엔티티(`MarketRegistration`) 직접 노출
+> ✅ **해결됨** (커밋 `54087b6`) — 체크리스트 기준.
+
 - **근거:** `MarketRegistrationController.java:31` 반환 타입이 `List<MarketRegistration>`(JPA 엔티티). 응답 DTO 미사용.
 - **영향:** 직렬화 형태가 도메인/영속 모델 변경에 결합된다. `marketIdentifiers`·`marketDetailedInfo` 의 **원시 JSON**이 그대로 클라이언트에 노출(내부 마켓 식별자·벤더 코드 등). `sbProductId` 같은 내부 매핑키도 노출.
 - **제안:** 조회 응답 DTO 도입(order 도메인의 `OrderDetailDto` 와 대칭). 전 API 공통 횡단 이슈로 승격 가능(order 문서 F-S5·F-H6 과 동일 계열).
 
 ### F-MREG-6 · 🟡 SMELL — 컨트롤러가 Repository 를 직접 호출(애플리케이션 서비스 계층 부재)
+> ✅ **해결됨** (커밋 `d81fa42`) — 체크리스트 기준.
+
 - **근거:** `MarketRegistrationController.java:27-28` 이 `MarketRegistrationRepository`·`MarketClientRouter` 를 직접 주입받아, 세 엔드포인트 모두 서비스 경유 없이 리포지토리/라우터를 다룬다. `sync` 엔드포인트에는 `extractVendorItemId`→`productId` 폴백 등 도메인 로직도 컨트롤러에 들어 있다(`java:61-64`).
 - **영향:** 트랜잭션 경계·재사용·테스트 지점이 컨트롤러에 묶인다. 동일 조회를 다른 곳에서 재사용하기 어렵고, 컨트롤러 단위테스트가 곧 통합테스트가 된다.
 - **제안:** `MarketRegistrationQueryService`(또는 유스케이스) 도입으로 조회/동기화 흐름을 서비스 계층으로 이동 검토. 이 세 엔드포인트 공통.

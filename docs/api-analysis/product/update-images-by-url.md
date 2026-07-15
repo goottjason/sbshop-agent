@@ -127,19 +127,23 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-PROD-15 · 🟡 SMELL — `PUT /{id}/images`와 본문 로직 완전 중복(입력 어댑터만 상이)
+> ✅ **해결됨** (커밋 `5549f67`) — 체크리스트 기준.
 - **근거:** `ProductController.java:137-155`(by-url)와 `117-135`(multipart)는 입력 준비(`downloadAndConvert` vs `prepareImageFiles`) 이후 `updateImagesAndHtml`→SUCCESS/FAILED 로그→`ImageUploadResponse.from`이 완전히 동일. `crawl-and-upload`(184-215)도 같은 꼬리를 공유한다.
 - **영향:** 이미지 등록 3경로가 로그 배선·응답 매핑을 각자 복붙. F-PROD-11/12/13 같은 정책을 고칠 때 3곳을 동기화해야 한다.
 - **제안:** "ImageUploadFile 리스트 → updateImagesAndHtml → 로그·응답" 공통 프라이빗 메서드로 추출하고, 각 엔드포인트는 입력 어댑터만 담당.
 
 ### F-PROD-16 · 🟠 GAP — 개별 URL 다운로드 실패 처리·부분 손실이 불투명
+> ✅ **해결됨** (커밋 `fee0baa`) — 체크리스트 기준.
 - **근거:** `ProductController.java:143` — `downloadAndConvert(imageUrls)` 결과만 받고, 어떤 URL 이 실패했는지 컨트롤러가 알지 못한다(`ImageDownloadClient` 계약상 실패 URL 을 별도로 전달하지 않음, `ImageDownloadClient.java:12`). 멀티파트의 F-PROD-12 와 동형.
 - **영향:** 잘못된/접근 불가 URL 이 조용히 누락되어 일부 이미지만 등록될 수 있는데 200 을 반환.
 - **제안:** 다운로드 실패 URL 개수를 응답/로그에 노출하거나 실패 시 예외 정책 확정.
 
 ### F-PROD-11 · 🟠 GAP — 빈 URL 배열 검증 부재 (참조)
+> ✅ **해결됨** (커밋 `c41dee3`) — 체크리스트 기준.
 - **근거·제안:** [update-images.md](update-images.md) F-PROD-11 참조. `by-url`은 빈 배열을 받아도 `downloadAndConvert`가 빈 리스트를 반환하고 no-op 성공(200)이 될 수 있다.
 
 ### F-PROD-13 · 🔵 NOTE — 빈 이미지로 삭제 불가 (참조)
+> ✅ **해결됨** (커밋 `70cfe2c`) — 체크리스트 기준.
 - **근거·제안:** [update-images.md](update-images.md) F-PROD-13 참조. `Product.java:272-275` 빈 리스트 스킵.
 
 ## 8. 테스트 커버리지 메모

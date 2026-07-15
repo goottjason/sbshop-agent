@@ -144,27 +144,32 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-SYNC-1 · 🔴 BUG — `GET /status` 가 참조하는 SyncStatusService 를 이 트리거는 갱신하지 않음 (게다가 크로스-JVM 미공유)
+> ✅ **해결됨** (커밋 `059ed79`) — 체크리스트 기준.
 - **근거:** `OrderSyncController.syncCoupangOrders()`(51-72)는 `SyncStatusService.markRunning/Completed` 를 전혀 호출하지 않는다. 상태 기록은 오직 **worker JVM** 의 `OrderSyncScheduler.java:54-62` 만 수행한다. `SyncStatusService`(`sync/SyncStatusService.java:15`)는 인메모리 `ConcurrentHashMap` 이라 api-JVM 과 worker-JVM 간에 공유되지 않는다.
 - **영향:** ① 운영자가 이 API 로 수동 동기화를 돌려도 `GET /sync/status` 는 상태 변화를 전혀 못 보여준다(항상 스케줄러 흔적만/공백). ② 두 JVM 토폴로지에서 status 는 api-JVM 인스턴스가 항상 빈 맵을 반환(스케줄러는 worker-JVM 에서만 씀). 프런트 동기화 진행 UI 가 무의미해진다.
 - **제안:** 상태를 DB/Redis 로 이전하거나(크로스-JVM 공유), 최소한 컨트롤러 트리거에서도 `markRunning`→(비동기 완료 콜백)→`markCompleted` 를 기록. 근본은 `SyncCompletedEvent` 기반으로 status 를 갱신하는 리스너 도입.
 - **연관:** [[deployment-two-jvm-topology]] — 프로세스 간 공유상태는 DB/advisory lock 로.
 
 ### F-SYNC-2 · 🔴 BUG — `@Async` 서비스의 예외가 컨트롤러 try/catch 로 오지 않아 실패가 200 으로 은폐됨
+> ✅ **해결됨** (커밋 `059ed79`) — 체크리스트 기준.
 - **근거:** `CoupangOrderSyncService.syncCoupangOrders()` 는 `@Async("syncTaskExecutor")`(54). 컨트롤러의 `try { coupangOrderSyncService.syncCoupangOrders(); } catch(Exception e){ 500 }`(57-71)는 **비동기 호출이 즉시 반환**하므로 사실상 절대 catch 로 진입하지 않는다. 실제 실패는 서비스 내부 catch(77-80)에서 `SyncCompletedEvent(failed)` 로만 처리되고 HTTP 는 이미 200.
 - **영향:** 크레덴셜 누락·API 오류 등 실질 실패에도 API 는 `success:true` 를 반환. 컨트롤러의 catch/500 분기는 **사실상 죽은 코드**(DI/프록시 예외 등 극히 드문 경우만 도달).
 - **제안:** 트리거 성격이면 응답 메시지를 "요청 접수"로 낮추고 catch 를 제거하거나, 완료/실패는 status·ActionLog·SSE 로만 관측하도록 계약을 명문화.
 
 ### F-SYNC-3 · 🟠 GAP — 성공/실패 ActionLog 미기록(STARTED 만) — 완료 추적 불가
+> ⬜ **미해결(백로그)**.
 - **근거:** 컨트롤러는 `record(COUPANG_SYNC, STARTED)`(55)만 남긴다. 비동기 완료/실패 시 SUCCESS/FAILED 를 기록하는 경로가 없다(customs 엔드포인트는 SUCCESS/FAILED 를 남기는 것과 비대칭 — [[customs.md]]).
 - **영향:** ActionLog 조회로는 쿠팡 동기화가 끝났는지·실패했는지 알 수 없다. STARTED 만 쌓임.
 - **제안:** `SyncCompletedEvent` 리스너에서 SUCCESS/FAILED ActionLog 기록. F-SYNC-1 과 동일 리스너로 해결 가능.
 
 ### F-SYNC-4 · 🟡 SMELL — 정산액 수수료율 `0.89`(11%) 하드코딩
+> ⬜ **미해결(백로그)**.
 - **근거:** `CoupangOrderSyncService.java:276` `dto.getTotalAmount().multiply(new BigDecimal("0.89"))`. 마켓별 수수료가 상수로 코드에 박힘.
 - **영향:** 수수료율 변경·마켓별 차등 시 코드 수정 필요. 초기 추정 정산액이며 실제값은 `syncCoupangSettlement` 이 덮음(→ [[coupang-settlement.md]])이나 그 전까지 부정확.
 - **제안:** 수수료율을 설정/마켓 메타로 외부화.
 
 ### F-SYNC-5 · 🟡 SMELL — 4개 마켓 동기화 서비스의 upsert 골격 중복
+> ✅ **해결됨** (커밋 `baad6ff`) — 체크리스트 기준 (Cafe24 보류).
 - **근거:** coupang/smartstore/11st 서비스가 `syncXxx`→`processOrders`→`updateExistingOrder`/`createNewOrder`→`updateLineItemFromDto`→`buildOrderFromDto`/`buildLineItemFromDto` 구조를 거의 동일하게 반복(`CoupangOrderSyncService.java:168-293` ↔ `SmartStoreOrderSyncService.java:88-185` ↔ `ElevenstOrderSyncService.java:88-202`). 차이는 크레덴셜 검증·resolveProductId·postSyncProcess 뿐.
 - **제안:** 공통 추상 클래스/템플릿 메서드로 골격 추출, 마켓별 훅만 오버라이드. 회귀 위험 크므로 계약 테스트 확보 후 착수.
 

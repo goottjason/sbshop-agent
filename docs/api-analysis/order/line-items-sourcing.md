@@ -136,29 +136,35 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-S1 · 🟠 GAP — 종료 상태(CANCELED/RETURNED/EXCHANGED)·배송단계(SHIPPED/DELIVERED)에서도 소싱 수정이 무제한 허용됨
+> 🔶 **부분/오탐** — 정책확정: 소싱은 우리 소유 데이터라 종료 상태에서도 수정 허용(의도) — 결함 아님. 체크리스트 기준.
 - **근거:** `OrderService.java:268` 의 가드는 `null/NEW/UNKNOWN` 만 차단한다. 나머지 모든 상태는 `else`(283~289) 단순 수정 분기로 흘러 저장된다.
 - **영향:** 이미 취소/반품/교환된, 또는 배송이 끝난 라인아이템의 구매금액·주문번호를 자유롭게 바꿀 수 있다. 정산/구매 리포트가 사후 변경에 노출된다.
 - **제안:** 소싱 정보가 참고용으로 사후 수정 가능해야 하는지(의도) vs. 종료 상태는 잠가야 하는지 **정책 확인 필요.** 잠근다면 shipping 과 대칭으로 CANCELED/RETURNED/EXCHANGED 가드 추가.
 
 ### F-S2 · 🔵 NOTE — null-skip 병합으로 필드 값을 "지울" 수 없음
+> ✅ **해결됨** (커밋 `dfcf8b3`) — 정책확정: 빈문자열로 클리어 가능(이미 동작), 회귀테스트 추가. 체크리스트 기준.
 - **근거:** `SourcingUpdateCommand.toSourcingData()` (20~34) 는 각 필드가 `!= null` 일 때만 덮어쓴다.
 - **영향:** 잘못 입력한 `discountCode`·`sourcingVendor` 등을 빈 값으로 정정하는 경로가 없다(빈 문자열 vs null 구분도 없음). PATCH 의 부분 업데이트 의미로는 자연스러우나, "삭제" 요구가 있으면 미충족.
 - **제안:** 삭제 요구가 실제로 있는지 확인. 있으면 sentinel(빈 문자열=클리어) 규칙 도입 검토.
 
 ### F-S3 · 🟡 SMELL — 두 분기의 `applySourcingData + save` 중복
+> ⬜ **미해결(백로그)**.
 - **근거:** `OrderService.java:277·285` — PREPARING 분기와 else 분기가 `applySourcingData(command.toSourcingData(...))` 를 동일하게 호출하고, 차이는 `markAsPurchased()` 호출 유무뿐. `save` 도 각 분기에 중복.
 - **제안:** 공통 `applySourcingData` + `save` 를 분기 밖으로 추출하고, PREPARING 여부만 조건부 `markAsPurchased()` 로 남기면 로직이 절반으로 준다.
 
 ### F-S4 · 🔵 NOTE — 금액 필드 검증 부재
+> ⬜ **미해결(백로그)**.
 - **근거:** `sourcingAmount`·`logisticsCost` 에 음수/과대값 검증 없음(요청·커맨드·도메인 어디에도).
 - **제안:** 최소 `>= 0` 검증. 정산 계산에 직접 들어가면 우선순위 상향.
 
 ### F-S5 · 🟡 SMELL — 응답으로 도메인 엔티티(`OrderLineItem`) 직접 노출
+> ⬜ **미해결(백로그)**.
 - **근거:** `OrderController.java:204` 반환 타입이 `OrderLineItem`. 조회계열(`getOrders`)이 `OrderDetailDto` 를 쓰는 것과 비대칭.
 - **영향:** 직렬화 형태가 도메인 변경에 결합. 지연로딩 필드·내부 표현 유출 위험.
 - **제안:** 수정계열도 응답 DTO 도입 검토(전 API 공통 이슈로 승격 가능).
 
 ### F-S6 · 🔵 NOTE — 활동로그 `marketType` 항상 null
+> ✅ **해결됨** (커밋 `6e320e0`) — 체크리스트 기준.
 - **근거:** `OrderController.java:213/217` 이 `market=null` 로 기록. lineItem→order 로 마켓 해석이 가능함에도 생략.
 - **영향:** 활동로그 마켓 필터/집계에서 소싱 수정 이벤트가 누락 분류됨.
 - **제안:** 성공 시 조회한 `item`→order 로 마켓 채우기(단, 실패 경로는 조회 실패일 수 있어 null 유지 타당).

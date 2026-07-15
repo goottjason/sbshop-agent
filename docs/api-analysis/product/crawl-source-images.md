@@ -125,16 +125,19 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-PROD-17 · 🔵 NOTE — 빈결과와 크롤실패를 명시적으로 구분(잘 설계된 지점)
+> ⬜ **미해결(백로그)**.
 - **근거:** `ProductController.java:161`·`165-169`·`171-176` — 소싱 URL 없음/크롤 0개를 각각 SUCCESS 로그로 "왜 비었는지" 남기고, 예외만 FAILED 로 분리한다. 주석(160-161)이 의도를 명시.
 - **영향:** 사용자가 "이미지가 왜 안 나오는지" 활동로그로 진단 가능. 다른 크롤 API 의 참고 모범.
 - **제안:** 유지. 다만 응답 자체는 빈 배열이라 프론트는 로그를 봐야 이유를 앎 — 사유를 응답에도 실을지 검토(선택).
 
 ### F-PROD-18 · 🟠 GAP — 크롤 결과 이미지 URL 유효성/중복 검증 없음(3경로 공통 소스)
+> ⬜ **미해결(백로그)**.
 - **근거:** `ProductController.java:170-172` — `scraped.sourceImages()`를 그대로 반환. 각 URL 의 스킴/도달성/중복 제거 없음. 동일 소스가 `crawl-and-upload`(195-197)에서 그대로 `downloadAndConvert`로 흘러 다운로드된다.
 - **영향:** 깨진/중복 URL 이 그대로 미리보기에 노출되고, crawl-and-upload 경로에서 다운로드 실패(F-PROD-16)로 이어질 수 있다.
 - **제안:** 크롤러 어댑터 또는 컨트롤러에서 URL 정규화·중복 제거 추가 검토.
 
 ### F-PROD-19 · 🟡 SMELL — 크롤 로직(소싱URL 확인 + crawl + null 가드)이 `crawl-and-upload`와 중복
+> ✅ **해결됨** (커밋 `5549f67`) — 체크리스트 기준.
 - **근거:** `ProductController.java:163-172`(GET crawl)과 `187-197`(POST crawl-and-upload)이 "getProductDetail → getSourcingUrl → 없으면 빈결과 → crawlProductInfoAsDto → null 가드"를 거의 동일하게 반복한다.
 - **영향:** 크롤 파싱 규칙 변경 시 두 곳 동기화 필요.
 - **제안:** "id → 소스이미지 URL 목록" 공통 프라이빗 메서드로 추출하고, 두 엔드포인트가 재사용. `crawl-and-upload`는 그 결과를 업로드 파이프라인에 넘기기만.

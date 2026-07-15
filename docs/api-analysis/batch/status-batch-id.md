@@ -84,16 +84,19 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-BATCH-S1 · 🟡 SMELL — 도메인 엔티티 `ProcessStatus`를 응답으로 직접 노출
+> ✅ **해결됨** (커밋 `54087b6`) — 체크리스트 기준.
 - **근거:** `BatchController.java:123` 반환 타입 `ResponseEntity<List<ProcessStatus>>`. summary 엔드포인트가 전용 record(`BatchSummary`)를 쓰는 것과 비대칭. order API의 F-S5/F-H6과 동일한 횡단 이슈.
 - **영향:** 직렬화 형태가 도메인 변경에 결합. 내부 필드·지연로딩 유출 위험, 폴링마다 전체 행 페이로드 전송.
 - **제안:** 응답 DTO 도입. 폴링은 summary 엔드포인트로 유도하고 상세는 필요 시에만.
 
 ### F-BATCH-S2 · 🟠 GAP — 존재하지 않는 batchId도 빈 배열 + 200 (404 아님)
+> ⬜ **미해결(백로그)**.
 - **근거:** `findByBatchIdOrderByStartedAtDesc`(`ProcessStatusService.java:63`)는 미존재 batchId에 대해 예외 없이 빈 리스트를 반환하고, 컨트롤러는 그대로 200. batchId 존재 검증 없음.
 - **영향:** 오타/만료된 batchId와 "아직 행이 없는 배치"를 클라이언트가 구분 불가. 폴링 로직이 빈 배열을 "완료"로 오인할 여지.
 - **제안:** batchId 미존재 시 404, 또는 summary처럼 total=0을 명시적으로 표현. 3종 status 엔드포인트의 미존재 처리 정책 통일(F-BATCH-S3, status.md 참조).
 
 ### F-BATCH-S3 · 🔵 NOTE — 정렬·페이지네이션 없음, 대용량 배치 전량 반환
+> ⬜ **미해결(백로그)**.
 - **근거:** 2145건 규모 배치(BatchSummary 주석)를 이 엔드포인트가 전 행 반환. 페이지네이션·필터(FAILED만 등) 없음.
 - **영향:** 대량 배치를 상세 조회로 폴링하면 매번 전체 페이로드 — summary가 별도로 있는 이유(폴링 경량화)와 맞물림.
 - **제안:** 상세는 페이지네이션/상태 필터 지원, 폴링은 summary 강제.

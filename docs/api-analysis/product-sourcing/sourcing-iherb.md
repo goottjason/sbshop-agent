@@ -151,26 +151,31 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-PSRC-1 · 🟠 GAP — `urls == null` 요청 시 STARTED 로그만 남기고 UseCase에서 NPE
+> ✅ **해결됨** (커밋 `3970dd1`) — 체크리스트 기준.
 - **근거:** 컨트롤러는 `int reqCount = urls != null ? urls.size() : 0`(`ProductSourcingController.java:42`)로 null을 방어하지만, 그대로 `productSourcingUseCase.sourceFromIherb(urls)`(46)에 넘긴다. `ProductSourcingUseCase.java:18`의 `log.info("iHerb 소싱 시작: {}개 URL", urls.size())`가 무방비로 `urls.size()`를 호출 → `NullPointerException`.
 - **영향:** 잘못된 요청(`null` 바디)이 400이 아니라 500으로 반환된다. catch로 넘어가 FAILED 로그는 남지만 사용자에겐 서버 오류로 보인다.
 - **제안:** 컨트롤러 진입부 또는 UseCase에서 `null`/빈 리스트를 명시 검증(400 응답) 하거나, UseCase에서 `urls == null` 시 빈 리스트로 정규화.
 
 ### F-PSRC-2 · 🟠 GAP — 부분 실패 URL이 응답에서 조용히 누락 (실패 리포팅 부재)
+> ✅ **해결됨** (커밋 `139a581`) — 체크리스트 기준.
 - **근거:** `IherbScraperClient.crawlProducts()`(224-242)는 `crawlProductInfoAsDto`가 `null`을 반환하면(ID 추출 실패·비200·파싱 실패) 결과에 넣지 않고 `log.error`만 남긴다. 컨트롤러는 성공분 개수만 SUCCESS 로그(`ProductSourcingController.java:51`)에 남긴다.
 - **영향:** 5개 요청 중 2개만 성공해도 API는 200 + 2건을 반환. 호출자(프론트)는 어떤 URL이 왜 실패했는지 알 수 없어 재시도 대상 식별 불가. 전건 실패도 200 + `[]`로 성공처럼 보인다.
 - **제안:** URL별 성공/실패 상태를 포함하는 결과 DTO(예: `{url, status, reason}`) 도입, 또는 최소한 요청건수 대비 성공건수 불일치를 응답/로그에 노출.
 
 ### F-PSRC-3 · 🟡 SMELL — 대량 URL 소싱이 순차·블로킹이라 장시간 요청이 스레드를 점유
+> ⬜ **미해결(백로그)**.
 - **근거:** `crawlProducts`(227-240)는 URL을 순차 반복하며 각 요청 사이 `Thread.sleep(500~1000ms)`(233), 403 시 최대 `2s+4s+6s` 백오프(`IherbScraperClient.java:208`). 이 전체가 **동기 HTTP 요청 스레드에서** 실행된다(주석 "장시간" — `ProductSourcingController.java:41`).
 - **영향:** URL 50개면 최소 25~50초 + 크롤 시간 동안 톰캣 워커 스레드 1개가 묶인다. 동시 다발 요청 시 스레드 풀 고갈·클라이언트 타임아웃 위험.
 - **제안:** 비동기 잡(작업ID 반환 후 폴링) 또는 배치 파이프라인으로 전환 검토. 최소한 요청당 URL 개수 상한 설정.
 
 ### F-PSRC-4 · 🔵 NOTE — `ProductInfoCrawlerPort`가 iHerb 단일 구현에 종속(추상화 무효)
+> ⬜ **미해결(백로그)**.
 - **근거:** 포트명은 범용(`ProductInfoCrawlerPort`)이나 컨트롤러 경로·활동로그·UseCase 메서드명 모두 `iherb`/`Iherb`로 고정(`sourceFromIherb`, `IherbScraperClient` 유일 구현). `toScrapedDto`는 `vendor(VendorType.IHB)` 하드코딩(`IherbScraperClient.java:263`).
 - **영향:** 다른 소싱처 확장 시 포트/UseCase/컨트롤러 3계층을 모두 손봐야 함. 현재 추상화는 이름값만 함.
 - **제안:** iHerb 전용임을 명시하거나, 실제로 다처 소싱 계획이 있으면 vendor를 인자화하고 라우팅 계층 도입.
 
 ### F-PSRC-5 · 🔵 NOTE — 입력 검증 전무(URL 형식·개수·중복)
+> ⬜ **미해결(백로그)**.
 - **근거:** 컨트롤러·UseCase 어디에도 URL 형식 검증 없음. 잘못된 URL은 `extractProductId`가 `null` → 조용히 누락(F-PSRC-2와 결합). 동일 URL 중복 제출 시 중복 크롤·중복 결과.
 - **영향:** 무효/중복 URL이 외부 API 호출 낭비·잡음 결과를 만든다.
 - **제안:** 요청 단계에서 iHerb URL 패턴 검증·중복 제거. 무효 URL은 즉시 사유와 함께 반려.

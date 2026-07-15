@@ -144,26 +144,36 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-MISC-7 · 🟠 GAP — `/internal` 아닌 공개 POST 인데 인증·중복실행 방지·동시성 제어 부재
+> 🔶 **부분/오탐** — X-Internal-Token 가드(env 옵트인) 추가됨(커밋 `97b5b79`); 중복실행 가드는 별도 잔존.
+
 - **근거:** `ProductSyncController.java:33` `POST /api/v1/products/sync/stock` 은 nginx 노출 API(`@CrossOrigin("*")`, `:25`)이며 인증 검사가 없다. 매 호출마다 `new Thread(...).start()`(`:40`)로 무제한 스레드 생성 — 재진입/중복 클릭 가드 없음.
 - **영향:** 버튼 연타·외부 호출로 동일 크롤이 병렬 다중 실행되면 대상 소싱 사이트에 **rate-limit/IP 차단**(코드 주석이 우려하는 바로 그 위험)을 유발할 수 있고, 스레드 누수 가능. 여러 사용자가 동시에 호출해도 막을 수 없음.
 - **제안:** 진행 중 플래그(원장의 advisory lock 패턴) 또는 `@Async` + 단일 실행 가드로 동시 1회만 허용. 인증/권한 필요 여부 정책 확인.
 
 ### F-MISC-8 · 🔴 BUG(후보) — 원시 `new Thread` 로 비동기 실행: 트랜잭션·예외·풀 관리 밖으로 이탈
+> ✅ **해결됨** (커밋 `bbf0e1c`) — 체크리스트 기준.
+
 - **근거:** `ProductSyncController.java:40-53`. 스프링 관리 밖의 raw 스레드에서 `@Transactional` 서비스(`syncProductStock`)를 호출한다. 스레드 내 예외는 컨트롤러 `try/catch`(`:58`)가 **절대 못 잡음**(catch는 `start()` 자체 예외만 커버) — 실제 크롤 실패는 서비스 내부 로그로만 흡수됨.
 - **영향:** ① 실패가 사용자/응답에 전혀 전달 안 됨(응답은 항상 성공처럼 보임), ② 스레드풀 미사용으로 호출 폭주 시 OOM/스레드 고갈, ③ 배포 재시작 시 진행 중 작업 유실(추적 불가).
 - **제안:** `@Async`(전용 Executor) 또는 배치 서비스로 이관하고, 진행 상태를 `SyncStatusService`/배치 요약 API처럼 조회 가능하게. 최소한 스레드명·예외 핸들러 지정.
 
 ### F-MISC-9 · 🟡 SMELL — 컨트롤러가 도메인 조회(레포지토리)·대상 선정 로직을 직접 수행
+> ✅ **해결됨** (커밋 `bbf0e1c`) — 체크리스트 기준.
+
 - **근거:** `ProductSyncController.java:29,42-49` — 컨트롤러가 `OrderLineItemRepository` 를 직접 주입받아 NEW/PREPARING ID 수집·중복 제거를 수행. 대상 선정은 서비스 책임인데 컨트롤러에 누출.
 - **영향:** 재사용 불가(스케줄러 등 다른 트리거가 같은 로직을 못 씀), 테스트 어려움.
 - **제안:** 대상 ID 수집을 `ProductSyncService`(또는 전용 메서드)로 내리고 컨트롤러는 트리거만.
 
 ### F-MISC-10 · 🔵 NOTE — 응답 메시지가 실제 대상("PREPARING")과 코드 동작(NEW+PREPARING) 불일치
+> ✅ **해결됨** (커밋 `bbf0e1c`) — 체크리스트 기준.
+
 - **근거:** 응답 message `"Targeted stock sync for PREPARING orders started"`(`ProductSyncController.java:57`)인데 실제 대상은 **NEW ∪ PREPARING**(`:42-45`). 서비스 메서드명도 `syncStockForPreparingOrders`.
 - **영향:** 문서·로그와 실동작 괴리로 오해 소지.
 - **제안:** 메시지·메서드명을 실제 대상(NEW+PREPARING)에 맞춰 정정.
 
 ### F-MISC-11 · 🔵 NOTE — 응답 타입 `ResponseEntity<?>` + `Map.of` 애드혹
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `ProductSyncController.java:34,56` — 와일드카드 반환·즉석 Map. 다른 문서화된 API의 DTO 규율과 비대칭.
 - **제안:** 명시적 응답 DTO(예: `SyncTriggerResponse{ok,message}`) 도입 검토.
 

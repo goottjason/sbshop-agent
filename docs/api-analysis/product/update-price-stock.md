@@ -157,22 +157,26 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-PROD-7 · 🟠 GAP — `soldOut` 미지정(null)이 조용히 "판매중"으로 처리됨
+> ✅ **해결됨** (커밋 `c41dee3`) — 체크리스트 기준.
 - **근거:** `ProductController.java:106` `Boolean.TRUE.equals(request.soldOut())` — `soldOut`이 null 이면 false → `IN_STOCK`. 즉 재고 필드를 생략한 "가격만 수정" 요청도 무조건 재고를 IN_STOCK 으로 덮어쓰고 마켓에 수량 999 를 전송한다.
 - **근거2:** `ProductManageUseCase.java:56-58` — `updateStockStatus`는 항상 호출되므로, 현재 OUT_OF_STOCK 이던 상품이 가격만 바꾸려는 요청에서 의도치 않게 판매중으로 복귀할 수 있다.
 - **영향:** 품절 상품의 가격만 조정하려다 판매 재개가 마켓까지 전파될 수 있다(정합성 위험).
 - **제안:** `soldOut`이 null 이면 재고상태 미변경(부분 업데이트)으로 처리하거나, price-only / stock-only 를 분리. 최소한 계약에 "soldOut 생략=판매중"을 명시.
 
 ### F-PROD-8 · 🟠 GAP — `price` 음수·과대값 검증 부재
+> ✅ **해결됨** (커밋 `c41dee3`) — 체크리스트 기준.
 - **근거:** 요청(`PriceStockUpdateRequest`)·유스케이스·도메인(`Product.updatePriceInfo` `Product.java:201-210`) 어디에도 `price >= 0` 검증이 없다. null-skip 만 존재.
 - **영향:** 음수 판매가가 자사 DB 에 저장되고 그대로 마켓에 전송 시도된다(마켓 API 가 거부하면 failed 로 남지만 자사 DB 는 이미 음수 저장).
 - **제안:** `price != null && price >= 0` 검증 추가. 소싱 API 의 금액 검증 부재(F-S4)와 동일 계열 → 전 API 공통 정책화 검토.
 
 ### F-PROD-9 · 🔵 NOTE — `price.intValue()`로 소수점 절사 후 마켓 전송
+> ⬜ **미해결(백로그)**.
 - **근거:** `ProductManageUseCase.java:63` `price.intValue()` — 자사 DB 에는 BigDecimal `salePrice`로 저장되지만 마켓에는 int 로 절사되어 전송된다(`ProductMarketSyncService.syncPriceStock`가 Integer 파라미터).
 - **영향:** 소수점 가격이 있는 마켓/통화라면 DB 값과 마켓 값이 불일치할 수 있다(국내 원화는 정수라 실무 영향 낮음).
 - **제안:** 통화 정책상 정수 확정이면 문서화. 소수 가능성 있으면 반올림 규칙 명시.
 
 ### F-PROD-10 · 🟡 SMELL — `updatePriceStock`이 26-필드 `ProductUpdateCommand`를 price 한 칸만 채워 생성
+> ⬜ **미해결(백로그)**.
 - **근거:** `ProductManageUseCase.java:49-55` — 25개 null + `salePrice` 1개로 커맨드를 만든다. 위치 기반 생성자라 필드 순서가 바뀌면 조용히 다른 필드에 값이 들어갈 위험.
 - **영향:** 가독성 저하·오배치 위험. `updateImagesAndHtml`(78-84)도 같은 방식.
 - **제안:** 부분 업데이트 전용 빌더 또는 `withSalePrice` 팩토리 도입 검토.

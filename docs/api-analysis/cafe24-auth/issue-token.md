@@ -153,26 +153,36 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-CAFE-5 · 🟠 GAP — OAuth `state` 파라미터를 발급·검증하지 않음(CSRF)
+> ⬜ **미해결(백로그)**.
+
 - **근거:** 인가 URL 은 `state=shouldbeshopping` 고정 상수(`Cafe24TokenManager.java:128`)로 매 요청 동일하고, `issueToken`/`issueInitialToken` 어디에서도 콜백으로 돌아온 state 를 대조하지 않는다(요청 DTO `IssueTokenRequest` 에 state 필드조차 없음, `Cafe24AuthController.java:35`).
 - **영향:** OAuth authorization-code CSRF 방어의 핵심인 state 무작위성·검증이 없어, 공격자가 자신의 인가 코드를 피해자 세션에 주입(계정 연결 탈취)하는 고전적 위협에 노출. 상수 state 는 검증하지 않으므로 실질 무방비.
 - **제안:** 요청별 난수 state 생성·세션/서버 저장 후 콜백에서 대조. 관리자 전용 단일 사용자 도구라는 운영 전제라면 그 리스크 수용 여부를 명시 문서화.
 
 ### F-CAFE-6 · 🟠 GAP — 재인증(토큰 저장)에 동시성 락 부재
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `getValidAccessToken()` 의 refresh 는 `refreshLock.runExclusively(0xCAFE24)` 로 2 JVM 직렬화되지만(`Cafe24TokenManager.java:57-63`), `issueInitialToken()` 은 락 없이 곧바로 `exchange`+`persist`+`save` 한다(`:132-144`).
 - **영향:** 재인증과 백그라운드 자동 갱신이 겹치면 두 경로가 동일 `MarketCredential` 로우를 경쟁 갱신 → last-writer-wins 로 갓 발급한 refresh_token 이 구 refresh 회전 결과에 덮여 무효화될 수 있음(2 JVM 토폴로지에서 실제 위험).
 - **제안:** `issueInitialToken` 도 동일 `CAFE24_TOKEN_LOCK_KEY` 임계구역 안에서 수행하거나, 최소한 저장을 원자적으로.
 
 ### F-CAFE-7 · 🔵 NOTE — 인가 코드 재사용 방지는 Cafe24 측에만 의존
+> ⬜ **미해결(백로그)**.
+
 - **근거:** 코드 원문/URL 을 그대로 교환하며 로컬에 사용 이력을 남기지 않는다(`Cafe24AuthController.java:81-86`). 재사용 시 Cafe24 가 4xx 를 반환하면 `RuntimeException`(`Cafe24OAuthTokenHttpClient.java:35-42`)→500 으로 나타나고, 응답 문구가 "1회용·단시간 유효"를 안내한다(`Cafe24AuthController.java:96-97`).
 - **영향:** 정상 방어 흐름이나, 재사용/만료/네트워크 오류가 모두 동일 500 으로 뭉개져 사용자가 원인 구분이 어려움.
 - **제안:** 필요 시 Cafe24 오류 본문의 error 코드(예: invalid_grant)를 파싱해 "코드 만료/재사용" 을 명시.
 
 ### F-CAFE-8 · 🟡 SMELL — 인가 코드가 로그·payload 에 평문 노출 가능
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `issueInitialToken` 은 `code` 를 `String.format` 으로 payload 에 삽입하며 URL 인코딩하지 않는다(`Cafe24TokenManager.java:137-139`). 교환 실패 시 `Cafe24OAuthTokenHttpClient` 가 응답 본문을 예외 메시지에 담고(`:38-42`), 그 메시지가 `issueToken` 응답과 로그(`Cafe24AuthController.java:92-94`)로 흘러갈 수 있음.
 - **영향:** ① code 에 `&`/`=` 등 특수문자가 있으면 payload 파싱 붕괴(현재 Cafe24 코드에는 드물지만 미가드), ② 오류 본문에 민감정보가 있으면 로그 유출.
 - **제안:** payload 값 URL 인코딩. 예외 메시지에 담기는 외부 응답 본문 길이/내용 마스킹 검토(GET 경로 `Cafe24RestClient.enrich` 는 300자 제한을 두는데 OAuth 경로는 무제한).
 
 ### F-CAFE-9 · 🔵 NOTE — `extractCode` 는 첫 `code=` 만 처리, 인코딩된 값 미복원
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `extractCode`(`Cafe24AuthController.java:109-124`)는 문자열에서 첫 `code=` 이후 `&` 전까지를 취한다. URL 인코딩된 code(`%..`)를 디코딩하지 않고, `error=`/`error_description=` 같은 콜백 에러 파라미터는 인지하지 못한다.
 - **영향:** 인가 실패로 `?error=access_denied` 만 담긴 URL 을 붙여넣으면 `code=` 가 없어 입력 전체가 그대로 code 로 간주되어 무의미한 교환 시도→500. 사용자에게 "거부됨"을 안내하지 못함.
 - **제안:** `error` 파라미터 우선 감지 후 전용 메시지 반환. code 값 URL 디코딩.

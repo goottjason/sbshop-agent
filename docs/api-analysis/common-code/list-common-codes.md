@@ -112,16 +112,22 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### F-MISC-4 · 🟠 GAP — 노출 Enum이 하드코딩 4종뿐, 다른 도메인 Enum 누락
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `CommonCodeController.java:30-33` 이 `marketType/shippingStatus/customsStatus/recordStatus` 4개만 수동 `put`. 반면 시스템에는 `ShippingCarrier`(송장 API가 사용), `ActionStatus`(액션 로그) 등 프론트가 라벨링해야 할 Enum이 더 있다.
 - **영향:** 프론트가 `ShippingCarrier` 같은 값을 여전히 하드코딩하거나 별도 경로로 얻어야 함 → "단일 진실 원천" 목적이 부분적으로만 달성됨. 새 Enum 추가 시 이 컨트롤러 수동 수정 필요(누락되기 쉬움).
 - **제안:** `EnumMapperType` 구현체를 클래스패스 스캔으로 자동 등록하거나, 최소한 프론트가 실제 쓰는 Enum 목록을 점검해 누락분 추가.
 
 ### F-MISC-5 · 🟡 SMELL — `EnumMapperValue` 필드가 비-final·게터 노출(가변)
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `EnumMapperValue.java:7-8` `private String name; private String label;` — `final` 아님, `@Getter`만. 불변 값 객체인데 record가 아니라 클래스.
 - **영향:** 순수 직렬화 DTO치고 가변. 실질 위험은 낮으나 `ActionLogResponse` 가 `record` 인 것과 스타일 비대칭.
 - **제안:** `record EnumMapperValue(String name, String label)` 로 전환 검토(생성자에서 `EnumMapperType` 받아 매핑).
 
 ### F-MISC-6 · 🔵 NOTE — 캐시 없음, 요청마다 리플렉션 재수행
+> ⬜ **미해결(백로그)**.
+
 - **근거:** `getCommonCodes()` 는 매 호출마다 4개 Enum을 `getEnumConstants()` + 스트림 매핑(`CommonCodeController.java:38-42`). Enum은 불변이라 결과가 절대 안 바뀜.
 - **영향:** 비용은 미미하나 정적 응답에 캐싱·`Cache-Control` 헤더가 없어 프론트가 매 부팅마다 재요청.
 - **제안:** 결과를 static 캐시하거나 HTTP 캐시 헤더 부여(무상태·불변이므로 안전).
