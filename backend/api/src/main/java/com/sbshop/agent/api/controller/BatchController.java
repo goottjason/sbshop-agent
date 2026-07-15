@@ -39,18 +39,33 @@ public class BatchController {
 	// D-076: 사용자 액션 활동로그 기록 서비스
 	private final ActionLogService actionLogService;
 
+	/**
+	 * SP-11 (F-BATCH-3): 4개 트리거 엔드포인트가 반복하던 공통 골격을 추출한다.
+	 * startBatch로 배치를 등록하고, 그 batchId로 ActionLog STARTED를 기록한 뒤 batchId를 돌려준다.
+	 * 각 엔드포인트의 고유부(jobType·대상선정·호출 서비스·응답 조립)는 호출부에 남는다.
+	 * 로그 메시지는 batchId를 포함할 수 있으므로 messageBuilder로 지연 조립한다(기존 인라인 문자열과 동일).
+	 */
+	private String startBatchWithLog(
+		com.sbshop.agent.core.domain.process.enums.JobType jobType,
+		List<String> productCodes,
+		String actionType,
+		java.util.function.Function<String, String> messageBuilder) {
+		String batchId = processStatusService.startBatch(jobType, productCodes);
+		actionLogService.record(actionType, null, ActionStatus.STARTED, messageBuilder.apply(batchId));
+		return batchId;
+	}
+
 	@PostMapping("/crawl-and-update")
 	public ResponseEntity<Map<String, String>> crawlAndUpdate(@RequestBody
 	CrawlAndUpdateRequest request) {
 		List<String> productCodes = request.productIds().stream()
 			.map(String::valueOf)
 			.toList();
-		String batchId = processStatusService.startBatch(
-			com.sbshop.agent.core.domain.process.enums.JobType.CRAWL_AND_UPDATE_PRICE_STOCK,
-			productCodes);
 		// D-076: 배치 크롤 업데이트(비동기·batchId 연동) — 시작 기록(STARTED). 완료는 배치 진행현황(batchId) 추적.
-		actionLogService.record(ActionLogConstants.BATCH_CRAWL_UPDATE, null,
-			ActionStatus.STARTED, "배치 크롤 업데이트 시작 (batchId=" + batchId + ", " + productCodes.size() + "건)");
+		String batchId = startBatchWithLog(
+			com.sbshop.agent.core.domain.process.enums.JobType.CRAWL_AND_UPDATE_PRICE_STOCK,
+			productCodes, ActionLogConstants.BATCH_CRAWL_UPDATE,
+			id -> "배치 크롤 업데이트 시작 (batchId=" + id + ", " + productCodes.size() + "건)");
 		batchPriceStockService.crawlAndUpdatePriceStock(
 			batchId, request.productIds(),
 			request.marginRate() != null ? request.marginRate() : new BigDecimal("15"),
@@ -68,12 +83,11 @@ public class BatchController {
 		List<String> productCodes = items.stream()
 			.map(item -> String.valueOf(item.productId()))
 			.toList();
-		String batchId = processStatusService.startBatch(
-			com.sbshop.agent.core.domain.process.enums.JobType.MANUAL_UPDATE_PRICE_STOCK,
-			productCodes);
 		// D-076: 수동 일괄 업데이트 — 시작 기록.
-		actionLogService.record(ActionLogConstants.BATCH_MANUAL_UPDATE, null,
-			ActionStatus.STARTED, "수동 일괄 업데이트 시작 (batchId=" + batchId + ", " + productCodes.size() + "건)");
+		String batchId = startBatchWithLog(
+			com.sbshop.agent.core.domain.process.enums.JobType.MANUAL_UPDATE_PRICE_STOCK,
+			productCodes, ActionLogConstants.BATCH_MANUAL_UPDATE,
+			id -> "수동 일괄 업데이트 시작 (batchId=" + id + ", " + productCodes.size() + "건)");
 		batchPriceStockService.manualUpdatePriceStock(batchId, items);
 		return ResponseEntity.ok(Map.of("batchId", batchId, "message", "수동 일괄 업데이트가 시작되었습니다."));
 	}
@@ -93,12 +107,11 @@ public class BatchController {
 		List<String> productCodes = request.productIds().stream()
 			.map(String::valueOf)
 			.toList();
-		String batchId = processStatusService.startBatch(
-			com.sbshop.agent.core.domain.process.enums.JobType.MANUAL_UPDATE_ALL_FIELDS,
-			productCodes);
 		// D-076: 전체필드 일괄 업데이트 — 시작 기록.
-		actionLogService.record(ActionLogConstants.BATCH_MANUAL_UPDATE_ALL, null,
-			ActionStatus.STARTED, "전체필드 일괄 업데이트 시작 (batchId=" + batchId + ", " + productCodes.size() + "건)");
+		String batchId = startBatchWithLog(
+			com.sbshop.agent.core.domain.process.enums.JobType.MANUAL_UPDATE_ALL_FIELDS,
+			productCodes, ActionLogConstants.BATCH_MANUAL_UPDATE_ALL,
+			id -> "전체필드 일괄 업데이트 시작 (batchId=" + id + ", " + productCodes.size() + "건)");
 		batchPriceStockService.manualUpdateAllFields(batchId, request.productIds(), request.commands());
 		return ResponseEntity.ok(Map.of("batchId", batchId, "message", "전체 필드 일괄 업데이트가 시작되었습니다."));
 	}
@@ -115,12 +128,11 @@ public class BatchController {
 			return ResponseEntity.ok(Map.of("message", "해당 소싱업체의 상품이 없습니다."));
 		}
 		List<String> productCodes = productIds.stream().map(String::valueOf).toList();
-		String batchId = processStatusService.startBatch(
-			com.sbshop.agent.core.domain.process.enums.JobType.CRAWL_AND_UPDATE_PRICE_STOCK,
-			productCodes);
 		// D-076: 소싱업체별 배치 — 시작 기록.
-		actionLogService.record(ActionLogConstants.BATCH_BY_SUPPLIER, null,
-			ActionStatus.STARTED, "소싱업체별 배치 시작 (" + vendor.name() + ", batchId=" + batchId
+		String batchId = startBatchWithLog(
+			com.sbshop.agent.core.domain.process.enums.JobType.CRAWL_AND_UPDATE_PRICE_STOCK,
+			productCodes, ActionLogConstants.BATCH_BY_SUPPLIER,
+			id -> "소싱업체별 배치 시작 (" + vendor.name() + ", batchId=" + id
 				+ ", " + productCodes.size() + "건)");
 		batchPriceStockService.crawlAndUpdatePriceStock(
 			batchId, productIds,
