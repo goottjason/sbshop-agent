@@ -3,6 +3,7 @@ package com.sbshop.agent.api.controller;
 import com.sbshop.agent.api.dto.batch.CrawlAndUpdateRequest;
 import com.sbshop.agent.api.dto.batch.ManualUpdateRequest;
 import com.sbshop.agent.api.dto.batch.ManualUpdateAllRequest;
+import com.sbshop.agent.api.dto.batch.ProcessStatusResponse;
 import com.sbshop.agent.api.dto.batch.SupplierBatchRequest;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
@@ -10,7 +11,6 @@ import com.sbshop.agent.core.application.product.BatchPriceStockService;
 import com.sbshop.agent.core.application.product.dto.PriceStockItem;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
-import com.sbshop.agent.core.domain.process.ProcessStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -132,9 +132,12 @@ public class BatchController {
 	}
 
 	@GetMapping("/status/{batchId}")
-	public ResponseEntity<List<ProcessStatus>> getBatchStatus(@PathVariable
+	public ResponseEntity<List<ProcessStatusResponse>> getBatchStatus(@PathVariable
 	String batchId) {
-		return ResponseEntity.ok(processStatusService.getBatchStatus(batchId));
+		List<ProcessStatusResponse> statuses = processStatusService.getBatchStatus(batchId).stream()
+			.map(ProcessStatusResponse::from)
+			.toList();
+		return ResponseEntity.ok(statuses);
 	}
 
 	// 폴링용 경량 집계(전체 행 대신 count 쿼리). /status/{batchId}는 상세 조회용으로 유지.

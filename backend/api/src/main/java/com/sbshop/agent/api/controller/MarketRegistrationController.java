@@ -1,7 +1,7 @@
 package com.sbshop.agent.api.controller;
 
+import com.sbshop.agent.api.dto.market.MarketRegistrationResponse;
 import com.sbshop.agent.core.application.market.MarketRegistrationService;
-import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -24,18 +24,24 @@ public class MarketRegistrationController {
 	private final MarketRegistrationService marketRegistrationService;
 
 	@GetMapping
-	public ResponseEntity<List<MarketRegistration>> getMarketRegistrations(@PathVariable
+	public ResponseEntity<List<MarketRegistrationResponse>> getMarketRegistrations(@PathVariable
 	Long productId) {
-		return ResponseEntity.ok(marketRegistrationService.getRegistrations(productId));
+		List<MarketRegistrationResponse> registrations =
+			marketRegistrationService.getRegistrations(productId).stream()
+				.map(MarketRegistrationResponse::from)
+				.toList();
+		return ResponseEntity.ok(registrations);
 	}
 
 	@GetMapping("/{marketType}/local")
-	public ResponseEntity<MarketRegistration> getLocalMarketData(
+	public ResponseEntity<MarketRegistrationResponse> getLocalMarketData(
 		@PathVariable
 		Long productId,
 		@PathVariable
 		String marketType) {
-		return ResponseEntity.ok(marketRegistrationService.getLocalData(productId, marketType));
+		MarketRegistrationResponse response =
+			MarketRegistrationResponse.from(marketRegistrationService.getLocalData(productId, marketType));
+		return ResponseEntity.ok(response);
 	}
 
 	@PostMapping("/{marketType}/sync")

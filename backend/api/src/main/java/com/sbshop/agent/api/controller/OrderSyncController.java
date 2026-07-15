@@ -1,5 +1,6 @@
 package com.sbshop.agent.api.controller;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.sbshop.agent.api.dto.sync.SyncStatusResponse;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
 import com.sbshop.agent.core.application.order.service.Cafe24OrderSyncService;
@@ -215,8 +217,13 @@ public class OrderSyncController {
 
 	// 동기화 상태 조회 엔드포인트
 	@GetMapping("/status")
-	public ResponseEntity<Map<String, com.sbshop.agent.core.application.sync.SyncStatusService.SyncStatus>> getSyncStatus() {
-		return ResponseEntity.ok(syncStatusService.getAllStatuses());
+	public ResponseEntity<Map<String, SyncStatusResponse>> getSyncStatus() {
+		// F-SYNC-24: 서비스 내부클래스(SyncStatus) 직접 노출 대신 응답 DTO로 미러(계약 보존).
+		// 순서 보존을 위해 LinkedHashMap 유지(getAllStatuses가 LinkedHashMap 반환).
+		Map<String, SyncStatusResponse> result = new LinkedHashMap<>();
+		syncStatusService.getAllStatuses()
+			.forEach((market, status) -> result.put(market, SyncStatusResponse.from(status)));
+		return ResponseEntity.ok(result);
 	}
 
 }
