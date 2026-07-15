@@ -1,5 +1,7 @@
 # GET /market-credentials — 마켓 자격증명 목록 조회
 
+> **[P5b 반영 2026-07-15]** F-CRED-1(🔴) 해결 — accessKey·secretKey 평문 제거, hasX 플래그 마스킹 (커밋 `019e20d`).
+
 ## 1. 개요
 
 | 항목 | 내용 |

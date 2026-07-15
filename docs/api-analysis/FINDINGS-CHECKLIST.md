@@ -80,7 +80,7 @@
 - [ ] **SP-9 · 서비스 계층 없이 컨트롤러가 Repository/Router 직접 조립**
   트랜잭션·검증·재사용·테스트가 컨트롤러에 결박.
   근거: F-SUP-CS-3·UC-4, F-MREG-6, F-MISC-9.
-- [ ] **SP-10 · 인증/접근제어 부재 + `@CrossOrigin("*")` 전역 + 시크릿 평문**
+- [~] **SP-10 · 인증/접근제어 부재 + `@CrossOrigin("*")` 전역 + 시크릿 평문** — 축소완료(P5b): 시크릿 마스킹+internal/트리거 가드. CORS·preview PII·CAFE 등은 범위 밖
   근거: F-CRED-1·7·2(시크릿 평문 응답/저장), F-MISC-7·13·17(무인증 트리거/SSE/internal), F-SYNC-13(preview PII), F-CAFE-14, F-MISC-3.
 - [ ] **SP-11 · 중복 분기/로직(수정 시 N곳 동기화 필요)**
   근거: F-ORD-18(cancel/confirm batch), F-BATCH-3(트리거 4종)·B3, F-PROD-15·19·20(이미지 3경로), F-SYNC-5(마켓 sync 4종)·14, F-CAFE-12.
@@ -94,17 +94,17 @@
 - [x] **F-SYNC-1** · SyncStatusService DB화(sb_market_sync_status) — 두 JVM 상태 공유 · ✅ `059ed79`
 - [x] **F-SYNC-2** · 각 @Async sync가 자기 스레드서 markFailed 기록(검증됨: 정확) · ✅ `059ed79`
 - [x] **F-SYNC-23** · 스케줄러 조기 markCompleted 제거, 서비스 자기기록 · ✅ `059ed79`
-- [ ] **F-SYNC-19** · order-sync · customs 동기 트랜잭션 내 Thread.sleep×배치 → HTTP스레드·DB커넥션 장기점유 · `CustomsOrderSyncService.java:32,70` · 대상 多면 타임아웃·긴 트랜잭션 락
+- [x] **F-SYNC-19** · customs @Transactional 분리(CustomsBatchProcessor) — sleep을 tx 밖으로, 배치별 커밋 · ✅ `1ef9a6f`
 - [x] **F-BATCH-2** · 부팅 시 고아 PENDING→FAILED 복구(ApplicationReadyEvent) · ✅ `03ea176`
 - [x] **F-BATCH-M1** · 쌍 객체(PriceStockItem)로 위치결합 제거 · ✅ `8d0953b`
-- [ ] **F-BATCH-ST1** · batch · `/status`가 findAll 전체 로드 후 메모리 distinct · `ProcessStatusService.java:76` · 이력 누적 시 OOM·지연
+- [x] **F-BATCH-ST1** · DB distinct 쿼리로 대체(OOM 방지)+최신순 · ✅ `1a0485b`
 - [x] **F-MISC-8** · 관리 @Async(syncTaskExecutor)+ActionLog 실패기록으로 교체 · ✅ `bbf0e1c` (상품별 크롤예외 표면화는 SP-3 상품 후속)
 - [x] **F-MISC-18** · AtomicBoolean CAS 재진입 가드(이중처리 창 차단) · ✅ `c8e2bb8`
 - [x] **F-PSRC-14** · PENDING 선저장→publish→SYNCED로 고아 방지 · ✅ `50b161c`
 - [x] **F-ORD-30** · 일괄발송 BulkShipResult로 부분실패 표면화(응답·로그·UI) · ✅ `ffdaed3`/`dbfefec`
 - [x] **F-SUP-UC-1** · 중복 통화 생성 거부(400, 기존환율 불변) · ✅ `e69496e`
-- [ ] **F-CRED-1** · market-credential · 목록 응답 secretKey·accessKey·clientId 평문 · `MarketCredentialDto.java:22-24` · 무인증 API로 전 마켓 시크릿 유출
-- [ ] **F-CRED-7** · market-credential · 저장 성공 응답이 방금 저장한 secretKey 평문 반환 · `MarketCredentialService.java:47` · 저장 왕복 전구간 시크릿 노출
+- [x] **F-CRED-1** · accessKey·secretKey 평문 제거+플래그 마스킹 · ✅ `019e20d`
+- [x] **F-CRED-7** · 저장 응답도 마스킹 · ✅ `019e20d`
 - [x] **F-H1** · order(shipping) · terminal/failed 구분 메시지로 해결(마켓이 진실원본 — 롤백 유지, 동기화 반영 안내) · ✅ `dfcf8b3`
 
 ---
@@ -185,7 +185,7 @@
 ### market-credential (F-CRED)
 - [ ] **F-CRED-2** · 저장 시 암호화 부재 → DB 평문 저장 · `MarketCredential.java:39-58`
 - [x] **F-CRED-4** · 미정의 marketType → 400 아닌 500 · `MarketCredentialController.java:37-38` — ✅ `60b02fe`
-- [ ] **F-CRED-8** · PUT이 부분업데이트 아닌 4필드 전체 덮어쓰기(null도) · `MarketCredentialService.java:41-44`
+- [x] **F-CRED-8** · 빈/공백 시크릿이면 기존값 유지·새 값만 갱신 · ✅ `019e20d`
 - [ ] **F-CRED-9** · 자격증명 입력 검증 전무(빈 값 저장) · `MarketCredentialService.java:34-48`
 
 ### cafe24-auth (F-CAFE)
@@ -203,8 +203,8 @@
 - [ ] **F-MREG-7** · ESM(GMARKET/AUCTION) 어댑터 미존재로 sync/local 배제 · `MarketClientRouter.java:19-25`
 
 ### misc (F-MISC)
-- [ ] **F-MISC-7** · 공개 sync/stock 인증·중복실행·동시성 가드 부재 · `ProductSyncController.java:33,40`
-- [ ] **F-MISC-17** · /internal/email/fetch 접근제어가 "포트 비노출" 관례 의존 · `EmailFetchController.java:22,29`
+- [~] **F-MISC-7** · X-Internal-Token 가드(env 옵트인) 추가 · ✅ `97b5b79` (중복실행 가드는 별도)
+- [x] **F-MISC-17** · X-Internal-Token 가드(env 옵트인) · ✅ `97b5b79`
 - [ ] **F-MISC-20** · fetch 응답이 실제 결과 미반영, 항상 ok:true · `EmailFetchController.java:34-38`
 - [ ] **F-MISC-12** · SSE emitter 누수(heartbeat 없음+24h 타임아웃) · `SseNotificationController.java:26,69,90`
 - [ ] **F-MISC-13** · SSE 인증·구독자 수 상한 없음 · `SseNotificationController.java:23,29`
