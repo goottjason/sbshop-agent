@@ -83,7 +83,7 @@ public class Cafe24AuthController {
 			return ResponseEntity.badRequest().body(new Cafe24Status(false, "인증 코드가 비어 있습니다."));
 		}
 		try {
-			cafe24TokenManager.issueInitialToken(code);
+			exchangeAuthorizationCode(code);
 			// D-076: Cafe24 재인증 — 결과 기록(기존 응답 계약 유지).
 			actionLogService.record(ActionLogConstants.CAFE24_AUTH, "CAFE24",
 				ActionStatus.SUCCESS, "Cafe24 재인증 성공");
@@ -96,6 +96,15 @@ public class Cafe24AuthController {
 				.body(new Cafe24Status(false, "토큰 발급 실패: " + e.getMessage()
 					+ " (인증 코드는 1회용·단시간 유효 — 인증 직후 즉시 발급하세요)"));
 		}
+	}
+
+	/**
+	 * F-CAFE-12: 인가코드→토큰 교환 공통 로직. 입력의 code 파라미터를 추출해 토큰을 발급·저장한다.
+	 * 두 엔드포인트(/issue-token·/auth/callback)가 공유하며, 활동로그·응답형태 등 각자의 고유부는
+	 * 호출부에 남긴다.
+	 */
+	private void exchangeAuthorizationCode(String rawCode) {
+		cafe24TokenManager.issueInitialToken(extractCode(rawCode));
 	}
 
 	private String rootMessage(Throwable e) {
@@ -131,7 +140,7 @@ public class Cafe24AuthController {
 	String code) {
 		log.info("카페24 인증 코드 수신 완료");
 		try {
-			cafe24TokenManager.issueInitialToken(extractCode(code));
+			exchangeAuthorizationCode(code);
 			return ResponseEntity.ok("✅ Cafe24 인증이 완료되었습니다! 이제 서버가 자동으로 토큰을 갱신합니다.");
 		} catch (Exception e) {
 			return ResponseEntity.internalServerError().body("❌ 인증 실패: " + e.getMessage());
