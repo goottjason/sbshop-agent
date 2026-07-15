@@ -56,7 +56,7 @@
 
 개별 결함보다 먼저 볼 것. 한 곳을 고치면 여러 API가 함께 해결되는 **횡단 근본원인**들이다.
 
-- [~] **SP-1 · 비동기 예외 은폐 → 실패가 HTTP 200 성공으로 표면화** — sync 완료(P4a); ProductSync(F-MISC-8)·batch(F-BATCH-2) 후속
+- [x] **SP-1 · 비동기 예외 은폐 → 실패가 HTTP 200 성공으로 표면화** — ✅ sync(P4a)·ProductSync(P4b)·batch복구(P4c) 완료
   `@Async`/`new Thread` 로 돌린 작업의 예외가 컨트롤러 try/catch·트랜잭션 밖에서 죽어, 응답은 항상 성공.
   근거: F-SYNC-2(CoupangOrderSyncService.java:54), F-SYNC-23(OrderSyncScheduler.java:52-63), F-MISC-8(ProductSyncController.java:40-53), F-BATCH-2(BatchPriceStockService.java:38-93). → 동기화·크롤·배치 전반의 "성공했는데 실제로는 실패" 근원.
 - [~] **SP-2 · 상태 저장소가 JVM 로컬 인메모리 → 멀티-JVM 상태 UI 무력화** — sync 상태 DB화 완료(P4a); SSE(F-MISC-16) 후속
@@ -95,10 +95,10 @@
 - [x] **F-SYNC-2** · 각 @Async sync가 자기 스레드서 markFailed 기록(검증됨: 정확) · ✅ `059ed79`
 - [x] **F-SYNC-23** · 스케줄러 조기 markCompleted 제거, 서비스 자기기록 · ✅ `059ed79`
 - [ ] **F-SYNC-19** · order-sync · customs 동기 트랜잭션 내 Thread.sleep×배치 → HTTP스레드·DB커넥션 장기점유 · `CustomsOrderSyncService.java:32,70` · 대상 多면 타임아웃·긴 트랜잭션 락
-- [ ] **F-BATCH-2** · batch · 배치 중 재시작 시 PENDING 영구잔류(진행중 배치 유실) · `ProcessStatusService.java:52-59` · 완료판정 불가 (↔ `[[deploy-interrupts-running-batch]]`)
+- [x] **F-BATCH-2** · 부팅 시 고아 PENDING→FAILED 복구(ApplicationReadyEvent) · ✅ `03ea176`
 - [ ] **F-BATCH-M1** · batch · prices/stocks가 productIds와 index 위치로만 정렬 · `BatchPriceStockService.java:105-106` · 순서 어긋나면 엉뚱한 상품에 적용, 조용히 SUCCESS
 - [ ] **F-BATCH-ST1** · batch · `/status`가 findAll 전체 로드 후 메모리 distinct · `ProcessStatusService.java:76` · 이력 누적 시 OOM·지연
-- [ ] **F-MISC-8** · product-sync · raw `new Thread` 비동기 — 트랜잭션/예외/풀 이탈 · `ProductSyncController.java:40-53` · 크롤 실패 미포착·스레드 고갈
+- [x] **F-MISC-8** · 관리 @Async(syncTaskExecutor)+ActionLog 실패기록으로 교체 · ✅ `bbf0e1c` (상품별 크롤예외 표면화는 SP-3 상품 후속)
 - [ ] **F-MISC-18** · email-fetch · 재진입/중복처리 방지 없음, 스케줄러와 동시 실행 · `EmailFetchController.java:33`+`OrderSyncScheduler.java:36` · 동일 orderNo 이중처리 → 마켓 중복 송장전송
 - [ ] **F-PSRC-14** · product-sourcing · 마켓 publish 성공 후 DB save 실패 시 마켓/DB 불일치(외부 롤백 불가) · `ProductPublishUseCase.java:31,44,62` · 마켓 게시됐으나 DB 등록 없는 고아
 - [x] **F-ORD-30** · 일괄발송 BulkShipResult로 부분실패 표면화(응답·로그·UI) · ✅ `ffdaed3`/`dbfefec`
@@ -283,7 +283,7 @@
 ### misc
 - [ ] **F-MISC-19** 수동 트리거가 스케줄러 우회 → SyncStatus 미기록 · `EmailFetchController.java:33`
 - [ ] **F-MISC-22** IMAP 다계정×다주문 N×M 연결·조기종료 부재 · `EmailFetcherService.java:67-78`
-- [ ] **F-MISC-9** ProductSync 컨트롤러가 레포지토리·대상선정 직접 · `ProductSyncController.java:29,42-49`
+- [x] **F-MISC-9** 대상선정을 서비스로 이동(P4b 동반) · ✅ `bbf0e1c`
 - [ ] **F-MISC-14** SSE push 실패=remove뿐, 재전송/Last-Event-ID 없음 · `SseNotificationController.java:69,90`
 - [ ] **F-MISC-15** SSE 두 리스너 브로드캐스트 로직 중복 · `SseNotificationController.java:55-92`
 - [ ] **F-MISC-1** action-logs 페이징 없이 PageRequest를 limit 상한으로만 · `ActionLogService.java:47`
@@ -363,7 +363,7 @@
 
 ### misc
 - [ ] **F-MISC-16** SSE emitters가 api JVM 로컬 — worker 이벤트 미도달 · `SseNotificationController.java:21`
-- [ ] **F-MISC-10** sync/stock 응답 메시지와 실동작 불일치 · `ProductSyncController.java:42-57`
+- [x] **F-MISC-10** 응답 메시지 NEW/PREPARING로 정정 · ✅ `bbf0e1c`
 - [ ] **F-MISC-11** sync/stock 응답 ResponseEntity<?>+Map.of 애드혹 · `ProductSyncController.java:34,56`
 - [ ] **F-MISC-2** action-logs limit 상하한 방어가 서비스에만 · `ActionLogController.java:27`
 - [ ] **F-MISC-3** `@CrossOrigin("*")` 전역 허용(공통) · `ActionLogController.java:20`

@@ -1,5 +1,7 @@
 # POST /api/v1/products/sync/stock — 재고 동기화(백그라운드 크롤) 트리거
 
+> **[P4b 반영 2026-07-15]** F-MISC-8·9·10 해결 — 원시 new Thread → 관리 @Async(syncTaskExecutor)+ActionLog 실패기록, 대상선정 서비스 이동, 응답 메시지 정정 (커밋 `bbf0e1c`).
+
 ## 1. 개요
 
 | 항목 | 내용 |
