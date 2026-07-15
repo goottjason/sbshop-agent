@@ -122,19 +122,10 @@ public class ProductController {
 		@RequestPart("images")
 		List<MultipartFile> images) {
 		// F-PROD-12: 개별 이미지 리사이즈 실패를 조용히 드롭하지 않고 집계해 응답에 표면화.
+		// F-PROD-15: 이미지 등록 3경로 공통 흐름(업로드→집계→응답+로그)은 uploadPreparedImages로 통합.
 		ImageProcessResult prepared = prepareImageFiles(images);
-		List<ImageUploadFile> uploadFiles = prepared.succeeded();
-		// D-076: 이미지/HTML 수정 — 결과만 기록.
-		try {
-			MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, uploadFiles);
-			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
-				ActionStatus.SUCCESS, buildImageResultMessage(id, "이미지 저장 완료", result, prepared));
-			return ResponseEntity.ok(ImageUploadResponse.from(result, prepared, uploadFiles.size()));
-		} catch (Exception e) {
-			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
-				ActionStatus.FAILED, "이미지 수정 실패 (상품 " + id + "): " + e.getMessage());
-			throw e;
-		}
+		return uploadPreparedImages(id, prepared,
+			ActionLogConstants.PRODUCT_IMAGE_UPDATE, "이미지 저장 완료", "이미지 수정 실패");
 	}
 
 	@PutMapping("/{id}/images/by-url")
@@ -145,18 +136,8 @@ public class ProductController {
 		List<String> imageUrls) {
 		// F-PROD-16: 개별 URL 다운로드 실패를 조용히 드롭하지 않고 집계해 응답에 표면화.
 		ImageProcessResult downloaded = imageDownloadClient.downloadAndConvertDetailed(imageUrls);
-		List<ImageUploadFile> downloadFiles = downloaded.succeeded();
-		// D-076: 이미지(URL) 수정 — 결과만 기록.
-		try {
-			MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, downloadFiles);
-			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
-				ActionStatus.SUCCESS, buildImageResultMessage(id, "이미지 저장 완료", result, downloaded));
-			return ResponseEntity.ok(ImageUploadResponse.from(result, downloaded, downloadFiles.size()));
-		} catch (Exception e) {
-			actionLogService.record(ActionLogConstants.PRODUCT_IMAGE_UPDATE, null,
-				ActionStatus.FAILED, "이미지 수정 실패 (상품 " + id + "): " + e.getMessage());
-			throw e;
-		}
+		return uploadPreparedImages(id, downloaded,
+			ActionLogConstants.PRODUCT_IMAGE_UPDATE, "이미지 저장 완료", "이미지 수정 실패");
 	}
 
 	@GetMapping("/{id}/images/crawl")
@@ -164,17 +145,15 @@ public class ProductController {
 	Long id) {
 		// D-078: 소스이미지 크롤 활동로그 배선. 마켓 무관(소싱 크롤)이므로 marketType null.
 		// 빈결과(소싱 URL 없음/스크랩 null)도 "왜 비었는지" 사용자에게 보이도록 결과 기록.
+		// F-PROD-19: 크롤 앞단(상품조회→URL 가드→크롤→sourceImages 추출)은 crawlSourceImageUrls로 공유.
 		try {
-			Product product = productSearchUseCase.getProductDetail(id);
-			String sourcingUrl = product.getSourcingUrl();
-			if (sourcingUrl == null || sourcingUrl.isEmpty()) {
+			CrawlResult crawl = crawlSourceImageUrls(id);
+			if (crawl.noSourcingUrl()) {
 				actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
 					ActionStatus.SUCCESS, "소스이미지 없음 — 소싱 URL 미등록 (상품 " + id + ")");
 				return ResponseEntity.ok(List.of());
 			}
-			ScrapedProductDto scraped = productInfoCrawlerPort.crawlProductInfoAsDto(sourcingUrl);
-			List<String> images = (scraped == null || scraped.sourceImages() == null)
-				? List.of() : scraped.sourceImages();
+			List<String> images = crawl.images();
 			actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
 				ActionStatus.SUCCESS,
 				"소스이미지 크롤 " + images.size() + "개 수집 (상품 " + id + ")");
@@ -188,37 +167,87 @@ public class ProductController {
 
 	@PostMapping("/{id}/images/crawl-and-upload")
 	public ResponseEntity<ImageUploadResponse> crawlAndUpload(@PathVariable Long id) {
+		// F-PROD-19: 크롤 앞단은 crawlSourceImageUrls로 공유. F-PROD-20: 뒷단(업로드→집계→응답)은
+		// uploadPreparedImages로 공유. crawl-and-upload 고유 부분(빈 URL/빈 결과 처리)만 여기 남긴다.
+		// 동작 보존: 크롤·다운로드·저장 어느 단계에서 실패하든 SOURCE_IMAGE_CRAWL FAILED 로그를 정확히
+		// 한 번만 남긴다(uploadPreparedImages의 실패 로그와 겹치지 않도록 crawl-and-upload 실패 프리픽스로 위임).
+		String failedMsgPrefix = "소스이미지 크롤·업로드 실패";
+		ImageProcessResult downloaded;
+		int imageCount;
 		try {
-			Product product = productSearchUseCase.getProductDetail(id);
-			String sourcingUrl = product.getSourcingUrl();
-			if (sourcingUrl == null || sourcingUrl.isEmpty()) {
+			CrawlResult crawl = crawlSourceImageUrls(id);
+			if (crawl.noSourcingUrl()) {
 				actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
 					ActionStatus.SUCCESS, "소스이미지 없음 — 소싱 URL 미등록 (상품 " + id + ")");
 				return ResponseEntity.ok(ImageUploadResponse.from(
 					new MarketRepublishResult(List.of(), List.of(), Map.of())));
 			}
-			ScrapedProductDto scraped = productInfoCrawlerPort.crawlProductInfoAsDto(sourcingUrl);
-			List<String> images = (scraped == null || scraped.sourceImages() == null)
-				? List.of() : scraped.sourceImages();
+			List<String> images = crawl.images();
 			if (images.isEmpty()) {
 				actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
 					ActionStatus.SUCCESS, "소스이미지 0개 — 크롤 결과 없음 (상품 " + id + ")");
 				return ResponseEntity.ok(ImageUploadResponse.from(
 					new MarketRepublishResult(List.of(), List.of(), Map.of())));
 			}
+			imageCount = images.size();
 			// F-PROD-16: 개별 URL 다운로드 실패를 조용히 드롭하지 않고 집계해 응답에 표면화.
-			ImageProcessResult downloaded = imageDownloadClient.downloadAndConvertDetailed(images);
-			List<ImageUploadFile> files = downloaded.succeeded();
-			MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, files);
-			actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
-				ActionStatus.SUCCESS,
-				buildImageResultMessage(id, "소스이미지 " + images.size() + "개 크롤·업로드", result, downloaded));
-			return ResponseEntity.ok(ImageUploadResponse.from(result, downloaded, files.size()));
+			downloaded = imageDownloadClient.downloadAndConvertDetailed(images);
 		} catch (Exception e) {
+			// 크롤·다운로드 단계의 예외(개별 URL 실패는 결과에 집계됨, 여기선 던져진 예외만)를 한 번 기록.
 			actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
-				ActionStatus.FAILED, "소스이미지 크롤·업로드 실패 (상품 " + id + "): " + e.getMessage());
+				ActionStatus.FAILED, failedMsgPrefix + " (상품 " + id + "): " + e.getMessage());
 			throw e;
 		}
+		// F-PROD-20: 저장·집계·응답 단계는 3경로 공통 헬퍼로 위임(실패 로그는 헬퍼가 동일 프리픽스로 기록).
+		return uploadPreparedImages(id, downloaded, ActionLogConstants.SOURCE_IMAGE_CRAWL,
+			"소스이미지 " + imageCount + "개 크롤·업로드", failedMsgPrefix);
+	}
+
+	/**
+	 * F-PROD-15·F-PROD-20: 이미지 등록 3경로의 공통 뒷단을 통합한다. 입력 소스(multipart 리사이즈 /
+	 * URL 다운로드 / 크롤 다운로드)만 다를 뿐, 준비된 {@link ImageProcessResult}를 받아
+	 * 저장(updateImagesAndHtml)→응답 조립(부분실패 집계 포함)→활동로그 기록의 흐름은 동일하다.
+	 *
+	 * <p>동작 보존: 성공 시 {@code succeededMsgPrefix}로 마켓·이미지 결과 메시지를 조립해
+	 * {@code logType}으로 SUCCESS 기록하고, 실패 시 {@code failedMsgPrefix}로 FAILED 기록 후 예외를 재던진다.
+	 * 각 경로의 로그 타입·메시지 프리픽스는 호출부가 넘긴 값을 그대로 사용해 기존 로그 계약을 유지한다.
+	 */
+	private ResponseEntity<ImageUploadResponse> uploadPreparedImages(
+		Long id, ImageProcessResult prepared, String logType,
+		String succeededMsgPrefix, String failedMsgPrefix) {
+		List<ImageUploadFile> uploadFiles = prepared.succeeded();
+		// D-076: 이미지/HTML 수정 — 결과만 기록.
+		try {
+			MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, uploadFiles);
+			actionLogService.record(logType, null,
+				ActionStatus.SUCCESS, buildImageResultMessage(id, succeededMsgPrefix, result, prepared));
+			return ResponseEntity.ok(ImageUploadResponse.from(result, prepared, uploadFiles.size()));
+		} catch (Exception e) {
+			actionLogService.record(logType, null,
+				ActionStatus.FAILED, failedMsgPrefix + " (상품 " + id + "): " + e.getMessage());
+			throw e;
+		}
+	}
+
+	/**
+	 * F-PROD-19: 크롤 두 경로(GET /images/crawl, POST /images/crawl-and-upload)의 공통 앞단이다.
+	 * 상품 조회 → 소싱 URL 가드 → 크롤 → sourceImages 추출까지를 담당하고, 소싱 URL 부재와
+	 * 이미지 목록을 {@link CrawlResult}로 구분해 반환한다(각 경로의 빈-결과 로그/응답은 호출부가 처리).
+	 */
+	private CrawlResult crawlSourceImageUrls(Long id) {
+		Product product = productSearchUseCase.getProductDetail(id);
+		String sourcingUrl = product.getSourcingUrl();
+		if (sourcingUrl == null || sourcingUrl.isEmpty()) {
+			return new CrawlResult(true, List.of());
+		}
+		ScrapedProductDto scraped = productInfoCrawlerPort.crawlProductInfoAsDto(sourcingUrl);
+		List<String> images = (scraped == null || scraped.sourceImages() == null)
+			? List.of() : scraped.sourceImages();
+		return new CrawlResult(false, images);
+	}
+
+	/** F-PROD-19: 크롤 앞단 결과 — 소싱 URL 부재 여부와 수집된 소스이미지 URL 목록. */
+	private record CrawlResult(boolean noSourcingUrl, List<String> images) {
 	}
 
 	@PutMapping("/{id}")
