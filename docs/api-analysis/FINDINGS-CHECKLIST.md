@@ -77,7 +77,7 @@
   근거: F-PROD-5·26·29, F-MREG-3, F-CRED-4, F-BATCH-B1, F-PSRC-12, F-ORD-34, F-CAFE(콜백 에러 미처리).
 - [ ] **SP-8 · null-skip 병합으로 필드 "삭제" 불가**
   근거: F-S2, F-ORD-23, F-PROD-13. (반대로 F-CRED-8 은 null도 덮어써 기존값 소실 — 정책 불일치)
-- [ ] **SP-9 · 서비스 계층 없이 컨트롤러가 Repository/Router 직접 조립**
+- [x] **SP-9 · 서비스 계층 없이 컨트롤러가 Repository/Router 직접 조립** — ✅ Supplier·MarketRegistration(D)+ProductSync(P4b)
   트랜잭션·검증·재사용·테스트가 컨트롤러에 결박.
   근거: F-SUP-CS-3·UC-4, F-MREG-6, F-MISC-9.
 - [~] **SP-10 · 인증/접근제어 부재 + `@CrossOrigin("*")` 전역 + 시크릿 평문** — 축소완료(P5b): 시크릿 마스킹+internal/트리거 가드. CORS·preview PII·CAFE 등은 범위 밖
@@ -219,7 +219,7 @@
 - [ ] **F-ORD-1** 조회 응답 도메인 엔티티 노출 · `OrderDetailDto.java:14-23`
 - [ ] **F-ORD-7 / 16 / 24 / 28** 발주확인/취소/수정/유니패스 응답 엔티티 직접 노출 · `OrderController.java:72,116,160,182`
 - [ ] **F-ORD-10 / 19** confirm/cancel-batch 컨트롤러 catch 죽은코드 · `OrderController.java:105-108,149-152`
-- [ ] **F-ORD-18** cancel-batch/confirm-batch 구조 통째 중복 · `OrderService.java:171-195,107-131`
+- [x] **F-ORD-18** bulkOperate 헬퍼로 통합 · ✅ `04062a9`
 - [ ] **F-ORD-21** `OrderUpdateCommand.toCustomsData()` 미사용 죽은코드 · `OrderUpdateCommand.java:14-19`
 - [ ] **F-ORD-32** 정산 상수 0.89 서비스 하드코딩 · `OrderShipService.java:81`
 - [x] **F-ORD-37** 삭제 로그 marketType null(조회로 채울 수 있었음) · `OrderController.java:275` — ✅ `6e320e0`
@@ -262,8 +262,8 @@
 
 ### supplier
 - [ ] **F-SUP-1** 응답 Supplier 엔티티 노출 + LAZY currency 유출 위험 · `SupplierController.java:30`
-- [ ] **F-SUP-CS-3** 등록 로직이 서비스 없이 컨트롤러에 직접 · `SupplierController.java:37-40`
-- [ ] **F-SUP-UC-4** 통화 등록 서비스 부재 + 트랜잭션 경계 없음 · `SupplierController.java:48-53`
+- [x] **F-SUP-CS-3** SupplierService 추출 · ✅ `d81fa42`
+- [x] **F-SUP-UC-4** SupplierService @Transactional · ✅ `d81fa42`
 - [ ] **F-SUP-LC-1** 응답 Currency 엔티티 직접 노출 · `SupplierController.java:44`
 
 ### market-credential
@@ -278,7 +278,7 @@
 
 ### market-registration
 - [ ] **F-MREG-4** 응답 도메인 엔티티(+원시 JSON 식별자) 노출 · `MarketRegistrationController.java:31,38`
-- [ ] **F-MREG-6** 컨트롤러가 Repository·Router·도메인 직접 조립 · `MarketRegistrationController.java:27-67`
+- [x] **F-MREG-6** MarketRegistrationService 추출 · ✅ `d81fa42`
 
 ### misc
 - [ ] **F-MISC-19** 수동 트리거가 스케줄러 우회 → SyncStatus 미기록 · `EmailFetchController.java:33`
