@@ -33,7 +33,7 @@
 | **P1 관측성·오류시맨틱** | SP-6, SP-7 | ✅ 완료 (일부 오탐 확정) | `60b02fe`(SP-7) · `6e320e0`(SP-6) |
 | **P2 상태가드** | SP-4 | ✅ 완료 (정책확정: 데이터 주인 기준) | `dfcf8b3`(order) · `aad006e`(batch) · `6c396f4`(web) |
 | **P3 부분실패 표면화** | SP-3 | ✅ 완료 (order 도메인, 상품은 후속) | `ffdaed3`(order) · `6095f1b`(batch) · `dbfefec`(web) |
-| **P4 비동기·영속상태** | SP-1, SP-2 | 🔄 P4a 완료(sync), P4b·c·d 대기 | `059ed79`(sync) · `4268d71`(ddl-auto) |
+| **P4 비동기·영속상태** | SP-1, SP-2 | ✅ 완료 (a·b·c·d) | `059ed79`·`4268d71`·`bbf0e1c`·`03ea176`·`e58e218` |
 | P5 구조 리팩토링 | SP-9, SP-11 | ⏳ 대기 | — |
 | P5b 보안(최소) | SP-10(축소) | ⏳ 대기 | 시크릿 마스킹+접근제어만 |
 | P6 응답 DTO | SP-5 | ⏳ 대기 | 마지막, 프론트 계약 병행 |
@@ -59,7 +59,7 @@
 - [x] **SP-1 · 비동기 예외 은폐 → 실패가 HTTP 200 성공으로 표면화** — ✅ sync(P4a)·ProductSync(P4b)·batch복구(P4c) 완료
   `@Async`/`new Thread` 로 돌린 작업의 예외가 컨트롤러 try/catch·트랜잭션 밖에서 죽어, 응답은 항상 성공.
   근거: F-SYNC-2(CoupangOrderSyncService.java:54), F-SYNC-23(OrderSyncScheduler.java:52-63), F-MISC-8(ProductSyncController.java:40-53), F-BATCH-2(BatchPriceStockService.java:38-93). → 동기화·크롤·배치 전반의 "성공했는데 실제로는 실패" 근원.
-- [~] **SP-2 · 상태 저장소가 JVM 로컬 인메모리 → 멀티-JVM 상태 UI 무력화** — sync 상태 DB화 완료(P4a); SSE(F-MISC-16) 후속
+- [x] **SP-2 · 상태 저장소가 JVM 로컬 인메모리 → 멀티-JVM 상태 UI 무력화** — ✅ sync DB화(P4a) + SSE cross-JVM 브리지(P4d) 완료
   근거: F-SYNC-1(SyncStatusService.java:15, 조회는 api·갱신은 worker), F-SYNC-25(맵 휘발), F-MISC-16(SSE emitter가 api JVM 로컬), F-BATCH-2(재시작 시 PENDING 영구잔류). → `[[deployment-two-jvm-topology]]` 규율(공유상태는 DB+advisory lock) 위반.
 - [~] **SP-3 · 일괄/부분 처리의 부분실패 은폐 + 결과 미반영** — order 도메인 완료(P3), 상품(F-PSRC/F-PROD) 후속
   실패 라인이 응답·로그에 안 드러나거나 요청↔결과 매핑 불가.

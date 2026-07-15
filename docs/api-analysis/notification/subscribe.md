@@ -1,5 +1,7 @@
 # GET /api/v1/notifications/subscribe — SSE 실시간 알림 구독
 
+> **[P4d 반영 2026-07-15]** F-MISC-16 해결 — worker sync 이벤트를 Postgres LISTEN/NOTIFY로 api SSE에 전달(cross-JVM). 배치 이벤트는 api 로컬이라 무관. (커밋 `e58e218`, 실 왕복은 라이브 검증)
+
 ## 1. 개요
 
 | 항목 | 내용 |
