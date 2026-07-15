@@ -48,6 +48,18 @@ public class SupplierController {
 	@PostMapping("/currencies")
 	public ResponseEntity<Currency> createCurrency(@RequestBody
 	CurrencyRequest request) {
+		// F-SUP-UC-3: 통화 코드 필수 (데이터 오염 예방)
+		if (request.currencyCode() == null || request.currencyCode().isBlank()) {
+			throw new IllegalArgumentException("통화 코드는 필수입니다");
+		}
+		// F-SUP-UC-2: 환율은 양수 필수 (정산/매입원가 오염 예방)
+		if (request.exchangeRate() == null || request.exchangeRate().signum() <= 0) {
+			throw new IllegalArgumentException("환율은 0보다 커야 합니다: " + request.exchangeRate());
+		}
+		// F-SUP-UC-1: 생성 전용 — 이미 존재하면 거부(기존 환율 불변). 환율 변경은 별도 경로.
+		if (currencyRepository.existsById(request.currencyCode())) {
+			throw new IllegalStateException("이미 존재하는 통화입니다: " + request.currencyCode());
+		}
 		Currency currency = new Currency(request.currencyCode(), request.exchangeRate());
 		return ResponseEntity.ok(currencyRepository.save(currency));
 	}
