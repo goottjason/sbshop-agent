@@ -118,7 +118,7 @@
 - [x] **F-ORD-2** · 기간 필터 한쪽 날짜만 오면 조용히 무시 · `OrderRepositoryImpl.java:189-194` · ✅ `aff9814`
 - [x] **F-ORD-5** · 발주확인 실패 로그 marketType null · `OrderController.java:82` — ✅ `4006db3` 단건 실패경로 marketType 채움(id 재조회), bulk는 다마켓 null 유지
 - [x] **F-ORD-6** · 진행/종료분 발주확인 재호출 차단 · ✅ `dfcf8b3`
-- [ ] **F-ORD-8** · 마켓 접수 실패를 RuntimeException으로 뭉갬(유형 소실) · `OrderService.java:81-85`
+- [x] **F-ORD-8** · 마켓 접수 실패를 RuntimeException으로 뭉갬(유형 소실) · `OrderService.java:81-85` — ✅ `cae6059` MarketOrderAcceptException(유형·cause 보존, 500 불변)
 - [x] **F-ORD-9** · 컨트롤러 결과기반 SUCCESS/FAILED 기록 · ✅ `ffdaed3`
 - [x] **F-ORD-13** · 발주취소 NEW-only 가드 · ✅ `dfcf8b3`
 - [x] **F-ORD-15** · 발주취소 실패 로그 marketType null · `OrderController.java:126` — ✅ `4006db3` 동일(단건 취소 실패경로 marketType 채움)
@@ -128,7 +128,7 @@
 - [x] **F-ORD-26** · isUnipassDone null이면 무변경인데 200+성공로그 · `OrderService.java:249-251` · ✅ `aff9814`
 - [x] **F-ORD-29** · 일괄발송 SHIPPED/DELIVERED/END 재발송 스킵 · ✅ `dfcf8b3`
 - [ ] **F-ORD-31** · 발송 단일 트랜잭션 부분성공 후 예외 시 전체 롤백(마켓엔 발송됨) · `OrderShipService.java:30,60-66`
-- [ ] **F-ORD-33** · 발송 orderIds null 시 서비스 NPE · `OrderShipService.java:34`
+- [x] **F-ORD-33** · 발송 orderIds null 시 서비스 NPE · `OrderShipService.java:34` — ✅ `cae6059` 오탐: bulkShipOrders null 가드 기존재(빈 결과 반환), 회귀 테스트 고정
 - [x] **F-ORD-34** · 삭제 엔드포인트 제거로 무효화 · ✅ `dfcf8b3`/`6c396f4`
 - [x] **F-ORD-35** · 삭제 엔드포인트 제거로 무효화 · ✅ `dfcf8b3`/`6c396f4`
 
@@ -150,7 +150,7 @@
 - [x] **F-PROD-12** · imagesFailed로 리사이즈 실패 표면화 · ✅ `fee0baa`
 - [x] **F-PROD-16** · imagesFailed로 다운로드 실패 표면화 · ✅ `fee0baa`
 - [~] **F-PROD-2** · ~~500~~ → **오탐: 실제 400** (valueOf→IllegalArgumentException) · `ProductController.java:78`
-- [ ] **F-PROD-5** · 미존재 id가 404 아닌 500 · `ProductSearchUseCase.java:27`
+- [x] **F-PROD-5** · 미존재 id가 404 아닌 500 · `ProductSearchUseCase.java:27` — ✅ `a517516` ResourceNotFoundException→404(getProductDetail)
 - [ ] **F-PROD-18** · 크롤 이미지 URL 유효성/중복 검증 없음 · `ProductController.java:170-172`
 - [ ] **F-PROD-22** · 크롤 전량 무선별 다운로드(상한 없음) · `ProductController.java:196-204`
 - [x] **F-PROD-23** · 전체수정 금액·수량 음수 검증 전무 · `Product.java:193-244` · ✅ `c41dee3`
@@ -162,8 +162,8 @@
 - [ ] **F-BATCH-A1** · 전체필드 배치만 마켓 재전송 없음 · `BatchPriceStockService.java:151-176`
 - [x] **F-BATCH-A2** · manual-update-all 길이 불일치 → 400 가드 · ✅ `6095f1b`
 - [x] **F-BATCH-B1** · bad-enum 이미 400 + null→400 가드 추가로 완결 · ✅ `aad006e`
-- [ ] **F-BATCH-S2** · 미존재 batchId도 빈 배열+200(404 아님) · `ProcessStatusService.java:63`
-- [ ] **F-BATCH-SM1** · 미존재 batchId와 0% 진행중 동일 응답 · `ProcessStatusService.java:66-72`
+- [x] **F-BATCH-S2** · 미존재 batchId도 빈 배열+200(404 아님) · `ProcessStatusService.java:63` — ✅ `a517516` 빈결과→404(getBatchStatus)
+- [x] **F-BATCH-SM1** · 미존재 batchId와 0% 진행중 동일 응답 · `ProcessStatusService.java:66-72` — ✅ `a517516` total==0→404, 진행중(total>0)은 200 유지
 - [ ] **F-BATCH-ST2** · `/status` 목록에 정렬·시각·상태 없음 · `ProcessStatusService.java:74-81`
 
 ### product-sourcing (F-PSRC)
@@ -193,11 +193,11 @@
 - [ ] **F-CAFE-10** · 콜백이 OAuth state 미수신·미검증(CSRF) · `Cafe24AuthController.java:129-131`
 - [ ] **F-CAFE-11** · 콜백 에러 파라미터(error/error_description) 미처리 · `Cafe24AuthController.java:130`
 - [ ] **F-CAFE-6** · 재인증 동시성 락 부재 → 자동갱신과 경쟁 시 refresh_token 무효화 · `Cafe24TokenManager.java:132-144`
-- [ ] **F-CAFE-2** · /status 모든 실패를 200으로 감싸 HTTP로 오류 구분 불가 · `Cafe24AuthController.java:51-71`
+- [x] **F-CAFE-2** · /status 모든 실패를 200으로 감싸 HTTP로 오류 구분 불가 · `Cafe24AuthController.java:51-71` — ✅ `c5a7ee4` 인증실패는 200 유지, 진짜 인프라오류만 5xx 전파(비파괴)
 
 ### market-registration (F-MREG)
 - [ ] **F-MREG-1** · POST /sync인데 자사 DB 미갱신(읽기전용) — 이름·의미 불일치 · `MarketRegistrationController.java:50-69`
-- [ ] **F-MREG-2** · 미존재 productId도 빈 리스트+200(존재검증 없음) · `MarketRegistrationController.java:33`
+- [x] **F-MREG-2** · 미존재 productId도 빈 리스트+200(존재검증 없음) · `MarketRegistrationController.java:33` — ✅ `a517516` 서비스에 상품 존재검증→404, 등록0건은 200 유지
 - [~] **F-MREG-3** · bad-enum은 **이미 400**(오탐); 404 시맨틱 구분 부재는 잔존 · `MarketRegistrationController.java:43-59`
 - [ ] **F-MREG-5** · vendorItemId 부재 시 productId로 폴백해 마켓 API 오조회 · `MarketRegistrationController.java:61-64`
 - [ ] **F-MREG-7** · ESM(GMARKET/AUCTION) 어댑터 미존재로 sync/local 배제 · `MarketClientRouter.java:19-25`
@@ -205,7 +205,7 @@
 ### misc (F-MISC)
 - [~] **F-MISC-7** · X-Internal-Token 가드(env 옵트인) 추가 · ✅ `97b5b79` (중복실행 가드는 별도)
 - [x] **F-MISC-17** · X-Internal-Token 가드(env 옵트인) · ✅ `97b5b79`
-- [ ] **F-MISC-20** · fetch 응답이 실제 결과 미반영, 항상 ok:true · `EmailFetchController.java:34-38`
+- [x] **F-MISC-20** · fetch 응답이 실제 결과 미반영, 항상 ok:true · `EmailFetchController.java:34-38` — ✅ `bea75d1` executed 필드로 실행/재진입스킵 구별(void→boolean, 내부 엔드포인트)
 - [ ] **F-MISC-12** · SSE emitter 누수(heartbeat 없음+24h 타임아웃) · `SseNotificationController.java:26,69,90`
 - [ ] **F-MISC-13** · SSE 인증·구독자 수 상한 없음 · `SseNotificationController.java:23,29`
 - [ ] **F-MISC-21** · IMAP "최근 200건 제목 contains" 의존 · `EmailFetcherService.java:112,127`
@@ -297,7 +297,7 @@
 - [ ] **F-ORD-3** shippingStatuses 필터가 EXISTS라 주문 단위 부분매칭 · `OrderRepositoryImpl.java:139-150`
 - [x] **F-ORD-4** 조회 API 활동로그 미기록(8개와 비대칭) · `OrderController.java:60-66` — ✅ R2 사용자정책: **조회는 로그 미기록이 의도**(변경만 기록, 로그노이즈·테이블비대 방지). 유지.
 - [x] **F-ORD-11 / 20** confirm/cancel-batch 요청 DTO 없이 Map 직접 바인딩 · `OrderController.java:90-92,134-136` — ✅ `3e5f160` OrderIdsRequest record(계약 동일, 계약테스트)
-- [ ] **F-ORD-12** 일괄 발주확인 부분실패가 200 반환 · `OrderController.java:104`
+- [x] **F-ORD-12** 일괄 발주확인 부분실패가 200 반환 · `OrderController.java:104` — ✅ R1 오탐/유지: 부분실패가 이미 200 body(BulkConfirmResult)로 표면화·프론트 3분기 처리. status 변경은 파괴적이라 유지.
 - [ ] **F-ORD-14** 쿠팡 등은 취소가 마켓에 미전파(로컬 only) · `OrderService.java:144-152`
 - [x] **F-ORD-23** 빈문자열로 이미 클리어됨(오탐) — 회귀테스트 고정 · ✅ `a6d2759`
 - [x] **F-ORD-27** 유니패스 로그 marketType 성공경로도 null · `OrderController.java:192` — ✅ `6e320e0`
@@ -323,12 +323,12 @@
 - [ ] **F-PROD-17** 빈결과/크롤실패 구분(설계 모범 — 유지 권장) · `ProductController.java:161-176`
 - [ ] **F-PROD-21** 소싱없음/0개/업로드완료 동일 액션타입 · `ProductController.java:190-206`
 - [ ] **F-PROD-25** 전체수정이 마켓에 전파 안 됨 · `ProductManageUseCase.java:156-163`
-- [ ] **F-PROD-26 / 29** 전체수정·삭제 미존재 id 500(F-PROD-5 동형) · `ProductManageUseCase.java:159,168`
+- [x] **F-PROD-26 / 29** 전체수정·삭제 미존재 id 500(F-PROD-5 동형) · `ProductManageUseCase.java:159,168` — ✅ `a517516` 4개 사이트 ResourceNotFoundException→404
 
 ### batch
 - [x] **F-BATCH-6** couponRate가 crawl 경로에서 수집만 되고 미사용 · `BatchController.java:56` — ✅ `cfb8fa9` **사용자 판정: 적용 누락 버그**. MarginCalculator에 쿠폰 오버로드 추가, 실매입가=구매가×(1-쿠폰%)로 판매가 산정. ⚠️ 배포 전 확인: 배치 실행 시 판매가 하락(예 22400→19600), 기본 couponRate=20% 전상품 일괄 적용.
 - [x] **F-BATCH-7** 활동로그 STARTED/완료 이원화, marketType null · `BatchController.java:51` — ✅ R2 오탐/유지: 완료(SUCCESS/FAILED)는 BatchCompletedEvent→ActionLogBatchListener가 기록(SP-F에서 해소), marketType=null은 다마켓 배치라 의도.
-- [ ] **F-BATCH-B2** 대상 0건과 진행의 응답 스키마 비대칭 · `BatchController.java:103,119`
+- [x] **F-BATCH-B2** 대상 0건과 진행의 응답 스키마 비대칭 · `BatchController.java:103,119` — ✅ `2df76de` /by-supplier 0건·정상 {batchId,count,message} 통일(비파괴, tsc 통과)
 - [ ] **F-BATCH-S3** `/status/{batchId}` 페이지네이션·필터 없음 · `ProcessStatusService.java:63`
 - [ ] **F-BATCH-SM2** percent가 완료율이지 성공률 아님 · `BatchSummary.java:17`
 - [ ] **F-BATCH-SM3** SUCCESS/FAILED 2쿼리, PENDING은 뺄셈 유도 · `ProcessStatusService.java:68-70`
@@ -364,7 +364,7 @@
 ### misc
 - [ ] **F-MISC-16** SSE emitters가 api JVM 로컬 — worker 이벤트 미도달 · `SseNotificationController.java:21`
 - [x] **F-MISC-10** 응답 메시지 NEW/PREPARING로 정정 · ✅ `bbf0e1c`
-- [ ] **F-MISC-11** sync/stock 응답 ResponseEntity<?>+Map.of 애드혹 · `ProductSyncController.java:34,56`
+- [x] **F-MISC-11** sync/stock 응답 ResponseEntity<?>+Map.of 애드혹 · `ProductSyncController.java:34,56` — ✅ `825ae48` ResponseEntity<Map<String,Object>> 명시화(바디 불변)
 - [ ] **F-MISC-2** action-logs limit 상하한 방어가 서비스에만 · `ActionLogController.java:27`
 - [ ] **F-MISC-3** `@CrossOrigin("*")` 전역 허용(공통) · `ActionLogController.java:20`
 - [ ] **F-MISC-6** common/codes 캐시·Cache-Control 없음 · `CommonCodeController.java:38-42`
