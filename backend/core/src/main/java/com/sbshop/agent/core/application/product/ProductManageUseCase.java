@@ -54,13 +54,9 @@ public class ProductManageUseCase {
 			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
 
 		// 가격만 command로 갱신(수량은 판매중/품절 이분법으로 대체 — DB 수량은 건드리지 않음).
-		ProductUpdateCommand command = new ProductUpdateCommand(
-			null, null, null, null, null,
-			null, null, null, null, price,
-			null, null, null,
-			null, null, null,
-			null, null, null, null, null,
-			null, null, null, null, null);
+		ProductUpdateCommand command = ProductUpdateCommand.builder()
+			.salePrice(price)
+			.build();
 		product.update(command);
 		// F-PROD-7: soldOut=null이면 재고상태 미변경 — 현재 상태를 유지하고 마켓에도 현재 상태를 전파한다.
 		StockStatus stockStatus;
@@ -89,13 +85,10 @@ public class ProductManageUseCase {
 		String newHtml = htmlImageReplacer.replaceImagesBySku(
 			product.getDetailHtml(), product.getSbCode(), hostedImages);
 
-		ProductUpdateCommand command = new ProductUpdateCommand(
-			null, null, null, null, null,
-			null, null, null, null, null,
-			null, null, null,
-			null, null, null,
-			null, null, null, null, null,
-			null, hostedImages, null, newHtml, null);
+		ProductUpdateCommand command = ProductUpdateCommand.builder()
+			.hostedImages(hostedImages)
+			.detailHtml(newHtml)
+			.build();
 		product.update(command);
 		productWriter.save(product);
 

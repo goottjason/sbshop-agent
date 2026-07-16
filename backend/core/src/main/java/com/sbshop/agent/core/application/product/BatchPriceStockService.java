@@ -66,13 +66,12 @@ public class BatchPriceStockService {
 				BigDecimal salePrice = marginCalculator.calculateSalePrice(buyPrice, bundleQty, marginRate,
 					minMarginPrice);
 
-				ProductUpdateCommand command = new ProductUpdateCommand(
-					null, null, null, null, null,
-					buyPrice, null, null, marginRate, salePrice,
-					result.stock(), null, null,
-					null, null, null,
-					null, null, null, null, null,
-					null, null, null, null, null);
+				ProductUpdateCommand command = ProductUpdateCommand.builder()
+					.costPrice(buyPrice)
+					.marginRate(marginRate)
+					.salePrice(salePrice)
+					.stock(result.stock())
+					.build();
 				product.update(command);
 				product.updateStockStatus(result.status());
 				product.updateRestockDate(result.restockDate());
@@ -124,13 +123,9 @@ public class BatchPriceStockService {
 					continue;
 				}
 
-				ProductUpdateCommand command = new ProductUpdateCommand(
-					null, null, null, null, null,
-					null, null, null, null, price,
-					null, null, null,
-					null, null, null,
-					null, null, null, null, null,
-					null, null, null, null, null);
+				ProductUpdateCommand command = ProductUpdateCommand.builder()
+					.salePrice(price)
+					.build();
 				product.update(command);
 				product.updateStockStatus(newStatus);
 				productWriter.save(product);
