@@ -1,11 +1,13 @@
 package com.sbshop.agent.core.application.market;
 
+import com.sbshop.agent.core.domain.common.exception.ResourceNotFoundException;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.product.component.ProductReader;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,8 +22,11 @@ public class MarketRegistrationService {
 
 	private final MarketRegistrationRepository marketRegistrationRepository;
 	private final MarketClientRouter marketClientRouter;
+	private final ProductReader productReader;
 
 	public List<MarketRegistration> getRegistrations(Long productId) {
+		productReader.findById(productId)
+			.orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다: " + productId));
 		return marketRegistrationRepository.findByProductId(productId);
 	}
 

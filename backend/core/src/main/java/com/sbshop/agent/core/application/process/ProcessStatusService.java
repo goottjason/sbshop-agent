@@ -60,12 +60,25 @@ public class ProcessStatusService {
 
 	@Transactional(readOnly = true)
 	public List<ProcessStatus> getBatchStatus(String batchId) {
-		return processStatusRepository.findByBatchIdOrderByStartedAtDesc(batchId);
+		// 배치는 startBatch가 상품별로 최소 1행을 심으므로 행이 하나도 없으면 미존재 batchId다(F-BATCH-S2).
+		// 빈 배열+200으로 응답하면 미존재를 정상 조회처럼 감추므로 404로 매핑되도록 던진다.
+		List<ProcessStatus> statuses = processStatusRepository.findByBatchIdOrderByStartedAtDesc(batchId);
+		if (statuses.isEmpty()) {
+			throw new com.sbshop.agent.core.domain.common.exception.ResourceNotFoundException(
+				"배치를 찾을 수 없습니다: " + batchId);
+		}
+		return statuses;
 	}
 
 	@Transactional(readOnly = true)
 	public BatchSummary getBatchSummary(String batchId) {
 		long total = processStatusRepository.countByBatchId(batchId);
+		// total==0 = 미존재 batchId(정상 배치는 최소 1행). "0% 진행중"과 구분되도록 404로 던진다(F-BATCH-SM1).
+		// 진행 중 배치는 total>0이므로 여기서 걸리지 않고 아래 진행률 응답(200)을 그대로 반환한다 — 폴링 유지 보증.
+		if (total == 0) {
+			throw new com.sbshop.agent.core.domain.common.exception.ResourceNotFoundException(
+				"배치를 찾을 수 없습니다: " + batchId);
+		}
 		long success = processStatusRepository.countByBatchIdAndProcessStatus(batchId, ProcessStatusType.SUCCESS);
 		long failed = processStatusRepository.countByBatchIdAndProcessStatus(batchId, ProcessStatusType.FAILED);
 		return BatchSummary.of(batchId, total, success, failed);

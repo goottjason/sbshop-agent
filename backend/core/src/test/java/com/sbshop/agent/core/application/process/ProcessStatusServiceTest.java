@@ -1,10 +1,12 @@
 package com.sbshop.agent.core.application.process;
 
+import com.sbshop.agent.core.domain.common.exception.ResourceNotFoundException;
 import com.sbshop.agent.core.domain.process.ProcessStatus;
 import com.sbshop.agent.core.domain.process.enums.JobType;
 import com.sbshop.agent.core.domain.process.enums.ProcessStatusType;
 import com.sbshop.agent.core.domain.process.repository.ProcessStatusRepository;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import java.util.List;
@@ -50,6 +52,17 @@ class ProcessStatusServiceTest {
 	}
 
 	@Test
+	@DisplayName("getBatchStatus는 미존재 batchId(행 없음)면 ResourceNotFoundException을 던진다(F-BATCH-S2, 404)")
+	void getBatchStatus_unknownBatchId_throwsNotFound() {
+		when(repository.findByBatchIdOrderByStartedAtDesc("nope"))
+			.thenReturn(List.of());
+
+		assertThatThrownBy(() -> service.getBatchStatus("nope"))
+			.isInstanceOf(ResourceNotFoundException.class)
+			.hasMessageContaining("nope");
+	}
+
+	@Test
 	@DisplayName("getBatchSummary는 total/success/failed count로 done/pending/percent를 산출한다")
 	void getBatchSummary_computesAggregate() {
 		when(repository.countByBatchId("b-10")).thenReturn(10L);
@@ -68,16 +81,28 @@ class ProcessStatusServiceTest {
 	}
 
 	@Test
-	@DisplayName("getBatchSummary는 total=0이면 percent 0(0 나눗셈 방지)")
-	void getBatchSummary_zeroTotal_percentZero() {
+	@DisplayName("getBatchSummary는 미존재 batchId(total=0)면 ResourceNotFoundException을 던진다(F-BATCH-SM1, 404)")
+	void getBatchSummary_zeroTotal_throwsNotFound() {
 		when(repository.countByBatchId("empty")).thenReturn(0L);
-		when(repository.countByBatchIdAndProcessStatus("empty", ProcessStatusType.SUCCESS)).thenReturn(0L);
-		when(repository.countByBatchIdAndProcessStatus("empty", ProcessStatusType.FAILED)).thenReturn(0L);
 
-		var summary = service.getBatchSummary("empty");
+		assertThatThrownBy(() -> service.getBatchSummary("empty"))
+			.isInstanceOf(ResourceNotFoundException.class)
+			.hasMessageContaining("empty");
+	}
 
+	@Test
+	@DisplayName("getBatchSummary는 진행중 배치(total>0, 0% 진행)면 404가 아니라 percent 0인 200 응답을 유지한다(폴링 유지 보증)")
+	void getBatchSummary_inProgressZeroPercent_returns200() {
+		when(repository.countByBatchId("running")).thenReturn(5L);
+		when(repository.countByBatchIdAndProcessStatus("running", ProcessStatusType.SUCCESS)).thenReturn(0L);
+		when(repository.countByBatchIdAndProcessStatus("running", ProcessStatusType.FAILED)).thenReturn(0L);
+
+		var summary = service.getBatchSummary("running");
+
+		assertThat(summary.total()).isEqualTo(5L);
 		assertThat(summary.percent()).isEqualTo(0);
 		assertThat(summary.done()).isEqualTo(0L);
+		assertThat(summary.pending()).isEqualTo(5L);
 	}
 
 	@Test

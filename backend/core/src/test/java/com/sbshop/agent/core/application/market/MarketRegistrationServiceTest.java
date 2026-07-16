@@ -9,8 +9,11 @@ import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
+import com.sbshop.agent.core.domain.common.exception.ResourceNotFoundException;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.product.Product;
+import com.sbshop.agent.core.domain.product.component.ProductReader;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -28,18 +31,40 @@ class MarketRegistrationServiceTest {
 
 	@Mock private MarketRegistrationRepository marketRegistrationRepository;
 	@Mock private MarketClientRouter marketClientRouter;
+	@Mock private ProductReader productReader;
 
 	private MarketRegistrationService service() {
-		return new MarketRegistrationService(marketRegistrationRepository, marketClientRouter);
+		return new MarketRegistrationService(
+			marketRegistrationRepository, marketClientRouter, productReader);
 	}
 
 	@Test
-	@DisplayName("등록현황 목록 → 레포 findByProductId 결과 그대로 반환")
+	@DisplayName("등록현황 목록 → 상품 존재 시 레포 findByProductId 결과 그대로 반환")
 	void getRegistrations_returnsRepositoryResult() {
+		when(productReader.findById(1L)).thenReturn(Optional.of(mock(Product.class)));
 		MarketRegistration reg = mock(MarketRegistration.class);
 		when(marketRegistrationRepository.findByProductId(1L)).thenReturn(List.of(reg));
 
 		assertThat(service().getRegistrations(1L)).containsExactly(reg);
+	}
+
+	@Test
+	@DisplayName("등록현황 목록 → 상품은 있고 등록 0건이면 빈 리스트 반환(정상)")
+	void getRegistrations_productExistsButNoRegistrations_returnsEmpty() {
+		when(productReader.findById(1L)).thenReturn(Optional.of(mock(Product.class)));
+		when(marketRegistrationRepository.findByProductId(1L)).thenReturn(List.of());
+
+		assertThat(service().getRegistrations(1L)).isEmpty();
+	}
+
+	@Test
+	@DisplayName("등록현황 목록 → 상품 미존재면 ResourceNotFoundException(404)")
+	void getRegistrations_productNotFound_throws() {
+		when(productReader.findById(999L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service().getRegistrations(999L))
+			.isInstanceOf(ResourceNotFoundException.class)
+			.hasMessageContaining("999");
 	}
 
 	@Test

@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.product;
 
+import com.sbshop.agent.core.domain.common.exception.ResourceNotFoundException;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
@@ -24,6 +25,6 @@ public class ProductSearchUseCase {
 
 	public Product getProductDetail(Long id) {
 		return productReader.findById(id)
-			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + id));
+			.orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다: " + id));
 	}
 }

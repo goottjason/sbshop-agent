@@ -2,6 +2,7 @@ package com.sbshop.agent.core.application.product;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sbshop.agent.core.domain.common.exception.ResourceNotFoundException;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
@@ -51,7 +52,7 @@ public class ProductManageUseCase {
 	@Transactional
 	public MarketRepublishResult updatePriceStock(Long productId, BigDecimal price, Boolean soldOut) {
 		Product product = productReader.findById(productId)
-			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
+			.orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다: " + productId));
 
 		// 가격만 command로 갱신(수량은 판매중/품절 이분법으로 대체 — DB 수량은 건드리지 않음).
 		ProductUpdateCommand command = ProductUpdateCommand.builder()
@@ -77,7 +78,7 @@ public class ProductManageUseCase {
 	@Transactional
 	public MarketRepublishResult updateImagesAndHtml(Long productId, List<ImageUploadFile> imageFiles) {
 		Product product = productReader.findById(productId)
-			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
+			.orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다: " + productId));
 
 		Map<String, String> uploadedUrlMap = imageStorageClient.uploadImages(imageFiles);
 		List<String> hostedImages = new ArrayList<>(uploadedUrlMap.values());
@@ -163,7 +164,7 @@ public class ProductManageUseCase {
 	@Transactional
 	public void updateProduct(Long productId, ProductUpdateCommand command) {
 		Product product = productReader.findById(productId)
-			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
+			.orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다: " + productId));
 		product.update(command);
 		productWriter.save(product);
 		log.info("상품 전체 업데이트 완료: id={}", productId);
@@ -172,7 +173,7 @@ public class ProductManageUseCase {
 	@Transactional
 	public void deleteProduct(Long productId) {
 		Product product = productReader.findById(productId)
-			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
+			.orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다: " + productId));
 		productWriter.delete(product);
 		log.info("상품 삭제 완료: id={}", productId);
 	}
