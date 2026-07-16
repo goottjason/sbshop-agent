@@ -1,5 +1,6 @@
 package com.sbshop.agent.api.exception;
 
+import com.sbshop.agent.core.domain.common.exception.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +22,15 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.badRequest().body(Map.of(
 			"success", false,
 			"message", "잘못된 값입니다: " + e.getName() + "=" + e.getValue()));
+	}
+
+	// R1/F-PROD-5 등: 미존재 리소스는 400/500이 아닌 404. 입력오류(IllegalArgument→400)와 구분.
+	@ExceptionHandler(ResourceNotFoundException.class)
+	public ResponseEntity<Map<String, Object>> handleNotFound(ResourceNotFoundException e) {
+		log.warn("리소스 없음: {}", e.getMessage());
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+			"success", false,
+			"message", e.getMessage()));
 	}
 
 	@ExceptionHandler(IllegalStateException.class)
