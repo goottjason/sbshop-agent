@@ -11,6 +11,27 @@ public class MarginCalculator {
 	private static final BigDecimal DELIVERY_FEE_THRESHOLD = new BigDecimal("40000");
 	private static final BigDecimal DELIVERY_FEE = new BigDecimal("6000");
 
+	/**
+	 * 쿠폰 할인을 반영한 판매가 계산(F-BATCH-6).
+	 *
+	 * <p>{@code couponRate}(%)만큼 구매가를 낮춘 <b>실매입가</b>로 판매가를 산정한다. 예) 구매가 10000·쿠폰 20%
+	 * → 실매입가 8000으로 계산 → 그만큼 더 저렴하게 판매 가능. couponRate가 null·0 이하면 할인을 적용하지
+	 * 않아 {@link #calculateSalePrice(BigDecimal, int, BigDecimal, BigDecimal)}와 동일하다.
+	 */
+	public BigDecimal calculateSalePrice(BigDecimal buyPrice, int bundleQty,
+		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice) {
+		return calculateSalePrice(applyCoupon(buyPrice, couponRate), bundleQty, marginRate, minMarginPrice);
+	}
+
+	private BigDecimal applyCoupon(BigDecimal buyPrice, BigDecimal couponRate) {
+		if (couponRate == null || couponRate.signum() <= 0) {
+			return buyPrice;
+		}
+		BigDecimal factor = BigDecimal.ONE.subtract(
+			couponRate.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP));
+		return buyPrice.multiply(factor);
+	}
+
 	public BigDecimal calculateSalePrice(BigDecimal buyPrice, int bundleQty,
 		BigDecimal marginRate, BigDecimal minMarginPrice) {
 		BigDecimal totalBuyPrice = buyPrice.multiply(BigDecimal.valueOf(bundleQty));

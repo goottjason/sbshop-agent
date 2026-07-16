@@ -52,4 +52,30 @@ class MarginCalculatorTest {
 			new BigDecimal("33000"), 1, new BigDecimal("15"), null);
 		assertThat(salePrice.remainder(new BigDecimal("100"))).isEqualByComparingTo("0");
 	}
+
+	@Test
+	@DisplayName("쿠폰율을 적용하면 구매가가 낮아진 실매입가로 판매가를 산정한다 (F-BATCH-6)")
+	void calculateSalePrice_withCoupon_lowersEffectiveBuyPrice() {
+		// 구매가 10000, 쿠폰 20% → 실매입가 8000. 마진 10%, 최소마진 3500.
+		BigDecimal withCoupon = calculator.calculateSalePrice(
+			new BigDecimal("10000"), 1, new BigDecimal("10"), new BigDecimal("20"), new BigDecimal("3500"));
+		// 쿠폰 적용 경로 = 실매입가 8000으로 기존 계산한 것과 동일해야 한다.
+		BigDecimal manual = calculator.calculateSalePrice(
+			new BigDecimal("8000"), 1, new BigDecimal("10"), new BigDecimal("3500"));
+		assertThat(withCoupon).isEqualByComparingTo(manual);
+		assertThat(withCoupon).isEqualByComparingTo("19600");
+	}
+
+	@Test
+	@DisplayName("쿠폰율이 0이거나 null이면 판매가가 변하지 않는다 (하위호환)")
+	void calculateSalePrice_zeroCoupon_unchanged() {
+		BigDecimal base = calculator.calculateSalePrice(
+			new BigDecimal("10000"), 1, new BigDecimal("10"), new BigDecimal("3500"));
+		assertThat(calculator.calculateSalePrice(
+			new BigDecimal("10000"), 1, new BigDecimal("10"), BigDecimal.ZERO, new BigDecimal("3500")))
+			.isEqualByComparingTo(base);
+		assertThat(calculator.calculateSalePrice(
+			new BigDecimal("10000"), 1, new BigDecimal("10"), null, new BigDecimal("3500")))
+			.isEqualByComparingTo(base);
+	}
 }

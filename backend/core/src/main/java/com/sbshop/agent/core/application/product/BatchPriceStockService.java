@@ -63,8 +63,9 @@ public class BatchPriceStockService {
 				int bundleQty = product.getLogisticsInfo() != null
 					&& product.getLogisticsInfo().getBundleQuantity() != null
 						? product.getLogisticsInfo().getBundleQuantity() : 1;
+				// F-BATCH-6: 쿠폰율을 실매입가에 반영(구매가 × (1-쿠폰%))한 뒤 판매가를 산정한다.
 				BigDecimal salePrice = marginCalculator.calculateSalePrice(buyPrice, bundleQty, marginRate,
-					minMarginPrice);
+					couponRate, minMarginPrice);
 
 				ProductUpdateCommand command = ProductUpdateCommand.builder()
 					.costPrice(buyPrice)
