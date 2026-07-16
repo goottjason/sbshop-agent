@@ -23,6 +23,12 @@ public class ProductSearchUseCase {
 		return productReader.findByMarketRegistration(marketType, registered, pageable);
 	}
 
+	// F-PROD-1: 마켓 필터와 키워드가 둘 다 지정되면 마켓 필터 AND 키워드 검색을 함께 적용한다.
+	public Page<Product> searchByMarketAndKeyword(
+		MarketType marketType, boolean registered, String keyword, Pageable pageable) {
+		return productReader.findByMarketRegistrationAndKeyword(marketType, registered, keyword, pageable);
+	}
+
 	public Product getProductDetail(Long id) {
 		return productReader.findById(id)
 			.orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다: " + id));

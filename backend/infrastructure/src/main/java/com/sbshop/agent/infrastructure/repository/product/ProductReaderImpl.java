@@ -44,6 +44,15 @@ public class ProductReaderImpl implements ProductReader {
 	}
 
 	@Override
+	public Page<Product> findByMarketRegistrationAndKeyword(
+		MarketType marketType, boolean registered, String keyword, Pageable pageable) {
+		if (registered) {
+			return productRepository.findRegisteredByMarketAndKeyword(marketType, keyword, pageable);
+		}
+		return productRepository.findUnregisteredByMarketAndKeyword(marketType, keyword, pageable);
+	}
+
+	@Override
 	public List<Product> findAllByIds(List<Long> ids) {
 		return productRepository.findAllByIdIn(ids);
 	}

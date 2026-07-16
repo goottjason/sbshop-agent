@@ -46,4 +46,24 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 		"(SELECT r.productId FROM MarketRegistration r WHERE r.marketType = :marketType)")
 	Page<Product> findRegisteredByMarket(@Param("marketType")
 	MarketType marketType, Pageable pageable);
+
+	// F-PROD-1: 마켓 미등록 필터 AND 키워드 검색 결합(둘 다 지정 시 keyword가 무시되던 버그 수정).
+	@Query("SELECT p FROM Product p WHERE p.id NOT IN " +
+		"(SELECT r.productId FROM MarketRegistration r WHERE r.marketType = :marketType) AND (" +
+		"LOWER(p.productName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+		"LOWER(p.sbCode) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+		"LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+	Page<Product> findUnregisteredByMarketAndKeyword(@Param("marketType")
+	MarketType marketType, @Param("keyword")
+	String keyword, Pageable pageable);
+
+	// F-PROD-1: 마켓 등록 필터 AND 키워드 검색 결합.
+	@Query("SELECT p FROM Product p WHERE p.id IN " +
+		"(SELECT r.productId FROM MarketRegistration r WHERE r.marketType = :marketType) AND (" +
+		"LOWER(p.productName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+		"LOWER(p.sbCode) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+		"LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+	Page<Product> findRegisteredByMarketAndKeyword(@Param("marketType")
+	MarketType marketType, @Param("keyword")
+	String keyword, Pageable pageable);
 }

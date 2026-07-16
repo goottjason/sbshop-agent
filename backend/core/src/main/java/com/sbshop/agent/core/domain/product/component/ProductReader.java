@@ -16,6 +16,10 @@ public interface ProductReader {
 
 	Page<Product> findByMarketRegistration(MarketType marketType, boolean registered, Pageable pageable);
 
+	// F-PROD-1: 마켓 등록/미등록 필터 AND 키워드 검색 결합.
+	Page<Product> findByMarketRegistrationAndKeyword(
+		MarketType marketType, boolean registered, String keyword, Pageable pageable);
+
 	List<Product> findAllByIds(List<Long> ids);
 
 	String getNextSbCodeSequence(String prefix);

@@ -56,6 +56,10 @@ import org.springframework.web.multipart.MultipartFile;
 @CrossOrigin(origins = "*")
 public class ProductController {
 
+	// F-PROD-22: 크롤로 수집한 소스이미지 다운로드 개수 상한. 소스 페이지가 제공하는 이미지는
+	// 사용자 입력이 아니라 제어 불가하므로, 전량 거부(사용자 작업 좌절) 대신 상한 초과분을 절단하고 로그를 남긴다.
+	static final int MAX_CRAWL_IMAGES = 30;
+
 	private final ProductSearchUseCase productSearchUseCase;
 	private final ProductManageUseCase productManageUseCase;
 	private final ImageDownloadClient imageDownloadClient;
@@ -73,11 +77,15 @@ public class ProductController {
 		@PageableDefault(size = 50)
 		Pageable pageable) {
 		Page<Product> products;
+		boolean hasKeyword = keyword != null && !keyword.isBlank();
 		if (marketFilter != null && !marketFilter.isBlank()) {
 			boolean registered = !marketFilter.startsWith("!");
 			String marketName = registered ? marketFilter : marketFilter.substring(1);
 			MarketType marketType = MarketType.valueOf(marketName.toUpperCase());
-			products = productSearchUseCase.searchByMarket(marketType, registered, pageable);
+			// F-PROD-1: 마켓 필터와 키워드가 둘 다 오면 배타 처리(keyword 무시) 대신 AND로 결합한다.
+			products = hasKeyword
+				? productSearchUseCase.searchByMarketAndKeyword(marketType, registered, keyword, pageable)
+				: productSearchUseCase.searchByMarket(marketType, registered, pageable);
 		} else {
 			products = productSearchUseCase.searchProducts(keyword, pageable);
 		}
@@ -250,9 +258,34 @@ public class ProductController {
 			return new CrawlResult(true, List.of());
 		}
 		ScrapedProductDto scraped = productInfoCrawlerPort.crawlProductInfoAsDto(sourcingUrl);
-		List<String> images = (scraped == null || scraped.sourceImages() == null)
+		List<String> rawImages = (scraped == null || scraped.sourceImages() == null)
 			? List.of() : scraped.sourceImages();
-		return new CrawlResult(false, images);
+		return new CrawlResult(false, sanitizeCrawledImageUrls(id, rawImages));
+	}
+
+	/**
+	 * F-PROD-18: 크롤된 소스이미지 URL을 정제한다 — http(s) 형식만 통과시키고(잘못된/빈/null URL 제거),
+	 * 중복은 순서를 보존하며 제거한다. F-PROD-22: 정제 후 개수가 {@link #MAX_CRAWL_IMAGES}를 넘으면
+	 * 상한까지 절단하고 절단 사실을 로그로 남긴다(소스 페이지 이미지는 제어 불가 → 거부 대신 절단).
+	 */
+	private List<String> sanitizeCrawledImageUrls(Long id, List<String> rawImages) {
+		java.util.LinkedHashSet<String> valid = new java.util.LinkedHashSet<>();
+		for (String url : rawImages) {
+			if (url == null) {
+				continue;
+			}
+			String trimmed = url.trim();
+			if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+				valid.add(trimmed);
+			}
+		}
+		List<String> result = new ArrayList<>(valid);
+		if (result.size() > MAX_CRAWL_IMAGES) {
+			log.warn("소스이미지 크롤 개수 상한({}) 초과 — {}개 중 {}개로 절단 (상품 {})",
+				MAX_CRAWL_IMAGES, result.size(), MAX_CRAWL_IMAGES, id);
+			return new ArrayList<>(result.subList(0, MAX_CRAWL_IMAGES));
+		}
+		return result;
 	}
 
 	/** F-PROD-19: 크롤 앞단 결과 — 소싱 URL 부재 여부와 수집된 소스이미지 URL 목록. */
