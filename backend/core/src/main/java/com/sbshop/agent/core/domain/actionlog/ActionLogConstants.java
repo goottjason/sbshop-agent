@@ -77,6 +77,12 @@ public final class ActionLogConstants {
 	/** 소싱업체별 배치 (B4) */
 	public static final String BATCH_BY_SUPPLIER = "BATCH_BY_SUPPLIER";
 
+	// ── 공급사/통화(SupplierController) ──────────────────────────────
+	/** 공급사 신규 등록 (F-SUP-3) */
+	public static final String SUPPLIER_CREATE = "SUPPLIER_CREATE";
+	/** 통화(환율) 신규 등록 (F-SUP-UC-5) */
+	public static final String CURRENCY_CREATE = "CURRENCY_CREATE";
+
 	// ── 자격증명/인증 ───────────────────────────────────────────────
 	/** 마켓 API 키 저장 (MC1) */
 	public static final String CREDENTIAL_SAVE = "CREDENTIAL_SAVE";

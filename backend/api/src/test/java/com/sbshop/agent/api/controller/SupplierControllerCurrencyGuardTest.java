@@ -29,9 +29,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class SupplierControllerCurrencyGuardTest {
 
 	@Mock private SupplierService supplierService;
+	@Mock private com.sbshop.agent.core.application.actionlog.ActionLogService actionLogService;
 
 	private SupplierController controller() {
-		return new SupplierController(supplierService);
+		return new SupplierController(supplierService, actionLogService);
 	}
 
 	@Test
