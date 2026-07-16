@@ -237,6 +237,9 @@ public class OrderController {
 		@RequestBody
 		SourcingUpdateRequest request) {
 
+		// R6/F-S4: 소싱 금액 필드 음수 검증 부재 → 진입부에서 400으로 거부.
+		// 음수 금액이 마켓/정산 데이터로 전파되지 않도록 차단한다(F-PROD-8/23·F-PSRC-11 signum()<0 패턴).
+		validateSourcingAmounts(request);
 		// D-076/SP-6: 소싱(구매) 정보 수정 — 성공 시 라인아이템 마켓을 해석해 기록(F-S6).
 		try {
 			OrderLineItem updated = orderService.updateSourcingInfo(lineItemId, request.toCommand());
@@ -247,6 +250,22 @@ public class OrderController {
 			actionLogService.record(ActionLogConstants.PURCHASE_UPDATE, null,
 				ActionStatus.FAILED, "구매정보 수정 실패 (품목 " + lineItemId + "): " + e.getMessage());
 			throw e;
+		}
+	}
+
+	/**
+	 * R6/F-S4: 소싱(구매) 수정 요청의 금액 필드가 음수가 아닌지 검증한다.
+	 * null(미변경)·0(무상 소싱/무물류비)은 정상값으로 통과시켜 과잉거부하지 않는다.
+	 * 음수는 잘못된 입력이므로 {@link IllegalArgumentException}으로 던져 400으로 매핑한다.
+	 */
+	private void validateSourcingAmounts(SourcingUpdateRequest request) {
+		requireNonNegative("소싱금액(sourcingAmount)", request.getSourcingAmount());
+		requireNonNegative("물류비(logisticsCost)", request.getLogisticsCost());
+	}
+
+	private void requireNonNegative(String label, java.math.BigDecimal value) {
+		if (value != null && value.signum() < 0) {
+			throw new IllegalArgumentException(label + "는 0 이상이어야 합니다: " + value);
 		}
 	}
 
