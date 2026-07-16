@@ -98,8 +98,14 @@ public class CoupangOrderSyncService {
 	@Async("syncTaskExecutor")
 	@Transactional
 	public void syncCoupangSettlement() {
-		// F-SYNC-2: 정산 동기화도 자기 상태를 async 스레드 안에서 기록.
-		syncStatusService.markRunning(com.sbshop.agent.core.application.sync.SyncMarketKeys.COUPANG_SETTLEMENT);
+		// F-SYNC-17: 교차 JVM(워커 스케줄러 + api 수동) 중복 실행 가드. DB 원자 클레임으로 스킵 판정.
+		//   이미 RUNNING이면 tryMarkRunning이 false → 로그 후 return(스킵). in-JVM AtomicBoolean은 교차
+		//   JVM을 못 막으므로 사용하지 않는다. 클레임 성공 시에만 진행하고, 해제는 markCompleted/markFailed.
+		if (!syncStatusService.tryMarkRunning(
+			com.sbshop.agent.core.application.sync.SyncMarketKeys.COUPANG_SETTLEMENT)) {
+			log.warn("[COUPANG] 정산 동기화 중복 실행 방지 — 이미 RUNNING 상태이므로 스킵");
+			return;
+		}
 		try {
 			// 1. 크레덴셜 로드
 			MarketCredential credential = loadAndValidateCredential();
