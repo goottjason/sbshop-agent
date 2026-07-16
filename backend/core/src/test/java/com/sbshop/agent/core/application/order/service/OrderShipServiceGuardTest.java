@@ -31,8 +31,9 @@ import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 
 /**
- * SP-4 / F-ORD-29: 일괄 발송은 진입 상태 가드가 있어야 한다.
- * 이미 발송(SHIPPED)·배송완료(DELIVERED)·종료 상태의 라인아이템은 재발송하지 않는다(스킵).
+ * SP-4 / F-ORD-29: 발송 진입 상태 가드 — 이미 발송(SHIPPED)·배송완료(DELIVERED)·종료 상태의
+ * 라인아이템은 재발송하지 않는다(스킵). F-ORD-31로 주문 1건 발송 로직이 {@link OrderShipProcessor}로
+ * 이동했으므로 가드 검증도 여기서 수행한다(로직 불변).
  */
 @ExtendWith(MockitoExtension.class)
 class OrderShipServiceGuardTest {
@@ -43,8 +44,8 @@ class OrderShipServiceGuardTest {
 	@Mock private MarketplaceShippingService marketplaceShippingService;
 	@Mock private MarketOrderPort port;
 
-	private OrderShipService service() {
-		return new OrderShipService(orderRepository, credentialRepository,
+	private OrderShipProcessor processor() {
+		return new OrderShipProcessor(orderRepository, credentialRepository,
 			orderLineItemRepository, marketplaceShippingService);
 	}
 
@@ -72,7 +73,7 @@ class OrderShipServiceGuardTest {
 		// getPort를 실 mock에 연결해 그 호출을 관측 가능하게 한다(가드가 있으면 애초에 getPort조차 안 탄다).
 		lenient().when(marketplaceShippingService.getPort(MarketType.COUPANG)).thenReturn(port);
 
-		service().bulkShipOrders(List.of(1L));
+		processor().shipSingleOrder(1L);
 
 		verify(port, never()).shipOrder(any(), any(), any(), anyString(), any());
 	}
@@ -88,7 +89,7 @@ class OrderShipServiceGuardTest {
 		when(orderLineItemRepository.findByOrderId(2L)).thenReturn(List.of(item));
 		when(marketplaceShippingService.getPort(MarketType.COUPANG)).thenReturn(port);
 
-		service().bulkShipOrders(List.of(2L));
+		processor().shipSingleOrder(2L);
 
 		verify(port).shipOrder(same(cred), same(order), same(item), eq("TRK-1"), eq(ShippingCarrier.CJ_LOGISTICS));
 	}

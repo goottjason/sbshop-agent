@@ -16,7 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.sbshop.agent.core.application.order.dto.BulkShipResult;
+import com.sbshop.agent.core.application.order.dto.OrderShipOutcome;
 import com.sbshop.agent.core.application.order.port.MarketOrderPort;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
@@ -30,8 +30,8 @@ import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 
 /**
- * F-ORD-30 / SP-3: 일괄 발송이 마켓 shipOrder 실패를 삼키지 않고 부분실패를 표면화해야 한다.
- * bulkShipOrders는 {@link BulkShipResult}로 성공/실패/스킵을 집계해 반환한다.
+ * F-ORD-30 / SP-3: 주문 1건 발송이 마켓 shipOrder 실패를 삼키지 않고 결과({@link OrderShipOutcome})로
+ * 표면화해야 한다. F-ORD-31로 이 로직이 {@link OrderShipProcessor}로 이동했으므로 여기서 검증한다(로직 불변).
  */
 @ExtendWith(MockitoExtension.class)
 class OrderShipServiceResultTest {
@@ -42,8 +42,8 @@ class OrderShipServiceResultTest {
 	@Mock private MarketplaceShippingService marketplaceShippingService;
 	@Mock private MarketOrderPort port;
 
-	private OrderShipService service() {
-		return new OrderShipService(orderRepository, credentialRepository,
+	private OrderShipProcessor processor() {
+		return new OrderShipProcessor(orderRepository, credentialRepository,
 			orderLineItemRepository, marketplaceShippingService);
 	}
 
@@ -69,46 +69,37 @@ class OrderShipServiceResultTest {
 	}
 
 	@Test
-	@DisplayName("일부 주문 발송 성공, 일부 실패: successCount/failedCount/failedIds/errors가 정확히 집계된다")
-	void partialFailure_isAggregated() {
+	@DisplayName("마켓 전송 실패 시 FAILED 결과로 표면화되고 사유가 담긴다")
+	void marketFailure_returnsFailedOutcome() {
 		when(orderRepository.findById(1L)).thenReturn(Optional.of(order(1L)));
-		when(orderRepository.findById(2L)).thenReturn(Optional.of(order(2L)));
 		stubCoupang();
 		when(orderLineItemRepository.findByOrderId(1L)).thenReturn(List.of(shippableItem()));
-		when(orderLineItemRepository.findByOrderId(2L)).thenReturn(List.of(shippableItem()));
 		when(marketplaceShippingService.getPort(MarketType.COUPANG)).thenReturn(port);
-		// 주문 2의 마켓 전송만 실패시킨다 — 주문 1은 성공.
 		doThrow(new RuntimeException("마켓 전송 거부"))
 			.when(port).shipOrder(any(), any(), any(), anyString(), any());
-		// 주문 1은 성공하도록: 첫 호출 성공, 두 번째 예외 — 순서 대신 orderId로 분기하기 어려우니
-		// 두 주문 모두 실패시키되 실패 집계를 검증한다.
 
-		BulkShipResult result = service().bulkShipOrders(List.of(1L, 2L));
+		OrderShipOutcome outcome = processor().shipSingleOrder(1L);
 
-		assertThat(result.getFailedCount()).isEqualTo(2);
-		assertThat(result.getSuccessCount()).isEqualTo(0);
-		assertThat(result.getFailedIds()).containsExactlyInAnyOrder(1L, 2L);
-		assertThat(result.getErrors()).isNotEmpty();
+		assertThat(outcome.isFailed()).isTrue();
+		assertThat(outcome.getErrorMessage()).contains("마켓 전송 거부");
 	}
 
 	@Test
-	@DisplayName("전 주문 발송 성공: successCount만 오르고 failedCount=0")
-	void allSuccess_noFailures() {
+	@DisplayName("발송 성공 시 SHIPPED 결과를 반환한다")
+	void success_returnsShippedOutcome() {
 		when(orderRepository.findById(1L)).thenReturn(Optional.of(order(1L)));
 		stubCoupang();
 		when(orderLineItemRepository.findByOrderId(1L)).thenReturn(List.of(shippableItem()));
 		when(marketplaceShippingService.getPort(MarketType.COUPANG)).thenReturn(port);
 
-		BulkShipResult result = service().bulkShipOrders(List.of(1L));
+		OrderShipOutcome outcome = processor().shipSingleOrder(1L);
 
-		assertThat(result.getSuccessCount()).isEqualTo(1);
-		assertThat(result.getFailedCount()).isEqualTo(0);
-		assertThat(result.getFailedIds()).isEmpty();
+		assertThat(outcome.isShipped()).isTrue();
 	}
 
 	@Test
-	@DisplayName("이미 발송/송장없음 등 정상 스킵은 skippedCount로 집계되고 실패로 세지 않는다")
-	void skippedLines_countedSeparately() {
+	@DisplayName("이미 발송/송장없음 등 정상 스킵은 SKIPPED 결과로 반환한다(실패 아님)")
+	void skippedLines_returnSkippedOutcome() {
 		Order order = order(3L);
 		when(orderRepository.findById(3L)).thenReturn(Optional.of(order));
 		stubCoupang();
@@ -123,10 +114,19 @@ class OrderShipServiceResultTest {
 		when(orderLineItemRepository.findByOrderId(3L)).thenReturn(List.of(already));
 		lenient().when(marketplaceShippingService.getPort(MarketType.COUPANG)).thenReturn(port);
 
-		BulkShipResult result = service().bulkShipOrders(List.of(3L));
+		OrderShipOutcome outcome = processor().shipSingleOrder(3L);
 
-		assertThat(result.getSuccessCount()).isEqualTo(0);
-		assertThat(result.getFailedCount()).isEqualTo(0);
-		assertThat(result.getSkippedCount()).isEqualTo(1);
+		assertThat(outcome.isSkipped()).isTrue();
+	}
+
+	@Test
+	@DisplayName("주문 없음은 FAILED로 표면화된다(F-ORD-30)")
+	void orderNotFound_returnsFailedOutcome() {
+		when(orderRepository.findById(9L)).thenReturn(Optional.empty());
+
+		OrderShipOutcome outcome = processor().shipSingleOrder(9L);
+
+		assertThat(outcome.isFailed()).isTrue();
+		assertThat(outcome.getErrorMessage()).contains("주문 없음");
 	}
 }
