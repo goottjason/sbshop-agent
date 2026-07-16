@@ -114,6 +114,37 @@ class OrderServiceStateGuardTest {
 
 			assertThat(result.getSourcingData().getDiscountCode()).isEmpty();
 		}
+
+		/** PREPARING 라인아이템에 유효한 주문번호로 소싱수정 → PURCHASED 전이 + 소싱데이터 반영 (F-S3 특성 고정). */
+		@Test
+		@DisplayName("PREPARING 소싱수정(주문번호 있음) → PURCHASED 전이 + 소싱데이터 반영 + 저장")
+		void preparingItem_sourcingUpdateWithOrderNo_becomesPurchased() {
+			OrderLineItem item = itemWithStatus(ShippingStatus.PREPARING);
+			when(orderLineItemRepository.findById(4L)).thenReturn(Optional.of(item));
+			when(orderLineItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+			OrderLineItem result = service().updateSourcingInfo(4L,
+				SourcingUpdateCommand.builder().sourcingOrderNo("ORD-99").sourcingVendor("V1").build());
+
+			assertThat(result.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.PURCHASED);
+			assertThat(result.getSourcingData().getSourcingOrderNo()).isEqualTo("ORD-99");
+			verify(orderLineItemRepository).save(item);
+		}
+
+		/** PREPARING인데 주문번호가 없으면 차단하고 저장하지 않는다 (F-S3 특성 고정 — 분기별 차이 보존). */
+		@Test
+		@DisplayName("PREPARING 소싱수정(주문번호 없음) → 차단(IllegalStateException), 저장 없음")
+		void preparingItem_sourcingUpdateWithoutOrderNo_blocked() {
+			OrderLineItem item = itemWithStatus(ShippingStatus.PREPARING);
+			when(orderLineItemRepository.findById(5L)).thenReturn(Optional.of(item));
+
+			assertThatThrownBy(() -> service().updateSourcingInfo(5L,
+				SourcingUpdateCommand.builder().sourcingVendor("V1").build()))
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("주문번호");
+
+			verify(orderLineItemRepository, never()).save(any());
+		}
 	}
 
 	// ==================== 2-4. 발주취소 NEW-only (F-ORD-13) ====================

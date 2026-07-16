@@ -285,22 +285,25 @@ public class OrderService {
 			throw new IllegalStateException("발주확인 전에는 구매 정보를 수정할 수 없습니다.");
 		}
 
-		// PREPARING이면 구매 처리 (PREPARING -> PURCHASED)
-		if (currentStatus == ShippingStatus.PREPARING) {
-			if (command.getSourcingOrderNo() == null || command.getSourcingOrderNo().isEmpty()) {
-				throw new IllegalStateException("구매정보 수정 시 주문번호는 필수입니다.");
-			}
-			item.applySourcingData(command.toSourcingData(item.getSourcingData()));
-			item.markAsPurchased();
-			orderLineItemRepository.save(item);
+		// PREPARING이면 구매 처리 (PREPARING -> PURCHASED). 주문번호 가드는 소싱데이터 반영 전에 검증한다.
+		boolean isPurchaseTransition = currentStatus == ShippingStatus.PREPARING;
+		if (isPurchaseTransition
+			&& (command.getSourcingOrderNo() == null || command.getSourcingOrderNo().isEmpty())) {
+			throw new IllegalStateException("구매정보 수정 시 주문번호는 필수입니다.");
+		}
 
+		// 공통: 소싱데이터 반영 → (전이 시에만 PURCHASED 마킹) → 저장
+		item.applySourcingData(command.toSourcingData(item.getSourcingData()));
+		if (isPurchaseTransition) {
+			item.markAsPurchased();
+		}
+		orderLineItemRepository.save(item);
+
+		if (isPurchaseTransition) {
 			log.info("라인아이템 {} PURCHASED로 변경 (vendor: {}, orderNo: {})",
 				lineItemId, command.getSourcingVendor(), command.getSourcingOrderNo());
 		} else {
 			// PURCHASED 이후면 단순 정보 수정
-			item.applySourcingData(command.toSourcingData(item.getSourcingData()));
-			orderLineItemRepository.save(item);
-
 			log.info("라인아이템 {} 구매 정보 수정 완료", lineItemId);
 		}
 
@@ -336,36 +339,32 @@ public class OrderService {
 			throw new IllegalStateException("발주확인 또는 구매완료 전에는 배송 정보를 수정할 수 없습니다.");
 		}
 
-		// PURCHASED면 배송 처리 (PURCHASED -> SHIPPED)
-		if (currentStatus == ShippingStatus.PURCHASED) {
-			// PURCHASED→SHIPPED 최초 전이에는 송장번호가 필수 — 없으면 송장 없이 SHIPPED로 넘어가는 것을 차단(F-H4).
-			// (소싱의 sourcingOrderNo 가드와 대칭. SHIPPED 이후 단순수정은 아래 else 분기로 기존대로 허용.)
-			if (command.getTrackingNo() == null || command.getTrackingNo().isBlank()) {
-				throw new IllegalStateException("배송 처리 시 송장번호는 필수입니다.");
-			}
-			item.applyShippingData(command.toShippingData(item.getShippingData()));
+		// PURCHASED면 배송 처리 (PURCHASED -> SHIPPED), SHIPPED 이후면 송장 수정.
+		boolean isShipTransition = currentStatus == ShippingStatus.PURCHASED;
+
+		// PURCHASED→SHIPPED 최초 전이에는 송장번호가 필수 — 없으면 송장 없이 SHIPPED로 넘어가는 것을 차단(F-H4).
+		// (소싱의 sourcingOrderNo 가드와 대칭. SHIPPED 이후 단순수정은 이 가드 없이 기존대로 허용.)
+		if (isShipTransition && (command.getTrackingNo() == null || command.getTrackingNo().isBlank())) {
+			throw new IllegalStateException("배송 처리 시 송장번호는 필수입니다.");
+		}
+
+		// 공통: 송장데이터 반영 → (전이 시에만 SHIPPED 마킹) → 저장
+		item.applyShippingData(command.toShippingData(item.getShippingData()));
+		if (isShipTransition) {
 			item.markAsShipped();
-			orderLineItemRepository.save(item);
+		}
+		orderLineItemRepository.save(item);
 
-			// 마켓플레이스에 송장 전송 — 반영 실패 시 자사 저장을 롤백해 DB/마켓 정합을 유지(@Transactional),
-			// 스킵(전송 대상 아님)은 로컬 편집 유지, 성공 시에만 전송완료 마킹.
-			MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, invoiceAlreadyExists);
-			failIfNotSent(item, sendResult);
-			markSentIfSucceeded(item, sendResult, lineItemId);
+		// 마켓플레이스에 송장 전송/업데이트 — 반영 실패 시 자사 저장을 롤백해 DB/마켓 정합을 유지(@Transactional),
+		// 스킵(전송 대상 아님)은 로컬 편집 유지, 성공 시에만 전송완료 마킹.
+		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, invoiceAlreadyExists);
+		failIfNotSent(item, sendResult);
+		markSentIfSucceeded(item, sendResult, lineItemId);
 
+		if (isShipTransition) {
 			log.info("라인아이템 {} 배송 처리: tracking={}, carrier={}", lineItemId, command.getTrackingNo(),
 				command.getShippingCarrier());
 		} else {
-			// SHIPPED 이후면 송장 수정
-			item.applyShippingData(command.toShippingData(item.getShippingData()));
-			orderLineItemRepository.save(item);
-
-			// 마켓플레이스에 송장 업데이트 — 반영 실패 시 자사 저장을 롤백해 DB/마켓 정합을 유지(@Transactional),
-			// 스킵(전송 대상 아님)은 로컬 편집 유지, 성공 시에만 전송완료 마킹.
-			MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, invoiceAlreadyExists);
-			failIfNotSent(item, sendResult);
-			markSentIfSucceeded(item, sendResult, lineItemId);
-
 			log.info("라인아이템 {} 송장번호 업데이트: tracking={}, carrier={}", lineItemId,
 				command.getTrackingNo(), command.getShippingCarrier());
 		}
