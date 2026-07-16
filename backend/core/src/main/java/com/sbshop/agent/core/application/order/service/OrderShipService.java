@@ -6,6 +6,7 @@ import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.domain.order.SettlementPolicy;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
@@ -133,7 +134,7 @@ public class OrderShipService {
 	static void calculateSettlement(OrderLineItem item) {
 		if (item.getSettlementData() != null && item.getSettlementData().getSettlementAmount() != null) {
 			BigDecimal currentSettlement = item.getSettlementData().getSettlementAmount();
-			BigDecimal settlementAmount = currentSettlement.multiply(new BigDecimal("0.89"));
+			BigDecimal settlementAmount = currentSettlement.multiply(SettlementPolicy.SETTLEMENT_FEE_RATE);
 			item.applySettlement(settlementAmount);
 		}
 	}

@@ -10,6 +10,7 @@ import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.domain.order.SettlementPolicy;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
@@ -217,7 +218,7 @@ public class Cafe24OrderSyncService {
 		BigDecimal itemAmount = decimal(firstNonBlank(text(item, "payment_amount"), text(item, "product_price")));
 		int qty = item.path("quantity").asInt(1);
 		BigDecimal total = itemAmount != null ? itemAmount.multiply(BigDecimal.valueOf(qty)) : null;
-		BigDecimal settlement = total != null ? total.multiply(new BigDecimal("0.89")) : null;
+		BigDecimal settlement = total != null ? total.multiply(SettlementPolicy.SETTLEMENT_FEE_RATE) : null;
 
 		return OrderLineItem.builder()
 			.orderId(orderId)

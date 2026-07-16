@@ -6,6 +6,7 @@ import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.domain.order.SettlementPolicy;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -274,7 +275,7 @@ public class CoupangOrderSyncService {
 		Long productId = resolveProductId(dto);
 		// 2. 정산액 초기값 (totalAmount × 0.89 = 수수료 11% 차감)
 		BigDecimal settlementAmount = dto.getTotalAmount() != null
-			? dto.getTotalAmount().multiply(new BigDecimal("0.89"))
+			? dto.getTotalAmount().multiply(SettlementPolicy.SETTLEMENT_FEE_RATE)
 			: dto.getTotalAmount();
 
 		return OrderLineItem.builder()
