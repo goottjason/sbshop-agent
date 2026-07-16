@@ -5,6 +5,7 @@ import com.sbshop.agent.core.application.order.service.SmartStoreOrderSyncServic
 import com.sbshop.agent.core.application.order.service.CoupangOrderSyncService;
 import com.sbshop.agent.core.application.order.service.ElevenstOrderSyncService;
 import com.sbshop.agent.core.application.order.service.CustomsOrderSyncService;
+import com.sbshop.agent.core.application.sync.SyncMarketKeys;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,8 +18,9 @@ import org.springframework.stereotype.Component;
 public class OrderSyncScheduler {
 
 	// EMAIL은 sync 서비스가 아니라 스케줄러가 직접 EmailFetcherService를 호출하므로 여기서 상태를 기록한다.
+	// 수동 트리거(EmailFetchController)도 동일 키(SyncMarketKeys.EMAIL)를 써 상태 계약을 일관되게 유지한다(F-MISC-19).
 	// 나머지 마켓 상태 기록은 각 sync 서비스가 자기 async 스레드 안에서 직접 수행한다(F-SYNC-2).
-	private static final String EMAIL = "EMAIL";
+	private static final String EMAIL = SyncMarketKeys.EMAIL;
 
 	private final EmailFetcherService emailFetcherService;
 	private final SmartStoreOrderSyncService smartStoreOrderSyncService;

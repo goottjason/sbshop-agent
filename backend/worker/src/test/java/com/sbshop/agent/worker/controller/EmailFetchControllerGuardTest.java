@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.config.InternalAccessGuard;
 import com.sbshop.agent.worker.service.EmailFetcherService;
 
@@ -26,8 +27,12 @@ class EmailFetchControllerGuardTest {
 	@Mock
 	EmailFetcherService emailFetcherService;
 
+	@Mock
+	SyncStatusService syncStatusService;
+
 	private EmailFetchController controller(String configuredToken) {
-		return new EmailFetchController(emailFetcherService, new InternalAccessGuard(configuredToken));
+		return new EmailFetchController(emailFetcherService,
+			new InternalAccessGuard(configuredToken), syncStatusService);
 	}
 
 	@Test

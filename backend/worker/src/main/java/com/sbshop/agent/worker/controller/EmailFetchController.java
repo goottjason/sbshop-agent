@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.sbshop.agent.core.application.sync.SyncMarketKeys;
+import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.config.InternalAccessGuard;
 import com.sbshop.agent.worker.service.EmailFetcherService;
 
@@ -29,6 +31,9 @@ public class EmailFetchController {
 	private final EmailFetcherService emailFetcherService;
 	// F-MISC-17: 공유시크릿 헤더 가드. INTERNAL_API_TOKEN 미설정 시 비활성(무파손).
 	private final InternalAccessGuard internalAccessGuard;
+	// F-MISC-19: 수동 경로도 스케줄러(OrderSyncScheduler.syncOrders)와 동일 키(SyncMarketKeys.EMAIL)로
+	// SyncStatus를 기록해 /orders/sync/status 계약을 일관되게 유지한다.
+	private final SyncStatusService syncStatusService;
 
 	/** iHerb 이메일 수집·송장 대조/배송 처리를 즉시 1회 실행 */
 	@PostMapping("/fetch")
@@ -41,10 +46,14 @@ public class EmailFetchController {
 				.body(Map.of("ok", false, "message", "forbidden: invalid internal token"));
 		}
 		log.info("[내부트리거] 이메일 수집·처리 수동 실행 요청");
+		// F-MISC-19: 스케줄러 경로와 동일하게 markRunning→markCompleted/markFailed로 상태 기록.
+		syncStatusService.markRunning(SyncMarketKeys.EMAIL);
 		try {
 			emailFetcherService.fetchAndProcessEmails();
+			syncStatusService.markCompleted(SyncMarketKeys.EMAIL);
 			return ResponseEntity.ok(Map.of("ok", true, "message", "email fetch triggered"));
 		} catch (Exception e) {
+			syncStatusService.markFailed(SyncMarketKeys.EMAIL, e.getMessage());
 			log.error("[내부트리거] 이메일 수집·처리 실패: {}", e.getMessage(), e);
 			return ResponseEntity.internalServerError()
 				.body(Map.of("ok", false, "error", String.valueOf(e.getMessage())));
