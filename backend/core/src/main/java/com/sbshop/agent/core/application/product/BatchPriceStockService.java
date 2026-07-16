@@ -35,6 +35,12 @@ public class BatchPriceStockService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final ProductMarketSyncService productMarketSyncService;
 
+	/**
+	 * 크롤 기반 배치에서 상품 간 딜레이(ms). 외부 소싱 사이트 rate-limit 완화용.
+	 * 수동(manual) 경로는 외부 크롤이 없어 이 완충이 없다(의도된 비대칭, F-BATCH-M2).
+	 */
+	private static final long CRAWL_THROTTLE_MS = 500L;
+
 	@Async("productBatchExecutor")
 	public void crawlAndUpdatePriceStock(String batchId, List<Long> productIds,
 		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice, String actionType) {
@@ -80,7 +86,7 @@ public class BatchPriceStockService {
 						product.getSbCode(), salePrice, result.stock(), sync.synced().size(), sync.skipped().size(),
 						sync.failed().size(),
 						sync.failed().isEmpty() ? "" : " (" + sync.failed().keySet() + ")"));
-				Thread.sleep(500);
+				Thread.sleep(CRAWL_THROTTLE_MS);
 			} catch (Exception e) {
 				log.error("배치 업데이트 실패: productId={}", productId, e);
 				processStatusService.markFailed(batchId, String.valueOf(productId), e.getMessage());

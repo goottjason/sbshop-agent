@@ -13,6 +13,11 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class CustomsOrderSyncService {
 
+	/** GSI Express 벌크 검증 1회 요청당 주문 수(F-SYNC-21). */
+	private static final int VERIFICATION_BATCH_SIZE = 30;
+	/** 배치 간 딜레이(ms) — 외부 사이트 부하 완화(트랜잭션 밖, F-SYNC-21). */
+	private static final long BATCH_DELAY_MS = 1000L;
+
 	private final OrderRepository orderRepository;
 	private final com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 	private final CustomsBatchProcessor customsBatchProcessor;
@@ -59,7 +64,7 @@ public class CustomsOrderSyncService {
 			// 2. GSI Express 사이트를 통한 벌크 검증 (30개씩 끊어서 요청)
 			//    각 배치는 CustomsBatchProcessor의 @Transactional 메서드에서 독립 커밋되며,
 			//    이 루프(오케스트레이션) 자체는 트랜잭션 밖이라 sleep이 트랜잭션을 물지 않는다.
-			int batchSize = 30;
+			int batchSize = VERIFICATION_BATCH_SIZE;
 			for (int i = 0; i < targetOrders.size(); i += batchSize) {
 				int end = Math.min(i + batchSize, targetOrders.size());
 				List<Order> batch = targetOrders.subList(i, end);
@@ -69,7 +74,7 @@ public class CustomsOrderSyncService {
 
 				// 배치 사이에 약간의 딜레이를 주어 서버에 무리가 가지 않도록 함 (트랜잭션 밖)
 				try {
-					Thread.sleep(1000);
+					Thread.sleep(BATCH_DELAY_MS);
 				} catch (InterruptedException e) {
 					Thread.currentThread().interrupt();
 					log.warn("통관 동기화 배치 스레드 중단됨");
