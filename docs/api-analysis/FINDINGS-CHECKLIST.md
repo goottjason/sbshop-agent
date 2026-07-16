@@ -151,8 +151,8 @@
 - [x] **F-PROD-16** · imagesFailed로 다운로드 실패 표면화 · ✅ `fee0baa`
 - [~] **F-PROD-2** · ~~500~~ → **오탐: 실제 400** (valueOf→IllegalArgumentException) · `ProductController.java:78`
 - [x] **F-PROD-5** · 미존재 id가 404 아닌 500 · `ProductSearchUseCase.java:27` — ✅ `a517516` ResourceNotFoundException→404(getProductDetail)
-- [ ] **F-PROD-18** · 크롤 이미지 URL 유효성/중복 검증 없음 · `ProductController.java:170-172`
-- [ ] **F-PROD-22** · 크롤 전량 무선별 다운로드(상한 없음) · `ProductController.java:196-204`
+- [x] **F-PROD-18** · 크롤 이미지 URL 유효성/중복 검증 없음 · `ProductController.java:170-172` — ✅ `fe4d630` http(s) 형식검증+순서보존 중복제거
+- [x] **F-PROD-22** · 크롤 전량 무선별 다운로드(상한 없음) · `ProductController.java:196-204` — ✅ `fe4d630` MAX 30 절단+log.warn
 - [x] **F-PROD-23** · 전체수정 금액·수량 음수 검증 전무 · `Product.java:193-244` · ✅ `c41dee3`
 - [ ] **F-PROD-28** · 확인/멱등성 없는 하드딜리트 · `ProductWriterImpl.java:27-28`
 
@@ -164,7 +164,7 @@
 - [x] **F-BATCH-B1** · bad-enum 이미 400 + null→400 가드 추가로 완결 · ✅ `aad006e`
 - [x] **F-BATCH-S2** · 미존재 batchId도 빈 배열+200(404 아님) · `ProcessStatusService.java:63` — ✅ `a517516` 빈결과→404(getBatchStatus)
 - [x] **F-BATCH-SM1** · 미존재 batchId와 0% 진행중 동일 응답 · `ProcessStatusService.java:66-72` — ✅ `a517516` total==0→404, 진행중(total>0)은 200 유지
-- [ ] **F-BATCH-ST2** · `/status` 목록에 정렬·시각·상태 없음 · `ProcessStatusService.java:74-81`
+- [x] **F-BATCH-ST2** · `/status` 목록에 정렬·시각·상태 없음 · `ProcessStatusService.java:74-81` — ✅ `dffe900` 최신순 정렬(R1 기구현) 회귀고정. 목록형태는 프론트 소비처0라 미확장.
 
 ### product-sourcing (F-PSRC)
 - [x] **F-PSRC-1** · urls==null 시 STARTED 로그만 남기고 NPE · `ProductSourcingController.java:42,46` · ✅ `3970dd1`
@@ -238,7 +238,7 @@
 - [x] **F-SYNC-24** SyncStatusResponse DTO · ✅ `54087b6`
 
 ### product
-- [ ] **F-PROD-1** marketFilter·keyword 배타, keyword 무시 · `ProductController.java:75-82`
+- [x] **F-PROD-1** marketFilter·keyword 배타, keyword 무시 · `ProductController.java:75-82` — ✅ `fe4d630` AND 결합(리포지토리 결합쿼리)
 - [x] **F-PROD-6** 중첩 record DTO 래핑 · ✅ `5ff8890`
 - [x] **F-PROD-10 / 14** price-stock·images가 26필드 커맨드 1~2칸만 채움(위치기반 오배치 위험) · `ProductManageUseCase.java:49-84` — ✅ `3241cfc` ProductUpdateCommand @Builder 도입, 4개 호출부(ProductManage 2·BatchPriceStock 2) 명시매핑 전환
 - [x] **F-PROD-15** uploadPreparedImages 헬퍼로 통합 · ✅ `5549f67`
@@ -286,7 +286,7 @@
 - [x] **F-MISC-9** 대상선정을 서비스로 이동(P4b 동반) · ✅ `bbf0e1c`
 - [ ] **F-MISC-14** SSE push 실패=remove뿐, 재전송/Last-Event-ID 없음 · `SseNotificationController.java:69,90`
 - [x] **F-MISC-15** SSE 두 리스너 브로드캐스트 로직 중복 · `SseNotificationController.java:55-92` — ✅ `257e6a6` broadcast 헬퍼 추출(동작 불변)
-- [ ] **F-MISC-1** action-logs 페이징 없이 PageRequest를 limit 상한으로만 · `ActionLogService.java:47`
+- [x] **F-MISC-1** action-logs 페이징 없이 PageRequest를 limit 상한으로만 · `ActionLogService.java:47` — ✅ `3b749dc` recentLogs(page,size) 오프셋 페이징(응답 평면배열 유지, 비파괴)
 - [x] **F-MISC-5** EnumMapperValue 가변 클래스(record 아님) · `EnumMapperValue.java:7-8` — ✅ R5-B1 record 전환(JSON 출력 동일)
 
 ---
@@ -294,7 +294,7 @@
 ## 🔵 P3 — NOTE (의도 확인 필요 / 개선 여지)
 
 ### order
-- [ ] **F-ORD-3** shippingStatuses 필터가 EXISTS라 주문 단위 부분매칭 · `OrderRepositoryImpl.java:139-150`
+- [x] **F-ORD-3** shippingStatuses 필터가 EXISTS라 주문 단위 부분매칭 · `OrderRepositoryImpl.java:139-150` — ✅ R6 오탐/유지: 배송상태는 라인아이템 속성, EXISTS는 fan-out·카운트왜곡 없이 "해당상태 라인 있는 주문" 매칭. 변경 시 혼합상태 주문 누락(운영사고). 프론트 rowSpan 렌더와 정합. 유지.
 - [x] **F-ORD-4** 조회 API 활동로그 미기록(8개와 비대칭) · `OrderController.java:60-66` — ✅ R2 사용자정책: **조회는 로그 미기록이 의도**(변경만 기록, 로그노이즈·테이블비대 방지). 유지.
 - [x] **F-ORD-11 / 20** confirm/cancel-batch 요청 DTO 없이 Map 직접 바인딩 · `OrderController.java:90-92,134-136` — ✅ `3e5f160` OrderIdsRequest record(계약 동일, 계약테스트)
 - [x] **F-ORD-12** 일괄 발주확인 부분실패가 200 반환 · `OrderController.java:104` — ✅ R1 오탐/유지: 부분실패가 이미 200 body(BulkConfirmResult)로 표면화·프론트 3분기 처리. status 변경은 파괴적이라 유지.
@@ -303,7 +303,7 @@
 - [x] **F-ORD-27** 유니패스 로그 marketType 성공경로도 null · `OrderController.java:192` — ✅ `6e320e0`
 - [x] **F-ORD-36** 삭제 엔드포인트 제거로 무효화 · ✅ `dfcf8b3`
 - [x] **F-S2** · 정책확정: 빈문자열로 클리어 가능(이미 동작) — 회귀테스트 추가 · ✅ `dfcf8b3`
-- [ ] **F-S4** 소싱 금액 필드 검증 부재 · (SourcingUpdateRequest)
+- [x] **F-S4** 소싱 금액 필드 검증 부재 · (SourcingUpdateRequest) — ✅ `68a0920` sourcingAmount·logisticsCost 음수 거부(0 허용·null 통과)
 - [x] **F-S6** 소싱 활동로그 marketType null — ✅ `6e320e0`
 - [~] **F-H6** marketType null은 해결(`6e320e0`); 응답 엔티티 노출(SP-5)은 P6 잔존 · `OrderController.java:225,234`
 
@@ -329,14 +329,14 @@
 - [x] **F-BATCH-6** couponRate가 crawl 경로에서 수집만 되고 미사용 · `BatchController.java:56` — ✅ `cfb8fa9` **사용자 판정: 적용 누락 버그**. MarginCalculator에 쿠폰 오버로드 추가, 실매입가=구매가×(1-쿠폰%)로 판매가 산정. ⚠️ 배포 전 확인: 배치 실행 시 판매가 하락(예 22400→19600), 기본 couponRate=20% 전상품 일괄 적용.
 - [x] **F-BATCH-7** 활동로그 STARTED/완료 이원화, marketType null · `BatchController.java:51` — ✅ R2 오탐/유지: 완료(SUCCESS/FAILED)는 BatchCompletedEvent→ActionLogBatchListener가 기록(SP-F에서 해소), marketType=null은 다마켓 배치라 의도.
 - [x] **F-BATCH-B2** 대상 0건과 진행의 응답 스키마 비대칭 · `BatchController.java:103,119` — ✅ `2df76de` /by-supplier 0건·정상 {batchId,count,message} 통일(비파괴, tsc 통과)
-- [ ] **F-BATCH-S3** `/status/{batchId}` 페이지네이션·필터 없음 · `ProcessStatusService.java:63`
+- [x] **F-BATCH-S3** `/status/{batchId}` 페이지네이션·필터 없음 · `ProcessStatusService.java:63` — ✅ `dffe900` 선택적 status 필터 추가(비파괴). offset 페이징은 프론트 평면배열 소비라 보류.
 - [ ] **F-BATCH-SM2** percent가 완료율이지 성공률 아님 · `BatchSummary.java:17`
 - [ ] **F-BATCH-SM3** SUCCESS/FAILED 2쿼리, PENDING은 뺄셈 유도 · `ProcessStatusService.java:68-70`
 - [ ] **F-BATCH-ST3** status 조회 3종 계약·미존재 처리 제각각 · `BatchController.java:122-138`
 
 ### product-sourcing
 - [ ] **F-PSRC-4** ProductInfoCrawlerPort가 iHerb 단일 구현 종속 · `IherbScraperClient.java:263`
-- [ ] **F-PSRC-5** iHerb 입력 검증 전무(URL 형식·개수·중복) · `ProductSourcingController.java`
+- [x] **F-PSRC-5** iHerb 입력 검증 전무(URL 형식·개수·중복) · `ProductSourcingController.java` — ✅ `81630a6` 도메인+상품경로 정규식·MAX 100·중복제거
 - [x] **F-PSRC-11** bulk 입력 검증 부재(금액 음수·빈 목록·상한) · `ProductSaveRequest.java` · ✅ `3970dd1`
 - [ ] **F-PSRC-16** identifiers JSON 직렬화 실패를 "{}"로 삼켜 식별자 유실 · `ProductPublishUseCase.java:80-86`(F-PSRC-14로 위치 이동) — 🟠 **R5 범위 밖(행위)**: `toJson`이 직렬화 예외를 "{}"로 삼킴. Map<String,String> 직렬화는 사실상 실패 불가(거의 도달불가 방어코드)라 순수 구조 아님. R2(관측성)에서 로그화 검토.
 - [x] **F-PSRC-17** MarketRegistration의 productId·sbProductId에 동일 값 주입 · `MarketRegistrationTxService.savePending:39-40` — ✅ **사용자 판정: 유지**. 두 칸 모두 내부 상품번호(Long)이고 주문 동기화의 상품 역조회가 정상 동작(오탐/무해한 중복). 스키마 변경 불필요.
@@ -346,8 +346,8 @@
 - [ ] **F-SUP-CS-4** createSupplier 트랜잭션 경계 없음 · `SupplierController.java:34`
 - [x] **F-SUP-CS-5** createSupplier 엔티티 노출 + 로그 미기록 · `SupplierController.java:35` — ✅ `ec3c802` 로그 기록(SUPPLIER_CREATE). 엔티티노출은 SupplierResponse DTO(F-SUP-1)로 기해결.
 - [x] **F-SUP-UC-5** createCurrency 엔티티 노출 + 환율변경 로그 미기록 · `SupplierController.java:49` — ✅ `ec3c802` 환율변경 로그 기록(CURRENCY_CREATE). 엔티티노출은 CurrencyResponse DTO로 기해결.
-- [ ] **F-SUP-4** 공급사 목록 정렬·페이징 부재 · `SupplierController.java:31`
-- [ ] **F-SUP-LC-2** 통화 목록 정렬 부재 · `SupplierController.java:45`
+- [x] **F-SUP-4** 공급사 목록 정렬·페이징 부재 · `SupplierController.java:31` — ✅ `c4c253d` supplierCode 정렬(페이징은 소량 마스터라 보류)
+- [x] **F-SUP-LC-2** 통화 목록 정렬 부재 · `SupplierController.java:45` — ✅ `c4c253d` currencyCode 정렬
 - [ ] **F-SUP-LC-3** Currency 소프트삭제/삭제 API 부재 · `Currency.java:16`
 
 ### market-credential
@@ -365,7 +365,7 @@
 - [ ] **F-MISC-16** SSE emitters가 api JVM 로컬 — worker 이벤트 미도달 · `SseNotificationController.java:21`
 - [x] **F-MISC-10** 응답 메시지 NEW/PREPARING로 정정 · ✅ `bbf0e1c`
 - [x] **F-MISC-11** sync/stock 응답 ResponseEntity<?>+Map.of 애드혹 · `ProductSyncController.java:34,56` — ✅ `825ae48` ResponseEntity<Map<String,Object>> 명시화(바디 불변)
-- [ ] **F-MISC-2** action-logs limit 상하한 방어가 서비스에만 · `ActionLogController.java:27`
+- [x] **F-MISC-2** action-logs limit 상하한 방어가 서비스에만 · `ActionLogController.java:27` — ✅ `3b749dc` 컨트롤러 DEFAULT/MAX_LIMIT·page 하한 명시 방어
 - [ ] **F-MISC-3** `@CrossOrigin("*")` 전역 허용(공통) · `ActionLogController.java:20`
 - [ ] **F-MISC-6** common/codes 캐시·Cache-Control 없음 · `CommonCodeController.java:38-42`
 
