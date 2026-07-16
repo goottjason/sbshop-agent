@@ -173,7 +173,7 @@
 - [x] **F-PSRC-7** · requests==null 시 컨트롤러 진입부 NPE(로그도 없음) · `ProductSourcingController.java:63,67` · ✅ `3970dd1`
 - [x] **F-PSRC-8** · 이미지 다운로드·R2 업로드를 트랜잭션 안에서 → 장시간 트랜잭션·고아 이미지 · `ProductCreateUseCase.java:30,45,67-68` — ✅ `a4d3799` 외부I/O tx 밖 분리(ProductPersistTxService 짧은 tx)
 - [~] **F-PSRC-12** · ~~500~~ → **오탐: 실제 400** · `ProductSourcingController.java:87` (로그없이 처리되는 점은 잔존)
-- [ ] **F-PSRC-13** · 게시 멱등성 부재 — 재호출 시 MarketRegistration 중복 생성 · `ProductPublishUseCase.java:53-62`
+- [x] **F-PSRC-13** · 게시 멱등성 부재 — 재호출 시 MarketRegistration 중복 생성 · `ProductPublishUseCase.java:53-62` — ✅ `1472da3` (product_id,market_type) 유니크 제약+경쟁 재조회. ⚠️배포전 중복행 확인.
 
 ### supplier (F-SUP)
 - [x] **F-SUP-UC-2** · 환율 null/≤0 거부 · ✅ `e69496e`
