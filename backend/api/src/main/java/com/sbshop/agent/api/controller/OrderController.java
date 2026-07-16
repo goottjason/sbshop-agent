@@ -66,6 +66,11 @@ public class OrderController {
 		return nameOf(orderService.marketTypeOfLineItem(lineItemId));
 	}
 
+	/** 주문의 마켓 타입을 로그용 문자열로 해석(조회 실패 시 null). F-ORD-5/F-ORD-15 실패 경로용. */
+	private String marketNameOfOrder(Long id) {
+		return nameOf(orderService.marketTypeOfOrder(id));
+	}
+
 	/**
 	 * 일괄 처리 결과를 활동로그 상태로 매핑한다(SP-3).
 	 * 실패가 하나라도 있으면 FAILED, 전건 성공이면 SUCCESS. 부분성공도 FAILED로 표면화한다
@@ -100,7 +105,8 @@ public class OrderController {
 				ActionStatus.SUCCESS, "발주확인 성공 (주문 " + id + ")");
 			return ResponseEntity.ok(OrderResponse.from(order));
 		} catch (Exception e) {
-			actionLogService.record(ActionLogConstants.ORDER_CONFIRM, null,
+			// F-ORD-5: 실패 경로도 주문 조회로 marketType을 채운다(조회 실패 시에만 null 유지).
+			actionLogService.record(ActionLogConstants.ORDER_CONFIRM, marketNameOfOrder(id),
 				ActionStatus.FAILED, "발주확인 실패 (주문 " + id + "): " + e.getMessage());
 			throw e;
 		}
@@ -145,7 +151,8 @@ public class OrderController {
 				ActionStatus.SUCCESS, "발주취소 성공 (주문 " + id + ")");
 			return ResponseEntity.ok(OrderResponse.from(order));
 		} catch (Exception e) {
-			actionLogService.record(ActionLogConstants.ORDER_CANCEL, null,
+			// F-ORD-15: 실패 경로도 주문 조회로 marketType을 채운다(조회 실패 시에만 null 유지).
+			actionLogService.record(ActionLogConstants.ORDER_CANCEL, marketNameOfOrder(id),
 				ActionStatus.FAILED, "발주취소 실패 (주문 " + id + "): " + e.getMessage());
 			throw e;
 		}

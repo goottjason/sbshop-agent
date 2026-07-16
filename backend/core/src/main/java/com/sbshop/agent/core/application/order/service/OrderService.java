@@ -548,6 +548,16 @@ public class OrderService {
 			.orElse(null);
 	}
 
+	/**
+	 * 주문의 마켓 타입을 반환한다(활동로그용 read-only 조회).
+	 * 주문·마켓이 하나라도 없으면 null(=조회 실패 시 null 유지). (F-ORD-5/F-ORD-15)
+	 */
+	public MarketType marketTypeOfOrder(Long orderId) {
+		return orderRepository.findById(orderId)
+			.map(Order::getMarketType)
+			.orElse(null);
+	}
+
 	// ======================== private ========================
 
 	/** 라인아이템이 속한 주문의 마켓 타입(에러 메시지용, 조회 실패 시 UNKNOWN 표기). */

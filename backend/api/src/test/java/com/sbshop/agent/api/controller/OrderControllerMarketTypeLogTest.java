@@ -49,6 +49,13 @@ class OrderControllerMarketTypeLogTest {
 		return market.getValue();
 	}
 
+	private String capturedFailedMarketType(String actionType) {
+		ArgumentCaptor<String> market = ArgumentCaptor.forClass(String.class);
+		verify(actionLogService).record(eq(actionType), market.capture(),
+			eq(ActionStatus.FAILED), any());
+		return market.getValue();
+	}
+
 	private OrderLineItem lineItem() {
 		return OrderLineItem.builder().orderId(1L).build();
 	}
@@ -84,5 +91,53 @@ class OrderControllerMarketTypeLogTest {
 		controller().updateShippingInfo(12L, new com.sbshop.agent.api.dto.ShippingUpdateRequest());
 
 		assertThat(capturedMarketType(ActionLogConstants.SHIPPING_UPDATE)).isEqualTo("GMARKET");
+	}
+
+	// ----- F-ORD-5 / F-ORD-15: 단건 발주확인/취소 실패 경로 marketType 조회 채움 -----
+
+	@Test
+	@DisplayName("발주확인 실패: 활동로그 marketType이 주문 조회로 채워진다(null 아님)")
+	void confirmOrder_failure_recordsResolvedMarketType() {
+		when(orderService.confirmOrder(anyLong())).thenThrow(new RuntimeException("마켓 접수 실패"));
+		when(orderService.marketTypeOfOrder(20L)).thenReturn(MarketType.COUPANG);
+
+		try {
+			controller().confirmOrder(20L);
+		} catch (RuntimeException ignored) {
+			// 실패 응답 보존을 위한 재throw는 정상 — 로그 기록만 검증한다.
+		}
+
+		assertThat(capturedFailedMarketType(ActionLogConstants.ORDER_CONFIRM)).isEqualTo("COUPANG");
+	}
+
+	@Test
+	@DisplayName("발주취소 실패: 활동로그 marketType이 주문 조회로 채워진다(null 아님)")
+	void cancelOrder_failure_recordsResolvedMarketType() {
+		when(orderService.cancelOrder(anyLong())).thenThrow(new RuntimeException("마켓 취소 실패"));
+		when(orderService.marketTypeOfOrder(21L)).thenReturn(MarketType.GMARKET);
+
+		try {
+			controller().cancelOrder(21L);
+		} catch (RuntimeException ignored) {
+			// 실패 응답 보존을 위한 재throw는 정상.
+		}
+
+		assertThat(capturedFailedMarketType(ActionLogConstants.ORDER_CANCEL)).isEqualTo("GMARKET");
+	}
+
+	@Test
+	@DisplayName("발주확인 실패 + 주문 조회 불가: 활동로그 marketType은 null로 유지된다")
+	void confirmOrder_failure_orderNotFound_marketTypeStaysNull() {
+		when(orderService.confirmOrder(anyLong()))
+			.thenThrow(new IllegalArgumentException("Order not found: 99"));
+		when(orderService.marketTypeOfOrder(99L)).thenReturn(null);
+
+		try {
+			controller().confirmOrder(99L);
+		} catch (RuntimeException ignored) {
+			// 재throw 정상.
+		}
+
+		assertThat(capturedFailedMarketType(ActionLogConstants.ORDER_CONFIRM)).isNull();
 	}
 }
