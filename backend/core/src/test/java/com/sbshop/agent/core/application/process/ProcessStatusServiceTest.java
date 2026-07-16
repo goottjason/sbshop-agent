@@ -148,4 +148,71 @@ class ProcessStatusServiceTest {
 		verify(repository, times(1)).findDistinctBatchIds();
 		verify(repository, never()).findAll();
 	}
+
+	@Test
+	@DisplayName("getAllBatchIds는 리포지토리의 최신순 정렬 순서를 그대로 보존한다(F-BATCH-ST2 최신순)")
+	void getAllBatchIds_preservesLatestFirstOrder() {
+		// 리포지토리 쿼리가 max(startedAt) desc로 최신순을 보장하므로(F-BATCH-ST2),
+		// 서비스는 그 순서를 재정렬 없이 그대로 통과시켜야 한다.
+		when(repository.findDistinctBatchIds())
+			.thenReturn(List.of("latest", "middle", "oldest"));
+
+		List<String> result = service.getAllBatchIds();
+
+		assertThat(result).containsExactly("latest", "middle", "oldest");
+	}
+
+	@Test
+	@DisplayName("getBatchStatus(status 필터)는 해당 상태 행만 반환한다(F-BATCH-S3 상태 필터)")
+	void getBatchStatus_withStatusFilter_returnsOnlyMatching() {
+		ProcessStatus bad = ProcessStatus.builder()
+			.batchId("b1").productCode("P002").processStatus(ProcessStatusType.FAILED).build();
+		when(repository.countByBatchId("b1")).thenReturn(2L);
+		when(repository.findByBatchIdAndProcessStatusOrderByStartedAtDesc("b1", ProcessStatusType.FAILED))
+			.thenReturn(List.of(bad));
+
+		List<ProcessStatus> result = service.getBatchStatus("b1", ProcessStatusType.FAILED);
+
+		assertThat(result).hasSize(1);
+		assertThat(result.get(0).getProductCode()).isEqualTo("P002");
+		assertThat(result.get(0).getProcessStatus()).isEqualTo(ProcessStatusType.FAILED);
+	}
+
+	@Test
+	@DisplayName("getBatchStatus(status=null)는 기존 동작대로 전 행을 반환한다(비파괴 계약 보존)")
+	void getBatchStatus_nullFilter_returnsAllLikeBefore() {
+		ProcessStatus s1 = ProcessStatus.builder()
+			.batchId("b1").productCode("P001").processStatus(ProcessStatusType.SUCCESS).build();
+		when(repository.findByBatchIdOrderByStartedAtDesc("b1"))
+			.thenReturn(List.of(s1));
+
+		List<ProcessStatus> result = service.getBatchStatus("b1", null);
+
+		assertThat(result).hasSize(1);
+		verify(repository, never()).findByBatchIdAndProcessStatusOrderByStartedAtDesc(any(), any());
+	}
+
+	@Test
+	@DisplayName("getBatchStatus(status 필터)도 미존재 batchId(전체 행 없음)면 404를 던진다(R1 404 동작 보존)")
+	void getBatchStatus_withFilter_unknownBatchId_throwsNotFound() {
+		// 미존재 판정은 전체 행 기준(빈 배치 = 미존재)이어야 한다. 필터 결과가 비었다고 404를 던지면
+		// "FAILED 없음(정상 배치)"과 "미존재 배치"를 혼동하므로, 미존재는 total로 판정한다.
+		when(repository.countByBatchId("nope")).thenReturn(0L);
+
+		assertThatThrownBy(() -> service.getBatchStatus("nope", ProcessStatusType.FAILED))
+			.isInstanceOf(ResourceNotFoundException.class)
+			.hasMessageContaining("nope");
+	}
+
+	@Test
+	@DisplayName("getBatchStatus(status 필터)는 배치는 존재하나 해당 상태 행이 없으면 빈 목록을 반환한다(404 아님)")
+	void getBatchStatus_withFilter_existingBatchNoMatch_returnsEmpty() {
+		when(repository.countByBatchId("b1")).thenReturn(5L);
+		when(repository.findByBatchIdAndProcessStatusOrderByStartedAtDesc("b1", ProcessStatusType.FAILED))
+			.thenReturn(List.of());
+
+		List<ProcessStatus> result = service.getBatchStatus("b1", ProcessStatusType.FAILED);
+
+		assertThat(result).isEmpty();
+	}
 }

@@ -155,10 +155,16 @@ public class BatchController {
 			"message", "소싱업체별 일괄 업데이트가 시작되었습니다."));
 	}
 
+	/**
+	 * 배치 상세 상태 조회. status 쿼리 파라미터(선택)로 특정 상태(예: FAILED)만 필터할 수 있다(F-BATCH-S3).
+	 * status 미지정 시 기존 계약 그대로 전 행을 배열로 반환한다(프론트 클라이언트 테이블 비파괴).
+	 */
 	@GetMapping("/status/{batchId}")
-	public ResponseEntity<List<ProcessStatusResponse>> getBatchStatus(@PathVariable
-	String batchId) {
-		List<ProcessStatusResponse> statuses = processStatusService.getBatchStatus(batchId).stream()
+	public ResponseEntity<List<ProcessStatusResponse>> getBatchStatus(
+		@PathVariable String batchId,
+		@org.springframework.web.bind.annotation.RequestParam(name = "status", required = false)
+		com.sbshop.agent.core.domain.process.enums.ProcessStatusType status) {
+		List<ProcessStatusResponse> statuses = processStatusService.getBatchStatus(batchId, status).stream()
 			.map(ProcessStatusResponse::from)
 			.toList();
 		return ResponseEntity.ok(statuses);

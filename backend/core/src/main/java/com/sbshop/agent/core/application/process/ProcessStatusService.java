@@ -60,14 +60,36 @@ public class ProcessStatusService {
 
 	@Transactional(readOnly = true)
 	public List<ProcessStatus> getBatchStatus(String batchId) {
-		// 배치는 startBatch가 상품별로 최소 1행을 심으므로 행이 하나도 없으면 미존재 batchId다(F-BATCH-S2).
-		// 빈 배열+200으로 응답하면 미존재를 정상 조회처럼 감추므로 404로 매핑되도록 던진다.
-		List<ProcessStatus> statuses = processStatusRepository.findByBatchIdOrderByStartedAtDesc(batchId);
-		if (statuses.isEmpty()) {
+		return getBatchStatus(batchId, null);
+	}
+
+	/**
+	 * 배치 상세 상태를 조회한다. statusFilter가 주어지면 해당 상태 행만 반환한다(F-BATCH-S3, 예: FAILED만).
+	 *
+	 * <p>미존재 판정은 <b>전체 행 유무</b>로 한다(R1의 404 동작 보존). 배치는 startBatch가 상품별로
+	 * 최소 1행을 심으므로 행이 하나도 없으면 미존재 batchId다(F-BATCH-S2). 필터 결과가 비었다는 이유로
+	 * 404를 던지면 "FAILED 없음(정상 배치)"과 "미존재 배치"를 혼동하므로, 미존재는 count로만 판정하고
+	 * 필터 결과가 비면 빈 목록(200)을 반환한다.
+	 *
+	 * @param statusFilter 필터할 상태(null이면 전 행 — 기존 비파괴 계약)
+	 */
+	@Transactional(readOnly = true)
+	public List<ProcessStatus> getBatchStatus(String batchId, ProcessStatusType statusFilter) {
+		if (statusFilter == null) {
+			// 빈 배열+200으로 응답하면 미존재를 정상 조회처럼 감추므로 404로 매핑되도록 던진다.
+			List<ProcessStatus> statuses = processStatusRepository.findByBatchIdOrderByStartedAtDesc(batchId);
+			if (statuses.isEmpty()) {
+				throw new com.sbshop.agent.core.domain.common.exception.ResourceNotFoundException(
+					"배치를 찾을 수 없습니다: " + batchId);
+			}
+			return statuses;
+		}
+		// 필터 조회: 미존재는 전체 행 count로 판정(필터 결과 공집합과 구분).
+		if (processStatusRepository.countByBatchId(batchId) == 0) {
 			throw new com.sbshop.agent.core.domain.common.exception.ResourceNotFoundException(
 				"배치를 찾을 수 없습니다: " + batchId);
 		}
-		return statuses;
+		return processStatusRepository.findByBatchIdAndProcessStatusOrderByStartedAtDesc(batchId, statusFilter);
 	}
 
 	@Transactional(readOnly = true)
