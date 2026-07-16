@@ -143,7 +143,7 @@
 - [ ] **F-SYNC-10** · 11번가 취소감지 orderDate 30일 창 밖 스킵·null 모호 · `ElevenstOrderSyncService.java:238-244`
 
 ### product (F-PROD)
-- [ ] **F-PROD-27** · 마켓 등록 있어도 상품 하드삭제 → 고아 연동 잔존 · `ProductManageUseCase.java:165-171`
+- [x] **F-PROD-27** · 마켓 등록 있어도 상품 하드삭제 → 고아 연동 잔존 · `ProductManageUseCase.java:165-171` — ✅ `afb68c5` 완전삭제(마켓 삭제 API 연동 후 등록행·Product 삭제, best-effort)
 - [x] **F-PROD-7** · soldOut=null이 조용히 "판매중"으로 처리 · `ProductManageUseCase.java:56-58` · ✅ `c41dee3`
 - [x] **F-PROD-8** · price 음수 검증 부재 · `Product.java:201-210` · ✅ `c41dee3`
 - [x] **F-PROD-11** · 빈/누락 이미지 입력 검증 부재(3경로 공통) · `ProductController.java:117-135` · ✅ `c41dee3`
@@ -154,7 +154,7 @@
 - [x] **F-PROD-18** · 크롤 이미지 URL 유효성/중복 검증 없음 · `ProductController.java:170-172` — ✅ `fe4d630` http(s) 형식검증+순서보존 중복제거
 - [x] **F-PROD-22** · 크롤 전량 무선별 다운로드(상한 없음) · `ProductController.java:196-204` — ✅ `fe4d630` MAX 30 절단+log.warn
 - [x] **F-PROD-23** · 전체수정 금액·수량 음수 검증 전무 · `Product.java:193-244` · ✅ `c41dee3`
-- [ ] **F-PROD-28** · 확인/멱등성 없는 하드딜리트 · `ProductWriterImpl.java:27-28`
+- [x] **F-PROD-28** · 확인/멱등성 없는 하드딜리트 · `ProductWriterImpl.java:27-28` — ✅ `afb68c5` 완전삭제 오케스트레이션(404 유지, 마켓 리스팅 제거). 설계 docs/superpowers/specs/2026-07-16-complete-product-delete-*
 
 ### batch (F-BATCH)
 - [x] **F-BATCH-1** · 동시 배치 중복 실행 방지 부재(advisory lock 없음) · `ProcessStatusService.java:23-39` — ✅ `b0164f5` jobType별 in-JVM 가드(배치 api 단일 JVM) + 완료이벤트 해제. advisory lock 불필요.
