@@ -48,24 +48,32 @@ public class EmailFetcherService {
 	// (ReentrantLock은 동일 스레드 재진입을 허용하므로 부적합).
 	private final AtomicBoolean fetching = new AtomicBoolean(false);
 
+	/**
+	 * 이메일 수집·처리를 1회 실행한다.
+	 *
+	 * @return 본처리를 실제로 수행했으면 true, 재진입 가드(F-MISC-18)로 이미 실행 중이라
+	 *         이번 호출이 스킵됐으면 false. 내부 트리거(/internal/email/fetch)가 실제 실행
+	 *         여부를 응답에 반영할 수 있도록 표면화한다(F-MISC-20). 계정 미설정·처리대상 없음은
+	 *         "정상 실행(처리할 것이 없었을 뿐)"이므로 true 로 간주한다.
+	 */
 	@Transactional
-	public void fetchAndProcessEmails() {
-		// 재진입/동시실행 가드: 이미 실행 중이면 본처리를 스킵하고 즉시 반환.
+	public boolean fetchAndProcessEmails() {
+		// 재진입/동시실행 가드: 이미 실행 중이면 본처리를 스킵하고 즉시 반환(실행 안 함 → false).
 		if (!fetching.compareAndSet(false, true)) {
 			log.info("이메일 수집·처리가 이미 실행 중입니다 - 이번 호출은 스킵(중복 실행 방지, F-MISC-18)");
-			return;
+			return false;
 		}
 		try {
 			if (properties.getAccounts() == null || properties.getAccounts().isEmpty()) {
 				log.warn("IMAP 이메일 계정이 설정되지 않았습니다.");
-				return;
+				return true;
 			}
 
 			// 1. DB에서 이메일 처리가 필요한 iHerb 주문번호 조회
 			List<OrderLineItem> items = orderLineItemRepository.findIherbItemsNeedingEmailProcessing();
 			if (items.isEmpty()) {
 				log.debug("이메일 처리가 필요한 iHerb 주문이 없습니다.");
-				return;
+				return true;
 			}
 
 			// 2. 소싱 주문번호 추출 및 중복 제거
@@ -84,6 +92,7 @@ public class EmailFetcherService {
 			for (String orderNo : orderNos) {
 				searchAndProcessForOrderNo(orderNo);
 			}
+			return true;
 		} finally {
 			fetching.set(false);
 		}

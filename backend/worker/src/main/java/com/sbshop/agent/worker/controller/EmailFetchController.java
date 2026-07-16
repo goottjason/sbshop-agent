@@ -49,9 +49,14 @@ public class EmailFetchController {
 		// F-MISC-19: 스케줄러 경로와 동일하게 markRunning→markCompleted/markFailed로 상태 기록.
 		syncStatusService.markRunning(SyncMarketKeys.EMAIL);
 		try {
-			emailFetcherService.fetchAndProcessEmails();
+			// F-MISC-20: 서비스가 실제로 본처리를 수행했는지(executed) 여부를 응답에 반영.
+			// 재진입 가드로 이미 실행 중이면 false(스킵) → 항상-ok:true 오탐 제거.
+			boolean executed = emailFetcherService.fetchAndProcessEmails();
 			syncStatusService.markCompleted(SyncMarketKeys.EMAIL);
-			return ResponseEntity.ok(Map.of("ok", true, "message", "email fetch triggered"));
+			return ResponseEntity.ok(Map.of(
+				"ok", true,
+				"executed", executed,
+				"message", executed ? "email fetch triggered" : "skipped: fetch already in progress"));
 		} catch (Exception e) {
 			syncStatusService.markFailed(SyncMarketKeys.EMAIL, e.getMessage());
 			log.error("[내부트리거] 이메일 수집·처리 실패: {}", e.getMessage(), e);
