@@ -221,7 +221,7 @@
 - [x] **F-ORD-10 / 19** confirm/cancel-batch 컨트롤러 catch 죽은코드 · `OrderController.java:105-108,149-152` — ✅ R5-B2 오탐/유지: @Transactional 커밋실패·인프라오류가 try로 전파 가능 → catch 제거 시 FAILED 감사로그 유실=행위 변경. 죽은코드 아님.
 - [x] **F-ORD-18** bulkOperate 헬퍼로 통합 · ✅ `04062a9`
 - [x] **F-ORD-21** `OrderUpdateCommand.toCustomsData()` 미사용 죽은코드 · `OrderUpdateCommand.java:14-19` — ✅ R5-B1 제거(호출처 0, CustomsData import 고아 정리)
-- [x] **F-ORD-32** 정산 상수 0.89 서비스 하드코딩 · `OrderShipService.java:81` — ✅ `5c0127f` SettlementPolicy 상수화(FeePolicy 설정화는 백로그)
+- [x] **F-ORD-32** 정산 상수 0.89 서비스 하드코딩 · `OrderShipService.java:81` — ✅ `d58a8c1` **FeePolicy 연동 완료**: 마켓별 요율 + ship 이중차감 제거(사용자 확정 요율). (`5c0127f`는 중간 상수화 단계)
 - [x] **F-ORD-37** 삭제 로그 marketType null(조회로 채울 수 있었음) · `OrderController.java:275` — ✅ `6e320e0`
 - [x] **F-S3** sourcing 두 분기 applySourcingData+save 중복 · `OrderService.java:277,285` — ✅ `625fd0b` 공통화(순서 보존, 특성테스트)
 - [ ] **F-S5** sourcing 응답 OrderLineItem 직접 노출 · `OrderController.java:204`
@@ -231,7 +231,7 @@
 ### order-sync
 - [x] **F-SYNC-5** DTO 트리오 dispatch 골격 통합(Cafe24 보류) · ✅ `baad6ff`
 - [ ] **F-SYNC-8** 스마트스토어·11번가 송장병합에 trackingSentToMarket 보존 가드 없음(쿠팡과 비대칭) · `SmartStoreOrderSyncService.java:116-127`
-- [x] **F-SYNC-4** 정산 수수료율 0.89 하드코딩 · `CoupangOrderSyncService.java:276` — ✅ `5c0127f` SettlementPolicy 상수화(Cafe24 3번째 사이트 동반 정리)
+- [x] **F-SYNC-4** 정산 수수료율 0.89 하드코딩 · `CoupangOrderSyncService.java:276` — ✅ `d58a8c1` **FeePolicy 연동 완료**: MarketFeeService로 마켓별 요율(쿠팡11·스토어8·기타18%) sync 1회 적용, 이중차감 제거. ⚠️ 배포 시 정산액 변동(아래 결과서 참조).
 - [x] **F-SYNC-14** RootCauseExtractor 유틸로 통합 · ✅ `04062a9`
 - [ ] **F-SYNC-15** carriers 실패 로그가 "주문 프리뷰 실패"로 오기재 · `OrderSyncController.java:165`
 - [x] **F-SYNC-21** customs 배치크기 30·딜레이 1000ms 매직넘버 · `CustomsOrderSyncService.java:54,71` — ✅ `acbc1c6` VERIFICATION_BATCH_SIZE·BATCH_DELAY_MS 상수화
