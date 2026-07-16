@@ -67,7 +67,7 @@ class ProductManageRepublishMarketCodeTest {
 	@BeforeEach
 	void setUp() {
 		useCase = new ProductManageUseCase(productReader, productWriter, imageStorageClient,
-			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService);
+			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService, null, null);
 
 		lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 		lenient().when(product.getSbCode()).thenReturn("SB1");

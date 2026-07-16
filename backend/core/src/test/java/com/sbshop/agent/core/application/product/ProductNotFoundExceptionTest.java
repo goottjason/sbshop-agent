@@ -55,7 +55,7 @@ class ProductNotFoundExceptionTest {
 	void setUp() {
 		searchUseCase = new ProductSearchUseCase(productReader);
 		manageUseCase = new ProductManageUseCase(productReader, productWriter, imageStorageClient,
-			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService);
+			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService, null, null);
 		when(productReader.findById(MISSING_ID)).thenReturn(Optional.empty());
 	}
 

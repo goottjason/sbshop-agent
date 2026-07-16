@@ -86,6 +86,20 @@ public class SmartstoreMarketClient implements MarketClient {
 	}
 
 	@Override
+	public void deleteFromMarket(String marketItemId) {
+		// marketItemId 는 등록 시 저장한 originProductNo (publish → identifiers "originProductNo").
+		// 원상품 삭제 API 호출. 주문이력 등으로 하드삭제가 거부되면 API 오류 → 예외 표면화(best-effort 수집 대상).
+		log.info("[Smartstore] 상품 삭제 시작: originProductNo={}", marketItemId);
+		try {
+			restClient.delete("/v2/products/origin-products/" + marketItemId);
+			log.info("[Smartstore] 상품 삭제 성공: originProductNo={}", marketItemId);
+		} catch (RuntimeException e) {
+			log.error("[Smartstore] 상품 삭제 실패 (originProductNo: {}): {}", marketItemId, e.getMessage());
+			throw e; // 실패 표면화(SP-A/SP-C 원칙)
+		}
+	}
+
+	@Override
 	public MarketItemInfo parseLocalData(Map<String, Object> rawData) {
 		if (rawData == null || rawData.isEmpty()) {
 			return MarketItemInfo.builder().build();

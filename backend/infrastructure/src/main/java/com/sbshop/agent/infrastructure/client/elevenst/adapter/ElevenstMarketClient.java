@@ -94,6 +94,19 @@ public class ElevenstMarketClient implements MarketClient {
 	}
 
 	@Override
+	public void deleteFromMarket(String marketItemId) {
+		// 11번가 상품 삭제: DELETE /rest/prodservices/product/{prdNo} (marketItemId=elevenstId=prdNo).
+		// 주문이력 등으로 삭제가 거부되면 오류 응답이 오고 예외로 표면화된다(best-effort 오케스트레이터가 수집).
+		log.info("[Elevenst] 상품 삭제 시작: prdNo={}", marketItemId);
+		String response = restClient.delete("/rest/prodservices/product/" + marketItemId);
+		if (response == null || response.contains("ERROR") || response.contains("resultCode>500")) {
+			log.error("[Elevenst] 상품 삭제 실패: prdNo={}, response={}", marketItemId, response);
+			throw new RuntimeException("[Elevenst] 상품 삭제 실패: " + response);
+		}
+		log.info("[Elevenst] 상품 삭제 완료: prdNo={}", marketItemId);
+	}
+
+	@Override
 	public Map<String, Object> syncImagesAndHtml(String marketItemId, Map<String, Object> currentRawData,
 		List<String> hostedImages, String newDetailHtml) {
 		// 11번가는 이미지/상세를 개별 필드로 못 바꾸나, 상세설명수정 전용 API로 상세HTML(임베드 이미지 포함)을 반영한다.

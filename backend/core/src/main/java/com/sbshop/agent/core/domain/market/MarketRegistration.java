@@ -180,6 +180,30 @@ public class MarketRegistration extends BaseEntity {
 		}
 	}
 
+	/**
+	 * 상품 삭제 API용 마켓 식별자(F-PROD-27/28 완전삭제).
+	 *
+	 * <p>대부분 {@link #extractMarketCode()}와 같지만 <b>COUPANG은 다르다</b>: 삭제(seller-products)는
+	 * {@code sellerProductId}를 요구하는데 extractMarketCode는 가격/재고용 {@code vendorItemId}를 우선하므로,
+	 * 삭제 경로에 vendorItemId를 넘기면 쿠팡이 오류를 낸다. 쿠팡만 sellerProductId를 직접 추출한다.
+	 * (sellerProductId가 없으면 null → 오케스트레이터가 실패로 수집, best-effort로 DB 삭제는 진행)
+	 */
+	public String extractDeleteCode() {
+		if (marketType == MarketType.COUPANG) {
+			if (marketIdentifiers == null || marketIdentifiers.isEmpty()) {
+				return null;
+			}
+			try {
+				String v = MAPPER.readTree(marketIdentifiers).path("sellerProductId").asText(null);
+				return (v != null && !v.isEmpty()) ? v : null;
+			} catch (Exception e) {
+				log.warn("sellerProductId 파싱 실패: productId={}, error={}", productId, e.getMessage());
+				return null;
+			}
+		}
+		return extractMarketCode();
+	}
+
 	public void updateMarketIdentifiers(String marketIdentifiers) {
 		this.marketIdentifiers = marketIdentifiers;
 	}

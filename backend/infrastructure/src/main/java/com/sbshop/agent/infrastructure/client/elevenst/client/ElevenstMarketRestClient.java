@@ -46,6 +46,10 @@ public class ElevenstMarketRestClient {
 		return sendRequest(properties.getApiUrl() + path, "PUT", xmlBody);
 	}
 
+	public String delete(String path) {
+		return sendRequest(properties.getApiUrl() + path, "DELETE", null);
+	}
+
 	private String sendRequest(String urlStr, String method, String body) {
 		HttpURLConnection conn = null;
 		try {

@@ -181,6 +181,26 @@ public class CoupangMarketClient implements MarketClient {
 	}
 
 	@Override
+	public void deleteFromMarket(String marketItemId) {
+		// 완전 상품 삭제(F-PROD-27/28). 쿠팡 상품 리스팅 삭제는 seller-products/{sellerProductId} DELETE로 수행한다.
+		// marketItemId는 발행(publish)이 반환·저장하는 sellerProductId(상품 단위 안정 식별자, extractMarketItem·
+		// syncImagesAndHtml이 seller-products 경로에 쓰는 것과 동일). vendorItemId는 가격/재고/판매상태 전용이라
+		// 상품 삭제에는 사용하지 않는다. 주문이력 등으로 하드삭제를 거부하면 REST 오류가 예외로 표면화되고,
+		// 오케스트레이터가 best-effort로 수집한다.
+		if (marketItemId == null || marketItemId.isBlank()) {
+			throw new IllegalArgumentException("쿠팡 sellerProductId 없음 — 삭제 불가");
+		}
+		String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId;
+		try {
+			restClient.delete(path);
+			log.info("[쿠팡] 상품 삭제 성공: sellerProductId={}", marketItemId);
+		} catch (Exception e) {
+			log.error("[쿠팡] 상품 삭제 실패: sellerProductId={}, msg={}", marketItemId, e.getMessage());
+			throw e;
+		}
+	}
+
+	@Override
 	public Map<String, Object> syncImagesAndHtml(String marketItemId, Map<String, Object> currentRawData,
 		List<String> hostedImages, String newDetailHtml) {
 		if (currentRawData == null || !currentRawData.containsKey("items"))

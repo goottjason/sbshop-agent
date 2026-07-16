@@ -55,7 +55,7 @@ class ProductManageUpdatePriceStockSoldOutTest {
 	@BeforeEach
 	void setUp() {
 		useCase = new ProductManageUseCase(productReader, productWriter, imageStorageClient,
-			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService);
+			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService, null, null);
 
 		lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 	}

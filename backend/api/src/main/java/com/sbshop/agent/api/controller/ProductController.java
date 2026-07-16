@@ -10,6 +10,7 @@ import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.application.product.ProductManageUseCase;
 import com.sbshop.agent.core.application.product.MarketRepublishResult;
+import com.sbshop.agent.core.application.product.ProductDeleteResult;
 import com.sbshop.agent.core.application.product.ProductSearchUseCase;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
@@ -314,14 +315,15 @@ public class ProductController {
 	}
 
 	@DeleteMapping("/{id}")
-	public ResponseEntity<Void> deleteProduct(@PathVariable
+	public ResponseEntity<ProductDeleteResult> deleteProduct(@PathVariable
 	Long id) {
-		// D-076: 상품 삭제 — 결과만 기록.
+		// F-PROD-27/28: 완전 상품 삭제 — 연동 마켓 리스팅까지 삭제하고 삭제/스킵/실패 리포트를 바디로 반환.
+		// best-effort(C)라 일부 마켓 실패도 Product는 삭제되므로 항상 200 + 리포트. ActionLog(PRODUCT_DELETE,
+		// 삭제/스킵/실패 마켓+marketItemId 포함)는 오케스트레이터(deleteProduct)가 기록한다(이중기록 방지).
+		// 상품 미존재(404) 등 오케스트레이션 진입 전 실패만 여기서 FAILED로 기록한다.
 		try {
-			productManageUseCase.deleteProduct(id);
-			actionLogService.record(ActionLogConstants.PRODUCT_DELETE, null,
-				ActionStatus.SUCCESS, "상품 삭제 성공 (상품 " + id + ")");
-			return ResponseEntity.ok().build();
+			ProductDeleteResult result = productManageUseCase.deleteProduct(id);
+			return ResponseEntity.ok(result);
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.PRODUCT_DELETE, null,
 				ActionStatus.FAILED, "상품 삭제 실패 (상품 " + id + "): " + e.getMessage());

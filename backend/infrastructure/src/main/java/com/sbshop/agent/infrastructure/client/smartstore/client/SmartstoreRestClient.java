@@ -95,6 +95,10 @@ public class SmartstoreRestClient {
 		return request("PUT", path, body);
 	}
 
+	public String delete(String path) {
+		return request("DELETE", path, null);
+	}
+
 	private String request(String method, String path, Object body) {
 		try {
 			var spec = restClient.method(org.springframework.http.HttpMethod.valueOf(method))

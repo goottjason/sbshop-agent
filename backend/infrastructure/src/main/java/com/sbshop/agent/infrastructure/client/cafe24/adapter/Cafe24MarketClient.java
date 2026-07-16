@@ -141,6 +141,14 @@ public class Cafe24MarketClient implements MarketClient {
 	}
 
 	@Override
+	public void deleteFromMarket(String marketItemId) {
+		// marketItemId = Cafe24 product_no. 실패 시 예외 전파 → 상위에서 '실패 마켓'으로 수집(best-effort).
+		log.info("[카페24] 상품 삭제 시작: product_no={}", marketItemId);
+		cafe24RestClient.delete("/admin/products/" + marketItemId);
+		log.info("[카페24] 상품 삭제 성공: product_no={}", marketItemId);
+	}
+
+	@Override
 	public Map<String, Object> syncImagesAndHtml(String marketItemId, Map<String, Object> currentRawData,
 		List<String> hostedImages, String newDetailHtml) {
 		Map<String, Object> descriptionRequestBody = new HashMap<>();

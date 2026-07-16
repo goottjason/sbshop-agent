@@ -60,7 +60,7 @@ class ProductManageUseCasePriceStockTest {
 	@BeforeEach
 	void setUp() {
 		useCase = new ProductManageUseCase(productReader, productWriter, imageStorageClient,
-			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService);
+			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService, null, null);
 		when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 	}
 
