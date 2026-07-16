@@ -215,4 +215,54 @@ class ProcessStatusServiceTest {
 
 		assertThat(result).isEmpty();
 	}
+
+	// --- F-BATCH-1: 동시 배치 중복 실행 가드(jobType별, in-JVM) ---
+
+	@Test
+	@DisplayName("F-BATCH-1: 같은 jobType 배치가 진행 중이면 두 번째 startBatch는 IllegalStateException으로 거부한다")
+	void startBatch_sameJobTypeAlreadyRunning_rejectsSecondStart() {
+		when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+		// 1차 시작: 성공 — 진행 중 상태로 진입(해제 이벤트 없음).
+		service.startBatch(JobType.CRAWL_AND_UPDATE_PRICE_STOCK, List.of("P001"));
+
+		// 2차 시작(동일 jobType, 진행 중): 거부되어야 한다.
+		assertThatThrownBy(() ->
+			service.startBatch(JobType.CRAWL_AND_UPDATE_PRICE_STOCK, List.of("P002")))
+			.isInstanceOf(IllegalStateException.class);
+	}
+
+	@Test
+	@DisplayName("F-BATCH-1: 서로 다른 jobType은 동시에 시작할 수 있다(전면 잠금 아님)")
+	void startBatch_differentJobTypes_bothAllowed() {
+		when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+		String b1 = service.startBatch(JobType.CRAWL_AND_UPDATE_PRICE_STOCK, List.of("P001"));
+		String b2 = service.startBatch(JobType.MANUAL_UPDATE_PRICE_STOCK, List.of("P002"));
+
+		assertThat(b1).isNotBlank();
+		assertThat(b2).isNotBlank().isNotEqualTo(b1);
+	}
+
+	@Test
+	@DisplayName("F-BATCH-1: 배치 완료로 가드가 해제되면 같은 jobType을 다시 시작할 수 있다(영구 잠금 아님)")
+	void startBatch_afterCompletionReleasesGuard_allowsRestart() {
+		when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+		String b1 = service.startBatch(JobType.CRAWL_AND_UPDATE_PRICE_STOCK, List.of("P001"));
+
+		// 배치 완료 → 가드 해제(BatchCompletedEvent 리스너가 호출하는 지점).
+		service.releaseBatch(b1);
+
+		// 해제 후 동일 jobType 재시작 허용.
+		assertThat(service.startBatch(JobType.CRAWL_AND_UPDATE_PRICE_STOCK, List.of("P002")))
+			.isNotBlank();
+	}
+
+	@Test
+	@DisplayName("F-BATCH-1: 미등록 batchId로 releaseBatch를 호출해도 예외 없이 무시된다(멱등)")
+	void releaseBatch_unknownBatchId_isNoOp() {
+		service.releaseBatch("no-such-batch");
+		// 예외 없이 통과하면 성공.
+	}
 }
