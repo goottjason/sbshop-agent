@@ -240,7 +240,7 @@
 ### product
 - [ ] **F-PROD-1** marketFilter·keyword 배타, keyword 무시 · `ProductController.java:75-82`
 - [x] **F-PROD-6** 중첩 record DTO 래핑 · ✅ `5ff8890`
-- [ ] **F-PROD-10 / 14** price-stock·images가 26필드 커맨드 1~2칸만 채움(위치기반 오배치 위험) · `ProductManageUseCase.java:49-84`
+- [x] **F-PROD-10 / 14** price-stock·images가 26필드 커맨드 1~2칸만 채움(위치기반 오배치 위험) · `ProductManageUseCase.java:49-84` — ✅ `3241cfc` ProductUpdateCommand @Builder 도입, 4개 호출부(ProductManage 2·BatchPriceStock 2) 명시매핑 전환
 - [x] **F-PROD-15** uploadPreparedImages 헬퍼로 통합 · ✅ `5549f67`
 - [x] **F-PROD-19/20** crawlSourceImageUrls+uploadPreparedImages 통합 · ✅ `5549f67`
 - [ ] **F-PROD-24** 전체수정 로그가 변경필드 정보 없음 · `ProductController.java:226-227`
@@ -326,7 +326,7 @@
 - [ ] **F-PROD-26 / 29** 전체수정·삭제 미존재 id 500(F-PROD-5 동형) · `ProductManageUseCase.java:159,168`
 
 ### batch
-- [ ] **F-BATCH-6** couponRate가 crawl 경로에서 수집만 되고 미사용 · `BatchController.java:56`
+- [ ] **F-BATCH-6** couponRate가 crawl 경로에서 수집만 되고 미사용 · `BatchController.java:56` — 🟡 **R5 보류(결정 필요)**: crawlAndUpdatePriceStock가 couponRate 파라미터를 받지만 마진계산에 미적용(margin=marginRate만). "죽은 파라미터 제거"인지 "적용 누락(기능 결함)"인지 판단 필요 — 제거는 요청DTO 계약 변경 동반. 별도 결정 배치.
 - [ ] **F-BATCH-7** 활동로그 STARTED/완료 이원화, marketType null · `BatchController.java:51`
 - [ ] **F-BATCH-B2** 대상 0건과 진행의 응답 스키마 비대칭 · `BatchController.java:103,119`
 - [ ] **F-BATCH-S3** `/status/{batchId}` 페이지네이션·필터 없음 · `ProcessStatusService.java:63`
@@ -338,8 +338,8 @@
 - [ ] **F-PSRC-4** ProductInfoCrawlerPort가 iHerb 단일 구현 종속 · `IherbScraperClient.java:263`
 - [ ] **F-PSRC-5** iHerb 입력 검증 전무(URL 형식·개수·중복) · `ProductSourcingController.java`
 - [x] **F-PSRC-11** bulk 입력 검증 부재(금액 음수·빈 목록·상한) · `ProductSaveRequest.java` · ✅ `3970dd1`
-- [ ] **F-PSRC-16** identifiers JSON 직렬화 실패를 "{}"로 삼켜 식별자 유실 · `ProductPublishUseCase.java:47-51`
-- [ ] **F-PSRC-17** MarketRegistration의 productId·sbProductId에 동일 값 주입 · `ProductPublishUseCase.java:54-55`
+- [ ] **F-PSRC-16** identifiers JSON 직렬화 실패를 "{}"로 삼켜 식별자 유실 · `ProductPublishUseCase.java:80-86`(F-PSRC-14로 위치 이동) — 🟠 **R5 범위 밖(행위)**: `toJson`이 직렬화 예외를 "{}"로 삼킴. Map<String,String> 직렬화는 사실상 실패 불가(거의 도달불가 방어코드)라 순수 구조 아님. R2(관측성)에서 로그화 검토.
+- [ ] **F-PSRC-17** MarketRegistration의 productId·sbProductId에 동일 값 주입 · `MarketRegistrationTxService.savePending:39-40`(F-PSRC-14로 위치 이동) — 🟠 **R5 범위 밖(데이터 정합/행위)**: `.productId(productId).sbProductId(productId)` — sbProductId가 SB상품코드여야 하는지 도메인 결정 필요. 값 교정은 행위 변경이라 별도 배치.
 
 ### supplier
 - [ ] **F-SUP-3** 활동로그(ActionLog) 미기록 · `SupplierController.java:26-27`
