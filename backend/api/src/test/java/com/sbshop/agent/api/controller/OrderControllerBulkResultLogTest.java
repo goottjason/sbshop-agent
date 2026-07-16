@@ -107,7 +107,7 @@ class OrderControllerBulkResultLogTest {
 				.failedIds(List.of(1L, 2L)).errors(List.of("Order 1: x", "Order 2: y"))
 				.build());
 
-		controller().bulkConfirmOrders(java.util.Map.of("orderIds", List.of(1L, 2L)));
+		controller().bulkConfirmOrders(new com.sbshop.agent.api.dto.OrderIdsRequest(List.of(1L, 2L)));
 
 		assertThat(capturedStatus(ActionLogConstants.ORDER_CONFIRM_BATCH)).isEqualTo(ActionStatus.FAILED);
 	}
@@ -121,7 +121,7 @@ class OrderControllerBulkResultLogTest {
 				.failedIds(List.of(1L, 2L)).errors(List.of("Order 1: x", "Order 2: y"))
 				.build());
 
-		controller().bulkCancelOrders(java.util.Map.of("orderIds", List.of(1L, 2L)));
+		controller().bulkCancelOrders(new com.sbshop.agent.api.dto.OrderIdsRequest(List.of(1L, 2L)));
 
 		assertThat(capturedStatus(ActionLogConstants.ORDER_CANCEL_BATCH)).isEqualTo(ActionStatus.FAILED);
 	}
@@ -135,7 +135,7 @@ class OrderControllerBulkResultLogTest {
 				.failedIds(List.of()).errors(null)
 				.build());
 
-		controller().bulkConfirmOrders(java.util.Map.of("orderIds", List.of(1L, 2L)));
+		controller().bulkConfirmOrders(new com.sbshop.agent.api.dto.OrderIdsRequest(List.of(1L, 2L)));
 
 		assertThat(capturedStatus(ActionLogConstants.ORDER_CONFIRM_BATCH)).isEqualTo(ActionStatus.SUCCESS);
 	}

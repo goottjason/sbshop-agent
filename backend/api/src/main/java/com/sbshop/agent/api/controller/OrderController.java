@@ -1,7 +1,6 @@
 package com.sbshop.agent.api.controller;
 
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.sbshop.agent.api.dto.OrderIdsRequest;
 import com.sbshop.agent.api.dto.OrderLineItemResponse;
 import com.sbshop.agent.api.dto.OrderLineItemUpdateRequest;
 import com.sbshop.agent.api.dto.OrderResponse;
@@ -110,9 +110,9 @@ public class OrderController {
 	@PostMapping("/confirm/batch")
 	public ResponseEntity<BulkConfirmResult> bulkConfirmOrders(
 		@RequestBody
-		Map<String, List<Long>> request) {
+		OrderIdsRequest request) {
 
-		List<Long> orderIds = request.get("orderIds");
+		List<Long> orderIds = request.orderIds();
 		if (orderIds == null || orderIds.isEmpty()) {
 			return ResponseEntity.badRequest().build();
 		}
@@ -155,9 +155,9 @@ public class OrderController {
 	@PostMapping("/cancel/batch")
 	public ResponseEntity<BulkConfirmResult> bulkCancelOrders(
 		@RequestBody
-		Map<String, List<Long>> request) {
+		OrderIdsRequest request) {
 
-		List<Long> orderIds = request.get("orderIds");
+		List<Long> orderIds = request.orderIds();
 		if (orderIds == null || orderIds.isEmpty()) {
 			return ResponseEntity.badRequest().build();
 		}
