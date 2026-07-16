@@ -24,7 +24,8 @@ public class SupplierService {
 
 	public List<Supplier> getSuppliers() {
 		// F-SUP-2: 소프트삭제(ARCHIVED/DELETED)를 제외하고 ACTIVE만 반환한다.
-		return supplierRepository.findByStatus(RecordStatus.ACTIVE);
+		// F-SUP-4: supplierCode 오름차순으로 정렬해 반환(응답 형태 유지, 정렬만 추가).
+		return supplierRepository.findByStatusOrderBySupplierCodeAsc(RecordStatus.ACTIVE);
 	}
 
 	@Transactional
@@ -47,7 +48,8 @@ public class SupplierService {
 	}
 
 	public List<Currency> getCurrencies() {
-		return currencyRepository.findAll();
+		// F-SUP-LC-2: currencyCode 오름차순으로 정렬해 반환(응답 형태 유지, 정렬만 추가).
+		return currencyRepository.findAllByOrderByCurrencyCodeAsc();
 	}
 
 	@Transactional

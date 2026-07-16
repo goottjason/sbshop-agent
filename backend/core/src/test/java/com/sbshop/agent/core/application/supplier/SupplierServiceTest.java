@@ -153,11 +153,11 @@ class SupplierServiceTest {
 	}
 
 	@Test
-	@DisplayName("공급사 목록 조회는 ACTIVE만 반환한다 — findByStatus(ACTIVE) 위임 (F-SUP-2)")
+	@DisplayName("공급사 목록 조회는 ACTIVE만 반환한다 — supplierCode 정렬 위임 (F-SUP-2·F-SUP-4)")
 	void getSuppliers_returnsOnlyActive() {
 		Supplier active = new Supplier("SUP01", "활성공급사",
 			new Currency("USD", new BigDecimal("1400")));
-		when(supplierRepository.findByStatus(
+		when(supplierRepository.findByStatusOrderBySupplierCodeAsc(
 			com.sbshop.agent.core.domain.common.RecordStatus.ACTIVE))
 			.thenReturn(java.util.List.of(active));
 
@@ -165,5 +165,33 @@ class SupplierServiceTest {
 
 		assertThat(result).containsExactly(active);
 		verify(supplierRepository, never()).findAll();
+	}
+
+	@Test
+	@DisplayName("공급사 목록은 supplierCode 오름차순 정렬 리포지토리에 위임한다 (F-SUP-4)")
+	void getSuppliers_delegatesToSupplierCodeOrderedQuery() {
+		when(supplierRepository.findByStatusOrderBySupplierCodeAsc(
+			com.sbshop.agent.core.domain.common.RecordStatus.ACTIVE))
+			.thenReturn(java.util.List.of());
+
+		service().getSuppliers();
+
+		verify(supplierRepository).findByStatusOrderBySupplierCodeAsc(
+			com.sbshop.agent.core.domain.common.RecordStatus.ACTIVE);
+		verify(supplierRepository, never()).findAll();
+	}
+
+	@Test
+	@DisplayName("통화 목록은 currencyCode 오름차순 정렬 리포지토리에 위임한다 (F-SUP-LC-2)")
+	void getCurrencies_delegatesToCurrencyCodeOrderedQuery() {
+		Currency usd = new Currency("USD", new BigDecimal("1400"));
+		when(currencyRepository.findAllByOrderByCurrencyCodeAsc())
+			.thenReturn(java.util.List.of(usd));
+
+		java.util.List<Currency> result = service().getCurrencies();
+
+		assertThat(result).containsExactly(usd);
+		verify(currencyRepository).findAllByOrderByCurrencyCodeAsc();
+		verify(currencyRepository, never()).findAll();
 	}
 }
