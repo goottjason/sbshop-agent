@@ -326,7 +326,7 @@
 - [ ] **F-PROD-26 / 29** 전체수정·삭제 미존재 id 500(F-PROD-5 동형) · `ProductManageUseCase.java:159,168`
 
 ### batch
-- [ ] **F-BATCH-6** couponRate가 crawl 경로에서 수집만 되고 미사용 · `BatchController.java:56` — 🟡 **R5 보류(결정 필요)**: crawlAndUpdatePriceStock가 couponRate 파라미터를 받지만 마진계산에 미적용(margin=marginRate만). "죽은 파라미터 제거"인지 "적용 누락(기능 결함)"인지 판단 필요 — 제거는 요청DTO 계약 변경 동반. 별도 결정 배치.
+- [x] **F-BATCH-6** couponRate가 crawl 경로에서 수집만 되고 미사용 · `BatchController.java:56` — ✅ `cfb8fa9` **사용자 판정: 적용 누락 버그**. MarginCalculator에 쿠폰 오버로드 추가, 실매입가=구매가×(1-쿠폰%)로 판매가 산정. ⚠️ 배포 전 확인: 배치 실행 시 판매가 하락(예 22400→19600), 기본 couponRate=20% 전상품 일괄 적용.
 - [ ] **F-BATCH-7** 활동로그 STARTED/완료 이원화, marketType null · `BatchController.java:51`
 - [ ] **F-BATCH-B2** 대상 0건과 진행의 응답 스키마 비대칭 · `BatchController.java:103,119`
 - [ ] **F-BATCH-S3** `/status/{batchId}` 페이지네이션·필터 없음 · `ProcessStatusService.java:63`
@@ -339,7 +339,7 @@
 - [ ] **F-PSRC-5** iHerb 입력 검증 전무(URL 형식·개수·중복) · `ProductSourcingController.java`
 - [x] **F-PSRC-11** bulk 입력 검증 부재(금액 음수·빈 목록·상한) · `ProductSaveRequest.java` · ✅ `3970dd1`
 - [ ] **F-PSRC-16** identifiers JSON 직렬화 실패를 "{}"로 삼켜 식별자 유실 · `ProductPublishUseCase.java:80-86`(F-PSRC-14로 위치 이동) — 🟠 **R5 범위 밖(행위)**: `toJson`이 직렬화 예외를 "{}"로 삼킴. Map<String,String> 직렬화는 사실상 실패 불가(거의 도달불가 방어코드)라 순수 구조 아님. R2(관측성)에서 로그화 검토.
-- [ ] **F-PSRC-17** MarketRegistration의 productId·sbProductId에 동일 값 주입 · `MarketRegistrationTxService.savePending:39-40`(F-PSRC-14로 위치 이동) — 🟠 **R5 범위 밖(데이터 정합/행위)**: `.productId(productId).sbProductId(productId)` — sbProductId가 SB상품코드여야 하는지 도메인 결정 필요. 값 교정은 행위 변경이라 별도 배치.
+- [x] **F-PSRC-17** MarketRegistration의 productId·sbProductId에 동일 값 주입 · `MarketRegistrationTxService.savePending:39-40` — ✅ **사용자 판정: 유지**. 두 칸 모두 내부 상품번호(Long)이고 주문 동기화의 상품 역조회가 정상 동작(오탐/무해한 중복). 스키마 변경 불필요.
 
 ### supplier
 - [ ] **F-SUP-3** 활동로그(ActionLog) 미기록 · `SupplierController.java:26-27`
