@@ -5,6 +5,7 @@ import com.sbshop.agent.core.domain.market.repository.MarketRegistrationReposito
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,19 +31,36 @@ public class MarketRegistrationTxService {
 
 	/**
 	 * 외부 게시 전에 등록행을 PENDING(isSynced=false, identifiers 비움) 상태로 저장한다.
-	 * 재게시로 이미 행이 존재하면(F-PSRC-13 멱등성은 별도 범위) 그 행을 재사용한다.
+	 * <p>
+	 * F-PSRC-13 멱등성: 재게시로 이미 행이 존재하면 그 행을 재사용한다(순차 재호출 멱등).
+	 * 동시 재게시(경쟁)로 두 트랜잭션이 모두 "행 없음"을 관측해 둘 다 insert를 시도하면,
+	 * {@code sb_market_registration(product_id, market_type)} 유니크 제약에 의해 하나만 성공한다.
+	 * 진 쪽은 {@link DataIntegrityViolationException}을 받으므로, 이미 커밋된 상대 행을
+	 * 재조회해 재사용한다(멱등 보장).
 	 */
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public MarketRegistration savePending(Long productId, MarketType marketType, String marketProductName) {
 		return marketRegistrationRepository.findByProductIdAndMarketType(productId, marketType)
-			.orElseGet(() -> marketRegistrationRepository.save(MarketRegistration.builder()
+			.orElseGet(() -> insertPending(productId, marketType, marketProductName));
+	}
+
+	private MarketRegistration insertPending(Long productId, MarketType marketType, String marketProductName) {
+		try {
+			return marketRegistrationRepository.save(MarketRegistration.builder()
 				.productId(productId)
 				.sbProductId(productId)
 				.marketType(marketType)
 				.marketProductName(marketProductName)
 				.marketIdentifiers("{}")
 				.marketDetailedInfo("{}")
-				.build()));
+				.build());
+		} catch (DataIntegrityViolationException e) {
+			// 동시 재게시 경쟁 — 상대 트랜잭션이 먼저 커밋한 행을 재조회해 재사용한다.
+			log.info("[게시-멱등] 등록행 동시 insert 경쟁 감지 — 기존 행 재사용: productId={}, market={}",
+				productId, marketType);
+			return marketRegistrationRepository.findByProductIdAndMarketType(productId, marketType)
+				.orElseThrow(() -> e);
+		}
 	}
 
 	/**

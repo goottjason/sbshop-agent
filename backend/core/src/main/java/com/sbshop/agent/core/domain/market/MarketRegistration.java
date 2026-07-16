@@ -10,6 +10,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.sql.Types;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
@@ -21,7 +22,16 @@ import org.hibernate.annotations.JdbcTypeCode;
 
 @Slf4j
 @Entity
-@Table(name = "sb_market_registration")
+@Table(
+	name = "sb_market_registration",
+	// F-PSRC-13 / R3: 같은 상품·마켓의 등록행 중복을 DB 레벨에서 하드 차단(동시 재게시 경쟁 방지).
+	// savePending의 findByProductIdAndMarketType 재사용은 순차 재호출에만 멱등이므로,
+	// 동시성 안전을 위해 유니크 제약을 둔다.
+	uniqueConstraints = @UniqueConstraint(
+		name = "uk_market_registration_product_market",
+		columnNames = {"product_id", "market_type"}
+	)
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MarketRegistration extends BaseEntity {
