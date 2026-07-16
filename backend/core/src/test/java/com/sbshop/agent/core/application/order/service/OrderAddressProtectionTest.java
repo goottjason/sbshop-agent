@@ -3,12 +3,15 @@ package com.sbshop.agent.core.application.order.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.order.adapter.CoupangOrderAdapter;
 import com.sbshop.agent.core.application.order.adapter.SmartStoreOrderAdapter;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.mapper.CoupangStatusMapper;
+import com.sbshop.agent.core.domain.fee.repository.FeePolicyRepository;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
@@ -48,6 +51,9 @@ class OrderAddressProtectionTest {
 	@Mock private CoupangOrderAdapter coupangOrderAdapter;
 	@Mock private CoupangStatusMapper coupangStatusMapper;
 	@Mock private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
+
+	// 코드 기본요율(빈 정책 폴백)로 정산액을 계산하도록 실제 인스턴스 사용
+	private final MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
 
 	private static final String MANUAL_ADDRESS = "서울시 강남구 수기보정로 99";
 	private static final String MANUAL_ZIP = "06000";
@@ -91,7 +97,7 @@ class OrderAddressProtectionTest {
 	private SmartStoreOrderSyncService smartStoreService() {
 		return new SmartStoreOrderSyncService(credentialRepository, orderRepository,
 			orderLineItemRepository, productRepository, eventPublisher, smartStoreOrderAdapter,
-			syncStatusService);
+			syncStatusService, marketFeeService);
 	}
 
 	@Test
@@ -156,7 +162,7 @@ class OrderAddressProtectionTest {
 		CoupangOrderSyncService service = new CoupangOrderSyncService(credentialRepository,
 			orderRepository, orderLineItemRepository, productRepository,
 			marketRegistrationRepository, eventPublisher, coupangOrderAdapter, coupangStatusMapper,
-			syncStatusService);
+			syncStatusService, marketFeeService);
 		service.syncCoupangOrders();
 
 		assertThat(order.getAddress()).isEqualTo(MANUAL_ADDRESS);

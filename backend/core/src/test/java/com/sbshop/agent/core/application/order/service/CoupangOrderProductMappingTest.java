@@ -3,13 +3,16 @@ package com.sbshop.agent.core.application.order.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.order.adapter.CoupangOrderAdapter;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.mapper.CoupangStatusMapper;
+import com.sbshop.agent.core.domain.fee.repository.FeePolicyRepository;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
@@ -31,6 +34,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -60,6 +64,9 @@ class CoupangOrderProductMappingTest {
 	private CoupangStatusMapper statusMapper;
 	@Mock
 	private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
+	// 코드 기본요율(빈 정책 폴백)로 정산액을 계산하도록 실제 인스턴스를 @Spy로 주입
+	@Spy
+	private MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
 	@InjectMocks
 	private CoupangOrderSyncService service;
 

@@ -2,9 +2,12 @@ package com.sbshop.agent.core.application.order.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter;
+import com.sbshop.agent.core.domain.fee.repository.FeePolicyRepository;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import com.sbshop.agent.core.domain.order.Order;
@@ -50,10 +53,13 @@ class ElevenstDetectCancellationsTest {
 	@Mock
 	private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 
+	// 코드 기본요율(빈 정책 폴백)로 정산액을 계산하도록 실제 인스턴스 사용
+	private final MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
+
 	private ElevenstOrderSyncService service() {
 		return new ElevenstOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository,
-			productRepository, eventPublisher, elevenstOrderAdapter, syncStatusService);
+			productRepository, eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService);
 	}
 
 	private void stubCredentialAndEmptyApi() {

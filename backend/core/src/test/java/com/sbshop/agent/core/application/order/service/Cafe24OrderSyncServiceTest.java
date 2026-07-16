@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -12,8 +13,10 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
+import com.sbshop.agent.core.domain.fee.repository.FeePolicyRepository;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
@@ -48,12 +51,16 @@ class Cafe24OrderSyncServiceTest {
 	@Mock private ApplicationEventPublisher eventPublisher;
 	@Mock private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 
+	// 코드 기본요율(빈 정책 폴백)로 정산액을 계산하도록 실제 인스턴스 사용
+	private final MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
+
 	private Cafe24OrderSyncService service;
 
 	@BeforeEach
 	void setUp() {
 		service = new Cafe24OrderSyncService(cafe24OrderApiPort, orderRepository,
-			orderLineItemRepository, marketRegistrationRepository, eventPublisher, syncStatusService);
+			orderLineItemRepository, marketRegistrationRepository, eventPublisher, syncStatusService,
+			marketFeeService);
 		lenient().when(marketRegistrationRepository.findByMarketTypeAndIdentifiersContaining(
 			org.mockito.ArgumentMatchers.any(), anyString())).thenReturn(List.of());
 	}

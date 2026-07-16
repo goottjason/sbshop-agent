@@ -3,9 +3,11 @@ package com.sbshop.agent.core.application.order.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.order.adapter.CoupangOrderAdapter;
 import com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter;
 import com.sbshop.agent.core.application.order.adapter.SmartStoreOrderAdapter;
@@ -16,6 +18,7 @@ import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
+import com.sbshop.agent.core.domain.fee.repository.FeePolicyRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import java.util.List;
@@ -63,6 +66,9 @@ class OrderSyncEventEmissionTest {
 	@Mock
 	private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 
+	// 코드 기본요율(빈 정책 폴백)로 정산액을 계산하도록 실제 인스턴스 사용
+	private final MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
+
 	private List<SyncCompletedEvent> capturedEvents() {
 		ArgumentCaptor<SyncCompletedEvent> captor = ArgumentCaptor.forClass(SyncCompletedEvent.class);
 		verify(eventPublisher, atLeastOnce()).publishEvent(captor.capture());
@@ -77,7 +83,7 @@ class OrderSyncEventEmissionTest {
 		when(credentialRepository.findByMarketType(MarketType.SMART_STORE)).thenReturn(Optional.empty());
 		SmartStoreOrderSyncService service = new SmartStoreOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, smartStoreOrderAdapter, syncStatusService);
+			eventPublisher, smartStoreOrderAdapter, syncStatusService, marketFeeService);
 
 		service.syncSmartStoreOrders();
 
@@ -93,7 +99,7 @@ class OrderSyncEventEmissionTest {
 		CoupangOrderSyncService service = new CoupangOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
 			marketRegistrationRepository, eventPublisher, coupangOrderAdapter, coupangStatusMapper,
-			syncStatusService);
+			syncStatusService, marketFeeService);
 
 		service.syncCoupangOrders();
 
@@ -108,7 +114,7 @@ class OrderSyncEventEmissionTest {
 		when(credentialRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(Optional.empty());
 		ElevenstOrderSyncService service = new ElevenstOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, elevenstOrderAdapter, syncStatusService);
+			eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService);
 
 		service.syncElevenstOrders();
 
@@ -129,7 +135,7 @@ class OrderSyncEventEmissionTest {
 		when(smartStoreOrderAdapter.fetchOrders(any(), any(), any())).thenReturn(List.of());
 		SmartStoreOrderSyncService service = new SmartStoreOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, smartStoreOrderAdapter, syncStatusService);
+			eventPublisher, smartStoreOrderAdapter, syncStatusService, marketFeeService);
 
 		service.syncSmartStoreOrders();
 

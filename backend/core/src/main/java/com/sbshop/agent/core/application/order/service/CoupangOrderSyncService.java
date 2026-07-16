@@ -6,7 +6,7 @@ import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
-import com.sbshop.agent.core.domain.order.SettlementPolicy;
+import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -47,6 +47,7 @@ public class CoupangOrderSyncService {
 	private final CoupangOrderAdapter coupangOrderAdapter;
 	private final CoupangStatusMapper statusMapper;
 	private final com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
+	private final MarketFeeService marketFeeService;
 
 	// -- 상태 --
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
@@ -273,10 +274,9 @@ public class CoupangOrderSyncService {
 	private OrderLineItem buildLineItemFromDto(MarketOrderDto dto, Long orderId) {
 		// 1. productId 매칭 (market_registration)
 		Long productId = resolveProductId(dto);
-		// 2. 정산액 초기값 (totalAmount × 0.89 = 수수료 11% 차감)
-		BigDecimal settlementAmount = dto.getTotalAmount() != null
-			? dto.getTotalAmount().multiply(SettlementPolicy.SETTLEMENT_FEE_RATE)
-			: dto.getTotalAmount();
+		// 2. 정산액 초기값 = 총액 × (1 - 쿠팡 수수료율/100). 마켓별 요율(FeePolicy)을 sync에서 1회만 적용.
+		//    (실제 정산 API 값이 오면 위 콜백에서 applySettlement로 덮어씀.)
+		BigDecimal settlementAmount = marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.COUPANG);
 
 		return OrderLineItem.builder()
 			.orderId(orderId)

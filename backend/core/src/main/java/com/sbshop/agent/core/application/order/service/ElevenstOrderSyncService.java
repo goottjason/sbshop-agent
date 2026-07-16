@@ -6,6 +6,7 @@ import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
+import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
@@ -40,6 +41,7 @@ public class ElevenstOrderSyncService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final ElevenstOrderAdapter elevenstOrderAdapter;
 	private final com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
+	private final MarketFeeService marketFeeService;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -192,7 +194,7 @@ public class ElevenstOrderSyncService {
 				.shippingCarrier(dto.getCarrier())
 				.build())
 			.settlementData(SettlementData.builder()
-				.settlementAmount(dto.getTotalAmount())
+				.settlementAmount(marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.ELEVEN_STREET))
 				.settlementVerified(false)
 				.build())
 			.build();

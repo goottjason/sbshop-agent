@@ -6,12 +6,10 @@ import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
-import com.sbshop.agent.core.domain.order.SettlementPolicy;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -98,7 +96,8 @@ public class OrderShipService {
 						.shippingStatus(SHIPPED)
 						.build();
 					item.applyShippingData(cmd.toShippingData(item.getShippingData()));
-					calculateSettlement(item);
+					// 정산액은 주문 수집(sync) 시점에 마켓별 요율로 1회 계산·저장된다.
+					// 종전엔 여기서 다시 ×0.89를 곱해 이중 차감되던 버그가 있어 제거했다(F-SYNC-4/F-ORD-32 후속).
 					orderLineItemRepository.save(item);
 					orderShipped = true;
 				} catch (Exception e) {
@@ -131,11 +130,4 @@ public class OrderShipService {
 			.build();
 	}
 
-	static void calculateSettlement(OrderLineItem item) {
-		if (item.getSettlementData() != null && item.getSettlementData().getSettlementAmount() != null) {
-			BigDecimal currentSettlement = item.getSettlementData().getSettlementAmount();
-			BigDecimal settlementAmount = currentSettlement.multiply(SettlementPolicy.SETTLEMENT_FEE_RATE);
-			item.applySettlement(settlementAmount);
-		}
-	}
 }

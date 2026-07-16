@@ -6,10 +6,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter;
 import com.sbshop.agent.core.application.order.adapter.SmartStoreOrderAdapter;
 import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import com.sbshop.agent.core.domain.market.MarketCredential;
+import com.sbshop.agent.core.domain.fee.repository.FeePolicyRepository;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
@@ -52,6 +54,9 @@ class MarketCredentialValidationTest {
 	@Mock
 	private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 
+	// 코드 기본요율(빈 정책 폴백)로 정산액을 계산하도록 실제 인스턴스 사용
+	private final MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
+
 	private List<SyncCompletedEvent> capturedEvents() {
 		ArgumentCaptor<SyncCompletedEvent> captor = ArgumentCaptor.forClass(SyncCompletedEvent.class);
 		verify(eventPublisher, atLeastOnce()).publishEvent(captor.capture());
@@ -74,7 +79,7 @@ class MarketCredentialValidationTest {
 
 		SmartStoreOrderSyncService service = new SmartStoreOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, smartStoreOrderAdapter, syncStatusService);
+			eventPublisher, smartStoreOrderAdapter, syncStatusService, marketFeeService);
 		service.syncSmartStoreOrders();
 
 		assertIncompleteCredentialFailure(capturedEvents());
@@ -89,7 +94,7 @@ class MarketCredentialValidationTest {
 
 		ElevenstOrderSyncService service = new ElevenstOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, elevenstOrderAdapter, syncStatusService);
+			eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService);
 		service.syncElevenstOrders();
 
 		assertIncompleteCredentialFailure(capturedEvents());

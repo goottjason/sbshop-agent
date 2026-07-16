@@ -6,6 +6,7 @@ import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
+import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
@@ -39,6 +40,7 @@ public class SmartStoreOrderSyncService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final SmartStoreOrderAdapter smartStoreOrderAdapter;
 	private final com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
+	private final MarketFeeService marketFeeService;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -174,7 +176,7 @@ public class SmartStoreOrderSyncService {
 				.shippingCarrier(dto.getCarrier())
 				.build())
 			.settlementData(SettlementData.builder()
-				.settlementAmount(dto.getTotalAmount())
+				.settlementAmount(marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.SMART_STORE))
 				.settlementVerified(false)
 				.build())
 			.build();
