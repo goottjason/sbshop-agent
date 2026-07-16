@@ -12,7 +12,6 @@ import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
 import com.sbshop.agent.core.domain.product.client.ImageStorageClient;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
-import com.sbshop.agent.core.domain.product.component.ProductWriter;
 import com.sbshop.agent.core.domain.product.dto.ProductCreateCommand;
 import com.sbshop.agent.core.domain.product.enums.MeasureUnit;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
@@ -36,7 +35,7 @@ class ProductCreateBulkPartialFailureTest {
 	@Mock
 	private ProductReader productReader;
 	@Mock
-	private ProductWriter productWriter;
+	private ProductPersistTxService productPersistTxService;
 	@Mock
 	private ImageDownloadClient imageDownloadClient;
 	@Mock

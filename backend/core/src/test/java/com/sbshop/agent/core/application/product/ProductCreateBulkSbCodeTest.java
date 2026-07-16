@@ -1,7 +1,6 @@
 package com.sbshop.agent.core.application.product;
 
 import com.sbshop.agent.core.domain.product.component.ProductReader;
-import com.sbshop.agent.core.domain.product.component.ProductWriter;
 import com.sbshop.agent.core.domain.product.dto.ProductCreateCommand;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
 import com.sbshop.agent.core.domain.product.client.ImageStorageClient;
@@ -25,7 +24,7 @@ class ProductCreateBulkSbCodeTest {
 	@Mock
 	private ProductReader productReader;
 	@Mock
-	private ProductWriter productWriter;
+	private ProductPersistTxService productPersistTxService;
 	@Mock
 	private ImageDownloadClient imageDownloadClient;
 	@Mock

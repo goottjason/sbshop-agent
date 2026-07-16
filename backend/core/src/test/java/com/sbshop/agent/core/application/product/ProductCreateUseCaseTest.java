@@ -1,7 +1,6 @@
 package com.sbshop.agent.core.application.product;
 
 import com.sbshop.agent.core.domain.product.component.ProductReader;
-import com.sbshop.agent.core.domain.product.component.ProductWriter;
 import com.sbshop.agent.core.domain.product.dto.ProductCreateCommand;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
 import com.sbshop.agent.core.domain.product.client.ImageStorageClient;
@@ -27,7 +26,7 @@ class ProductCreateUseCaseTest {
 	@Mock
 	private ProductReader productReader;
 	@Mock
-	private ProductWriter productWriter;
+	private ProductPersistTxService productPersistTxService;
 	@Mock
 	private ImageDownloadClient imageDownloadClient;
 	@Mock
@@ -57,7 +56,7 @@ class ProductCreateUseCaseTest {
 		assertThat(result.failed()).isEmpty();
 		assertThat(result.succeeded().get(0).product().getSbCode()).contains("IHB");
 		assertThat(result.succeeded().get(0).product().getHostedImages()).contains("https://r2.dev/img.jpg");
-		verify(productWriter).saveAll(any());
+		verify(productPersistTxService).saveAll(any());
 	}
 
 	@Test
