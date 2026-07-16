@@ -116,12 +116,12 @@
 - [x] **F-H2** · 종료상태 송장수정 400 차단 · ✅ `dfcf8b3`
 - [x] **F-H4** · trackingNo/shippingCarrier 필수 검증 부재 · `ShippingUpdateCommand.java:20-27` · ✅ `aff9814`
 - [x] **F-ORD-2** · 기간 필터 한쪽 날짜만 오면 조용히 무시 · `OrderRepositoryImpl.java:189-194` · ✅ `aff9814`
-- [ ] **F-ORD-5** · 발주확인 실패 로그 marketType null · `OrderController.java:82`
+- [x] **F-ORD-5** · 발주확인 실패 로그 marketType null · `OrderController.java:82` — ✅ `4006db3` 단건 실패경로 marketType 채움(id 재조회), bulk는 다마켓 null 유지
 - [x] **F-ORD-6** · 진행/종료분 발주확인 재호출 차단 · ✅ `dfcf8b3`
 - [ ] **F-ORD-8** · 마켓 접수 실패를 RuntimeException으로 뭉갬(유형 소실) · `OrderService.java:81-85`
 - [x] **F-ORD-9** · 컨트롤러 결과기반 SUCCESS/FAILED 기록 · ✅ `ffdaed3`
 - [x] **F-ORD-13** · 발주취소 NEW-only 가드 · ✅ `dfcf8b3`
-- [ ] **F-ORD-15** · 발주취소 실패 로그 marketType null · `OrderController.java:126`
+- [x] **F-ORD-15** · 발주취소 실패 로그 marketType null · `OrderController.java:126` — ✅ `4006db3` 동일(단건 취소 실패경로 marketType 채움)
 - [x] **F-ORD-17** · 컨트롤러 결과기반 SUCCESS/FAILED 기록 · ✅ `ffdaed3`
 - [x] **F-ORD-22** · 라인아이템 없는 주문이 발주확인 전 가드 통과 · `OrderService.java:215` · ✅ `aff9814`
 - [x] **F-ORD-25** · 정책확정: 유니패스는 상태무관 허용(관리용) — 가드 제거·종결 · ✅ `dfcf8b3`
@@ -134,7 +134,7 @@
 
 ### order-sync (F-SYNC)
 - [ ] **F-SYNC-13** · preview 무인증 노출 + 주문 원시 PII 반환 · `OrderSyncController.java:140-157`
-- [ ] **F-SYNC-3** · 비동기 sync가 SUCCESS/FAILED ActionLog 미기록(STARTED만) · `OrderSyncController.java:55`
+- [x] **F-SYNC-3** · 비동기 sync가 SUCCESS/FAILED ActionLog 미기록(STARTED만) · `OrderSyncController.java:55` — ✅ `8a572b2` 5개 sync 트리거에 SUCCESS/FAILED 대칭 기록(응답계약 불변)
 - [ ] **F-SYNC-6** · 스마트스토어·Cafe24 취소감지 부재 · `SmartStoreOrderSyncService.java:206`
 - [ ] **F-SYNC-17** · 정산 동기화 중복 실행 가드 없음 · `CoupangOrderSyncService.java:91-152`
 - [ ] **F-SYNC-20** · customs 단일 트랜잭션 → 마지막 배치 예외 시 전체 롤백 · `CustomsOrderSyncService.java:32,60`
@@ -281,7 +281,7 @@
 - [x] **F-MREG-6** MarketRegistrationService 추출 · ✅ `d81fa42`
 
 ### misc
-- [ ] **F-MISC-19** 수동 트리거가 스케줄러 우회 → SyncStatus 미기록 · `EmailFetchController.java:33`
+- [x] **F-MISC-19** 수동 트리거가 스케줄러 우회 → SyncStatus 미기록 · `EmailFetchController.java:33` — ✅ `10b4eb2` markRunning→markCompleted/markFailed 추가(SyncMarketKeys.EMAIL, 계약 무영향)
 - [ ] **F-MISC-22** IMAP 다계정×다주문 N×M 연결·조기종료 부재 · `EmailFetcherService.java:67-78`
 - [x] **F-MISC-9** 대상선정을 서비스로 이동(P4b 동반) · ✅ `bbf0e1c`
 - [ ] **F-MISC-14** SSE push 실패=remove뿐, 재전송/Last-Event-ID 없음 · `SseNotificationController.java:69,90`
@@ -295,7 +295,7 @@
 
 ### order
 - [ ] **F-ORD-3** shippingStatuses 필터가 EXISTS라 주문 단위 부분매칭 · `OrderRepositoryImpl.java:139-150`
-- [ ] **F-ORD-4** 조회 API 활동로그 미기록(8개와 비대칭) · `OrderController.java:60-66`
+- [x] **F-ORD-4** 조회 API 활동로그 미기록(8개와 비대칭) · `OrderController.java:60-66` — ✅ R2 사용자정책: **조회는 로그 미기록이 의도**(변경만 기록, 로그노이즈·테이블비대 방지). 유지.
 - [x] **F-ORD-11 / 20** confirm/cancel-batch 요청 DTO 없이 Map 직접 바인딩 · `OrderController.java:90-92,134-136` — ✅ `3e5f160` OrderIdsRequest record(계약 동일, 계약테스트)
 - [ ] **F-ORD-12** 일괄 발주확인 부분실패가 200 반환 · `OrderController.java:104`
 - [ ] **F-ORD-14** 쿠팡 등은 취소가 마켓에 미전파(로컬 only) · `OrderService.java:144-152`
@@ -316,7 +316,7 @@
 - [x] **F-SYNC-25** DB 영속화로 재시작에도 상태 보존 · ✅ `059ed79`
 
 ### product
-- [ ] **F-PROD-3** 조회계열 활동로그 미기록 · `ProductController.java:66-94`
+- [x] **F-PROD-3** 조회계열 활동로그 미기록 · `ProductController.java:66-94` — ✅ R2 사용자정책: 조회 로그 미기록이 의도(유지).
 - [ ] **F-PROD-4** marketMap 폴백(productId)과 실코드 미구분 · `ProductController.java:315-318`
 - [ ] **F-PROD-9** price.intValue() 소수점 절사 후 전송 · `ProductManageUseCase.java:63`
 - [x] **F-PROD-13** 빈 리스트=전체삭제 · ✅ `70cfe2c`
@@ -327,7 +327,7 @@
 
 ### batch
 - [x] **F-BATCH-6** couponRate가 crawl 경로에서 수집만 되고 미사용 · `BatchController.java:56` — ✅ `cfb8fa9` **사용자 판정: 적용 누락 버그**. MarginCalculator에 쿠폰 오버로드 추가, 실매입가=구매가×(1-쿠폰%)로 판매가 산정. ⚠️ 배포 전 확인: 배치 실행 시 판매가 하락(예 22400→19600), 기본 couponRate=20% 전상품 일괄 적용.
-- [ ] **F-BATCH-7** 활동로그 STARTED/완료 이원화, marketType null · `BatchController.java:51`
+- [x] **F-BATCH-7** 활동로그 STARTED/완료 이원화, marketType null · `BatchController.java:51` — ✅ R2 오탐/유지: 완료(SUCCESS/FAILED)는 BatchCompletedEvent→ActionLogBatchListener가 기록(SP-F에서 해소), marketType=null은 다마켓 배치라 의도.
 - [ ] **F-BATCH-B2** 대상 0건과 진행의 응답 스키마 비대칭 · `BatchController.java:103,119`
 - [ ] **F-BATCH-S3** `/status/{batchId}` 페이지네이션·필터 없음 · `ProcessStatusService.java:63`
 - [ ] **F-BATCH-SM2** percent가 완료율이지 성공률 아님 · `BatchSummary.java:17`
@@ -342,16 +342,16 @@
 - [x] **F-PSRC-17** MarketRegistration의 productId·sbProductId에 동일 값 주입 · `MarketRegistrationTxService.savePending:39-40` — ✅ **사용자 판정: 유지**. 두 칸 모두 내부 상품번호(Long)이고 주문 동기화의 상품 역조회가 정상 동작(오탐/무해한 중복). 스키마 변경 불필요.
 
 ### supplier
-- [ ] **F-SUP-3** 활동로그(ActionLog) 미기록 · `SupplierController.java:26-27`
+- [x] **F-SUP-3** 활동로그(ActionLog) 미기록 · `SupplierController.java:26-27` — ✅ `ec3c802` createSupplier/createCurrency 변경 로그 기록(SUPPLIER_CREATE·CURRENCY_CREATE)
 - [ ] **F-SUP-CS-4** createSupplier 트랜잭션 경계 없음 · `SupplierController.java:34`
-- [ ] **F-SUP-CS-5** createSupplier 엔티티 노출 + 로그 미기록 · `SupplierController.java:35`
-- [ ] **F-SUP-UC-5** createCurrency 엔티티 노출 + 환율변경 로그 미기록 · `SupplierController.java:49`
+- [x] **F-SUP-CS-5** createSupplier 엔티티 노출 + 로그 미기록 · `SupplierController.java:35` — ✅ `ec3c802` 로그 기록(SUPPLIER_CREATE). 엔티티노출은 SupplierResponse DTO(F-SUP-1)로 기해결.
+- [x] **F-SUP-UC-5** createCurrency 엔티티 노출 + 환율변경 로그 미기록 · `SupplierController.java:49` — ✅ `ec3c802` 환율변경 로그 기록(CURRENCY_CREATE). 엔티티노출은 CurrencyResponse DTO로 기해결.
 - [ ] **F-SUP-4** 공급사 목록 정렬·페이징 부재 · `SupplierController.java:31`
 - [ ] **F-SUP-LC-2** 통화 목록 정렬 부재 · `SupplierController.java:45`
 - [ ] **F-SUP-LC-3** Currency 소프트삭제/삭제 API 부재 · `Currency.java:16`
 
 ### market-credential
-- [ ] **F-CRED-3** 목록 조회 API 활동로그 미기록 · `MarketCredentialController.java:31-34`
+- [x] **F-CRED-3** 목록 조회 API 활동로그 미기록 · `MarketCredentialController.java:31-34` — ✅ R2 사용자정책: 조회 로그 미기록이 의도(유지).
 - [ ] **F-CRED-5** UNKNOWN이 유효 enum이라 조회/저장 대상 · `MarketType.java:16`
 - [ ] **F-CRED-6** 404가 빈 바디 반환, 프론트 파싱과 비대칭 · `MarketCredentialController.java:40`
 
