@@ -115,8 +115,13 @@ class BatchControllerTriggerCharacterizationTest {
 			.containsEntry("message", "전체 필드 일괄 업데이트가 시작되었습니다.");
 	}
 
+	// F-BATCH-B2: by-supplier의 정상 케이스와 0건 케이스가 서로 다른 응답 키셋을 가졌다
+	// (정상={batchId,count}·message 없음 / 0건={message}·batchId 없음). 클라이언트가 두 형태를
+	// 분기해야 하는 비대칭을 제거하기 위해, 두 경로가 동일한 키셋 {batchId, count, message}를
+	// 갖도록 통일한다. Map.of는 null을 못 담으므로 0건은 batchId=""(빈문자열)·count="0"으로 채운다.
+	// 프론트(BatchUpdatePage)는 `if (data.batchId)`로 분기하므로 ""는 falsy → 기존 0건 처리와 동일.
 	@Test
-	@DisplayName("by-supplier: CRAWL_AND_UPDATE_PRICE_STOCK jobType + BY_SUPPLIER 로그 + {batchId, count} (message 아님)")
+	@DisplayName("by-supplier 정상: {batchId, count, message} 동일 키셋 (message 포함)")
 	void updateBySupplier_characterization() {
 		when(batchPriceStockService.getProductIdsByVendor(VendorType.IHB))
 			.thenReturn(List.of(1L, 2L, 3L));
@@ -132,13 +137,14 @@ class BatchControllerTriggerCharacterizationTest {
 			eq(ActionStatus.STARTED),
 			eq("소싱업체별 배치 시작 (IHB, batchId=batch-4, 3건)"));
 		assertThat(resp.getBody())
+			.containsOnlyKeys("batchId", "count", "message")
 			.containsEntry("batchId", "batch-4")
 			.containsEntry("count", "3")
-			.doesNotContainKey("message");
+			.containsEntry("message", "소싱업체별 일괄 업데이트가 시작되었습니다.");
 	}
 
 	@Test
-	@DisplayName("by-supplier: 대상 상품 0건이면 startBatch/로그 없이 {message}만 반환")
+	@DisplayName("by-supplier 0건: {batchId, count, message} 동일 키셋 (batchId=\"\", count=\"0\")")
 	void updateBySupplier_emptyProducts_characterization() {
 		when(batchPriceStockService.getProductIdsByVendor(VendorType.IHB)).thenReturn(List.of());
 		SupplierBatchRequest req = new SupplierBatchRequest("ihb", null, null, null);
@@ -148,7 +154,9 @@ class BatchControllerTriggerCharacterizationTest {
 		Mockito.verifyNoInteractions(processStatusService);
 		Mockito.verifyNoInteractions(actionLogService);
 		assertThat(resp.getBody())
-			.containsEntry("message", "해당 소싱업체의 상품이 없습니다.")
-			.doesNotContainKey("batchId");
+			.containsOnlyKeys("batchId", "count", "message")
+			.containsEntry("batchId", "")
+			.containsEntry("count", "0")
+			.containsEntry("message", "해당 소싱업체의 상품이 없습니다.");
 	}
 }

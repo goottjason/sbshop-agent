@@ -129,7 +129,11 @@ public class BatchController {
 		VendorType vendor = VendorType.valueOf(request.supplierCode().toUpperCase());
 		List<Long> productIds = batchPriceStockService.getProductIdsByVendor(vendor);
 		if (productIds.isEmpty()) {
-			return ResponseEntity.ok(Map.of("message", "해당 소싱업체의 상품이 없습니다."));
+			// F-BATCH-B2: 0건 케이스도 정상 케이스와 동일한 키셋 {batchId, count, message}를 반환한다.
+			// Map.of는 null을 못 담으므로 batchId는 빈 문자열("")로 채운다 — 프론트는 `if (data.batchId)`로
+			// 분기하므로 ""는 falsy → batchId 부재로 안전 처리(진행현황 폴링 미시작).
+			return ResponseEntity.ok(Map.of(
+				"batchId", "", "count", "0", "message", "해당 소싱업체의 상품이 없습니다."));
 		}
 		List<String> productCodes = productIds.stream().map(String::valueOf).toList();
 		// D-076: 소싱업체별 배치 — 시작 기록.
@@ -144,7 +148,11 @@ public class BatchController {
 			request.couponRate() != null ? request.couponRate() : new BigDecimal("20"),
 			request.minMarginPrice() != null ? request.minMarginPrice() : new BigDecimal("5000"),
 			ActionLogConstants.BATCH_BY_SUPPLIER);
-		return ResponseEntity.ok(Map.of("batchId", batchId, "count", String.valueOf(productIds.size())));
+		// F-BATCH-B2: 0건 케이스와 동일 키셋 {batchId, count, message}로 통일 (message 추가).
+		return ResponseEntity.ok(Map.of(
+			"batchId", batchId,
+			"count", String.valueOf(productIds.size()),
+			"message", "소싱업체별 일괄 업데이트가 시작되었습니다."));
 	}
 
 	@GetMapping("/status/{batchId}")
