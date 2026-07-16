@@ -49,26 +49,22 @@ public class SseNotificationController {
 		return emitter;
 	}
 
+	static String syncEventName(boolean success) {
+		return success ? "SYNC_COMPLETED" : "SYNC_FAILED";
+	}
+
+	static String syncPayload(com.sbshop.agent.core.domain.order.enums.MarketType marketType,
+			boolean success, String errorMessage) {
+		return success
+			? marketType.name() + "|success"
+			: marketType.name() + "|fail|" + errorMessage;
+	}
+
 	@EventListener
 	public void onSyncCompleted(SyncCompletedEvent event) {
-		// 1. 등록된 모든 클라이언트 순회
-		for (SseEmitter emitter : emitters) {
-			try {
-				// 2. 성공/실패 구분하여 이벤트 발송
-				if (event.isSuccess()) {
-					emitter.send(SseEmitter.event()
-						.name("SYNC_COMPLETED")
-						.data(event.getMarketType().name() + "|success"));
-				} else {
-					emitter.send(SseEmitter.event()
-						.name("SYNC_FAILED")
-						.data(event.getMarketType().name() + "|fail|" + event.getErrorMessage()));
-				}
-			} catch (IOException e) {
-				// 3. 이벤트 발송 실패 시 대상 클라이언트 제거 (비정상 종료 처리)
-				emitters.remove(emitter);
-			}
-		}
+		String name = syncEventName(event.isSuccess());
+		String data = syncPayload(event.getMarketType(), event.isSuccess(), event.getErrorMessage());
+		broadcast(name, data);
 	}
 
 	static String batchEventName(boolean success) {
@@ -83,10 +79,15 @@ public class SseNotificationController {
 	public void onBatchCompleted(com.sbshop.agent.core.application.product.event.BatchCompletedEvent event) {
 		String name = batchEventName(event.isSuccess());
 		String data = batchPayload(event.getBatchId(), event.isSuccess());
+		broadcast(name, data);
+	}
+
+	// 등록된 모든 클라이언트에 동일 이벤트를 발송하고, 발송 실패한 클라이언트는 목록에서 제거한다.
+	private void broadcast(String name, String data) {
 		for (SseEmitter emitter : emitters) {
 			try {
 				emitter.send(SseEmitter.event().name(name).data(data));
-			} catch (java.io.IOException e) {
+			} catch (IOException e) {
 				emitters.remove(emitter);
 			}
 		}
