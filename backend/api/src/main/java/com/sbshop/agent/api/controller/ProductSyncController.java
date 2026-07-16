@@ -29,12 +29,12 @@ public class ProductSyncController {
 	private final InternalAccessGuard internalAccessGuard;
 
 	@PostMapping("/sync/stock")
-	public ResponseEntity<?> syncAllProductStock(
+	public ResponseEntity<Map<String, Object>> syncAllProductStock(
 			@RequestHeader(value = InternalAccessGuard.HEADER_NAME, required = false) String internalToken) {
 		// F-MISC-7: 가드 활성 시 시크릿 헤더 불일치/누락은 동기화 트리거 전 403으로 차단.
 		if (!internalAccessGuard.isAllowed(internalToken)) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-				.body(Map.of("success", false, "message", "forbidden: invalid internal token"));
+				.body(Map.<String, Object>of("success", false, "message", "forbidden: invalid internal token"));
 		}
 		// D-076: 재고 동기화(백그라운드 크롤) — 트리거 시점 기록(STARTED).
 		actionLogService.record(ActionLogConstants.STOCK_SYNC, null,
@@ -45,12 +45,12 @@ public class ProductSyncController {
 			productSyncService.syncStockForPreparingOrdersAsync();
 
 			// F-MISC-10: 응답 메시지를 실제 동작(NEW/PREPARING 대상)에 맞게 정정.
-			return ResponseEntity.ok(Map.of("success", true, "message",
+			return ResponseEntity.ok(Map.<String, Object>of("success", true, "message",
 				"NEW/PREPARING 상태 주문 상품 재고 동기화 시작"));
 		} catch (Exception e) {
 			// @Async 디스패치 실패 등 예외 시 에러 응답 반환
 			return ResponseEntity.internalServerError()
-				.body(Map.of("success", false, "message", e.getMessage()));
+				.body(Map.<String, Object>of("success", false, "message", e.getMessage()));
 		}
 	}
 }
