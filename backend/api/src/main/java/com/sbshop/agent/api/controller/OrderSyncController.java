@@ -60,6 +60,8 @@ public class OrderSyncController {
 		try {
 			// 쿠팡 동기화 비동기 실행 호출
 			coupangOrderSyncService.syncCoupangOrders();
+			// F-SYNC-3: 트리거 성공 기록(SUCCESS).
+			actionLogService.record("COUPANG_SYNC", "COUPANG", ActionStatus.SUCCESS, "쿠팡 동기화 요청 완료");
 			// 성공 응답 및 메시지 반환
 			return ResponseEntity.ok(Map.of(
 				"success", true,
@@ -67,6 +69,9 @@ public class OrderSyncController {
 		} catch (Exception e) {
 			// 쿠팡 동기화 실패 에러 로그 출력
 			log.error("쿠팡 주문 동기화 실패", e);
+			// F-SYNC-3: 트리거 실패 기록(FAILED).
+			actionLogService.record("COUPANG_SYNC", "COUPANG", ActionStatus.FAILED,
+				"쿠팡 동기화 실패: " + e.getMessage());
 			// 내부 서버 오류 응답 및 에러 메시지 반환
 			return ResponseEntity.internalServerError().body(Map.of(
 				"success", false,
@@ -85,6 +90,9 @@ public class OrderSyncController {
 		try {
 			// 스마트스토어 동기화 비동기 실행 호출
 			smartStoreOrderSyncService.syncSmartStoreOrders();
+			// F-SYNC-3: 트리거 성공 기록(SUCCESS).
+			actionLogService.record("SMART_STORE_SYNC", "SMART_STORE", ActionStatus.SUCCESS,
+				"스마트스토어 동기화 요청 완료");
 			// 성공 응답 및 메시지 반환
 			return ResponseEntity.ok(Map.of(
 				"success", true,
@@ -92,6 +100,9 @@ public class OrderSyncController {
 		} catch (Exception e) {
 			// 스마트스토어 동기화 실패 에러 로그 출력
 			log.error("스마트스토어 주문 동기화 실패", e);
+			// F-SYNC-3: 트리거 실패 기록(FAILED).
+			actionLogService.record("SMART_STORE_SYNC", "SMART_STORE", ActionStatus.FAILED,
+				"스마트스토어 동기화 실패: " + e.getMessage());
 			// 내부 서버 오류 응답 및 에러 메시지 반환
 			return ResponseEntity.internalServerError().body(Map.of(
 				"success", false,
@@ -108,11 +119,17 @@ public class OrderSyncController {
 
 		try {
 			elevenstOrderSyncService.syncElevenstOrders();
+			// F-SYNC-3: 트리거 성공 기록(SUCCESS).
+			actionLogService.record("ELEVEN_STREET_SYNC", "ELEVEN_STREET", ActionStatus.SUCCESS,
+				"11번가 동기화 요청 완료");
 			return ResponseEntity.ok(Map.of(
 				"success", true,
 				"message", "11번가 주문 동기화가 백그라운드에서 시작되었습니다."));
 		} catch (Exception e) {
 			log.error("11번가 주문 동기화 실패", e);
+			// F-SYNC-3: 트리거 실패 기록(FAILED).
+			actionLogService.record("ELEVEN_STREET_SYNC", "ELEVEN_STREET", ActionStatus.FAILED,
+				"11번가 동기화 실패: " + e.getMessage());
 			return ResponseEntity.internalServerError().body(Map.of(
 				"success", false,
 				"message", "11번가 주문 동기화 실패: " + e.getMessage()));
@@ -128,11 +145,17 @@ public class OrderSyncController {
 
 		try {
 			cafe24OrderSyncService.syncCafe24Orders();
+			// F-SYNC-3: 트리거 성공 기록(SUCCESS).
+			actionLogService.record("GMARKET_SYNC", "GMARKET", ActionStatus.SUCCESS,
+				"G마켓/옥션(Cafe24 주문API) 동기화 요청 완료");
 			return ResponseEntity.ok(Map.of(
 				"success", true,
 				"message", "G마켓/옥션 주문 동기화(Cafe24 API)가 백그라운드에서 시작되었습니다."));
 		} catch (Exception e) {
 			log.error("G마켓/옥션(Cafe24) 주문 동기화 실패", e);
+			// F-SYNC-3: 트리거 실패 기록(FAILED).
+			actionLogService.record("GMARKET_SYNC", "GMARKET", ActionStatus.FAILED,
+				"G마켓/옥션(Cafe24) 동기화 실패: " + e.getMessage());
 			return ResponseEntity.internalServerError().body(Map.of(
 				"success", false,
 				"message", "G마켓/옥션 주문 동기화 실패: " + e.getMessage()));
@@ -177,11 +200,17 @@ public class OrderSyncController {
 
 		try {
 			coupangOrderSyncService.syncCoupangSettlement();
+			// F-SYNC-3: 트리거 성공 기록(SUCCESS).
+			actionLogService.record(ActionLogConstants.COUPANG_SETTLEMENT_SYNC, "COUPANG",
+				ActionStatus.SUCCESS, "쿠팡 정산 동기화 요청 완료");
 			return ResponseEntity.ok(Map.of(
 				"success", true,
 				"message", "쿠팡 정산 데이터 동기화가 백그라운드에서 시작되었습니다."));
 		} catch (Exception e) {
 			log.error("쿠팡 정산 동기화 실패", e);
+			// F-SYNC-3: 트리거 실패 기록(FAILED).
+			actionLogService.record(ActionLogConstants.COUPANG_SETTLEMENT_SYNC, "COUPANG",
+				ActionStatus.FAILED, "쿠팡 정산 동기화 실패: " + e.getMessage());
 			return ResponseEntity.internalServerError().body(Map.of(
 				"success", false,
 				"message", "쿠팡 정산 동기화 실패: " + e.getMessage()));
