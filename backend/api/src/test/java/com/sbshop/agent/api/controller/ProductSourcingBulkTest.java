@@ -3,6 +3,7 @@ package com.sbshop.agent.api.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -15,12 +16,16 @@ import com.sbshop.agent.core.application.product.ProductCreateUseCase;
 import com.sbshop.agent.core.application.product.ProductPublishUseCase;
 import com.sbshop.agent.core.application.product.dto.BulkProductCreateResult;
 import com.sbshop.agent.core.application.sourcing.ProductSourcingUseCase;
+import com.sbshop.agent.core.application.sourcing.dto.SourcingCrawlResult;
 import com.sbshop.agent.core.domain.product.Product;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
@@ -39,6 +44,8 @@ class ProductSourcingBulkTest {
     private ProductPublishUseCase productPublishUseCase;
     @Mock
     private ActionLogService actionLogService;
+    @Captor
+    private ArgumentCaptor<List<String>> urlsCaptor;
 
     private ProductSourcingController controller() {
         return new ProductSourcingController(
@@ -113,5 +120,85 @@ class ProductSourcingBulkTest {
         assertThatThrownBy(() -> controller().sourceFromIherb(List.of()))
             .isInstanceOf(IllegalArgumentException.class);
         verify(productSourcingUseCase, never()).sourceFromIherb(any());
+    }
+
+    private static final SourcingCrawlResult EMPTY_RESULT =
+        new SourcingCrawlResult(List.of(), List.of());
+
+    @Test
+    @DisplayName("F-PSRC-5: iHerb 도메인이 아닌 URL 포함 → IllegalArgumentException(400)")
+    void nonIherbDomainUrl_throwsIllegalArgument() {
+        assertThatThrownBy(() -> controller().sourceFromIherb(
+            List.of("https://www.evil.com/pr/x/12345")))
+            .isInstanceOf(IllegalArgumentException.class);
+        verify(productSourcingUseCase, never()).sourceFromIherb(any());
+    }
+
+    @Test
+    @DisplayName("F-PSRC-5: http(s)가 아닌 스킴 URL 포함 → IllegalArgumentException(400)")
+    void nonHttpSchemeUrl_throwsIllegalArgument() {
+        assertThatThrownBy(() -> controller().sourceFromIherb(
+            List.of("ftp://www.iherb.com/pr/x/12345")))
+            .isInstanceOf(IllegalArgumentException.class);
+        verify(productSourcingUseCase, never()).sourceFromIherb(any());
+    }
+
+    @Test
+    @DisplayName("F-PSRC-5: 상품 ID 패턴(/pr/../id·/product/id) 없는 iHerb URL → IllegalArgumentException(400)")
+    void iherbUrlWithoutProductId_throwsIllegalArgument() {
+        assertThatThrownBy(() -> controller().sourceFromIherb(
+            List.of("https://www.iherb.com/catalog")))
+            .isInstanceOf(IllegalArgumentException.class);
+        verify(productSourcingUseCase, never()).sourceFromIherb(any());
+    }
+
+    @Test
+    @DisplayName("F-PSRC-5: 공백만 있는 URL 포함 → IllegalArgumentException(400)")
+    void blankUrl_throwsIllegalArgument() {
+        assertThatThrownBy(() -> controller().sourceFromIherb(
+            List.of("   ")))
+            .isInstanceOf(IllegalArgumentException.class);
+        verify(productSourcingUseCase, never()).sourceFromIherb(any());
+    }
+
+    @Test
+    @DisplayName("F-PSRC-5: 상한(100건) 초과 → IllegalArgumentException(400)")
+    void tooManyUrls_throwsIllegalArgument() {
+        List<String> urls = IntStream.rangeClosed(1, 101)
+            .mapToObj(i -> "https://www.iherb.com/pr/x/" + i)
+            .toList();
+        assertThatThrownBy(() -> controller().sourceFromIherb(urls))
+            .isInstanceOf(IllegalArgumentException.class);
+        verify(productSourcingUseCase, never()).sourceFromIherb(any());
+    }
+
+    @Test
+    @DisplayName("F-PSRC-5: 중복 URL은 제거되어 UseCase에 유일 목록만 전달된다")
+    void duplicateUrls_deduplicatedBeforeUseCase() {
+        when(productSourcingUseCase.sourceFromIherb(anyList())).thenReturn(EMPTY_RESULT);
+
+        controller().sourceFromIherb(List.of(
+            "https://www.iherb.com/pr/calcium/12345",
+            "https://www.iherb.com/pr/calcium/12345",
+            "https://www.iherb.com/pr/magnesium/67890"));
+
+        verify(productSourcingUseCase).sourceFromIherb(urlsCaptor.capture());
+        assertThat(urlsCaptor.getValue()).containsExactly(
+            "https://www.iherb.com/pr/calcium/12345",
+            "https://www.iherb.com/pr/magnesium/67890");
+    }
+
+    @Test
+    @DisplayName("F-PSRC-5: 정상 iHerb URL(/product/id·/pr/name/id)은 그대로 통과한다")
+    void validIherbUrls_passThrough() {
+        when(productSourcingUseCase.sourceFromIherb(anyList())).thenReturn(EMPTY_RESULT);
+
+        List<String> urls = List.of(
+            "https://www.iherb.com/pr/now-foods/12345",
+            "https://iherb.com/product/67890");
+        controller().sourceFromIherb(urls);
+
+        verify(productSourcingUseCase).sourceFromIherb(urlsCaptor.capture());
+        assertThat(urlsCaptor.getValue()).containsExactlyElementsOf(urls);
     }
 }

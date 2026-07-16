@@ -13,7 +13,10 @@ import com.sbshop.agent.core.domain.product.dto.ProductCreateCommand;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -37,6 +40,18 @@ public class ProductSourcingController {
 	// D-076: 사용자 액션 활동로그 기록 서비스
 	private final ActionLogService actionLogService;
 
+	// F-PSRC-5: iHerb 소싱 URL 한 요청당 상한. 크롤은 URL당 외부 HTTP 왕복이라
+	// 무제한 목록은 장시간 점유·부하 위험 → 합리적 상한으로 차단.
+	private static final int MAX_IHERB_URLS = 100;
+	// F-PSRC-5: iHerb 상품 URL 형식.
+	//   - http(s) 스킴
+	//   - 호스트가 iherb.com 또는 그 서브도메인(www.iherb.com 등)
+	//   - 크롤러(IherbScraperClient.extractProductId)가 ID를 뽑을 수 있는 경로:
+	//     /product/{숫자} 또는 /pr/{이름}/{숫자}. 이 패턴이 없으면 크롤이 조용히 실패한다.
+	private static final Pattern IHERB_URL_PATTERN = Pattern.compile(
+		"^https?://([a-z0-9-]+\\.)*iherb\\.com(:\\d+)?(/\\S*)?(/product/\\d+|/pr/[^/]+/\\d+).*$",
+		Pattern.CASE_INSENSITIVE);
+
 	@PostMapping("/sourcing/iherb")
 	public ResponseEntity<IherbSourcingResponse> sourceFromIherb(@RequestBody
 	List<String> urls) {
@@ -45,6 +60,9 @@ public class ProductSourcingController {
 		if (urls == null || urls.isEmpty()) {
 			throw new IllegalArgumentException("urls는 필수이며 비어 있을 수 없습니다.");
 		}
+		// F-PSRC-5: 형식 검증(iHerb 도메인/http(s)/상품ID 패턴)·개수 상한·중복 제거.
+		// 기존 null/빈 검증 위에 얹는다(형식 위반은 400으로 거부, 정상 URL은 오거부하지 않음).
+		urls = validateAndDedupeIherbUrls(urls);
 		// D-076: iHerb 소싱 크롤(장시간) — 시작+결과 기록.
 		int reqCount = urls.size();
 		actionLogService.record(ActionLogConstants.PRODUCT_SOURCING, null,
@@ -62,6 +80,25 @@ public class ProductSourcingController {
 				ActionStatus.FAILED, "iHerb 소싱 크롤 실패: " + e.getMessage());
 			throw e;
 		}
+	}
+
+	// F-PSRC-5: 형식 위반 URL을 400으로 거부하고, 개수 상한을 넘으면 거부하며, 중복은 제거한다.
+	// 순서를 보존(LinkedHashSet)하고 중복 제거 후 개수를 산정한다.
+	private List<String> validateAndDedupeIherbUrls(List<String> urls) {
+		List<String> deduped = new ArrayList<>(new LinkedHashSet<>(urls));
+		if (deduped.size() > MAX_IHERB_URLS) {
+			throw new IllegalArgumentException(
+				"URL은 한 번에 최대 " + MAX_IHERB_URLS + "개까지 처리할 수 있습니다: " + deduped.size() + "개");
+		}
+		for (String url : deduped) {
+			if (url == null || url.isBlank()) {
+				throw new IllegalArgumentException("URL은 비어 있을 수 없습니다.");
+			}
+			if (!IHERB_URL_PATTERN.matcher(url.trim()).matches()) {
+				throw new IllegalArgumentException("유효한 iHerb 상품 URL이 아닙니다: " + url);
+			}
+		}
+		return deduped;
 	}
 
 	@PostMapping("/products/bulk")
