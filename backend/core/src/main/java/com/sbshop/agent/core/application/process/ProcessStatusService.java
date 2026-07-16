@@ -77,11 +77,6 @@ public class ProcessStatusService {
 		return processStatusRepository.findDistinctBatchIds();
 	}
 
-	@Transactional(readOnly = true)
-	public List<ProcessStatus> getAllBatches() {
-		return processStatusRepository.findAll();
-	}
-
 	/**
 	 * 냉기동 시점에 남아있는 PENDING 행을 FAILED로 복구한다.
 	 *

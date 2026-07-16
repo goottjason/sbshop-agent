@@ -9,6 +9,7 @@ import com.sbshop.agent.core.application.product.ProductPublishUseCase;
 import com.sbshop.agent.core.application.product.dto.BulkProductCreateResult;
 import com.sbshop.agent.core.application.sourcing.ProductSourcingUseCase;
 import com.sbshop.agent.core.application.sourcing.dto.SourcingCrawlResult;
+import com.sbshop.agent.core.domain.product.dto.ProductCreateCommand;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -77,7 +78,7 @@ public class ProductSourcingController {
 				throw new IllegalArgumentException("costPrice는 음수일 수 없습니다: " + request.costPrice());
 			}
 		}
-		List<com.sbshop.agent.core.domain.product.dto.ProductCreateCommand> commands = requests.stream()
+		List<ProductCreateCommand> commands = requests.stream()
 			.map(ProductSaveRequest::toCommand)
 			.toList();
 		// SP-D: 신규 상품 일괄 등록 — 성공/실패를 각각 집계 반환(F-PSRC-6, 마켓등록 연결·실패 표면화용).

@@ -220,7 +220,7 @@
 - [x] **F-ORD-7/16/24/28** OrderResponse/OrderLineItemResponse DTO화(계약보존) · ✅ `c2b4e47`
 - [ ] **F-ORD-10 / 19** confirm/cancel-batch 컨트롤러 catch 죽은코드 · `OrderController.java:105-108,149-152`
 - [x] **F-ORD-18** bulkOperate 헬퍼로 통합 · ✅ `04062a9`
-- [ ] **F-ORD-21** `OrderUpdateCommand.toCustomsData()` 미사용 죽은코드 · `OrderUpdateCommand.java:14-19`
+- [x] **F-ORD-21** `OrderUpdateCommand.toCustomsData()` 미사용 죽은코드 · `OrderUpdateCommand.java:14-19` — ✅ R5-B1 제거(호출처 0, CustomsData import 고아 정리)
 - [ ] **F-ORD-32** 정산 상수 0.89 서비스 하드코딩 · `OrderShipService.java:81`
 - [x] **F-ORD-37** 삭제 로그 marketType null(조회로 채울 수 있었음) · `OrderController.java:275` — ✅ `6e320e0`
 - [ ] **F-S3** sourcing 두 분기 applySourcingData+save 중복 · `OrderService.java:277,285`
@@ -257,7 +257,7 @@
 ### product-sourcing
 - [ ] **F-PSRC-3** 대량 URL 소싱 순차·블로킹 → 톰캣 스레드 장기점유 · `IherbScraperClient.java:227-240`
 - [ ] **F-PSRC-9** SB코드 로컬증가가 실패/동시배치 시 결번/중복 · `ProductReaderImpl.java:51-60`
-- [ ] **F-PSRC-10** 컨트롤러가 core 도메인 타입 FQCN 인라인 참조 · `ProductSourcingController.java:63,69`
+- [x] **F-PSRC-10** 컨트롤러가 core 도메인 타입 FQCN 인라인 참조 · `ProductSourcingController.java:63,69` — ✅ R5-B1 import 정리(ProductCreateCommand)
 - [ ] **F-PSRC-15** 마켓 미지원 검증이 hasClient/getClient 이중 · `ProductPublishUseCase.java:36-43`
 
 ### supplier
@@ -287,7 +287,7 @@
 - [ ] **F-MISC-14** SSE push 실패=remove뿐, 재전송/Last-Event-ID 없음 · `SseNotificationController.java:69,90`
 - [ ] **F-MISC-15** SSE 두 리스너 브로드캐스트 로직 중복 · `SseNotificationController.java:55-92`
 - [ ] **F-MISC-1** action-logs 페이징 없이 PageRequest를 limit 상한으로만 · `ActionLogService.java:47`
-- [ ] **F-MISC-5** EnumMapperValue 가변 클래스(record 아님) · `EnumMapperValue.java:7-8`
+- [x] **F-MISC-5** EnumMapperValue 가변 클래스(record 아님) · `EnumMapperValue.java:7-8` — ✅ R5-B1 record 전환(JSON 출력 동일)
 
 ---
 
