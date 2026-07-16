@@ -40,11 +40,25 @@ public class ActionLogService {
 		}
 	}
 
-	/** 최근 액션 로그를 시간 역순으로 조회 (limit 개수 제한). */
+	/**
+	 * 최근 액션 로그를 시간 역순으로 조회 (첫 페이지, limit 개수 제한).
+	 * 기존 계약 유지용 편의 오버로드 — page=0 을 의미한다.
+	 */
 	@Transactional(readOnly = true)
 	public List<ActionLog> recentLogs(int limit) {
-		int safeLimit = limit <= 0 ? 100 : Math.min(limit, 500);
-		return actionLogRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, safeLimit));
+		return recentLogs(0, limit);
+	}
+
+	/**
+	 * F-MISC-1: 오프셋 기반 페이지네이션 조회.
+	 * page(0-base)와 size로 시간 역순 윈도우를 반환한다. 응답은 평면 리스트(프론트 계약 유지).
+	 * 방어: page&lt;0 → 0, size&lt;=0 → 기본 100, size 상한 500.
+	 */
+	@Transactional(readOnly = true)
+	public List<ActionLog> recentLogs(int page, int size) {
+		int safePage = Math.max(page, 0);
+		int safeSize = size <= 0 ? 100 : Math.min(size, 500);
+		return actionLogRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(safePage, safeSize));
 	}
 
 	/** message 컬럼 길이(1000) 초과 방지 */
