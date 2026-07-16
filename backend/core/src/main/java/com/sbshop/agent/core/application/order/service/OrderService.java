@@ -16,6 +16,7 @@ import com.sbshop.agent.core.application.order.dto.OrderSearchCondition;
 import com.sbshop.agent.core.application.order.dto.OrderUpdateCommand;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.application.order.dto.SourcingUpdateCommand;
+import com.sbshop.agent.core.application.order.exception.MarketOrderAcceptException;
 import com.sbshop.agent.core.application.order.port.MarketOrderPort;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
@@ -99,7 +100,8 @@ public class OrderService {
 		} catch (Exception e) {
 			log.error("마켓플레이스 주문 접수 API 실패: order={} ({}): {}",
 				id, order.getMarketOrderNo(), e.getMessage());
-			throw new RuntimeException("마켓플레이스 주문 접수 실패: " + e.getMessage(), e);
+			// 접수 실패 유형·원인을 전용 예외 + cause 체이닝으로 보존한다(F-ORD-8). 응답 계약(500)은 종전 유지.
+			throw new MarketOrderAcceptException("마켓플레이스 주문 접수 실패: " + e.getMessage(), e);
 		}
 
 		// NEW 상태 라인아이템을 PREPARING으로 변경
