@@ -141,7 +141,7 @@ public class OrderSyncController {
 
 	// 진단: Cafe24 주문 API 원시 응답 프리뷰(최근 7일 first page). 파싱 검증·구조 확인용.
 	@PostMapping("/cafe24/preview")
-	public ResponseEntity<Object> previewCafe24Orders() {
+	public ResponseEntity<Map<String, Object>> previewCafe24Orders() {
 		try {
 			java.time.LocalDate to = java.time.LocalDate.now();
 			java.time.LocalDate from = to.minusDays(7);
@@ -157,7 +157,7 @@ public class OrderSyncController {
 
 	// 진단: 몰 등록 택배사 목록(shipping_company_code 확인용). 송장 등록 택배사 코드 매핑 검증.
 	@PostMapping("/cafe24/carriers")
-	public ResponseEntity<Object> previewCafe24Carriers() {
+	public ResponseEntity<Map<String, Object>> previewCafe24Carriers() {
 		try {
 			return ResponseEntity.ok(Map.of("success", true, "carriers", cafe24OrderApiPort.fetchCarriers()));
 		} catch (Exception e) {
