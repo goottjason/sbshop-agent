@@ -127,7 +127,7 @@
 - [x] **F-ORD-25** · 정책확정: 유니패스는 상태무관 허용(관리용) — 가드 제거·종결 · ✅ `dfcf8b3`
 - [x] **F-ORD-26** · isUnipassDone null이면 무변경인데 200+성공로그 · `OrderService.java:249-251` · ✅ `aff9814`
 - [x] **F-ORD-29** · 일괄발송 SHIPPED/DELIVERED/END 재발송 스킵 · ✅ `dfcf8b3`
-- [ ] **F-ORD-31** · 발송 단일 트랜잭션 부분성공 후 예외 시 전체 롤백(마켓엔 발송됨) · `OrderShipService.java:30,60-66`
+- [x] **F-ORD-31** · 발송 단일 트랜잭션 부분성공 후 예외 시 전체 롤백(마켓엔 발송됨) · `OrderShipService.java:30,60-66` — ✅ `b657b1e` OrderShipProcessor 주문 건별 독립 tx
 - [x] **F-ORD-33** · 발송 orderIds null 시 서비스 NPE · `OrderShipService.java:34` — ✅ `cae6059` 오탐: bulkShipOrders null 가드 기존재(빈 결과 반환), 회귀 테스트 고정
 - [x] **F-ORD-34** · 삭제 엔드포인트 제거로 무효화 · ✅ `dfcf8b3`/`6c396f4`
 - [x] **F-ORD-35** · 삭제 엔드포인트 제거로 무효화 · ✅ `dfcf8b3`/`6c396f4`
@@ -137,7 +137,7 @@
 - [x] **F-SYNC-3** · 비동기 sync가 SUCCESS/FAILED ActionLog 미기록(STARTED만) · `OrderSyncController.java:55` — ✅ `8a572b2` 5개 sync 트리거에 SUCCESS/FAILED 대칭 기록(응답계약 불변)
 - [ ] **F-SYNC-6** · 스마트스토어·Cafe24 취소감지 부재 · `SmartStoreOrderSyncService.java:206`
 - [ ] **F-SYNC-17** · 정산 동기화 중복 실행 가드 없음 · `CoupangOrderSyncService.java:91-152`
-- [ ] **F-SYNC-20** · customs 단일 트랜잭션 → 마지막 배치 예외 시 전체 롤백 · `CustomsOrderSyncService.java:32,60`
+- [x] **F-SYNC-20** · customs 단일 트랜잭션 → 마지막 배치 예외 시 전체 롤백 · `CustomsOrderSyncService.java:32,60` — ✅ R3 오탐: F-SYNC-19에서 이미 배치별 독립커밋(CustomsBatchProcessor)으로 해소
 - [ ] **F-SYNC-11** · Cafe24 items 개수 불일치 시 첫 상태를 전체 lineItem에 일괄적용 · `Cafe24OrderSyncService.java:201-208`
 - [ ] **F-SYNC-12** · Cafe24 PCCC 필드명 미확정, 추출 실패 시 통관번호 누락 · `Cafe24OrderSyncService.java:257-276`
 - [ ] **F-SYNC-10** · 11번가 취소감지 orderDate 30일 창 밖 스킵·null 모호 · `ElevenstOrderSyncService.java:238-244`
@@ -171,7 +171,7 @@
 - [x] **F-PSRC-2** · SourcingCrawlResult로 실패 URL·사유 표면화 · ✅ `139a581`
 - [x] **F-PSRC-6** · BulkProductCreateResult로 실패 항목 표면화(결번 F-PSRC-9 잔존) · ✅ `139a581`
 - [x] **F-PSRC-7** · requests==null 시 컨트롤러 진입부 NPE(로그도 없음) · `ProductSourcingController.java:63,67` · ✅ `3970dd1`
-- [ ] **F-PSRC-8** · 이미지 다운로드·R2 업로드를 트랜잭션 안에서 → 장시간 트랜잭션·고아 이미지 · `ProductCreateUseCase.java:30,45,67-68`
+- [x] **F-PSRC-8** · 이미지 다운로드·R2 업로드를 트랜잭션 안에서 → 장시간 트랜잭션·고아 이미지 · `ProductCreateUseCase.java:30,45,67-68` — ✅ `a4d3799` 외부I/O tx 밖 분리(ProductPersistTxService 짧은 tx)
 - [~] **F-PSRC-12** · ~~500~~ → **오탐: 실제 400** · `ProductSourcingController.java:87` (로그없이 처리되는 점은 잔존)
 - [ ] **F-PSRC-13** · 게시 멱등성 부재 — 재호출 시 MarketRegistration 중복 생성 · `ProductPublishUseCase.java:53-62`
 
