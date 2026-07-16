@@ -94,6 +94,14 @@ public class MarketRegistration extends BaseEntity {
 	}
 
 	/**
+	 * 동기화 실패 표시. isSynced=false로 내려 "직전 동기화 미성공"을 나타낸다 —
+	 * 변경없음이어도 다음 배치에서 재시도되도록 하는 신호(Cafe24 변경감지 스킵과 연동).
+	 */
+	public void markSyncFailed() {
+		this.isSynced = false;
+	}
+
+	/**
 	 * marketIdentifiers JSON에서 vendorItemId 추출
 	 */
 	public String extractVendorItemId() {

@@ -67,6 +67,13 @@ public class BatchPriceStockService {
 				BigDecimal salePrice = marginCalculator.calculateSalePrice(buyPrice, bundleQty, marginRate,
 					couponRate, minMarginPrice);
 
+				// 이전 DB값 대비 실제 변경 여부(가격·판매상태) — 변경 없으면 Cafe24 재전송 스킵 대상.
+				BigDecimal oldSalePrice = product.getSalePrice();
+				StockStatus oldStatus = product.getStockStatus();
+				boolean priceChanged = (salePrice == null) != (oldSalePrice == null)
+					|| (salePrice != null && oldSalePrice != null && salePrice.compareTo(oldSalePrice) != 0);
+				boolean changed = priceChanged || result.status() != oldStatus;
+
 				ProductUpdateCommand command = ProductUpdateCommand.builder()
 					.costPrice(buyPrice)
 					.marginRate(marginRate)
@@ -79,8 +86,9 @@ public class BatchPriceStockService {
 				productWriter.save(product);
 
 				// D-060: 배치 갱신분도 연동 마켓에 반영(단건과 동일 경로). 부분 실패는 메시지로 표면화.
+				// changed=false면 Cafe24(직전 성공분)는 재전송 스킵.
 				MarketRepublishResult sync = productMarketSyncService.syncPriceStock(
-					productId, salePrice != null ? salePrice.intValue() : null, result.status());
+					productId, salePrice != null ? salePrice.intValue() : null, result.status(), changed);
 				processStatusService.markSuccess(batchId, String.valueOf(productId),
 					String.format("[%s] 가격:%s, 재고:%d · 마켓반영 성공%d/스킵%d/실패%d%s",
 						product.getSbCode(), salePrice, result.stock(), sync.synced().size(), sync.skipped().size(),

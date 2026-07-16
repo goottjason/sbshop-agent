@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.product;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -63,6 +64,8 @@ class BatchForwardsStockStatusTest {
             .thenReturn(new BigDecimal("9900"));
         lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class)))
             .thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
+        lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class), anyBoolean()))
+            .thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
     }
 
     @Test
@@ -80,7 +83,7 @@ class BatchForwardsStockStatusTest {
         // @Async — small sleep to let the async thread finish
         Thread.sleep(500);
 
-        verify(productMarketSyncService).syncPriceStock(eq(PRODUCT_ID), any(), eq(StockStatus.OUT_OF_STOCK));
+        verify(productMarketSyncService).syncPriceStock(eq(PRODUCT_ID), any(), eq(StockStatus.OUT_OF_STOCK), anyBoolean());
     }
 
     @Test
@@ -97,7 +100,7 @@ class BatchForwardsStockStatusTest {
 
         Thread.sleep(500);
 
-        verify(productMarketSyncService).syncPriceStock(eq(PRODUCT_ID), any(), eq(StockStatus.IN_STOCK));
+        verify(productMarketSyncService).syncPriceStock(eq(PRODUCT_ID), any(), eq(StockStatus.IN_STOCK), anyBoolean());
     }
 
     @Test
