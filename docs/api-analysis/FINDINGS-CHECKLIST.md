@@ -136,7 +136,7 @@
 - [ ] **F-SYNC-13** · preview 무인증 노출 + 주문 원시 PII 반환 · `OrderSyncController.java:140-157`
 - [x] **F-SYNC-3** · 비동기 sync가 SUCCESS/FAILED ActionLog 미기록(STARTED만) · `OrderSyncController.java:55` — ✅ `8a572b2` 5개 sync 트리거에 SUCCESS/FAILED 대칭 기록(응답계약 불변)
 - [ ] **F-SYNC-6** · 스마트스토어·Cafe24 취소감지 부재 · `SmartStoreOrderSyncService.java:206`
-- [ ] **F-SYNC-17** · 정산 동기화 중복 실행 가드 없음 · `CoupangOrderSyncService.java:91-152`
+- [x] **F-SYNC-17** · 정산 동기화 중복 실행 가드 없음 · `CoupangOrderSyncService.java:91-152` — ✅ `b2f42da` tryMarkRunning DB 원자클레임(교차JVM, 이식성)
 - [x] **F-SYNC-20** · customs 단일 트랜잭션 → 마지막 배치 예외 시 전체 롤백 · `CustomsOrderSyncService.java:32,60` — ✅ R3 오탐: F-SYNC-19에서 이미 배치별 독립커밋(CustomsBatchProcessor)으로 해소
 - [ ] **F-SYNC-11** · Cafe24 items 개수 불일치 시 첫 상태를 전체 lineItem에 일괄적용 · `Cafe24OrderSyncService.java:201-208`
 - [ ] **F-SYNC-12** · Cafe24 PCCC 필드명 미확정, 추출 실패 시 통관번호 누락 · `Cafe24OrderSyncService.java:257-276`
@@ -157,7 +157,7 @@
 - [ ] **F-PROD-28** · 확인/멱등성 없는 하드딜리트 · `ProductWriterImpl.java:27-28`
 
 ### batch (F-BATCH)
-- [ ] **F-BATCH-1** · 동시 배치 중복 실행 방지 부재(advisory lock 없음) · `ProcessStatusService.java:23-39`
+- [x] **F-BATCH-1** · 동시 배치 중복 실행 방지 부재(advisory lock 없음) · `ProcessStatusService.java:23-39` — ✅ `b0164f5` jobType별 in-JVM 가드(배치 api 단일 JVM) + 완료이벤트 해제. advisory lock 불필요.
 - [x] **F-BATCH-4** · 요청 검증 부재(productIds null/빈) · `BatchController.java:44` · ✅ `3970dd1`
 - [ ] **F-BATCH-A1** · 전체필드 배치만 마켓 재전송 없음 · `BatchPriceStockService.java:151-176`
 - [x] **F-BATCH-A2** · manual-update-all 길이 불일치 → 400 가드 · ✅ `6095f1b`
@@ -192,7 +192,7 @@
 - [ ] **F-CAFE-5** · issue-token OAuth state 미발급·미검증(CSRF) · `Cafe24TokenManager.java:128`
 - [ ] **F-CAFE-10** · 콜백이 OAuth state 미수신·미검증(CSRF) · `Cafe24AuthController.java:129-131`
 - [ ] **F-CAFE-11** · 콜백 에러 파라미터(error/error_description) 미처리 · `Cafe24AuthController.java:130`
-- [ ] **F-CAFE-6** · 재인증 동시성 락 부재 → 자동갱신과 경쟁 시 refresh_token 무효화 · `Cafe24TokenManager.java:132-144`
+- [x] **F-CAFE-6** · 재인증 동시성 락 부재 → 자동갱신과 경쟁 시 refresh_token 무효화 · `Cafe24TokenManager.java:132-144` — ✅ R3 오탐: 자동갱신은 PostgresAdvisoryTokenRefreshLock+double-check 완비, 수동재인증은 authorization_code라 RT 회전없음(항상 유효토큰). 실질 부패 위험 없음.
 - [x] **F-CAFE-2** · /status 모든 실패를 200으로 감싸 HTTP로 오류 구분 불가 · `Cafe24AuthController.java:51-71` — ✅ `c5a7ee4` 인증실패는 200 유지, 진짜 인프라오류만 5xx 전파(비파괴)
 
 ### market-registration (F-MREG)
