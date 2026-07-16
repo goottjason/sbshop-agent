@@ -218,15 +218,15 @@
 ### order
 - [ ] **F-ORD-1** 조회 응답 도메인 엔티티 노출 · `OrderDetailDto.java:14-23`
 - [x] **F-ORD-7/16/24/28** OrderResponse/OrderLineItemResponse DTO화(계약보존) · ✅ `c2b4e47`
-- [ ] **F-ORD-10 / 19** confirm/cancel-batch 컨트롤러 catch 죽은코드 · `OrderController.java:105-108,149-152`
+- [x] **F-ORD-10 / 19** confirm/cancel-batch 컨트롤러 catch 죽은코드 · `OrderController.java:105-108,149-152` — ✅ R5-B2 오탐/유지: @Transactional 커밋실패·인프라오류가 try로 전파 가능 → catch 제거 시 FAILED 감사로그 유실=행위 변경. 죽은코드 아님.
 - [x] **F-ORD-18** bulkOperate 헬퍼로 통합 · ✅ `04062a9`
 - [x] **F-ORD-21** `OrderUpdateCommand.toCustomsData()` 미사용 죽은코드 · `OrderUpdateCommand.java:14-19` — ✅ R5-B1 제거(호출처 0, CustomsData import 고아 정리)
 - [ ] **F-ORD-32** 정산 상수 0.89 서비스 하드코딩 · `OrderShipService.java:81`
 - [x] **F-ORD-37** 삭제 로그 marketType null(조회로 채울 수 있었음) · `OrderController.java:275` — ✅ `6e320e0`
-- [ ] **F-S3** sourcing 두 분기 applySourcingData+save 중복 · `OrderService.java:277,285`
+- [x] **F-S3** sourcing 두 분기 applySourcingData+save 중복 · `OrderService.java:277,285` — ✅ `625fd0b` 공통화(순서 보존, 특성테스트)
 - [ ] **F-S5** sourcing 응답 OrderLineItem 직접 노출 · `OrderController.java:204`
-- [ ] **F-H3** shipping PURCHASED/else 분기 거의 동일 중복 · `OrderService.java:318-350`
-- [ ] **F-H5** `markSentIfSucceeded` isFailed 분기 도달불가 죽은코드 · `OrderService.java:548-551`
+- [x] **F-H3** shipping PURCHASED/else 분기 거의 동일 중복 · `OrderService.java:318-350` — ✅ `625fd0b` 공통 꼬리 추출(인자·순서 보존)
+- [x] **F-H5** `markSentIfSucceeded` isFailed 분기 도달불가 죽은코드 · `OrderService.java:548-551` — ✅ R5-B2 오탐/유지: processShipping·updateTrackingInfo 경로는 failIfNotSent 선행이 없어 isFailed 분기 도달 가능(실패 경고로그 유일지점). 죽은코드 아님.
 
 ### order-sync
 - [x] **F-SYNC-5** DTO 트리오 dispatch 골격 통합(Cafe24 보류) · ✅ `baad6ff`
@@ -285,7 +285,7 @@
 - [ ] **F-MISC-22** IMAP 다계정×다주문 N×M 연결·조기종료 부재 · `EmailFetcherService.java:67-78`
 - [x] **F-MISC-9** 대상선정을 서비스로 이동(P4b 동반) · ✅ `bbf0e1c`
 - [ ] **F-MISC-14** SSE push 실패=remove뿐, 재전송/Last-Event-ID 없음 · `SseNotificationController.java:69,90`
-- [ ] **F-MISC-15** SSE 두 리스너 브로드캐스트 로직 중복 · `SseNotificationController.java:55-92`
+- [x] **F-MISC-15** SSE 두 리스너 브로드캐스트 로직 중복 · `SseNotificationController.java:55-92` — ✅ `257e6a6` broadcast 헬퍼 추출(동작 불변)
 - [ ] **F-MISC-1** action-logs 페이징 없이 PageRequest를 limit 상한으로만 · `ActionLogService.java:47`
 - [x] **F-MISC-5** EnumMapperValue 가변 클래스(record 아님) · `EnumMapperValue.java:7-8` — ✅ R5-B1 record 전환(JSON 출력 동일)
 
@@ -296,7 +296,7 @@
 ### order
 - [ ] **F-ORD-3** shippingStatuses 필터가 EXISTS라 주문 단위 부분매칭 · `OrderRepositoryImpl.java:139-150`
 - [ ] **F-ORD-4** 조회 API 활동로그 미기록(8개와 비대칭) · `OrderController.java:60-66`
-- [ ] **F-ORD-11 / 20** confirm/cancel-batch 요청 DTO 없이 Map 직접 바인딩 · `OrderController.java:90-92,134-136`
+- [x] **F-ORD-11 / 20** confirm/cancel-batch 요청 DTO 없이 Map 직접 바인딩 · `OrderController.java:90-92,134-136` — ✅ `3e5f160` OrderIdsRequest record(계약 동일, 계약테스트)
 - [ ] **F-ORD-12** 일괄 발주확인 부분실패가 200 반환 · `OrderController.java:104`
 - [ ] **F-ORD-14** 쿠팡 등은 취소가 마켓에 미전파(로컬 only) · `OrderService.java:144-152`
 - [x] **F-ORD-23** 빈문자열로 이미 클리어됨(오탐) — 회귀테스트 고정 · ✅ `a6d2759`
@@ -310,7 +310,7 @@
 ### order-sync
 - [ ] **F-SYNC-9** 스마트스토어 resolveProductId가 sbCode 직접매핑만 · `SmartStoreOrderSyncService.java:187-193`
 - [ ] **F-SYNC-7** Cafe24 offset 상한 15000 초과 시 조용히 절단 / 기간 30일 하드코딩 · `Cafe24OrderSyncService.java:101`
-- [ ] **F-SYNC-16** preview·carriers 응답 ResponseEntity<Object> 원시 JsonNode · `OrderSyncController.java:141,161`
+- [x] **F-SYNC-16** preview·carriers 응답 ResponseEntity<Object> 원시 JsonNode · `OrderSyncController.java:141,161` — ✅ `5fec8f7` Map<String,Object> 명시화(전면 record는 성공/실패 형태 상이·페이로드 가변으로 보류)
 - [ ] **F-SYNC-18** 정산: sbCode 미보유·미배송 lineItem 조용히 누락 · `CoupangOrderSyncService.java:120-131`
 - [ ] **F-SYNC-22** customs ActionLog marketType=null(전 마켓 공통, 의도적) · `OrderSyncController.java:201`
 - [x] **F-SYNC-25** DB 영속화로 재시작에도 상태 보존 · ✅ `059ed79`
