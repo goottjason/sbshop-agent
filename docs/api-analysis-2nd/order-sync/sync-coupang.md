@@ -205,8 +205,16 @@ flowchart TD
 - **영향:** 워커 스케줄러와 API 수동 버튼이 거의 동시에 실행되면, 두 프로그램의 메모리 스위치가 서로 남남이라 쿠팡 주문 동기화가 **동시에 2번** 돌 수 있습니다(정산 경로만 두 프로그램을 아우르는 방지 장치가 있음). 우리 시스템이 한 컨테이너에서 2개 프로그램으로 돈다는 전제와 어긋납니다.
 - **제안:** 주문 동기화도 정산처럼 DB 기반 잠금(advisory lock/`tryMarkRunning`)으로 두 프로그램을 아우르는 중복 방지로 통일하는 걸 검토합니다.
 
+### SYNCA-5 · 🔴 BUG — 마켓이 마스킹/빈값으로 내려준 전화번호가 저장된 실번호를 덮어써 PII가 유실됨
+> ✅ **해결됨** (2026-07-17) — 도메인 공유 경로 `Order.update`의 전화번호 반영을 "쓸 수 있는 실번호(비-null·비-blank·`*` 미포함)일 때만"으로 가드. 실번호→다른 실번호 정상 변경은 허용.
+- **무엇이 문제였나:** 쿠팡은 배송완료·오래된 주문의 전화번호를 마스킹(`***-****-****`)하거나, 안심번호(`receiver.safeNumber`) 만료로 빈값으로 내려준다. `updateOrderInfoFromDto`→`Order.update`가 그 값을 **무조건 반영**(기존 null-guard는 non-null이면 통과)해, 재동기화 때마다 저장된 실번호를 마스크/빈값으로 덮어썼다.
+- **근거:** `CoupangOrderAdapter.java:203`(`ordererPhone=receiver.safeNumber`)·`:214`(`recipientPhone=overseaShippingInfoDto.ordererPhoneNumber`) → `CoupangOrderSyncService.updateOrderInfoFromDto`(:254 `order.update`) → 구 `Order.update`(:141-152)는 `if(phone!=null)`만 검사. 라이브 실측: 쿠팡 166건 중 37건 `recipient_phone`이 `***-****-****`로 유실(최신 미배송건만 실번호 잔존).
+- **영향:** 배송완료된 주문일수록 실번호가 사라져, CS·재배송·통관 확인이 불가. 주소·우편번호는 D-074로 보호됐으나 전화번호만 무방비였다. 4개 마켓이 `Order.update`를 공유하므로 네이버/11번가도 동일 위험.
+- **어떻게 고쳤나:** `Order.isUsablePhone` 가드로 마스크(`*`)·빈값 반영 차단(전 마켓 일괄). 재현 테스트 `OrderTest.keepsRealPhoneAgainstMask`·`keepsRealPhoneAgainstBlank`(+ 실번호 변경 허용·최초 채움 회귀). 기존 유실 37건은 `order_list.xlsx` 백업으로 복구(36건 확정·1건 이름 불일치 수동확인).
+
 ## 8. 테스트 커버리지 메모
 
+- **도메인 가드:** `OrderTest`가 마스킹/빈값으로 실번호를 덮지 않고(SYNCA-5), 실번호 변경은 허용함을 검증합니다.
 - **입구 코드(컨트롤러):** `OrderSyncControllerActionLogTest`가 D-087에서 새 약속(시작 시 STARTED만 기록·성공은 입구가 남기지 않음·시작 자체가 즉시 실패할 때만 FAILED)에 맞게 다시 작성됐습니다. 완료 성공/실패는 `ActionLogSyncListener`의 몫이라 입구 코드 단위 테스트의 범위 밖입니다(SYNCA-1이 해결되며 입구의 가짜 성공 자체가 사라짐).
 - **서비스:** `CoupangOrderProductMappingTest`(상품 역조회·`vendorItemId` 보강, D-046), `OrderAddressProtectionTest`(진행된 주문의 주소 보호), `MarketCredentialValidationTest`(인증정보가 불완전하면 빨리 실패), `OrderSyncEventEmissionTest`(실패했을 때 성공 이벤트를 내보내지 않음), `SyncServiceSelfRecordsStatusTest`(markRunning→markCompleted/markFailed 진행상태 기록).
 - **아직 테스트가 없는 부분:** ① 하나의 저장 묶음이라 부분 실패 시 전부 롤백되는 문제(SYNCA-2), ② 두 프로그램 동시 실행(SYNCA-4), ③ 취소감지·택배사보정은 어댑터 계층 테스트에 맡기고 여기서는 검증하지 않음.
