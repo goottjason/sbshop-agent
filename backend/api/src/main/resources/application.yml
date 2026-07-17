@@ -1,13 +1,28 @@
 spring:
-  config:
-    import: classpath:sbshop-common.yml
   application:
     name: sbshop-api
+  devtools:
+    livereload:
+      enabled: false
+  main:
+    banner-mode: off
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:sbshop}
+    username: ${DB_USERNAME:sbshop}
+    password: ${DB_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
   jpa:
+    open-in-view: false
+    hibernate:
+      # 엔티티 변경을 스키마에 자동 반영(추가만; DROP/변경 없음). 사용자 결정 2026-07-15.
+      # 환경변수 DDL_AUTO로 오버라이드 가능(문제 시 none/validate로). create/create-drop 금지(데이터 삭제).
+      ddl-auto: ${DDL_AUTO:update}
     show-sql: true
     properties:
       hibernate:
+        format_sql: true
         show_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 server:
   port: 8080
 
@@ -34,6 +49,27 @@ smartstore:
 elevenst:
   api-key: ${ELEVENST_CLIENT_ID:}
   api-url: http://api.11st.co.kr
+
+# 이메일 수집(EmailFetcherService)·검색(IherbEmailSearchService) 공용 계정. 단일 백엔드라 여기 한 곳에서 관리.
+sbshop:
+  email:
+    accounts:
+      - host: imap.gmail.com
+        port: 993
+        username: ${EMAIL_USERNAME_1}
+        password: ${EMAIL_PASSWORD_1}
+        protocol: imaps
+      - host: imap.gmail.com
+        port: 993
+        username: ${EMAIL_USERNAME_2}
+        password: ${EMAIL_PASSWORD_2}
+        protocol: imaps
+      - host: imap.gmail.com
+        port: 993
+        username: ${EMAIL_USERNAME_3:}
+        password: ${EMAIL_PASSWORD_3:}
+        protocol: imaps
+    # 계정이 더 많으면 EMAIL_ACCOUNTS(=user:pass 목록) env로 추가 등록된다(EmailAccountProperties).
 
 logging:
   level:
