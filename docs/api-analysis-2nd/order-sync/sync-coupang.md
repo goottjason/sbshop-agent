@@ -8,7 +8,7 @@
 | **목적** | 쿠팡 주문을 최근 30일 범위로 조회해 upsert(신규 생성/기존 갱신)하고, 취소감지·택배사 보정까지 백그라운드에서 수행한다. |
 | **핵심 상태전이** | 주문 라인아이템 `shippingStatus`를 마켓 응답값으로 갱신(신규는 마켓상태로 생성). 취소감지 시 `→ CANCELED`. |
 | **부수효과** | 외부 쿠팡 API 호출, DB upsert, 정산액 초기계산(FeePolicy), `vendorItemId` 보강, SSE(`SyncCompletedEvent`), 동기화 상태 테이블 갱신, 액션로그 기록. |
-| **실행 모델** | 서비스 진입점이 `@Async("syncTaskExecutor")` + `@Transactional` → 컨트롤러는 **트리거만** 하고 즉시 200 반환. 실제 동기화는 별도 스레드. |
+| **실행 모델** | 서비스 진입점이 `@Async("syncTaskExecutor")` + `@Transactional` → 컨트롤러는 **트리거(STARTED 기록)만** 하고 즉시 200 반환. 실제 동기화는 별도 스레드. 완료(SUCCESS/FAILED) 액션로그는 `SyncCompletedEvent`→`ActionLogSyncListener`가 기록(D-087에서 컨트롤러 가짜 SUCCESS 제거). |
 | **응답** | `200 OK` `{success:true, message:"...백그라운드에서 시작..."}` (트리거 접수 성공). 트리거 실패 시 `500`. |
 
 ## 2. 호출 체인
@@ -32,10 +32,11 @@ OrderSyncController.syncCoupangOrders()                       api/.../controller
   │    ├─ postSyncProcess(orders)                             :77 / :350-357
   │    │    ├─ coupangOrderAdapter.detectCancellations(...)   :354 (API 부재 주문 → CANCELED)
   │    │    └─ coupangOrderAdapter.fixCarriers(orders)        :356
-  │    ├─ (성공) markCompleted + SyncCompletedEvent           :81 / :91-93
-  │    └─ (실패) catch → markFailed + SyncCompletedEvent(false)  :82-87
-  └─ ActionLogService.record(COUPANG_SYNC, SUCCESS)           OrderSyncController.java:64
-       (예외 시 catch → record(FAILED))                       OrderSyncController.java:69-78
+  │    ├─ (성공) markCompleted + SyncCompletedEvent           :84 / :94-96
+  │    └─ (실패) catch → markFailed + SyncCompletedEvent(false)  :85-90
+  │         └─ (완료 기록) ActionLogSyncListener.onSyncCompleted → record(COUPANG_SYNC, SUCCESS/FAILED)  core/.../actionlog/ActionLogSyncListener.java:22-34
+  └─ (D-087) 컨트롤러는 STARTED만 기록 — 트리거 직후 SUCCESS 기록은 제거됨(:63 주석). 완료는 SyncCompletedEvent→ActionLogSyncListener가 기록.
+       (동기 디스패치 실패 시에만 catch → record(FAILED))     OrderSyncController.java:68-78
 ```
 
 **요청 바디:** 없음. 파라미터 없음 — 조회 범위는 서비스가 `now-30 ~ now`로 고정(`CoupangOrderSyncService.java:73`).
@@ -90,12 +91,12 @@ sequenceDiagram
     participant D as UpsertDispatcher
     participant R as OrderRepository
     participant EV as EventPublisher
-    Note over S: syncCoupangOrders 는 @Async(syncTaskExecutor) + @Transactional<br/>컨트롤러 try/catch 는 트리거 접수만 감쌈 (async 예외 미포착)
+    participant LS as ActionLogSyncListener
+    Note over S: syncCoupangOrders 는 @Async(syncTaskExecutor) + @Transactional<br/>컨트롤러 try/catch 는 트리거 접수만 감쌈 (async 예외 미포착)<br/>D-087: 컨트롤러는 STARTED만 기록 · 완료는 SyncCompletedEvent→ActionLogSyncListener가 기록
 
     U->>C: POST /sync/coupang
     C->>L: record(COUPANG_SYNC, STARTED)
     C->>S: syncCoupangOrders() [비동기 위임]
-    C->>L: record(COUPANG_SYNC, SUCCESS)
     C-->>U: 200 OK {백그라운드 시작}
 
     Note over S: ── 이하 별도 스레드 · 트랜잭션 경계 시작 ──
@@ -108,6 +109,7 @@ sequenceDiagram
         alt 크레덴셜 없음/불완전
             S->>ST: markFailed
             S->>EV: SyncCompletedEvent(false)
+            EV->>LS: onSyncCompleted → record(COUPANG_SYNC, FAILED)
         else
             S->>A: fetchOrders(now-30, now)
             loop 각 주문 dto
@@ -121,6 +123,7 @@ sequenceDiagram
             S->>A: detectCancellations + fixCarriers
             S->>ST: markCompleted
             S->>EV: SyncCompletedEvent(성공)
+            EV->>LS: onSyncCompleted → record(COUPANG_SYNC, SUCCESS)
         end
     end
     Note over S: ── 트랜잭션 커밋/롤백 (전체 단일 경계) ──
@@ -132,8 +135,7 @@ sequenceDiagram
 flowchart TD
     START([POST /sync/coupang]) --> LOGS[record STARTED]
     LOGS --> TRIG[coupangOrderSyncService.syncCoupangOrders 비동기 호출]
-    TRIG --> LOGOK[record SUCCESS]:::warn
-    LOGOK --> OK200([200 OK 백그라운드 시작]):::ok
+    TRIG --> OK200([200 OK 백그라운드 시작]):::ok
 
     TRIG -. async 스레드 .-> G{compareAndSet<br/>중복실행?}
     G -- 이미 실행 --> SKIP([return 스킵]):::warn
@@ -147,6 +149,8 @@ flowchart TD
     FETCH -. 예외 .-> FAIL
     LOOP -. 예외 .-> FAIL
     POST -. 예외 .-> FAIL
+    DONE --> LOGOK["ActionLogSyncListener: record SUCCESS (D-087)"]:::ok2
+    FAIL --> LOGNG["ActionLogSyncListener: record FAILED (D-087)"]:::err
 
     classDef ok fill:#dfd,stroke:#3a3;
     classDef ok2 fill:#dfd,stroke:#3a3;
@@ -167,9 +171,10 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### SYNCA-1 · 🟠 GAP — 컨트롤러 try/catch·FAILED 기록이 async 예외를 포착하지 못함(항상 SUCCESS 기록)
-- **근거:** `CoupangOrderSyncService.syncCoupangOrders`는 `@Async("syncTaskExecutor")` + `void` 반환(`CoupangOrderSyncService.java:56-58`). 컨트롤러(`OrderSyncController.java:60-79`)는 이 호출을 try로 감싸고 정상 반환 시 `record(...SUCCESS)`(:64), 예외 시 `record(...FAILED)`(:73)를 하지만, `@Async` 위임은 즉시 반환하므로 동기화 본문에서 던지는 예외는 **다른 스레드**에서 발생해 이 catch에 절대 도달하지 않는다.
-- **영향:** 실제 동기화가 실패해도 액션로그에는 항상 `COUPANG_SYNC SUCCESS`가 남는다. `record(FAILED)`(:73)는 사실상 데드코드(트리거 자체가 즉시 실패할 때만 도달). 운영자는 액션로그만으로는 동기화 성공/실패를 구분할 수 없고 실제 결과는 `SyncCompletedEvent`/동기화 상태 테이블(`/status`)로만 알 수 있다.
-- **제안:** 액션로그 SUCCESS/FAILED 기록을 서비스 본문(markCompleted/markFailed 지점, `CoupangOrderSyncService.java:81`·`:84`)으로 이동하거나, 컨트롤러 로그 메시지를 "접수됨"으로 명확히 하고 SUCCESS 표기를 "요청 완료"가 아닌 "트리거 접수"로 정정.
+> ✅ **해결됨** (D-087, 커밋 c4c7faa) — 컨트롤러의 트리거 직후 `record(SUCCESS)`(구 :64)를 제거해 컨트롤러는 STARTED만 남기고, 실제 완료(SUCCESS/FAILED)는 기존 `SyncCompletedEvent`→`ActionLogSyncListener` 경로에 위임했다(중복 제거·정합화).
+- **근거:** `CoupangOrderSyncService.syncCoupangOrders`는 `@Async("syncTaskExecutor")` + `void` 반환(`CoupangOrderSyncService.java:59-61`). 컨트롤러(`OrderSyncController.java:60-79`)는 이 호출을 try로 감싸고 정상 반환 시 `record(...SUCCESS)`(구 :64), 예외 시 `record(...FAILED)`(:72)를 하지만, `@Async` 위임은 즉시 반환하므로 동기화 본문에서 던지는 예외는 **다른 스레드**에서 발생해 이 catch에 절대 도달하지 않는다.
+- **영향:** 실제 동기화가 실패해도 액션로그에는 항상 `COUPANG_SYNC SUCCESS`가 남았다. `record(FAILED)`(:72)는 사실상 데드코드(트리거 자체가 즉시 실패할 때만 도달). 운영자는 액션로그만으로는 동기화 성공/실패를 구분할 수 없고 실제 결과는 `SyncCompletedEvent`/동기화 상태 테이블(`/status`)로만 알 수 있었다.
+- **제안:** 액션로그 SUCCESS/FAILED 기록을 서비스 본문(markCompleted/markFailed 지점, `CoupangOrderSyncService.java:84`·`:87`)으로 이동하거나, 컨트롤러 로그 메시지를 "접수됨"으로 명확히 하고 SUCCESS 표기를 "요청 완료"가 아닌 "트리거 접수"로 정정. (반영됨 — 컨트롤러 가짜 SUCCESS 제거, 완료는 `ActionLogSyncListener`가 기록.)
 
 ### SYNCA-2 · 🟡 SMELL — 장시간 외부 동기화 전체가 단일 `@Transactional` 경계
 - **근거:** `syncCoupangOrders`가 `@Transactional`(`CoupangOrderSyncService.java:57`) 하나로 `fetchOrders`(외부 API, :72)·전체 주문 upsert(:75)·`postSyncProcess`(취소감지·택배사보정, :77)를 감싼다.
@@ -188,7 +193,7 @@ flowchart TD
 
 ## 8. 테스트 커버리지 메모
 
-- **컨트롤러:** `OrderSyncControllerActionLogTest`가 `coupang_success_recordsSuccess`/`coupang_failure_recordsFailed`로 STARTED/SUCCESS/FAILED 기록을 검증. 단, 이 테스트는 서비스를 목으로 두어 동기 호출로 만들기 때문에 **실제 @Async 경로의 SYNCA-1(async 예외 미포착)은 재현되지 않는다.**
+- **컨트롤러:** `OrderSyncControllerActionLogTest`가 D-087에서 새 계약(트리거=STARTED만 기록·SUCCESS는 컨트롤러가 남기지 않음·동기 디스패치 예외 시에만 FAILED)으로 재작성됨. 완료 SUCCESS/FAILED는 `ActionLogSyncListener`의 책임이라 컨트롤러 단위 테스트 범위 밖(SYNCA-1 해소로 컨트롤러의 가짜 SUCCESS 자체가 사라짐).
 - **서비스:** `CoupangOrderProductMappingTest`(D-046 sellerProductId 역조회·vendorItemId 보강), `OrderAddressProtectionTest`(progressed 주소 보호), `MarketCredentialValidationTest`(불완전 크레덴셜 fast-fail), `OrderSyncEventEmissionTest`(실패 시 성공 이벤트 미발행), `SyncServiceSelfRecordsStatusTest`(markRunning→markCompleted/markFailed).
 - **비어있는 케이스:** ① 단일 트랜잭션 부분실패 롤백(SYNCA-2), ② 교차 JVM 중복실행(SYNCA-4), ③ detectCancellations/fixCarriers는 어댑터 계층 테스트에 위임(여기선 미검증).
 

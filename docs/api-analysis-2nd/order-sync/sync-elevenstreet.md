@@ -8,7 +8,7 @@
 | **목적** | 11번가 주문을 최근 30일 범위로 조회해 upsert하고, API 응답에 사라진 non-terminal 주문을 CANCELED로 감지한다(D-028). |
 | **핵심 상태전이** | 라인아이템 `shippingStatus`를 마켓 응답값으로 갱신. API 부재 non-terminal → `CANCELED`. |
 | **부수효과** | 외부 11번가 API 호출, DB upsert, 정산액 초기계산(FeePolicy), `marketSpecificData` 반영, SSE(`SyncCompletedEvent`), 동기화 상태 테이블 갱신, 액션로그 기록. |
-| **실행 모델** | 서비스 진입점 `@Async("syncTaskExecutor")` + `@Transactional` → 컨트롤러는 트리거만 하고 즉시 200 반환. |
+| **실행 모델** | 서비스 진입점 `@Async("syncTaskExecutor")` + `@Transactional` → 컨트롤러는 트리거(STARTED 기록)만 하고 즉시 200 반환. 완료(SUCCESS/FAILED) 액션로그는 `SyncCompletedEvent`→`ActionLogSyncListener`가 기록(D-087에서 컨트롤러 가짜 SUCCESS 제거). |
 | **응답** | `200 OK` `{success:true, message:"...백그라운드에서 시작..."}`. 트리거 실패 시 `500`. |
 
 ## 2. 호출 체인
@@ -33,8 +33,9 @@ OrderSyncController.syncElevenStreetOrders()                  api/.../controller
   │    │       └─ isNonTerminal 판정 (CANCELED/DELIVERED/RETURNED/EXCHANGED 제외)  :273-282
   │    ├─ (성공) markCompleted + SyncCompletedEvent           :69 / :78-79
   │    └─ (실패) catch → markFailed + SyncCompletedEvent(false)  :70-75
-  └─ ActionLogService.record(ELEVEN_STREET_SYNC, SUCCESS)     OrderSyncController.java:123
-       (예외 시 catch → record(FAILED))                       OrderSyncController.java:128-135
+  │         └─ (완료 기록) ActionLogSyncListener.onSyncCompleted → record(ELEVEN_STREET_SYNC, SUCCESS/FAILED)  core/.../actionlog/ActionLogSyncListener.java:22-34
+  └─ (D-087) 컨트롤러는 STARTED만 기록 — 트리거 직후 SUCCESS 기록은 제거됨(:119 주석). 완료는 SyncCompletedEvent→ActionLogSyncListener가 기록.
+       (동기 디스패치 실패 시에만 catch → record(FAILED))     OrderSyncController.java:123-131
 ```
 
 **요청 바디:** 없음. 조회 범위는 서비스가 `now-30 ~ now` 고정(`ElevenstOrderSyncService.java:62`), detectCancellations도 동일(:223-224).
@@ -85,12 +86,12 @@ sequenceDiagram
     participant D as UpsertDispatcher
     participant R as OrderRepository
     participant EV as EventPublisher
-    Note over S: syncElevenstOrders 는 @Async(syncTaskExecutor) + @Transactional<br/>컨트롤러 try/catch 는 트리거 접수만 감쌈 (async 예외 미포착)
+    participant LS as ActionLogSyncListener
+    Note over S: syncElevenstOrders 는 @Async(syncTaskExecutor) + @Transactional<br/>컨트롤러 try/catch 는 트리거 접수만 감쌈 (async 예외 미포착)<br/>D-087: 컨트롤러는 STARTED만 기록 · 완료는 SyncCompletedEvent→ActionLogSyncListener가 기록
 
     U->>C: POST /sync/elevenstreet
     C->>L: record(ELEVEN_STREET_SYNC, STARTED)
     C->>S: syncElevenstOrders() [비동기 위임]
-    C->>L: record(ELEVEN_STREET_SYNC, SUCCESS)
     C-->>U: 200 OK {백그라운드 시작}
 
     Note over S: ── 이하 별도 스레드 · 트랜잭션 경계 시작 ──
@@ -103,6 +104,7 @@ sequenceDiagram
         alt accessKey 공백/불완전
             S->>ST: markFailed
             S->>EV: SyncCompletedEvent(false)
+            EV->>LS: onSyncCompleted → record(ELEVEN_STREET_SYNC, FAILED)
         else
             S->>A: fetchOrders(now-30, now)
             loop 각 주문 dto
@@ -116,6 +118,7 @@ sequenceDiagram
             S->>R: detectCancellations (부재 non-terminal → CANCELED)
             S->>ST: markCompleted
             S->>EV: SyncCompletedEvent(성공)
+            EV->>LS: onSyncCompleted → record(ELEVEN_STREET_SYNC, SUCCESS)
         end
     end
     Note over S: ── 트랜잭션 커밋/롤백 (전체 단일 경계) ──
@@ -127,8 +130,7 @@ sequenceDiagram
 flowchart TD
     START([POST /sync/elevenstreet]) --> LOGS[record STARTED]
     LOGS --> TRIG[elevenstOrderSyncService.syncElevenstOrders 비동기 호출]
-    TRIG --> LOGOK[record SUCCESS]:::warn
-    LOGOK --> OK200([200 OK 백그라운드 시작]):::ok
+    TRIG --> OK200([200 OK 백그라운드 시작]):::ok
 
     TRIG -. async 스레드 .-> G{compareAndSet<br/>중복실행?}
     G -- 이미 실행 --> SKIP([return 스킵]):::warn
@@ -142,6 +144,8 @@ flowchart TD
     FETCH -. 예외 .-> FAIL
     LOOP -. 예외 .-> FAIL
     CANCEL -. 예외 .-> FAIL
+    DONE --> LOGOK["ActionLogSyncListener: record SUCCESS (D-087)"]:::ok2
+    FAIL --> LOGNG["ActionLogSyncListener: record FAILED (D-087)"]:::err
 
     classDef ok fill:#dfd,stroke:#3a3;
     classDef ok2 fill:#dfd,stroke:#3a3;
@@ -162,9 +166,10 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### SYNCA-9 · 🟠 GAP — 컨트롤러 try/catch·FAILED 기록이 async 예외를 포착하지 못함(항상 SUCCESS 기록)
-- **근거:** `ElevenstOrderSyncService.syncElevenstOrders`는 `@Async("syncTaskExecutor")` + `void`(`ElevenstOrderSyncService.java:48-50`). 컨트롤러(`OrderSyncController.java:120-135`)의 try/catch는 비동기 위임 호출만 감싸므로 동기화 본문 예외는 별도 스레드에서 발생, catch 미도달. 항상 `record(ELEVEN_STREET_SYNC, SUCCESS)`(:123)가 기록된다.
-- **영향:** 실제 실패가 액션로그에 FAILED로 남지 않음. `record(FAILED)`(:131)는 트리거 즉시 실패 시에만 도달하는 사실상 데드코드. 실제 결과는 `/status`·`SyncCompletedEvent`에만 반영.
-- **제안:** 액션로그 기록을 서비스 본문(markCompleted/markFailed, `ElevenstOrderSyncService.java:69`·`:72`)으로 이동하거나 컨트롤러 메시지를 "트리거 접수"로 정정. (쿠팡·스마트스토어와 공통 결함 — 세 경로 일괄 처리 권장.)
+> ✅ **해결됨** (D-087, 커밋 c4c7faa) — 컨트롤러의 트리거 직후 `record(SUCCESS)`(구 :123)를 제거해 컨트롤러는 STARTED만 남기고, 완료(SUCCESS/FAILED)는 기존 `SyncCompletedEvent`→`ActionLogSyncListener`가 기록하도록 위임했다.
+- **근거:** `ElevenstOrderSyncService.syncElevenstOrders`는 `@Async("syncTaskExecutor")` + `void`(`ElevenstOrderSyncService.java:48-50`). 컨트롤러(`OrderSyncController.java:117-131`)의 try/catch는 비동기 위임 호출만 감싸므로 동기화 본문 예외는 별도 스레드에서 발생, catch 미도달. 이전에는 항상 `record(ELEVEN_STREET_SYNC, SUCCESS)`(구 :123)가 기록됐다.
+- **영향:** 실제 실패가 액션로그에 FAILED로 남지 않았음. `record(FAILED)`(:126)는 트리거 즉시 실패 시에만 도달하는 사실상 데드코드. 실제 결과는 `/status`·`SyncCompletedEvent`에만 반영됐다.
+- **제안:** 액션로그 기록을 서비스 본문(markCompleted/markFailed, `ElevenstOrderSyncService.java:69`·`:72`)으로 이동하거나 컨트롤러 메시지를 "트리거 접수"로 정정. (쿠팡·스마트스토어와 공통 결함 — 세 경로 일괄 처리 권장.) (반영됨 — 4개 sync 컨트롤러 가짜 SUCCESS를 일괄 제거, 완료는 `ActionLogSyncListener`가 기록.)
 
 ### SYNCA-10 · 🟡 SMELL — 취소감지가 마켓별로 3중 구현(어댑터 vs 서비스 내장)되어 로직 분산
 - **근거:** 취소감지가 11번가는 서비스 안에 자체 구현(`ElevenstOrderSyncService.java:228-267` + `isNonTerminal` :273-282), 쿠팡은 어댑터(`CoupangOrderSyncService.java:354` `coupangOrderAdapter.detectCancellations`), 스마트스토어는 아예 없음(no-op). terminal 제외 집합(CANCELED/DELIVERED/RETURNED/EXCHANGED) 판정이 마켓마다 별개로 존재.
@@ -183,7 +188,7 @@ flowchart TD
 
 ## 8. 테스트 커버리지 메모
 
-- **컨트롤러:** `OrderSyncControllerActionLogTest`가 `elevenstreet_success_recordsSuccess`/`elevenstreet_failure_recordsFailed`로 기록 검증(서비스 목 → SYNCA-9 실 async 경로 미재현).
+- **컨트롤러:** `OrderSyncControllerActionLogTest`가 D-087에서 새 계약(트리거=STARTED만·SUCCESS는 컨트롤러가 남기지 않음·동기 디스패치 예외 시에만 FAILED)으로 재작성됨. 완료 SUCCESS/FAILED는 `ActionLogSyncListener`의 책임이라 컨트롤러 단위 테스트 범위 밖(SYNCA-9 해소로 컨트롤러의 가짜 SUCCESS 자체가 사라짐).
 - **서비스:** `ElevenstDetectCancellationsTest`가 D-028 취소감지를 정밀 검증 — NEW 부재→CANCELED, RETURNED/EXCHANGED/DELIVERED 부재→미취소(오취소 방지). `MarketCredentialValidationTest`(`elevenst_blankAccessKey_failsFast`)로 크레덴셜 fast-fail, `OrderSyncEventEmissionTest`(elevenst 실패 이벤트)로 이벤트 계약 검증.
 - **비어있는 케이스:** ① 진행 주문 주소 보호는 쿠팡/스마트스토어만 테스트(11번가 `updateOrderInfoFromDto` 주소보호 :130 미검증), ② marketSpecificData 반영(:139-145), ③ 단일 트랜잭션 부분실패 롤백(SYNCA-11), ④ 트래킹 보존 가드(SYNCA-12).
 

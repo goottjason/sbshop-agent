@@ -8,7 +8,7 @@
 | **목적** | ESM+(Selenium) 대신 **Cafe24 주문 API**로 G마켓/옥션 주문을 조회해 upsert한다. `order_place_id`(gmarket/auction)로 마켓을 구분 저장. |
 | **핵심 상태전이** | Cafe24 `order_status`(N/C/R/E 코드)를 도메인 `ShippingStatus`로 매핑해 라인아이템에 반영. |
 | **부수효과** | Cafe24 API 페이지네이션 호출(offset≤15000), DB upsert, PCCC 추출, `marketSpecificData`(cafe24_order_id 포함) 세팅, 정산액 초기계산(CAFE24 요율), SSE(`SyncCompletedEvent`), 동기화 상태 갱신, 액션로그. **취소감지 없음.** |
-| **실행 모델** | `syncCafe24Orders`가 `@Async("syncTaskExecutor")` + `@Transactional`, 내부 `fetchAndPersist`도 `@Transactional` → 컨트롤러는 트리거만. |
+| **실행 모델** | `syncCafe24Orders`가 `@Async("syncTaskExecutor")` + `@Transactional`, 내부 `fetchAndPersist`도 `@Transactional` → 컨트롤러는 트리거(STARTED 기록)만. 완료(SUCCESS/FAILED) 액션로그는 `SyncCompletedEvent`(GMARKET)→`ActionLogSyncListener`가 기록(D-087에서 컨트롤러 가짜 SUCCESS 제거). |
 | **응답** | `200 OK` `{success:true, message:"...백그라운드에서 시작..."}`. 트리거 실패 시 `500`. |
 
 ## 2. 호출 체인
@@ -36,8 +36,9 @@ OrderSyncController.syncEsmplusOrders()                       api/.../controller
   │    │                    └─ resolveProductId (CAFE24 marketRegistration)  :241-255
   │    ├─ (성공) markCompleted + SyncCompletedEvent           :73 / :81-83
   │    └─ (실패) catch → failureReason + markFailed + SyncCompletedEvent(false)  :74-78 / :91-98
-  └─ ActionLogService.record(GMARKET_SYNC, SUCCESS)           OrderSyncController.java:149
-       (예외 시 catch → record(FAILED))                       OrderSyncController.java:154-161
+  │         └─ (완료 기록) ActionLogSyncListener.onSyncCompleted → record(GMARKET_SYNC, SUCCESS/FAILED)  core/.../actionlog/ActionLogSyncListener.java:22-34
+  └─ (D-087) 컨트롤러는 STARTED만 기록 — 트리거 직후 SUCCESS 기록은 제거됨(:143 주석). 완료는 SyncCompletedEvent→ActionLogSyncListener가 기록.
+       (동기 디스패치 실패 시에만 catch → record(FAILED))     OrderSyncController.java:147-155
 ```
 
 **요청 바디:** 없음. 조회 범위는 서비스가 `now-30 ~ now` 고정(`Cafe24OrderSyncService.java:70`), Cafe24 API는 날짜(yyyy-MM-dd) 단위(:46).
@@ -89,12 +90,12 @@ sequenceDiagram
     participant P as Cafe24OrderApiPort
     participant R as OrderRepository
     participant EV as EventPublisher
-    Note over S: syncCafe24Orders 는 @Async(syncTaskExecutor) + @Transactional<br/>fetchAndPersist 도 @Transactional (동일 스레드 → 바깥 경계 참여)
+    participant LS as ActionLogSyncListener
+    Note over S: syncCafe24Orders 는 @Async(syncTaskExecutor) + @Transactional<br/>fetchAndPersist 도 @Transactional (동일 스레드 → 바깥 경계 참여)<br/>D-087: 컨트롤러는 STARTED만 기록 · 완료는 SyncCompletedEvent→ActionLogSyncListener가 기록
 
     U->>C: POST /sync/esmplus
     C->>L: record(GMARKET_SYNC, STARTED)
     C->>S: syncCafe24Orders() [비동기 위임]
-    C->>L: record(GMARKET_SYNC, SUCCESS)
     C-->>U: 200 OK {백그라운드 시작}
 
     Note over S: ── 이하 별도 스레드 · 트랜잭션 경계 시작 ──
@@ -126,9 +127,11 @@ sequenceDiagram
         alt 성공
             S->>ST: markCompleted
             S->>EV: SyncCompletedEvent(성공)
+            EV->>LS: onSyncCompleted → record(GMARKET_SYNC, SUCCESS)
         else 예외
             S->>ST: markFailed(failureReason)
             S->>EV: SyncCompletedEvent(false, rootCause 포함)
+            EV->>LS: onSyncCompleted → record(GMARKET_SYNC, FAILED)
         end
     end
     Note over S: ── 트랜잭션 커밋/롤백 (전체 단일 경계) ──
@@ -140,8 +143,7 @@ sequenceDiagram
 flowchart TD
     START([POST /sync/esmplus]) --> LOGS[record STARTED]
     LOGS --> TRIG[cafe24OrderSyncService.syncCafe24Orders 비동기 호출]
-    TRIG --> LOGOK[record SUCCESS]:::warn
-    LOGOK --> OK200([200 OK 백그라운드 시작]):::ok
+    TRIG --> OK200([200 OK 백그라운드 시작]):::ok
 
     TRIG -. async 스레드 .-> G{compareAndSet<br/>중복실행?}
     G -- 이미 실행 --> SKIP([return 스킵]):::warn
@@ -159,6 +161,8 @@ flowchart TD
     CRE --> NEXTITEM
     NEXTITEM --> PAGE
     PAGE -. 예외 .-> FAIL[failureReason<br/>markFailed<br/>SyncCompletedEvent false]:::err
+    DONE --> LOGOK["ActionLogSyncListener: record SUCCESS (D-087)"]:::ok2
+    FAIL --> LOGNG["ActionLogSyncListener: record FAILED (D-087)"]:::err
 
     classDef ok fill:#dfd,stroke:#3a3;
     classDef ok2 fill:#dfd,stroke:#3a3;
@@ -180,9 +184,10 @@ flowchart TD
 ## 7. 🔎 발견사항
 
 ### SYNCA-13 · 🟠 GAP — 컨트롤러 try/catch·FAILED 기록이 async 예외를 포착하지 못함(항상 SUCCESS 기록)
-- **근거:** `Cafe24OrderSyncService.syncCafe24Orders`는 `@Async("syncTaskExecutor")` + `void`(`Cafe24OrderSyncService.java:59-61`). 컨트롤러(`OrderSyncController.java:146-161`)의 try/catch는 비동기 위임 호출만 감싸므로 동기화 본문 예외는 별도 스레드에서 발생, catch 미도달. 항상 `record(GMARKET_SYNC, SUCCESS)`(:149)가 기록된다.
-- **영향:** 실제 실패가 액션로그에 FAILED로 남지 않음. `record(FAILED)`(:157)는 트리거 즉시 실패 시에만 도달하는 사실상 데드코드. 실제 결과는 `/status`·`SyncCompletedEvent`에만 반영(서비스는 그나마 `failureReason`으로 root cause를 이벤트에 담음 :91-98).
-- **제안:** 액션로그 기록을 서비스 본문(markCompleted/markFailed, `Cafe24OrderSyncService.java:73`·`:77`)으로 이동하거나 컨트롤러 메시지를 "트리거 접수"로 정정. (4개 sync 엔드포인트 공통 결함 — 일괄 처리 권장.)
+> ✅ **해결됨** (D-087, 커밋 c4c7faa) — 컨트롤러의 트리거 직후 `record(SUCCESS)`(구 :149)를 제거해 컨트롤러는 STARTED만 남기고, 완료(SUCCESS/FAILED)는 기존 `SyncCompletedEvent`(GMARKET)→`ActionLogSyncListener`가 기록하도록 위임했다.
+- **근거:** `Cafe24OrderSyncService.syncCafe24Orders`는 `@Async("syncTaskExecutor")` + `void`(`Cafe24OrderSyncService.java:59-61`). 컨트롤러(`OrderSyncController.java:141-155`)의 try/catch는 비동기 위임 호출만 감싸므로 동기화 본문 예외는 별도 스레드에서 발생, catch 미도달. 이전에는 항상 `record(GMARKET_SYNC, SUCCESS)`(구 :149)가 기록됐다.
+- **영향:** 실제 실패가 액션로그에 FAILED로 남지 않았음. `record(FAILED)`(:150)는 트리거 즉시 실패 시에만 도달하는 사실상 데드코드. 실제 결과는 `/status`·`SyncCompletedEvent`에만 반영됐다(서비스는 그나마 `failureReason`으로 root cause를 이벤트에 담음 :91-98 — 이제 이 값이 `ActionLogSyncListener`의 FAILED 메시지로도 남는다).
+- **제안:** 액션로그 기록을 서비스 본문(markCompleted/markFailed, `Cafe24OrderSyncService.java:73`·`:77`)으로 이동하거나 컨트롤러 메시지를 "트리거 접수"로 정정. (4개 sync 엔드포인트 공통 결함 — 일괄 처리 권장.) (반영됨 — 4개 sync 컨트롤러 가짜 SUCCESS를 일괄 제거, 완료는 `ActionLogSyncListener`가 기록.)
 
 ### SYNCA-14 · 🟠 GAP — items 개수 불일치 시 첫 아이템 상태를 전체 라인에 적용해 라인별 상태 왜곡
 - **근거:** `Cafe24OrderSyncService.updateOrder`(:207-214)는 API `items` 배열과 로컬 lineItems 개수가 다르면 `firstOf(itemsArr)`의 상태를 모든 라인에 동일 적용한다. sbshop 라인아이템이 `order_item_code`를 보존하지 않아 정확 매핑이 불가하다는 주석(:208)이 근거.
@@ -207,7 +212,7 @@ flowchart TD
 ## 8. 테스트 커버리지 메모
 
 - **서비스:** `Cafe24OrderSyncServiceTest`가 상당히 두껍게 검증 — gmarket 저장/타마켓 스킵(`mapsGmarketAndSkipsOthers`), PCCC receiver 폴백 추출, PCCC 부재 시 null 유지, 실패 이벤트 root cause 노출(D-075 `surfacesRootCauseInFailureEvent`), update 시 PCCC non-blank만 반영, 상태 매핑(N10→PREPARING, N20→PREPARING, N30→SHIPPED, N40→DELIVERED, N00→NEW).
-- **컨트롤러:** `OrderSyncControllerActionLogTest`에는 esmplus/GMARKET 케이스가 별도로 확인되지 않음(coupang/smartstore/elevenstreet만 명시적 케이스). GMARKET_SYNC 기록 계약은 미검증 가능성.
+- **컨트롤러:** `OrderSyncControllerActionLogTest`는 D-087에서 새 계약(트리거=STARTED만·SUCCESS는 컨트롤러가 남기지 않음·동기 디스패치 예외 시에만 FAILED)으로 재작성됨. 완료 GMARKET_SYNC SUCCESS/FAILED는 `ActionLogSyncListener`가 `SyncCompletedEvent(GMARKET)`로 기록하므로 컨트롤러 단위 테스트 범위 밖(SYNCA-13 해소로 컨트롤러의 가짜 SUCCESS 자체가 사라짐).
 - **비어있는 케이스:** ① items 개수 불일치 폴백(SYNCA-14) — 서로 다른 상태 라인 왜곡 검증 없음, ② 취소감지 부재(SYNCA-15), ③ 페이지네이션 단일 트랜잭션 부분실패 롤백(SYNCA-16), ④ progressed 주소 보호(:177) 검증, ⑤ 미매핑 order_status → NEW 폴백(:328).
 
 ---
