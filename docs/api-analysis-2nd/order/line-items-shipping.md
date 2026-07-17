@@ -1,16 +1,20 @@
-# PATCH /line-items/{lineItemId}/shipping — 라인아이템 배송(송장) 정보 수정
+# PATCH /line-items/{lineItemId}/shipping — 주문 상품 한 줄의 "배송(송장) 정보" 수정
 
 ## 1. 개요
 
-| 항목 | 내용 |
+> 이 기능은 한마디로: **주문에 들어온 상품 한 줄을 골라, 그 줄의 송장번호와 택배사를 입력·수정하고 그 값을 실제 마켓에도 보내주는 창구**입니다. 아직 "구매완료(PURCHASED)"이던 항목에 송장을 처음 달면 "발송됨(SHIPPED)"으로 넘어가고, 이미 발송된 항목이면 송장만 고쳐서 마켓에 다시 알려줍니다. 마켓 전송이 실패하면 우리 DB 저장까지 전부 되돌립니다.
+
+| 항목 | 쉬운 설명 |
 |------|------|
-| **Method / URL** | `PATCH /api/v1/orders/line-items/{lineItemId}/shipping` (바디 `ShippingUpdateRequest`) |
-| **목적** | 라인아이템의 송장번호·택배사를 수정하고 마켓에 전송한다. `PURCHASED` 이면 `SHIPPED` 로 전이(최초 등록), `SHIPPED` 이후면 송장 수정. |
-| **핵심 상태전이** | `PURCHASED` → `SHIPPED` (송장번호 필수), `SHIPPED` 이후는 상태 불변 송장 수정 |
-| **부수효과** | 로컬 저장 후 마켓 API 전송(`shipOrder` 최초 등록 / `updateTracking` 수정). 마켓 실패 시 `@Transactional` 롤백. 활동로그 `SHIPPING_UPDATE`. |
-| **응답** | `200 OK` + `OrderLineItemResponse` / 상태가드·마켓실패 시 예외 → 에러 응답 |
+| **주소(Method / URL)** | `PATCH /api/v1/orders/line-items/{lineItemId}/shipping` — 특정 상품 줄(lineItemId)의 송장 정보를 고쳐 달라는 요청. 보내는 내용은 `ShippingUpdateRequest`. |
+| **무엇을 하나** | 상품 한 줄의 송장번호·택배사를 저장하고 마켓에 보냅니다. 그 줄이 "구매완료(PURCHASED)"였다면 송장을 처음 다는 것이므로 "발송됨(SHIPPED)"으로 넘겨줍니다. 이미 발송된 상태면 송장만 수정합니다. |
+| **상태가 어떻게 바뀌나** | `구매완료(PURCHASED)` → `발송됨(SHIPPED)` (이때는 송장번호가 반드시 있어야 함). 이미 발송된 뒤에는 상태는 그대로 두고 송장만 고칩니다. |
+| **딸려오는 일(부수효과)** | 우리 DB에 먼저 저장한 뒤 마켓에 전송합니다(처음 등록이면 `shipOrder`, 수정이면 `updateTracking`). 마켓 전송이 실패하면 방금 저장한 것까지 통째로 되돌립니다(`@Transactional` 롤백). 그리고 활동기록(`SHIPPING_UPDATE`)을 남깁니다. |
+| **응답** | 잘되면 `200 OK`와 함께 바뀐 상품 줄 정보를 돌려줍니다. 지금 고치면 안 되는 상태이거나 마켓 전송이 실패하면 오류로 막습니다. |
 
 ## 2. 호출 체인
+
+> 아래는 요청이 처리될 때 **코드가 거쳐 가는 순서**입니다. 각 줄 오른쪽은 실제 코드 위치이고, "→ 쉽게 말하면"에 그 단계가 무슨 뜻인지 풀어 적었습니다.
 
 ```
 OrderController.updateShippingInfo()                        api/.../controller/OrderController.java:273-291
@@ -33,14 +37,31 @@ OrderController.updateShippingInfo()                        api/.../controller/O
   └─ actionLogService.record(SHIPPING_UPDATE, marketNameOfLineItem, SUCCESS/FAILED) api/.../controller/OrderController.java:283-289
 ```
 
-**요청 바디 (`ShippingUpdateRequest`, `ShippingUpdateRequest.java:8-10`)**
+- **`updateShippingInfo()` (입구)** → 쉽게 말하면: 화면에서 온 "송장정보 수정" 요청을 가장 먼저 받는 문지기입니다.
+- **`orderService.updateShippingInfo(...)` (@Transactional)** → 쉽게 말하면: 실제 저장과 마켓 전송을 담당하는 핵심 로직. `@Transactional` 덕분에 마켓 전송이 실패하면 방금 한 저장까지 통째로 되돌립니다.
+- **`findById() → orElseThrow`** → 쉽게 말하면: 고치려는 상품 줄이 실제로 있는지 찾습니다. 없으면 오류.
+- **`invoiceAlreadyExists 계산`** → 쉽게 말하면: 이 줄에 **이미 송장이 달려 있었는지**를 편집하기 전에 미리 확인해 둡니다. 이 값으로 나중에 "처음 등록"인지 "수정"인지를 판단합니다.
+- **종료상태 차단** → 쉽게 말하면: 이미 취소·반품·교환으로 끝난 주문이면 송장 수정을 막습니다.
+- **null/NEW/UNKNOWN/PREPARING 차단** → 쉽게 말하면: 아직 구매완료 전(초기·준비중)인 줄이면 발송으로 넘길 수 없으니 막습니다.
+- **PURCHASED 전이 판정 + 송장번호 필수** → 쉽게 말하면: "구매완료"였던 줄을 "발송됨"으로 넘길 때는 송장번호가 반드시 있어야 합니다.
+- **`applyShippingData(...)`** → 쉽게 말하면: 새로 들어온 송장번호·택배사를 기존 값에 덮어씁니다(안 온 값은 그대로 둠).
+- **`markAsShipped()`** → 쉽게 말하면: 상태를 "발송됨(SHIPPED)"으로 도장 찍습니다.
+- **`save(item)`** → 쉽게 말하면: 바뀐 내용을 먼저 DB에 저장합니다.
+- **`sendTrackingToMarketplace(...)`** → 쉽게 말하면: 마켓에 송장을 실제로 보냅니다. 어댑터가 없는 마켓(예: Cafe24)이면 그냥 건너뛰고(ofSkipped) 우리 저장만 남깁니다. 이미 송장이 있었으면 "수정(updateTracking)", 처음이면 "등록(shipOrder)"으로 보냅니다.
+- **`failIfNotSent(...)`** → 쉽게 말하면: 마켓 전송이 실패(failed/terminal)했으면 오류를 내서 앞서 한 저장까지 통째로 되돌립니다.
+- **`markSentIfSucceeded(...)`** → 쉽게 말하면: 마켓 전송이 성공했으면 "마켓에 잘 보냄" 표시를 하고 다시 저장합니다.
+- **`actionLogService.record(...)`** → 쉽게 말하면: "누가 송장을 고쳤고 성공/실패했다"는 기록을 남깁니다.
 
-| 필드 | 타입 | 필수 | 비고 |
+**요청 바디 (`ShippingUpdateRequest`, `ShippingUpdateRequest.java:8-10`)** — 화면에서 보내는 값들입니다.
+
+| 필드 | 타입 | 필수 | 쉬운 설명 |
 |------|------|------|------|
-| `trackingNo` | String | 조건부 | PURCHASED→SHIPPED 전이 시 필수(:349). SHIPPED 이후 수정 시 가드 없음 |
-| `shippingCarrier` | ShippingCarrier | 선택 | null 이면 미변경(부분 병합) |
+| `trackingNo` | String | 조건부 | 송장번호. "구매완료 → 발송됨"으로 넘길 때는 반드시 있어야 함(:349). 이미 발송된 뒤 수정할 때는 필수 아님. |
+| `shippingCarrier` | ShippingCarrier | 선택 | 택배사. 값을 안 보내면 기존 값 그대로 둠(부분 병합). |
 
 ## 3. 유스케이스 다이어그램
+
+> 👉 이 그림은 **운영자가 이 기능으로 할 수 있는 일**(송장 수정, 그에 딸린 발송됨 전이·마켓 전송 실패 시 되돌리기·활동로그 기록)과, 그 과정에서 **외부 마켓과 주고받는 부분**을 한눈에 보여줍니다.
 
 ```mermaid
 flowchart LR
@@ -67,6 +88,8 @@ flowchart LR
 ```
 
 ## 4. 시퀀스 다이어그램
+
+> 👉 이 그림은 요청이 들어온 순간부터 응답까지, **각 부품(컨트롤러·서비스·저장소·마켓 전송·마켓 어댑터·활동로그)이 어떤 순서로 메시지를 주고받는지**를 시간 순서로 보여줍니다. 상태가 맞지 않아 막히는 경우, 마켓이 성공/실패한 경우, 실패 시 저장까지 되돌리는(롤백) 경우가 함께 그려져 있습니다.
 
 ```mermaid
 sequenceDiagram
@@ -127,6 +150,8 @@ sequenceDiagram
 
 ## 5. 순서도 (플로우차트)
 
+> 👉 이 그림은 요청이 들어왔을 때 **어떤 조건을 차례로 따지며 갈라지는지**를 "예/아니오" 갈림길로 보여줍니다. 상태 검사 → 송장번호 검사 → 마켓 전송 결과(건너뜀/성공/실패)로 이어지는 흐름을 위에서 아래로 따라 읽으면 됩니다.
+
 ```mermaid
 flowchart TD
     START([PATCH /shipping]) --> FIND{라인아이템 존재?}
@@ -163,41 +188,49 @@ flowchart TD
 
 ## 6. 상태 전이표
 
-| 진입 라인상태 | 허용? | 결과 상태 | 마켓 전송 | 비고 |
+> 이 표는 **상품 줄이 지금 어떤 상태냐에 따라 송장 수정을 허용하는지, 그 결과 상태와 마켓에 어떻게 보내는지**를 정리한 것입니다. ✅는 허용, ❌는 막힘입니다.
+
+| 지금 상태(진입 라인상태) | 수정 허용? | 처리 후 상태 | 마켓 전송 | 쉬운 설명 |
 |-----------|:-----:|-----------|-----------|------|
-| null / `NEW` / `UNKNOWN` / `PREPARING` | ❌ | 불변 | — | 차단(:339-342) |
-| `CANCELED` / `RETURNED` / `EXCHANGED` | ❌ | 불변 | — | 종료상태 차단(:333-336, F-H2) |
-| `PURCHASED` + 송장번호 있음 | ✅ | `SHIPPED` | `shipOrder`(최초등록, invoice 없으면) | 전이(:345-357) |
-| `PURCHASED` + 송장번호 없음 | ❌ | 불변 | — | 차단(:349-351, F-H4) |
-| `SHIPPED` + 기존 송장 있음 | ✅ | `SHIPPED`(불변) | `updateTracking`(수정) | invoiceAlreadyExists=true |
-| `SHIPPED` + 기존 송장 없음 | ✅ | `SHIPPED`(불변) | `shipOrder`(최초등록) | 동기화 지연 등 예외 케이스 |
-| `DELIVERED` | ✅ | 불변 | 전송 시도 → 마켓 terminal 시 롤백 | 명시 차단 없음(ORDC-4) |
-| 마켓 어댑터 없는 마켓(Cafe24 등) | ✅ | (전이 반영) | 스킵 | 로컬 저장 유지(:88-93) |
+| null / `NEW` / `UNKNOWN` / `PREPARING` (초기·준비중) | ❌ | 그대로 | — | 아직 구매완료 전이라 막음(:339-342) |
+| `CANCELED`(취소) / `RETURNED`(반품) / `EXCHANGED`(교환) | ❌ | 그대로 | — | 이미 끝난 주문이라 막음(:333-336, F-H2) |
+| `PURCHASED`(구매완료) + 송장번호 있음 | ✅ | `SHIPPED`(발송됨) | `shipOrder`(처음 등록, 기존 송장 없을 때) | 발송됨으로 넘김(:345-357) |
+| `PURCHASED`(구매완료) + 송장번호 없음 | ❌ | 그대로 | — | 번호가 없어 발송으로 넘길 수 없어 막음(:349-351, F-H4) |
+| `SHIPPED`(발송됨) + 기존 송장 있음 | ✅ | `SHIPPED` 그대로 | `updateTracking`(수정) | 이미 있던 송장을 고쳐 다시 알림(invoiceAlreadyExists=true) |
+| `SHIPPED`(발송됨) + 기존 송장 없음 | ✅ | `SHIPPED` 그대로 | `shipOrder`(처음 등록) | 동기화 지연 등으로 송장이 비어있던 예외 상황 |
+| `DELIVERED`(배송완료) | ✅ | 그대로 | 전송 시도 → 마켓이 "완료라 안 됨"이라고 하면 되돌림 | 여기엔 막는 가드가 없음(ORDC-4) |
+| 마켓 어댑터가 없는 마켓(Cafe24 등) | ✅ | (상태 전이는 반영) | 건너뜀 | 마켓엔 안 보내고 우리 저장만 유지(:88-93) |
 
 ## 7. 🔎 발견사항
 
-### ORDC-4 · 🟠 GAP — `DELIVERED`(배송완료) 상태 라인의 송장 수정이 상태 가드로 차단되지 않음
+### ORDC-4 · 🟠 GAP — 이미 배송완료(`DELIVERED`)된 줄의 송장 수정이 걸러지지 않고 마켓 전송까지 시도됨
+- **무엇이 문제인가:** 송장 수정을 막는 "차단 목록"에 배송완료(DELIVERED) 상태가 빠져 있습니다. 그래서 이미 배송이 끝난 줄도 검사를 통과해 마켓에 송장을 보내려고 시도합니다.
 - **근거:** `OrderService.java:333-342` 의 차단 목록은 종료상태(CANCELED/RETURNED/EXCHANGED)와 초기상태(null/NEW/UNKNOWN/PREPARING)만 포함하고 `DELIVERED` 는 빠져 있다. 따라서 DELIVERED 라인도 `else` 분기(상태 불변 송장 수정)로 통과해 `sendTrackingToMarketplace` 가 호출된다.
-- **영향:** 배송완료된 건의 송장 수정 요청이 로컬 저장 후 마켓 전송을 시도한다. 마켓이 배송완료 잠금으로 거부하면 `isNonRetryableMarketState`(`MarketplaceShippingService.java:126-133`)가 terminal 로 잡아 `@Transactional` 롤백(`OrderService.java:581-584`)되어 데이터 정합은 보전되나, 마켓이 거부 메시지를 알려진 문자열로 주지 않으면 `ofFailed` 로 분류돼 재시도 대상이 되는 등 진입 자체가 부적절하다. 배송완료 후 로컬 편집을 시도하는 것 자체를 진입부에서 걸러내는 편이 명확하다.
-- **제안:** DELIVERED 를 진입 가드에 포함할지, 아니면 "완료 후 송장 정정은 마켓 terminal 판정에 위임"이 의도된 설계인지 명문화. terminal 판정이 마켓 메시지 문자열 매칭에 의존하는 점이 이 GAP의 잔여 리스크.
+- **왜 문제인가:** 배송완료 건은 마켓이 대개 "이미 배송완료라 안 됨"으로 거부합니다. 시스템은 이 거부를 알아보면 저장을 되돌려(롤백) 데이터는 지켜집니다. 하지만 마켓이 거부 사유를 우리가 아는 정해진 문구로 알려주지 않으면, 이를 "일시 실패"로 잘못 분류해 계속 재시도 대상으로 남길 수 있습니다. 애초에 배송완료 건은 입구에서 걸러내는 편이 깔끔합니다.
+- **어떻게 고치면 되나:** DELIVERED를 입구 차단 목록에 넣거나, "완료 후 송장 정정은 마켓 거부 판정에 맡긴다"가 의도된 설계라면 그렇게 문서로 명확히 합니다. 그 거부 판정이 아래 ORDC-5(문구 매칭)에 의존한다는 점이 남는 위험입니다.
 
-### ORDC-5 · 🔵 NOTE — `terminal` 재시도불가 판정이 한글 오류 메시지 문자열 매칭에 의존
-- **근거:** `MarketplaceShippingService.isNonRetryableMarketState`(`:126-133`)는 마켓 응답 메시지에 `"배송진행상태가 유효하지 않습니다"`, `"이미 배송완료"`, `"배송완료된"` 문자열이 포함되는지로 terminal 여부를 판정한다.
-- **영향:** 쿠팡 메시지 문구가 바뀌거나 다른 마켓이 다른 문구/코드로 거부하면 terminal 을 놓쳐 `ofFailed` 로 분류 → 무한 재시도 대상이 될 수 있다. 마켓 오류 분류가 문자열 상수에 결합되어 취약.
-- **제안:** 마켓별 오류 코드/타입 기반 분류로 이행하거나, 최소한 마켓별 terminal 판정을 포트 어댑터로 위임하는 방안 검토.
+### ORDC-5 · 🔵 NOTE — "재시도해도 소용없음(terminal)" 판정이 한글 오류 메시지 문구가 맞는지에 의존해 취약함
+- **무엇이 문제인가:** 마켓 전송이 실패했을 때 "이건 다시 보내봐야 소용없는 최종 상황인가"를 판정하는데, 그 판정을 마켓 응답 메시지에 `"배송진행상태가 유효하지 않습니다"`, `"이미 배송완료"`, `"배송완료된"` 같은 특정 한글 문구가 들어 있는지로 합니다.
+- **근거:** `MarketplaceShippingService.isNonRetryableMarketState`(`:126-133`)는 마켓 응답 메시지에 위 문자열이 포함되는지로 terminal 여부를 판정한다.
+- **왜 문제인가:** 쿠팡이 문구를 조금만 바꾸거나, 다른 마켓이 다른 문구·코드로 거부하면 최종 상황임을 놓쳐 "일시 실패"로 잘못 분류하고, 결국 무한 재시도 대상으로 만들 수 있습니다. 오류 분류가 정해진 문자열에 묶여 있어 깨지기 쉽습니다.
+- **어떻게 고치면 되나:** 마켓별 오류 코드/타입 기반 분류로 바꾸거나, 최소한 최종 판정을 각 마켓 어댑터에 맡기는 방안을 검토합니다.
 
-### ORDC-6 · 🟡 SMELL — 실패 경로 활동로그의 마켓 타입이 항상 null (소싱 경로와 동일 패턴)
+### ORDC-6 · 🟡 SMELL — 송장 수정이 실패했을 때, 활동로그에 "어느 마켓 주문이었는지"가 항상 비어(null) 남음 (구매정보 경로와 같은 패턴)
+- **무엇이 문제인가:** 송장 수정이 성공하면 활동로그에 마켓 이름을 채우지만, 실패하면 마켓 칸이 항상 비어(null) 있습니다. 앞선 구매정보 수정의 ORDC-3과 똑같은 문제입니다.
 - **근거:** `OrderController.java:287-289` catch 블록은 `record(SHIPPING_UPDATE, null, FAILED, ...)`. 성공 경로(:283)만 `marketNameOfLineItem(lineItemId)` 로 마켓을 해석한다. `marketTypeOfLineItem` 은 read-only 조회라 예외와 무관하게 호출 가능하다(`OrderService.java:545-551`).
-- **영향:** 배송 실패 활동로그에서 마켓별 집계·필터 불가. 발주확인/취소 실패 경로가 `marketNameOfOrder` 로 마켓을 채우는 것과 비대칭.
-- **제안:** 실패 경로에서도 `marketNameOfLineItem` 로 마켓 해석 시도.
+- **왜 문제인가:** 배송 실패 로그를 마켓별로 골라보거나 집계할 수 없습니다. 발주확인·취소의 실패 로그가 마켓을 채우는 것과 다릅니다.
+- **어떻게 고치면 되나:** 실패했을 때도 상품 줄로 마켓을 조회해 채워 넣습니다.
 
 ## 8. 테스트 커버리지 메모
 
-- **상태 가드:** `OrderServiceShippingGuardTest` — 종료상태(CANCELED/RETURNED) 송장수정 차단·마켓 전송/저장 없음, SHIPPED 송장수정 마켓 terminal 전용 메시지 롤백(3건). ✅
-- **F-H4 전이 가드:** `OrderServiceInputGuardTest` — PURCHASED→SHIPPED 전이 시 trackingNo 없음/공백 차단·전송/저장 없음(2건). ✅
-- **롤백 계약:** `OrderServiceShippingRollbackTest`(5건) — 마켓 failed → 롤백 예외, sent → 정상 반환, skipped → 로컬 편집 보존, SHIPPED+기존송장 → sendTracking(true) 수정, PURCHASED+무송장 → sendTracking(false) 최초등록. ✅
-- **terminal 분류:** `MarketplaceShippingTerminalTest`(2건).
-- **비어있는 케이스:** ① `DELIVERED` 상태 진입(ORDC-4) — 명시 테스트 없음, ② 실패 경로 활동로그 마켓 null(ORDC-6), ③ 어댑터 미지원 마켓(Cafe24)의 스킵 후 로컬 저장 유지 경로.
+> 이 기능이 **어떤 상황까지 자동 테스트로 검증되고 있고, 어떤 상황은 아직 테스트가 비어 있는지**를 정리한 메모입니다. ✅는 이미 테스트로 확인된 것입니다.
+
+- **상태 가드:** `OrderServiceShippingGuardTest` — 끝난 상태(취소/반품)의 송장수정을 막고 마켓 전송·저장을 안 함, 이미 발송된 줄의 송장수정 시 마켓이 "완료라 안 됨"으로 거부하면 되돌리는지(3건). ✅
+- **F-H4 전이 가드:** `OrderServiceInputGuardTest` — 구매완료 → 발송됨으로 넘길 때 송장번호가 없거나 공백이면 막고, 전송·저장을 안 함(2건). ✅
+- **되돌리기(롤백) 계약:** `OrderServiceShippingRollbackTest`(5건) — 마켓 실패 → 되돌림 오류, 성공 → 정상 반환, 건너뜀 → 우리 저장은 유지, 발송됨+기존 송장 → 수정 전송(updateTracking), 구매완료+송장 없음 → 처음 등록 전송(shipOrder). ✅
+- **최종 상황 분류:** `MarketplaceShippingTerminalTest`(2건).
+- **아직 테스트가 없는 상황:** ① 배송완료(`DELIVERED`) 상태로 들어오는 경우(ORDC-4) — 명시 테스트 없음, ② 실패했을 때 로그의 마켓이 비는 문제(ORDC-6), ③ 어댑터가 없는 마켓(Cafe24)에서 건너뛴 뒤 우리 저장은 유지되는 경로.
 
 ---
+*(쉬운 설명판 · 2026-07-17 재작성)*
 *생성: 2026-07-17 · 근거: 현재 워킹트리*
