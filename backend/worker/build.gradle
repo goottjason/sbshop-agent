@@ -12,4 +12,8 @@ dependencies {
     
     // PostgreSQL
     runtimeOnly 'org.postgresql:postgresql'
+
+    // 컨텍스트 로드 스모크(실 Postgres)용 — 공유 설정(sbshop-common.yml) 임포트로 worker 기동 검증.
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
 }

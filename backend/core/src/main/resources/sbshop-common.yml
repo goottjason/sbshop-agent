@@ -1,0 +1,46 @@
+# api·worker 공통 설정(단일 원본).
+# 두 앱은 별개 JVM이라 각자 application.yml을 로드하지만, 공통 부분(datasource·jpa 기본·
+# 이메일 계정)은 이 파일 하나로 관리하고 각 앱이 spring.config.import로 불러온다.
+# core는 api·worker가 모두 의존하는 라이브러리라 classpath:sbshop-common.yml로 임포트된다.
+# 앱별로 다른 값(application.name, server.port, jpa.show_sql, logging)은 각 application.yml에 둔다.
+spring:
+  devtools:
+    livereload:
+      enabled: false
+  main:
+    banner-mode: off
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:sbshop}
+    username: ${DB_USERNAME:sbshop}
+    password: ${DB_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    open-in-view: false
+    hibernate:
+      # 엔티티 변경을 스키마에 자동 반영(추가만; DROP/변경 없음). 사용자 결정 2026-07-15.
+      # 환경변수 DDL_AUTO로 오버라이드 가능(문제 시 none/validate로). create/create-drop 금지(데이터 삭제).
+      ddl-auto: ${DDL_AUTO:update}
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+sbshop:
+  email:
+    accounts:
+      - host: imap.gmail.com
+        port: 993
+        username: ${EMAIL_USERNAME_1}
+        password: ${EMAIL_PASSWORD_1}
+        protocol: imaps
+      - host: imap.gmail.com
+        port: 993
+        username: ${EMAIL_USERNAME_2}
+        password: ${EMAIL_PASSWORD_2}
+        protocol: imaps
+      - host: imap.gmail.com
+        port: 993
+        username: ${EMAIL_USERNAME_3:}
+        password: ${EMAIL_PASSWORD_3:}
+        protocol: imaps
+    # 계정이 더 많으면 EMAIL_ACCOUNTS(=user:pass 목록) env로 추가 등록된다(EmailAccountProperties).
