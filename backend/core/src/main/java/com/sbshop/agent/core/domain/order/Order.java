@@ -138,7 +138,10 @@ public class Order extends BaseEntity {
 		String ordererName, String ordererPhone, String shipmentBoxId, MarketType marketType) {
 		if (recipientName != null)
 			this.recipientName = recipientName;
-		if (recipientPhone != null)
+		// 전화번호는 "쓸 수 있는 실번호"일 때만 반영한다. 마스킹(*** 포함)·빈값으로는 기존 실번호를
+		// 덮지 않는다(쿠팡 등 마켓이 배송완료·오래된 주문을 마스킹/안심번호 만료 상태로 내려주는 경우 PII 유실 방지).
+		// 실번호→다른 실번호로의 정상 변경은 허용한다(고객이 연락처를 바꾼 경우).
+		if (isUsablePhone(recipientPhone))
 			this.recipientPhone = recipientPhone;
 		if (zipcode != null)
 			this.zipcode = zipcode;
@@ -148,12 +151,20 @@ public class Order extends BaseEntity {
 			this.message = message;
 		if (ordererName != null)
 			this.ordererName = ordererName;
-		if (ordererPhone != null)
+		if (isUsablePhone(ordererPhone))
 			this.ordererPhone = ordererPhone;
 		if (shipmentBoxId != null)
 			this.shipmentBoxId = shipmentBoxId;
 		if (marketType != null)
 			this.marketType = marketType;
+	}
+
+	/**
+	 * 동기화로 들어온 전화번호가 저장 가능한 "실번호"인지 판정한다.
+	 * null·공백은 물론, 마스킹 문자('*')가 하나라도 포함되면(예: "***-****-****") 실번호가 아니므로 반영하지 않는다.
+	 */
+	private static boolean isUsablePhone(String phone) {
+		return phone != null && !phone.isBlank() && phone.indexOf('*') < 0;
 	}
 
 	/** marketSpecificData JSON을 Map으로 파싱 */
