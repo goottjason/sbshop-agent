@@ -43,6 +43,7 @@ sbshop:
         username: ${EMAIL_USERNAME_3:}
         password: ${EMAIL_PASSWORD_3:}
         protocol: imaps
+    # 계정이 더 많으면 EMAIL_ACCOUNTS(=user:pass 목록) env로 추가 등록된다(EmailAccountProperties).
 
 logging:
   level:
