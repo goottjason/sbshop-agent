@@ -13,19 +13,15 @@ COPY backend/infrastructure/ infrastructure/
 COPY backend/api/ api/
 COPY backend/worker/ worker/
 
-RUN chmod +x gradlew && ./gradlew :api:bootJar :worker:bootJar --no-daemon -x test
+# 단일 백엔드(2026-07-17 병합): api 앱 하나만 빌드. worker는 api의 라이브러리 의존이라 api bootJar에 포함된다.
+RUN chmod +x gradlew && ./gradlew :api:bootJar --no-daemon -x test
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
-# API JAR와 Worker JAR 모두 복사
-COPY --from=builder /app/api/build/libs/*.jar api.jar
-COPY --from=builder /app/worker/build/libs/*.jar worker.jar
+# 단일 실행 JAR(api) — 스케줄러·이메일 수집·내부 트리거가 모두 이 앱에 포함됨
+COPY --from=builder /app/api/build/libs/*.jar app.jar
 
-# start.sh 복사
-COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
+EXPOSE 8080
 
-EXPOSE 8080 8081
-
-ENTRYPOINT ["/app/start.sh"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

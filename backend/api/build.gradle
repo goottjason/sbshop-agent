@@ -1,7 +1,9 @@
 dependencies {
     implementation project(':core')
     implementation project(':infrastructure')
-    
+    // 단일 백엔드 병합(2026-07-17): worker는 라이브러리로, 스케줄러·이메일 수집·내부 트리거 빈을 제공.
+    implementation project(':worker')
+
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'

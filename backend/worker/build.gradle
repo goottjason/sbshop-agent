@@ -1,19 +1,18 @@
+// 단일 백엔드로 병합(2026-07-17): worker는 더 이상 독립 실행 앱이 아니라, 스케줄러·이메일 수집·
+// 내부 트리거 빈을 api 앱에 제공하는 라이브러리 모듈이다(core/infrastructure와 동일 취급).
+// api가 이 모듈을 의존하고 com.sbshop.agent 전역 스캔으로 여기의 @Component를 로드한다.
 dependencies {
     implementation project(':core')
     implementation project(':infrastructure')
-    
-    implementation 'org.springframework.boot:spring-boot-starter'
-    // server.port:8081 + Dockerfile EXPOSE 8081 + start.sh --server.port=8081 전제였으나
-    // 레거시 병합에서 web 스타터가 누락됨(D-E3). 내부 트리거/헬스 엔드포인트 위해 복구.
+
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
-    
+
     // PostgreSQL
     runtimeOnly 'org.postgresql:postgresql'
-
-    // 컨텍스트 로드 스모크(실 Postgres)용 — 공유 설정(sbshop-common.yml) 임포트로 worker 기동 검증.
-    testImplementation 'org.testcontainers:junit-jupiter'
-    testImplementation 'org.testcontainers:postgresql'
 }
+
+bootJar { enabled = false }
+jar { enabled = true }
