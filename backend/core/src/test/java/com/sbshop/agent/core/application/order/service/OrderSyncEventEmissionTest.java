@@ -99,7 +99,8 @@ class OrderSyncEventEmissionTest {
 		CoupangOrderSyncService service = new CoupangOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
 			marketRegistrationRepository, eventPublisher, coupangOrderAdapter, coupangStatusMapper,
-			syncStatusService, marketFeeService);
+			syncStatusService, marketFeeService,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.actionlog.ActionLogService.class));
 
 		service.syncCoupangOrders();
 

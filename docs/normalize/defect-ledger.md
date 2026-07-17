@@ -1258,5 +1258,17 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 근본원인: `EmailFetcherService.processIherbShipment`가 `SHIPPED+동일송장`(alreadyShipped) 또는 `PURCHASED`만 처리, `SHIPPED+다른송장`은 else로 빠져 무처리.
 - 수정: alreadyShipped 다음·PURCHASED 앞에 `SHIPPED이고 이메일송장≠기존` 분기 추가 → 송장/택배사 교정 + 마켓 `updateTracking`(수정, invoiceAlreadyExists=true) 전파. 미지 해외택배사(DHL/FedEx 등 mapCarrier→ETC)는 기존 택배사 유지. worker 테스트 2건.
 
+### D-087: @Async 마켓동기화/정산 트리거의 ActionLog SUCCESS 오기록 (실패 미인지)
+- 심각도 P2 / 상태 수정완료·회귀통과(전체 ./gradlew test SUCCESS) — 커밋 대기 (2차 API분석 SYNCA-1/5/9/13 + SYNCB-6 승격)
+- 수정: (a) `OrderSyncController` 쿠팡·스토어·11번가·G마켓·정산 5개 엔드포인트의 디스패치 직후 `record(SUCCESS)` 제거(STARTED·catch→FAILED 유지). (b) `CoupangOrderSyncService`에 `ActionLogService` 주입, `syncCoupangSettlement` markCompleted/markFailed 지점에서 `COUPANG_SETTLEMENT_SYNC` SUCCESS/FAILED 기록(recordSettlement 헬퍼). S1~S4 완료는 기존 `SyncCompletedEvent`→`ActionLogSyncListener`에 위임.
+- 테스트: `OrderSyncControllerActionLogTest` 새 계약으로 재작성(트리거는 STARTED만·SUCCESS never·동기예외 FAILED), 신규 `CoupangSettlementActionLogTest`(완료 SUCCESS·실패 FAILED·중복스킵 무기록). 기존 수동생성 테스트 2건(OrderSyncEventEmission·OrderAddressProtection) 생성자 인자 보정.
+- 증상: 쿠팡·스마트스토어·11번가·G마켓 주문동기화와 쿠팡 정산동기화가 실제 실패해도 활동로그에 SUCCESS로 남거나(정산은 실패가 아예 안 남음), 운영자가 진행현황에서 실패를 인지하지 못한다.
+- 근본원인: `OrderSyncController`가 STARTED 기록 후 `@Async("syncTaskExecutor")` 서비스를 호출하고, 비동기 디스패치 직후 동기 실행 흐름에서 `record(..., SUCCESS, ...)`를 남긴다(`OrderSyncController.java:64/94/123/149/204`). @Async라 즉시 반환되므로 try는 항상 성공 → **결과와 무관하게 SUCCESS**. try/catch는 백그라운드 예외를 못 본다.
+  - S1~S4(주문동기화): 서비스가 성공/실패 양쪽에 `SyncCompletedEvent`를 발행하고 `ActionLogSyncListener`가 이미 정확한 `{MARKET}_SYNC` SUCCESS/FAILED를 기록한다 → 컨트롤러 SUCCESS는 **중복+가짜** 이중기록.
+  - S5(`COUPANG_SETTLEMENT_SYNC`): `syncCoupangSettlement`은 `SyncCompletedEvent`를 발행하지 않아 리스너 기록이 없다 → 유일한 ActionLog가 컨트롤러의 가짜 SUCCESS. **실제 정산 실패가 어디에도 FAILED로 안 남는 진짜 BUG.**
+  - 과거 F-SYNC-3(1차 분석 기반)이 "트리거 성공 기록" 의도로 이 SUCCESS를 추가했으나, 리스너 도입(D-042) 이후 중복·오기록이 됨.
+- 수정계획: (a) S1~S4 컨트롤러의 즉시 `record(SUCCESS)` 제거 — STARTED와 catch→FAILED(동기 디스패치 실패용)는 유지, 완료는 리스너에 위임. (b) S5 정산은 `CoupangOrderSyncService`에 `ActionLogService` 주입, `syncCoupangSettlement`의 markCompleted/markFailed 지점에서 `COUPANG_SETTLEMENT_SYNC` SUCCESS/FAILED 기록 + 컨트롤러 가짜 SUCCESS 제거. (c) S6 통관은 동기 실행이라 정확 → 불변.
+- 영향 범위: `OrderSyncController`(api) + `CoupangOrderSyncService`(core). 다마켓 관측성 계약 → 표준~중대. TDD Red(컨트롤러 SUCCESS 미기록 · 정산 서비스 완료기록) 후 수정.
+
 ### UX 개선(비결함, 동반 배포)
 - 배치 업데이트 진행바(D-082 동반), 상품관리 가격/재고 stockStatus 모달 시드, 통합주문 그리드 **구매/배송정보 셀 병합(rowSpan, 배송사/송장·계정/공급처/주문#/할인 stack) + 더블클릭 통합 인라인편집(택배사+송장 한 세트 1회 저장→마켓 1회 호출) + placeholder + 수정버튼/모달 제거**, 인라인 성공/실패 토스트.

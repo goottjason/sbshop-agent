@@ -48,6 +48,9 @@ public class CoupangOrderSyncService {
 	private final CoupangStatusMapper statusMapper;
 	private final com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 	private final MarketFeeService marketFeeService;
+	// D-087: 정산(S5)은 SyncCompletedEvent 미발행 → ActionLogSyncListener가 완료를 못 남긴다.
+	// 이 서비스가 완료/실패를 COUPANG_SETTLEMENT_SYNC 로 직접 기록해 운영자가 실패를 인지하게 한다.
+	private final com.sbshop.agent.core.application.actionlog.ActionLogService actionLogService;
 
 	// -- 상태 --
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
@@ -123,6 +126,9 @@ public class CoupangOrderSyncService {
 				log.info("쿠팡 정산 데이터 없음");
 				syncStatusService.markCompleted(
 					com.sbshop.agent.core.application.sync.SyncMarketKeys.COUPANG_SETTLEMENT);
+				// D-087: 정산 완료 기록(데이터 없음도 정상 완료).
+				recordSettlement(com.sbshop.agent.core.domain.actionlog.enums.ActionStatus.SUCCESS,
+					"쿠팡 정산 동기화 완료: 대상 없음");
 				return;
 			}
 
@@ -165,11 +171,25 @@ public class CoupangOrderSyncService {
 			log.info("쿠팡 정산 동기화 완료: {}건 업데이트", updatedCount);
 			syncStatusService.markCompleted(
 				com.sbshop.agent.core.application.sync.SyncMarketKeys.COUPANG_SETTLEMENT);
+			// D-087: 정산 완료 기록(실제 결과 반영).
+			recordSettlement(com.sbshop.agent.core.domain.actionlog.enums.ActionStatus.SUCCESS,
+				"쿠팡 정산 동기화 완료: " + updatedCount + "건 업데이트");
 		} catch (Exception e) {
 			log.error("쿠팡 정산 동기화 실패: {}", e.getMessage());
 			syncStatusService.markFailed(
 				com.sbshop.agent.core.application.sync.SyncMarketKeys.COUPANG_SETTLEMENT, e.getMessage());
+			// D-087: 정산 실패 기록 — 이벤트 미발행 경로라 여기서만 남는다.
+			recordSettlement(com.sbshop.agent.core.domain.actionlog.enums.ActionStatus.FAILED,
+				"쿠팡 정산 동기화 실패: " + e.getMessage());
 		}
+	}
+
+	/* ----- D-087: 정산 완료/실패 ActionLog 기록 헬퍼 ----- */
+	private void recordSettlement(com.sbshop.agent.core.domain.actionlog.enums.ActionStatus status,
+		String message) {
+		actionLogService.record(
+			com.sbshop.agent.core.domain.actionlog.ActionLogConstants.COUPANG_SETTLEMENT_SYNC,
+			"COUPANG", status, message);
 	}
 
 	/* ----- 크레덴셜 조회 및 검증 ----- */
