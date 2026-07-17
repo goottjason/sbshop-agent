@@ -98,6 +98,25 @@ class Cafe24OrderSyncServiceTest {
 		return MAPPER.readTree(json).path("orders");
 	}
 
+	/**
+	 * 실제 Cafe24 주문 API 응답 구조: 개인통관고유부호(PCCC)는 receivers[].clearance_information 에 담긴다.
+	 * 동반 필드 clearance_information_type="C"는 개인통관고유부호 유형을 뜻한다(라이브 강연희 주문 20260715-0000010 확인).
+	 */
+	private JsonNode ordersJsonRealClearanceInformation() throws Exception {
+		String json = """
+			{"orders":[
+			  {"order_id":"20260715-0000010","order_place_id":"gmarket","order_place_name":"G마켓",
+			   "order_date":"2026-07-15T12:00:00+09:00","market_order_no":"4469254653",
+			   "buyer":{"name":"강연희","cellphone":"010-2930-0502"},
+			   "receivers":[{"name":"강연희","cellphone":"010-2930-0502","zipcode":"12345",
+			      "address_full":"서울시 강남구","clearance_information_type":"C",
+			      "clearance_information":"P180023584849"}],
+			   "items":[{"product_no":"7034","quantity":1,"payment_amount":"5000","order_status":"N10"}]}
+			]}
+			""";
+		return MAPPER.readTree(json).path("orders");
+	}
+
 	/** 통관번호 필드가 어디에도 없는 케이스(회귀: null 유지). */
 	private JsonNode ordersJsonNoPccc() throws Exception {
 		String json = """
@@ -161,6 +180,20 @@ class Cafe24OrderSyncServiceTest {
 		ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
 		verify(orderRepository, times(1)).save(orderCaptor.capture());
 		assertThat(orderCaptor.getValue().getCustomsData().getCustomsClearanceNo()).isEqualTo("R098765432109");
+	}
+
+	@Test
+	@DisplayName("실제 Cafe24 필드: 통관번호가 receivers[].clearance_information에 오면 추출·저장한다(강연희 P180023584849)")
+	void extractsPcccFromReceiverClearanceInformation() throws Exception {
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
+			.thenReturn(ordersJsonRealClearanceInformation());
+		when(orderRepository.findByMarketOrderNo("4469254653")).thenReturn(Optional.empty());
+
+		service.fetchAndPersist(java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now());
+
+		ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+		verify(orderRepository, times(1)).save(orderCaptor.capture());
+		assertThat(orderCaptor.getValue().getCustomsData().getCustomsClearanceNo()).isEqualTo("P180023584849");
 	}
 
 	@Test

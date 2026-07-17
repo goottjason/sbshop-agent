@@ -255,15 +255,16 @@ public class Cafe24OrderSyncService {
 	}
 
 	/**
-	 * 개인통관고유부호(PCCC)를 buyer/receiver/order 노드에서 방어적으로 추출한다.
-	 * Cafe24 주문 API의 정확한 PCCC 필드명이 문서로 100% 확정되지 않아, 알려진 후보 키들을
-	 * buyer→receiver→order 순으로 순차 시도한다. 모두 blank면 null(기존값 미변경)을 반환하고,
-	 * 못 찾은 경우 노드의 key 목록을 debug로 남겨 라이브 preview에서 실제 필드명을 확정할 수 있게 한다.
+	 * 개인통관고유부호(PCCC)를 buyer/receiver/order 노드에서 추출한다.
+	 * 실제 Cafe24 주문 Admin API는 PCCC를 receivers[].clearance_information 에 담는다(동반 필드
+	 * clearance_information_type="C"가 개인통관고유부호 유형 — 라이브 주문 20260715-0000010으로 확정, 2026-07-17).
+	 * clearance_information을 1순위로 두고, 레거시/변형 대비 알려진 후보 키들을 buyer→receiver→order 순으로
+	 * 순차 시도한다. 모두 blank면 null(기존값 미변경)을 반환하고, 못 찾은 경우 노드의 key 목록을 debug로 남긴다.
 	 * PII 보호: 통관번호 값 자체는 info로 평문 로깅하지 않는다.
 	 */
 	private static final String[] PCCC_KEYS = {
-		"personal_customs_clearance_code", "personal_customs_code", "customs_clearance_code",
-		"clearance_code", "customs_no", "personal_customs_number", "pccc"
+		"clearance_information", "personal_customs_clearance_code", "personal_customs_code",
+		"customs_clearance_code", "clearance_code", "customs_no", "personal_customs_number", "pccc"
 	};
 
 	private String extractPccc(JsonNode buyer, JsonNode receiver, JsonNode order) {

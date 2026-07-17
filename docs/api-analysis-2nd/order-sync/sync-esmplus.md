@@ -223,9 +223,16 @@ flowchart TD
 - **영향:** 스케줄러 실행과 수동 버튼이 겹치면 같은 동기화가 두 프로그램에서 2번 돌 수 있습니다(SYNCA-16의 긴 반복과 겹치면 부하·중복 저장 위험이 더 커짐).
 - **제안:** 정산 경로(`syncCoupangSettlement`의 DB 찜하기)처럼 두 프로그램을 아우르는 중복 방지로 통일하는 걸 검토합니다.
 
+### SYNCA-18 · 🟠 GAP — G마켓/옥션 통관번호(PCCC)를 못 가져오던 문제 (실제 필드명 미확정)
+> ✅ **해결됨** (2026-07-17) — 실제 Cafe24 응답의 PCCC 필드가 **`receivers[].clearance_information`**(동반 필드 `clearance_information_type="C"` = 개인통관고유부호 유형)임을 라이브 주문 `20260715-0000010`(강연희, `P180023584849`)으로 확정하고, `extractPccc`의 1순위 후보 키로 반영했다.
+- **무엇이 문제였나:** `extractPccc`(`Cafe24OrderSyncService.java`)가 정확한 Cafe24 PCCC 필드명을 몰라 추측 키들(`personal_customs_clearance_code`·`clearance_code` 등)만 시도했다. 실제 필드명 `clearance_information`이 후보에 없어, 응답에는 값이 있는데도 **항상 null로 저장**됐다(강연희 주문 `customs_clearance_no` NULL로 재현).
+- **근거:** 라이브 Cafe24 Admin API(`GET /admin/orders/{id}?embed=items,receivers,buyer`) 응답에서 `receivers[0].clearance_information = "P180023584849"`, `receivers[0].clearance_information_type = "C"` 확인. 값이 이미 현재 embed(`receivers`)에 포함돼 있어 **embed 변경 없이** 파싱만 고치면 됐다.
+- **영향:** G마켓·옥션 주문의 통관번호가 비어, 이후 통관 검증(GSI Express) 대상에서 누락되거나 수기 입력이 필요했다. (수정 후: 동기화 시 자동 주입 → 통관 상태 동기화가 정상 대상으로 포착.)
+- **재현 테스트:** `Cafe24OrderSyncServiceTest.extractsPcccFromReceiverClearanceInformation` (실제 구조·실제 값으로 Red→Green).
+
 ## 8. 테스트 커버리지 메모
 
-- **서비스:** `Cafe24OrderSyncServiceTest`가 꽤 두껍게 검증합니다 — G마켓 저장·타마켓 건너뜀(`mapsGmarketAndSkipsOthers`), 통관번호(PCCC) 대체 추출, 통관번호가 없으면 null 유지, 실패 시 근본 원인을 이벤트에 담는지(D-075 `surfacesRootCauseInFailureEvent`), 갱신 시 통관번호는 비어있지 않을 때만 반영, 상태 번역(N10→준비중, N20→준비중, N30→발송됨, N40→배송완료, N00→신규).
+- **서비스:** `Cafe24OrderSyncServiceTest`가 꽤 두껍게 검증합니다 — G마켓 저장·타마켓 건너뜀(`mapsGmarketAndSkipsOthers`), 통관번호(PCCC) 추출 — **실제 필드 `receivers[].clearance_information`**(`extractsPcccFromReceiverClearanceInformation`)과 레거시 후보 키 대체 추출, 통관번호가 없으면 null 유지, 실패 시 근본 원인을 이벤트에 담는지(D-075 `surfacesRootCauseInFailureEvent`), 갱신 시 통관번호는 비어있지 않을 때만 반영, 상태 번역(N10→준비중, N20→준비중, N30→발송됨, N40→배송완료, N00→신규).
 - **입구 코드(컨트롤러):** `OrderSyncControllerActionLogTest`가 D-087에서 새 약속(시작 시 STARTED만·성공은 입구가 남기지 않음·시작 자체가 즉시 실패할 때만 FAILED)에 맞게 다시 작성됐습니다. 완료 GMARKET_SYNC 성공/실패는 `ActionLogSyncListener`가 `SyncCompletedEvent(GMARKET)`로 기록하므로 입구 코드 단위 테스트 범위 밖입니다(SYNCA-13 해결로 입구의 가짜 성공 자체가 사라짐).
 - **아직 테스트가 없는 부분:** ① 상품 개수 불일치 시 대비책(SYNCA-14) — 서로 다른 상태의 줄이 왜곡되는 걸 검증 없음, ② 취소감지 부재(SYNCA-15), ③ 여러 페이지가 하나의 저장 묶음이라 부분 실패 시 전부 롤백(SYNCA-16), ④ 진행된 주문의 주소 보호(:177) 검증, ⑤ 번역 불가 상태코드를 신규(NEW)로 대체(:328).
 
