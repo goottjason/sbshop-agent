@@ -19,7 +19,7 @@ public class BatchScheduler {
 	private final BatchPriceStockService batchPriceStockService;
 	private final ProcessStatusService processStatusService;
 
-	@Scheduled(cron = "0 0 5 * * ?")
+	@Scheduled(cron = "0 0 5 * * ?", zone = "Asia/Seoul")
 	public void scheduleDailyIherbPriceUpdate() {
 		log.info("iHerb 소싱업체 정기 가격/재고 업데이트 시작...");
 		List<Long> productIds = batchPriceStockService.getProductIdsByVendor(VendorType.IHB);

@@ -8,6 +8,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchOrders, updateOrder, updateOrderLineItem, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, syncProductStock, fetchSyncStatus } from '../api/orderApi';
 import type { OrderGridDto, ProductDto } from '../api/orderApi';
+import { toKstDate } from '../utils/datetime';
 
 // 재고현황 셀 표시 규칙(순수 함수, 테스트 가능):
 // - IN_STOCK → 구입가능 뱃지만(재입고일 행 없음)
@@ -410,8 +411,11 @@ const OrderGrid: React.FC = () => {
   }, [commonCodes]);
 
   const timeAgo = (dateStr: string | null): string => {
-    if (!dateStr) return '-';
-    const diff = Date.now() - new Date(dateStr).getTime();
+    // 백엔드 시각은 zone 없는 UTC 벽시계값(LocalDateTime.now())이므로 toKstDate로 UTC로 파싱해야
+    // 경과시간이 맞다. raw new Date(naive)는 브라우저 로컬(KST)로 오해석해 9시간 어긋난다(동기화 바·재고 반영시각 공용).
+    const d = toKstDate(dateStr);
+    if (!d) return '-';
+    const diff = Date.now() - d.getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return '방금';
     if (mins < 60) return `${mins}분 전`;

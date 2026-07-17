@@ -18,7 +18,7 @@ public class ProductSyncScheduler {
 	private final ProductSyncService productSyncService;
 	private final ProductRepository productRepository;
 
-	@Scheduled(cron = "0 0 4 * * ?")
+	@Scheduled(cron = "0 0 4 * * ?", zone = "Asia/Seoul")
 	public void syncIherbProductStock() {
 		log.info("iHerb 상품 재고 주기적 동기화 시작...");
 		List<Product> iherbProducts = productRepository.findByVendor(VendorType.IHB);
