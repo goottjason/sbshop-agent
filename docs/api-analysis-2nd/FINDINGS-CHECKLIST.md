@@ -1,12 +1,31 @@
-# API 흐름 2차 분석 — 발견사항 우선순위 체크리스트
+# API 흐름 2차 분석 — 발견사항 (쉬운 설명판)
 
-> `docs/api-analysis-2nd/` 하위 API 문서를 근거로 **16개 도메인 유닛**이 현재 워킹트리를 재조사해 반환한 발견사항을 우선순위별로 집계한 마스터 체크리스트.
-> 각 항목은 근거 파일:라인과 해당 API 문서(endpoint)에 상세가 있다. **이 문서는 진단·기록 전용** — 실제 수정은 `sbshop-normalize` 스킬(재현 테스트 → Red→Green) 소관.
-> 🔴/🟠 중 재현 가능한 것은 `docs/normalize/defect-ledger.md` 로 승격 등재 후보.
->
-> 생성: 2026-07-17 · 근거: 현재 워킹트리(main)
+> 현재 코드베이스(2026-07-17)를 56개 API 단위로 다시 살펴보며 찾은 **문제점·개선거리 157건**을,
+> 개발을 몰라도 읽을 수 있게 **쉬운 말로 풀어 정리**한 문서입니다.
+> 각 항목의 더 기술적인 근거(다이어그램·상세 흐름)는 `docs/api-analysis-2nd/{도메인}/{파일}.md` 에 있습니다.
+> **이 문서는 "무엇이 어떻게 잘못됐나"를 기록·공유하는 용도**이며, 실제 코드 수정은 별도(정상화 작업)에서 진행합니다.
 
-## 집계 요약
+## 이 문서 읽는 법
+
+- 도메인(기능 영역)별로 묶여 있고, 각 영역 안에서 **심각한 순서**(🔴 → 🟠 → 🟡 → 🔵)로 나열됩니다.
+- 각 발견 항목은 아래 5가지를 담습니다:
+  - **무엇이 문제인가** — 지금 코드가 어떻게 동작하는지, 상황을 쉬운 말로.
+  - **위치** — 문제가 있는 코드 파일과 줄 번호.
+  - **왜 문제인가** — 그래서 사용자·운영자에게 실제로 어떤 나쁜 일이 생기는지.
+  - **어떻게 고치면 되나** — 제안(참고용).
+  - **상세 문서** — 더 깊은 설명이 있는 원본 API 문서.
+- 앞의 체크박스 `- [ ]` 는 아직 안 고침, `- [x]` 는 이미 고쳐진(✅) 항목입니다.
+
+## 심각도(색깔)가 뜻하는 것
+
+| 색 | 태그 | 쉬운 뜻 |
+|----|------|---------|
+| 🔴 | **BUG** | **지금 실제로 잘못 동작**하는 것. 데이터가 틀리거나 기능이 오작동. 가장 먼저 고쳐야 함. |
+| 🟠 | **GAP** | 특정 상황을 **빠뜨려서** 그 상황이 오면 잘못될 수 있는 것(조건부 오동작). |
+| 🟡 | **SMELL** | 지금은 동작하지만 **지저분하거나 중복**이라, 나중에 고칠 때 실수 나기 쉬운 것. |
+| 🔵 | **NOTE** | 일부러 그렇게 만든 것일 수도 있으나 **한 번 확인하거나 개선하면 좋을** 것. |
+
+## 한눈에 보기
 
 | 심각도 | 건수 |
 |--------|:---:|
@@ -16,265 +35,1250 @@
 | 🔵 NOTE | 61 |
 | **합계** | **157** |
 
-- 조사 문서(파일): 56
-- 조사 도메인 유닛: 16 (ORDA·ORDB·ORDC·SYNCA·SYNCB·PRODA·PRODB·BATA·BATB·CAFE·CRED·MREG·PSRC·SUP·MISCA·MISCB)
+- 이미 해결된 항목: **5건** (모두 D-087 / 커밋 `c4c7faa` — 동기화·정산 활동로그 오기록). 아래에서 `- [x] ✅해결` 로 표시됩니다.
+- 조사한 API 문서: 56개 · 도메인: 14개 · 생성: 2026-07-17 · 근거: 현재 워킹트리(main).
+
+## 도메인별 건수
+
+| 도메인 | 🔴 | 🟠 | 🟡 | 🔵 | 합계 |
+|--------|:--:|:--:|:--:|:--:|:---:|
+| 주문 (order) | 0 | 7 | 8 | 12 | 27 |
+| 주문 동기화 (order-sync) | 1 | 11 | 10 | 9 | 31 |
+| 상품 (product) | 0 | 6 | 7 | 10 | 23 |
+| 배치 (batch) | 0 | 7 | 6 | 6 | 19 |
+| 상품 소싱 (product-sourcing) | 0 | 3 | 3 | 4 | 10 |
+| 마켓 등록 (market-registration) | 0 | 2 | 2 | 2 | 6 |
+| 마켓 인증정보 (market-credential) | 0 | 1 | 1 | 5 | 7 |
+| Cafe24 인증 (cafe24-auth) | 0 | 2 | 2 | 4 | 8 |
+| 공급처·통화 (supplier) | 0 | 3 | 2 | 2 | 7 |
+| 기타 (action-log 외) | 0 | 6 | 6 | 7 | 19 |
+| **합계** | **1** | **48** | **47** | **61** | **157** |
+
+> 눈에 띄는 큰 흐름: ① 동기화/정산의 "실패해도 성공으로 기록되던" 문제는 D-087로 해결됨. ② 주문(order) 영역에 **상태 잠금 구멍**(라인아이템 0건 주문·종료 상태 편집·발송)이 반복적으로 발견됨 — 다음 수정 우선 후보.
 
 ---
 
-## 🔴 P0 — BUG (데이터 정합·기능 오류, 재현 검증 후 최우선 수정)
+## 주문 (order) — `order/`
+> 여러 온라인 마켓(쿠팡·G마켓·옥션 등)에서 들어온 주문을 한곳에서 조회하고, 발주확인(마켓에 "주문 접수했다"고 알림) → 소싱(구매) → 발송(송장 등록) → 취소까지의 처리 과정을 다루는 영역입니다. 발견 27건 (🔴0 · 🟠7 · 🟡8 · 🔵12).
 
-- [x] **SYNCB-6** ✅해결(D-087, c4c7faa) · @Async 정산 서비스를 감싼 컨트롤러 SUCCESS 기록이 실제 결과와 무관(항상 SUCCESS) — `OrderSyncController.java:202-205` / `CoupangOrderSyncService.java:98` — 서비스가 @Async라 즉시 반환, 컨트롤러 try/catch가 백그라운드 예외를 못 봐 항상 COUPANG_SETTLEMENT_SYNC SUCCESS 기록. 실제 정산 실패가 ActionLog에 안 남아 운영자가 인지 못함(진짜 결과는 SyncStatus에만). 컨트롤러 SUCCESS 기록 제거 또는 완료시점 이관 (문서: coupang-settlement.md — POST /api/v1/orders/sync/coupang/settlement)
+### 🟠 GAP (7건)
 
----
+- [ ] **`ORDB-3` · 🟠 GAP · 여러 건을 한 묶음으로 확인 처리하다 하나가 실패하면 성공한 것까지 저장이 취소될 수 있음**
+  - **무엇이 문제인가:** 여러 주문을 한 번에 발주확인할 때, 시스템은 각 주문을 처리하다 실패한 건은 "실패 목록"에 담아두고 나머지는 계속 처리합니다. 그런데 이 전체 작업이 하나의 큰 저장 묶음(트랜잭션)으로 묶여 있어서, 중간에 한 건이라도 오류가 나면 그 묶음 전체가 "취소 대상"으로 표시될 수 있습니다. 그러면 마지막에 저장을 확정하는 순간 성공한 건들까지 함께 되돌려질 위험이 있습니다.
+  - **위치:** `OrderService.java:199-208` (`bulkOperate`)
+  - **왜 문제인가:** 화면상 결과에는 "성공 N건"이라고 표시되는데 실제 데이터베이스에는 아무것도 저장되지 않는 상황이 생길 수 있습니다. 운영자는 처리가 됐다고 믿지만 실제로는 안 된 것입니다. (다만 발주확인은 실제 마켓 호출 전에 오류를 걸러내는 편이라 영향이 작을 수 있어 조건부 문제로 분류됨.)
+  - **어떻게 고치면 되나:** 각 주문을 서로 독립된 저장 묶음(REQUIRES_NEW)으로 분리하거나, 전체 작업은 읽기 전용으로 두고 건별로만 저장을 확정하도록 나누면 성공 건은 확실히 저장됩니다.
+  - **상세 문서:** order/confirm-batch.md
 
-## 🟠 P1 — GAP (미처리 케이스·검증 누락, 조건부 오동작)
+- [ ] **`ORDB-5` · 🟠 GAP · 상품 항목이 하나도 없는 텅 빈 주문을 취소하면 아무 일도 안 하고 "성공"이라 답하고, 마켓엔 불필요한 취소 요청을 보냄**
+  - **무엇이 문제인가:** 주문 취소는 "모든 상품 항목이 결제완료(NEW) 상태인지" 확인한 뒤 진행합니다. 그런데 상품 항목이 아예 하나도 없는 주문은, "모든 항목이 조건을 만족한다"는 검사를 자동으로 통과해 버립니다(대상이 없으니 무조건 참). 결국 실제로는 바꿀 게 하나도 없는데 취소가 성공한 것처럼 처리되고, G마켓·옥션이면 마켓에 취소 요청까지 나갑니다.
+  - **위치:** `OrderService.java:144-147` (`allNew` 계산)
+  - **왜 문제인가:** 데이터가 깨진(상품 항목이 없는) 주문에 대해 "취소됨"이라고 표시돼 운영자가 오해합니다. 또 빈 주문에 대고 마켓에 쓸데없는 취소 API 호출이 나갑니다. 참고로 발주확인 쪽은 같은 상황을 명시적으로 막고 있어(F-ORD-22) 취소만 처리가 비대칭입니다.
+  - **어떻게 고치면 되나:** 취소 시작 부분에 "상품 항목이 없으면 막기" 검사를 추가해 발주확인과 동일하게 맞춥니다.
+  - **상세 문서:** order/cancel-order.md
 
-### order (ORDA / ORDB / ORDC)
-- [ ] **ORDA-4** · 라인아이템 0건 주문은 all-NEW 수정 가드를 통과해 발주확인 전에도 주소/통관 수정 가능 — `OrderService.java:231-238` — 차단 조건 if(isAllNew && !lineItems.isEmpty())라 라인 0건이면 가드 미적용. confirmOrder는 라인 0건 명시 차단인데 수정 경로는 비대칭. 라인 0건 정책 확정+Red 테스트 (문서: update-order.md — PATCH /api/v1/orders/{id})
-- [ ] **ORDB-3** · 일괄확인 건별 실패를 삼켜 재던지지 않아 batch 트랜잭션 rollback-only 마킹 상호작용 불투명 — `OrderService.java:192-216` — bulkConfirmOrders(@Transactional) 내부에서 건별 confirmOrder(@Transactional) 호출 후 예외를 catch만 → REQUIRED 전파에서 rollback-only 마킹 시 batch 커밋이 UnexpectedRollbackException으로 거부, 부분 성공 미반영 가능. REQUIRES_NEW 격리 검토 (문서: confirm-batch.md — POST /orders/confirm/batch)
-- [ ] **ORDB-5** · 라인아이템 없는 주문이 cancelOrder 가드를 공허참으로 통과해 no-op 성공, G마켓/옥션은 빈 주문에 취소 API 호출 — `OrderService.java:143-173` — lineItems 비면 allMatch가 true(공허참)로 취소 가드 통과, 전이 0회 200 성공 반환하고 G마켓/옥션 불필요 cancelOrder 호출. confirmOrder의 isEmpty() 차단(F-ORD-22)과 비대칭 — cancelOrder에도 isEmpty() 가드 필요 (문서: cancel-order.md — POST /orders/{id}/cancel)
-- [ ] **ORDB-7** · 일괄취소 건별 실패 삼킴 + 마켓 전파 성공 후 batch 롤백 시 마켓/DB 불일치 위험 — `OrderService.java:180-216` — bulkCancelOrders(@Transactional) 내 건별 cancelOrder 예외 catch만 → rollback-only 마킹 시 batch 커밋 거부 가능, cancel은 마켓 취소 전파(156) 나간 뒤라 confirm보다 위험 큼. REQUIRES_NEW 격리/건별 tx 분리·보상 경로 검토 (문서: cancel-batch.md — POST /orders/cancel/batch)
-- [ ] **ORDC-1** · 종료상태(CANCELED/RETURNED/EXCHANGED) 라인의 소싱 정보 수정이 차단되지 않음 — `OrderService.java:283-288` — 소싱 상태가드는 null/NEW/UNKNOWN만 차단, 종료상태 통과(배송 경로 :333-336은 차단). 종결 주문 소싱금액·물류비 사후 변경 가능 → 정산 데이터 정합 흔들림. 대칭 가드 추가/정책 명문화 (문서: PATCH /line-items/{lineItemId}/sourcing)
-- [ ] **ORDC-4** · DELIVERED(배송완료) 상태 라인의 송장 수정이 진입 상태 가드로 차단되지 않음 — `OrderService.java:333-342` — 차단 목록에 DELIVERED 누락 → DELIVERED 라인도 else 분기로 마켓 전송 시도. 마켓 terminal 판정(문자열 매칭)에 의존해 정합은 대체로 보전되나 완료 후 편집 진입을 진입부에서 걸러내는 편이 명확. 가드 포함 여부 명문화 (문서: PATCH /line-items/{lineItemId}/shipping)
-- [ ] **ORDC-7** · 일괄발송에 NEW/PREPARING 진입 가드 없어 구매완료 전 라인도 송장만 있으면 SHIPPED 강제 전이 — `OrderShipProcessor.java:75-83` — 재발송 스킵은 SHIPPED/DELIVERED/종료만 검사, NEW/PREPARING/PURCHASED 발송 대상 통과. 단건 경로(OrderService:339-342)는 NEW/UNKNOWN/PREPARING 차단·PURCHASED에서만 전이 — 비대칭. 구매완료 건너뛴 발송 위험. PURCHASED 진입 가드로 정합화 (문서: POST /orders/ship)
+- [ ] **`ORDB-7` · 🟠 GAP · 여러 건 취소 중 일부 실패 시, 마켓엔 이미 취소가 나갔는데 시스템 저장은 통째로 되돌아갈 수 있어 마켓과 내부 데이터가 어긋남**
+  - **무엇이 문제인가:** 여러 주문을 한 번에 취소할 때도 (ORDB-3과 같은 구조로) 전체가 하나의 저장 묶음으로 묶여 있습니다. 취소는 G마켓·옥션의 경우 실제 마켓에 취소를 먼저 보낸 뒤 내부 저장을 하는데, 마켓 취소는 성공한 상태에서 이후 저장 단계에서 오류가 나면 묶음 전체가 되돌려질 수 있습니다.
+  - **위치:** `OrderService.java:199-208` (`bulkOperate`)
+  - **왜 문제인가:** 마켓에는 "취소됨"으로 반영됐는데 우리 시스템에는 취소가 저장되지 않아 둘이 서로 다른 상태가 됩니다(불일치). 발주확인 배치보다 외부(마켓)에 실제 취소가 나가는 부수효과가 있어 위험이 더 큽니다.
+  - **어떻게 고치면 되나:** 각 취소를 독립된 저장 묶음으로 분리하고, 마켓 취소가 이미 나간 건이 되돌려질 때 다시 맞춰주는(재동기화·보상) 경로가 있는지 확인합니다.
+  - **상세 문서:** order/cancel-batch.md
 
-### order-sync (SYNCA / SYNCB)
-- [x] **SYNCA-1** ✅해결(D-087, c4c7faa) · 컨트롤러 try/catch·FAILED 기록이 async 예외를 포착 못함(항상 SUCCESS 기록) — `CoupangOrderSyncService.java:56-58` / `OrderSyncController.java:60-79` — 서비스 진입점이 @Async void라 동기화 본문 예외가 별도 스레드에서 발생, 컨트롤러 catch 미도달. 실패해도 COUPANG_SYNC SUCCESS만 남고 record(FAILED)는 데드코드. 로그 기록을 서비스 markCompleted/markFailed 지점으로 이동 (문서: sync-coupang.md — POST /api/v1/orders/sync/coupang)
-- [x] **SYNCA-5** ✅해결(D-087, c4c7faa) · 컨트롤러 try/catch·FAILED 기록이 async 예외를 포착 못함(항상 SUCCESS 기록) — `SmartStoreOrderSyncService.java:47-49` / `OrderSyncController.java:90-110` — @Async void 위임이라 동기화 실패가 컨트롤러 catch 미도달, 항상 SMART_STORE_SYNC SUCCESS 기록, record(FAILED) 데드코드. 서비스 본문으로 로그 기록 이동 (문서: sync-smartstore.md — POST /api/v1/orders/sync/smartstore)
-- [ ] **SYNCA-6** · 스마트스토어에만 취소감지가 없어 취소 주문이 이전 상태로 잔류 — `SmartStoreOrderSyncService.java:204` — postSyncProcess가 no-op. 쿠팡·11번가와 달리 API 응답에서 사라진 non-terminal 주문을 CANCELED로 전이하지 않아 취소 주문이 NEW/PREPARING으로 영구 잔류. 취소 조회 API 확인 후 11번가 패턴 이식 (문서: sync-smartstore.md — POST /api/v1/orders/sync/smartstore)
-- [x] **SYNCA-9** ✅해결(D-087, c4c7faa) · 컨트롤러 try/catch·FAILED 기록이 async 예외를 포착 못함(항상 SUCCESS 기록) — `ElevenstOrderSyncService.java:48-50` / `OrderSyncController.java:120-135` — @Async void 위임이라 실패가 컨트롤러 catch 미도달, 항상 ELEVEN_STREET_SYNC SUCCESS 기록. 쿠팡·스마트스토어·esmplus와 공통 결함으로 4경로 일괄 처리 (문서: sync-elevenstreet.md — POST /api/v1/orders/sync/elevenstreet)
-- [x] **SYNCA-13** ✅해결(D-087, c4c7faa) · 컨트롤러 try/catch·FAILED 기록이 async 예외를 포착 못함(항상 SUCCESS 기록) — `Cafe24OrderSyncService.java:59-61` / `OrderSyncController.java:146-161` — @Async void 위임이라 실패가 컨트롤러 catch 미도달, 항상 GMARKET_SYNC SUCCESS 기록. 서비스는 failureReason으로 root cause를 이벤트에 담으나 액션로그는 왜곡됨. 로그 기록 서비스 이동 (문서: sync-esmplus.md — POST /api/v1/orders/sync/esmplus)
-- [ ] **SYNCA-14** · items 개수 불일치 시 첫 아이템 상태를 전체 라인에 적용해 라인별 상태 왜곡 — `Cafe24OrderSyncService.java:207-214` — API items와 로컬 lineItems 개수가 다르면 첫 아이템 상태를 모든 라인에 적용(order_item_code 미보존). 상태가 서로 다른 다중 아이템 주문에서 배송/취소 상태 왜곡. 라인 매핑 키 저장·활용 또는 보수적 제한 (문서: sync-esmplus.md — POST /api/v1/orders/sync/esmplus)
-- [ ] **SYNCA-15** · G마켓/옥션에 취소감지 경로 없음(API 부재 주문 잔류) — `Cafe24OrderSyncService.java:59-85` — upsert만 하고 종료, 응답 코드에 취소가 실려야만 반영. Cafe24 응답에서 사라진 취소 주문이 이전 상태로 잔류. Cafe24 취소 포함 여부 라이브 확인 후 감지 경로 추가 (문서: sync-esmplus.md — POST /api/v1/orders/sync/esmplus)
-- [ ] **SYNCB-1** · 날짜 포맷 불일치: 포트 계약 yyyy-MM-dd HH:mm:ss vs 컨트롤러 yyyy-MM-dd — `OrderSyncController.java:171-172` / `Cafe24OrderApiPort.java:15-16` — 포트 Javadoc은 시각 포함 포맷을 요구하나 컨트롤러는 날짜만 전달해 프리뷰가 보는 주문 범위가 실제 동기화 경로와 불일치 가능. 진단 도구로서 오해 유발. 포맷 정합화/Javadoc 정정 (문서: cafe24-preview.md — POST /api/v1/orders/sync/cafe24/preview)
-- [ ] **SYNCB-7** · 정산 서비스가 예외를 삼켜 @Async 실패가 어디에도 전파 안 됨 — `CoupangOrderSyncService.java:168-172` — catch 후 markFailed만 하고 rethrow 없음(syncCoupangOrders와 달리). 워커 스케줄러(cron 0 0 2)로 실행돼도 실패가 스케줄러 로그에 안 잡힘. rethrow 일관화 또는 markFailed 정본화 명문화 (문서: coupang-settlement.md — POST /api/v1/orders/sync/coupang/settlement)
-- [ ] **SYNCB-10** · 통관번호 유무 필터가 상태 쿼리에 없음(주석-코드 불일치) — `CustomsOrderSyncService.java:29,48-53` — 주석은 통관번호 없으면 스킵이라 하나 실제 쿼리는 상태만 필터링해 통관번호 빈 PENDING 주문도 verifyBulk 대상 포함. 무의미한 외부 호출·배치 팽창. 쿼리에 non-blank 조건 추가 (문서: customs.md — POST /api/v1/orders/sync/customs)
-- [ ] **SYNCB-11** · markFailed(REQUIRES_NEW)와 배치 커밋 사이 상태-데이터 정합 취약 — `CustomsOrderSyncService.java:68-92` — 중간 배치 실패 시 markFailed+rethrow하나 그 전 커밋된 배치는 갱신된 채 남아 상태=FAILED인데 데이터 일부 갱신된 혼합. /status가 부분 성공을 완전 실패로 오인 표현. 처리 건수/실패 배치 표면화 (문서: customs.md — POST /api/v1/orders/sync/customs)
+- [ ] **`ORDC-1` · 🟠 GAP · 이미 취소/반품/교환으로 끝난 주문도 구매(소싱) 정보를 나중에 바꿀 수 있음**
+  - **무엇이 문제인가:** 라인아이템의 소싱(구매) 정보(구매처·계정·주문번호·구매금액·물류비 등)를 수정할 때, 초기 상태(비어있음/NEW/UNKNOWN)만 막고 있습니다. 그래서 이미 취소·반품·교환으로 종결된 주문의 구매 정보도 그대로 수정이 됩니다. 반면 배송정보 수정 쪽은 종결된 주문을 확실히 막고 있어 서로 다릅니다.
+  - **위치:** `OrderService.java:283-288` (상태 가드)
+  - **왜 문제인가:** 이 구매금액·물류비·주문번호 값들은 정산과 원가 리포트의 근거가 됩니다. 이미 끝난 주문의 이 값을 나중에 임의로 바꾸면 정산 데이터가 어긋날 수 있습니다.
+  - **어떻게 고치면 되나:** 소싱 수정에도 배송 수정과 똑같이 "종결 주문은 막기" 규칙을 넣거나, 반대로 "끝난 뒤에도 원가 정정은 허용한다"가 의도된 정책이면 그 사실을 문서로 명확히 남깁니다.
+  - **상세 문서:** order/line-items-sourcing.md
 
-### product (PRODA / PRODB)
-- [ ] **PRODA-3** · 전체수정은 자사 DB만 갱신하고 연동 마켓에 전파하지 않음(가격/이미지 경로와 비대칭) — `ProductManageUseCase.java:169-176` — updateProduct는 product.update+save만 하고 republishToMarkets/syncPriceStock 미호출. salePrice·name·detailHtml을 이 경로로 바꿔도 마켓 리스팅 미반영 → 자사 DB와 마켓 표시 괴리. 마켓 재게시 트리거 또는 '자사 DB 전용' 명시(정책 결정) (문서: update-product.md — PUT /api/v1/products/{id})
-- [ ] **PRODA-6** · 마켓 삭제 실패해도 등록행이 즉시 삭제돼 실패 응답 유실 시 고아 리스팅 추적 불가 — `ProductManageUseCase.java:220-228` — 마켓 삭제 실패를 failed로만 수집하고 직후 deleteWithRegistrations가 실패 마켓 등록행까지 무조건 삭제(ProductDeleteTxService.java:40-42). 클라이언트가 200의 failed 유실 시 마켓엔 리스팅, 자사엔 등록행 없는 고아 발생. 실패분 등록행 보존 또는 정리대기 상태 이관 (문서: delete-product.md — DELETE /api/v1/products/{id})
-- [ ] **PRODA-7** · 삭제 식별자(extractDeleteCode)가 null이어도 deleteFromMarket(null)을 그대로 호출 — `ProductManageUseCase.java:206-216` — extractDeleteCode()가 null이면 marketItemIds 미기록하면서도 hasClient만 통과하면 deleteFromMarket(null) 호출. republish 경로(:130-132)는 코드 null 시 IllegalStateException 차단과 비대칭. 잘못된 삭제/모호한 오류 위험. 코드 null이면 스킵하고 failed로 수집 (문서: delete-product.md — DELETE /api/v1/products/{id})
-- [ ] **PRODB-4** · multipart 전량 리사이즈 실패(성공 0장)도 예외 없이 빈 업로드로 진행 — `ProductController.java:438-465,233-248` / `ProductManageUseCase.java:88` — prepareImageFiles 전량 실패 시 succeeded=[] 반환, 빈 리스트로 R2/HTML 치환 진행 → 200 OK 반환·HTML SKU 이미지 빈 목록 치환으로 유실 우려. by-url 빈목록 400 거부와 비대칭. succeeded 비고 failed 존재 시 거부 가드 필요 (문서: update-images.md — PUT /{id}/images)
-- [ ] **PRODB-7** · by-url 전량 다운로드 실패(성공 0장)도 빈 업로드로 진행 — `ProductController.java:152-158` / `ImageDownloadService.java:43-77` — 진입부는 빈 URL목록만 400 거부. downloadAndConvertDetailed는 전량 실패 시 succeeded=[] 반환 → 200 OK로 빈 목록 HTML 치환, SKU 이미지 유실 우려. PRODB-4와 동일 근원. 422 거부 가드 필요 (문서: update-images-by-url.md — PUT /{id}/images/by-url)
-- [ ] **PRODB-12** · crawl-and-upload 빈-결과 조기반환이 storageUpdated=true로 응답해 저장됨 오해 — `ProductController.java:200-201,207-208` / `ImageUploadResponse.java:40-42,49-62` — 소싱 URL 미등록·크롤 0개 경로가 ImageUploadResponse.from(...)로 응답하는데 이 팩토리는 storageUpdated를 항상 true로 고정. 실제 R2/DB 저장 안 했음에도 storageUpdated=true → 프론트 '저장 완료' 오표시. 빈-결과에 false/별도 상태 필요 (문서: crawl-and-upload-images.md — POST /{id}/images/crawl-and-upload)
+- [ ] **`ORDC-4` · 🟠 GAP · 이미 배송완료(DELIVERED)된 건도 송장 수정 요청이 걸러지지 않고 마켓 전송까지 시도됨**
+  - **무엇이 문제인가:** 송장(운송장번호·택배사) 수정 시 "수정하면 안 되는 상태"를 막는데, 그 차단 목록에 배송완료(DELIVERED) 상태가 빠져 있습니다. 그래서 이미 배송이 끝난 건도 수정 절차를 통과해 마켓에 송장 전송을 시도하게 됩니다.
+  - **위치:** `OrderService.java:333-342` (차단 목록)
+  - **왜 문제인가:** 배송완료 건은 마켓이 대개 "배송완료라 안 됨"으로 거부합니다. 시스템은 이런 거부를 알아보고 되돌리기(롤백)를 하지만, 마켓이 거부 사유를 정해진 문구로 알려주지 않으면 이를 "일시 실패"로 잘못 분류해 계속 재시도 대상으로 남길 수 있습니다. 애초에 배송완료 건은 진입 단계에서 걸러내는 게 깔끔합니다.
+  - **어떻게 고치면 되나:** 배송완료 상태를 진입 차단 목록에 포함하거나, "완료 후 송장 정정은 마켓 거부 판정에 맡긴다"가 의도라면 그렇게 명문화합니다.
+  - **상세 문서:** order/line-items-shipping.md
 
-### batch (BATA / BATB)
-- [ ] **BATA-1** · markSuccess 이후 Thread.sleep 인터럽트가 이미 성공한 행을 FAILED로 뒤집음 — `BatchPriceStockService.java:92-102` — markSuccess로 SUCCESS 기록 뒤 try 블록 안 Thread.sleep(500)에서 InterruptedException/executor shutdown 발생 시 catch로 떨어져 같은 productCode 행을 markFailed로 덮어씀. 실제 갱신·마켓전송은 성공했는데 진행현황만 FAILED로 뒤집힘. sleep을 성공기록 이전 또는 try 밖으로 분리 (문서: crawl-and-update.md — POST /crawl-and-update)
-- [ ] **BATA-2** · 중복 productId 입력 시 일부 행이 PENDING에 영구 잔류 — `ProcessStatusService.java:54-64,91-95` — startBatch는 productCode별 행을 시딩하나 updateStep이 filter().findFirst()로 한 행만 갱신. 중복 id가 있으면 나머지 행이 PENDING으로 남아 getBatchSummary가 100%에 도달 못하고 폴링 무한 진행중. 진입부 distinct 또는 상태갱신 키 정합화 (문서: crawl-and-update.md — POST /crawl-and-update)
-- [ ] **BATA-5** · 빈/누락 items를 400으로 거부하지 않아 폴링 불가한 batchId 반환 — `BatchController.java:86` — items null이면 빈 리스트로 대체하고 empty 400 가드 없음(crawl/manual-update-all과 비대칭). 빈 리스트 startBatch → PENDING 0행 시딩 → 200 batchId 반환되나 /status·/summary에서 total==0으로 404. items null/empty 400 거부 (문서: manual-update-price-stock.md — POST /manual-update-price-stock)
-- [ ] **BATA-7** · 중복 productId 시 일부 행 PENDING 잔류(공통 구조) — `ProcessStatusService.java:91-95` — updateStep의 findFirst가 중복 productCode 행 중 하나만 갱신. items에 같은 productId 2회면 나머지 행 PENDING 잔류로 summary 미완료. 진입부 distinct 또는 키 정합화 (문서: manual-update-price-stock.md — POST /manual-update-price-stock)
-- [ ] **BATA-8** · 빈 리스트(productIds=[],commands=[])는 size 일치라 400 통과해 폴링 불가 batchId 반환 — `BatchController.java:104-110` — 가드가 null·size 불일치만 막고 0==0 빈 리스트는 통과. startBatch 시딩 0행 → 200 batchId 반환되나 /status·/summary에서 total==0 404. productIds.isEmpty()도 400으로 거부(다른 트리거와 정합) (문서: manual-update-all.md — POST /manual-update-all)
-- [ ] **BATA-11** · 중복 productId 시 일부 행 PENDING 잔류(공통 구조) — `ProcessStatusService.java:91-95` — updateStep findFirst가 중복 productCode 행 중 하나만 갱신 → 나머지 PENDING. summary 100% 미달로 폴링 무한 진행중. distinct 또는 키 정합화 (문서: manual-update-all.md — POST /manual-update-all)
-- [ ] **BATA-14** · 대상 선정 후 배치 시작 사이 상품 삭제/변경에 대한 원자성 부재 — `BatchPriceStockService.java:188-192` — getProductIdsByVendor로 id 목록 조회 후 별도 startBatch·@Async 크롤 진행. 시차 중 상품 삭제되면 findById orElseThrow→markFailed. count 응답값(선정 시점)과 실제 처리 대상 수 어긋날 수 있음. 시차 FAILED 사유 구분 또는 count가 스냅샷임을 명시 (문서: by-supplier.md — POST /by-supplier)
+- [ ] **`ORDC-7` · 🟠 GAP · 일괄발송은 발주확인·구매완료를 안 거친 주문이라도 송장만 있으면 바로 "발송됨"으로 바꿔버림**
+  - **무엇이 문제인가:** 여러 주문을 한 번에 발송 처리할 때는 이미 발송/배송완료/종결된 항목만 건너뛰고, 그 외에는 송장번호만 채워져 있으면 곧바로 마켓에 발송 등록하고 상태를 "발송됨(SHIPPED)"으로 바꿉니다. 정상 흐름이라면 구매완료(PURCHASED) 상태에서만 발송으로 넘어가야 하는데, 일괄발송에는 이 진입 검사가 없습니다. 단건 발송 경로에는 있는데 서로 다릅니다.
+  - **위치:** `OrderShipProcessor.java:75-83`
+  - **왜 문제인가:** 아직 발주확인이나 구매완료를 안 거친(예: 동기화 오류나 수기 편집으로 송장만 남은) 항목이 곧바로 발송 처리되어 상태 흐름과 정산 근거가 흐트러질 수 있습니다.
+  - **어떻게 고치면 되나:** 일괄발송에도 "구매완료(또는 발송 가능한) 상태에서만 발송" 검사를 넣어 단건 경로와 맞추거나, 발송 가능한 상태 목록을 한 곳에 정의해 공유합니다.
+  - **상세 문서:** order/ship-orders.md
 
-### product-sourcing (PSRC)
-- [ ] **PSRC-1** · crawlProducts 도중 InterruptedException 시 남은 URL이 succeeded/failed 어디에도 안 담기고 조용히 누락 — `IherbScraperClient.java:239-241` — Thread.sleep 인터럽트 시 break로 즉시 종료해 미처리 URL이 응답·활동로그 총량에서 유실. 요청↔결과 정합 붕괴. break 시 남은 URL을 failed로 채워 총량 정합 보장 (문서: POST /api/v1/sourcing/iherb)
-- [ ] **PSRC-4** · succeeded에 담긴 항목도 saveAll 전건 실패 시 전부 롤백되어 응답 succeeded와 DB 상태가 어긋남 — `ProductCreateUseCase.java:75-84` — 단일 @Transactional saveAll이 하나라도 실패하면 정상항목까지 롤백, R2 이미지는 고아로 잔존. 부분 커밋 미지원. 건별 저장 격리 또는 계약 명시 (문서: POST /api/v1/products/bulk)
-- [ ] **PSRC-7** · 재게시 시 이미 SYNCED인 등록행에도 client.publish()를 무조건 재호출(멱등 아님, 마켓 중복 등록 위험) — `ProductPublishUseCase.java:59-63` — savePending은 멱등이나 publish는 등록상태 무관하게 항상 호출되어 SYNCED 상품 재게시 시 마켓 중복 등록/identifiers 덮어쓰기 가능. 코드 주석도 범위 밖 인정. SYNCED시 update 분기 (문서: POST /api/v1/products/{id}/markets/{marketType})
+- [ ] **`ORDA-4` · 🟠 GAP · 상품 항목이 하나도 없는 주문은 "발주확인 전 수정 금지" 규칙을 빠져나가 주소·통관번호를 마음대로 바꿀 수 있음**
+  - **무엇이 문제인가:** 주소·통관번호 수정은 "아직 발주확인 전(모든 항목이 NEW)인 주문은 수정 금지" 규칙이 있습니다. 그런데 이 규칙은 "모든 항목이 NEW이고 그리고 항목이 비어있지 않을 때"만 작동하도록 짜여 있습니다. 그래서 항목이 아예 0개인 주문은 조건에 걸리지 않고 규칙을 통과해 그냥 수정이 됩니다.
+  - **위치:** `OrderService.java:231-238`
+  - **왜 문제인가:** 항목이 없는(비정상·미완성) 주문의 주소·통관번호를 자유롭게 바꿀 수 있습니다. 발주확인 쪽은 항목 0건을 명확히 막는데 수정 경로만 비대칭입니다. 데이터 정합 위험은 낮지만 원래 가드 의도와 어긋납니다.
+  - **어떻게 고치면 되나:** 항목이 0건일 때의 정책을 정합니다. 막으려면 조건을 "항목이 비었거나 또는 모두 NEW이면 차단"으로 보정하고, 허용이 의도면 주석으로 명시합니다.
+  - **상세 문서:** order/update-order.md
 
-### supplier (SUP)
-- [ ] **SUP-2** · createSupplier 요청 바디 @Valid/null 방어 부재로 NPE 위험 — `SupplierController.java:42-53` — @RequestBody에 @Valid/required 없음 → 바디 누락 요청은 request가 null이 되어 request.supplierCode()(L47)에서 NPE→500, catch의 request.supplierCode()(L53)도 재-NPE로 원 예외 가림. @RequestBody(required=true) 또는 진입부 null 가드 (문서: create-supplier.md — POST /api/v1/suppliers)
-- [ ] **SUP-5** · 엔드포인트명은 upsert이나 실제는 create-only, 환율 갱신 경로 부재 — `SupplierService.java:65-68` — existsById면 IllegalStateException으로 거부(기존 환율 불변)하며 PUT/PATCH 등 환율 수정 엔드포인트가 코드베이스에 없음. 환율 변동 시 API로 갱신 불가→DB 수동 수정 의존, 정산/매입원가 오차 위험. 환율 갱신 엔드포인트 추가 또는 upsert 전환 (문서: upsert-currency.md — POST /api/v1/currencies)
-- [ ] **SUP-6** · createCurrency 요청 바디 @Valid/null 방어 부재로 NPE 위험 — `SupplierController.java:64-75` — @RequestBody에 @Valid/required 없음 → 바디 누락 시 request null로 request.currencyCode()(L69) NPE→500, catch(L75)도 재-NPE. createSupplier(SUP-2)와 동일 패턴, 함께 일괄 방어 (문서: upsert-currency.md — POST /api/v1/currencies)
+### 🟡 SMELL (8건)
 
-### market-credential (CRED)
-- [ ] **CRED-4** · clientId·redirectUri는 빈 값 제출 시 무조건 덮어써 기존값 소거(시크릿과 비대칭) — `MarketCredentialService.java:42-52` — accessKey·secretKey는 isPresent 가드로 빈값이면 보존하는데 clientId·redirectUri는 조건없이 반영해, 부분 폼 제출 시 기존 Vendor ID·리다이렉트가 빈 문자열로 소거. 필드 간 갱신 규칙 비대칭 — 보존정책 통일 또는 전체교체 계약 명문화 (문서: save-credential.md — PUT /api/v1/market-credentials/{marketType})
+- [ ] **`ORDB-1` · 🟡 SMELL · 발주확인 차단 검사와 실제 상태 변경 대상이 서로 달라, 상태가 섞인 주문에서 일부 항목이 누락될 수 있음**
+  - **무엇이 문제인가:** 발주확인 시 "항목 중 하나라도 진행/종료 상태면 전체를 막는다"고 검사하는데, 상태 값이 아예 비어있는(null) 항목은 이 검사를 그냥 통과시킵니다. 그런데 실제로 상태를 바꿔주는 단계에서는 "NEW 항목만" 바꿉니다. 즉 검사 기준과 변경 기준이 다릅니다.
+  - **위치:** `OrderService.java:80-92` (`hasProgressedOrEnded`)
+  - **왜 문제인가:** "NEW 항목 + 상태 비어있는 항목"이 섞인 주문은 검사를 통과해 마켓에 접수 요청까지 나가지만, 상태가 비어있는 항목은 갱신되지 않고 남습니다. 데이터가 깨진 항목이 섞이면 마켓엔 접수가 나갔는데 내부는 일부만 바뀌어, 이후 흐름에서 그 항목이 유실될 수 있습니다.
+  - **어떻게 고치면 되나:** 상태가 비어있는 항목을 어떻게 다룰지(막을지, NEW로 취급할지) 정책을 정하고, 마켓에 보내는 대상과 실제 상태를 바꾸는 대상을 동일하게 맞춥니다.
+  - **상세 문서:** order/confirm-order.md
 
-### cafe24-auth (CAFE)
-- [ ] **CAFE-1** · 상태 점검 주문 조회에 포트 계약과 다른 날짜 포맷(yyyy-MM-dd) 전달 — `Cafe24AuthController.java:66-68` — status()는 ofPattern("yyyy-MM-dd")로 fetchOrders 호출하나 포트 계약(Cafe24OrderApiPort.java:15-16)은 "yyyy-MM-dd HH:mm:ss" 규정. Cafe24가 시각 없는 날짜를 거부/오해석하면 인증 정상인데도 주문 점검이 Cafe24StatusCheckException 500 되거나 정상 연동이 '점검 실패'로 표시. 포트 계약대로 포맷 정합화 또는 계약 완화 (문서: GET /api/admin/sync/cafe24/status)
-- [ ] **CAFE-6** · 콜백에 blank-code 가드 부재 — 빈 code로 무의미한 교환 시도 — `Cafe24AuthController.java:198-208` — issue-token은 blank code면 400 조기 반환하나 handleCafe24AuthCode는 가드 없이 exchangeAuthorizationCode 진행. @RequestParam은 부재만 400이라 ?code=(빈값)/공백은 통과해 issueInitialToken("")까지 도달, 불필요 OAuth 교환 후 실패를 500 노출. 콜백에 동일 가드 추가 또는 공유 메서드에서 blank 시 IllegalArgumentException(→400) (문서: GET /api/admin/sync/cafe24/auth/callback)
+- [ ] **`ORDB-6` · 🟡 SMELL · 취소 시 마켓에 먼저 취소를 보내고 내부 저장은 나중에 함 — 이론상 둘이 어긋나는 짧은 순간이 생길 수 있음**
+  - **무엇이 문제인가:** 단건 취소는 G마켓·옥션의 경우 마켓에 취소를 먼저 보낸 다음, 내부 항목들을 "취소됨"으로 바꿔 저장합니다. 마켓 전송이 실패하면 전체가 되돌려져 안전하지만, 마켓 취소가 성공한 뒤 내부 저장 단계에서 오류가 나면(가능성은 낮음) 마켓엔 취소가 반영됐는데 내부는 되돌려지는 짧은 순간(window)이 이론적으로 존재합니다.
+  - **위치:** `OrderService.java:153-173`
+  - **왜 문제인가:** 확률은 낮지만, 마켓과 내부 상태가 어긋나면 정산·재동기화 과정에서 혼선이 생길 수 있습니다.
+  - **어떻게 고치면 되나:** 마켓 전송은 성공했는데 내부 저장이 실패하는 시나리오를 문서로 정리하고, 재동기화가 마켓 취소를 내부로 복원해 주는지 확인합니다.
+  - **상세 문서:** order/cancel-order.md
 
-### market-registration (MREG)
-- [ ] **MREG-2** · 등록 정보 없음을 404가 아닌 400(IllegalArgumentException)으로 반환 — `MarketRegistrationService.java:35-37` — 등록행 부재 시 IllegalArgumentException→400 매핑되어 리소스 부재를 입력오류로 표현하고, 잘못된 marketType(진짜 입력오류)과 미등록을 프론트가 구분 불가. 미등록은 ResourceNotFoundException(404), 파싱실패는 400으로 분리 (문서: get-local.md — GET /api/v1/products/{productId}/markets/{marketType}/local)
-- [ ] **MREG-4** · vendorItemId 부재 시 productId(내부 PK)를 마켓 상품 식별자로 폴백 — `MarketRegistrationService.java:46-49` — extractVendorItemId는 쿠팡 전용 키만 읽어 스토어/11번가/카페24/ESM+는 항상 폴백, 폴백 값이 내부 PK라 마켓 API가 엉뚱한 상품 조회/오류(500). 도메인 extractMarketCode(마켓별 실제 식별자)로 폴백 교체하고 없으면 명시 실패 (문서: sync-market.md — POST /api/v1/products/{productId}/markets/{marketType}/sync)
+- [ ] **`ORDB-8` · 🟡 SMELL · 상품 항목이 없는 텅 빈 주문이 일괄 취소에서 "성공"으로 집계되고, 마켓엔 빈 주문에 취소 요청이 나감 (단건 문제 ORDB-5가 그대로 전이됨)**
+  - **무엇이 문제인가:** 일괄 취소는 내부적으로 단건 취소를 그대로 불러 씁니다. 그래서 단건 취소의 문제(ORDB-5 — 항목 없는 주문이 그냥 성공 처리됨)가 일괄 처리에도 똑같이 나타납니다. 그런 빈 주문은 "성공"으로 세어지고, G마켓·옥션이면 마켓에 취소 요청까지 나갑니다.
+  - **위치:** `OrderService.java:145-146` (배치의 성공 집계)
+  - **왜 문제인가:** 실제로는 아무것도 취소하지 않은 주문이 "성공 건수"에 포함되어 운영자가 처리량을 실제보다 많게 착각합니다. 또 빈 주문에 불필요한 마켓 호출이 나갑니다.
+  - **어떻게 고치면 되나:** 단건 취소의 "항목 없으면 막기"(ORDB-5)를 고치면 일괄 처리도 자동으로 해결됩니다.
+  - **상세 문서:** order/cancel-batch.md
 
-### misc (MISCA / MISCB)
-- [ ] **MISCA-4** · 프론트가 쓰는 다른 enum들이 공통 코드에 미포함 — `CommonCodeController.java:30-33` — marketType/shippingStatus/customsStatus/recordStatus 4종만 노출. StockStatus·ActionStatus 등 EnumMapperType 구현 enum이 빠져 프론트가 라벨을 하드코딩하면 서버-프론트 드리프트. 누락분 추가 또는 자동 수집 (문서: GET /api/v1/common/codes)
-- [ ] **MISCA-7** · 재고 동기화 트리거 중복 실행 방지(멱등/락) 없음 — `ProductSyncController.java:35-45` — 가드 통과 즉시 @Async 디스패치만 하고 진행 중 여부 확인 없음. 연타 시 동일 상품군 중복 크롤(소싱 rate-limit 위반)·큐 적체. DB advisory lock 또는 진행 플래그로 멱등화(409) (문서: POST /api/v1/products/sync/stock)
-- [ ] **MISCA-9** · 이중 @Transactional 자기호출로 건별 격리 무효화·긴 트랜잭션 — `ProductSyncService.java:114-137` — @Transactional syncStockForPreparingOrders가 같은 빈의 @Transactional syncProductStock를 자기호출(L126)해 프록시 우회로 건별 트랜잭션 병합, sleep(500)×상품수 동안 커넥션 장시간 점유. 별도 빈/셀프프록시로 건별 격리, sleep은 tx 밖 이동 (문서: POST /api/v1/products/sync/stock)
-- [ ] **MISCB-1** · emitters 목록이 프로세스 로컬이라 2 JVM(api/worker) 토폴로지에서 이벤트가 JVM 경계에 갇힘 — `SseNotificationController.java:21,63-83` — emitters는 api JVM 인메모리이고 @EventListener는 동일 JVM 이벤트만 수신. 스케줄러(worker JVM)가 주도한 SYNC/BATCH 완료 이벤트가 api JVM SSE 구독자에게 미도달. Redis pub/sub 등 공유 채널 중계 또는 'SSE는 api-트리거 한정' 설계 명시 (문서: subscribe.md — GET /api/v1/notifications/subscribe)
-- [ ] **MISCB-5** · 재진입 스킵(executed=false)인데도 SyncStatus를 COMPLETED로 덮어씀 — `EmailFetchController.java:50-55` — fetchAndProcessEmails가 재진입 가드로 false(스킵) 반환해도 markCompleted(EMAIL) 호출해, 진행 중인 다른 실행이 RUNNING인데도 상태를 조기 COMPLETED로 전환하고 lastSyncAt 갱신. /orders/sync/status 오표시. tryMarkRunning 클레임 성공 시에만 완료/실패 기록하도록 정합화 (문서: fetch.md — POST /internal/email/fetch)
-- [ ] **MISCB-6** · 단일 @Transactional 안에서 장시간 IMAP·마켓 외부호출 수행 — 커넥션 점유·DB/마켓 불일치 창 — `EmailFetcherService.java:59,125-126,234` — fetchAndProcessEmails가 @Transactional 하위에서 계정별 IMAP(최대 40s)과 마켓 shipOrder를 다중 루프 수행. DB 커넥션 장시간 점유, 후반 예외 시 앞서 저장한 SHIPPED 전이가 롤백되나 마켓엔 이미 송장 나가 불일치. 트랜잭션을 아이템 단위로 좁히고 IMAP 수집은 tx 밖으로 (문서: fetch.md — POST /internal/email/fetch)
+- [ ] **`ORDA-1` · 🟡 SMELL · 배송상태 필터와 키워드 검색이 따로 작동해, 둘을 같이 걸면 서로 다른 항목에서 조건이 충족돼도 검색됨**
+  - **무엇이 문제인가:** 주문 목록 조회에서 "배송상태" 필터와 "키워드" 검색은 각각 독립적으로 "이 조건에 맞는 항목이 하나라도 있는가"를 확인합니다. 예를 들어 "배송상태=발송됨"과 "키워드=특정 송장번호"를 함께 걸면, 한 항목이 발송됨이고 전혀 다른 항목의 송장번호가 키워드에 맞아도 그 주문이 검색 결과에 나옵니다. 두 조건이 서로 다른 항목에서 각각 충족돼도 통과하는 것입니다.
+  - **위치:** `OrderRepositoryImpl.java:139-150`, `159-186`
+  - **왜 문제인가:** 여러 상품이 든 주문에서, 운영자는 "같은 항목이 두 조건을 모두 만족"하길 기대했는데 실제로는 그렇지 않아 원하는 것보다 많은 주문이 걸려 나올 수 있습니다.
+  - **어떻게 고치면 되나:** 두 조건을 "같은 항목에서 둘 다 만족"하도록 하나로 결합할지, 아니면 지금의 "주문 단위로 항목 중 하나라도" 방식이 의도인지 명세로 확정하고, 의도라면 문서화합니다.
+  - **상세 문서:** order/get-orders.md
 
----
+- [ ] **`ORDC-3` · 🟡 SMELL · 소싱 수정이 실패했을 때 활동로그에 어느 마켓 주문인지가 항상 비어(null) 남음**
+  - **무엇이 문제인가:** 소싱(구매) 정보 수정이 성공하면 활동로그에 마켓 이름을 채워 넣는데, 실패하면 마켓 칸이 항상 비어(null) 있습니다. 마켓 이름을 알아내는 조회는 실패와 무관하게 할 수 있는데도 실패 경로에서 이를 하지 않습니다.
+  - **위치:** `OrderController.java:250-252`
+  - **왜 문제인가:** 실패 활동로그에서 "어느 마켓 주문이 실패했는지"를 마켓별로 골라보거나 통계 내는 게 불가능합니다(마켓별 실패 통계 누락). 발주확인·취소 실패 경로는 마켓을 채워 넣는데 소싱만 다릅니다.
+  - **어떻게 고치면 되나:** 실패 경로에서도 라인아이템으로 마켓을 조회해 채워 넣습니다(조회 자체가 실패할 때만 null).
+  - **상세 문서:** order/line-items-sourcing.md
 
-## 🟡 P2 — SMELL (동작하나 유지보수 위험: 중복·죽은코드·책임배치)
+- [ ] **`ORDC-6` · 🟡 SMELL · 배송(송장) 수정이 실패했을 때 활동로그에 마켓이 항상 비어(null) 남음 (소싱과 같은 패턴)**
+  - **무엇이 문제인가:** 송장 수정도 성공하면 활동로그에 마켓을 채우지만, 실패하면 마켓 칸이 항상 비어 있습니다. ORDC-3과 같은 문제입니다.
+  - **위치:** `OrderController.java:287-289`
+  - **왜 문제인가:** 배송 실패 로그를 마켓별로 골라보거나 집계할 수 없습니다. 발주확인·취소 실패 경로가 마켓을 채우는 것과 다릅니다.
+  - **어떻게 고치면 되나:** 실패 경로에서도 라인아이템으로 마켓을 조회해 채워 넣습니다.
+  - **상세 문서:** order/line-items-shipping.md
 
-### order (ORDA / ORDB / ORDC)
-- [ ] **ORDA-1** · 배송상태 필터와 키워드 검색이 독립 exists 서브쿼리라 조합 필터 시 라인 경계가 어긋날 수 있음 — `OrderRepositoryImpl.java:139-186` — shippingStatusIn과 keywordContains가 각각 별개 exists 서브쿼리라 다품목 주문에서 서로 다른 라인에서 충족돼도 통과 → 과도포함. 동일 라인 결합 여부를 명세로 확정하거나 문서화 (문서: get-orders.md — GET /api/v1/orders)
-- [ ] **ORDA-5** · 주소/통관 수정 실패 활동로그의 marketType이 항상 null(confirm/cancel과 비대칭) — `OrderController.java:204` — catch에서 record(ORDER_UPDATE, null, FAILED)로 마켓 고정. confirm/cancel 실패 경로는 marketNameOfOrder(id) 재조회로 마켓 채움. 실패 로그 마켓 식별 불가. 동일 재조회로 정합화 (문서: update-order.md — PATCH /api/v1/orders/{id})
-- [ ] **ORDB-1** · confirmOrder 상태 가드(anyMatch 진행/종료 차단)와 전이(NEW 라인만)의 혼재 주문 처리 비대칭 — `OrderService.java:80-119` — hasProgressedOrEnded는 null 상태 라인을 통과시키지만(82-84) 전이 루프는 NEW 라인만 PREPARING으로 바꿔(111), NEW+null 혼재 주문은 마켓 접수가 나가도 null 라인이 갱신되지 않아 유실 가능. null 상태 라인 처리 정책 명시 및 접수/전이 대상 집합 일치 필요 (문서: confirm-order.md — POST /orders/{id}/confirm)
-- [ ] **ORDB-6** · 마켓 취소 전파 후 로컬 CANCELED 저장 — 저장 실패 시 마켓/DB 불일치 창 존재 — `OrderService.java:153-173` — cancelOrderToMarketplace(156) 성공 후 로컬 저장 루프(164-173)에서 예외 시 마켓엔 취소 반영됐는데 로컬은 롤백되는 창 존재. 정합 실패 시나리오 문서화 및 재동기화 복원 여부 확인 (문서: cancel-order.md — POST /orders/{id}/cancel)
-- [ ] **ORDB-8** · 라인아이템 없는 주문이 batch에서 성공 집계되고 G마켓/옥션은 취소 API 호출(ORDB-5 상속) — `OrderService.java:199-208` — batch가 건별 cancelOrder에 위임하므로 빈 주문 공허참 통과(ORDB-5)가 상속돼 successCount++ 집계되고 마켓 API 호출. successCount 과대 인식 — 단건 isEmpty() 가드 수정 시 함께 해소 (문서: cancel-batch.md — POST /orders/cancel/batch)
-- [ ] **ORDC-3** · 소싱 수정 실패 경로 활동로그의 마켓 타입이 항상 null — `OrderController.java:250-252` — catch에서 record(PURCHASE_UPDATE, null, FAILED). 성공 경로만 marketNameOfLineItem 해석. 실패 로그 마켓별 집계 불가(발주확인/취소 실패는 marketNameOfOrder로 채우는 것과 비대칭). 실패 경로도 read-only 조회로 마켓 해석 (문서: PATCH /line-items/{lineItemId}/sourcing)
-- [ ] **ORDC-6** · 배송 수정 실패 경로 활동로그의 마켓 타입이 항상 null — `OrderController.java:287-289` — catch에서 record(SHIPPING_UPDATE, null, FAILED). 성공 경로만 marketNameOfLineItem 해석. 소싱 경로(ORDC-3)와 동일 패턴으로 실패 로그 마켓별 집계 불가. 실패 경로도 마켓 해석 시도 (문서: PATCH /line-items/{lineItemId}/shipping)
-- [ ] **ORDC-8** · 일괄발송은 shipOrder(최초등록)만 호출, invoiceAlreadyExists 분기·terminal 분류 우회로 단건 경로와 이원화 — `OrderShipProcessor.java:89-91` — getPort().shipOrder 직접 호출로 MarketplaceShippingService의 updateTracking/shipOrder 분기·terminal 분류 우회. 마켓에 이미 송장 존재 시(동기화 지연) 거부 가능. sendTrackingToMarketplace로 전송 위임 또는 정책 차이 문서화 (문서: POST /orders/ship)
+- [ ] **`ORDC-8` · 🟡 SMELL · 일괄발송과 단건발송이 마켓에 보내는 방식이 서로 달라(등록/수정 구분 없음) 관리가 이원화됨**
+  - **무엇이 문제인가:** 단건 발송은 "이미 송장이 등록돼 있는지"를 보고 최초등록(shipOrder)과 수정(updateTracking)을 골라서 보냅니다. 반면 일괄발송은 무조건 최초등록(shipOrder)만 호출합니다. 두 경로가 서로 다른 방식으로 마켓에 보냅니다.
+  - **위치:** `OrderShipProcessor.java:89-91`
+  - **왜 문제인가:** 대개는 최초등록이 맞지만, 마켓엔 이미 송장이 있는데 내부 상태만 안 맞춰진 경우(동기화 지연 등) 최초등록이 마켓에서 거부될 수 있습니다. 또 일괄발송은 단건 경로가 가진 "재시도 불가 상황 구분(terminal 판정)" 기능을 우회해 그 이점을 못 받습니다.
+  - **어떻게 고치면 되나:** 일괄발송도 단건과 같은 전송 담당 로직에 위임해 등록/수정 구분과 재시도 판정을 공유하거나, 최소한 두 경로의 전송 방식 차이를 문서로 남깁니다.
+  - **상세 문서:** order/ship-orders.md
 
-### order-sync (SYNCA / SYNCB)
-- [ ] **SYNCA-2** · 장시간 외부 동기화 전체가 단일 @Transactional 경계 — `CoupangOrderSyncService.java:57,72-77` — fetchOrders(외부 API)+전체 upsert+postSyncProcess를 하나의 트랜잭션이 감싸 커넥션 장기 점유·후반 예외 시 전체 롤백(부분성공 확정 불가). 배치 단위 트랜잭션 분리 (문서: sync-coupang.md — POST /api/v1/orders/sync/coupang)
-- [ ] **SYNCA-7** · 트래킹번호 마켓전송 보존 가드가 스마트스토어엔 없음(쿠팡과 비대칭) — `SmartStoreOrderSyncService.java:119-124` — 쿠팡은 trackingSentToMarket!=true면 송장을 API값으로 안 덮지만 스마트스토어는 무조건 반영. 마켓 미전송 로컬 송장 유실 가능. write-path 확인 후 정합화 (문서: sync-smartstore.md — POST /api/v1/orders/sync/smartstore)
-- [ ] **SYNCA-8** · 장시간 외부 동기화 단일 @Transactional + in-JVM 중복가드 — `SmartStoreOrderSyncService.java:48,60,45` — 외부 fetchOrders와 전체 upsert가 단일 트랜잭션(후반 예외 시 전체 롤백)이며, 중복가드 AtomicBoolean은 워커 스케줄러와 교차 JVM 동시실행을 못 막음. 트랜잭션 분리·교차 JVM 가드 통일 (문서: sync-smartstore.md — POST /api/v1/orders/sync/smartstore)
-- [ ] **SYNCA-10** · 취소감지가 마켓별 3중 구현(어댑터 vs 서비스 내장)으로 분산 — `ElevenstOrderSyncService.java:228-282` — 취소감지가 11번가는 서비스 내장, 쿠팡은 어댑터, 스마트스토어는 없음으로 3원화되고 terminal 제외 집합도 별개 존재. 공통 헬퍼로 추출해 terminal 집합 단일 원천화 (문서: sync-elevenstreet.md — POST /api/v1/orders/sync/elevenstreet)
-- [ ] **SYNCA-11** · 장시간 외부 동기화 단일 @Transactional + in-JVM 중복가드 — `ElevenstOrderSyncService.java:49,61,64-65,46` — fetchOrders+upsert+detectCancellations가 단일 트랜잭션(후반 예외 시 전체 롤백)이며 AtomicBoolean 중복가드는 워커와 교차 JVM 동시실행을 못 막음. 트랜잭션 분리·가드 통일 (문서: sync-elevenstreet.md — POST /api/v1/orders/sync/elevenstreet)
-- [ ] **SYNCA-16** · 전체 페이지네이션(최대 15000건) + 외부 API 왕복이 단일 @Transactional — `Cafe24OrderSyncService.java:60,101-123` — syncCafe24Orders와 fetchAndPersist가 하나의 트랜잭션을 이루고 최대 150페이지 API 왕복+저장 반복해 커넥션 장기 점유·후반 예외 시 전 페이지 롤백. 페이지 단위 트랜잭션 분리 (문서: sync-esmplus.md — POST /api/v1/orders/sync/esmplus)
-- [ ] **SYNCB-4** · 택배사 조회 실패 로그가 '주문 프리뷰 실패'로 오기 — `OrderSyncController.java:187` — previewCafe24Carriers의 실패 로그가 previewCafe24Orders와 동일한 '주문 프리뷰 실패' 문구를 재사용해 운영 로그에서 어느 진단 호출이 실패했는지 구분 불가. 문구 분리 (문서: cafe24-carriers.md — POST /api/v1/orders/sync/cafe24/carriers)
-- [ ] **SYNCB-8** · 정산 조회 범위 now-31~now-1 하드코딩·파라미터 불가 — `CoupangOrderSyncService.java:113-114` — 조회 창 고정으로 늦게 확정되는 정산·누락분 소급 반영 불가. 기간을 선택적 파라미터로 노출 (문서: coupang-settlement.md — POST /api/v1/orders/sync/coupang/settlement)
-- [ ] **SYNCB-9** · 전 쿠팡 주문 풀스캔(N+1) 후 라인별 개별 save — `CoupangOrderSyncService.java:130-163` — findByMarketType로 전 주문 로드+주문/상품마다 개별 조회+변경 라인 개별 save를 단일 @Transactional 안에서 수행해 커넥션·락 장기 점유(통관 배치 분리와 대조). DELIVERED 라인 쿼리·saveAll·배치 분리 검토 (문서: coupang-settlement.md — POST /api/v1/orders/sync/coupang/settlement)
-- [ ] **SYNCB-12** · 배치 크기·딜레이·검증 대상 상태 집합 하드코딩 — `CustomsOrderSyncService.java:17-19,49-53` — 배치 30·딜레이 1000ms·대상 상태 리스트가 코드 고정으로 부하 튜닝 불가·새 INVALID 상태 추가 시 누락 위험. 설정 외부화·enum 헬퍼 중앙화 (문서: customs.md — POST /api/v1/orders/sync/customs)
+- [ ] **`ORDA-5` · 🟡 SMELL · 주소/통관 수정이 실패했을 때 활동로그에 마켓이 항상 비어(null) 남음**
+  - **무엇이 문제인가:** 주소·통관번호 수정이 성공하면 로그에 마켓을 채우는데, 실패하면 마켓 칸이 항상 비어 있습니다. 같은 컨트롤러의 발주확인·취소 실패 경로는 주문을 다시 조회해 마켓을 채웁니다.
+  - **위치:** `OrderController.java:204`
+  - **왜 문제인가:** 주소/통관 수정 실패 시 로그의 마켓 칸만 봐서는 어느 마켓 주문이었는지 알 수 없습니다(메시지엔 주문 ID만 있음). 로그 필터·집계의 일관성이 떨어집니다.
+  - **어떻게 고치면 되나:** 실패 경로도 주문 ID로 마켓을 다시 조회해 채워 넣어 발주확인·취소와 맞춥니다.
+  - **상세 문서:** order/update-order.md
 
-### product (PRODA / PRODB)
-- [ ] **PRODA-4** · stock 수정 시 stockStatus(품절/판매중) 정합이 갱신되지 않음 — `Product.java:214-228` — Product.update는 logisticsInfo.stock만 병합하고 stockStatus는 미변경. stock=0으로 수정해도 IN_STOCK 유지 등 재고표시와 어긋날 수 있음. 재고상태 재계산 정책 명확화 또는 책임경계 문서화 (문서: update-product.md — PUT /api/v1/products/{id})
-- [ ] **PRODA-8** · 마켓 리스팅 삭제 순회 로직이 republishToMarkets와 형태 거의 동일(수집 구조 중복) — `ProductManageUseCase.java:203-225` — deleteProduct(:203-225)와 republishToMarkets(:115-155)가 '등록행 순회→hasClient 스킵→try 마켓호출→3버킷 수집→로그' 구조 중복. 정책 변경 시 누락 위험. best-effort 3버킷 수집 패턴 공통 헬퍼 추출(동작 보존) (문서: delete-product.md — DELETE /api/v1/products/{id})
-- [ ] **PRODB-2** · 가격/재고 마켓 전부 실패해도 활동로그 status가 항상 SUCCESS — `ProductController.java:122-123` — result.failed()에 실패 마켓이 있어도 status=SUCCESS로 고정 기록(실패는 메시지 본문에만). status 기준 모니터링에서 부분/전체 실패 미노출. result.failed() 기준 status 분기 필요 (문서: update-price-stock.md — PUT /{id}/price-stock)
-- [ ] **PRODB-6** · 이미지 마켓 부분 실패해도 활동로그 status 항상 SUCCESS — `ProductController.java:240-241` — uploadPreparedImages가 updateImagesAndHtml 정상반환 시 마켓 failed 유무 무관 SUCCESS 기록(PRODB-2 동형). 3경로 공통 헬퍼에서 status 분기 통일 필요 (문서: update-images.md — PUT /{id}/images)
-- [ ] **PRODB-8** · 다운로드 파일명이 순번 기반(crawled-image-i.jpg)으로 URL 추적성 낮음 — `ImageDownloadService.java:61` — 원본 URL과 무관하게 순번으로 파일명 생성(by-url·크롤 공유). R2 파일명·응답에서 어느 원본 URL에서 온 파일인지 파악 어려움(진단성 저하). 기능결함 아님 (문서: update-images-by-url.md — PUT /{id}/images/by-url)
-- [ ] **PRODB-9** · by-url 마켓 부분 실패해도 활동로그 status 항상 SUCCESS — `ProductController.java:240-241` — 공통 헬퍼 uploadPreparedImages 경유로 by-url에도 동일 적용(PRODB-6 동형). result.failed() 기준 status 분기 통일 필요 (문서: update-images-by-url.md — PUT /{id}/images/by-url)
-- [ ] **PRODB-14** · crawl-and-upload 마켓 부분 실패해도 활동로그 status 항상 SUCCESS — `ProductController.java:240-241` — 공통 헬퍼 경유로 SOURCE_IMAGE_CRAWL에도 동일 적용(PRODB-2/6/9 동형). result.failed() 기준 status 분기 통일 필요 (문서: crawl-and-upload-images.md — POST /{id}/images/crawl-and-upload)
+### 🔵 NOTE (12건)
 
-### batch (BATA / BATB)
-- [ ] **BATA-4** · STARTED와 완료 이벤트 기록 경로가 달라 완료 로그 누락 리스크 — `ActionLogBatchListener.java:22-27` — STARTED는 컨트롤러 스레드, 완료는 @Async 종료 시 BatchCompletedEvent로 기록. @Async 스레드가 JVM 종료(배포)로 이벤트 발행 전 죽으면 STARTED만 남고 완료 로그 영구 누락. 고아 PENDING 복구 시 ActionLog 완료(중단) 기록도 검토 (문서: crawl-and-update.md — POST /crawl-and-update)
-- [ ] **BATA-6** · 수동 재전송이 changed 스킵 최적화 없이 항상 마켓 전송(crawl과 비대칭) — `BatchPriceStockService.java:143-144` — 3-인자 syncPriceStock 오버로드는 changed=true 고정(ProductMarketSyncService.java:34-37). crawl 경로는 changed 계산해 Cafe24 재전송 스킵하는데 수동 경로는 diff 진입 후에도 changed 신호를 downstream에 안 넘김. 두 배치 마켓전송 정책 통일 (문서: manual-update-price-stock.md — POST /manual-update-price-stock)
-- [ ] **BATA-10** · 두 병렬 리스트 index 매핑이 서비스까지 유지되어 순서 오염에 취약 — `BatchPriceStockService.java:167-171` — 컨트롤러는 size만 검증, 실제 매핑은 서비스 commands.get(i) index로 수행. manual-update-price-stock은 F-BATCH-M1로 쌍(PriceStockItem) 전환했는데 이 경로만 병렬 리스트. 순서 어긋나면 예외 없이 엉뚱한 상품에 command 적용(데이터 오염). {productId,command} 쌍 리스트로 통일 (문서: manual-update-all.md — POST /manual-update-all)
-- [ ] **BATA-12** · 미정의 supplierCode가 VendorType.valueOf 원시 예외로 400 처리되어 메시지 비친화 — `BatchController.java:129` — VendorType.valueOf(toUpperCase())가 미정의 코드에 'No enum constant' 원시 메시지 노출. null/blank는 한국어 명시 거부하는데 잘못된 코드는 내부 구현 노출. try/catch로 감싸 '지원하지 않는 소싱업체 코드' 형태 400으로 통일 (문서: by-supplier.md — POST /by-supplier)
-- [ ] **BATB-1** · 미존재 판정 경로가 status 유무에 따라 이원화(비필터는 조회 결과, 필터는 별도 count 쿼리) — `ProcessStatusService.java:125-139` — status==null은 조회결과 isEmpty로, status!=null은 별도 countByBatchId로 404를 판정해 미존재 판정 책임이 두 경로에 분산되고 필터 조회마다 count 쿼리 추가. 미존재 판정을 단일 헬퍼로 추출하거나 select 공집합일 때만 count 재확인 (문서: GET /api/v1/products/batch/status/{batchId})
-- [ ] **BATB-4** · summary가 count 쿼리 3회를 개별 발행(단일 GROUP BY로 통합 가능) — `ProcessStatusService.java:144-152` — 폴링 경로가 countByBatchId + count(SUCCESS) + count(FAILED)로 배치당 폴링 1회에 DB 왕복 3회 발생. group by processStatus 단일 집계 쿼리로 통합해 다수 배치 동시 폴링 부하 감소 검토 (문서: GET /api/v1/products/batch/status/{batchId}/summary)
+- [ ] **`ORDB-2` · 🔵 NOTE · "설정 누락(인증정보 없음)"과 "마켓 일시 오류"가 사용자에게 같은 에러로 보여 원인 구분이 어려움**
+  - **무엇이 문제인가:** 발주확인이 실패하는 두 원인 — 마켓 접속에 필요한 인증정보(크레덴셜)가 없는 경우와, 마켓 접수 API 자체가 실패한 경우 — 이 서로 다른 종류의 예외로 던져지지만, 컨트롤러가 이를 뭉뚱그려 다시 던져서 화면에는 둘 다 500 계열 오류로 나올 가능성이 큽니다.
+  - **위치:** `OrderService.java:95-96`, `:104`
+  - **왜 문제인가:** "설정을 안 넣어서 실패"와 "마켓이 일시적으로 오류"가 같은 코드로 보이면, 운영자가 원인을 구분해서 대응하기 어렵습니다(설정을 채워야 할지, 잠시 후 재시도할지).
+  - **어떻게 고치면 되나:** 설정성 오류와 외부 마켓 오류를 서로 다른 HTTP 상태코드(예: 409/424 대 502)로 나눠 매핑하는 것을 검토합니다.
+  - **상세 문서:** order/confirm-order.md
 
-### product-sourcing (PSRC)
-- [ ] **PSRC-2** · 컨트롤러 IHERB_URL_PATTERN과 크롤러 extractProductId가 URL 규칙을 이중 정의(표류 위험) — `ProductSourcingController.java:51-53` — api·infrastructure 두 모듈에 같은 URL 규칙 중복. 한쪽만 갱신되면 컨트롤러 통과 후 크롤러 ID추출 실패로 조용히 실패. 규칙 단일화 (문서: POST /api/v1/sourcing/iherb)
-- [ ] **PSRC-5** · 이미지 호스팅 실패를 정상 진행으로 삼켜 hostedImages 없는 상품이 succeeded로 생성됨 — `ProductCreateUseCase.java:103-106` — enrich 예외를 log.warn 후 원본(hostedImages null)으로 진행해 생성은 성공 집계되나 이후 게시 validate에서 반드시 실패. 실패시점이 게시로 미뤄져 추적 곤란. 정책 확정·플래그 표면화 (문서: POST /api/v1/products/bulk)
-- [ ] **PSRC-8** · hasClient와 getClient가 미지원 마켓 검증을 이중 수행(중복 가드·중복 예외메시지) — `ProductPublishUseCase.java:49-51` — hasClient로 한번 걸러도 getClient가 null시 다시 IllegalArgumentException을 던져 같은 조건 이중검사. getClient로 통합 또는 순서 의도 명시 (문서: POST /api/v1/products/{id}/markets/{marketType})
+- [ ] **`ORDB-4` · 🔵 NOTE · 여러 건 발주확인에서 일부만 실패해도 활동로그는 통째로 "실패"로 기록됨**
+  - **무엇이 문제인가:** 여러 주문을 한 번에 발주확인할 때, 성공 N건·실패 M건인 부분 성공이라도 활동로그의 상태는 "실패(FAILED)"로 남습니다(메시지에 "성공 N/실패 M"은 함께 적힘). 이는 "실패가 하나라도 있으면 성공으로 표기하지 않는다"는 의도된 설계입니다.
+  - **위치:** `OrderController.java:79-81`, `:130`
+  - **왜 문제인가:** 활동로그의 상태값만으로 필터링하면 "부분 성공"과 "전부 실패"를 구분할 수 없습니다.
+  - **어떻게 고치면 되나:** 필요하면 "부분 성공(PARTIAL)" 같은 중간 상태를 도입하는 것을 검토합니다. 현재는 메시지 내용을 읽어야 구분됩니다.
+  - **상세 문서:** order/confirm-batch.md
 
-### supplier (SUP)
-- [ ] **SUP-3** · 성공/실패 활동로그 try/catch가 createCurrency와 구조 중복 — `SupplierController.java:45-55` — createSupplier(L45-55)와 createCurrency(L67-77)가 try→record(SUCCESS)→return / catch→record(FAILED)→throw 동일 골격을 상수만 바꿔 반복. 로그 규약 변경 시 두 곳 동기 수정 필요 → 공통 헬퍼/AOP 추출 (문서: create-supplier.md — POST /api/v1/suppliers)
-- [ ] **SUP-7** · 성공/실패 활동로그 try/catch가 createSupplier와 구조 중복 — `SupplierController.java:67-77` — createCurrency(L67-77)와 createSupplier(L45-55)의 활동로그 데코레이션 골격이 동일 반복(SUP-3와 동일 사안). 공통 헬퍼/AOP 추출 (문서: upsert-currency.md — POST /api/v1/currencies)
+- [ ] **`ORDB-9` · 🔵 NOTE · 여러 건 취소에서도 일부만 실패해도 활동로그는 통째로 "실패"로 기록됨 (ORDB-4와 같은 정책)**
+  - **무엇이 문제인가:** 일괄 취소도 부분 성공(성공 N/실패 M)이면 활동로그 상태는 "실패"로 남습니다. ORDB-4와 동일한 의도된 정책입니다.
+  - **위치:** `OrderController.java:79-81`, `:176`
+  - **왜 문제인가:** 활동로그 상태값만으로는 부분 성공과 완전 실패를 구분할 수 없습니다.
+  - **어떻게 고치면 되나:** 발주확인 배치와 동일하게, 필요 시 "부분 성공(PARTIAL)" 상태 도입을 검토합니다.
+  - **상세 문서:** order/cancel-batch.md
 
-### market-credential (CRED)
-- [ ] **CRED-5** · 저장 예외를 잡아 로그만 남기고 재던져 항상 500으로 표면화(클라이언트 오류 미구분) — `MarketCredentialController.java:55-58` — unique 제약(marketType unique)·길이초과 등 입력성 저장 실패도 일반 Exception 핸들러로 떨어져 500 응답. 활동로그 FAILED는 남으나 클라이언트가 재시도로 오인 가능 — 제약 위반을 400 계열로 변환하는 핸들러 검토 (문서: save-credential.md — PUT /api/v1/market-credentials/{marketType})
+- [ ] **`ORDA-2` · 🔵 NOTE · 조회 시 페이지 크기에 상한이 없어, 아주 큰 개수를 한 번에 요청하면 서버 부담이 커짐**
+  - **무엇이 문제인가:** 주문 목록 조회는 요청한 페이지 크기를 그대로 받아들이고, 조회 후 각 주문에 상품·마켓등록 정보를 앱에서 조립합니다. 컨트롤러에 최대 크기 제한이 없습니다.
+  - **위치:** `OrderRepositoryImpl.java:58-59`
+  - **왜 문제인가:** `?size=100000` 같은 요청이 들어오면 대량 조회와 메모리 조립을 유발합니다. 조회 API라 데이터가 깨질 위험은 없지만 성능·메모리 부담에 노출됩니다.
+  - **어떻게 고치면 되나:** 페이지의 기본·최대 크기 정책(설정값 또는 기본 페이징 애노테이션)을 명시합니다.
+  - **상세 문서:** order/get-orders.md
 
-### cafe24-auth (CAFE)
-- [ ] **CAFE-2** · 상태 판별을 예외 메시지 문자열 매칭에 의존 — `Cafe24AuthController.java:133-144` — isAuthFailure와 주문 권한 판정(L72)이 "401"/"403"/"insufficient_scope" 등 문자열 포함으로 정상/인프라 오류 분기. 원 상태코드는 Cafe24RestClient.enrich가 메시지에 녹여 넣어 예외 타입 유실. 응답 본문 snippet에 우연히 숫자 섞이면 오분류 가능. RestClient가 상태코드 구조적 보존, 컨트롤러는 코드로 분기 (문서: GET /api/admin/sync/cafe24/status)
-- [ ] **CAFE-4** · code 추출을 두 번 수행(중복 호출) — `Cafe24AuthController.java:96,122` — issueToken이 extractCode(request.code())로 추출(L96)한 값을 exchangeAuthorizationCode에 넘기는데 exchangeAuthorizationCode가 다시 extractCode(rawCode)(L122). extractCode는 멱등이라 동작 결함 없으나 같은 파싱 두 번+계약 오해 소지. 한 번만 추출하도록 정리하고 blank 가드 순서 정돈 (문서: POST /api/admin/sync/cafe24/issue-token)
+- [ ] **`ORDA-3` · 🔵 NOTE · 같은 상품·같은 마켓에 등록이 여러 개면 조회 시 그중 아무거나 하나만 표시될 수 있음**
+  - **무엇이 문제인가:** 주문 그리드에 마켓 등록 정보를 붙일 때, 상품별로 "마켓이 일치하는 첫 번째 등록"만 골라 담습니다. 그래서 같은 상품·같은 마켓에 등록이 여러 건 있으면 그중 하나만(임의로) 화면에 나옵니다.
+  - **위치:** `OrderRepositoryImpl.java:100-105`
+  - **왜 문제인가:** 보통은 상품·마켓당 등록이 1건이라 문제없지만, 중복 등록이 있으면 그리드에 나오는 등록정보가 매번 달라질(비결정적) 수 있습니다.
+  - **어떻게 고치면 되나:** 상품·마켓당 등록이 하나만 유효하도록 데이터·제약으로 보장하거나, 여러 건일 때 어느 것을 고를지 규칙을 명시합니다.
+  - **상세 문서:** order/get-orders.md
 
-### market-registration (MREG)
-- [ ] **MREG-3** · 상품 존재 검증 없이 등록행 유무로만 판정(목록 조회와 비대칭) — `MarketRegistrationService.java:33-38` — getLocalData는 ProductReader를 사용하지 않아 상품 미존재와 마켓 미등록을 응답으로 구분 불가. 필요 시 상품 존재를 먼저 404로 검증 후 등록행 유무 판정하도록 목록 경로와 정합화 (문서: get-local.md — GET /api/v1/products/{productId}/markets/{marketType}/local)
-- [ ] **MREG-5** · 외부 마켓 HTTP 호출이 readOnly 트랜잭션 경계 안에서 수행됨 — `MarketRegistrationService.java:20,52` — 클래스 레벨 @Transactional(readOnly=true)가 syncMarketLive에도 적용돼 extractMarketItem 외부 I/O 동안 DB 커넥션 점유하나 결과를 DB에 반영하지도 않음. 커넥션 풀 고갈 위험 — 외부 호출을 트랜잭션 밖으로 분리 (문서: sync-market.md — POST /api/v1/products/{productId}/markets/{marketType}/sync)
+- [ ] **`ORDC-2` · 🔵 NOTE · 금액이 음수인지 검사하는 로직이 입구(컨트롤러)에만 있고 핵심 로직에는 없음**
+  - **무엇이 문제인가:** 소싱 금액·물류비가 음수인지 거부하는 검사가 API 입구(컨트롤러)에서만 이뤄집니다. 실제 저장을 담당하는 서비스나 도메인 계층에는 음수 검사가 없습니다.
+  - **위치:** `OrderController.java:242`, `261-270`
+  - **왜 문제인가:** 지금은 이 컨트롤러가 유일한 호출 경로라 괜찮지만, 나중에 배치·워커·내부 호출 같은 다른 경로에서 저장 로직을 직접 부르면 음수 금액이 그대로 저장될 수 있습니다. 방어가 한 곳에만 있어 국소적입니다.
+  - **어떻게 고치면 되나:** 음수 금지 규칙을 소싱 데이터 값객체(VO)나 서비스 진입부로 내려서 어느 경로로 들어와도 보장되게 합니다.
+  - **상세 문서:** order/line-items-sourcing.md
 
-### misc (MISCA / MISCB)
-- [ ] **MISCA-1** · findTop100ByOrderByCreatedAtDesc() 데드 메서드 — `ActionLogRepository.java:11` — 조회 경로는 findAllByOrderByCreatedAtDesc(Pageable)만 사용하고 top100 메서드는 호출부 없음. 무해하나 조회 경로가 둘인 듯 오인 유발 — 제거 또는 주석 명시 (문서: GET /api/v1/action-logs)
-- [ ] **MISCA-5** · 노출 enum 목록이 컨트롤러에 하드코딩(등록 누락 위험) — `CommonCodeController.java:30-33` — enum 등록이 put 4줄 수작업이라 새 enum 추가 시 컴파일러가 누락을 못 잡아 MISCA-4 재발 소지. EnumMapperType 구현체 스캔 자동 등록 검토 (문서: GET /api/v1/common/codes)
-- [ ] **MISCA-8** · 크롤 실패를 상품 단위로 삼켜 부분 실패가 집계되지 않음 — `ProductSyncService.java:107-110` — syncProductStock catch가 log만 하고 삼키며 SUCCESS 메시지는 시도 대상 수만 담아(L61) 성공/실패 미구분. syncedCount(L123,139)는 로컬 로그로만. 성공/실패 건수를 ActionLog에 반영·부분성공 분기 (문서: POST /api/v1/products/sync/stock)
-- [ ] **MISCB-2** · 파이프 구분 문자열 페이로드(스키마 없는 SSE 계약) — `SseNotificationController.java:56-61,74-76` — syncPayload/batchPayload가 'MARKET|success'·'batchId|true' 문자열을 만들고 프론트가 파싱. errorMessage에 파이프 포함 시 분해 오류. JSON 페이로드로 전환하고 계약 테스트로 고정 (문서: subscribe.md — GET /api/v1/notifications/subscribe)
-- [ ] **MISCB-7** · IMAP 최근 200건 제목 필터 창 밖 이메일 영구 누락 가능 — `EmailFetcherService.java:141,421` — start=max(1,total-199)로 항상 최근 200건만 스캔. 수신량 많으면 발송/확인 메일이 창 밖으로 밀려 송장·실구매가 영구 미반영, 재시도해도 회복 불가. SearchTerm/UID 증분 조회 또는 스캔 폭 설정화·잔여 경고 노출 (문서: fetch.md — POST /internal/email/fetch)
-- [ ] **MISCB-8** · 매 (주문번호×계정)마다 IMAP 재접속·INBOX 전체 재조회 반복 — `EmailFetcherService.java:104-108,129-144` — 주문번호 N개마다 계정별로 store.connect·getMessages(최근200건)를 새로 수행해 계정당 N회 접속·페치. 대상 많을수록 선형 악화(MISCB-6 tx 점유와 복합). 계정당 1회 접속 후 메모리에서 주문번호 집합 매칭으로 왕복 축소 (문서: fetch.md — POST /internal/email/fetch)
+- [ ] **`ORDC-5` · 🔵 NOTE · "재시도 불가" 판정이 한글 오류 메시지 문구 일치에 의존해 취약함**
+  - **무엇이 문제인가:** 마켓 전송이 실패했을 때 "이건 재시도해도 소용없는 최종 상황(terminal)"인지 판정하는데, 그 판정을 마켓 응답 메시지에 `"배송진행상태가 유효하지 않습니다"`, `"이미 배송완료"` 같은 특정 한글 문구가 들어 있는지로 합니다.
+  - **위치:** `MarketplaceShippingService.java:126-133` (`isNonRetryableMarketState`)
+  - **왜 문제인가:** 쿠팡이 문구를 바꾸거나 다른 마켓이 다른 문구/코드로 거부하면, 최종 상황을 놓쳐 "일시 실패"로 잘못 분류해 무한 재시도 대상으로 만들 수 있습니다. 오류 분류가 문자열에 묶여 있어 깨지기 쉽습니다.
+  - **어떻게 고치면 되나:** 마켓별 오류 코드/타입 기반 분류로 바꾸거나, 최소한 마켓별 최종 판정을 각 마켓 어댑터에 맡기는 방안을 검토합니다.
+  - **상세 문서:** order/line-items-shipping.md
 
----
+- [ ] **`ORDC-9` · 🔵 NOTE · 한 주문 안에서 일부 항목만 발송 성공해도 주문은 "실패"로 집계되는데, 성공한 항목의 발송 저장은 그대로 남음**
+  - **무엇이 문제인가:** 일괄발송에서 한 주문에 여러 항목이 있고 항목 A는 발송 성공(저장됨), 항목 B는 실패하면, 그 주문은 통째로 "실패"로 집계되어 실패 목록에 담깁니다. 그런데 이 처리는 실제로 예외로 되돌려지는 게 아니라 결과값만 "실패"로 돌려주는 구조라, 앞서 성공해 저장한 항목 A는 마켓·내부 모두 "발송됨"으로 그대로 확정됩니다.
+  - **위치:** `OrderShipProcessor.java:112-114`
+  - **왜 문제인가:** 운영자가 실패 목록을 보고 그 주문을 다시 발송해도, 이미 발송된 항목 A는 재발송 방지 규칙에 걸려 건너뛰므로 중복 발송은 없습니다(정합은 유지). 다만 "주문은 실패"라고 표시되는데 "항목 A는 실제로 발송됨"이라 표기와 실제가 어긋나 재시도·집계 해석에 혼동이 생길 수 있습니다.
+  - **어떻게 고치면 되나:** 집계를 주문 단위가 아닌 항목 단위 성공/실패로 드러내거나, 부분 성공 주문을 별도(partial) 상태로 구분합니다. 최소한 오류 메시지에 성공/실패 항목 수를 함께 적습니다.
+  - **상세 문서:** order/ship-orders.md
 
-## 🔵 P3 — NOTE (의도 확인 필요 / 개선 여지)
+- [ ] **`ORDC-10` · 🔵 NOTE · 마켓 인증정보가 없거나 주문이 없는 경우가 "건너뜀"이 아니라 "실패"로 집계됨**
+  - **무엇이 문제인가:** 일괄발송에서 주문이 존재하지 않거나 마켓 인증정보(크레덴셜)가 없는 경우를 "실패"로 처리합니다. 반면 단건 배송은 어댑터를 지원하지 않는 마켓을 "정상 건너뜀"으로 처리해 서로 다릅니다.
+  - **위치:** `OrderShipProcessor.java:49-59`
+  - **왜 문제인가:** 인증정보를 아직 설정 안 한 마켓의 주문이 "발송 실패"로 집계되어 로그가 FAILED가 되고 실패 목록에 담깁니다. 재시도 대상처럼 보이지만 인증정보를 넣기 전엔 계속 실패합니다. "설정 문제"와 "발송 실패"가 같은 실패로 뭉쳐집니다.
+  - **어떻게 고치면 되나:** 인증정보 없음을 별도의 건너뜀/설정오류 범주로 나눌지 정책을 정합니다. 현재 동작(실패로 드러냄)이 의도라면 그대로 둡니다.
+  - **상세 문서:** order/ship-orders.md
 
-### order (ORDA / ORDB / ORDC)
-- [ ] **ORDA-2** · 페이지 크기 상한 부재로 큰 size 요청 시 조인 조립 비용 선형 증가 — `OrderRepositoryImpl.java:58-118` — pageable.getPageSize()를 그대로 limit로 사용하고 라인/상품/등록을 앱에서 조립. 컨트롤러에 @PageableDefault 등 상한 없음 → 대량 요청 시 메모리/성능 노출. 최대 페이지 크기 정책 명시 (문서: get-orders.md — GET /api/v1/orders)
-- [ ] **ORDA-3** · 마켓등록 조인이 상품·마켓 일치 첫 건만 선택(다건 시 비결정적) — `OrderRepositoryImpl.java:100-105` — regsByProductId에서 marketType 일치 findFirst만 DTO에 담아, 동일 상품·마켓 복수 등록 시 임의 한 건만 노출. 유일성 보장 또는 선택 규칙 명시 (문서: get-orders.md — GET /api/v1/orders)
-- [ ] **ORDA-6** · 주소/통관번호 값 검증(트림·길이) 부재 — `OrderService.java:241-248` — address != null만 확인하고 그대로 대입, 공백/500자 초과 방어 없음(소싱 경로 진입부 음수검증과 대조). 필요 시 형식·길이 검증 정책 확정 (문서: update-order.md — PATCH /api/v1/orders/{id})
-- [ ] **ORDA-7** · 유니패스 수정 성공 시 활동로그 마켓 해석을 위해 라인/주문 2회 재조회 — `OrderController.java:222` — marketNameOfLineItem이 marketTypeOfLineItem으로 방금 다룬 라인/주문을 다시 findById 2회. 반환된 updated의 orderId 재활용하면 왕복 절감 가능. read-only라 부작용 없음, 우선순위 낮음 (문서: update-line-item.md — PATCH /api/v1/orders/line-items/{lineItemId})
-- [ ] **ORDA-8** · 빈/비JSON 요청 바디는 서비스 가드가 아닌 프레임워크 예외 경로로 빠져 활동로그 누락 가능 — `OrderController.java:215-216` — 빈 바디는 isUnipassDone null→서비스 400 유도되나 완전 누락/비JSON은 메시지 컨버터 예외라 catch(:226) 로그 우회 가능. required/@Valid로 진입부 검증 통일 검토 (문서: update-line-item.md — PATCH /api/v1/orders/line-items/{lineItemId})
-- [ ] **ORDB-2** · 크레덴셜 미존재(RuntimeException)와 접수 실패(MarketOrderAcceptException)가 응답코드로 구분되지 않음 — `OrderService.java:95-104` — 컨트롤러가 모든 Exception을 그대로 rethrow(OrderController.java:107-111)하여 설정성 오류와 마켓 일시오류가 동일 코드로 노출. 상이한 HTTP 상태 매핑 검토 (문서: confirm-order.md — POST /orders/{id}/confirm)
-- [ ] **ORDB-4** · 일괄확인 부분 성공도 활동로그 상태를 FAILED로 기록 — `OrderController.java:79-81,130` — statusOf(failedCount)가 failedCount!=0이면 FAILED를 반환해 성공 건이 있어도 FAILED로 남음(의도된 설계). 활동로그 상태만으로 부분성공/완전실패 구분 불가 — PARTIAL 상태 검토 여지 (문서: confirm-batch.md — POST /orders/confirm/batch)
-- [ ] **ORDB-9** · 일괄취소 부분 성공도 활동로그 상태를 FAILED로 기록(ORDB-4와 동일 정책) — `OrderController.java:79-81,176` — statusOf(failedCount) 정책을 cancel/batch에도 적용해 부분성공도 FAILED로 남음(의도된 설계). 활동로그 상태만으로 부분성공/완전실패 구분 불가 (문서: cancel-batch.md — POST /orders/cancel/batch)
-- [ ] **ORDC-2** · 음수 금액 검증이 컨트롤러에만 있고 서비스/도메인 계층엔 없음 — `OrderController.java:261-270` — 음수 거부가 validateSourcingAmounts(컨트롤러)에만 존재. 배치·워커 등 다른 진입점이 updateSourcingInfo를 직접 호출하면 음수 저장 가능. 불변식을 SourcingData VO/서비스로 하향 검토 (문서: PATCH /line-items/{lineItemId}/sourcing)
-- [ ] **ORDC-5** · terminal 재시도불가 판정이 한글 오류 메시지 문자열 매칭에 의존 — `MarketplaceShippingService.java:126-133` — isNonRetryableMarketState가 '배송진행상태가 유효하지 않습니다' 등 문자열 포함 여부로 terminal 판정. 마켓 문구 변경·타 마켓 다른 문구 시 terminal 놓쳐 무한 재시도 대상화 위험. 오류 코드/포트 위임 기반 분류 검토 (문서: PATCH /line-items/{lineItemId}/shipping)
-- [ ] **ORDC-9** · 주문 내 일부 라인 실패 시 주문 전체 failed 집계되나 성공 라인 SHIPPED 저장은 커밋됨(의미 불일치) — `OrderShipProcessor.java:100-114` — orderFailed여도 값 반환(예외 아님)이라 앞서 save된 성공 라인은 커밋. 주문은 failedIds에 담김. 재발송 시 SHIPPED 라인은 상태가드로 스킵되어 중복은 없으나 '주문 failed' 표기와 '라인 실제 발송됨' 불일치. 라인 단위 집계/partial 상태 구분 (문서: POST /orders/ship)
-- [ ] **ORDC-10** · 크레덴셜 없는 마켓·존재하지 않는 주문이 skipped 아닌 failed로 집계됨 — `OrderShipProcessor.java:49-59` — 주문 없음·크레덴셜 없음을 failed로 반환. 단건 경로는 어댑터 없는 마켓을 ofSkipped 처리(:88-93)와 대비. 설정 누락 마켓이 발송실패로 집계돼 재시도 대상처럼 보임. 설정오류/스킵 범주 분리 여부 정책 결정 (문서: POST /orders/ship)
+- [ ] **`ORDA-7` · 🔵 NOTE · 유니패스 수정 성공 후 로그용 마켓 정보를 위해 이미 다룬 데이터를 두 번 더 조회함**
+  - **무엇이 문제인가:** 유니패스(통관) 완료여부 수정이 성공하면, 활동로그에 마켓을 채우려고 라인아이템과 주문을 다시 조회합니다. 그런데 서비스가 이미 방금 저장한 항목(주문 ID 포함)을 돌려주는데도, 컨트롤러는 그 정보를 안 쓰고 라인아이템 ID로 처음부터 다시 조회합니다.
+  - **위치:** `OrderController.java:222`
+  - **왜 문제인가:** 성공할 때마다 로그 목적의 추가 조회가 2번 발생합니다. 기능·정합 문제는 없고 읽기 전용이라 부수효과도 없지만, 불필요한 왕복입니다.
+  - **어떻게 고치면 되나:** 서비스가 돌려준 항목의 주문 ID로 마켓을 해석하는 헬퍼를 두면 재조회를 줄일 수 있습니다. 우선순위는 낮습니다.
+  - **상세 문서:** order/update-line-item.md
 
-### order-sync (SYNCA / SYNCB)
-- [ ] **SYNCA-3** · 조회 범위 30일 하드코딩(파라미터화 없음) — `CoupangOrderSyncService.java:73` — 조회·취소감지 범위가 now-30일로 고정되어 그 이전 취소/변경은 감지 불가, 백필도 코드수정 없이는 불가. 설정값/파라미터로 외부화 검토 (문서: sync-coupang.md — POST /api/v1/orders/sync/coupang)
-- [ ] **SYNCA-4** · in-JVM AtomicBoolean 중복가드는 교차 JVM(워커+api) 동시실행을 못 막음 — `CoupangOrderSyncService.java:53,60` / `OrderSyncScheduler.java:49-53` — 주문 동기화 중복가드는 AtomicBoolean인데 정산 경로만 DB 클레임(tryMarkRunning) 사용. 스케줄러(worker)와 API(api)는 별도 JVM이라 동시 2회 실행 가능. 정산과 동일하게 DB 기반 교차 JVM 가드로 통일 검토 (문서: sync-coupang.md — POST /api/v1/orders/sync/coupang)
-- [ ] **SYNCA-12** · 트래킹번호 마켓전송 보존 가드 부재(쿠팡과 비대칭) — `ElevenstOrderSyncService.java:115-126` — 쿠팡의 trackingSentToMarket 보존 가드 없이 dto 송장을 무조건 반영해 마켓 미전송 로컬 송장 유실 가능. 11번가 송장 write-path 확인 후 보존 가드 필요성 판정 (문서: sync-elevenstreet.md — POST /api/v1/orders/sync/elevenstreet)
-- [ ] **SYNCA-17** · in-JVM AtomicBoolean 중복가드가 워커와 교차 JVM 동시실행을 못 막음 — `Cafe24OrderSyncService.java:57,62` / `OrderSyncScheduler.java:57-61` — AtomicBoolean 중복가드라 스케줄러(worker)와 수동 트리거(api)가 교차 JVM으로 동시 실행 가능. SYNCA-16의 긴 루프와 겹치면 부하·중복 upsert 위험. 정산 경로처럼 DB 기반 교차 JVM 가드로 통일 검토 (문서: sync-esmplus.md — POST /api/v1/orders/sync/esmplus)
-- [ ] **SYNCB-2** · 부작용 없는 진단 조회를 POST로 노출 + ActionLog 미기록 — `OrderSyncController.java:166-179` — 읽기 전용 진단을 POST로 매핑하고 감사 로그를 남기지 않음. 누가 언제 외부 API를 호출했는지 추적 불가. POST 유지가 의도면 문서화, 감사 필요 시 로그 기록 검토 (문서: cafe24-preview.md — POST /api/v1/orders/sync/cafe24/preview)
-- [ ] **SYNCB-3** · 프리뷰 페이지 크기 5·오프셋 0 하드코딩(첫 페이지만) — `OrderSyncController.java:172` — limit/offset 미파라미터화로 항상 첫 5건만 조회 가능해 진단 범위 제한. 필요 시 쿼리 파라미터 노출 (문서: cafe24-preview.md — POST /api/v1/orders/sync/cafe24/preview)
-- [ ] **SYNCB-5** · 택배사 진단 조회도 POST 매핑 + ActionLog 미기록 — `OrderSyncController.java:182-191` — SYNCB-2와 동일 이슈 — 읽기 전용 조회를 POST로 노출하고 감사 흔적 없음. GET 관례·감사 기록 검토 (문서: cafe24-carriers.md — POST /api/v1/orders/sync/cafe24/carriers)
-- [ ] **SYNCB-13** · 이중 매핑(엔티티→내부 SyncStatus→SyncStatusResponse) — `SyncStatusService.java:102-108` / `SyncStatusResponse.java:19-25` — 동일 4필드를 내부 DTO와 응답 DTO로 두 번 매핑(F-SYNC-24 잔여비용). 필드 추가 시 두 곳 수정 필요. 서비스가 응답 DTO 직접 반환하도록 단순화 검토 (문서: status.md — GET /api/v1/orders/sync/status)
-- [ ] **SYNCB-14** · 상태 조회 인증 게이트 부재 + errorMessage 원문 노출 여지 — `OrderSyncController.java:34,248-256` — @CrossOrigin(origins=*)로 인증 없이 노출되며 응답 errorMessage에 외부 API 실패 원문이 실릴 수 있음. 보안 비중요 정책상 즉시 결함 아니나 마스킹 검토 여지 (문서: status.md — GET /api/v1/orders/sync/status)
+- [ ] **`ORDA-8` · 🔵 NOTE · 요청 본문이 아예 없거나 형식이 깨지면 처리가 프레임워크 기본 동작에 맡겨져 로그가 누락될 수 있음**
+  - **무엇이 문제인가:** 유니패스 수정은 요청 본문에서 값을 읽는데, 본문이 비어 있으면 값이 null이 되어 서비스 검사로 400이 나옵니다. 하지만 본문이 완전히 없거나 JSON이 아니면, 서비스 검사 이전에 스프링 프레임워크의 예외 경로로 빠집니다.
+  - **위치:** `OrderController.java:215-216`
+  - **왜 문제인가:** 결과적으로 400으로 끝나긴 하지만, 그 경로가 서비스 검사가 아니라 프레임워크 예외라서 컨트롤러의 활동로그 기록 부분에 안 잡힐 수 있습니다(로그 누락 가능성).
+  - **어떻게 고치면 되나:** 본문이 필수임을 계약으로 명시하고, 필요하면 진입부 검증(required=true / @Valid 등)을 통일할지 검토합니다.
+  - **상세 문서:** order/update-line-item.md
 
-### product (PRODA / PRODB)
-- [ ] **PRODA-1** · 잘못된 marketFilter enum은 400 매핑되나 조회 경로에 검증·로그 없음 — `ProductController.java:85` — MarketType.valueOf(marketFilter)는 잘못된 마켓명/빈 문자열에 IAE를 던져 GlobalExceptionHandler가 400 안전 매핑하나, 조회 경로엔 활동로그가 없어 관측 흔적 없음. 파싱 헬퍼로 감싸 메시지 통일 검토 (문서: list-products.md — GET /api/v1/products)
-- [ ] **PRODA-2** · buildMarketMap이 코드 없는 등록행에 productId를 폴백해 마켓 실제코드와 자사 id가 응답에서 구분 안 됨 — `ProductController.java:425-428` — extractMarketCode()가 null이면 productId를 마켓코드 자리에 넣어, 마켓코드 미확정 상태와 실제코드가 목록에서 모호. 상세응답 D-052 폴백('미확인')과 통일 검토(프론트 합의 필요) (문서: list-products.md — GET /api/v1/products)
-- [ ] **PRODA-5** · 전체수정 성공 응답이 본문 없는 200 OK(Void)라 클라이언트가 재조회 필요 — `ProductController.java:309` — ResponseEntity.ok().build()로 갱신 스냅샷/변경필드를 반환하지 않아 프론트가 별도 GET /{id} 재조회 필요. 기능오류 아님. 필요 시 ProductDetailResponse 반환 검토(계약 변경) (문서: update-product.md — PUT /api/v1/products/{id})
-- [ ] **PRODA-9** · 부분 실패여도 항상 HTTP 200이라 상태코드만으로 실패 인지 불가 — `ProductController.java:325-326` — failed가 비어있지 않아도 항상 ResponseEntity.ok(result)이고 ActionLog만 FAILED. best-effort 설계상 의도됐으나 상태코드로 성공/부분실패를 구분하는 클라이언트는 오탐. 프론트가 failed를 반드시 표면화하도록 문서화(또는 207 검토) (문서: delete-product.md — DELETE /api/v1/products/{id})
-- [ ] **PRODB-1** · 가격/재고 마켓 반영(외부 HTTP)이 @Transactional 경계 안에서 실행됨 — `ProductManageUseCase.java:57,80` / `ProductMarketSyncService.java:77-79` — updatePriceStock 전체가 @Transactional이고 그 안에서 N개 마켓 syncPriceAndStock HTTP를 순차 호출 → 상품 row 트랜잭션이 마켓 응답 지연만큼 열려 커넥션/락 점유 장기화. 완전삭제처럼 DB커밋과 마켓반영 분리 검토 (문서: update-price-stock.md — PUT /{id}/price-stock)
-- [ ] **PRODB-3** · 재고 수량이 판매중/품절 이분법으로 고정(실제 수량 미반영) — `ProductMarketSyncService.java:45-47` — quantity=soldOut?1:DEFAULT_IN_STOCK_QUANTITY로 고정, DB 수량 미변경. 의도된 설계이나 '재고 수정' 명칭과 실제 동작(재고상태 토글) 간극 → 명세 문서화 필요 (문서: update-price-stock.md — PUT /{id}/price-stock)
-- [ ] **PRODB-5** · R2 업로드·HTML치환·마켓재게시가 단일 @Transactional 안에서 실행 — `ProductManageUseCase.java:83,88,136` — R2 PUT과 마켓 HTTP가 트랜잭션 안 → 커넥션 점유 장기화. R2 실패 시 전체 롤백돼 DB정합은 유지되나 이미 올라간 R2 객체는 롤백 안 돼 고아 객체 잔존. 트랜잭션 분리·고아 정리 정책 검토 (문서: update-images.md — PUT /{id}/images)
-- [ ] **PRODB-10** · GET 크롤 0개(이미지 없음)와 정상 N개가 동일 로그 타입·status로 기록 — `ProductController.java:174-178` — images.size()==0도 SUCCESS '0개 수집'으로 기록(별도 분기 없음). crawl-and-upload는 0개를 별도 메시지로 구분(:204-209)하는 것과 비정합. 진단성 위해 세분화 검토 (문서: crawl-source-images.md — GET /{id}/images/crawl)
-- [ ] **PRODB-11** · crawlProductInfoAsDto null 반환(크롤 차단/파싱 실패)도 SUCCESS 0개로 처리 — `ProductController.java:262-263,174-178` / `IherbScraperClient.java:220-223` — scraped==null이면 빈 목록→'0개 수집 SUCCESS'로 기록되어 크롤 실질 실패가 '이미지 없음'으로 오인. crawlProducts는 동일 null을 실패로 취급하는 것과 계약 불일치. null 시 실패 표면화 검토 (문서: crawl-source-images.md — GET /{id}/images/crawl)
-- [ ] **PRODB-13** · 크롤/다운로드 실패와 저장 실패가 동일 프리픽스로만 구분됨 — `ProductController.java:213-218,243-247` — 크롤/다운로드 예외(트랜잭션 밖)와 저장 예외(@Transactional)를 동일 SOURCE_IMAGE_CRAWL 타입·동일 프리픽스 '크롤·업로드 실패'로 FAILED 기록. 어느 단계 실패인지 로그로 구분 안 돼 예외 메시지 의존. 단계별 프리픽스 세분화 검토 (문서: crawl-and-upload-images.md — POST /{id}/images/crawl-and-upload)
-
-### batch (BATA / BATB)
-- [ ] **BATA-3** · by-supplier와 동일 jobType 공유로 동시 실행 상호 차단 — `BatchController.java:70,141` — crawl-and-update와 by-supplier가 모두 JobType.CRAWL_AND_UPDATE_PRICE_STOCK을 사용해 jobType 단위 runningJobTypes 가드 상 상호 배타 실행. 논리적으로 다른 두 작업이 동시 실행 불가. 의도된 직렬화면 문서화, 아니면 전용 JobType 검토 (문서: crawl-and-update.md — POST /crawl-and-update)
-- [ ] **BATA-9** · 전체 필드 수정이 연동 마켓에 반영되지 않음(가격·재고 포함 가능) — `BatchPriceStockService.java:161-186` — manualUpdateAllFields는 product.update+save만 하고 syncPriceStock 미호출. crawl·manual-update-price-stock은 마켓 재전송하는데 이 경로는 command에 salePrice/stock이 담겨도 마켓 미반영 → DB-마켓 불일치 가능. 마켓 반영 정책 확정·문서화 (문서: manual-update-all.md — POST /manual-update-all)
-- [ ] **BATA-13** · crawl-and-update와 동일 jobType 사용으로 두 배치 상호 배타 실행 — `BatchController.java:141` — by-supplier가 JobType.CRAWL_AND_UPDATE_PRICE_STOCK 사용 → crawl-and-update와 같은 jobType이라 runningJobTypes 가드 상 상호 거부(400). 업체 전체 크롤과 선택 상품 크롤이 동시 실행 불가. 전용 JobType 검토 또는 직렬화 의도 문서화 (문서: by-supplier.md — POST /by-supplier)
-- [ ] **BATB-2** · RecordStatus(소프트삭제 status)를 응답 status 필드로 그대로 노출하며 조회 쿼리가 RecordStatus를 필터하지 않음 — `ProcessStatusResponse.java:31` — 응답에 processStatus와 status(BaseEntity RecordStatus ACTIVE/ARCHIVED/DELETED)가 나란히 노출돼 혼동 소지, 조회 쿼리는 DELETED 행을 제외하지 않음. 현재 소프트삭제 경로가 없어 실해는 없으나 향후 도입 시 필터 재검토 필요 (문서: GET /api/v1/products/batch/status/{batchId})
-- [ ] **BATB-3** · pending이 PENDING count가 아니라 total-done 파생값이라 상태 확장 시 의미가 어긋남 — `BatchSummary.java:18` — pending=total-(success+failed)로 산출. 현재 enum이 PENDING/SUCCESS/FAILED 3값뿐이라 정확하나 중간/스킵 상태 추가하면 done에 안 잡혀 pending에 잘못 합산되고 percent 왜곡. 상태 확장 시 명시적 count(PENDING)로 전환 또는 테스트로 고정 (문서: GET /api/v1/products/batch/status/{batchId}/summary)
-- [ ] **BATB-5** · 페이징·상한 없이 전체 배치 ID를 반환(이력 누적 시 목록 무한 증가) — `ProcessStatusRepository.java:16-17` — findDistinctBatchIds가 LIMIT/조건 없이 모든 distinct batchId를 반환. batchId는 배치마다 신규 생성돼 무한 누적되므로 이력이 쌓이면 응답이 비대해짐. 최근 N개 제한/페이징과 오래된 ProcessStatus 행 보존정책(TTL/아카이브) 도입 검토 (문서: GET /api/v1/products/batch/status)
-
-### product-sourcing (PSRC)
-- [ ] **PSRC-3** · 크롤 실패 사유가 '크롤 결과를 가져오지 못했습니다'로 뭉뚱그려져 403/404/파싱실패 구분 불가 — `IherbScraperClient.java:235-236` — null 반환이 모든 실패원인을 하나로 수렴시켜 재시도/조치 판단 어려움. 실패 사유 구조화 (문서: POST /api/v1/sourcing/iherb)
-- [ ] **PSRC-6** · 음수 검증이 costPrice에만 있고 marginRate·weight·capacity·bundleQuantity는 무검증 — `ProductSourcingController.java:113-117` — costPrice 음수만 400으로 거르고 다른 수치필드는 오염값 통과 가능. 필드별 유효범위 정책 정의 후 필요분만 가드 추가 (문서: POST /api/v1/products/bulk)
-- [ ] **PSRC-9** · 미존재 상품이 404가 아닌 400으로 반환됨(ResourceNotFound+404 규약과 비대칭) — `ProductPublishUseCase.java:46-47` — 상품 미존재를 IllegalArgumentException으로 던져 GlobalExceptionHandler가 400 매핑. 핸들러는 미존재용 ResourceNotFoundException(404)을 별도 보유. 404로 통일 (문서: POST /api/v1/products/{id}/markets/{marketType})
-- [ ] **PSRC-10** · markPublished 실패 시 마켓엔 게시됐으나 활동로그는 FAILED만 남아 게시성공 사실 유실 — `ProductPublishUseCase.java:70-75` — 게시 성공 후 DB갱신 실패시 rethrow로 컨트롤러가 record(FAILED) 기록. 운영자가 실패로 오인해 재게시(PSRC-7 중복유발) 위험. PARTIAL/복구필요 상태 표면화 (문서: POST /api/v1/products/{id}/markets/{marketType})
-
-### supplier (SUP)
-- [ ] **SUP-1** · 페이지네이션·필터 없는 전체 ACTIVE 반환 — `SupplierService.java:28` — getSuppliers가 ACTIVE 전량을 무제한 반환(limit/검색 없음). 현 소규모 도메인에선 무해하나 다른 목록 API의 페이지네이션과 비대칭. 규모 확대 시 도입 여지만 문서화 (문서: list-suppliers.md — GET /api/v1/suppliers)
-- [ ] **SUP-4** · 활동로그가 서비스 트랜잭션 밖(컨트롤러)에서 기록됨 — `SupplierController.java:48` — record(SUCCESS)가 createSupplier 커밋 후 컨트롤러에서 호출되고 ActionLogService.record는 자체 @Transactional이라 저장과 별개 트랜잭션. 로그 실패는 내부에서 삼켜(ActionLogService.java:37-40) 본업 보호. 의도된 설계로 정합 위험 낮음, 감사 강화 요구 시 통합 검토 (문서: create-supplier.md — POST /api/v1/suppliers)
-
-### market-credential (CRED)
-- [ ] **CRED-1** · 무인증 목록 조회 엔드포인트(CrossOrigin *, 인증 필터 없음) — `MarketCredentialController.java:24,31-34` — 누구나 호출 가능하나 시크릿은 MarketCredentialDto(:16-18)에서 불리언 마스킹되어 유출 위험 낮음. clientId·redirectUri·연동여부는 무인증 노출 — 운영환경 CORS·인증 정책 문서화 (문서: list-credentials.md — GET /api/v1/market-credentials)
-- [ ] **CRED-2** · 잘못된 enum 경로변수는 전역 핸들러로 400 처리됨(계약 확인) — `GlobalExceptionHandler.java:19-25` — 미매칭 MarketType 값은 MethodArgumentTypeMismatchException→400으로 표면화(EnumPathVariableMismatchTest가 고정). 결함 아님, 계약 확인 노트 (문서: get-credential.md — GET /api/v1/market-credentials/{marketType})
-- [ ] **CRED-3** · 무인증 단건 조회(CrossOrigin *) — `MarketCredentialController.java:24,36-41` — 시크릿 마스킹으로 유출 위험 낮으나 clientId·redirectUri·연동여부 무인증 노출. CRED-1과 동일 성격 — 운영 CORS·인증 정책 문서화 (문서: get-credential.md — GET /api/v1/market-credentials/{marketType})
-- [ ] **CRED-6** · 입력 검증(@Valid) 부재 — 필수값·형식 검증 없이 upsert — `MarketCredentialController.java:44-47` — @RequestBody에 @Valid 없고 SaveCommand에 검증 애너테이션 없음. 전 필드 빈 바디로도 신규 빈 자격증명 생성 가능. 마켓별 필수필드 서버측 강제 없음 — 최소 검증 추가 검토 (문서: save-credential.md — PUT /api/v1/market-credentials/{marketType})
-- [ ] **CRED-7** · refreshToken·accessToken·isActive·tokenExpiresAt는 이 엔드포인트로 설정 불가 — `MarketCredentialSaveCommand.java:8-12` — SaveCommand에 해당 필드 부재로 서비스가 손대지 않음(OAuth 토큰은 별도 인증 흐름 관리). 신규 생성 시 isActive는 엔티티 기본 true로만 결정되어 PUT으로 비활성화 수단 없음 — 의도된 분리로 보이나 문서화 노트 (문서: save-credential.md — PUT /api/v1/market-credentials/{marketType})
-
-### cafe24-auth (CAFE)
-- [ ] **CAFE-3** · 조회 API가 부수적으로 자격증명을 갱신·저장 — `Cafe24TokenManager.java:49-69` — status()가 getValidAccessToken을 통해 만료 토큰을 자동 갱신하고 persist(L102-110)로 MarketCredential을 저장하는데 status() 자체는 @Transactional이 아님. 만료 자동 갱신이라는 의도된 설계이나 순수 조회를 기대하는 호출자엔 비직관적. advisory lock으로 2 JVM 경쟁은 방지됨. 문서화만 필요 (문서: GET /api/admin/sync/cafe24/status)
-- [ ] **CAFE-5** · 토큰 저장과 활동로그가 원자적이지 않음 — `Cafe24AuthController.java:101-104` — issueInitialToken의 자격증명 persist와 컨트롤러의 actionLogService.record(L103-104)는 별개 작업이며 @Transactional로 묶이지 않음. 토큰 저장 후 활동로그 기록이 실패하면 200 응답은 이미 나가고 로그만 누락 가능. 재무·정합성 영향 없고 감사 로그 정확도 문제. 현 설계 의도라면 문서화 충분 (문서: POST /api/admin/sync/cafe24/issue-token)
-- [ ] **CAFE-7** · 예외 메시지를 응답 본문에 그대로 노출 — `Cafe24AuthController.java:206` — 실패 시 "인증 실패: " + e.getMessage()를 응답 본문으로 반환하고 issue-token도 유사(L111). 예외 메시지에 Cafe24 응답 snippet(enrich, 최대 300자)이 실려 내부 정보가 화면에 표시 가능. 관리자 전용·보안 비중요 환경이라 낮은 우선순위. 필요 시 일반화 메시지 + 서버 로그 상세로 분리 (문서: GET /api/admin/sync/cafe24/auth/callback)
-- [ ] **CAFE-8** · 신규 UI는 issue-token 사용하는데 레거시 콜백이 계속 노출 — `Cafe24AuthController.java:195-208` — 주석상 (레거시) GET 콜백이며 신규 UI는 POST /issue-token 사용. GET 콜백은 활동로그를 남기지 않고 응답 형태(String)도 달라 관측성이 낮음. Cafe24 앱 리다이렉트 URI로 여전히 필요한지 확인, 불필요하면 폐기, 유지 시 활동로그 추가 검토(현재는 테스트로 고정된 의도적 비대칭) (문서: GET /api/admin/sync/cafe24/auth/callback)
-
-### market-registration (MREG)
-- [ ] **MREG-1** · 목록 조회는 상품 존재를 404로 가드하나 로컬 조회는 미가드로 비대칭 — `MarketRegistrationService.java:28-29,33-38` — getRegistrations는 productReader로 상품 존재를 404로 검증하나 getLocalData는 상품 존재를 확인하지 않아 같은 리소스 트리 하위 조회의 상태코드 정책이 비대칭. 상품 존재 가드 정책 통일 검토 (문서: list-registrations.md — GET /api/v1/products/{productId}/markets)
-- [ ] **MREG-6** · sync 이름과 달리 동기화 상태를 저장하지 않음(순수 라이브 조회) — `MarketRegistrationService.java:40-53` — syncMarketLive는 MarketItemInfo만 반환하고 markSynced/isSynced/lastSyncedAt를 갱신하지 않아 이름(/sync)이 실제 동작(읽기 전용 preview)과 어긋남. 이름/문서 명확화 또는 의도가 반영이면 저장 로직 추가 검토 (문서: sync-market.md — POST /api/v1/products/{productId}/markets/{marketType}/sync)
-
-### misc (MISCA / MISCB)
-- [ ] **MISCA-2** · 오프셋 페이지네이션이나 total/hasNext 미제공 — `ActionLogController.java:41-51` — 평면 List만 반환하고 총 개수/다음 페이지 유무가 없어 마지막 페이지 판정이 응답만으로 불가. 프론트가 실제 페이지네이션 UI 도입 시 헤더/확장응답으로 노출 검토(의도된 비파괴 설계) (문서: GET /api/v1/action-logs)
-- [ ] **MISCA-3** · limit/page 방어가 컨트롤러·서비스에 중복(상수 드리프트 위험) — `ActionLogController.java:45-46` — 동일 상하한 정규화가 컨트롤러 L45-46과 서비스 ActionLogService.java:59-60에 각각 하드코딩. 의도된 다중 방어이나 100/500 상수를 단일 출처로 공유해 드리프트 방지 (문서: GET /api/v1/action-logs)
-- [ ] **MISCA-6** · 무캐시 재계산 및 무인증 개방 — `CommonCodeController.java:23-35` — 불변 enum을 매 요청 재매핑하고 CrossOrigin(*) 무인증 개방. 데이터가 공개 라벨이라 무해하나 정적 캐시로 재계산 제거 가능(문서화 목적) (문서: GET /api/v1/common/codes)
-- [ ] **MISCA-10** · 대상 0건이어도 STARTED→SUCCESS 로그 페어 기록 — `ProductSyncService.java:59-61` — 가드 통과 시 무조건 STARTED 기록 후 대상 0건이어도 SUCCESS '대상 0개' 기록. 무해하나 로그 노이즈 — '대상 없음' 구분 메시지로 가독성 향상 선택 (문서: POST /api/v1/products/sync/stock)
-- [ ] **MISCB-3** · INIT 이후 heartbeat 부재로 프록시 유휴 끊김 가능 — `SseNotificationController.java:42` — INIT 1회 후 24h 무전송 구간이 있어 nginx/프록시 idle timeout에 조용히 끊길 수 있고 그 사이 이벤트 유실. 15~30초 heartbeat comment 전송 또는 프록시 타임아웃 상향·문서화 (문서: subscribe.md — GET /api/v1/notifications/subscribe)
-- [ ] **MISCB-4** · CORS 전역 개방된 무인증 브로드캐스트 스트림 — `SseNotificationController.java:17` — @CrossOrigin(origins=*) + 인증 부재로 임의 오리진이 마켓명·배치ID·에러메시지를 수신 가능. 보안 비중요 방침상 즉시 결함은 아니나 운영 오리진 화이트리스트 검토 (문서: subscribe.md — GET /api/v1/notifications/subscribe)
-- [ ] **MISCB-9** · 500 응답 바디에 원시 예외 메시지 노출 — `EmailFetchController.java:63-64` — error 필드에 e.getMessage()를 그대로 반환하고 markFailed에도 동일 저장. 내부 전용(8081, nginx 미노출)이라 위험은 낮으나 IMAP 호스트/계정 세부가 실릴 수 있음. 응답 바디 일반화 검토 (문서: fetch.md — POST /internal/email/fetch)
+- [ ] **`ORDA-6` · 🔵 NOTE · 주소 입력에 공백만 있거나 너무 긴 값에 대한 검증이 없어 DB 단계에서야 실패함**
+  - **무엇이 문제인가:** 주소 수정은 "값이 null이 아닌지"만 보고 들어온 값을 그대로 저장합니다. 공백만 있는 주소나, 컬럼 길이 한계(500자)를 넘는 값에 대한 검증이 서비스·도메인에 없습니다.
+  - **위치:** `OrderService.java:241-243`
+  - **왜 문제인가:** " "(공백)처럼 의미 없는 주소로 덮어써질 수 있고, 500자를 넘으면 DB 계층에 가서야 실패합니다(미리 400으로 막는 방어가 없음). 소싱 수정 경로가 입구에서 음수 검증을 두는 것과 대조적입니다.
+  - **어떻게 고치면 되나:** 필요하면 주소·통관번호의 형식·길이 검증을 입구나 도메인에 추가할지 정책으로 확정합니다.
+  - **상세 문서:** order/update-order.md
 
 ---
 
-## 도메인별 인덱스
+## 주문 동기화 (order-sync) — `order-sync/`
+> 쿠팡·스마트스토어·11번가·G마켓/옥션·Cafe24 등 각 마켓에서 주문(과 정산·통관 정보)을 주기적으로 가져와 우리 DB에 새로 만들거나 갱신하고, 마켓에서 사라진 주문을 취소로 감지하는 기능 묶음입니다. 발견 31건 (🔴1 · 🟠11 · 🟡10 · 🔵9).
 
-| 도메인 (유닛) | 🔴 BUG | 🟠 GAP | 🟡 SMELL | 🔵 NOTE | 합계 |
-|---------------|:-----:|:-----:|:-------:|:------:|:---:|
-| order (ORDA·ORDB·ORDC) | 0 | 7 | 8 | 12 | 27 |
-| order-sync (SYNCA·SYNCB) | 1 | 11 | 10 | 9 | 31 |
-| product (PRODA·PRODB) | 0 | 6 | 7 | 10 | 23 |
-| batch (BATA·BATB) | 0 | 7 | 6 | 6 | 19 |
-| cafe24-auth (CAFE) | 0 | 2 | 2 | 4 | 8 |
-| market-credential (CRED) | 0 | 1 | 1 | 5 | 7 |
-| market-registration (MREG) | 0 | 2 | 2 | 2 | 6 |
-| product-sourcing (PSRC) | 0 | 3 | 3 | 4 | 10 |
-| supplier (SUP) | 0 | 3 | 2 | 2 | 7 |
-| misc (MISCA·MISCB) | 0 | 6 | 6 | 7 | 19 |
-| **합계 (16 유닛)** | **1** | **48** | **47** | **61** | **157** |
+### 🔴 BUG (1건)
+
+- [x] **`SYNCB-6` · 🔴 BUG · 정산 동기화가 실패해도 로그에는 항상 "성공"으로 남았다** ✅해결(D-087)
+  > ✅ **해결됨** (D-087, c4c7faa)
+  - **무엇이 문제인가:** 쿠팡 정산 동기화는 실제 작업을 백그라운드에서 별도로 돌립니다. 그런데 컨트롤러(요청을 받는 입구 코드)는 백그라운드 작업을 시작시키자마자 곧바로 "성공"이라고 기록해 버렸습니다. 백그라운드에서 나중에 실제로 실패해도 그 실패는 이 기록에 반영되지 않았습니다.
+  - **위치:** `OrderSyncController.java:195` (구 :204-205)
+  - **왜 문제인가:** 정산 API 오류나 인증 실패로 실제 작업이 실패해도 운영 기록(ActionLog)에는 늘 "정산 동기화 성공"만 남아, 운영자가 실패를 알아챌 수 없었습니다.
+  - **어떻게 고치면 되나:** 컨트롤러는 "작업 접수"만 기록하고, 진짜 성공/실패는 백그라운드 작업이 끝나는 시점에서 직접 기록하도록 옮깁니다. (해결됨 — 컨트롤러의 가짜 성공 기록을 제거하고, 서비스가 완료/실패 시점에 직접 기록하도록 변경.)
+  - **상세 문서:** order-sync/coupang-settlement.md
+
+### 🟠 GAP (11건)
+
+- [x] **`SYNCA-1` · 🟠 GAP · 쿠팡 주문 동기화가 실패해도 로그에는 항상 "성공"으로 남았다** ✅해결(D-087)
+  > ✅ **해결됨** (D-087, c4c7faa)
+  - **무엇이 문제인가:** 쿠팡 주문 동기화도 백그라운드에서 돌아가는데, 컨트롤러가 작업을 시작시킨 직후 무조건 "성공"이라고 기록했습니다. 나중에 백그라운드에서 실패가 나도 그 실패는 다른 작업 흐름에서 벌어지는 일이라 이 기록에 잡히지 않았습니다.
+  - **위치:** `OrderSyncController.java:60-79` (구 :64)
+  - **왜 문제인가:** 실제 동기화가 실패해도 운영 기록에는 언제나 "성공"만 남아, 운영자가 로그만 봐서는 성공/실패를 구분할 수 없었습니다.
+  - **어떻게 고치면 되나:** 성공/실패 기록을 백그라운드 작업이 실제로 끝나는 지점으로 옮깁니다. (해결됨 — 컨트롤러의 가짜 성공 기록을 제거하고, 완료는 별도 이벤트 리스너가 기록.)
+  - **상세 문서:** order-sync/sync-coupang.md
+
+- [x] **`SYNCA-5` · 🟠 GAP · 스마트스토어 주문 동기화가 실패해도 로그에는 항상 "성공"으로 남았다** ✅해결(D-087)
+  > ✅ **해결됨** (D-087, c4c7faa)
+  - **무엇이 문제인가:** 스마트스토어 주문 동기화 역시 백그라운드에서 도는데, 컨트롤러가 시작 직후 무조건 "성공"으로 기록했습니다. 백그라운드의 실제 실패는 여기에 반영되지 않았습니다.
+  - **위치:** `OrderSyncController.java:89-107` (구 :94)
+  - **왜 문제인가:** 실제 실패가 운영 기록에 남지 않아, 운영자가 실패를 인지하지 못했습니다.
+  - **어떻게 고치면 되나:** 성공/실패 기록을 백그라운드 작업이 끝나는 지점으로 옮깁니다. (해결됨 — 컨트롤러의 가짜 성공 기록 제거, 완료는 이벤트 리스너가 기록.)
+  - **상세 문서:** order-sync/sync-smartstore.md
+
+- [x] **`SYNCA-9` · 🟠 GAP · 11번가 주문 동기화가 실패해도 로그에는 항상 "성공"으로 남았다** ✅해결(D-087)
+  > ✅ **해결됨** (D-087, c4c7faa)
+  - **무엇이 문제인가:** 11번가 주문 동기화도 백그라운드에서 돌며, 컨트롤러가 시작 직후 무조건 "성공"으로 기록했습니다. 나중의 실제 실패는 이 기록에 반영되지 않았습니다.
+  - **위치:** `OrderSyncController.java:117-131` (구 :123)
+  - **왜 문제인가:** 실제 실패가 운영 기록에 남지 않아 운영자가 실패를 알 수 없었습니다.
+  - **어떻게 고치면 되나:** 성공/실패 기록을 백그라운드 작업이 끝나는 지점으로 옮깁니다. (해결됨 — 4개 마켓 동기화의 가짜 성공 기록을 한꺼번에 제거, 완료는 이벤트 리스너가 기록.)
+  - **상세 문서:** order-sync/sync-elevenstreet.md
+
+- [x] **`SYNCA-13` · 🟠 GAP · G마켓/옥션 주문 동기화가 실패해도 로그에는 항상 "성공"으로 남았다** ✅해결(D-087)
+  > ✅ **해결됨** (D-087, c4c7faa)
+  - **무엇이 문제인가:** G마켓/옥션(ESM+) 주문 동기화 역시 백그라운드에서 도는데, 컨트롤러가 시작 직후 무조건 "성공"으로 기록해 실제 실패가 반영되지 않았습니다.
+  - **위치:** `OrderSyncController.java:141-155` (구 :149)
+  - **왜 문제인가:** 실제 실패가 운영 기록에 남지 않아 운영자가 실패를 인지하지 못했습니다.
+  - **어떻게 고치면 되나:** 성공/실패 기록을 백그라운드 작업이 끝나는 지점으로 옮깁니다. (해결됨 — 컨트롤러의 가짜 성공 기록 제거, 완료는 이벤트 리스너가 실패 사유까지 담아 기록.)
+  - **상세 문서:** order-sync/sync-esmplus.md
+
+- [ ] **`SYNCA-6` · 🟠 GAP · 스마트스토어만 "취소 감지"가 없어 취소된 주문이 옛 상태로 남는다**
+  - **무엇이 문제인가:** 쿠팡·11번가는 마켓 응답에서 사라진 주문을 "취소됨"으로 바꿔주는 처리가 있는데, 스마트스토어는 이 처리를 하는 자리가 빈 껍데기(아무 일도 안 함)로 남아 있습니다.
+  - **위치:** `SmartStoreOrderSyncService.java:204`
+  - **왜 문제인가:** 스마트스토어에서 취소/삭제된 주문이 마켓 응답에서 빠져도 우리 DB에는 예전 상태(신규/준비중)로 계속 남아, 통합 주문 화면이나 이후 발주·발송 대상에 유령 주문이 섞일 수 있습니다.
+  - **어떻게 고치면 되나:** 스마트스토어에 취소/반품 조회 방법이 있는지 확인하고, 없으면 11번가에서 검증된 방식(응답에서 사라진 미완료 주문을 취소로 처리)을 그대로 옮겨 적용합니다.
+  - **상세 문서:** order-sync/sync-smartstore.md
+
+- [ ] **`SYNCA-14` · 🟠 GAP · 한 주문 안의 상품 개수가 안 맞으면 첫 상품 상태를 전체에 덮어씌운다**
+  - **무엇이 문제인가:** G마켓/옥션 동기화는 마켓이 보내온 상품 목록 개수와 우리 DB의 상품 줄 개수가 다르면, 마켓 목록의 첫 번째 상품 상태를 모든 줄에 똑같이 적용합니다. 우리 쪽에 상품을 정확히 짝지을 식별키가 없기 때문입니다.
+  - **위치:** `Cafe24OrderSyncService.java:207-214`
+  - **왜 문제인가:** 한 주문에 상태가 다른 여러 상품(예: 하나는 배송중, 하나는 취소)이 있고 개수가 어긋나면, 모든 줄이 첫 상품 상태로 덮여 실제와 달라집니다. 이후 발송·정산·취소 판단이 틀어질 수 있습니다.
+  - **어떻게 고치면 되나:** 상품별 식별키(주문 아이템 코드 등)를 저장해 개수가 달라도 정확히 짝짓습니다. 그게 어려우면 최소한 개수 불일치 시 경고 로그를 남기고 상태 덮어쓰기를 보수적으로 제한합니다.
+  - **상세 문서:** order-sync/sync-esmplus.md
+
+- [ ] **`SYNCA-15` · 🟠 GAP · G마켓/옥션에 "취소 감지"가 없어 취소된 주문이 옛 상태로 남는다**
+  - **무엇이 문제인가:** G마켓/옥션 동기화는 새로 받아온 주문을 만들거나 갱신만 하고 끝냅니다. 마켓 응답에 취소 코드가 실려 오면 반영하지만, 아예 응답에서 빠져버린 주문은 감지하지 못합니다.
+  - **위치:** `Cafe24OrderSyncService.java:70-73`
+  - **왜 문제인가:** G마켓/옥션에서 취소되어 응답 목록에서 사라진 주문이 우리 DB에 예전 상태(신규/준비중)로 영원히 남습니다. 쿠팡·11번가는 이 위험을 명시적으로 막았는데 이 경로만 응답 코드에 취소가 실려오길 기대하고 있습니다.
+  - **어떻게 고치면 되나:** Cafe24가 취소·삭제 주문을 응답에 계속 포함하는지 실제로 확인하고, 포함하지 않으면 11번가 방식(응답에서 사라진 미완료 주문을 취소로 처리)을 옮겨 적용합니다.
+  - **상세 문서:** order-sync/sync-esmplus.md
+
+- [ ] **`SYNCB-1` · 🟠 GAP · Cafe24 프리뷰가 시:분:초 없는 날짜를 넘겨 실제 동기화와 다른 결과를 보일 수 있다**
+  - **무엇이 문제인가:** Cafe24 주문 프리뷰(진단용 미리보기) 기능은 날짜를 "년-월-일 시:분:초" 형식으로 넘기기로 약속돼 있는데, 실제로는 시:분:초를 뺀 "년-월-일"만 넘깁니다.
+  - **위치:** `OrderSyncController.java:171-172`
+  - **왜 문제인가:** 시각 정보가 빠져 Cafe24가 해석하는 조회 시간 범위가 실제 동기화 경로와 달라질 수 있습니다. 그러면 프리뷰로 "보이는" 주문 묶음이 실제로 가져오는 주문과 달라, 진단 도구인데 오히려 오해를 부릅니다.
+  - **어떻게 고치면 되나:** 프리뷰도 실제 동기화와 같은 형식(예: 00:00:00~23:59:59)을 쓰거나, 애초의 약속(문서)을 실제 허용 형식으로 정정합니다.
+  - **상세 문서:** order-sync/cafe24-preview.md
+
+- [ ] **`SYNCB-7` · 🟠 GAP · 정산 백그라운드 작업의 실패가 스케줄러 로그로는 전파되지 않는다** (부분 완화)
+  > ⚠️ **부분 완화** (D-087, c4c7faa) — 실패를 삼키는 동작 자체는 그대로지만, 실패 시 ActionLog에는 남도록 보완됨.
+  - **무엇이 문제인가:** 정산 동기화 서비스는 오류가 나면 내부에서 조용히 처리(로그만 남기고 마무리)하고, 그 오류를 바깥으로 다시 던지지 않습니다. 그래서 실패 신호가 이 작업을 호출한 스케줄러 쪽으로 전달되지 않습니다.
+  - **위치:** `CoupangOrderSyncService.java:177-184`
+  - **왜 문제인가:** 워커의 정기 스케줄러(새벽 2시)로 이 작업이 돌다가 실패해도 스케줄러 로그에는 실패가 잡히지 않습니다. 다른 주문 동기화는 실패를 다시 던지는데, 이 경로만 다르게 동작합니다.
+  - **어떻게 고치면 되나:** 다른 동기화처럼 실패를 다시 던져 일관되게 하거나, 조용히 처리하는 게 의도라면 "상태 기록·ActionLog가 정본"임을 명문화합니다. (부분 완화 — 실패 시 ActionLog에 남기는 것은 반영됨. 스케줄러 전파는 별건으로 미해결.)
+  - **상세 문서:** order-sync/coupang-settlement.md
+
+- [ ] **`SYNCB-10` · 🟠 GAP · 통관번호가 비어 있는 주문도 통관 검증 대상에 섞여 들어간다**
+  - **무엇이 문제인가:** 코드 주석은 "통관번호가 없으면 건너뛰고, 통관번호가 있고 대기/오류 상태인 주문만 검증한다"고 적혀 있는데, 실제 조회 조건은 상태만 보고 통관번호가 비었는지는 걸러내지 않습니다.
+  - **위치:** `CustomsOrderSyncService.java:48-53`
+  - **왜 문제인가:** 통관번호가 비었는데 상태가 대기(PENDING)인 주문도 외부 통관 검증(GSI Express)으로 넘어갑니다. 빈 값 처리에 따라 의미 없는 외부 호출이나 불필요한 배치 부풀림이 생길 수 있고, 주석이 약속한 동작이 코드에 없습니다.
+  - **어떻게 고치면 되나:** 조회 조건에 "통관번호가 비어있지 않음"을 추가하거나, 검증 직전에 걸러냅니다. 주석과 실제 동작을 일치시킵니다.
+  - **상세 문서:** order-sync/customs.md
+
+- [ ] **`SYNCB-11` · 🟠 GAP · 통관 검증이 중간에 실패하면 상태는 "실패"인데 일부는 이미 갱신돼 있어 뒤섞인다**
+  - **무엇이 문제인가:** 통관 검증은 30건씩 나눠 각 묶음을 독립적으로 저장(커밋)합니다. 그러다 중간 묶음에서 오류가 나면 전체 상태는 "실패"로 기록되지만, 그 전까지 저장된 묶음의 통관 상태는 이미 갱신된 채 남습니다.
+  - **위치:** `CustomsBatchProcessor.java:37`
+  - **왜 문제인가:** 상태 조회 화면에는 "실패"로 보이지만 실제로는 일부 주문이 검증 완료된 뒤섞인 상태입니다. 다시 실행하면 이미 처리된 건은 대상에서 빠지므로 큰 문제는 아니나, "부분 성공"이 "완전 실패"로 오인될 수 있습니다.
+  - **어떻게 고치면 되나:** 처리된 건수나 실패한 묶음 번호처럼 부분 성공/실패를 표현하는 상태를 함께 남기거나, 실패 시에도 진행분을 별도로 드러냅니다.
+  - **상세 문서:** order-sync/customs.md
+
+### 🟡 SMELL (10건)
+
+- [ ] **`SYNCA-2` · 🟡 SMELL · 쿠팡 동기화 전체가 하나의 긴 트랜잭션에 묶여 있다**
+  - **무엇이 문제인가:** 쿠팡 동기화는 외부 API 호출, 전체 주문 저장, 취소감지·택배사 보정까지 전부를 하나의 트랜잭션(중간에 끊기면 전부 되돌아가는 단위)으로 감쌉니다.
+  - **위치:** `CoupangOrderSyncService.java:57`
+  - **왜 문제인가:** ① 외부 API가 오가는 동안 DB 연결이 계속 붙잡혀 있어 연결을 오래 점유합니다. ② 마지막 주문 처리나 후처리에서 오류가 나면 앞서 저장한 모든 주문이 함께 되돌아가, 부분 성공을 확정할 수 없습니다.
+  - **어떻게 고치면 되나:** 주문(또는 묶음) 단위로 트랜잭션을 나누고, 최소한 외부 API 호출은 트랜잭션 밖으로 빼고 저장만 안에서 합니다.
+  - **상세 문서:** order-sync/sync-coupang.md
+
+- [ ] **`SYNCA-7` · 🟡 SMELL · 스마트스토어에는 "직접 등록한 송장 보호" 장치가 없다 (쿠팡과 다름)**
+  - **무엇이 문제인가:** 쿠팡은 우리가 먼저 등록했지만 아직 마켓에 안 보낸 송장이 있으면 동기화가 그 값을 덮지 않도록 보호합니다. 스마트스토어는 이 보호 없이 마켓 값으로 무조건 덮어씁니다.
+  - **위치:** `SmartStoreOrderSyncService.java:119-124`
+  - **왜 문제인가:** sbshop에서 먼저 등록했지만 아직 마켓 전송 전인 송장이 있으면, 동기화가 마켓의 (빈) 값으로 덮어써 우리 쪽 송장이 사라질 수 있습니다.
+  - **어떻게 고치면 되나:** 스마트스토어의 송장 전송 방식을 확인해 쿠팡과 같은 보호 장치가 필요한지 판단하고, 필요하면 맞춥니다.
+  - **상세 문서:** order-sync/sync-smartstore.md
+
+- [ ] **`SYNCA-8` · 🟡 SMELL · 스마트스토어 동기화 전체가 하나의 긴 트랜잭션 + JVM 내부 중복가드에만 의존**
+  - **무엇이 문제인가:** 스마트스토어 동기화도 외부 API 호출과 전체 저장을 하나의 트랜잭션으로 감싸고, 중복 실행을 막는 장치는 한 프로세스(JVM) 안에서만 통하는 방식입니다.
+  - **위치:** `SmartStoreOrderSyncService.java:48`
+  - **왜 문제인가:** ① 외부 API가 오가는 동안 DB 연결을 오래 붙잡습니다. ② 마지막 처리 오류 시 전체 저장이 되돌아갑니다. ③ 워커 스케줄러와 API 트리거는 서로 다른 프로세스라, 이 중복가드로는 양쪽이 동시에 도는 것을 못 막습니다.
+  - **어떻게 고치면 되나:** 저장을 묶음 단위 트랜잭션으로 나누고, 중복가드를 정산 경로처럼 DB 기반(프로세스를 넘나드는) 방식으로 통일합니다.
+  - **상세 문서:** order-sync/sync-smartstore.md
+
+- [ ] **`SYNCA-10` · 🟡 SMELL · "취소 감지" 로직이 마켓마다 제각각(3중) 구현돼 흩어져 있다**
+  - **무엇이 문제인가:** 응답에서 사라진 주문을 취소로 바꾸는 같은 개념의 로직이, 11번가는 서비스 안에, 쿠팡은 어댑터에, 스마트스토어는 아예 없이 마켓마다 따로 존재합니다. "완료로 간주하는 상태" 판정도 마켓별로 따로 있습니다.
+  - **위치:** `ElevenstOrderSyncService.java:228-267`
+  - **왜 문제인가:** 같은 개념이 세 갈래로 나뉘어 있어 기준이 마켓마다 어긋날 위험이 있고, 유지보수할 때 한 곳만 고쳐 정합이 깨질 수 있습니다.
+  - **어떻게 고치면 되나:** 취소감지 뼈대와 "완료 상태 집합" 판정을 공통 헬퍼로 뽑아내고, 마켓별로 다른 조회원만 끼워 넣도록 하여 기준을 한 곳에서 관리합니다.
+  - **상세 문서:** order-sync/sync-elevenstreet.md
+
+- [ ] **`SYNCA-11` · 🟡 SMELL · 11번가 동기화 전체가 하나의 긴 트랜잭션 + JVM 내부 중복가드에만 의존**
+  - **무엇이 문제인가:** 11번가 동기화도 외부 API 호출, 전체 저장, 취소감지(DB 재조회 포함)를 하나의 트랜잭션으로 감싸고, 중복가드는 한 프로세스 안에서만 통합니다.
+  - **위치:** `ElevenstOrderSyncService.java:49`
+  - **왜 문제인가:** ① 외부 API 왕복 동안 DB 연결을 오래 점유합니다. ② 취소감지 단계에서 오류가 나면 앞서 저장한 것이 전부 되돌아갑니다. ③ 워커 스케줄러와 API 트리거는 서로 다른 프로세스라 동시 실행을 못 막습니다.
+  - **어떻게 고치면 되나:** 저장을 묶음 단위 트랜잭션으로 나누고, 중복가드를 정산 경로처럼 DB 기반(프로세스를 넘나드는) 방식으로 통일합니다.
+  - **상세 문서:** order-sync/sync-elevenstreet.md
+
+- [ ] **`SYNCA-16` · 🟡 SMELL · G마켓/옥션 동기화가 최대 15000건 조회를 하나의 긴 트랜잭션 안에서 반복한다**
+  - **무엇이 문제인가:** G마켓/옥션 동기화는 페이지를 넘겨가며 최대 150페이지(약 15000건)까지 Cafe24 API를 호출하고 저장하는데, 이 전체가 하나의 트랜잭션 안에 들어 있습니다.
+  - **위치:** `Cafe24OrderSyncService.java:60`
+  - **왜 문제인가:** 최대 150페이지를 도는 내내 DB 연결이 붙잡혀 있고, 뒷 페이지에서 오류가 나면 앞서 저장한 모든 페이지가 되돌아갑니다. 다른 동기화보다 반복이 길어 위험이 더 큽니다.
+  - **어떻게 고치면 되나:** 페이지(또는 주문) 단위로 트랜잭션을 나눠 성공분을 확정하고, 외부 호출을 트랜잭션 밖으로 뺍니다.
+  - **상세 문서:** order-sync/sync-esmplus.md
+
+- [ ] **`SYNCB-4` · 🟡 SMELL · Cafe24 택배사 조회 실패인데 로그 문구는 "주문 프리뷰 실패"로 잘못 찍힌다**
+  - **무엇이 문제인가:** Cafe24 택배사 목록 조회가 실패했을 때 남기는 오류 로그 문구가, 옆 기능인 "주문 프리뷰"의 문구를 그대로 복사해 써서 실제와 다르게 찍힙니다.
+  - **위치:** `OrderSyncController.java:187`
+  - **왜 문제인가:** 운영 로그만 봐서는 어느 진단 호출이 실패한 건지 구분할 수 없습니다. 두 기능의 실패가 똑같은 문구로 남아 원인 추적을 방해합니다.
+  - **어떻게 고치면 되나:** "Cafe24 택배사 프리뷰 실패"처럼 실제 기능에 맞는 문구로 분리합니다.
+  - **상세 문서:** order-sync/cafe24-carriers.md
+
+- [ ] **`SYNCB-8` · 🟡 SMELL · 정산 조회 기간(31일 전~1일 전)이 코드에 고정돼 바꿀 수 없다**
+  - **무엇이 문제인가:** 쿠팡 정산 조회 범위가 "31일 전부터 1일 전까지"로 코드에 박혀 있어, 과거 정산을 다시 맞추거나 특정 기간만 다시 처리할 수 없습니다.
+  - **위치:** `CoupangOrderSyncService.java:113-114`
+  - **왜 문제인가:** 31일보다 늦게 확정되는 정산이나 빠진 분을 소급해서 반영하려 해도, 이 기능으로는 불가능합니다.
+  - **어떻게 고치면 되나:** 조회 기간을 선택 가능한 요청 값으로 노출하되 기본값은 그대로 둡니다.
+  - **상세 문서:** order-sync/coupang-settlement.md
+
+- [ ] **`SYNCB-9` · 🟡 SMELL · 정산 시 모든 쿠팡 주문을 통째로 훑고 한 건씩 저장해 쿼리가 폭증한다**
+  - **무엇이 문제인가:** 정산 동기화는 모든 쿠팡 주문을 다 불러온 뒤, 주문마다·상품마다 개별 조회를 하고, 바뀐 줄을 하나씩 저장합니다.
+  - **위치:** `CoupangOrderSyncService.java:130-163`
+  - **왜 문제인가:** 쿠팡 주문이 쌓일수록 정산 한 번이 (주문수 × 줄수 + 상품조회)만큼의 대량 쿼리로 부풀고, 하나의 긴 트랜잭션 안에서 오래 돌아 DB 연결·잠금을 장시간 점유할 위험이 있습니다.
+  - **어떻게 고치면 되나:** 배송완료 줄만 골라 조회하고, 상품 코드를 한꺼번에 조회하며, 저장도 모아서 하도록 왕복을 줄이거나, 통관처럼 배치 트랜잭션으로 나눕니다.
+  - **상세 문서:** order-sync/coupang-settlement.md
+
+- [ ] **`SYNCB-12` · 🟡 SMELL · 통관 검증의 배치 크기·대기시간·대상 상태가 코드에 고정돼 있다**
+  - **무엇이 문제인가:** 통관 검증에서 한 번에 처리하는 건수(30건), 배치 사이 대기시간(1초), 검증 대상으로 삼는 상태 목록이 모두 코드에 박혀 있습니다.
+  - **위치:** `CustomsOrderSyncService.java:17-19`
+  - **왜 문제인가:** 외부 사이트의 부하나 응답 속도가 바뀌어도 조정할 수 없고, 새로운 오류 상태가 생기면 이 목록을 고치는 것을 빠뜨릴 위험이 있습니다.
+  - **어떻게 고치면 되나:** 이 값들을 설정으로 빼내고, 대상 상태는 한 곳(예: 상태 열거형의 헬퍼)에서 모아 관리합니다.
+  - **상세 문서:** order-sync/customs.md
+
+### 🔵 NOTE (9건)
+
+- [ ] **`SYNCA-3` · 🔵 NOTE · 쿠팡 조회 범위 30일이 코드에 고정돼 바꿀 수 없다**
+  - **무엇이 문제인가:** 쿠팡 주문 조회 범위가 "최근 30일"로 코드에 박혀 있고, 요청으로 기간을 바꿀 방법이 없습니다.
+  - **위치:** `CoupangOrderSyncService.java:73`
+  - **왜 문제인가:** 30일보다 오래된 취소·변경은 감지 대상에서 벗어납니다. 재처리나 과거 데이터 보충이 필요할 때 코드 수정 없이는 범위를 못 바꿉니다.
+  - **어떻게 고치면 되나:** 의도된 정책이면 문서로 남기고, 아니면 조회 범위를 설정값이나 요청 값으로 빼냅니다.
+  - **상세 문서:** order-sync/sync-coupang.md
+
+- [ ] **`SYNCA-4` · 🔵 NOTE · 쿠팡 주문 동기화의 중복가드가 프로세스를 넘나들지 못한다**
+  - **무엇이 문제인가:** 쿠팡 주문 동기화의 중복 실행 방지 장치는 한 프로세스(JVM) 안에서만 통합니다. 반면 정산 동기화는 DB를 이용해 프로세스를 넘나드는 방식을 씁니다.
+  - **위치:** `CoupangOrderSyncService.java:53,60`
+  - **왜 문제인가:** 워커 스케줄러(한 프로세스)와 API 수동 트리거(다른 프로세스)가 거의 동시에 실행되면, 이 장치가 서로 독립적이라 쿠팡 주문 동기화가 동시에 2번 돌 수 있습니다.
+  - **어떻게 고치면 되나:** 주문 동기화도 정산처럼 DB 기반(프로세스를 넘나드는) 잠금으로 통일합니다.
+  - **상세 문서:** order-sync/sync-coupang.md
+
+- [ ] **`SYNCA-12` · 🔵 NOTE · 11번가에는 "직접 등록한 송장 보호" 장치가 없다 (쿠팡과 다름)**
+  - **무엇이 문제인가:** 11번가 동기화는 쿠팡과 달리, 마켓에 아직 안 보낸 송장을 보호하는 장치 없이 마켓 값으로 무조건 송장·택배사를 반영합니다.
+  - **위치:** `ElevenstOrderSyncService.java:115-126`
+  - **왜 문제인가:** sbshop에서 먼저 등록했지만 아직 마켓 전송 전인 송장이 있으면, 동기화가 마켓 값으로 덮어써 사라질 수 있습니다(마켓의 전송 방식에 따라 조건부).
+  - **어떻게 고치면 되나:** 11번가의 송장 전송 방식을 확인한 뒤 보호 장치가 필요한지 판단합니다.
+  - **상세 문서:** order-sync/sync-elevenstreet.md
+
+- [ ] **`SYNCA-17` · 🔵 NOTE · G마켓/옥션 동기화의 중복가드가 프로세스를 넘나들지 못한다**
+  - **무엇이 문제인가:** G마켓/옥션 동기화의 중복 실행 방지 장치도 한 프로세스 안에서만 통합니다. 워커 스케줄러와 API 트리거는 서로 다른 프로세스입니다.
+  - **위치:** `Cafe24OrderSyncService.java:57,62`
+  - **왜 문제인가:** 스케줄러 실행과 수동 트리거가 겹치면 같은 동기화가 두 프로세스에서 2번 돌 수 있습니다. 최대 15000건을 도는 긴 루프(SYNCA-16)와 겹치면 부하·중복 저장 위험이 커집니다.
+  - **어떻게 고치면 되나:** 정산 경로처럼 DB 기반(프로세스를 넘나드는) 잠금으로 통일합니다.
+  - **상세 문서:** order-sync/sync-esmplus.md
+
+- [ ] **`SYNCB-2` · 🔵 NOTE · Cafe24 프리뷰가 부작용 없는 조회인데 POST로 노출되고 기록도 안 남긴다**
+  - **무엇이 문제인가:** Cafe24 주문 프리뷰는 아무것도 바꾸지 않고 읽기만 하는 조회인데, 방식이 POST로 열려 있고 다른 동기화와 달리 실행 기록(ActionLog)도 남기지 않습니다.
+  - **위치:** `OrderSyncController.java:166`
+  - **왜 문제인가:** 관례상 읽기 조회는 GET이 자연스럽습니다. 또 실행 기록이 없어 누가 언제 외부 API를 호출했는지 추적할 수 없습니다.
+  - **어떻게 고치면 되나:** 진단 편의상 POST가 의도라면 문서로 남기고, 감사가 필요하면 최소한의 로그라도 남기는 것을 검토합니다.
+  - **상세 문서:** order-sync/cafe24-preview.md
+
+- [ ] **`SYNCB-3` · 🔵 NOTE · Cafe24 프리뷰가 항상 첫 페이지 5건만 보여준다 (개수·위치 고정)**
+  - **무엇이 문제인가:** Cafe24 프리뷰는 조회 건수 5, 시작 위치 0이 코드에 박혀 있어 언제나 첫 5건만 보여줍니다.
+  - **위치:** `OrderSyncController.java:172`
+  - **왜 문제인가:** 특정 주문 구조를 확인하려 해도 다음 페이지로 넘길 수 없어 진단 범위가 좁습니다.
+  - **어떻게 고치면 되나:** 필요하면 조회 건수·시작 위치를 요청 값으로 노출합니다(진단 도구 한정).
+  - **상세 문서:** order-sync/cafe24-preview.md
+
+- [ ] **`SYNCB-5` · 🔵 NOTE · Cafe24 택배사 조회도 부작용 없는 조회인데 POST로 노출되고 기록도 안 남긴다**
+  - **무엇이 문제인가:** Cafe24 택배사 목록 조회 역시 읽기만 하는 조회인데 POST로 열려 있고 실행 기록(ActionLog)을 남기지 않습니다.
+  - **위치:** `OrderSyncController.java:182`
+  - **왜 문제인가:** SYNCB-2와 같은 문제입니다. 관례상 GET이 자연스럽고, 감사 흔적이 남지 않습니다.
+  - **어떻게 고치면 되나:** POST 유지가 의도라면 문서로 남깁니다(cafe24-preview SYNCB-2와 공통 이슈).
+  - **상세 문서:** order-sync/cafe24-carriers.md
+
+- [ ] **`SYNCB-13` · 🔵 NOTE · 동기화 상태를 응답으로 만들 때 같은 값을 두 번 옮겨 담는다**
+  - **무엇이 문제인가:** 동기화 상태를 조회할 때, 서비스가 DB 데이터를 내부 형식으로 한 번 옮겨 담고, 컨트롤러가 그것을 다시 응답 형식으로 옮겨 담습니다. 같은 4개 값을 두 번 복사하는 셈입니다.
+  - **위치:** `SyncStatusService.java:102-108`
+  - **왜 문제인가:** 기능상 문제는 없지만, 나중에 값을 하나 추가할 때 두 곳을 함께 고쳐야 하는 번거로움이 있습니다.
+  - **어떻게 고치면 되나:** 서비스가 곧바로 응답 형식으로 반환하도록 단순화하는 것을 검토합니다. 기존 계약 유지가 우선이면 현행 유지하고 문서로 남깁니다.
+  - **상세 문서:** order-sync/status.md
+
+- [ ] **`SYNCB-14` · 🔵 NOTE · 동기화 상태 조회에 인증/권한 장치가 없고 오류 원문이 노출될 수 있다**
+  - **무엇이 문제인가:** 동기화 상태 조회는 별도 인증 없이 열려 있고, 응답에 외부 API 실패 원문(errorMessage)이 포함될 수 있습니다.
+  - **위치:** `OrderSyncController.java:34`
+  - **왜 문제인가:** 프로젝트 정책상 보안은 중요치 않다고 명시돼 즉시 결함은 아니지만, errorMessage에 내부 오류나 외부 응답 조각이 노출될 여지가 있습니다.
+  - **어떻게 고치면 되나:** 필요 시 errorMessage 노출 범위를 검토(운영자 전용으로 가릴지)합니다. 현 정책상 참고용으로만 기록합니다.
+  - **상세 문서:** order-sync/status.md
 
 ---
 
-## 하단 메모
+## 상품 (product) — `product/`
+> 상품을 조회하고, 가격·재고를 바꾸고, 상세페이지 이미지를 올리거나 외부 사이트에서 긁어와 저장하고, 상품을 삭제하는 기능들입니다. 발견 23건 (🔴0 · 🟠6 · 🟡7 · 🔵10).
 
-- 실제 수정은 `sbshop-normalize` 스킬 소관. 이 체크리스트는 진단·기록 전용이다.
-- 1차(`docs/api-analysis/FINDINGS-CHECKLIST.md`)와 별개의 현재-코드 기준 신규 집계다. 1차의 F-* 식별자와 무관한 2차 유닛 식별자(ORDA-·SYNCB- 등) 체계를 사용한다.
-- 🔴/🟠 중 재현 가능한 것은 `docs/normalize/defect-ledger.md`로 승격 등재 후보.
+### 🟠 GAP (6건)
+
+- [ ] **`PRODA-3` · 🟠 GAP · 전체수정으로 가격·이름을 바꿔도 연동된 마켓에는 반영되지 않는다**
+  - **무엇이 문제인가:** 상품 "전체수정" 화면에서 판매가나 상품명, 상세설명을 바꾸면 우리 쪽 데이터베이스만 바뀌고, 이미 쿠팡·스마트스토어 같은 마켓에 올라간 상품 정보는 그대로 남습니다. 같은 시스템의 "가격/재고 수정"이나 "이미지 수정"은 마켓까지 자동으로 반영하는데, 전체수정만 반영하지 않아 동작이 서로 다릅니다.
+  - **위치:** `ProductManageUseCase.java:169-176`
+  - **왜 문제인가:** 운영자가 전체수정으로 가격을 낮췄는데 마켓에는 옛날 가격이 그대로 노출됩니다. "가격 고쳤다"고 믿는데 실제 판매 가격은 안 바뀌어 있어 손실·혼란이 생깁니다.
+  - **어떻게 고치면 되나:** 전체수정 후에도 마켓에 다시 반영(재게시)되게 하거나, 최소한 이 화면은 "우리 DB만 바뀐다"는 점을 화면에 분명히 표시합니다. 의도적으로 분리한 설계일 수 있으니 정책 결정이 필요합니다.
+  - **상세 문서:** product/update-product.md
+
+- [ ] **`PRODA-6` · 🟠 GAP · 마켓 삭제가 실패해도 우리 쪽 등록기록은 바로 지워져, 나중에 되찾을 수 없다**
+  - **무엇이 문제인가:** 상품을 완전 삭제할 때 마켓 쪽 삭제가 실패하더라도, 우리 데이터베이스의 등록기록은 무조건 전부 지웁니다. 그래서 실패한 마켓에는 상품이 남아있는데 우리 쪽엔 그 연결고리가 사라집니다.
+  - **위치:** `ProductManageUseCase.java:220-224` (이후 `ProductDeleteTxService.java:40-42`)
+  - **왜 문제인가:** 만약 화면이나 통신 문제로 실패 알림을 놓치면, 마켓엔 상품이 남고 우리 쪽엔 기록이 없어 다시 삭제하거나 연결할 방법이 없는 "고아 상품"이 됩니다.
+  - **어떻게 고치면 되나:** 실패한 마켓의 등록기록은 지우지 말고 남겨서 재시도할 수 있게 하거나, 실패분을 "정리 대기" 목록으로 따로 옮깁니다. 최소한 실패 시 재시도 안내를 응답에 담습니다.
+  - **상세 문서:** product/delete-product.md
+
+- [ ] **`PRODA-7` · 🟠 GAP · 삭제에 필요한 상품코드가 없어도 그냥 빈 값으로 마켓 삭제를 호출한다**
+  - **무엇이 문제인가:** 마켓에서 상품을 삭제하려면 그 상품의 코드가 필요한데, 코드가 없는(비어있는) 경우에도 코드 없이 삭제 요청을 그대로 보냅니다. 비슷한 다른 기능(재게시)은 코드가 없으면 명확히 막는데, 삭제는 막지 않습니다.
+  - **위치:** `ProductManageUseCase.java:206-216`
+  - **왜 문제인가:** 코드 없이 삭제를 보내면 마켓에 따라 엉뚱한 상품이 지워지거나, 전체 상품에 영향을 주거나, 모호한 오류가 날 수 있습니다. 게다가 어떤 상품이었는지 기록도 남지 않습니다.
+  - **어떻게 고치면 되나:** 삭제코드가 없으면 마켓 호출을 건너뛰고 "삭제 식별자 없음"이라는 이유로 실패 처리해 기록에 남깁니다.
+  - **상세 문서:** product/delete-product.md
+
+- [ ] **`PRODB-4` · 🟠 GAP · 올린 이미지가 전부 처리 실패해도 오류 없이 "빈 이미지"로 저장돼 상세페이지 그림이 사라질 수 있다**
+  - **무엇이 문제인가:** 이미지를 여러 장 올렸는데 크기 변환이 전부 실패하면, 시스템은 "성공한 이미지 0장" 상태로 그냥 저장을 진행합니다. 그 결과 상세페이지의 이미지가 빈 목록으로 교체됩니다. URL로 올리는 경로는 빈 목록을 막는데, 이 경로는 막지 않아 동작이 다릅니다.
+  - **위치:** `ProductController.java:438-465`, `ProductManageUseCase.java:88`
+  - **왜 문제인가:** 사용자가 이미지를 분명히 올렸는데도 성공은 200(정상)으로 나오고, 상세페이지의 상품 이미지가 통째로 사라질 수 있습니다.
+  - **어떻게 고치면 되나:** 성공 이미지가 0장이고 실패만 있으면 400/422 오류로 거부하거나, 빈 목록일 때는 상세페이지 이미지 교체를 건너뛰도록 막습니다.
+  - **상세 문서:** product/update-images.md
+
+- [ ] **`PRODB-7` · 🟠 GAP · URL로 이미지 저장 시, 모든 URL 다운로드가 실패해도 빈 이미지로 저장된다**
+  - **무엇이 문제인가:** 이미지 URL 목록을 넣어 저장할 때, 입구에서는 목록이 비었는지만 확인합니다. 실제로 URL을 넣었지만 전부 다운로드에 실패(404·시간초과 등)하면 성공 0장으로 그냥 저장이 진행됩니다. PRODB-4와 같은 원인입니다.
+  - **위치:** `ProductController.java:152-154`, `ImageDownloadService.java:43-77`, `ProductManageUseCase.java:88`
+  - **왜 문제인가:** 유효한 URL을 여러 개 넣었는데 다 실패한 경우에도 정상(200)으로 처리되고, 상세페이지 이미지가 빈 목록으로 바뀌어 그림이 사라질 수 있습니다.
+  - **어떻게 고치면 되나:** 공통 처리부에 "성공 0장이고 실패가 있으면 422로 거부"하는 가드를 추가합니다.
+  - **상세 문서:** product/update-images-by-url.md
+
+- [ ] **`PRODB-12` · 🟠 GAP · 실제로 아무것도 저장 안 했는데 응답은 "저장됨(true)"으로 내려간다**
+  - **무엇이 문제인가:** 외부 사이트에서 이미지를 긁어와 저장하는 기능에서, 소싱 URL이 없거나 긁힌 이미지가 0개인 경우 아무 저장도 하지 않고 바로 응답합니다. 그런데 이 응답의 "저장됨" 표시가 항상 참(true)으로 고정돼 있습니다.
+  - **위치:** `ProductController.java:200-201`, `:207-208`, `ImageUploadResponse.java:40-42`, `:49-62`
+  - **왜 문제인가:** 화면은 "저장됨=true"를 "저장 성공"으로 이해하기로 약속돼 있는데, 실제로는 아무것도 저장하지 않은 경우에도 성공처럼 보여 "저장 완료"로 잘못 표시할 수 있습니다.
+  - **어떻게 고치면 되나:** 빈 결과로 바로 응답할 때는 "저장됨=false"나 "건너뜀(skipped)" 같은 별도 상태를 내려 실제 저장 여부를 정직하게 보여줍니다.
+  - **상세 문서:** product/crawl-and-upload-images.md
+
+### 🟡 SMELL (7건)
+
+- [ ] **`PRODA-4` · 🟡 SMELL · 전체수정에서 재고 수량만 바꾸면 품절/판매중 표시가 따로 놀 수 있다**
+  - **무엇이 문제인가:** 전체수정에서 재고 수량을 바꿔도, 품절인지 판매중인지(재고상태)는 자동으로 다시 계산되지 않습니다. "가격/재고 수정" 경로는 재고상태를 함께 갱신하는데 전체수정엔 그 연결이 없습니다.
+  - **위치:** `Product.java:214-228`, `:282-284`
+  - **왜 문제인가:** 예를 들어 재고를 0으로 바꿔도 상태는 "판매중"으로 남아, 목록이나 마켓의 재고표시와 어긋납니다. 반대로 재고를 채워도 "품절"로 남을 수 있습니다.
+  - **어떻게 고치면 되나:** 전체수정에서 재고를 바꾸면 재고상태를 다시 계산하게 하거나, "재고상태는 가격/재고 전용 화면에서만 다룬다"는 역할 경계를 문서로 명확히 합니다.
+  - **상세 문서:** product/update-product.md
+
+- [ ] **`PRODA-8` · 🟡 SMELL · 마켓 삭제 순회 로직이 재게시 로직과 거의 똑같이 중복되어 있다**
+  - **무엇이 문제인가:** 상품 삭제할 때 마켓들을 하나씩 돌며 성공/건너뜀/실패로 나눠 모으는 코드가, 재게시 기능의 코드와 형태가 거의 같습니다. 같은 패턴이 여러 곳에 복사돼 있습니다.
+  - **위치:** `ProductManageUseCase.java:203-225` (및 `:115-155`)
+  - **왜 문제인가:** 지금 동작은 정상이지만, 같은 패턴이 최소 2~3곳에 중복돼 있어 나중에 정책을 바꿀 때 한 곳을 빠뜨리기 쉽습니다.
+  - **어떻게 고치면 되나:** "마켓 순회 + 성공/건너뜀/실패 3분류 수집" 공통 함수로 뽑아내 한 곳에서 관리합니다(동작은 그대로).
+  - **상세 문서:** product/delete-product.md
+
+- [ ] **`PRODB-2` · 🟡 SMELL · 마켓 반영이 전부 실패해도 활동로그는 "성공"으로 남는다 (가격/재고)**
+  - **무엇이 문제인가:** 가격/재고를 바꿀 때 마켓 반영이 실패해도 활동로그 상태는 항상 "성공"으로 기록됩니다. 실패 내용은 로그 메시지 본문에만 덧붙습니다.
+  - **위치:** `ProductController.java:122-123`, `:381-403`
+  - **왜 문제인가:** 마켓 반영이 전부 실패해도 로그 상태는 성공이라, 상태값으로 걸러보는 모니터링에서는 실패가 드러나지 않습니다.
+  - **어떻게 고치면 되나:** 실패한 마켓이 있으면 로그 상태를 실패(또는 별도 표기)로 나누도록 정책을 통일합니다.
+  - **상세 문서:** product/update-price-stock.md
+
+- [ ] **`PRODB-6` · 🟡 SMELL · 마켓 반영이 전부 실패해도 활동로그는 "성공"으로 남는다 (이미지 업로드)**
+  - **무엇이 문제인가:** 이미지 업로드(파일 첨부) 경로에서도, 마켓 재게시가 실패해도 활동로그 상태는 항상 "성공"으로 기록됩니다. PRODB-2와 같은 문제입니다.
+  - **위치:** `ProductController.java:240-241`, `:471-479`
+  - **왜 문제인가:** 마켓 재게시가 전부 실패해도 로그 상태가 성공으로 남아 상태 기준 모니터링에서 실패가 안 보입니다.
+  - **어떻게 고치면 되나:** 실패가 있으면 상태를 나누도록 3개 경로 공통 처리부에서 통일합니다.
+  - **상세 문서:** product/update-images.md
+
+- [ ] **`PRODB-8` · 🟡 SMELL · 다운로드한 이미지 파일명이 순번으로만 붙어 원본 URL을 추적하기 어렵다**
+  - **무엇이 문제인가:** URL로 이미지를 받을 때 파일명을 원본 주소와 상관없이 `crawled-image-1.jpg`처럼 순번으로만 붙입니다.
+  - **위치:** `ImageDownloadService.java:61`
+  - **왜 문제인가:** 저장된 파일이 어떤 원본 URL에서 왔는지 알기 어려워, 문제를 추적할 때 파악이 힘듭니다(기능 오류는 아님).
+  - **어떻게 고치면 되나:** URL로 받는 경로에 한해 원본 URL을 바탕으로 파일명을 짓도록 검토합니다.
+  - **상세 문서:** product/update-images-by-url.md
+
+- [ ] **`PRODB-9` · 🟡 SMELL · 마켓 반영이 전부 실패해도 활동로그는 "성공"으로 남는다 (URL 이미지)**
+  - **무엇이 문제인가:** URL로 이미지를 저장하는 경로에서도 마켓 재게시가 실패해도 활동로그 상태가 항상 "성공"으로 기록됩니다. PRODB-6과 같은 문제입니다.
+  - **위치:** `ProductController.java:240-241`
+  - **왜 문제인가:** 마켓 재게시가 전부 실패해도 로그 상태가 성공으로 남습니다.
+  - **어떻게 고치면 되나:** 3개 경로 공통 처리부에서 실패 여부에 따라 상태를 나눕니다.
+  - **상세 문서:** product/update-images-by-url.md
+
+- [ ] **`PRODB-14` · 🟡 SMELL · 마켓 반영이 전부 실패해도 활동로그는 "성공"으로 남는다 (크롤+업로드)**
+  - **무엇이 문제인가:** 외부 사이트에서 이미지를 긁어와 저장하는 경로에서도, 마켓 재게시가 실패해도 활동로그 상태가 항상 "성공"으로 기록됩니다. 앞의 PRODB-2/6/9와 뿌리가 같습니다.
+  - **위치:** `ProductController.java:240-241`
+  - **왜 문제인가:** 마켓 재게시가 전부 실패해도 로그 상태가 성공으로 남습니다.
+  - **어떻게 고치면 되나:** 공통 처리부에서 실패 여부에 따라 상태를 나누도록 통일합니다.
+  - **상세 문서:** product/crawl-and-upload-images.md
+
+### 🔵 NOTE (10건)
+
+- [ ] **`PRODA-1` · 🔵 NOTE · 잘못된 마켓 필터로 조회해도 안전하게 막히지만, 흔적이 안 남는다**
+  - **무엇이 문제인가:** 상품 목록을 조회할 때 없는 마켓 이름으로 필터를 걸면 400 오류로 안전하게 처리됩니다. 다만 조회 경로에는 활동로그가 없어 어떤 잘못된 필터가 들어왔는지 기록이 남지 않습니다.
+  - **위치:** `ProductController.java:85`, `GlobalExceptionHandler.java:44-50`
+  - **왜 문제인가:** 기능은 안전(400 반환)하지만, 어떤 잘못된 필터가 들어왔는지 관측할 수단이 없습니다. 심각도 낮음.
+  - **어떻게 고치면 되나:** 필요하면 필터 파싱을 감싸 "지원하지 않는 마켓 필터"라는 통일된 메시지를 냅니다. 현재 동작은 정상입니다.
+  - **상세 문서:** product/list-products.md
+
+- [ ] **`PRODA-2` · 🔵 NOTE · 마켓 코드가 없는 등록건에 우리 상품 id를 대신 넣어, 실제 마켓코드와 구분이 모호하다**
+  - **무엇이 문제인가:** 목록을 만들 때 마켓 상품코드가 비어있으면 우리 쪽 상품 id를 그 자리에 대신 채웁니다.
+  - **위치:** `ProductController.java:425-428`
+  - **왜 문제인가:** 화면 목록에서 "마켓에 등록됨(코드=우리 id)"처럼 보여, 실제 마켓코드가 아직 없는(등록 진행중/실패) 상태와 구분이 헷갈립니다. 목록 표시용이라 오작동은 아닙니다.
+  - **어떻게 고치면 되나:** 대체값을 "미확인" 같은 명확한 표식으로 바꿔 우리 id로 오인하지 않게 합니다(계약 변경이라 프론트 합의 필요).
+  - **상세 문서:** product/list-products.md
+
+- [ ] **`PRODA-5` · 🔵 NOTE · 수정 성공 응답에 내용이 없어, 클라이언트가 다시 조회해야 한다**
+  - **무엇이 문제인가:** 전체수정이 성공하면 내용 없는 200 응답만 돌아옵니다. 어떤 값으로 바뀌었는지 상품 정보는 담겨오지 않습니다.
+  - **위치:** `ProductController.java:309`
+  - **왜 문제인가:** 화면이 바뀐 값을 보여주려면 별도로 상세 조회를 다시 해야 합니다. 기능 오류는 아닙니다.
+  - **어떻게 고치면 되나:** 필요하면 수정 후 갱신된 상품 정보를 함께 반환하도록 검토합니다(계약 변경).
+  - **상세 문서:** product/update-product.md
+
+- [ ] **`PRODA-9` · 🔵 NOTE · 일부 마켓 삭제가 실패해도 응답은 항상 200이라, 상태코드만으로는 부분 실패를 모른다**
+  - **무엇이 문제인가:** 삭제 중 일부 마켓이 실패해도 예외만 없으면 항상 정상(200)으로 응답합니다. 실패는 응답 본문의 실패 목록에만 담깁니다.
+  - **위치:** `ProductController.java:325-326`, `ProductManageUseCase.java:256`
+  - **왜 문제인가:** 상태코드로 성공/부분실패를 구분하는 클라이언트는 부분 실패를 놓칠 수 있습니다. 부분 실패 인지는 전적으로 응답 본문의 실패 목록을 읽는지에 달렸습니다.
+  - **어떻게 고치면 되나:** 계약을 유지한다면 화면이 반드시 실패 목록을 표시하도록 문서화합니다(또는 부분 실패 시 207 응답 검토 — 계약 변경).
+  - **상세 문서:** product/delete-product.md
+
+- [ ] **`PRODB-1` · 🔵 NOTE · 마켓 반영(외부 통신)이 DB 트랜잭션 안에서 실행돼 커넥션을 오래 잡는다 (가격/재고)**
+  - **무엇이 문제인가:** 가격/재고 수정 전체가 하나의 DB 트랜잭션으로 묶여 있고, 그 안에서 여러 마켓에 외부 HTTP 통신을 합니다. 완전삭제 경로는 파괴적 외부 호출을 트랜잭션 밖으로 뺐는데 이 경로는 안 그렇습니다.
+  - **위치:** `ProductManageUseCase.java:57`, `:80`, `ProductMarketSyncService.java:77-79`
+  - **왜 문제인가:** 여러 마켓에 순차 통신하는 동안 상품 데이터 트랜잭션이 계속 열려 있어, 마켓 응답이 느릴수록 DB 커넥션/락을 오래 점유해 커넥션 고갈 위험이 있습니다.
+  - **어떻게 고치면 되나:** DB 저장(짧은 트랜잭션)과 마켓 반영(트랜잭션 밖)을 분리하는 방안을 검토합니다(완전삭제 경로 패턴과 맞춤).
+  - **상세 문서:** product/update-price-stock.md
+
+- [ ] **`PRODB-3` · 🔵 NOTE · 재고가 "판매중/품절" 두 가지로만 반영되고 실제 수량은 마켓에 안 넘어간다**
+  - **무엇이 문제인가:** 가격/재고 수정 경로는 실제 재고 수량을 다루지 않고, 판매중이면 기본수량, 품절이면 1로 고정해 마켓에 반영합니다.
+  - **위치:** `ProductMarketSyncService.java:45-47`, `ProductManageUseCase.java:62`
+  - **왜 문제인가:** 이 경로에는 "실제 재고 수량" 개념이 없습니다. 의도된 설계지만 "재고 수정"이라는 이름과 실제 동작(재고상태 토글) 사이에 간극이 있어 문서화가 필요합니다.
+  - **어떻게 고치면 되나:** 의도된 설계라면 명세에 "재고상태 토글(수량 미반영)"이라고 명확히 적습니다.
+  - **상세 문서:** product/update-price-stock.md
+
+- [ ] **`PRODB-5` · 🔵 NOTE · 이미지 저장·HTML 교체·마켓 재게시가 한 트랜잭션에 묶여 있고, 실패 시 R2 고아 파일이 남을 수 있다**
+  - **무엇이 문제인가:** 이미지 저장소(R2) 업로드, 상세HTML 교체, 마켓 재게시가 모두 하나의 DB 트랜잭션 안에서 실행됩니다.
+  - **위치:** `ProductManageUseCase.java:83`, `:88`, `:136`, `R2ImageStorageClient.java:55`
+  - **왜 문제인가:** 외부 통신 동안 트랜잭션이 오래 열려 커넥션을 오래 잡습니다. 또한 실패로 DB가 롤백되어도 이미 저장소에 올라간 파일은 되돌려지지 않아 "고아 파일"이 남을 수 있습니다.
+  - **어떻게 고치면 되나:** 저장소 저장·DB 커밋과 마켓 재게시의 트랜잭션을 분리하는 방안을 검토하고, 최소한 부분 업로드 후 롤백 시 고아 파일 정리 정책을 문서화합니다.
+  - **상세 문서:** product/update-images.md
+
+- [ ] **`PRODB-10` · 🔵 NOTE · 이미지를 0개 긁어온 경우와 정상적으로 여러 개 긁어온 경우가 같은 로그로 남는다**
+  - **무엇이 문제인가:** 소스이미지 크롤 조회에서 이미지가 0개인 경우도 "0개 수집 성공"으로 기록해, 정상 수집과 같은 로그 타입·상태로 남습니다. (반면 크롤+업로드 경로는 0개를 별도 메시지로 구분합니다.)
+  - **위치:** `ProductController.java:174-178`, `:169-173`, `:204-209`
+  - **왜 문제인가:** 기능 결함은 아니지만, "왜 0개인지"(정제 후 다 탈락 vs 원래 이미지 없음)가 로그로 구분되지 않아 진단하기 어렵습니다.
+  - **어떻게 고치면 되나:** 0개 경우를 크롤+업로드 경로와 같은 세분화 메시지로 맞춥니다.
+  - **상세 문서:** product/crawl-source-images.md
+
+- [ ] **`PRODB-11` · 🔵 NOTE · 크롤 자체가 실패(차단·파싱 실패)해도 "이미지 없음(0개)"처럼 성공으로 기록된다**
+  - **무엇이 문제인가:** 외부 페이지 크롤이 실패해 결과가 비어(null)오면, 시스템은 빈 목록으로 처리해 "0개 수집 성공"으로 기록합니다. 예외가 던져진 경우만 실패로 남고, 이렇게 조용히 실패한 경우는 성공과 구분되지 않습니다.
+  - **위치:** `ProductController.java:262-263`, `:174-178`, `IherbScraperClient.java:220-223`, `:234-236`
+  - **왜 문제인가:** 소스 페이지 차단·파싱 실패로 실제로 크롤이 실패했는데도 사용자·로그에는 "이미지 없음(0개)"으로 보여 원인을 잘못 진단할 수 있습니다.
+  - **어떻게 고치면 되나:** 크롤 결과가 비어(null) 오면(소싱 URL은 있음) "크롤 실패/결과 없음"을 구분해 로그·응답에 드러냅니다.
+  - **상세 문서:** product/crawl-source-images.md
+
+- [ ] **`PRODB-13` · 🔵 NOTE · 크롤 실패와 저장 실패가 같은 실패 로그로 묶여 원인 구분이 어렵다**
+  - **무엇이 문제인가:** 이미지 크롤+업로드에서, 크롤/다운로드 단계 실패와 저장 단계 실패를 같은 로그 타입에 같은 문구("크롤·업로드 실패")로 기록합니다. 두 단계는 트랜잭션 경계도 다릅니다.
+  - **위치:** `ProductController.java:213-218`, `:243-247`, `ProductManageUseCase.java:83`
+  - **왜 문제인가:** 의도된 설계(실패 로그를 정확히 한 번만)이지만, 실패가 크롤 단계인지 저장 단계인지 로그만으로는 구분되지 않아 예외 메시지에 의존해야 합니다.
+  - **어떻게 고치면 되나:** 단계별 실패 문구(크롤 실패/다운로드 실패/저장 실패)를 세분화하거나, 현행 유지 시 이 결합을 문서로 남깁니다.
+  - **상세 문서:** product/crawl-and-upload-images.md
+
+---
+
+## 배치 (batch) — `batch/`
+> 여러 상품의 가격·재고를 한꺼번에 갱신하거나 소싱 사이트를 크롤해서 대량으로 업데이트하는, 화면 뒤에서 오래 돌아가는 작업들입니다. 작업을 시작하면 batchId(작업 번호)를 받고, 그 번호로 진행 상황을 계속 조회합니다. 발견 19건 (🔴0 · 🟠7 · 🟡6 · 🔵6).
+
+### 🟠 GAP (7건)
+
+- [ ] **`BATA-1` · 🟠 GAP · 이미 성공한 상품이 서버 재시작 순간 "실패"로 잘못 뒤집힘**
+  - **무엇이 문제인가:** 상품 한 개를 성공으로 기록한 바로 다음, 다음 상품으로 넘어가기 전 잠깐 쉬는 대기 시간이 있습니다. 그런데 하필 그 대기 중에 서버가 멈추면(배포/재시작), 방금 성공한 상품이 "실패"로 덮어써집니다. 실제로는 상품 갱신도 마켓 전송도 다 잘 끝났는데 화면상 실패로 남습니다.
+  - **위치:** `BatchPriceStockService.java:92-97`
+  - **왜 문제인가:** 배포나 재시작 타이밍에 걸린 상품이 "성공했는데 실패 표시"로 남아, 운영자가 멀쩡한 상품을 불필요하게 다시 처리하게 됩니다. 대기 시간은 그냥 쉬는 것이지 실패가 아닙니다.
+  - **어떻게 고치면 되나:** 쉬는 동작을 성공 기록 이전으로 옮기거나 다음 반복 시작 전으로 빼서, 대기 중 중단돼도 이미 기록한 성공이 지워지지 않게 합니다.
+  - **상세 문서:** batch/crawl-and-update.md
+
+- [ ] **`BATA-2` · 🟠 GAP · 같은 상품을 두 번 넣으면 진행률이 100%에 영영 못 미침**
+  - **무엇이 문제인가:** 처리 목록에 같은 상품 번호가 두 번 들어오면 진행현황 행도 두 개 생깁니다. 그런데 실제 처리 결과는 그중 딱 한 행에만 기록되고, 나머지 한 행은 계속 "대기 중" 상태로 남습니다.
+  - **위치:** `ProcessStatusService.java:54-64`, `ProcessStatusService.java:91-95`
+  - **왜 문제인가:** 전체 개수에는 중복 행이 포함되는데 완료 개수는 부족해서, 배치가 절대 100%에 도달하지 못하고 진행 상황 조회가 영원히 "진행 중"으로 보입니다.
+  - **어떻게 고치면 되나:** 시작할 때 중복 상품 번호를 제거하거나, 상태 기록의 기준 키를 (배치번호+상품코드) 조합으로 유일하게 만듭니다.
+  - **상세 문서:** batch/crawl-and-update.md
+
+- [ ] **`BATA-5` · 🟠 GAP · 빈 목록을 보내도 "시작됨"만 뜨고 정작 진행현황 조회는 404**
+  - **무엇이 문제인가:** 처리할 상품(items)이 비어 있거나 빠져 있어도 이 경로만 막지 않습니다. 그래서 아무것도 처리하지 않는 껍데기 배치가 만들어지고, 작업 번호는 받지만 그 번호로 진행현황을 보면 "없음(404)"이 뜹니다.
+  - **위치:** `BatchController.java:86`, `ProcessStatusService.java:128-130,147-149`
+  - **왜 문제인가:** 운영자는 "시작됨"이라는 응답을 받고도 진행현황을 전혀 볼 수 없어 혼란스럽습니다. 무의미한 배치가 생깁니다. 다른 세 경로는 이런 경우를 막는데 이 경로만 다릅니다.
+  - **어떻게 고치면 되나:** 목록이 비었으면 400 오류로 거부하도록 통일하거나, 최소한 "대상 없음"이라는 명확한 응답을 줍니다.
+  - **상세 문서:** batch/manual-update-price-stock.md
+
+- [ ] **`BATA-7` · 🟠 GAP · 같은 상품을 두 번 넣으면 일부 행이 대기 상태로 남음 (크롤 경로와 동일)**
+  - **무엇이 문제인가:** 목록에 같은 상품 번호가 두 번 들어오면, 실제 결과 기록은 한 행에만 되고 나머지 행은 "대기 중"으로 남습니다. BATA-2와 같은 구조의 문제입니다.
+  - **위치:** `ProcessStatusService.java:91-95`
+  - **왜 문제인가:** 진행률이 100%에 도달하지 못해 조회가 무한히 "진행 중"으로 보입니다.
+  - **어떻게 고치면 되나:** 시작 시 상품 번호 중복 제거 또는 상태 기록 키 정합화.
+  - **상세 문서:** batch/manual-update-price-stock.md
+
+- [ ] **`BATA-8` · 🟠 GAP · 상품·명령이 둘 다 빈 목록이면 검사를 통과해 껍데기 배치가 생성됨**
+  - **무엇이 문제인가:** 이 경로의 검사는 두 목록의 개수가 다르거나 비어 있는지(null)만 봅니다. 상품 목록도 비고 명령 목록도 비면 개수가 같으니(0=0) 통과해버려, 아무것도 처리하지 않는 배치가 만들어집니다.
+  - **위치:** `BatchController.java:104-110`
+  - **왜 문제인가:** 작업 번호는 받지만 그 번호로 진행현황을 보면 "없음(404)"이 뜹니다. BATA-5와 같은 유형의 무의미한 배치입니다.
+  - **어떻게 고치면 되나:** 상품 목록이 비어 있으면 400 오류로 거부하도록, 다른 경로의 빈 목록 검사와 맞춥니다.
+  - **상세 문서:** batch/manual-update-all.md
+
+- [ ] **`BATA-11` · 🟠 GAP · 같은 상품을 두 번 넣으면 일부 행이 대기 상태로 남음 (공통 구조)**
+  - **무엇이 문제인가:** 상품 목록에 중복이 있으면 결과가 한 행에만 기록되고 나머지 행은 "대기 중"으로 남습니다. BATA-2·BATA-7과 같은 공통 문제입니다.
+  - **위치:** `ProcessStatusService.java:91-95`
+  - **왜 문제인가:** 진행률이 100% 미달이라 조회가 무한 "진행 중"으로 보입니다.
+  - **어떻게 고치면 되나:** 시작 시 중복 제거 또는 상태 기록 키 정합화.
+  - **상세 문서:** batch/manual-update-all.md
+
+- [ ] **`BATA-14` · 🟠 GAP · 대상 선정과 실제 처리 사이에 상품이 지워지면 정상인데도 "처리 실패"가 뜸**
+  - **무엇이 문제인가:** 소싱업체별 일괄 작업은 먼저 해당 업체 상품 목록을 뽑아 두고, 그 뒤에 실제 크롤 처리를 합니다. 뽑아둔 시점과 처리 시점 사이에 어떤 상품이 삭제되면, 처리 단계에서 그 상품을 못 찾아 "실패"로 집계됩니다.
+  - **위치:** `BatchController.java:130`, `BatchPriceStockService.java:50-51`
+  - **왜 문제인가:** 치명적 오류는 아니지만(실패로 흡수됨), 정상 상황에서도 "존재하지 않는 상품 처리 실패"가 생길 수 있고, 처음 안내한 대상 개수(count)와 실제 처리 개수가 어긋날 수 있습니다.
+  - **어떻게 고치면 되나:** 이런 실패는 "삭제됨" 같은 사유로 구분해 표시하거나, 안내한 개수가 선정 시점 기준 스냅샷이라는 점을 응답/문서에 명시합니다.
+  - **상세 문서:** batch/by-supplier.md
+
+### 🟡 SMELL (6건)
+
+- [ ] **`BATA-4` · 🟡 SMELL · 배치 "시작"만 기록되고 "끝" 기록이 통째로 누락될 수 있음**
+  - **무엇이 문제인가:** 배치 시작 기록과 완료 기록이 서로 다른 경로/스레드로 남습니다. 실제 처리를 하는 백그라운드 작업이 완료 신호를 보내기 전에 서버가 종료되면(배포), 활동 로그에는 "시작"만 남고 "끝"은 영영 기록되지 않습니다.
+  - **위치:** `BatchController.java:54`, `BatchPriceStockService.java:104`, `ActionLogBatchListener.java:22-27`
+  - **왜 문제인가:** 활동 로그에 "시작만 있고 끝이 없는" 배치가 생겨, 나중에 감사/추적할 때 흐름이 끊깁니다.
+  - **어떻게 고치면 되나:** 부팅 시 중단된 배치를 복구할 때, 대응하는 활동 로그의 완료(또는 중단) 기록도 함께 남기도록 합니다.
+  - **상세 문서:** batch/crawl-and-update.md
+
+- [ ] **`BATA-6` · 🟡 SMELL · 수동 가격·재고 경로는 크롤 경로의 "변경 없으면 전송 생략" 최적화가 빠져 항상 마켓에 재전송**
+  - **무엇이 문제인가:** 수동 가격·재고 갱신 경로는 마켓 전송 시 "변경됨"을 항상 참으로 고정해서 보냅니다. 반면 크롤 경로는 실제로 바뀐 게 있는지 계산해서 Cafe24 재전송을 건너뛸 수 있습니다. 두 경로의 마켓 전송 정책이 다릅니다.
+  - **위치:** `BatchPriceStockService.java:143-144`, `ProductMarketSyncService.java:34-37`, `BatchPriceStockService.java:90-91`
+  - **왜 문제인가:** 동작상 오류는 아니지만(수동 경로는 대개 변경분만 들어와 전송이 필요함), 두 경로 정책이 비대칭이라 유지보수 시 혼동을 줍니다.
+  - **어떻게 고치면 되나:** 진입 시 계산한 변경 여부(가격/상태 변경)를 마켓 전송 쪽에 그대로 넘겨 두 경로 정책을 통일할지 검토합니다.
+  - **상세 문서:** batch/manual-update-price-stock.md
+
+- [ ] **`BATA-10` · 🟡 SMELL · 상품 목록과 명령 목록을 "순서(위치)"로만 짝지어 순서가 어긋나면 엉뚱한 상품에 적용**
+  - **무엇이 문제인가:** 전체 필드 수정 경로는 상품 번호 목록과 명령 목록을 별개의 두 배열로 받아, "몇 번째끼리 짝"이라는 위치로만 연결합니다. 개수만 검사하고 실제 짝짓기는 서비스 깊숙한 곳에서 위치로 일어납니다.
+  - **위치:** `BatchController.java:104-110`, `BatchPriceStockService.java:171`
+  - **왜 문제인가:** 프론트에서 배열 순서가 조금이라도 어긋나면, 오류 없이 조용히 엉뚱한 상품에 명령이 적용되어 데이터가 오염됩니다. 수동 가격·재고 경로는 이미 쌍(pair) 구조로 바꿔 이 위험을 없앴는데 이 경로만 남아 있습니다.
+  - **어떻게 고치면 되나:** 수동 경로처럼 `{상품번호, 명령}`을 한 쌍으로 묶은 목록으로 계약을 통일합니다.
+  - **상세 문서:** batch/manual-update-all.md
+
+- [ ] **`BATA-12` · 🟡 SMELL · 잘못된 소싱업체 코드를 보내면 내부 오류 메시지가 그대로 노출됨**
+  - **무엇이 문제인가:** 소싱업체별 배치에서 업체 코드가 비어 있으면 친절한 한국어 안내로 거부합니다. 그런데 오타나 미지원 코드를 보내면, 내부 구현이 드러나는 원시 오류 메시지("No enum constant ...")가 그대로 나갑니다.
+  - **위치:** `BatchController.java:129`, `BatchController.java:126-128`
+  - **왜 문제인가:** 클라이언트가 어떤 값이 유효한지 알기 어렵고, 내부 구현이 노출되며, 빈 값일 때와 잘못된 값일 때의 응답 품질이 들쭉날쭉합니다.
+  - **어떻게 고치면 되나:** 코드 변환을 오류 처리로 감싸 "지원하지 않는 소싱업체 코드입니다: XXX (허용: ...)" 같은 명확한 400 메시지로 통일합니다.
+  - **상세 문서:** batch/by-supplier.md
+
+- [ ] **`BATB-1` · 🟡 SMELL · 상세 조회의 "없음" 판정 방식이 필터 유무에 따라 둘로 갈림**
+  - **무엇이 문제인가:** 배치 상세 조회는 상태 필터가 없으면 조회 결과가 비었는지로 "없음(404)"을 판단하고, 필터가 있으면 별도 개수 세기 쿼리를 한 번 더 쏘아 판단합니다. 필터가 있을 땐 항상 쿼리를 2회 씁니다.
+  - **위치:** `ProcessStatusService.java:125-139`
+  - **왜 문제인가:** 동작은 정확하지만 "없음 판정" 책임이 두 경로에 흩어져 있어, 나중에 한쪽만 고치고 다른 쪽을 놓칠 위험이 있습니다. 필터 조회마다 개수 쿼리가 추가됩니다.
+  - **어떻게 고치면 되나:** 결과가 실제로 비었을 때만 개수로 재확인하도록 지연 판정하거나, "없음 판정"을 하나의 공통 함수로 뽑아냅니다.
+  - **상세 문서:** batch/status-batch-id.md
+
+- [ ] **`BATB-4` · 🟡 SMELL · 진행현황 요약을 세 번의 개수 쿼리로 나눠 조회(한 번에 합칠 수 있음)**
+  - **무엇이 문제인가:** 진행현황 요약(폴링용)은 전체 개수, 성공 개수, 실패 개수를 각각 별도 쿼리 3회로 세어 옵니다. 프론트가 주기적으로 반복 조회하는 경로입니다.
+  - **위치:** `ProcessStatusService.java:144,151,152`
+  - **왜 문제인가:** 폴링 빈도 × 배치 수만큼 DB 왕복이 3배로 늘어, 여러 배치를 동시에 폴링하면 부하가 누적될 수 있습니다.
+  - **어떻게 고치면 되나:** 상태별로 묶어 개수를 한 번에 세는(GROUP BY) 단일 쿼리로 전체/성공/실패/대기를 한 번에 산출하도록 합니다.
+  - **상세 문서:** batch/status-batch-id-summary.md
+
+### 🔵 NOTE (6건)
+
+- [ ] **`BATA-3` · 🔵 NOTE · "선택 상품 크롤"과 "업체별 크롤"이 같은 작업종류라 동시 실행이 서로 막힘**
+  - **무엇이 문제인가:** 이 크롤 경로와 소싱업체별 경로가 내부적으로 같은 작업 종류로 등록됩니다. 동시 실행 방지 장치가 작업 종류 단위라, 둘 중 하나가 돌고 있으면 다른 하나는 거부(400)됩니다.
+  - **위치:** `BatchController.java:141`, `ProcessStatusService.java:48`
+  - **왜 문제인가:** "특정 상품 목록 크롤"과 "업체별 크롤"은 논리적으로 다른 작업인데 동시에 못 돌립니다. 크롤 속도 제한 보호를 위한 의도일 수 있으나 명시되어 있지 않습니다.
+  - **어떻게 고치면 되나:** 업체별 전용 작업 종류를 따로 둘지 검토하거나, 서로 막는 것이 의도임을 문서로 명시합니다.
+  - **상세 문서:** batch/crawl-and-update.md
+
+- [ ] **`BATA-9` · 🔵 NOTE · 전체 필드 수정으로 가격·재고를 바꿔도 연동 마켓에는 반영되지 않음**
+  - **무엇이 문제인가:** 전체 필드 일괄 수정은 DB에 저장만 하고 마켓 재전송을 하지 않습니다. 반면 크롤·수동 가격재고 경로는 갱신 후 마켓에 다시 보냅니다. 그런데 전체 필드 수정 명령에도 판매가·재고 같은 마켓에 영향을 주는 값이 담길 수 있습니다.
+  - **위치:** `BatchPriceStockService.java:161-186`
+  - **왜 문제인가:** 이 경로로 판매가/재고를 바꾸면 DB만 바뀌고 쿠팡·스마트스토어·Cafe24 등 마켓에는 반영되지 않아 마켓과 DB가 어긋날 수 있습니다. 의도된 설계일 수도 있으나 명시가 없습니다.
+  - **어떻게 고치면 되나:** 전체 필드 수정 시 가격·재고 변경분을 마켓에 다시 보낼지 정책으로 확정해 문서화하고, 필요하면 변경분 기준 마켓 전송을 연동합니다.
+  - **상세 문서:** batch/manual-update-all.md
+
+- [ ] **`BATA-13` · 🔵 NOTE · 업체별 크롤이 선택 상품 크롤과 같은 작업종류라 상호 배타 실행됨**
+  - **무엇이 문제인가:** 소싱업체별 크롤은 crawl-and-update와 같은 작업 종류로 실행됩니다. 그래서 둘 중 하나가 진행 중이면 다른 하나는 거부됩니다. BATA-3의 반대편 시점입니다.
+  - **위치:** `BatchController.java:141`, `ProcessStatusService.java:48`, `BatchController.java:70`
+  - **왜 문제인가:** "업체 전체 크롤"과 "선택 상품 크롤"이 별개 작업인데 동시에 못 돌립니다. 크롤 속도 제한 보호를 위한 의도된 직렬화일 수 있으나 명시되지 않았습니다.
+  - **어떻게 고치면 되나:** 업체별 전용 작업 종류 도입 여부를 검토하거나, 크롤 계열을 순서대로만 돌리는 것이 의도임을 문서화합니다.
+  - **상세 문서:** batch/by-supplier.md
+
+- [ ] **`BATB-2` · 🔵 NOTE · 삭제 표시용 내부 상태값을 응답에 그대로 노출해 처리상태와 헷갈릴 수 있음**
+  - **무엇이 문제인가:** 응답에 처리상태(processStatus)와는 별개인 레코드 상태(ACTIVE/ARCHIVED/DELETED, 소프트 삭제 표시)가 `status`라는 이름으로 함께 담깁니다. 이름이 비슷해 혼동될 수 있고, 조회 쿼리는 삭제(DELETED) 행을 걸러내지 않습니다.
+  - **위치:** `ProcessStatusResponse.java:31`, `BaseEntity.java:23-24`, `ProcessStatusRepository.java:19,25`
+  - **왜 문제인가:** 지금은 이 데이터가 소프트 삭제되는 경로가 없어 실제 문제는 없지만, 응답에 처리상태와 레코드상태 두 필드가 나란히 노출돼 프론트/소비자가 혼동할 수 있습니다.
+  - **어떻게 고치면 되나:** DTO 필드 의미를 문서화하고, 향후 이 상태 데이터에 소프트 삭제를 도입하면 조회 쿼리에서 삭제 행을 걸러낼지 재검토합니다.
+  - **상세 문서:** batch/status-batch-id.md
+
+- [ ] **`BATB-3` · 🔵 NOTE · "대기" 개수를 직접 세지 않고 빼기로 구해, 상태값이 늘면 의미가 어긋남**
+  - **무엇이 문제인가:** 요약의 "대기(pending)" 수치는 대기 행을 직접 세는 게 아니라 "전체 − 완료(성공+실패)"로 구합니다. 지금은 상태가 대기/성공/실패 3가지뿐이라 결과가 정확합니다.
+  - **위치:** `BatchSummary.java:18`, `ProcessStatusType.java`
+  - **왜 문제인가:** 나중에 "실행 중"이나 "건너뜀" 같은 중간 상태를 추가하면, 그 행들이 완료로 안 잡혀 전부 "대기 중"으로 잘못 합산되고 완료율도 왜곡됩니다.
+  - **어떻게 고치면 되나:** 상태값을 확장할 때 "대기"를 실제 대기 개수로 직접 세도록 바꾸거나, 완료 집합 정의를 상태 목록과 동기화하도록 주석·테스트로 고정합니다.
+  - **상세 문서:** batch/status-batch-id-summary.md
+
+- [ ] **`BATB-5` · 🔵 NOTE · 전체 배치 ID 목록을 상한·페이징 없이 통째로 반환(이력 쌓이면 계속 커짐)**
+  - **무엇이 문제인가:** 전체 배치 목록 조회는 존재하는 모든 배치 ID를 개수 제한 없이 다 돌려줍니다. 예전 방식(전 행을 다 불러와 메모리에서 처리)의 메모리 폭주 문제는 개선됐지만, 반환 목록 자체의 상한은 여전히 없습니다.
+  - **위치:** `ProcessStatusService.java:159`, `ProcessStatusRepository.java:16-17`
+  - **왜 문제인가:** 배치는 실행할 때마다 새 ID가 생겨 계속 쌓입니다. 이력이 수만 건이 되면 응답이 매우 커지고 프론트 렌더/전송 비용이 늘며, 오래된 행을 정리하는 정책이 없으면 저장 테이블도 무한히 커집니다.
+  - **어떻게 고치면 되나:** 최근 N개만 반환하는 제한이나 페이징을 추가하고, 오래된 배치 이력을 정리하는 보존정책(TTL/아카이브)을 도입할지 검토합니다.
+  - **상세 문서:** batch/status.md
+
+---
+
+## 상품 소싱 (product-sourcing) — `product-sourcing/`
+> iHerb 상품 URL을 긁어와(소싱) 상품 정보를 뽑고, 여러 상품을 한 번에 등록(대량 등록)한 뒤, 각 상품을 쿠팡·스마트스토어 같은 마켓에 올리는(발행) 흐름입니다. 발견 10건 (🔴0 · 🟠3 · 🟡3 · 🔵4).
+
+### 🟠 GAP (3건)
+
+- [ ] **`PSRC-1` · 🟠 GAP · iHerb 크롤 중간에 강제 종료되면 남은 URL이 아무 결과에도 안 남고 사라짐**
+  - **무엇이 문제인가:** iHerb 주소 여러 개를 순서대로 긁는 도중, 프로그램이 중간에 멈춤 신호(예: 서버 재시작·종료)를 받으면 즉시 작업을 중단합니다. 그런데 아직 처리하지 못한 나머지 주소들이 "성공" 목록에도 "실패" 목록에도 들어가지 않고 그냥 없어집니다.
+  - **위치:** `IherbScraperClient.java:239-241`
+  - **왜 문제인가:** 요청한 주소 개수와 결과(성공+실패) 개수가 안 맞게 됩니다. 활동 기록의 "성공 N건, 실패 M건" 합계도 요청한 수와 어긋나서, 운영자는 어떤 주소가 처리 안 됐는지 알 수 없습니다.
+  - **어떻게 고치면 되나:** 중단될 때 아직 안 한 주소들을 "인터럽트로 미처리"라고 실패 목록에 채워 넣어, 요청 개수와 결과 개수가 항상 맞도록 합니다. 또는 컨트롤러에서 개수 불일치를 감지해 로그로 남깁니다.
+  - **상세 문서:** product-sourcing/sourcing-iherb.md
+
+- [ ] **`PSRC-4` · 🟠 GAP · 대량 등록에서 하나만 저장 실패해도 전부 취소되어, 응답에 적힌 "성공"과 실제 DB가 어긋남**
+  - **무엇이 문제인가:** 여러 상품을 한꺼번에 저장할 때, 성공한 것들을 모아 한 번에 DB에 넣습니다. 그런데 이 저장이 하나라도 실패하면(예: SKU 코드 중복) 정상이던 상품까지 전부 취소(롤백)됩니다. 응답에는 "성공"이라 나왔는데 실제로는 아무것도 안 남을 수 있습니다.
+  - **위치:** `ProductCreateUseCase.java:75-84`
+  - **왜 문제인가:** "일부만 저장" 이 안 됩니다. 게다가 이미지는 이미 저장소(R2)에 올라간 상태라, 상품은 없는데 이미지만 떠도는 고아 이미지가 남습니다.
+  - **어떻게 고치면 되나:** 한 건씩 나눠 저장해 실패한 것만 걸러내거나, 전부 취소되는 경우 "부분 성공은 불가능하다"는 규칙을 문서와 화면에 명시합니다. 남은 고아 이미지를 정리하는 절차도 연결합니다.
+  - **상세 문서:** product-sourcing/products-bulk.md
+
+- [ ] **`PSRC-7` · 🟠 GAP · 이미 마켓에 올린 상품을 다시 발행하면 확인 없이 또 등록해 중복 위험**
+  - **무엇이 문제인가:** 상품을 마켓에 발행할 때, 이미 등록이 완료된(SYNCED) 상품인지 확인하지 않고 무조건 다시 마켓에 등록 요청을 보냅니다.
+  - **위치:** `ProductPublishUseCase.java:59-63`
+  - **왜 문제인가:** 같은 상품이 마켓에 두 번 등록되거나, 기존 등록 정보가 덮어써질 수 있습니다. DB에 "이미 등록됨"이라는 상태가 있어도 재등록을 막는 역할을 못 합니다.
+  - **어떻게 고치면 되나:** 이미 등록된 상품이면 새 등록 대신 "수정" 경로로 가게 하거나, "강제 재발행" 표시가 있을 때만 다시 보내게 합니다. 최소한 재발행 정책을 문서로 남깁니다.
+  - **상세 문서:** product-sourcing/products-publish-to-market.md
+
+### 🟡 SMELL (3건)
+
+- [ ] **`PSRC-2` · 🟡 SMELL · iHerb 주소 규칙이 두 군데에 따로 적혀 있어 한쪽만 바뀌면 어긋남**
+  - **무엇이 문제인가:** iHerb 주소가 올바른지 검사하는 규칙(정규식)이 컨트롤러와, 주소에서 상품 ID를 뽑는 크롤러 두 곳에 거의 똑같이 각각 적혀 있습니다.
+  - **위치:** `ProductSourcingController.java:51-53` 와 `IherbScraperClient.java:170-182`
+  - **왜 문제인가:** iHerb 주소 형식이 바뀌면 두 곳을 동시에 고쳐야 합니다. 한쪽만 고치면 검증은 통과하지만 크롤러가 ID를 못 뽑아 "크롤 결과 없음"으로 조용히 실패합니다.
+  - **어떻게 고치면 되나:** 주소 검증과 ID 추출 규칙을 한 곳(공용 유틸)에 모아 양쪽이 함께 쓰게 통합합니다.
+  - **상세 문서:** product-sourcing/sourcing-iherb.md
+
+- [ ] **`PSRC-5` · 🟡 SMELL · 이미지 올리기 실패를 "정상"으로 넘겨, 이미지 없는 상품이 만들어져 나중에 발행에서 실패**
+  - **무엇이 문제인가:** 상품 대량 등록 시 이미지를 저장소에 올리다 실패하면, 경고만 남기고 원본 그대로 진행합니다. 그 결과 호스팅된 이미지가 없는 상품이 "성공"으로 만들어집니다.
+  - **위치:** `ProductCreateUseCase.java:103-106`
+  - **왜 문제인가:** 등록은 성공으로 집계되지만, 나중에 그 상품을 마켓에 발행할 때 "호스팅된 이미지가 없습니다"로 반드시 실패합니다. 실패 시점이 뒤로 밀려 원인 찾기가 어렵습니다.
+  - **어떻게 고치면 되나:** 이미지가 필수인지 정책을 정해, 필수라면 등록 단계에서 실패로 분류하고, 선택이라면 응답에 "이미지 미호스팅" 표시를 달아 다음 단계가 알 수 있게 합니다.
+  - **상세 문서:** product-sourcing/products-bulk.md
+
+- [ ] **`PSRC-8` · 🟡 SMELL · 지원하지 않는 마켓인지 두 번 검사(중복 방어 코드)**
+  - **무엇이 문제인가:** 상품을 마켓에 올릴 때 "이 마켓을 지원하나?"를 먼저 한 번 확인하고(hasClient), 곧이어 실제 연동 담당을 가져올 때(getClient) 내부에서 똑같은 확인을 또 합니다. 같은 검사가 두 곳에 있고, "지원하지 않는 마켓입니다" 오류 문구도 두 파일에 똑같이 들어가 있습니다.
+  - **위치:** `ProductPublishUseCase.java:49-51`, `MarketClientRouter.java:19-25`
+  - **왜 문제인가:** 동작에는 문제가 없지만, 같은 규칙이 두 곳에 흩어져 있어 나중에 한쪽만 바꾸면 어긋날 수 있고 코드를 읽는 사람이 헷갈립니다.
+  - **어떻게 고치면 되나:** getClient 한 곳으로 검사를 합치거나, 굳이 먼저 거르려는 의도라면 그 순서 이유를 주석으로 남깁니다.
+  - **상세 문서:** product-sourcing/products-publish-to-market.md
+
+### 🔵 NOTE (4건)
+
+- [ ] **`PSRC-3` · 🔵 NOTE · 크롤 실패 이유가 전부 "결과를 못 가져왔습니다"로 뭉뚱그려져 원인 구분 불가**
+  - **무엇이 문제인가:** iHerb 크롤이 실패하면 이유가 차단(403)이든, 없는 상품(404)이든, 파싱 오류든 상관없이 모두 "크롤 결과를 가져오지 못했습니다" 한 문장으로만 기록됩니다.
+  - **위치:** `IherbScraperClient.java:235-236`
+  - **왜 문제인가:** 실패 이유만 봐서는 차단인지, 상품이 없는 건지, 형식 문제인지 알 수 없어 다시 시도할지 다른 조치를 할지 판단하기 어렵습니다.
+  - **어떻게 고치면 되나:** 실패 이유를 종류별로 구분해서 전달하도록 개선합니다(선택 사항).
+  - **상세 문서:** product-sourcing/sourcing-iherb.md
+
+- [ ] **`PSRC-6` · 🔵 NOTE · 원가(costPrice)만 음수 검사를 하고 마진율·무게·용량 등 다른 숫자 값은 검사 안 함**
+  - **무엇이 문제인가:** 대량 등록 입력 검사에서 원가가 음수인지만 걸러냅니다. 마진율, 무게, 용량, 묶음수량 같은 다른 숫자 값은 음수나 비정상 값이어도 검사하지 않습니다.
+  - **위치:** `ProductSourcingController.java:113-117`
+  - **왜 문제인가:** 마진율이나 무게가 음수 같은 이상한 값이 그대로 상품에 저장될 수 있습니다. 다만 소싱 과정에서 값을 미리 정제한다는 전제라면 문제가 안 될 수도 있습니다.
+  - **어떻게 고치면 되나:** 각 필드의 정상 범위를 정한 뒤, 정말 필요한 것만 입력 검사에 추가합니다(지나친 검사는 피함).
+  - **상세 문서:** product-sourcing/products-bulk.md
+
+- [ ] **`PSRC-9` · 🔵 NOTE · 없는 상품을 발행하려 하면 404가 아니라 400으로 응답(다른 조회 규약과 안 맞음)**
+  - **무엇이 문제인가:** 존재하지 않는 상품 ID로 발행을 요청하면 "리소스 없음(404)"이 아니라 "입력 오류(400)"로 응답합니다.
+  - **위치:** `ProductPublishUseCase.java:46-47`
+  - **왜 문제인가:** 클라이언트가 "존재하지 않는 상품"과 "잘못된 입력"을 구분하기 어렵습니다. REST 규약상 이 경우는 404가 더 정확합니다.
+  - **어떻게 고치면 되나:** 없는 상품은 `ResourceNotFoundException`으로 던져 404로 통일합니다(다른 상품 조회 경로와 맞춤).
+  - **상세 문서:** product-sourcing/products-publish-to-market.md
+
+- [ ] **`PSRC-10` · 🔵 NOTE · 마켓엔 실제로 올라갔는데 DB 갱신만 실패하면 로그엔 "실패"만 남아 성공 사실이 사라짐**
+  - **무엇이 문제인가:** 마켓 발행은 성공했는데 그 결과를 DB에 저장하는 마지막 단계가 실패하면, 운영자용 활동 기록에는 "마켓 게시 실패"로만 남습니다. 실제로는 마켓 등록이 됐고 DB 저장만 실패한 상태입니다.
+  - **위치:** `ProductPublishUseCase.java:63`
+  - **왜 문제인가:** 운영자가 기록만 보고 발행 실패로 오해해 다시 발행하면, PSRC-7의 중복 등록으로 이어질 수 있습니다.
+  - **어떻게 고치면 되나:** "마켓엔 올라갔으나 DB 저장 실패(복구 필요)" 같은 별도 상태를 활동 기록에 드러나게 표시합니다.
+  - **상세 문서:** product-sourcing/products-publish-to-market.md
+
+---
+
+## 마켓 등록 (market-registration) — `market-registration/`
+> 우리 상품이 각 마켓(쿠팡·스마트스토어·11번가 등)에 어떻게 등록돼 있는지 우리 DB에서 조회하고, 마켓에서 실시간 상품정보를 불러와 확인하는 기능들입니다. 발견 6건 (🔴0 · 🟠2 · 🟡2 · 🔵2).
+
+### 🟠 GAP (2건)
+
+- [ ] **`MREG-2` · 🟠 GAP · "정보가 없다"는 상황을 "입력을 잘못했다"는 오류로 잘못 알려줌**
+  - **무엇이 문제인가:** 어떤 상품의 특정 마켓 등록정보를 조회했는데 그 정보가 아직 없을 때, 시스템은 "없음(404)"이 아니라 "요청을 잘못 보냈다(400)"라고 응답합니다. 그런데 진짜로 마켓 이름을 오타로 잘못 넣었을 때도 똑같이 400으로 응답해서, 화면에서 이 둘을 전혀 구분할 수 없습니다.
+  - **위치:** `MarketRegistrationService.java:35-37`, `GlobalExceptionHandler.java:44-50`
+  - **왜 문제인가:** "이 상품은 이 마켓에 아직 등록 안 됨"과 "잘못된 마켓 이름을 넣음"이 화면에 똑같은 오류로 보여서, 사용자가 뭐가 문제인지 알 수 없고 안내 메시지도 정확히 낼 수 없습니다.
+  - **어떻게 고치면 되나:** "등록정보 없음"은 "없음(404)"으로, "마켓 이름 오타"는 "입력 오류(400)"로 나누어 응답하도록 바꿉니다. 같은 화면의 목록 조회 기능과 응답 방식을 통일하면 됩니다.
+  - **상세 문서:** market-registration/get-local.md
+
+- [ ] **`MREG-4` · 🟠 GAP · 마켓 상품번호가 없을 때 우리 내부 번호를 대신 넣어 엉뚱한 상품을 조회함**
+  - **무엇이 문제인가:** 마켓에서 실시간 상품정보를 불러올 때 해당 마켓의 상품번호가 있어야 하는데, 그 번호가 없으면 우리 시스템 내부용 번호(외부 마켓과 전혀 상관없는 번호)를 대신 넣습니다. 게다가 지금 방식은 쿠팡 전용 번호만 읽을 줄 알아서, 스마트스토어·11번가·카페24·ESM+ 같은 다른 마켓은 항상 이 잘못된 대체 번호를 쓰게 됩니다.
+  - **위치:** `MarketRegistrationService.java:46-49`, `MarketRegistration.java:117-129`
+  - **왜 문제인가:** 쿠팡을 뺀 나머지 마켓에서 조회를 하면 우리 내부 번호를 마켓 상품번호인 척 넘겨서, 엉뚱한 상품이 조회되거나 아예 오류(500)가 납니다. 사실 마켓별 진짜 상품코드를 읽어오는 기능(`extractMarketCode()`)이 이미 있는데도 이 경로에서는 안 쓰고 있습니다.
+  - **어떻게 고치면 되나:** 대체값으로 우리 내부 번호 대신 마켓별 실제 코드를 읽는 `extractMarketCode()`를 쓰고, 그것마저 없으면 그냥 명확히 실패(400/404) 처리해서 엉뚱한 조회를 막습니다.
+  - **상세 문서:** market-registration/sync-market.md
+
+### 🟡 SMELL (2건)
+
+- [ ] **`MREG-3` · 🟡 SMELL · 상품이 진짜 있는지 확인하지 않고 등록정보 유무만 보고 판단함**
+  - **무엇이 문제인가:** 특정 상품의 마켓 등록정보를 조회할 때, 그 상품 자체가 실제로 존재하는지는 확인하지 않고 "등록정보가 있냐 없냐"만 봅니다. 그래서 아예 없는 상품을 조회해도 그냥 "마켓 등록정보 없음"이라고만 응답합니다. (같은 서비스의 목록 조회는 상품 존재를 확인하는데 이 기능만 안 합니다.)
+  - **위치:** `MarketRegistrationService.java:33-38`
+  - **왜 문제인가:** "존재하지 않는 상품"과 "상품은 있지만 그 마켓에 아직 등록 안 됨"을 응답으로 구분할 수 없어, 사용자가 원인을 파악하기 어렵습니다.
+  - **어떻게 고치면 되나:** 필요하면 상품이 실제 있는지 먼저 확인(없으면 404)하고, 그 다음에 등록정보 유무를 판단하도록 순서를 맞춥니다. 목록 조회 기능과 동일한 방식으로 통일합니다.
+  - **상세 문서:** market-registration/get-local.md
+
+- [ ] **`MREG-5` · 🟡 SMELL · 외부 마켓과 통신하는 동안 DB 연결을 계속 붙잡고 있음**
+  - **무엇이 문제인가:** 마켓에서 실시간 정보를 불러오는 동안, 실제로는 DB에 아무것도 저장하지 않는데도 DB 연결(트랜잭션)을 계속 잡고 있습니다. 외부 마켓 통신은 느릴 수 있어서 그 시간 내내 연결을 점유합니다.
+  - **위치:** `MarketRegistrationService.java:20`, `MarketRegistrationService.java:40-53`
+  - **왜 문제인가:** 마켓 응답이 느려지면 DB 연결이 그만큼 오래 묶여, 동시에 많은 요청이 몰릴 때 DB 연결이 바닥나(연결 풀 고갈) 전체 시스템이 느려지거나 멈출 위험이 있습니다.
+  - **어떻게 고치면 되나:** 외부 마켓 통신은 DB 트랜잭션 밖에서 하도록 바꿉니다(등록정보 조회만 짧게 트랜잭션으로 처리). 저장하지도 않으므로 트랜잭션 자체가 불필요합니다.
+  - **상세 문서:** market-registration/sync-market.md
+
+### 🔵 NOTE (2건)
+
+- [ ] **`MREG-1` · 🔵 NOTE · 비슷한 조회 기능인데 "상품 없음" 처리 방식이 서로 다름**
+  - **무엇이 문제인가:** 마켓 등록현황 "목록" 조회는 상품이 없으면 명확히 "없음(404)"으로 알려주는데, "단건(로컬)" 조회는 상품 존재를 아예 확인하지 않아 다른 방식으로 응답합니다. 같은 주소 체계 아래 있는 기능인데 규칙이 제각각입니다.
+  - **위치:** `MarketRegistrationService.java:28-29`, `MarketRegistrationService.java:33-38`
+  - **왜 문제인가:** 화면 입장에서 "상품 자체가 없음"과 "마켓에 미등록됨"을 응답만으로 구분하기 어렵습니다.
+  - **어떻게 고치면 되나:** 같은 주소 체계 아래 조회 기능들의 "상품 존재 확인" 규칙을 하나로 통일하거나, 서로 다르다면 명확히 문서로 규정합니다.
+  - **상세 문서:** market-registration/list-registrations.md
+
+- [ ] **`MREG-6` · 🔵 NOTE · 이름은 "동기화(sync)"인데 실제로는 아무것도 저장하지 않는 미리보기 조회임**
+  - **무엇이 문제인가:** `sync`(동기화)라는 이름을 쓰는 기능인데, 실제로는 마켓 정보를 화면에 보여주기만 하고 우리 DB에 반영하거나 저장하지 않습니다. "동기화됨/마지막 동기화 시각" 같은 값도 갱신하지 않습니다.
+  - **위치:** `MarketRegistrationService.java:40-53`, `MarketRegistration.java:101-104`
+  - **왜 문제인가:** 이름이 "동기화(반영)"처럼 보여서, 이 기능을 호출한 뒤 우리 쪽 데이터가 최신으로 갱신됐다고 사용자가 오해할 수 있습니다.
+  - **어떻게 고치면 되나:** 이름과 설명을 "실시간 조회(미리보기)"로 명확히 바꾸거나, 원래 의도가 실제 반영이라면 조회 결과를 저장하는 로직을 추가합니다.
+  - **상세 문서:** market-registration/sync-market.md
+
+---
+
+## 마켓 인증정보 (market-credential) — `market-credential/`
+> 각 쇼핑몰(쿠팡·스마트스토어 등)에 접속하기 위한 API 열쇠(아이디·비밀키 등)를 저장하고 다시 꺼내 보는 기능입니다. 비밀키는 화면에 그대로 보이지 않게 가려서 보여줍니다. 발견 7건 (🔴0 · 🟠1 · 🟡1 · 🔵5).
+
+### 🟠 GAP (1건)
+
+- [ ] **`CRED-4` · 🟠 GAP · 아이디·주소 칸을 비운 채 저장하면 원래 값이 지워진다**
+  - **무엇이 문제인가:** 인증정보를 저장할 때, 비밀키(accessKey·secretKey)는 빈칸으로 보내면 예전 값을 그대로 지켜줍니다. 그런데 아이디(clientId)와 리다이렉트 주소(redirectUri)는 빈칸으로 보내면 무조건 빈칸으로 덮어써 버립니다. 같은 저장 화면인데 칸마다 규칙이 달라 헷갈립니다.
+  - **위치:** `core/.../application/market/MarketCredentialService.java:42-43`
+  - **왜 문제인가:** 화면에서 일부 칸만 채워 저장하거나 아이디·주소 칸을 실수로 비운 채 저장하면, 멀쩡하던 기존 아이디와 주소가 빈 값으로 날아가 마켓 연동이 끊길 수 있습니다.
+  - **어떻게 고치면 되나:** 아이디·주소 칸도 비밀키처럼 "빈칸이면 기존 값 유지" 규칙을 적용하거나, 반대로 항상 전체 값을 보내도록 규칙을 통일하고 화면이 늘 모든 칸을 함께 전송하게 맞추면 됩니다.
+  - **상세 문서:** market-credential/save-credential.md
+
+### 🟡 SMELL (1건)
+
+- [ ] **`CRED-5` · 🟡 SMELL · 잘못 입력해서 저장이 실패해도 무조건 '서버 오류(500)'로 응답한다**
+  - **무엇이 문제인가:** 저장 도중 오류가 나면 기록만 남기고 그 오류를 그대로 위로 던집니다. 그래서 사용자가 값을 너무 길게 넣는 등 입력 실수로 실패한 경우에도, 서버 자체가 고장난 것 같은 '500 서버 오류'로 응답합니다.
+  - **위치:** `api/.../controller/MarketCredentialController.java:55-58`
+  - **왜 문제인가:** 사실은 입력을 고쳐야 하는데 서버 오류처럼 보이니, 사용자가 잘못을 눈치채지 못하고 같은 값으로 계속 재시도할 수 있습니다.
+  - **어떻게 고치면 되나:** 길이 초과·중복 같은 예상 가능한 입력 실패는 '입력 오류(400)'로 구분해 응답하도록 처리를 추가하는 것이 좋습니다.
+  - **상세 문서:** market-credential/save-credential.md
+
+### 🔵 NOTE (5건)
+
+- [ ] **`CRED-1` · 🔵 NOTE · 로그인 없이도 인증정보 목록을 조회할 수 있다**
+  - **무엇이 문제인가:** 마켓 인증정보 전체 목록을 불러오는 기능에 로그인·권한 확인 절차가 없어 누구나 호출할 수 있습니다. 다만 비밀키는 값이 아니라 "설정됨/안 됨" 표시로만 가려서 보여줍니다.
+  - **위치:** `api/.../controller/MarketCredentialController.java:24, 31-34`
+  - **왜 문제인가:** 비밀키 자체는 가려져 유출 위험이 낮지만, 아이디(clientId)·리다이렉트 주소·마켓별 연동 여부는 로그인 없이 그대로 조회됩니다. 로컬 개발 편의용 설계로 보이나 실제 운영에 올리면 노출 지점이 됩니다.
+  - **어떻게 고치면 되나:** 운영 환경에서는 접속 허용 범위(CORS)와 로그인·권한 정책을 정해 문서로 남기는 것이 좋습니다.
+  - **상세 문서:** market-credential/list-credentials.md
+
+- [ ] **`CRED-2` · 🔵 NOTE · 잘못된 마켓 이름으로 조회하면 올바르게 '잘못된 요청(400)'으로 처리된다 (문제 아님·확인 노트)**
+  - **무엇이 문제인가:** 존재하지 않는 마켓 이름(예: FOO)으로 조회를 요청하면 시스템이 이를 알아서 걸러내 '잘못된 요청(400)'으로 응답합니다. 이것은 결함이 아니라 정상 동작을 확인한 기록입니다.
+  - **위치:** `api/.../controller/MarketCredentialController.java:37-38`
+  - **왜 문제인가:** 문제 없음. 서버 오류(500)가 아니라 올바르게 '잘못된 요청'으로 표시되어 정상입니다.
+  - **어떻게 고치면 되나:** 현행 유지. 새 마켓 종류를 추가할 때 이 동작을 지켜주는 회귀 테스트가 이미 있습니다.
+  - **상세 문서:** market-credential/get-credential.md
+
+- [ ] **`CRED-3` · 🔵 NOTE · 로그인 없이도 인증정보 1건을 조회할 수 있다**
+  - **무엇이 문제인가:** 마켓 하나의 인증정보를 불러오는 기능에도 로그인·권한 확인이 없습니다. 비밀키는 가려서 보여줍니다. (목록 조회의 CRED-1과 같은 성격의 항목입니다.)
+  - **위치:** `api/.../controller/MarketCredentialController.java:24`
+  - **왜 문제인가:** 비밀키는 가려져 유출 위험이 낮지만, 아이디·리다이렉트 주소·연동 여부는 로그인 없이 노출됩니다.
+  - **어떻게 고치면 되나:** 운영 환경의 접속 허용 범위와 인증 정책을 정해 문서로 남기는 것이 좋습니다.
+  - **상세 문서:** market-credential/get-credential.md
+
+- [ ] **`CRED-6` · 🔵 NOTE · 저장할 때 필수값·형식 검사를 하지 않는다**
+  - **무엇이 문제인가:** 인증정보 저장 시 값이 제대로 채워졌는지 확인하는 검증 절차가 없습니다. 아이디가 비어 있어도 그대로 저장을 시도합니다.
+  - **위치:** `api/.../controller/MarketCredentialController.java:44-47`
+  - **왜 문제인가:** 모든 칸을 빈 채로 보내도 저장되어, 사실상 아무 값도 없는 껍데기 인증정보 레코드가 만들어질 수 있습니다. 마켓 종류에 따라 꼭 필요한 값이 다른데 서버가 이를 강제하지 않습니다.
+  - **어떻게 고치면 되나:** 마켓별로 반드시 필요한 값을 정해, 저장 전에 최소한의 필수값 검사를 넣는 것을 검토하면 됩니다.
+  - **상세 문서:** market-credential/save-credential.md
+
+- [ ] **`CRED-7` · 🔵 NOTE · 이 저장 기능으로는 토큰·활성화 여부를 설정할 수 없다 (의도된 설계)**
+  - **무엇이 문제인가:** 이 저장 화면으로는 refreshToken·accessToken·활성화 여부(isActive)·만료 시각 같은 값을 설정할 수 없습니다. 이런 토큰류는 Cafe24 인증 흐름 등 별도 경로가 알아서 관리하도록 나눠 둔 것입니다.
+  - **위치:** `core/.../application/market/dto/MarketCredentialSaveCommand.java:8-12`
+  - **왜 문제인가:** 수동으로 넣는 API 키와, 자동으로 발급되는 OAuth 토큰을 분리한 의도된 설계로 보입니다. 다만 이 화면으로는 마켓을 '비활성화'할 방법이 없습니다.
+  - **어떻게 고치면 되나:** 지금은 손볼 필요 없습니다. 나중에 비활성화 기능이 필요해지면 별도 화면이나 항목을 검토하면 됩니다.
+  - **상세 문서:** market-credential/save-credential.md
+
+---
+
+## Cafe24 인증 (cafe24-auth) — `cafe24-auth/`
+> Cafe24 쇼핑몰과 연동할 때 로그인 대신 쓰는 '인증 토큰'을 발급받고, 연동이 살아있는지 상태를 점검하고, 로그인 후 되돌아오는 콜백을 처리하는 부분입니다. 발견 8건 (🔴0 · 🟠2 · 🟡2 · 🔵4).
+
+### 🟠 GAP (2건)
+
+- [ ] **`CAFE-1` · 🟠 GAP · 상태 점검 때 Cafe24가 요구하는 날짜 형식과 다르게 보냄**
+  - **무엇이 문제인가:** 연동이 정상인지 확인하려고 최근 주문을 조회하는데, 이때 보내는 날짜를 '2026-07-17' 처럼 시각(시:분:초)이 빠진 형태로 보냅니다. 그런데 Cafe24와 약속된 형식은 '2026-07-17 00:00:00' 처럼 시각까지 붙은 형태입니다.
+  - **위치:** `Cafe24AuthController.java:66-68` (계약: `Cafe24OrderApiPort.java:15-16`, 구현: `Cafe24OrderApiClient.java:26-32`)
+  - **왜 문제인가:** Cafe24가 시각 없는 날짜를 거부하거나 다르게 해석하면, 실제 인증·권한은 멀쩡한데도 주문 조회가 실패해 화면에 잘못된 오류(500)나 "점검 실패" 메시지가 뜰 수 있습니다. 연동 정상 여부 판정을 믿기 어렵게 만듭니다.
+  - **어떻게 고치면 되나:** 약속된 형식대로 '어제 00:00:00 ~ 오늘 23:59:59'처럼 시각을 붙여 보내거나, 반대로 약속 문서의 형식 규정을 실제 허용 범위에 맞게 느슨하게 고쳐 서로 일치시킵니다.
+  - **상세 문서:** cafe24-auth/status.md
+
+- [ ] **`CAFE-6` · 🟠 GAP · 빈 인증 코드가 걸러지지 않고 그대로 처리됨(콜백 경로)**
+  - **무엇이 문제인가:** 인증 코드를 받는 두 개의 입구가 있는데, 한쪽(`issue-token`)은 코드가 비어 있으면 곧바로 "잘못된 요청"으로 막습니다. 다른 쪽(콜백)은 그 검사가 없어서, 빈 값이나 공백 코드가 그대로 통과해 무의미한 인증 시도까지 가버립니다.
+  - **위치:** `Cafe24AuthController.java:198-208` (가드가 있는 쪽: `Cafe24AuthController.java:97-99`)
+  - **왜 문제인가:** 비어 있는 코드로 Cafe24에 쓸데없는 인증 교환을 시도하고, 그 실패를 사용자에게 500(서버 오류)으로 보여줍니다. 사실은 단순 입력 누락(400이 맞음)인데 심각한 서버 오류처럼 표시되는 비일관이 생깁니다.
+  - **어떻게 고치면 되나:** 콜백 쪽에도 동일한 빈 코드 차단 검사를 넣거나, 두 입구가 공유하는 처리 함수에서 코드가 비었으면 명확한 잘못된 요청(400)으로 처리되게 합니다.
+  - **상세 문서:** cafe24-auth/auth-callback.md
+
+### 🟡 SMELL (2건)
+
+- [ ] **`CAFE-2` · 🟡 SMELL · 오류 종류를 오류 메시지 글자를 뒤져서 판별함**
+  - **무엇이 문제인가:** 인증 실패인지 단순 서버 문제인지를 구분할 때, 오류 메시지 안에 "401", "403", "insufficient_scope" 같은 글자가 들어 있는지로 판단합니다. 원래의 정확한 상태 코드는 메시지 문장 속에 녹아 없어져 버립니다.
+  - **위치:** `Cafe24AuthController.java:133-144`, `Cafe24AuthController.java:72` (원인: `Cafe24RestClient.java:44-49`)
+  - **왜 문제인가:** Cafe24가 돌려준 응답 내용(최대 300자)에 우연히 "403"·"401" 같은 숫자가 섞이면 오류 종류를 잘못 분류할 수 있습니다. 또 상태 코드 전달 방식이 바뀌면 아무 경고 없이 조용히 오작동합니다.
+  - **어떻게 고치면 되나:** Cafe24 통신부가 HTTP 상태 코드를 메시지가 아니라 별도 값으로 구조적으로 보관하게 하고, 판별은 글자가 아니라 그 상태 코드 값으로 하도록 바꿉니다.
+  - **상세 문서:** cafe24-auth/status.md
+
+- [ ] **`CAFE-4` · 🟡 SMELL · 인증 코드 추출을 똑같이 두 번 함(중복)**
+  - **무엇이 문제인가:** 인증 코드에서 필요한 부분만 뽑아내는 작업을 한 번 하고 나서, 그 결과를 넘겨받은 함수가 또 한 번 같은 추출을 합니다. 결과는 같아서 지금 당장 오작동은 없지만 같은 일을 두 번 합니다.
+  - **위치:** `Cafe24AuthController.java:96`, `Cafe24AuthController.java:101`, `Cafe24AuthController.java:122`
+  - **왜 문제인가:** "이미 뽑았다"와 "또 뽑는다"가 한 코드 안에 섞여 있어, 나중에 코드를 고치는 사람이 흐름을 오해하기 쉽습니다. 유지보수할 때 실수를 부르는 구조입니다.
+  - **어떻게 고치면 되나:** 원본 입력을 받아 딱 한 번만 추출하도록 정리하고, 빈 값 검사 순서를 함께 손봐 중복을 없앱니다.
+  - **상세 문서:** cafe24-auth/issue-token.md
+
+### 🔵 NOTE (4건)
+
+- [ ] **`CAFE-3` · 🔵 NOTE · 단순 상태 조회인데 몰래 토큰을 갱신·저장함**
+  - **무엇이 문제인가:** 연동 상태를 '조회'만 하는 기능인데, 그 과정에서 만료된 토큰을 자동으로 새로 발급받아 DB에 저장하는 쓰기 작업이 일어납니다. 이는 의도된 설계입니다.
+  - **위치:** `Cafe24AuthController.java` status() (관련: `Cafe24TokenManager.java:49-69`, `Cafe24TokenManager.java:102-110`)
+  - **왜 문제인가:** 단순 조회를 기대한 사람 입장에서는 조회가 DB를 바꾼다는 게 직관적이지 않습니다. (다만 서버가 두 개 떠 있어도 잠금 장치로 충돌은 막혀 있습니다.)
+  - **어떻게 고치면 되나:** 의도된 동작이므로 상태 표에 "부수 효과로 토큰 갱신·저장이 있음"이라고 문서에 명시만 하면 됩니다.
+  - **상세 문서:** cafe24-auth/status.md
+
+- [ ] **`CAFE-5` · 🔵 NOTE · 토큰 저장과 활동 기록이 한 묶음으로 처리되지 않음**
+  - **무엇이 문제인가:** 토큰을 저장하는 작업과 "누가 언제 발급했다"는 활동 로그를 남기는 작업이 하나로 묶여 있지 않습니다. 그래서 토큰은 저장됐는데 로그만 빠지는 경우가 생길 수 있습니다.
+  - **위치:** `Cafe24AuthController.java:103-104` (관련: issueInitialToken의 persist)
+  - **왜 문제인가:** 성공 응답은 이미 나갔는데 활동 로그만 누락될 수 있습니다. 돈이나 데이터 정합성에는 영향이 없고, 감사 기록의 정확도만 아쉬워지는 정도입니다.
+  - **어떻게 고치면 되나:** 감사 기록 정확도가 중요하면 로그 기록이 실패해도 응답에는 영향 없게 두되, 로그 실패 자체를 따로 모니터링합니다. 의도된 설계라면 문서화로 충분합니다.
+  - **상세 문서:** cafe24-auth/issue-token.md
+
+- [ ] **`CAFE-7` · 🔵 NOTE · 예외 메시지를 화면에 그대로 노출**
+  - **무엇이 문제인가:** 인증 실패 시 내부 오류 메시지를 "❌ 인증 실패: ..." 형태로 화면에 그대로 보여줍니다. 이 메시지에는 Cafe24가 돌려준 응답 조각(최대 300자)이 섞여 나올 수 있습니다.
+  - **위치:** `Cafe24AuthController.java:206`, `Cafe24AuthController.java:111`
+  - **왜 문제인가:** 관리자만 접근하는 레거시 화면이라는 전제지만, 예외 메시지 안에 내부 정보가 화면에 노출될 수 있습니다. 보안 비중요 환경이라 우선순위는 낮습니다.
+  - **어떻게 고치면 되나:** 관리자 전용임을 확인하고, 필요하면 화면에는 일반적인 메시지만 보여주고 상세 내용은 서버 로그로만 남기게 분리합니다.
+  - **상세 문서:** cafe24-auth/auth-callback.md
+
+- [ ] **`CAFE-8` · 🔵 NOTE · 새 화면은 새 방식을 쓰는데 옛 콜백 경로가 계속 열려 있음**
+  - **무엇이 문제인가:** 신규 화면은 `POST /issue-token`을 쓰는데, 옛날 방식인 GET 콜백 경로가 여전히 살아 있습니다. 두 경로가 같은 처리 함수를 공유합니다.
+  - **위치:** `Cafe24AuthController.java:195-197`, `Cafe24AuthController.java:116-123`
+  - **왜 문제인가:** 동작 결함은 없지만, 옛 콜백 경로는 활동 로그를 남기지 않고 응답 형태도 달라 나중에 무슨 일이 있었는지 추적이 어렵습니다. 유지할지 없앨지가 불명확합니다.
+  - **어떻게 고치면 되나:** 이 경로가 Cafe24 앱의 리다이렉트 주소로 아직 필요한지 확인해서, 불필요하면 없애고 필요하면 활동 로그 기록을 추가할지 검토합니다.
+  - **상세 문서:** cafe24-auth/auth-callback.md
+
+---
+
+## 공급처·통화 (supplier) — `supplier/`
+> 상품을 사오는 공급처(거래처)를 등록·조회하고, 해외 매입에 쓰는 통화별 환율을 등록·조회하는 기능입니다. 발견 7건 (🔴0 · 🟠3 · 🟡2 · 🔵2).
+
+### 🟠 GAP (3건)
+
+- [ ] **`SUP-5` · 🟠 GAP · 이름은 "등록·수정"인데 실제로는 등록만 되고 환율은 못 바꾼다**
+  - **무엇이 문제인가:** 통화 등록 화면(주소)은 "upsert(있으면 수정, 없으면 등록)"라는 이름이지만, 실제로는 새 통화를 만드는 것만 됩니다. 이미 있는 통화를 다시 보내면 "이미 존재하는 통화입니다"라며 거부만 하고, 환율을 바꿔주는 별도 기능도 어디에도 없습니다.
+  - **위치:** `SupplierService.java:65-68`
+  - **왜 문제인가:** 환율은 계속 변하는데 화면(API)으로는 한 번 등록한 환율을 절대 못 바꿉니다. 바꾸려면 사람이 직접 데이터베이스를 손대야 합니다. 정산·매입원가가 환율로 계산되므로, 환율이 옛날 값에 고정되면 돈 계산에 오차가 생길 수 있습니다.
+  - **어떻게 고치면 되나:** 환율만 바꾸는 전용 기능(예: `PATCH /currencies/{code}`)을 새로 만들거나, 지금의 등록 기능을 진짜 "있으면 환율 수정"으로 바꾸는 정책을 정합니다. 최소한 "환율 변경은 DB를 직접 수정한다"는 운영 규칙이라도 문서에 남겨야 합니다.
+  - **상세 문서:** supplier/upsert-currency.md
+
+- [ ] **`SUP-6` · 🟠 GAP · 통화 등록 시 내용이 비어 있으면 500 에러가 난다**
+  - **무엇이 문제인가:** 통화 등록 요청에 내용(바디)이 아예 없이 들어오면, 프로그램이 없는 값을 읽으려다 서버 오류(500)를 냅니다. 게다가 오류 처리 부분에서도 같은 없는 값을 또 읽어서, 원래 무엇이 잘못됐는지조차 가려집니다.
+  - **위치:** `SupplierController.java:64-65`
+  - **왜 문제인가:** 잘못된 요청이면 "요청이 틀렸다(400)"고 친절히 알려줘야 하는데, 대신 "서버가 고장났다(500)"로 응답합니다. 원인 파악도 어려워집니다. 공급처 등록(SUP-2)과 똑같은 문제입니다.
+  - **어떻게 고치면 되나:** 요청 내용이 반드시 있어야 한다고 명시하거나(`@RequestBody(required = true)`), 시작 부분에서 비어 있는지 먼저 확인합니다. 공급처 등록(SUP-2)과 함께 한꺼번에 고치면 됩니다.
+  - **상세 문서:** supplier/upsert-currency.md
+
+- [ ] **`SUP-2` · 🟠 GAP · 공급처 등록 시 내용이 비어 있으면 500 에러가 난다**
+  - **무엇이 문제인가:** 공급처 등록 요청에 내용(바디)이 아예 없으면, 프로그램이 없는 값(공급처 코드)을 읽으려다 서버 오류(500)를 냅니다. 오류 처리 부분에서도 다시 같은 없는 값을 읽어서 원래 오류가 가려집니다.
+  - **위치:** `SupplierController.java:42-43`
+  - **왜 문제인가:** 내용을 빠뜨린 잘못된 요청은 "요청이 틀렸다(400)"로 알려줘야 하는데 "서버 고장(500)"으로 응답합니다. 진짜 원인도 숨겨집니다.
+  - **어떻게 고치면 되나:** 요청 내용이 반드시 있어야 한다고 명시하거나 시작 부분에서 비어 있는지 확인합니다. 각 항목 값 검증은 이미 서비스가 하므로, 내용이 있는지만 보장하면 충분합니다.
+  - **상세 문서:** supplier/create-supplier.md
+
+### 🟡 SMELL (2건)
+
+- [ ] **`SUP-3` · 🟡 SMELL · 성공·실패 기록 코드가 공급처와 통화 두 곳에 똑같이 복사돼 있다**
+  - **무엇이 문제인가:** 공급처 등록과 통화 등록에서 "실행 → 성공이면 성공 기록 → 실패면 실패 기록" 하는 뼈대 코드가 값만 다를 뿐 똑같이 반복돼 있습니다.
+  - **위치:** `SupplierController.java:45-55`
+  - **왜 문제인가:** 지금 동작은 정상이지만, 활동로그를 남기는 방식(형식 등)을 바꿀 때 두 군데를 똑같이 고쳐야 합니다. 한 곳만 고치면 서로 어긋납니다.
+  - **어떻게 고치면 되나:** 반복되는 로그 기록 부분을 공통 도우미(또는 공통 계층)로 한 번만 만들어 두 곳에서 함께 쓰도록 정리합니다.
+  - **상세 문서:** supplier/create-supplier.md
+
+- [ ] **`SUP-7` · 🟡 SMELL · 통화 등록에도 같은 성공·실패 기록 코드가 중복돼 있다**
+  - **무엇이 문제인가:** 통화 등록 부분도 공급처 등록과 똑같은 "실행 → 성공/실패 기록" 뼈대를 값만 바꿔 그대로 반복하고 있습니다.
+  - **위치:** `SupplierController.java:67-77`
+  - **왜 문제인가:** 활동로그 방식을 바꿀 때 두 곳을 동시에 고쳐야 하는 부담이 생깁니다. (SUP-3과 같은 사안)
+  - **어떻게 고치면 되나:** SUP-3과 함께 공통 도우미로 추출해 중복을 없앱니다.
+  - **상세 문서:** supplier/upsert-currency.md
+
+### 🔵 NOTE (2건)
+
+- [ ] **`SUP-1` · 🔵 NOTE · 공급처 목록을 나눠서(페이지) 주지 않고 전부 한 번에 준다**
+  - **무엇이 문제인가:** 활성 상태 공급처를 개수 제한이나 검색어 없이 전부 한꺼번에 돌려줍니다. "몇 개씩 나눠 보기"나 검색 기능이 없습니다.
+  - **위치:** `SupplierService.java:28`
+  - **왜 문제인가:** 지금은 공급처 수가 적어 문제없지만, 다른 목록 기능(활동로그 등)은 페이지 나눔이 있어 형평이 안 맞습니다. 공급처가 아주 많아지면 응답이 무거워집니다.
+  - **어떻게 고치면 되나:** 지금은 그대로 두는 게 합리적입니다. 규모가 커질 때 페이지 나눔을 도입할 여지만 기록해 둡니다.
+  - **상세 문서:** supplier/list-suppliers.md
+
+- [ ] **`SUP-4` · 🔵 NOTE · 활동로그가 저장 작업과 별개로 기록된다**
+  - **무엇이 문제인가:** 공급처를 저장한 뒤, 그와 분리된 별도 작업으로 활동로그를 남깁니다. 그래서 저장은 끝났지만 로그 기록만 실패할 수 있는데, 이때 오류는 조용히 무시하도록 되어 있습니다.
+  - **위치:** `SupplierController.java:48`
+  - **왜 문제인가:** 저장은 됐는데 활동로그만 빠질 수 있습니다. 다만 "본업(저장)을 보호하려" 일부러 이렇게 설계한 것이라 실제 데이터가 어긋날 위험은 낮습니다.
+  - **어떻게 고치면 되나:** 지금대로 두는 게 타당합니다. 감사 추적이 아주 중요해지면 저장과 로그를 하나의 작업으로 묶는 방안을 검토합니다.
+  - **상세 문서:** supplier/create-supplier.md
+
+---
+
+## 기타 (action-log · common-code · product-sync · notification · email-fetch)
+> 활동로그 조회, 화면 드롭다운용 공통코드, 상품 재고 동기화, 실시간 알림(SSE), 이메일에서 송장·구매가를 긁어오는 기능 등 여러 소기능을 한데 묶었습니다. 각각은 작지만 운영 중 자주 쓰이는 보조 기능들입니다. 발견 19건 (🔴0 · 🟠6 · 🟡6 · 🔵7).
+
+### 🟠 GAP (6건)
+
+- [ ] **`MISCA-4` · 🟠 GAP · 화면에서 쓰는 일부 코드 목록이 서버가 안 내려줌**
+  - **무엇이 문제인가:** 서버는 화면 드롭다운에 쓰이는 코드표(마켓종류·배송상태 등) 4가지만 내려줍니다. 하지만 상품 재고상태 같은 다른 코드들은 이 목록에 빠져 있습니다.
+  - **위치:** `CommonCodeController.java:30-33` (상품 재고상태는 `ProductSyncService.java:15,85`)
+  - **왜 문제인가:** 빠진 코드의 한글 이름표를 화면 쪽에 직접 박아 넣게 되고, 나중에 서버에서 이름표를 바꾸면 화면과 어긋나 서로 다른 글자가 표시됩니다.
+  - **어떻게 고치면 되나:** 화면이 실제로 필요로 하는 코드 목록을 확인해 빠진 것을 추가하거나, 코드표를 자동으로 모아 내려주는 방식으로 바꿉니다.
+  - **상세 문서:** common-code/list-common-codes.md
+
+- [ ] **`MISCA-7` · 🟠 GAP · 재고 동기화 버튼 연타 방지가 없음**
+  - **무엇이 문제인가:** 재고 맞추기 작업을 시작할 때, 이미 같은 작업이 돌고 있는지 확인하지 않고 그냥 또 시작합니다. 버튼을 여러 번 누르면 같은 작업이 여러 개 겹쳐 돌거나 줄줄이 대기합니다.
+  - **위치:** `ProductSyncController.java:35-45` (실행기 설정 `AsyncConfig.java:15-24`)
+  - **왜 문제인가:** 같은 상품을 여러 작업이 동시에 긁어가 소싱 사이트에서 차단당할 위험이 있고, 작업이 쌓여 느려집니다. 게다가 지금 진행 중인지 응답으로 알 수도 없습니다.
+  - **어떻게 고치면 되나:** 이미 진행 중이면 "이미 실행 중"이라고 거절하도록(중복 방지 잠금 사용) 합니다.
+  - **상세 문서:** product-sync/sync-stock.md
+
+- [ ] **`MISCA-9` · 🟠 GAP · 재고 동기화가 통째로 하나의 긴 DB 작업으로 묶임**
+  - **무엇이 문제인가:** 상품별로 따로따로 저장되도록 의도했지만, 코드가 자기 자신을 호출하는 방식이라 그 의도가 먹히지 않습니다. 결국 모든 상품 처리가 하나의 긴 DB 트랜잭션으로 묶이고, 상품마다 0.5초씩 쉬는 시간까지 그 안에 들어갑니다.
+  - **위치:** `ProductSyncService.java:114`(바깥) / `:70`(안쪽) / 자기호출 `:126`
+  - **왜 문제인가:** 상품이 많으면 DB 연결을 오래 붙잡아 연결이 바닥날 수 있고, 한 상품에서 문제가 새어 나오면 전체 작업이 통째로 되돌려질 수 있습니다.
+  - **어떻게 고치면 되나:** 상품별 처리를 별도로 호출되게 만들어 진짜로 건별로 분리하고, 쉬는 시간(sleep)은 DB 작업 밖으로 뺍니다.
+  - **상세 문서:** product-sync/sync-stock.md
+
+- [ ] **`MISCB-1` · 🟠 GAP · 자동 스케줄러가 끝낸 작업은 실시간 알림이 화면에 안 뜸**
+  - **무엇이 문제인가:** 실시간 알림 대상 목록이 한쪽 프로그램(api)의 메모리에만 있습니다. 그런데 자동 예약 작업은 다른 프로그램(worker)에서 돌기 때문에, worker가 끝낸 작업은 화면에 붙은 알림 연결까지 소식이 전달되지 않습니다.
+  - **위치:** `SseNotificationController.java:21` (수신부 `:63-83`, 스케줄러 `OrderSyncScheduler.java:39`)
+  - **왜 문제인가:** 사람이 직접 누른 작업만 실시간 알림이 뜨고, 자동 예약으로 끝난 주문동기화·배치 완료는 화면에 실시간으로 안 나타납니다.
+  - **어떻게 고치면 되나:** 두 프로그램이 공유하는 채널(예: Redis)로 알림을 중계하거나, 최소한 "실시간 알림은 사람이 누른 작업에만 유효"하다고 문서에 분명히 적어둡니다.
+  - **상세 문서:** notification/subscribe.md
+
+- [ ] **`MISCB-5` · 🟠 GAP · 아무 일도 안 한 호출이 "이메일 동기화 완료"로 덮어씀**
+  - **무엇이 문제인가:** 이미 다른 실행이 돌고 있으면 이번 요청은 아무것도 안 하고 그냥 넘어갑니다(스킵). 그런데도 코드는 마지막에 "완료" 도장을 찍어버립니다.
+  - **위치:** `EmailFetchController.java:50`(RUNNING) / `:54`(스킵) / `:55`(완료 도장), `SyncStatusService.java:54-75`
+  - **왜 문제인가:** 실제로는 다른 작업이 아직 진행 중인데, 아무 일도 안 한 이 호출이 "완료"로 상태를 바꿔버려서, 상태 조회 화면이 진행 중인 작업을 "완료됐다"고 잘못 보여줄 수 있습니다.
+  - **어떻게 고치면 되나:** 스킵된 경우엔 상태를 건드리지 않게 하고, 자기가 작업을 실제로 차지한(claim) 경우에만 완료·실패 도장을 찍도록 합니다.
+  - **상세 문서:** email-fetch/fetch.md
+
+- [ ] **`MISCB-6` · 🟠 GAP · 이메일 수집이 외부 통신까지 한 DB 작업 안에 넣어 오래 붙잡음**
+  - **무엇이 문제인가:** 이메일 긁어오기 전체가 하나의 DB 작업으로 묶여 있는데, 그 안에서 느린 메일서버 접속(최대 40초)과 마켓에 송장 전송까지 다 처리합니다.
+  - **위치:** `EmailFetcherService.java:59`(트랜잭션), IMAP `:125-126`, 마켓전송 `:234/256/280`
+  - **왜 문제인가:** DB 연결을 외부 통신 내내 오래 붙잡아 연결이 바닥날 수 있습니다. 또 뒷부분에서 오류가 나면 앞서 저장한 발송 처리가 되돌려지는데, 마켓엔 이미 송장이 나가버려 DB와 마켓이 서로 안 맞는 순간이 생깁니다.
+  - **어떻게 고치면 되나:** DB 작업 범위를 주문/항목 단위로 좁히고, 메일 수집은 DB 작업 밖에서 하도록 나눕니다.
+  - **상세 문서:** email-fetch/fetch.md
+
+### 🟡 SMELL (6건)
+
+- [ ] **`MISCA-1` · 🟡 SMELL · 아무도 안 쓰는 조회 메서드가 남아있음**
+  - **무엇이 문제인가:** 활동로그를 최근 100건 가져오는 메서드가 선언돼 있지만, 실제 조회 경로에서는 다른 메서드만 쓰고 이건 어디서도 부르지 않습니다.
+  - **위치:** `ActionLogRepository.java:11` (실제 조회는 `ActionLogService.java:L61`)
+  - **왜 문제인가:** 동작엔 문제 없지만, 나중에 코드를 고칠 때 조회 경로가 두 개인 것처럼 헷갈릴 수 있습니다.
+  - **어떻게 고치면 되나:** 미사용을 확인하고 지우거나, 남길 이유가 있으면 주석으로 이유를 적어둡니다.
+  - **상세 문서:** action-log/list-action-logs.md
+
+- [ ] **`MISCA-5` · 🟡 SMELL · 내려줄 코드 목록을 손으로 한 줄씩 적어둠**
+  - **무엇이 문제인가:** 화면에 내려줄 코드표 목록이 컨트롤러에 4줄로 직접 적혀 있습니다. 새 코드를 추가하려면 반드시 이 파일을 손으로 고쳐야 하는데, 빠뜨려도 컴퓨터가 잡아주지 못합니다.
+  - **위치:** `CommonCodeController.java:30-33`
+  - **왜 문제인가:** 새 코드를 만들 때 여기에 등록하는 걸 깜빡하기 쉬워, MISCA-4 같은 누락이 또 생깁니다.
+  - **어떻게 고치면 되나:** 코드 목록을 따로 모아두거나, 해당하는 코드들을 자동으로 찾아 등록하게 만듭니다.
+  - **상세 문서:** common-code/list-common-codes.md
+
+- [ ] **`MISCA-8` · 🟡 SMELL · 상품별 실패를 조용히 삼켜 부분 실패가 안 보임**
+  - **무엇이 문제인가:** 재고 동기화 중 어떤 상품 하나가 실패해도 오류 기록만 남기고 넘어갑니다. 마지막 완료 기록에는 "대상 N개"라는 시도 개수만 적히고, 실제로 몇 개 성공했고 몇 개 실패했는지는 구분되지 않습니다.
+  - **위치:** `ProductSyncService.java:107-110`, `:134-136`, 완료 메시지 `:61`
+  - **왜 문제인가:** 일부 상품이 계속 실패해도 기록은 "성공"으로 남아, 운영자가 부분 실패(예: 특정 사이트 페이지 깨짐)를 알아채기 어렵습니다.
+  - **어떻게 고치면 되나:** 성공/실패 건수를 완료 메시지에 함께 적고, 실패가 하나라도 있으면 "부분 성공"으로 구분합니다.
+  - **상세 문서:** product-sync/sync-stock.md
+
+- [ ] **`MISCB-2` · 🟡 SMELL · 알림 내용을 기호로 이어 붙인 문자열로 주고받음**
+  - **무엇이 문제인가:** 알림 내용을 `MARKET|success` 처럼 세로막대(`|`)로 값을 이어 붙인 문자열로 만들고, 화면 쪽이 이걸 다시 잘라서 읽습니다. 정해진 형식(스키마)이 없습니다.
+  - **위치:** `SseNotificationController.java:56-61`, `:74-76` (화면 `OrderGrid.tsx:552-563`, `ProcessStatusPage.tsx:123`)
+  - **왜 문제인가:** 오류 메시지 안에 세로막대(`|`)가 섞이면 화면이 값을 엉뚱하게 잘라 읽어 오작동할 수 있습니다.
+  - **어떻게 고치면 되나:** 값마다 이름이 붙은 구조화된 형식(JSON)으로 바꾸고, 계약 테스트로 형식을 고정합니다.
+  - **상세 문서:** notification/subscribe.md
+
+- [ ] **`MISCB-7` · 🟡 SMELL · 최근 200통만 뒤져서 오래된 주문 메일을 놓칠 수 있음**
+  - **무엇이 문제인가:** 이메일에서 주문번호를 찾을 때 항상 최근 200통만 훑습니다. 메일이 많이 쌓인 계정이면 필요한 메일이 200통 밖으로 밀려날 수 있습니다.
+  - **위치:** `EmailFetcherService.java:141` (확인메일도 `:421` 동일)
+  - **왜 문제인가:** 밀려난 주문의 송장·실구매가가 영영 반영되지 않고, 다시 시도해도 창이 계속 밀려 회복되지 않습니다.
+  - **어떻게 고치면 되나:** 제목·날짜 조건이나 증분 조회로 "최근 200통"이라는 한계를 없애고, 못 찾은 건은 경고 지표로 드러냅니다.
+  - **상세 문서:** email-fetch/fetch.md
+
+- [ ] **`MISCB-8` · 🟡 SMELL · 주문번호마다 메일서버에 매번 새로 접속해 반복 조회**
+  - **무엇이 문제인가:** 처리할 주문번호마다 모든 메일 계정에 새로 접속하고, 매번 최근 메일을 다시 통째로 불러옵니다. 주문번호가 N개면 계정당 N번씩 접속·조회를 반복합니다.
+  - **위치:** `EmailFetcherService.java:104-108` (접속·조회 `:129-144`)
+  - **왜 문제인가:** 불필요한 접속·조회 반복으로 느려지고 서버 부하가 커집니다. 처리할 주문이 많을수록 점점 더 나빠집니다.
+  - **어떻게 고치면 되나:** 계정당 한 번만 접속해 최근 메일을 한 번 불러온 뒤, 대상 주문번호들을 메모리에서 맞춰봅니다.
+  - **상세 문서:** email-fetch/fetch.md
+
+### 🔵 NOTE (7건)
+
+- [ ] **`MISCA-2` · 🔵 NOTE · 활동로그가 총 개수·다음 페이지 여부를 안 알려줌**
+  - **무엇이 문제인가:** 활동로그 조회는 목록만 돌려주고, 전체가 몇 건인지·다음 페이지가 있는지는 알려주지 않습니다.
+  - **위치:** `ActionLogController.java:41-51`, `ActionLogService.java:57-62`
+  - **왜 문제인가:** 화면이 페이지 번호를 보내도 "마지막 페이지에 도달했는지"를 응답만으로는 알 수 없어, 빈 목록인지로 추측해야 합니다.
+  - **어떻게 고치면 되나:** 나중에 화면에 실제 페이지 넘김 UI를 넣을 때 총 개수·다음 페이지 여부를 응답에 담습니다. (지금은 의도된 설계라 참고용)
+  - **상세 문서:** action-log/list-action-logs.md
+
+- [ ] **`MISCA-3` · 🔵 NOTE · 조회 개수 제한 방어가 두 곳에 중복돼 있음**
+  - **무엇이 문제인가:** 조회 개수·페이지 값을 안전한 범위로 다듬는 처리가 컨트롤러와 서비스 두 군데에 똑같이 있습니다(의도된 이중 방어).
+  - **위치:** `ActionLogController.java:L45-46`, `ActionLogService.java:L59-60`
+  - **왜 문제인가:** 기준 숫자(100/500)가 두 파일에 흩어져 있어, 한쪽만 바꾸면 두 곳이 서로 안 맞게 됩니다.
+  - **어떻게 고치면 되나:** 이중 방어는 그대로 두되, 기준 숫자는 한 곳(공용 상수)에서 가져다 쓰도록 합니다.
+  - **상세 문서:** action-log/list-action-logs.md
+
+- [ ] **`MISCA-6` · 🔵 NOTE · 공통코드를 매 요청마다 다시 계산하고 인증 없이 열려 있음**
+  - **무엇이 문제인가:** 바뀌지 않는 코드표인데도 요청이 올 때마다 새로 계산해 만들어 줍니다. 또 인증 없이 누구나 부를 수 있습니다.
+  - **위치:** `CommonCodeController.java:27-35`, 개방 설정 `:23`
+  - **왜 문제인가:** 매번 다시 계산하는 건 약간 비효율적입니다. 다만 내용이 공개해도 되는 이름표라 인증 없는 노출은 사실상 문제 없습니다.
+  - **어떻게 고치면 되나:** 한 번 계산해 캐시로 재활용하면 재계산이 사라집니다. 인증은 데이터 성격상 불필요.
+  - **상세 문서:** common-code/list-common-codes.md
+
+- [ ] **`MISCA-10` · 🔵 NOTE · 처리 대상이 0개여도 시작·완료 기록이 남음**
+  - **무엇이 문제인가:** 재고 동기화를 시작하면 대상이 0개여도 무조건 "시작" 기록을 남기고, 이어서 "완료 (대상 0개)" 기록을 남깁니다.
+  - **위치:** `ProductSyncController.java:L40-41`, `ProductSyncService.java:59-61`
+  - **왜 문제인가:** 실제로 한 일이 없어도 시작·완료 기록이 쌓여 로그가 지저분해집니다(무해).
+  - **어떻게 고치면 되나:** 대상이 0개면 "대상 없음"으로 메시지를 구분해 로그를 읽기 쉽게 합니다(선택).
+  - **상세 문서:** product-sync/sync-stock.md
+
+- [ ] **`MISCB-3` · 🔵 NOTE · 실시간 연결에 주기적 신호(하트비트)가 없어 조용히 끊길 수 있음**
+  - **무엇이 문제인가:** 실시간 알림 연결은 처음에 한 번만 신호를 보내고, 이후 보낼 게 없으면 하루 종일 아무것도 안 보냅니다. 살아있음을 알리는 주기 신호가 없습니다.
+  - **위치:** `SseNotificationController.java:42`
+  - **왜 문제인가:** 중간 네트워크 장비가 "노는 연결"로 보고 조용히 끊어버릴 수 있고, 그 사이 발생한 알림을 놓칩니다.
+  - **어떻게 고치면 되나:** 15~30초마다 살아있음 신호(하트비트)를 보내거나, 네트워크 장비의 유휴 대기시간을 늘리고 문서화합니다.
+  - **상세 문서:** notification/subscribe.md
+
+- [ ] **`MISCB-4` · 🔵 NOTE · 실시간 알림 스트림이 인증 없이 누구에게나 열려 있음**
+  - **무엇이 문제인가:** 실시간 알림 연결이 모든 출처에 열려 있고 인증도 없어, 주소만 알면 누구나 구독할 수 있습니다. 여기로 마켓명·배치ID·오류메시지가 흘러갑니다.
+  - **위치:** `SseNotificationController.java:17`
+  - **왜 문제인가:** 운영 주소가 노출되면 아무 곳에서나 동기화·배치 알림을 받아볼 수 있습니다. (보안 비중요 방침상 즉시 결함은 아니나 기록)
+  - **어떻게 고치면 되나:** 허용할 운영 출처만 목록으로 좁히는 것을 검토합니다.
+  - **상세 문서:** notification/subscribe.md
+
+- [ ] **`MISCB-9` · 🔵 NOTE · 오류 응답에 내부 예외 메시지를 그대로 노출**
+  - **무엇이 문제인가:** 이메일 수집이 실패하면 응답에 내부 예외 메시지를 가공 없이 그대로 실어 보냅니다.
+  - **위치:** `EmailFetchController.java:63-64`
+  - **왜 문제인가:** 내부 전용 엔드포인트라 노출 위험은 낮지만, 예외 메시지에 메일서버 주소·계정 같은 세부가 섞일 수 있습니다. 같은 메시지가 DB에도 저장됩니다.
+  - **어떻게 고치면 되나:** 내부용임을 감안해 현 상태 유지도 가능하나, 응답 메시지를 일반화된 문구로 줄이는 것을 검토합니다.
+  - **상세 문서:** email-fetch/fetch.md
+
+---
+
+## 참고
+
+- 이 문서는 진단·기록 전용입니다. 실제 수정은 정상화 작업(`sbshop-normalize`)에서 재현 테스트 → 수정 순으로 진행합니다.
+- 재현 가능한 🔴/🟠 항목은 결함 원장(`docs/normalize/defect-ledger.md`)으로 옮겨 관리합니다.
+- 1차 문서(`docs/api-analysis/FINDINGS-CHECKLIST.md`)와는 별개인, **현재 코드 기준 새 조사**입니다. 각 항목의 상세 근거·다이어그램은 위 "상세 문서" 링크의 파일 §7 발견사항을 참고하세요.
+
+*생성: 2026-07-17 · 근거: 현재 워킹트리(main)*
