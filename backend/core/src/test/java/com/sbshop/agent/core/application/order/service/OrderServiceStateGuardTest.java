@@ -133,19 +133,22 @@ class OrderServiceStateGuardTest {
 			verify(orderLineItemRepository).save(item);
 		}
 
-		/** PREPARING인데 주문번호가 없으면 차단하고 저장하지 않는다 (F-S3 특성 고정 — 분기별 차이 보존). */
+		/** 가드 완화: PREPARING이고 주문번호가 없어도 소싱수정은 저장된다.
+		 *  주문번호가 없으므로 자동 구매완료 처리는 하지 않고 purchaseStatus는 NOT_PURCHASED로 유지된다. */
 		@Test
-		@DisplayName("PREPARING 소싱수정(주문번호 없음) → 차단(IllegalStateException), 저장 없음")
-		void preparingItem_sourcingUpdateWithoutOrderNo_blocked() {
+		@DisplayName("PREPARING 소싱수정(주문번호 없음) → 저장 허용, purchaseStatus=NOT_PURCHASED 유지")
+		void preparingItem_sourcingUpdateWithoutOrderNo_allowed() {
 			OrderLineItem item = itemWithStatus(ShippingStatus.PREPARING);
 			when(orderLineItemRepository.findById(5L)).thenReturn(Optional.of(item));
+			when(orderLineItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-			assertThatThrownBy(() -> service().updateSourcingInfo(5L,
-				SourcingUpdateCommand.builder().sourcingVendor("V1").build()))
-				.isInstanceOf(IllegalStateException.class)
-				.hasMessageContaining("주문번호");
+			OrderLineItem result = service().updateSourcingInfo(5L,
+				SourcingUpdateCommand.builder().sourcingVendor("V1").build());
 
-			verify(orderLineItemRepository, never()).save(any());
+			assertThat(result.getPurchaseStatus()).isEqualTo(PurchaseStatus.NOT_PURCHASED);
+			assertThat(result.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.PREPARING);
+			assertThat(result.getSourcingData().getSourcingVendor()).isEqualTo("V1");
+			verify(orderLineItemRepository).save(item);
 		}
 	}
 

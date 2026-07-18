@@ -288,12 +288,8 @@ public class OrderService {
 			throw new IllegalStateException("발주확인 전에는 구매 정보를 수정할 수 없습니다.");
 		}
 
-		// PREPARING이면 주문번호 가드 (소싱데이터 반영 전에 검증한다).
-		boolean isPreparingStatus = currentStatus == ShippingStatus.PREPARING;
-		if (isPreparingStatus
-			&& (command.getSourcingOrderNo() == null || command.getSourcingOrderNo().isEmpty())) {
-			throw new IllegalStateException("구매정보 수정 시 주문번호는 필수입니다.");
-		}
+		// 주문번호 필수 가드 제거: 구매상태(PurchaseStatus)가 독립 필드로 분리된 뒤로 주문번호 강제는 불필요.
+		// 항상 편집 가능한 그리드에서 주문번호 삭제·부분수정을 허용한다. (주문번호 입력 시 자동 구매완료 처리는 유지)
 
 		// 공통: 소싱데이터 반영 → (주문번호 있고 미구매 상태이면 purchaseStatus 업데이트) → 저장
 		boolean hasSourcingOrderNo = command.getSourcingOrderNo() != null
