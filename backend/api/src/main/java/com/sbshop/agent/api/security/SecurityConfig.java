@@ -29,6 +29,9 @@ public class SecurityConfig {
 			.authorizeHttpRequests(auth -> auth
 				.requestMatchers("/api/v1/**").permitAll()
 				.requestMatchers("/api/admin/**").permitAll()
+				// 내부 트리거(/internal/**: 이메일 수집·상품동기화)는 InternalAccessGuard 토큰이 보호한다.
+				// Spring Security 도입 후 authenticated()에 걸려 403 회귀 → 컨트롤러 가드로 위임하도록 통과.
+				.requestMatchers("/internal/**").permitAll()
 				.requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
 				.anyRequest().authenticated());
 		return http.build();
