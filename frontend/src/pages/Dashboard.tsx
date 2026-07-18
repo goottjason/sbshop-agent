@@ -26,7 +26,7 @@ const METRICS: Metric[] = [
     load: () => fetchOrderCount({ shippingStatuses: ['DELIVERED'] }) },
   { key: 'customs', title: '통관 오류/대기', icon: <AlertCircle size={20} />, color: 'var(--error)',
     load: () => fetchOrderCount({ customsStatuses: CUSTOMS_ISSUE_STATUSES }) },
-  { key: 'ship-ready', title: '배송처리 대기 (구매완료)', icon: <Truck size={20} />, color: '#7c3aed',
+  { key: 'ship-ready', title: '배송지시 완료 대기', icon: <Truck size={20} />, color: '#7c3aed',
     load: () => fetchOrderCount({ shippingStatuses: ['DISPATCHED'] }) },
 ];
 
