@@ -30,7 +30,7 @@ public class CoupangStatusMapper implements MarketStatusMapper {
 	private ShippingStatus mapBasicStatus(String s) {
 		return switch (s) {
 			case "ACCEPT" -> ShippingStatus.NEW;
-			case "INSTRUCT" -> ShippingStatus.PREPARING;
+			case "INSTRUCT" -> ShippingStatus.DISPATCHED;
 			case "DELIVERING", "DEPARTURE", "NONE_TRACKING" -> ShippingStatus.SHIPPED;
 			case "DELIVERED", "FINAL_DELIVERY" -> ShippingStatus.DELIVERED;
 			case "CANCELED", "CANCEL_RECEIPT", "CANCEL_DONE" -> ShippingStatus.CANCELED;
