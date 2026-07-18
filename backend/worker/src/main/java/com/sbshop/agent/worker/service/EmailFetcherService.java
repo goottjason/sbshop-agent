@@ -299,10 +299,10 @@ public class EmailFetcherService {
 				if (currentShipping == null) {
 					currentShipping = ShippingData.builder().build();
 				}
+				// 송장번호·택배사만 기록 — 배송상태는 마켓 API 동기화로 반영
 				item.applyShippingData(currentShipping.toBuilder()
 					.trackingNo(shipmentData.getTrackingNo())
 					.shippingCarrier(carrier)
-					.shippingStatus(ShippingStatus.SHIPPED)
 					.build());
 				orderLineItemRepository.save(item);
 
