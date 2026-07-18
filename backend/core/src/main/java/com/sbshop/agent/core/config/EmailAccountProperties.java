@@ -22,7 +22,7 @@ public class EmailAccountProperties {
 		"naver.com", "imap.naver.com",
 		"hanmail.net", "imap.daum.net",
 		"daum.net", "imap.daum.net",
-		"nate.com", "imap.mail.nate.com");
+		"nate.com", "imap.nate.com");
 	/** 알 수 없는 도메인·@없음 시 폴백(대부분 Gmail이므로). */
 	private static final String DEFAULT_IMAP_HOST = "imap.gmail.com";
 	private static final int IMAP_PORT = 993;

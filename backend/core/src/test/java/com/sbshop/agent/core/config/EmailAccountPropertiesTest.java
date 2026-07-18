@@ -9,8 +9,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 /**
- * EMAIL_ACCOUNTS 컴팩트 목록 파싱 — 3슬롯 고정 대신 단일 env로 N개 Gmail 계정을 담기 위한 파서.
- * 전 계정 Gmail 전제(비-Gmail은 대표 Gmail로 포워딩) → host/port/protocol은 Gmail 고정.
+ * EMAIL_ACCOUNTS 컴팩트 목록 파싱 — 단일 env로 N개 계정을 담고, IMAP host는 이메일 도메인으로
+ * 자동 판별한다(Gmail은 중앙전달·비-Gmail은 직접 IMAP 수집). port/protocol은 993/imaps 고정.
  */
 class EmailAccountPropertiesTest {
 
@@ -97,7 +97,7 @@ class EmailAccountPropertiesTest {
 				org.assertj.core.api.Assertions.tuple("a@naver.com", "imap.naver.com"),
 				org.assertj.core.api.Assertions.tuple("b@daum.net", "imap.daum.net"),
 				org.assertj.core.api.Assertions.tuple("c@hanmail.net", "imap.daum.net"),
-				org.assertj.core.api.Assertions.tuple("d@nate.com", "imap.mail.nate.com"),
+				org.assertj.core.api.Assertions.tuple("d@nate.com", "imap.nate.com"),
 				org.assertj.core.api.Assertions.tuple("e@gmail.com", "imap.gmail.com"));
 			assertThat(result).allMatch(a -> a.getPort() == 993 && "imaps".equals(a.getProtocol()));
 		}
@@ -114,7 +114,7 @@ class EmailAccountPropertiesTest {
 			assertThat(EmailAccountProperties.imapHostForEmail("x@naver.com")).isEqualTo("imap.naver.com");
 			assertThat(EmailAccountProperties.imapHostForEmail("x@daum.net")).isEqualTo("imap.daum.net");
 			assertThat(EmailAccountProperties.imapHostForEmail("x@hanmail.net")).isEqualTo("imap.daum.net");
-			assertThat(EmailAccountProperties.imapHostForEmail("x@nate.com")).isEqualTo("imap.mail.nate.com");
+			assertThat(EmailAccountProperties.imapHostForEmail("x@nate.com")).isEqualTo("imap.nate.com");
 		}
 
 		@Test
