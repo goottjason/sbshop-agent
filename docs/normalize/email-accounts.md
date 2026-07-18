@@ -1,5 +1,15 @@
 # 소싱 이메일 계정 · 시크릿 정리 (이메일 펫칭 설정 대상)
 
+> ## ✅ 2026-07-18 최종 — 하이브리드 구성 배포·IMAP 9/9 검증 완료
+> 실제 세팅 결과, **Gmail은 중앙전달 / 비-Gmail은 시스템이 직접 IMAP 수집**하는 하이브리드로 확정.
+> - **Gmail 14개** → 각자 자동전달 → 중앙 `shouldbe.shopping@gmail.com` → `EMAIL_CENTRAL_*`로 1곳 수집.
+> - **비-Gmail 8개**(naver4·daum3·nate1) → 자동전달 불가(제공자 미지원 + Gmail '다른 계정 확인' 2026초 종료) → `EMAIL_ACCOUNTS`에 등록, 시스템이 **각 제공자 IMAP 직접 접속**(host 도메인 자동판별).
+> - IMAP host: gmail→imap.gmail.com, naver→imap.naver.com, hanmail/daum→imap.daum.net, **nate→imap.nate.com**(imap.mail.nate.com은 DNS 미해석—라이브 교정), 그 외 gmail 폴백.
+> - **라이브 검증(서버 배포 후)**: 9계정 전수 IMAP 로그인 **9/9 성공**(central Gmail INBOX=325, naver 4, daum 3, nate 1).
+> - 코드: `EmailAccountProperties.imapHostForEmail`, `INBOX_SCAN_WINDOW`=1000. compose가 EMAIL_CENTRAL_*·EMAIL_ACCOUNTS 전달. 커밋 659bcab까지 배포됨.
+> - 앱비번 회전은 사용자 결정으로 생략(kcxk…·wmdj…가 히스토리 032b8c1에 잔존).
+> - 아래 방향전환 블록·§2~§5는 진행 과정 기록으로 보존.
+
 > ## ⭐ 2026-07-18 방향 전환 — 중앙 계정(Central) 방식으로 결정
 > 계정 23개마다 앱 비밀번호(=계정마다 2단계 인증) 만드는 부담을 없애기 위해, **소싱 계정들은 각자 Gmail '자동전달(push)'로 중앙 계정 `shouldbe.shopping@gmail.com` 인박스에 메일을 모으고, 시스템은 중앙 계정 하나만 IMAP으로 읽는다.**
 > - **앱 비밀번호 1개**(중앙 계정)만 필요. 나머지 계정은 전달 설정만(2FA·앱비번 불필요).
