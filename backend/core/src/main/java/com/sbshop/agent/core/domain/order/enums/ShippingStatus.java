@@ -12,6 +12,7 @@ public enum ShippingStatus implements EnumMapperType {
 	NEW("결제완료", 0),
 	PREPARING("구매준비", 1),
 	PURCHASED("구매완료", 2),
+	DISPATCHED("배송지시", 2),
 	SHIPPED("배송중", 3),
 	DELIVERED("배송완료", 4),
 	CANCELED("취소됨", -1),
