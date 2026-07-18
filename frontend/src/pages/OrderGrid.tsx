@@ -451,7 +451,7 @@ const OrderGrid: React.FC = () => {
   const [queryParams, setQueryParams] = useState<{keyword?: string, markets?: string[], statuses?: string[], startDate?: string, endDate?: string}>({
     keyword: '',
     markets: ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'],
-    statuses: ['UNKNOWN', 'NEW', 'PREPARING', 'PURCHASED', 'SHIPPED', 'DELIVERED', 'CANCELED', 'RETURNED', 'EXCHANGED'],
+    statuses: ['UNKNOWN', 'NEW', 'PREPARING', 'DISPATCHED', 'SHIPPED', 'DELIVERED', 'CANCELED', 'RETURNED', 'EXCHANGED'],
     startDate: defaultStart,
     endDate: defaultEnd
   });

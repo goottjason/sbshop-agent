@@ -21,13 +21,13 @@ const METRICS: Metric[] = [
   { key: 'preparing', title: '구매준비', icon: <RefreshCw size={20} />, color: 'var(--warning)',
     load: () => fetchOrderCount({ shippingStatuses: ['PREPARING'] }) },
   { key: 'shipping', title: '배송 진행 중', icon: <TrendingUp size={20} />, color: 'var(--success)',
-    load: () => fetchOrderCount({ shippingStatuses: ['PURCHASED', 'SHIPPED'] }) },
+    load: () => fetchOrderCount({ shippingStatuses: ['DISPATCHED', 'SHIPPED'] }) },
   { key: 'delivered', title: '배송완료', icon: <CheckCircle size={20} />, color: '#0f766e',
     load: () => fetchOrderCount({ shippingStatuses: ['DELIVERED'] }) },
   { key: 'customs', title: '통관 오류/대기', icon: <AlertCircle size={20} />, color: 'var(--error)',
     load: () => fetchOrderCount({ customsStatuses: CUSTOMS_ISSUE_STATUSES }) },
   { key: 'ship-ready', title: '배송처리 대기 (구매완료)', icon: <Truck size={20} />, color: '#7c3aed',
-    load: () => fetchOrderCount({ shippingStatuses: ['PURCHASED'] }) },
+    load: () => fetchOrderCount({ shippingStatuses: ['DISPATCHED'] }) },
 ];
 
 const Dashboard = () => {
