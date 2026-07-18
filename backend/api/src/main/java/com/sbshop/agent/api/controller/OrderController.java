@@ -22,6 +22,7 @@ import com.sbshop.agent.api.dto.OrderShipRequest;
 import com.sbshop.agent.api.dto.OrderUpdateRequest;
 import com.sbshop.agent.api.dto.ShippingUpdateRequest;
 import com.sbshop.agent.api.dto.SourcingUpdateRequest;
+import com.sbshop.agent.api.dto.UpdatePurchaseStatusRequest;
 import com.sbshop.agent.core.application.order.dto.BulkConfirmResult;
 import com.sbshop.agent.core.application.order.dto.BulkShipResult;
 import com.sbshop.agent.core.application.order.dto.OrderDetailDto;
@@ -288,6 +289,16 @@ public class OrderController {
 				ActionStatus.FAILED, "배송정보 수정 실패 (품목 " + lineItemId + "): " + e.getMessage());
 			throw e;
 		}
+	}
+
+	/** 라인아이템 구매 상태 수정 */
+	@PatchMapping("/line-items/{lineItemId}/purchase-status")
+	public ResponseEntity<OrderLineItemResponse> updatePurchaseStatus(
+		@PathVariable Long lineItemId,
+		@RequestBody UpdatePurchaseStatusRequest request) {
+
+		OrderLineItem updated = orderService.updatePurchaseStatus(lineItemId, request.getPurchaseStatus());
+		return ResponseEntity.ok(OrderLineItemResponse.from(updated));
 	}
 
 	// ======================== 발송 ========================

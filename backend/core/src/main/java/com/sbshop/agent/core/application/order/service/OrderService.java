@@ -372,6 +372,17 @@ public class OrderService {
 		return item;
 	}
 
+	/** 라인아이템 구매 상태 변경 */
+	@Transactional
+	public OrderLineItem updatePurchaseStatus(Long lineItemId, PurchaseStatus purchaseStatus) {
+		OrderLineItem item = orderLineItemRepository.findById(lineItemId)
+			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + lineItemId));
+		item.updatePurchaseStatus(purchaseStatus);
+		orderLineItemRepository.save(item);
+		log.info("라인아이템 {} 구매상태 변경: {}", lineItemId, purchaseStatus);
+		return item;
+	}
+
 	/** 라인아이템 구매 처리 */
 	@Transactional
 	public void markAsPurchased(Long lineItemId, String sourcingAccount,

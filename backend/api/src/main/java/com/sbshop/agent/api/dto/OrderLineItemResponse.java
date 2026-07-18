@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 import com.sbshop.agent.core.domain.common.RecordStatus;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.domain.order.enums.PurchaseStatus;
 import com.sbshop.agent.core.domain.order.vo.SettlementData;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import com.sbshop.agent.core.domain.order.vo.SourcingData;
@@ -36,6 +37,7 @@ public class OrderLineItemResponse {
 	private final SettlementData settlementData;
 	private final ShippingData shippingData;
 	private final Boolean isUnipassDone;
+	private final PurchaseStatus purchaseStatus;
 
 	// 엔티티의 파생 getter(isProgressed)도 현재 JSON에 포함되므로 미러
 	private final boolean progressed;
@@ -54,6 +56,7 @@ public class OrderLineItemResponse {
 			.settlementData(item.getSettlementData())
 			.shippingData(item.getShippingData())
 			.isUnipassDone(item.getIsUnipassDone())
+			.purchaseStatus(item.getPurchaseStatus())
 			.progressed(item.isProgressed())
 			.build();
 	}
