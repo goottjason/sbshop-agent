@@ -12,9 +12,16 @@ class CoupangStatusMapperTest {
     private final CoupangStatusMapper mapper = new CoupangStatusMapper();
 
     @Test
-    @DisplayName("INSTRUCT(배송지시) → DISPATCHED 매핑")
-    void instruct_mapsToDispatched() {
+    @DisplayName("INSTRUCT(상품준비중) → PREPARING 매핑")
+    void instruct_mapsToPrep() {
         ShippingStatus result = mapper.mapStatus(Map.of("status", "INSTRUCT"));
+        assertThat(result).isEqualTo(ShippingStatus.PREPARING);
+    }
+
+    @Test
+    @DisplayName("DEPARTURE(송장등록·추적미시작) → DISPATCHED 매핑")
+    void departure_mapsToDispatched() {
+        ShippingStatus result = mapper.mapStatus(Map.of("status", "DEPARTURE"));
         assertThat(result).isEqualTo(ShippingStatus.DISPATCHED);
     }
 
