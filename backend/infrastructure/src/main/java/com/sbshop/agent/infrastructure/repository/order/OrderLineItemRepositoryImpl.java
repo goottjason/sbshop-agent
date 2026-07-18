@@ -48,10 +48,13 @@ public class OrderLineItemRepositoryImpl implements OrderLineItemRepositoryCusto
 		// PREPARING 상태: 최초 발송 대기. iHerb 주문번호 존재(외부 조건)가 곧 "구매함"의 신호이므로
 		// PurchaseStatus는 게이팅에 쓰지 않는다(구매상태는 유저 수동 관리 필드).
 		BooleanExpression preparing = orderLineItem.shippingData.shippingStatus.eq(ShippingStatus.PREPARING);
-		// SHIPPED + trackingSentToMarket가 false 또는 null: 마켓 미동기화 (재시도 필요)
-		BooleanExpression shippedNotSynced = orderLineItem.shippingData.shippingStatus.eq(ShippingStatus.SHIPPED)
+		// DISPATCHED(쿠팡 DEPARTURE 등 송장 등록됨)/SHIPPED(배송중) 이지만 우리 시스템이 마켓 전송을
+		// 확정(trackingSentToMarket)하지 못한 건: 진짜 송장 전송·교정 필요(재시도). 쿠팡 동기화가 만든
+		// DISPATCHED 건이 파이프라인에서 누락되던 문제를 해소한다.
+		BooleanExpression hasInvoiceNotSynced = orderLineItem.shippingData.shippingStatus
+			.in(ShippingStatus.DISPATCHED, ShippingStatus.SHIPPED)
 			.and(orderLineItem.shippingData.trackingSentToMarket.isFalse()
 				.or(orderLineItem.shippingData.trackingSentToMarket.isNull()));
-		return preparing.or(shippedNotSynced);
+		return preparing.or(hasInvoiceNotSynced);
 	}
 }

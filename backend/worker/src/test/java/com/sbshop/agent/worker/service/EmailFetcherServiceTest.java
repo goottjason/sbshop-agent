@@ -67,6 +67,20 @@ class EmailFetcherServiceTest {
 			.build();
 	}
 
+	/** 쿠팡 DEPARTURE 동기화로 DISPATCHED가 된, 마켓 미동기화(trackingSentToMarket=null) 아이템. */
+	private OrderLineItem dispatchedItem(String trackingNo, ShippingCarrier carrier) {
+		return OrderLineItem.builder()
+			.orderId(1L)
+			.quantity(1)
+			.sourcingData(SourcingData.builder().sourcingOrderNo("IHERB-1").build())
+			.shippingData(ShippingData.builder()
+				.trackingNo(trackingNo)
+				.shippingCarrier(carrier)
+				.shippingStatus(ShippingStatus.DISPATCHED)
+				.build())
+			.build();
+	}
+
 	private OrderEmailParser.IherbShipmentData shipment(String trackingNo, String carrier) {
 		return OrderEmailParser.IherbShipmentData.builder()
 			.orderNo("IHERB-1")
@@ -96,6 +110,28 @@ class EmailFetcherServiceTest {
 		assertThat(savedItemCaptor.getValue().getShippingData().getShippingCarrier())
 			.isEqualTo(ShippingCarrier.CJ_LOGISTICS);
 		// 마켓 수정 경로(update, invoiceAlreadyExists=true) 로 전송
+		verify(marketplaceShippingService).sendTrackingToMarketplace(any(), eq(true));
+		verify(marketplaceShippingService, never()).sendTrackingToMarketplace(any(), eq(false));
+	}
+
+	@Test
+	void DISPATCHED이고_마켓미동기화면_이메일송장을_마켓수정경로로_전송한다() {
+		// 쿠팡 동기화가 만든 DISPATCHED 건(가짜/이전 송장 FAKE123, 마켓 미동기화)에
+		// iHerb 발송메일(REAL999) 도착 → 진짜 송장으로 교정 + 마켓 수정 경로(true) 전송.
+		OrderLineItem item = dispatchedItem("FAKE123", ShippingCarrier.CJ_LOGISTICS);
+		when(orderLineItemRepository.findBySourcingData_SourcingOrderNo("IHERB-1"))
+			.thenReturn(List.of(item));
+		when(marketplaceShippingService.sendTrackingToMarketplace(any(), eq(true)))
+			.thenReturn(MarketShippingResult.ofSent());
+
+		service.processIherbShipment(shipment("REAL999", "DHL"));
+
+		verify(orderLineItemRepository, times(2)).save(savedItemCaptor.capture());
+		assertThat(savedItemCaptor.getValue().getShippingData().getTrackingNo()).isEqualTo("REAL999");
+		// 배송상태는 DISPATCHED 유지 (마켓 동기화로 반영)
+		assertThat(savedItemCaptor.getValue().getShippingData().getShippingStatus())
+			.isEqualTo(ShippingStatus.DISPATCHED);
+		// 마켓 수정 경로(update, invoiceAlreadyExists=true)로 전송
 		verify(marketplaceShippingService).sendTrackingToMarketplace(any(), eq(true));
 		verify(marketplaceShippingService, never()).sendTrackingToMarketplace(any(), eq(false));
 	}

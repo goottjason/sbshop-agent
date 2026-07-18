@@ -243,34 +243,34 @@ public class EmailFetcherService {
 		for (OrderLineItem item : items) {
 			ShippingStatus currentStatus = item.getShippingData() != null
 				? item.getShippingData().getShippingStatus() : null;
-
-			// 이미 SHIPPED 상태이고 동일 송장번호인 경우
 			String existingTracking = item.getShippingData() != null
 				? item.getShippingData().getTrackingNo() : null;
-			boolean alreadyShipped = currentStatus == ShippingStatus.SHIPPED
-				&& shipmentData.getTrackingNo().equals(existingTracking);
 
-			if (alreadyShipped) {
-				// 마켓 동기화가 안 된 경우에만 재시도
-				boolean synced = item.getShippingData() != null
-					&& Boolean.TRUE.equals(item.getShippingData().getTrackingSentToMarket());
-				if (synced) {
-					log.info("iHerb 주문 {} 이미 배송 처리 및 마켓 동기화 완료 (tracking={}) - 스킵",
+			// 마켓에 이미 송장이 등록된 상태: DISPATCHED(쿠팡 DEPARTURE 등 송장 등록·추적 전) 또는 SHIPPED(배송중).
+			// 두 상태 모두 마켓이 송장을 이미 보유 → 마켓 전송은 수정(updateTracking) 경로(invoiceAlreadyExists=true).
+			boolean marketHasInvoice = currentStatus == ShippingStatus.DISPATCHED
+				|| currentStatus == ShippingStatus.SHIPPED;
+
+			if (marketHasInvoice) {
+				boolean sameTracking = shipmentData.getTrackingNo().equals(existingTracking);
+				if (sameTracking) {
+					// 동일 송장: 우리 시스템이 마켓 전송을 확정(trackingSentToMarket)했으면 스킵, 아니면 재시도(수정 경로).
+					boolean synced = item.getShippingData() != null
+						&& Boolean.TRUE.equals(item.getShippingData().getTrackingSentToMarket());
+					if (synced) {
+						log.info("iHerb 주문 {} 이미 배송 처리 및 마켓 동기화 완료 (tracking={}) - 스킵",
+							shipmentData.getOrderNo(), shipmentData.getTrackingNo());
+						continue;
+					}
+					log.info("iHerb 주문 {} 송장 존재({})但 마켓 미동기화 - 재시도(수정 경로)",
 						shipmentData.getOrderNo(), shipmentData.getTrackingNo());
+					MarketShippingResult retryResult = marketplaceShippingService.sendTrackingToMarketplace(item, true);
+					handleMarketResult(item, retryResult, shipmentData.getOrderNo(), "재시도");
 					continue;
 				}
-				// 마켓 미동기화 건은 재시도
-				log.info("iHerb 주문 {} 배송 처리됨但 마켓 미동기화 (tracking={}) - 재시도",
-					shipmentData.getOrderNo(), shipmentData.getTrackingNo());
-				// 마켓 미동기화(재시도) — 마켓에 아직 송장이 없으므로 초기등록(shipOrder) 경로.
-				MarketShippingResult retryResult = marketplaceShippingService.sendTrackingToMarketplace(item, false);
-				handleMarketResult(item, retryResult, shipmentData.getOrderNo(), "재시도");
-				continue;
-			}
 
-			// 이미 SHIPPED이지만 송장번호가 다른 경우: 취소 방지용 가짜 송장을 진짜 송장으로 교정.
-			// (예: 운영자가 가짜 송장 선입력 → 이메일로 진짜 송장 도착 → 반드시 수정 반영)
-			if (currentStatus == ShippingStatus.SHIPPED) {
+				// 송장이 다른 경우: 취소 방지용 가짜 송장을 진짜 송장으로 교정하고 마켓 수정 반영.
+				// (예: 쿠팡 동기화로 유입된 가짜/이전 송장 → 이메일로 진짜 송장 도착 → 반드시 수정 반영)
 				ShippingCarrier carrier = mapCarrier(shipmentData.getCarrier());
 				ShippingData currentShipping = item.getShippingData() != null
 					? item.getShippingData() : ShippingData.builder().build();
@@ -280,17 +280,16 @@ public class EmailFetcherService {
 				item.applyShippingData(currentShipping.toBuilder()
 					.trackingNo(shipmentData.getTrackingNo())
 					.shippingCarrier(finalCarrier)
-					.build()); // 상태는 SHIPPED 유지
+					.build()); // 배송상태(DISPATCHED/SHIPPED)는 유지 — 마켓 동기화로 반영
 				orderLineItemRepository.save(item);
-				log.info("iHerb 주문 {} 송장 변경 감지(기존={} → 신규={}) - 마켓 수정 반영",
-					shipmentData.getOrderNo(), existingTracking, shipmentData.getTrackingNo());
-				// 마켓엔 이미 (가짜)송장이 존재 → 수정(updateTracking) 경로: 두번째 인자 true.
+				log.info("iHerb 주문 {} 송장 변경 감지(기존={} → 신규={}, 상태={}) - 마켓 수정 반영",
+					shipmentData.getOrderNo(), existingTracking, shipmentData.getTrackingNo(), currentStatus);
 				MarketShippingResult updResult = marketplaceShippingService.sendTrackingToMarketplace(item, true);
 				handleMarketResult(item, updResult, shipmentData.getOrderNo(), "송장교정");
 				continue;
 			}
 
-			// PREPARING 상태이면 배송 처리. iHerb 주문번호 존재(발송메일 매칭의 전제)가 곧 "구매함"의 신호이므로
+			// PREPARING 상태이면 최초 배송 처리. iHerb 주문번호 존재(발송메일 매칭의 전제)가 곧 "구매함"의 신호이므로
 			// PurchaseStatus는 게이팅에 쓰지 않는다(구매상태는 유저 수동 관리 필드).
 			if (currentStatus == ShippingStatus.PREPARING) {
 				ShippingCarrier carrier = mapCarrier(shipmentData.getCarrier());
@@ -308,13 +307,12 @@ public class EmailFetcherService {
 				log.info("iHerb 발송 처리 완료: itemId={}, tracking={}, carrier={}",
 					item.getId(), shipmentData.getTrackingNo(), carrier);
 
-				// 마켓플러스에 송장 전송 — 실패해도 배송 저장은 보존, 성공 시에만 전송완료 마킹
-				// 최초 발송 — 마켓에 아직 송장이 없으므로 초기등록(shipOrder) 경로.
+				// 마켓에 아직 송장이 없음 → 초기등록(shipOrder) 경로. 실패해도 배송 저장은 보존, 성공 시에만 전송완료 마킹.
 				MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, false);
 				handleMarketResult(item, sendResult, shipmentData.getOrderNo(), "최초발송");
 			} else {
-				log.info("iHerb 주문 {} 상태({}/구매={})가 배송 처리 조건 미충족 — 스킵",
-					shipmentData.getOrderNo(), currentStatus, item.getPurchaseStatus());
+				log.info("iHerb 주문 {} 상태({})가 배송 처리 조건 미충족 — 스킵",
+					shipmentData.getOrderNo(), currentStatus);
 			}
 		}
 	}
