@@ -297,8 +297,17 @@ public class OrderController {
 		@PathVariable Long lineItemId,
 		@RequestBody UpdatePurchaseStatusRequest request) {
 
-		OrderLineItem updated = orderService.updatePurchaseStatus(lineItemId, request.getPurchaseStatus());
-		return ResponseEntity.ok(OrderLineItemResponse.from(updated));
+		// D-076/SP-6: 구매 상태 수정 — 성공 시 라인아이템 마켓을 해석해 기록.
+		try {
+			OrderLineItem updated = orderService.updatePurchaseStatus(lineItemId, request.getPurchaseStatus());
+			actionLogService.record(ActionLogConstants.PURCHASE_UPDATE, marketNameOfLineItem(lineItemId),
+				ActionStatus.SUCCESS, "구매상태 수정 성공 (품목 " + lineItemId + ")");
+			return ResponseEntity.ok(OrderLineItemResponse.from(updated));
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.PURCHASE_UPDATE, null,
+				ActionStatus.FAILED, "구매상태 수정 실패 (품목 " + lineItemId + "): " + e.getMessage());
+			throw e;
+		}
 	}
 
 	// ======================== 발송 ========================
