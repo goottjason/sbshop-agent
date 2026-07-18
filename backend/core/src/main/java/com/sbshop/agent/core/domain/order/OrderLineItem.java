@@ -3,6 +3,7 @@ package com.sbshop.agent.core.domain.order;
 import java.math.BigDecimal;
 
 import com.sbshop.agent.core.domain.common.BaseEntity;
+import com.sbshop.agent.core.domain.order.enums.PurchaseStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.vo.SettlementData;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
@@ -50,9 +51,15 @@ public class OrderLineItem extends BaseEntity {
 	@Column(name = "is_unipass_done")
 	private Boolean isUnipassDone;
 
+	/** 내부 구매 처리 상태 (마켓 동기화와 무관) */
+	@Column(name = "purchase_status")
+	@jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+	private PurchaseStatus purchaseStatus = PurchaseStatus.NOT_PURCHASED;
+
 	@Builder
 	public OrderLineItem(Long orderId, Long productId, Integer quantity, SourcingData sourcingData,
-		SettlementData settlementData, ShippingData shippingData, Boolean isUnipassDone) {
+		SettlementData settlementData, ShippingData shippingData, Boolean isUnipassDone,
+		PurchaseStatus purchaseStatus) {
 		this.orderId = orderId;
 		this.productId = productId;
 		this.quantity = quantity;
@@ -60,6 +67,7 @@ public class OrderLineItem extends BaseEntity {
 		this.settlementData = settlementData != null ? settlementData : SettlementData.builder().build();
 		this.shippingData = shippingData != null ? shippingData : ShippingData.builder().build();
 		this.isUnipassDone = isUnipassDone;
+		this.purchaseStatus = purchaseStatus != null ? purchaseStatus : PurchaseStatus.NOT_PURCHASED;
 	}
 
 	// ======================== 상태 변경 ========================
@@ -75,6 +83,13 @@ public class OrderLineItem extends BaseEntity {
 	public void markAsShipped() {
 		this.shippingData = this.shippingData.toBuilder()
 			.shippingStatus(ShippingStatus.SHIPPED)
+			.build();
+	}
+
+	/** 배송지시로 변경 (마켓에 송장 전송 성공 시) */
+	public void markAsDispatched() {
+		this.shippingData = this.shippingData.toBuilder()
+			.shippingStatus(ShippingStatus.DISPATCHED)
 			.build();
 	}
 
@@ -107,6 +122,11 @@ public class OrderLineItem extends BaseEntity {
 	/** 유니패스 신고 완료 여부 변경 */
 	public void updateUnipassDone(Boolean isUnipassDone) {
 		this.isUnipassDone = isUnipassDone;
+	}
+
+	/** 내부 구매 상태 변경 (마켓 동기화와 무관) */
+	public void updatePurchaseStatus(PurchaseStatus purchaseStatus) {
+		this.purchaseStatus = purchaseStatus;
 	}
 
 	// ======================== 판단 ========================
