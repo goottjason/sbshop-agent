@@ -6,7 +6,7 @@ import {
   createColumnHelper,
 } from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchOrders, updateOrder, updateOrderLineItem, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, syncProductStock, fetchSyncStatus } from '../api/orderApi';
+import { fetchOrders, updateOrder, updateOrderLineItem, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, syncProductStock, fetchSyncStatus, updatePurchaseStatus } from '../api/orderApi';
 import type { OrderGridDto, ProductDto } from '../api/orderApi';
 import { toKstDate } from '../utils/datetime';
 
@@ -227,7 +227,7 @@ function SourcingEditCell({ sourcingAccount, sourcingVendor, sourcingOrderNo, di
 const ORDER_SPANNED_COLUMNS = ['select', 'orderInfo', 'shippingStatus'];
 
 // 라인아이템 병합 컬럼 (rowSpan = 3)
-const LINEITEM_SPANNED_COLUMNS = ['sbCode', 'stockInfo', 'quantity', 'unipass', 'fulfillmentInfoPair', 'sourcingInfoPair'];
+const LINEITEM_SPANNED_COLUMNS = ['sbCode', 'stockInfo', 'quantity', 'unipass', 'purchaseStatus', 'fulfillmentInfoPair', 'sourcingInfoPair'];
 
 // 2줄 컬럼 (행1, 행2에만 표시, 행3에서는 셀 자체를 렌더링하지 않음)
 const TWO_ROW_COLUMNS = ['ordererInfo', 'customsInfo', 'shippingInfoPair', 'productNamePair', 'financialInfoPair'];
@@ -241,7 +241,7 @@ const PRODUCT_COLUMNS: string[] = [];
 // 상단 필터 패널 컴포넌트 (UI)
 function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: string[], statuses: string[], startDate: string, endDate: string) => void }) {
    const allMarkets = ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'];
-  const allStatuses = ['UNKNOWN', 'NEW', 'PREPARING', 'PURCHASED', 'SHIPPED', 'DELIVERED', 'CANCELED', 'RETURNED', 'EXCHANGED'];
+  const allStatuses = ['UNKNOWN', 'NEW', 'PREPARING', 'DISPATCHED', 'SHIPPED', 'DELIVERED', 'CANCELED', 'RETURNED', 'EXCHANGED'];
   
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(allMarkets);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(allStatuses);
@@ -337,7 +337,7 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
               { id: 'UNKNOWN', label: '알수없음' },
               { id: 'NEW', label: '결제완료' },
               { id: 'PREPARING', label: '구매준비' },
-              { id: 'PURCHASED', label: '구매완료' },
+              { id: 'DISPATCHED', label: '배송지시' },
               { id: 'SHIPPED', label: '배송중' },
               { id: 'DELIVERED', label: '배송완료' },
               { id: 'CANCELED', label: '취소됨' },
@@ -834,15 +834,15 @@ const OrderGrid: React.FC = () => {
       cell: info => {
         const val = info.getValue() as string;
         const colorMap: Record<string, { bg: string; text: string }> = {
-          'UNKNOWN': { bg: '#f5f5f5', text: '#666' },
-          'NEW': { bg: '#e0f7fa', text: '#006064' },
-          'PREPARING': { bg: '#fff3e0', text: '#e65100' },
-          'PURCHASED': { bg: '#fffde7', text: '#fbc02d' },
-          'SHIPPED': { bg: '#f1f8e9', text: '#558b2f' },
-          'DELIVERED': { bg: '#e1f5fe', text: '#0277bd' },
-          'CANCELED': { bg: '#ffebee', text: '#c62828' },
-          'RETURNED': { bg: '#f3e5f5', text: '#6a1b9a' },
-          'EXCHANGED': { bg: '#e8eaf6', text: '#283593' }
+          'UNKNOWN':    { bg: '#f5f5f5', text: '#666' },
+          'NEW':        { bg: '#e0f7fa', text: '#006064' },
+          'PREPARING':  { bg: '#fff3e0', text: '#e65100' },
+          'DISPATCHED': { bg: '#fce4ec', text: '#880e4f' },
+          'SHIPPED':    { bg: '#f1f8e9', text: '#558b2f' },
+          'DELIVERED':  { bg: '#e1f5fe', text: '#0277bd' },
+          'CANCELED':   { bg: '#ffebee', text: '#c62828' },
+          'RETURNED':   { bg: '#f3e5f5', text: '#6a1b9a' },
+          'EXCHANGED':  { bg: '#e8eaf6', text: '#283593' }
         };
         const style = colorMap[val] || { bg: '#f5f5f5', text: '#666' };
         return val ? <span style={{ backgroundColor: style.bg, color: style.text, padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>{getCommonLabel('shippingStatus', val)}</span> : '-';
@@ -1100,6 +1100,41 @@ const OrderGrid: React.FC = () => {
         if (row.original.rowType !== 'order') return null;
         const isDone = row.original.lineItem?.isUnipassDone;
         return <div style={{ textAlign: 'center' }}><input type="checkbox" checked={!!isDone} onChange={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.isUnipassDone', e.target.checked)} /></div>;
+      }
+    }),
+    columnHelper.accessor('lineItem.purchaseStatus', {
+      id: 'purchaseStatus',
+      header: '구매상태',
+      size: 100,
+      cell: info => {
+        const row = info.row.original;
+        const lineItemId = row.lineItem?.id;
+        const currentVal = (info.getValue() as string) || 'NOT_PURCHASED';
+
+        const PURCHASE_OPTIONS = [
+          { value: 'NOT_PURCHASED', label: '미구매' },
+          { value: 'PURCHASED',     label: '구매완료' },
+          { value: 'WAITING_STOCK', label: '입고대기' },
+        ] as const;
+
+        const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+          if (!lineItemId) return;
+          const newVal = e.target.value as 'NOT_PURCHASED' | 'PURCHASED' | 'WAITING_STOCK';
+          try {
+            await updatePurchaseStatus(lineItemId, newVal);
+          } catch (err) {
+            console.error('구매 상태 변경 실패', err);
+          }
+        };
+
+        return (
+          <select value={currentVal} onChange={handleChange}
+            style={{ fontSize: '12px', padding: '2px 4px', borderRadius: '4px' }}>
+            {PURCHASE_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        );
       }
     }),
     // ─── Row 1 전용 컬럼 (주문 행에만 표시) ───

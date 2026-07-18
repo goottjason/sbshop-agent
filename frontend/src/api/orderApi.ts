@@ -24,6 +24,7 @@ export interface OrderLineItemDto {
   quantity?: number;
   unitPrice?: number;
   isUnipassDone?: boolean;
+  purchaseStatus?: 'NOT_PURCHASED' | 'PURCHASED' | 'WAITING_STOCK';
   sourcingData?: {
     sourcingAccount?: string;
     sourcingOrderNo?: string;
@@ -243,5 +244,17 @@ export interface SyncStatus {
 
 export const fetchSyncStatus = async (): Promise<Record<string, SyncStatus>> => {
   const { data } = await apiClient.get('/api/v1/orders/sync/status');
+  return data;
+};
+
+// 구매 상태 수정
+export const updatePurchaseStatus = async (
+  lineItemId: number,
+  purchaseStatus: 'NOT_PURCHASED' | 'PURCHASED' | 'WAITING_STOCK'
+): Promise<OrderLineItemDto> => {
+  const { data } = await apiClient.patch(
+    `/api/v1/orders/line-items/${lineItemId}/purchase-status`,
+    { purchaseStatus }
+  );
   return data;
 };
