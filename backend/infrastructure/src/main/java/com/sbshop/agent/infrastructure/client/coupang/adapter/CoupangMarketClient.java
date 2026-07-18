@@ -203,9 +203,30 @@ public class CoupangMarketClient implements MarketClient {
 	@Override
 	public Map<String, Object> syncImagesAndHtml(String marketItemId, Map<String, Object> currentRawData,
 		List<String> hostedImages, String newDetailHtml) {
-		if (currentRawData == null || !currentRawData.containsKey("items"))
-			return currentRawData;
-		@SuppressWarnings("unchecked") List<Map<String, Object>> items = (List<Map<String, Object>>)currentRawData
+		if (marketItemId == null || marketItemId.isBlank()) {
+			throw new IllegalStateException("쿠팡 sellerProductId(marketItemId) 없음 — 이미지 재게시 불가");
+		}
+		// marketItemId 는 등록 식별자에서 온 sellerProductId(권위 있는 상품 식별자)다.
+		// 저장된 rawData 가 {}(가격/재고만 있고 items 없음)인 경우가 잦으므로, items 가 없으면
+		// 전체 상품 페이로드를 GET 으로 다시 받아 작업 대상 rawData 로 사용한다.
+		Map<String, Object> rawData = currentRawData;
+		if (rawData == null || !rawData.containsKey("items")) {
+			String getPath = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId;
+			String responseJson = restClient.get(getPath);
+			try {
+				// 응답은 { code, message, data: { sellerProductId, items:[...], ... } } 형태.
+				JsonNode root = objectMapper.readTree(responseJson);
+				rawData = objectMapper.convertValue(root.path("data"),
+					new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+			} catch (Exception e) {
+				throw new IllegalStateException("쿠팡 상품 조회 응답 파싱 실패 (ID: " + marketItemId + ")", e);
+			}
+			if (rawData == null || rawData.isEmpty()) {
+				throw new IllegalStateException("쿠팡 상품 전체 페이로드 조회 실패 — data 없음 (ID: " + marketItemId + ")");
+			}
+		}
+
+		@SuppressWarnings("unchecked") List<Map<String, Object>> items = (List<Map<String, Object>>)rawData
 			.get("items");
 		if (items != null && !items.isEmpty()) {
 			Map<String, Object> firstItem = items.get(0);
@@ -226,13 +247,17 @@ public class CoupangMarketClient implements MarketClient {
 			contents.add(contentMap);
 			firstItem.put("contents", contents);
 		}
-		Object sellerProductId = currentRawData.get("sellerProductId");
-		if (sellerProductId == null || String.valueOf(sellerProductId).isBlank()) {
-			throw new IllegalStateException("쿠팡 sellerProductId 없음(rawData) — 이미지 재게시 불가");
-		}
-		String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + sellerProductId;
-		restClient.put(path, currentRawData);
+
+		// sellerProductId 는 rawData 값이 아니라 권위 있는 marketItemId 를 사용한다.
+		String base = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId;
+		restClient.put(base, rawData);
 		log.info("[쿠팡] 이미지/HTML 동기화 완료: {}", marketItemId);
-		return currentRawData;
+		// 상품 수정(PUT)만으로는 "임시저장/수정중" 상태에 머문다. 반드시 승인요청을 별도 호출해야 반영된다.
+		// (등록 경로는 POST requested(true)로 자동 제출하지만, 수정 경로에는 이 호출이 필요하다.)
+		// 무바디 PUT은 JDK HttpClient가 Content-Length를 안 보내 Akamai가 411을 반환한다(같은 파일 가격/재고 관습).
+		// 쿠팡이 무시하는 빈 JSON({})을 바디로 보내 Content-Length를 강제한다.
+		restClient.put(base + "/approvals", java.util.Map.of());
+		log.info("[쿠팡] 이미지/HTML 수정 후 승인요청 완료: {}", marketItemId);
+		return rawData;
 	}
 }

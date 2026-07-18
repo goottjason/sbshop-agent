@@ -43,9 +43,10 @@ class SmartstoreMarketClientImagesTest {
     }
 
     @Test
-    @DisplayName("다중이미지: representativeImage==hostedImages[0], optionalImages==hostedImages[1..], detailContent 세팅")
+    @DisplayName("다중이미지: images.representativeImage.url==hostedImages[0], images.optionalImages==[{url}..], detailContent 세팅")
     void multipleImages_setsRepresentativeAndOptionalAndDetailContent() throws Exception {
-        stubGet("{\"originProduct\":{\"representativeImage\":\"old\"}}");
+        // 커머스API 스키마: originProduct.images.representativeImage.url (오브젝트)
+        stubGet("{\"originProduct\":{\"images\":{\"representativeImage\":{\"url\":\"old\"}}}}");
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
 
@@ -54,15 +55,19 @@ class SmartstoreMarketClientImagesTest {
         verify(restClient).put(eq("/v2/products/origin-products/" + ITEM_ID), captor.capture());
         @SuppressWarnings("unchecked")
         Map<String, Object> originProduct = (Map<String, Object>) captor.getValue().get("originProduct");
-        assertThat(originProduct.get("representativeImage")).isEqualTo("u0");
-        assertThat(originProduct.get("optionalImages")).isEqualTo(List.of("u1", "u2"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> images = (Map<String, Object>) originProduct.get("images");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> representativeImage = (Map<String, Object>) images.get("representativeImage");
+        assertThat(representativeImage.get("url")).isEqualTo("u0");
+        assertThat(images.get("optionalImages")).isEqualTo(List.of(Map.of("url", "u1"), Map.of("url", "u2")));
         assertThat(originProduct.get("detailContent")).isNotNull();
     }
 
     @Test
-    @DisplayName("단일이미지: representativeImage 세팅, optionalImages 세팅 안 함")
+    @DisplayName("단일이미지: images.representativeImage.url 세팅, optionalImages 세팅 안 함")
     void singleImage_setsRepresentativeOnly_noOptionalImages() throws Exception {
-        stubGet("{\"originProduct\":{\"representativeImage\":\"old\"}}");
+        stubGet("{\"originProduct\":{\"images\":{\"representativeImage\":{\"url\":\"old\"}}}}");
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
 
@@ -71,8 +76,12 @@ class SmartstoreMarketClientImagesTest {
         verify(restClient).put(eq("/v2/products/origin-products/" + ITEM_ID), captor.capture());
         @SuppressWarnings("unchecked")
         Map<String, Object> originProduct = (Map<String, Object>) captor.getValue().get("originProduct");
-        assertThat(originProduct.get("representativeImage")).isEqualTo("u0");
-        assertThat(originProduct.containsKey("optionalImages")).isFalse();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> images = (Map<String, Object>) originProduct.get("images");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> representativeImage = (Map<String, Object>) images.get("representativeImage");
+        assertThat(representativeImage.get("url")).isEqualTo("u0");
+        assertThat(images.containsKey("optionalImages")).isFalse();
     }
 
     @Test

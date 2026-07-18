@@ -1,6 +1,7 @@
 package com.sbshop.agent.infrastructure.client.elevenst;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -39,6 +40,9 @@ class ElevenstMarketClientImagesTest {
     @Test
     @DisplayName("성공 응답 → post 호출 + CDATA HTML 포함 XML 전송")
     void successCallsUpdateDetailContWithCdata() {
+        // 이미지 있음 → 대표이미지 상품수정(GET+PUT) 경유 후 상세HTML 수정
+        when(restClient.get(eq("/rest/prodservices/productinfo/PRD9"))).thenReturn("<Product><prdNo>PRD9</prdNo></Product>");
+        when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString())).thenReturn("<message>성공</message>");
         when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"),
             contains("prdDescContClob"))).thenReturn("<Product/><message>성공</message>");
 
@@ -49,12 +53,13 @@ class ElevenstMarketClientImagesTest {
     }
 
     @Test
-    @DisplayName("ERROR 응답 → RuntimeException 발생")
+    @DisplayName("상세HTML 수정 ERROR 응답 → RuntimeException 발생")
     void errorResponseThrowsRuntimeException() {
+        // 이미지 없음 → 대표이미지 경로 건너뛰고 상세HTML 수정만 수행(ERROR 응답으로 예외)
         when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"),
             contains("prdDescContClob"))).thenReturn("<resultCode>ERROR</resultCode><message>실패</message>");
 
-        assertThatThrownBy(() -> client.syncImagesAndHtml("PRD9", raw, List.of("u0"), "<p>hi</p>"))
+        assertThatThrownBy(() -> client.syncImagesAndHtml("PRD9", raw, List.of(), "<p>hi</p>"))
             .isInstanceOf(RuntimeException.class);
     }
 }

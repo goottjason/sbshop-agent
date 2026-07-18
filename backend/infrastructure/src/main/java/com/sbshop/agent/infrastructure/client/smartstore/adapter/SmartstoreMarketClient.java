@@ -43,10 +43,9 @@ public class SmartstoreMarketClient implements MarketClient {
 				originProduct.put("detailContent", product.getDetailHtml().replace("\"", "\\\"").replace("\n", ""));
 			}
 			if (!hostedImages.isEmpty()) {
-				originProduct.put("representativeImage", hostedImages.get(0));
-				if (hostedImages.size() > 1) {
-					originProduct.put("optionalImages", hostedImages.subList(1, hostedImages.size()));
-				}
+				// 커머스API 스키마: originProduct.images.representativeImage.url (오브젝트).
+				// 최상위 문자열 representativeImage 는 Naver가 조용히 무시하므로 대표이미지가 바뀌지 않는다.
+				applyImages(originProduct, hostedImages);
 			}
 
 			Map<String, Object> requestBody = new HashMap<>();
@@ -167,10 +166,10 @@ public class SmartstoreMarketClient implements MarketClient {
 			Map<String, Object> originProduct = objectMapper.convertValue(originNode, Map.class);
 
 			if (!hostedImages.isEmpty()) {
-				originProduct.put("representativeImage", hostedImages.get(0));
-				if (hostedImages.size() > 1) {
-					originProduct.put("optionalImages", hostedImages.subList(1, hostedImages.size()));
-				}
+				// 커머스API 스키마: originProduct.images.representativeImage.url (오브젝트).
+				// 최상위 문자열 representativeImage 는 Naver가 조용히 무시하므로 대표이미지가 바뀌지 않는다.
+				// GET 응답의 기존 images 오브젝트를 보존하고 representative/optional 만 덮어쓴다.
+				applyImages(originProduct, hostedImages);
 			}
 			if (newDetailHtml != null) {
 				originProduct.put("detailContent", newDetailHtml.replace("\"", "\\\"").replace("\n", ""));
@@ -183,7 +182,8 @@ public class SmartstoreMarketClient implements MarketClient {
 			log.info("[Smartstore] 이미지/HTML 동기화 완료: {}", marketItemId);
 			if (currentRawData != null) {
 				if (!hostedImages.isEmpty())
-					currentRawData.put("representativeImage", hostedImages.get(0));
+					// currentRawData 미러도 스키마와 일관되게 {url} 오브젝트로 저장.
+					currentRawData.put("representativeImage", Map.of("url", hostedImages.get(0)));
 				if (newDetailHtml != null)
 					currentRawData.put("detailContent", newDetailHtml);
 			}
@@ -195,5 +195,32 @@ public class SmartstoreMarketClient implements MarketClient {
 			throw new RuntimeException("[Smartstore] 이미지/HTML 동기화 실패: " + e.getMessage(), e); // 실패 표면화(SP-A/SP-C 원칙)
 		}
 		return currentRawData;
+	}
+
+	/**
+	 * 커머스API 이미지 스키마 적용: originProduct.images.representativeImage.url (오브젝트),
+	 * originProduct.images.optionalImages = [{url}, ...].
+	 * 최상위 문자열 representativeImage/optionalImages 는 Naver가 조용히 무시하므로 반드시 images 하위 오브젝트여야 한다.
+	 * 기존 images 오브젝트가 있으면 그 안의 다른 필드는 보존하고 representative/optional 만 덮어쓴다.
+	 */
+	@SuppressWarnings("unchecked")
+	private void applyImages(Map<String, Object> originProduct, List<String> hostedImages) {
+		Object existing = originProduct.get("images");
+		Map<String, Object> images = (existing instanceof Map)
+			? (Map<String, Object>) existing
+			: new HashMap<>();
+
+		images.put("representativeImage", Map.of("url", hostedImages.get(0)));
+		if (hostedImages.size() > 1) {
+			List<Map<String, Object>> optionalImages = hostedImages.subList(1, hostedImages.size()).stream()
+				.map(u -> Map.<String, Object>of("url", u))
+				.toList();
+			images.put("optionalImages", optionalImages);
+		} else {
+			// 단일 이미지: 이전에 남아있던 optionalImages 는 제거하여 대표만 남긴다.
+			images.remove("optionalImages");
+		}
+
+		originProduct.put("images", images);
 	}
 }

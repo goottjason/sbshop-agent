@@ -109,8 +109,31 @@ public class ElevenstMarketClient implements MarketClient {
 	@Override
 	public Map<String, Object> syncImagesAndHtml(String marketItemId, Map<String, Object> currentRawData,
 		List<String> hostedImages, String newDetailHtml) {
-		// 11번가는 이미지/상세를 개별 필드로 못 바꾸나, 상세설명수정 전용 API로 상세HTML(임베드 이미지 포함)을 반영한다.
-		// 대표이미지(prdImage01)는 상품수정 전체전문이 필요해 범위 밖.
+		// 상세HTML(임베드 이미지 포함)은 상세설명수정 전용 API로 반영한다.
+		// 대표이미지(prdImage01)는 개별 필드 수정 API가 없어, 상품수정(PUT) 전체전문이 필요하다.
+		// → 현재 상품 전문을 GET(productinfo)으로 조회해 prdImage01~04만 덮어쓰는 라운드트립 패턴으로 반영한다.
+
+		// 1) 대표이미지 반영: 상품 전체전문 라운드트립 수정
+		if (hostedImages != null && !hostedImages.isEmpty()) {
+			try {
+				String current = restClient.get("/rest/prodservices/productinfo/" + marketItemId);
+				if (current == null || current.contains("ERROR") || current.contains("resultCode>500")) {
+					throw new RuntimeException("[Elevenst] 상품 전문 조회 실패: " + current);
+				}
+				String modified = applyRepresentativeImages(current, hostedImages);
+				String modifyResponse = restClient.put("/rest/prodservices/product/" + marketItemId, modified);
+				if (modifyResponse == null || modifyResponse.contains("ERROR")
+					|| modifyResponse.contains("resultCode>500")) {
+					throw new RuntimeException("[Elevenst] 대표이미지 수정 실패: " + modifyResponse);
+				}
+				log.info("[Elevenst] 대표이미지 재게시 완료: {} -> {}", marketItemId, hostedImages.get(0));
+			} catch (RuntimeException e) {
+				log.error("[Elevenst] 대표이미지 수정 실패: {}", e.getMessage());
+				throw e; // 실패 표면화(SP-A 원칙)
+			}
+		}
+
+		// 2) 상세HTML 반영: 상세설명수정 전용 API
 		String xml = "<?xml version=\"1.0\" encoding=\"euc-kr\"?>"
 			+ "<ProductDetailCont>"
 			+ "<prdDescContClob><![CDATA[" + (newDetailHtml == null ? "" : newDetailHtml) + "]]></prdDescContClob>"
@@ -121,6 +144,33 @@ public class ElevenstMarketClient implements MarketClient {
 		}
 		log.info("[Elevenst] 상세HTML 재게시 완료: {}", marketItemId);
 		return currentRawData;
+	}
+
+	/**
+	 * 11번가 상품 전체전문(productinfo GET 결과)에서 대표이미지 필드(prdImage01~04)만
+	 * 새 호스팅 이미지 URL로 덮어써서 상품수정(PUT)용 전문으로 반환한다.
+	 * 나머지 필수 필드는 조회 전문 그대로 보존한다(라운드트립).
+	 *
+	 * @param currentXml productinfo GET 응답 전문
+	 * @param images 호스팅된 이미지 URL(0번=대표, 이후 03/04)
+	 * @return prdImage01~04가 갱신된 상품수정 전문
+	 */
+	private String applyRepresentativeImages(String currentXml, List<String> images) {
+		String xml = currentXml;
+		for (int i = 0; i < 4; i++) {
+			String tag = "prdImage0" + (i + 1);
+			String value = i < images.size() ? images.get(i) : null;
+			if (value != null) {
+				// 기존 <prdImageNN>...</prdImageNN> 를 새 값으로 치환, 없으면 <Product> 바로 뒤에 삽입.
+				String replacement = "<" + tag + ">" + value + "</" + tag + ">";
+				if (xml.matches("(?s).*<" + tag + ">.*</" + tag + ">.*")) {
+					xml = xml.replaceAll("<" + tag + ">.*?</" + tag + ">", java.util.regex.Matcher.quoteReplacement(replacement));
+				} else if (xml.contains("<Product>")) {
+					xml = xml.replaceFirst("<Product>", java.util.regex.Matcher.quoteReplacement("<Product>" + replacement));
+				}
+			}
+		}
+		return xml;
 	}
 
 	private String buildProductXml(Product product) {
