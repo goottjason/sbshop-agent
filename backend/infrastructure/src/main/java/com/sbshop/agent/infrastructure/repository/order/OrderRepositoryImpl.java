@@ -15,6 +15,7 @@ import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.QOrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.order.enums.PurchaseStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderRepositoryCustom;
 import com.sbshop.agent.core.domain.product.Product;
@@ -51,6 +52,7 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.where(
 				marketTypeIn(condition.getMarketTypes()),
 				shippingStatusIn(condition.getShippingStatuses()),
+				purchaseStatusIn(condition.getPurchaseStatuses()),
 				customsStatusIn(condition.getCustomsStatuses()),
 				keywordContains(condition.getKeyword(), qLineItem, qProduct),
 				dateBetween(condition.getStartDate(), condition.getEndDate()))
@@ -123,6 +125,7 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.where(
 				marketTypeIn(condition.getMarketTypes()),
 				shippingStatusIn(condition.getShippingStatuses()),
+				purchaseStatusIn(condition.getPurchaseStatuses()),
 				customsStatusIn(condition.getCustomsStatuses()),
 				keywordContains(condition.getKeyword(), qLineItem, qProduct),
 				dateBetween(condition.getStartDate(), condition.getEndDate()));
@@ -146,6 +149,20 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.from(subLineItem)
 			.where(subLineItem.orderId.eq(order.id)
 				.and(subLineItem.shippingData.shippingStatus.in(statuses)))
+			.exists();
+	}
+
+	/** 구매상태 필터 — 해당 구매상태의 라인아이템을 가진 주문만(배송상태 필터와 동일 패턴). */
+	private BooleanExpression purchaseStatusIn(List<PurchaseStatus> statuses) {
+		if (statuses == null || statuses.isEmpty()) {
+			return null;
+		}
+		QOrderLineItem subLineItem = QOrderLineItem.orderLineItem;
+		return com.querydsl.jpa.JPAExpressions
+			.selectOne()
+			.from(subLineItem)
+			.where(subLineItem.orderId.eq(order.id)
+				.and(subLineItem.purchaseStatus.in(statuses)))
 			.exists();
 	}
 

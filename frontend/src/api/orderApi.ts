@@ -103,13 +103,14 @@ export interface PageResponse<T> {
 }
 
 export const fetchOrders = async (
-  page = 0, 
+  page = 0,
   size = 500,
   keyword?: string,
   marketTypes?: string[],
   shippingStatuses?: string[],
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  purchaseStatuses?: string[]
 ): Promise<PageResponse<OrderDetailResponseDto>> => {
   const params = new URLSearchParams();
   params.append('page', String(page));
@@ -120,6 +121,9 @@ export const fetchOrders = async (
   }
   if (shippingStatuses) {
     shippingStatuses.forEach(s => params.append('shippingStatuses', s));
+  }
+  if (purchaseStatuses) {
+    purchaseStatuses.forEach(s => params.append('purchaseStatuses', s));
   }
   if (startDate) params.append('startDate', startDate + 'T00:00:00');
   if (endDate) params.append('endDate', endDate + 'T23:59:59');

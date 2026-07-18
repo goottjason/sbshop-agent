@@ -358,12 +358,14 @@ const ORDER_COLUMNS: string[] = [];
 const PRODUCT_COLUMNS: string[] = [];
 
 // 상단 필터 패널 컴포넌트 (UI)
-function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: string[], statuses: string[], startDate: string, endDate: string) => void }) {
+function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: string[], statuses: string[], startDate: string, endDate: string, purchaseStatuses: string[]) => void }) {
    const allMarkets = ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'];
   const allStatuses = ['UNKNOWN', 'NEW', 'PREPARING', 'DISPATCHED', 'SHIPPED', 'DELIVERED', 'CANCELED', 'RETURNED', 'EXCHANGED'];
-  
+  const allPurchaseStatuses = ['NOT_PURCHASED', 'PURCHASED', 'WAITING_STOCK'];
+
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(allMarkets);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(allStatuses);
+  const [selectedPurchaseStatuses, setSelectedPurchaseStatuses] = useState<string[]>(allPurchaseStatuses);
   const [keyword, setKeyword] = useState('');
 
   // 날짜 기본값: 1개월 전 ~ 오늘
@@ -378,9 +380,10 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
 
   const isAllMarketsSelected = selectedMarkets.length === allMarkets.length;
   const isAllStatusesSelected = selectedStatuses.length === allStatuses.length;
+  const isAllPurchaseSelected = selectedPurchaseStatuses.length === allPurchaseStatuses.length;
 
   const handleSearch = () => {
-    onSearch(keyword, selectedMarkets, selectedStatuses, startDate, endDate);
+    onSearch(keyword, selectedMarkets, selectedStatuses, startDate, endDate, selectedPurchaseStatuses);
   };
 
   const handlePeriod = (idx: number) => {
@@ -397,6 +400,7 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
 
   const toggleMarket = (val: string) => setSelectedMarkets(prev => prev.includes(val) ? prev.filter(m => m !== val) : [...prev, val]);
   const toggleStatus = (val: string) => setSelectedStatuses(prev => prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]);
+  const togglePurchase = (val: string) => setSelectedPurchaseStatuses(prev => prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]);
 
   return (
     <div style={{ backgroundColor: '#f8f9fa', borderTop: '2px solid var(--primary-color)', borderBottom: '1px solid #ddd', padding: '12px 20px', marginBottom: '12px', fontSize: '13px' }}>
@@ -466,6 +470,29 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
               <label key={status.id} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#333' }}>
                 <input type="checkbox" checked={selectedStatuses.includes(status.id)} onChange={() => toggleStatus(status.id)} style={{ marginRight: '6px', accentColor: 'var(--primary-color)', width: '16px', height: '16px', cursor: 'pointer' }} />
                 {status.label}
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Row 3: 구매상태 */}
+      <div style={{ display: 'flex', paddingTop: '8px', marginTop: '8px', borderTop: '1px solid #eaeaea' }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+          <span style={{ width: '120px', fontWeight: 600, color: '#555' }}>구매상태</span>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#333' }}>
+              <input type="checkbox" checked={isAllPurchaseSelected} onChange={() => setSelectedPurchaseStatuses(isAllPurchaseSelected ? [] : allPurchaseStatuses)} style={{ marginRight: '6px', accentColor: 'var(--primary-color)', width: '16px', height: '16px', cursor: 'pointer' }} />
+              전체
+            </label>
+            {[
+              { id: 'NOT_PURCHASED', label: '미구매' },
+              { id: 'PURCHASED', label: '구매완료' },
+              { id: 'WAITING_STOCK', label: '입고대기' }
+            ].map(ps => (
+              <label key={ps.id} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#333' }}>
+                <input type="checkbox" checked={selectedPurchaseStatuses.includes(ps.id)} onChange={() => togglePurchase(ps.id)} style={{ marginRight: '6px', accentColor: 'var(--primary-color)', width: '16px', height: '16px', cursor: 'pointer' }} />
+                {ps.label}
               </label>
             ))}
           </div>
@@ -567,10 +594,11 @@ const OrderGrid: React.FC = () => {
   const defaultStart = (() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().split('T')[0]; })();
   const defaultEnd = new Date().toISOString().split('T')[0];
 
-  const [queryParams, setQueryParams] = useState<{keyword?: string, markets?: string[], statuses?: string[], startDate?: string, endDate?: string}>({
+  const [queryParams, setQueryParams] = useState<{keyword?: string, markets?: string[], statuses?: string[], purchaseStatuses?: string[], startDate?: string, endDate?: string}>({
     keyword: '',
     markets: ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'],
     statuses: ['UNKNOWN', 'NEW', 'PREPARING', 'DISPATCHED', 'SHIPPED', 'DELIVERED', 'CANCELED', 'RETURNED', 'EXCHANGED'],
+    purchaseStatuses: ['NOT_PURCHASED', 'PURCHASED', 'WAITING_STOCK'],
     startDate: defaultStart,
     endDate: defaultEnd
   });
@@ -578,7 +606,7 @@ const OrderGrid: React.FC = () => {
 
   const { data, isLoading: queryLoading, refetch } = useQuery({
     queryKey: ['orders', queryParams, searchTrigger],
-    queryFn: () => fetchOrders(0, 500, queryParams.keyword, queryParams.markets, queryParams.statuses, queryParams.startDate, queryParams.endDate)
+    queryFn: () => fetchOrders(0, 500, queryParams.keyword, queryParams.markets, queryParams.statuses, queryParams.startDate, queryParams.endDate, queryParams.purchaseStatuses)
   });
 
   useEffect(() => {
@@ -1364,7 +1392,7 @@ const OrderGrid: React.FC = () => {
           })}
         </div>
       )}
-      <OrderFilterPanel onSearch={(keyword, markets, statuses, startDate, endDate) => { setQueryParams({ keyword, markets, statuses, startDate, endDate }); setSearchTrigger(c => c + 1); }} />
+      <OrderFilterPanel onSearch={(keyword, markets, statuses, startDate, endDate, purchaseStatuses) => { setQueryParams({ keyword, markets, statuses, purchaseStatuses, startDate, endDate }); setSearchTrigger(c => c + 1); }} />
 
       <div style={{ flex: 1, backgroundColor: 'white', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
         <div className="force-scrollbar" ref={gridScrollRef} onMouseOver={applyRowHover} onMouseLeave={clearRowHover} style={{ flex: 1, overflow: 'scroll' }}>
