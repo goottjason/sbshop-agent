@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchOrders, updateOrder, updateOrderLineItem, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, syncProductStock, fetchSyncStatus, updatePurchaseStatus } from '../api/orderApi';
-import type { OrderGridDto, ProductDto } from '../api/orderApi';
+import type { OrderGridDto, ProductDto, OrderDto, OrderLineItemDto, OrderDetailResponseDto, PageResponse } from '../api/orderApi';
 import { toKstDate } from '../utils/datetime';
 
 // 재고현황 셀 표시 규칙(순수 함수, 테스트 가능):
@@ -49,7 +49,6 @@ const CARRIER_LABELS: Record<string, string> = {
   HYUNDAI_LOGISTICS: '현대택배',
   ROCKET: '쿠팡로켓',
 };
-const carrierLabel = (c?: string | null) => (c && CARRIER_LABELS[c]) ? CARRIER_LABELS[c] : '-';
 // 인라인 select용 택배사 옵션(빈값=지우기 → '-')
 const CARRIER_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: '-' },
@@ -69,6 +68,115 @@ const ACCOUNT_OPTIONS = [
 ];
 const VENDOR_OPTIONS = ['', 'IHB', 'AMZ', 'FTN', 'COK', 'OCD', 'TES', 'VTB'];
 
+// ─── 인라인 즉시편집 공통 저장상태 언어 ───
+// 모든 자동저장 셀이 동일한 시각 신호를 공유한다:
+//   dirty(앰버)=변경됨·미저장, saving(파랑)=전송중, saved(초록)=저장완료 플래시, error(빨강)=실패·원복
+type SaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
+function statusBorder(status: SaveStatus): string {
+  switch (status) {
+    case 'dirty': return '#f59e0b';
+    case 'saving': return '#3b82f6';
+    case 'saved': return '#22c55e';
+    case 'error': return '#ef4444';
+    default: return '#d1d5db';
+  }
+}
+
+// 인라인 자동저장 입력(통관번호·주소 등 단일 필드).
+// 더블클릭 없이 항상 편집 가능. 포커스 아웃(blur/Tab) 시 변경분만 저장한다.
+//   - Enter: 커밋(=blur 유발). 필수 아님 — Tab/클릭 이탈만으로도 저장됨.
+//   - Escape: 원복 후 이탈. 저장 성공=초록 플래시, 실패=빨강+원복.
+//   - 외부 값(동기화·낙관적 패치)이 바뀌면 편집 중이 아닐 때만 draft에 반영.
+function InlineInput({ value, onCommit, type = 'text', align = 'left', title }: {
+  value: string;
+  onCommit: (v: string) => Promise<unknown>;
+  type?: string;
+  align?: 'left' | 'center';
+  title?: string;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [status, setStatus] = useState<SaveStatus>('idle');
+  const focused = useRef(false);
+
+  useEffect(() => { if (!focused.current) setDraft(value); }, [value]);
+
+  const commit = () => {
+    focused.current = false;
+    if (draft === value) { setStatus('idle'); return; }
+    setStatus('saving');
+    onCommit(draft)
+      .then(() => { setStatus('saved'); setTimeout(() => setStatus('idle'), 800); })
+      .catch(() => { setDraft(value); setStatus('error'); setTimeout(() => setStatus('idle'), 1200); });
+  };
+
+  return (
+    <input
+      type={type}
+      value={draft}
+      title={title}
+      style={{ ...inputStyle, textAlign: align, borderColor: statusBorder(status), borderWidth: status === 'idle' ? 1 : 2 }}
+      onFocus={() => { focused.current = true; }}
+      onChange={(e) => { setDraft(e.target.value); setStatus('dirty'); }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        else if (e.key === 'Escape') { setDraft(value); setStatus('idle'); (e.target as HTMLInputElement).blur(); }
+      }}
+    />
+  );
+}
+
+// 정산 정보(실구매가+물류비) 통합 인라인 편집 셀.
+// 두 숫자를 한 세트로 → 컨테이너 밖으로 포커스가 나갈 때 변경분을 1회 sourcing 저장.
+function FinancialEditCell({ sourcingAmount, logisticsCost, onSave }: {
+  sourcingAmount: number;
+  logisticsCost: number;
+  onSave: (v: { sourcingAmount: number; logisticsCost: number }) => Promise<unknown>;
+}) {
+  const [amt, setAmt] = useState(String(sourcingAmount));
+  const [cost, setCost] = useState(String(logisticsCost));
+  const [status, setStatus] = useState<SaveStatus>('idle');
+  const focusedInside = useRef(false);
+
+  useEffect(() => {
+    if (!focusedInside.current) { setAmt(String(sourcingAmount)); setCost(String(logisticsCost)); }
+  }, [sourcingAmount, logisticsCost]);
+
+  const commit = () => {
+    focusedInside.current = false;
+    const nAmt = Number(amt) || 0, nCost = Number(cost) || 0;
+    if (nAmt === sourcingAmount && nCost === logisticsCost) { setStatus('idle'); return; }
+    setStatus('saving');
+    onSave({ sourcingAmount: nAmt, logisticsCost: nCost })
+      .then(() => { setStatus('saved'); setTimeout(() => setStatus('idle'), 800); })
+      .catch(() => { setAmt(String(sourcingAmount)); setCost(String(logisticsCost)); setStatus('error'); setTimeout(() => setStatus('idle'), 1200); });
+  };
+
+  const border = statusBorder(status);
+  const bw = status === 'idle' ? 1 : 2;
+  const numKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+    else if (e.key === 'Escape') { setAmt(String(sourcingAmount)); setCost(String(logisticsCost)); setStatus('idle'); (e.target as HTMLInputElement).blur(); }
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}
+      onFocus={() => { focusedInside.current = true; }}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) commit(); }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', textAlign: 'center' }}>실구매가</div>
+        <input type="number" value={amt} style={{ ...inputStyle, textAlign: 'center', borderColor: border, borderWidth: bw }}
+          onChange={(e) => { setAmt(e.target.value); setStatus('dirty'); }} onKeyDown={numKeyDown} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', textAlign: 'center' }}>물류비</div>
+        <input type="number" value={cost} style={{ ...inputStyle, textAlign: 'center', borderColor: border, borderWidth: bw }}
+          onChange={(e) => { setCost(e.target.value); setStatus('dirty'); }} onKeyDown={numKeyDown} />
+      </div>
+    </div>
+  );
+}
+
 // 배송 정보(택배사+송장) 통합 인라인 편집 셀.
 // 택배사와 송장번호는 한 세트 → 더블클릭 시 두 컨트롤이 함께 열리고, 편집 종료 시
 // 두 값을 1회 onSave로 넘겨 shippingMutation(=updateShippingInfo)을 한 번만 호출한다.
@@ -77,167 +185,151 @@ const VENDOR_OPTIONS = ['', 'IHB', 'AMZ', 'FTN', 'COK', 'OCD', 'TES', 'VTB'];
 //   - 컨테이너 blur(포커스가 두 컨트롤 밖으로 나감) 또는 Enter → 저장
 //   - Escape → 취소
 //   - 실제로 값이 바뀐 경우에만 onSave 호출(무의미한 마켓 호출 방지)
+// 배송 정보(택배사+송장) — 항상 편집 가능 + 명시적 [전송] 버튼.
+// 다른 자동저장 셀과 달리 마켓 API 실호출(실패 시 백엔드 롤백)이므로 blur 자동저장이 아니라
+// 사용자가 명시적으로 전송한다. 택배사·송장이 둘 다 있고 저장값과 다를 때만 버튼 활성.
+//   - dirty(앰버 보더): 변경됐지만 아직 미전송  ·  전송중: 스피너  ·  성공/실패: onSave가 토스트로 알림
 function ShippingEditCell({ carrier, trackingNo, onSave }: {
   carrier: string;
   trackingNo: string;
-  onSave: (v: { shippingCarrier: string; trackingNo: string }) => void;
+  onSave: (v: { shippingCarrier: string; trackingNo: string }) => Promise<unknown>;
 }) {
-  const [editing, setEditing] = useState(false);
   const [draftCarrier, setDraftCarrier] = useState(carrier);
   const [draftTracking, setDraftTracking] = useState(trackingNo);
-  const selectRef = useRef<HTMLSelectElement>(null);
+  const [sending, setSending] = useState(false);
+  const focusedInside = useRef(false);
 
+  // 동기화/전송 성공으로 외부 값이 바뀌면 편집 중이 아닐 때만 draft에 반영.
   useEffect(() => {
-    if (editing) {
-      setDraftCarrier(carrier);
-      setDraftTracking(trackingNo);
-      setTimeout(() => selectRef.current?.focus(), 0);
-    }
-  }, [editing, carrier, trackingNo]);
+    if (!focusedInside.current) { setDraftCarrier(carrier); setDraftTracking(trackingNo); }
+  }, [carrier, trackingNo]);
 
-  // 편집 종료 시 실제로 바뀐 경우에만 저장(한 세트로 1회 호출).
-  const commit = (nextCarrier: string, nextTracking: string) => {
-    setEditing(false);
-    if (nextCarrier !== carrier || nextTracking !== trackingNo) {
-      onSave({ shippingCarrier: nextCarrier, trackingNo: nextTracking });
-    }
+  const changed = draftCarrier !== carrier || draftTracking !== trackingNo;
+  const canSend = !!draftCarrier && !!draftTracking && changed && !sending;
+  const border = changed ? '#f59e0b' : '#d1d5db';
+
+  const send = () => {
+    if (!canSend) return;
+    setSending(true);
+    onSave({ shippingCarrier: draftCarrier, trackingNo: draftTracking })
+      .catch(() => { /* 실패 토스트·롤백은 mutation onError가 처리 */ })
+      .finally(() => setSending(false));
   };
 
-  if (editing) {
-    return (
-      <div
-        style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}
-        onClick={(e) => e.stopPropagation()}
-        // 컨테이너 밖(다른 컨트롤/행)으로 포커스가 나갈 때만 저장. 내부 select↔input 이동은 유지.
-        onBlur={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-            commit(draftCarrier, draftTracking);
-          }
-        }}
-      >
-        <label style={{ fontSize: '10px', color: '#888', textAlign: 'left' }}>택배사</label>
-        <select
-          ref={selectRef}
-          value={draftCarrier}
-          style={{ ...inputStyle, textAlign: 'center' }}
-          onChange={(e) => setDraftCarrier(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commit(draftCarrier, draftTracking);
-            else if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); }
-          }}
-        >
-          <option value="" disabled hidden>택배사 선택</option>
-          {CARRIER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <input
-          type="text"
-          value={draftTracking}
-          placeholder="송장번호"
-          style={{ ...inputStyle, textAlign: 'center' }}
-          onChange={(e) => setDraftTracking(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commit(draftCarrier, draftTracking);
-            else if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); }
-          }}
-        />
-      </div>
-    );
-  }
-
-  // 표시 모드: 택배사(1줄) / 송장번호(2줄)를 세로로 stack하여 병합 셀 중앙에 표시.
   return (
     <div
-      onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
-      title="더블클릭하여 택배사·송장 함께 편집"
-      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', cursor: 'text' }}
+      style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}
+      onFocus={() => { focusedInside.current = true; }}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) focusedInside.current = false; }}
     >
-      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{carrierLabel(carrier)}</div>
-      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{trackingNo || '-'}</div>
+      <select value={draftCarrier} style={{ ...inputStyle, textAlign: 'center', borderColor: border, borderWidth: changed ? 2 : 1 }}
+        onChange={(e) => setDraftCarrier(e.target.value)}>
+        <option value="" disabled hidden>택배사 선택</option>
+        {CARRIER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <input type="text" value={draftTracking} placeholder="송장번호"
+        style={{ ...inputStyle, textAlign: 'center', borderColor: border, borderWidth: changed ? 2 : 1 }}
+        onChange={(e) => setDraftTracking(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') send(); else if (e.key === 'Escape') { setDraftCarrier(carrier); setDraftTracking(trackingNo); } }} />
+      <button type="button" onClick={send} disabled={!canSend}
+        style={{ fontSize: '11px', padding: '3px 6px', borderRadius: '4px', border: 'none', cursor: canSend ? 'pointer' : 'default',
+          backgroundColor: canSend ? '#3b82f6' : '#e5e7eb', color: canSend ? '#fff' : '#9ca3af' }}>
+        {sending ? '전송중…' : '전송'}
+      </button>
     </div>
   );
 }
 
-// 구매 정보(구매계정+공급처+구매주문번호+할인코드) 통합 인라인 편집 셀.
-// 네 필드는 한 세트 → 더블클릭 시 네 입력이 함께 열리고, 편집 종료 시 1회 onSave로 넘겨
-// sourcingMutation(=updateSourcingInfo)을 한 번만 호출한다(개별 필드 저장 → N회 호출 제거).
-//   - 더블클릭 → 편집 모드(첫 입력 autofocus)
-//   - 컨테이너 blur(포커스가 네 입력 밖으로 나감) 또는 Enter → 저장
-//   - Escape → 취소
-//   - 실제로 값이 바뀐 경우에만 onSave 호출
+// 구매 정보(구매계정+공급처+구매주문번호+할인코드) — 항상 편집 가능.
+// 네 필드는 한 세트 → 컨테이너 밖(blur/Tab)으로 포커스가 나갈 때 변경분을 1회 onSave로 저장.
+// Alt-Tab·브라우저 탭전환(relatedTarget=null)에서는 저장하지 않는다.
 function SourcingEditCell({ sourcingAccount, sourcingVendor, sourcingOrderNo, discountCode, onSave }: {
   sourcingAccount: string;
   sourcingVendor: string;
   sourcingOrderNo: string;
   discountCode: string;
-  onSave: (v: { sourcingAccount: string; sourcingVendor: string; sourcingOrderNo: string; discountCode: string }) => void;
+  onSave: (v: { sourcingAccount: string; sourcingVendor: string; sourcingOrderNo: string; discountCode: string }) => Promise<unknown>;
 }) {
-  const [editing, setEditing] = useState(false);
   const [draftAccount, setDraftAccount] = useState(sourcingAccount);
   const [draftVendor, setDraftVendor] = useState(sourcingVendor);
   const [draftOrderNo, setDraftOrderNo] = useState(sourcingOrderNo);
   const [draftDiscount, setDraftDiscount] = useState(discountCode);
-  const firstRef = useRef<HTMLSelectElement>(null);
+  const [status, setStatus] = useState<SaveStatus>('idle');
+  const focusedInside = useRef(false);
 
   useEffect(() => {
-    if (editing) {
-      setDraftAccount(sourcingAccount);
-      setDraftVendor(sourcingVendor);
-      setDraftOrderNo(sourcingOrderNo);
-      setDraftDiscount(discountCode);
-      setTimeout(() => firstRef.current?.focus(), 0);
+    if (!focusedInside.current) {
+      setDraftAccount(sourcingAccount); setDraftVendor(sourcingVendor);
+      setDraftOrderNo(sourcingOrderNo); setDraftDiscount(discountCode);
     }
-  }, [editing, sourcingAccount, sourcingVendor, sourcingOrderNo, discountCode]);
+  }, [sourcingAccount, sourcingVendor, sourcingOrderNo, discountCode]);
 
-  // 편집 종료 시 실제로 바뀐 경우에만 저장(한 세트로 1회 호출).
   const commit = () => {
-    setEditing(false);
-    if (draftAccount !== sourcingAccount || draftVendor !== sourcingVendor || draftOrderNo !== sourcingOrderNo || draftDiscount !== discountCode) {
-      onSave({ sourcingAccount: draftAccount, sourcingVendor: draftVendor, sourcingOrderNo: draftOrderNo, discountCode: draftDiscount });
+    focusedInside.current = false;
+    if (draftAccount === sourcingAccount && draftVendor === sourcingVendor && draftOrderNo === sourcingOrderNo && draftDiscount === discountCode) {
+      setStatus('idle'); return;
     }
+    setStatus('saving');
+    onSave({ sourcingAccount: draftAccount, sourcingVendor: draftVendor, sourcingOrderNo: draftOrderNo, discountCode: draftDiscount })
+      .then(() => { setStatus('saved'); setTimeout(() => setStatus('idle'), 800); })
+      .catch(() => {
+        setDraftAccount(sourcingAccount); setDraftVendor(sourcingVendor);
+        setDraftOrderNo(sourcingOrderNo); setDraftDiscount(discountCode);
+        setStatus('error'); setTimeout(() => setStatus('idle'), 1200);
+      });
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') commit();
-    else if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); }
+    if (e.key === 'Enter') (e.target as HTMLElement).blur();
+    else if (e.key === 'Escape') {
+      setDraftAccount(sourcingAccount); setDraftVendor(sourcingVendor);
+      setDraftOrderNo(sourcingOrderNo); setDraftDiscount(discountCode); setStatus('idle');
+    }
   };
+  const markDirty = () => setStatus('dirty');
+  const border = statusBorder(status);
+  const bw = status === 'idle' ? 1 : 2;
+  const fieldStyle = { ...inputStyle, textAlign: 'center' as const, borderColor: border, borderWidth: bw };
 
-  if (editing) {
-    return (
-      <div
-        style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}
-        onClick={(e) => e.stopPropagation()}
-        // relatedTarget이 null이면 Alt-Tab·브라우저탭 전환 → 저장 안 함. 페이지 내 다른 영역 클릭 시에만 저장.
-        onBlur={(e) => {
-          if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget as Node)) commit();
-        }}
-      >
-        <select ref={firstRef} value={draftAccount} style={{ ...inputStyle, textAlign: 'center' }} onChange={(e) => setDraftAccount(e.target.value)} onKeyDown={onKeyDown}>
-          {ACCOUNT_OPTIONS.map(a => <option key={a} value={a}>{a || '(계정 선택)'}</option>)}
-        </select>
-        <select value={draftVendor} style={{ ...inputStyle, textAlign: 'center' }} onChange={(e) => setDraftVendor(e.target.value)} onKeyDown={onKeyDown}>
-          {VENDOR_OPTIONS.map(v => <option key={v} value={v}>{v || '(공급처 선택)'}</option>)}
-        </select>
-        <input type="text" value={draftOrderNo} placeholder="구매주문번호" style={{ ...inputStyle, textAlign: 'center' }} onChange={(e) => setDraftOrderNo(e.target.value)} onKeyDown={onKeyDown} />
-        <input type="text" value={draftDiscount} placeholder="할인코드" style={{ ...inputStyle, textAlign: 'center' }} onChange={(e) => setDraftDiscount(e.target.value)} onKeyDown={onKeyDown} />
-      </div>
-    );
-  }
-
-  // 표시 모드: 계정/공급처/주문#/할인 4줄을 라벨과 함께 세로로 stack하여 병합 셀 중앙에 표시.
-  const labelStyle = { color: '#999', marginRight: '4px', fontSize: '11px' };
-  const lineStyle = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, maxWidth: '100%' };
   return (
     <div
-      onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
-      title="더블클릭하여 구매 정보 함께 편집"
-      style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '2px', cursor: 'text', fontSize: '12px', textAlign: 'left', paddingLeft: '4px' }}
+      style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}
+      onFocus={() => { focusedInside.current = true; }}
+      onBlur={(e) => { if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget as Node)) commit(); }}
     >
-      <div style={lineStyle}><span style={labelStyle}>계정</span>{sourcingAccount || '-'}</div>
-      <div style={lineStyle}><span style={labelStyle}>공급처</span>{sourcingVendor || '-'}</div>
-      <div style={lineStyle}><span style={labelStyle}>주문#</span>{sourcingOrderNo || '-'}</div>
-      <div style={lineStyle}><span style={labelStyle}>할인</span>{discountCode || '-'}</div>
+      <select value={draftAccount} style={fieldStyle} onChange={(e) => { setDraftAccount(e.target.value); markDirty(); }} onKeyDown={onKeyDown}>
+        {ACCOUNT_OPTIONS.map(a => <option key={a} value={a}>{a || '(계정 선택)'}</option>)}
+      </select>
+      <select value={draftVendor} style={fieldStyle} onChange={(e) => { setDraftVendor(e.target.value); markDirty(); }} onKeyDown={onKeyDown}>
+        {VENDOR_OPTIONS.map(v => <option key={v} value={v}>{v || '(공급처 선택)'}</option>)}
+      </select>
+      <input type="text" value={draftOrderNo} placeholder="구매주문번호" style={fieldStyle} onChange={(e) => { setDraftOrderNo(e.target.value); markDirty(); }} onKeyDown={onKeyDown} />
+      <input type="text" value={draftDiscount} placeholder="할인코드" style={fieldStyle} onChange={(e) => { setDraftDiscount(e.target.value); markDirty(); }} onKeyDown={onKeyDown} />
     </div>
   );
+}
+
+// ─── 낙관적 업데이트: 전체 refetch 없이 캐시의 해당 order/lineItem만 패치 ───
+// 저장 즉시 화면 반영(왕복 대기·깜빡임 제거), 실패 시 스냅샷으로 롤백.
+type OrdersCache = PageResponse<OrderDetailResponseDto>;
+function patchOrderInCache(cache: OrdersCache | undefined, orderId: number, mutate: (o: OrderDto) => OrderDto): OrdersCache | undefined {
+  if (!cache) return cache;
+  return {
+    ...cache,
+    content: cache.content.map(item =>
+      item.order?.id === orderId ? { ...item, order: mutate(item.order) } : item),
+  };
+}
+function patchLineItemInCache(cache: OrdersCache | undefined, lineItemId: number, mutate: (li: OrderLineItemDto) => OrderLineItemDto): OrdersCache | undefined {
+  if (!cache) return cache;
+  return {
+    ...cache,
+    content: cache.content.map(item => ({
+      ...item,
+      lineItems: (item.lineItems || []).map(d =>
+        d.lineItem?.id === lineItemId ? { ...d, lineItem: mutate(d.lineItem) } : d),
+    })),
+  };
 }
 
 // 주문 전체 병합 컬럼 (rowSpan = 해당 주문의 전체 행 수)
@@ -510,24 +602,50 @@ const OrderGrid: React.FC = () => {
     }
   }, [data]);
 
+  // 낙관적 스냅샷 + 캐시 패치. 반환값(이전 상태)은 onError 롤백에 쓴다.
+  type CacheSnapshot = ReturnType<typeof queryClient.getQueriesData<OrdersCache>>;
+  const optimisticPatch = useCallback(async (patch: (c: OrdersCache | undefined) => OrdersCache | undefined): Promise<CacheSnapshot> => {
+    await queryClient.cancelQueries({ queryKey: ['orders'] });
+    const previous = queryClient.getQueriesData<OrdersCache>({ queryKey: ['orders'] });
+    queryClient.setQueriesData<OrdersCache>({ queryKey: ['orders'] }, (old) => patch(old));
+    return previous;
+  }, [queryClient]);
+  const rollback = useCallback((previous?: CacheSnapshot) => {
+    previous?.forEach(([key, snap]) => queryClient.setQueryData(key, snap));
+  }, [queryClient]);
+
   const orderMutation = useMutation({
     mutationFn: ({ id, updates }: { id: number; updates: Record<string, unknown> }) => updateOrder(id, updates),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
+    onMutate: async ({ id, updates }) => ({
+      previous: await optimisticPatch(c => patchOrderInCache(c, id, o => {
+        const next: OrderDto = { ...o };
+        if ('address' in updates) next.address = updates.address as string;
+        if ('customsClearanceNo' in updates) next.customsData = { ...o.customsData, customsClearanceNo: updates.customsClearanceNo as string };
+        return next;
+      })),
+    }),
+    onError: (_e, _v, ctx) => { rollback(ctx?.previous); toast.error('저장에 실패했습니다.'); },
   });
   const lineItemMutation = useMutation({
     mutationFn: ({ id, updates }: { id: number; updates: { isUnipassDone?: boolean } }) => updateOrderLineItem(id, updates),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
+    onMutate: async ({ id, updates }) => ({
+      previous: await optimisticPatch(c => patchLineItemInCache(c, id, li => ({ ...li, ...updates }))),
+    }),
+    onError: (_e, _v, ctx) => { rollback(ctx?.previous); toast.error('저장에 실패했습니다.'); },
   });
   const sourcingMutation = useMutation({
     mutationFn: ({ id, updates }: { id: number; updates: { sourcingAmount?: number; logisticsCost?: number; sourcingAccount?: string; sourcingVendor?: string; sourcingOrderNo?: string; discountCode?: string } }) => updateSourcingInfo(id, updates),
-    onSuccess: () => {
-      toast.success('구매 정보가 저장되었습니다.');
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-    },
+    onMutate: async ({ id, updates }) => ({
+      previous: await optimisticPatch(c => patchLineItemInCache(c, id, li => ({ ...li, sourcingData: { ...li.sourcingData, ...updates } }))),
+    }),
+    onError: (_e, _v, ctx) => { rollback(ctx?.previous); toast.error('구매/정산 정보 저장에 실패했습니다.'); },
   });
   const purchaseStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: number; status: 'NOT_PURCHASED' | 'PURCHASED' | 'WAITING_STOCK' }) => updatePurchaseStatus(id, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
+    onMutate: async ({ id, status }) => ({
+      previous: await optimisticPatch(c => patchLineItemInCache(c, id, li => ({ ...li, purchaseStatus: status }))),
+    }),
+    onError: (_e, _v, ctx) => { rollback(ctx?.previous); toast.error('구매상태 저장에 실패했습니다.'); },
   });
   const shippingMutation = useMutation({
     mutationFn: ({ id, updates }: { id: number; updates: { trackingNo?: string; shippingCarrier?: string } }) => updateShippingInfo(id, updates),
@@ -546,32 +664,30 @@ const OrderGrid: React.FC = () => {
     },
   });
 
-  // 배송 정보(택배사+송장)는 한 세트로 통합 편집 셀(ShippingEditCell)에서만 저장한다.
-  // field 'lineItem.shipping' → value는 { shippingCarrier, trackingNo } 객체 → shippingMutation 1회 호출.
-  const handleUpdate = useCallback((orderId: number, lineItemId: number, field: string, value: unknown, sibling?: string) => {
-    void sibling;
+  // 모든 셀 저장의 단일 진입점. mutateAsync의 Promise를 반환 → 각 셀이 성공/실패로
+  // 초록 플래시/빨강 원복을 표시한다. 다중필드 셀(정산·구매정보)은 1회 요청으로 배칭된다.
+  const handleUpdate = useCallback((orderId: number, lineItemId: number, field: string, value: unknown): Promise<unknown> => {
     if (field.startsWith('order.')) {
       const actualField = field.replace('order.', '');
-      orderMutation.mutate({ id: orderId, updates: { [actualField]: value } });
+      return orderMutation.mutateAsync({ id: orderId, updates: { [actualField]: value } });
     } else if (field === 'lineItem.isUnipassDone') {
-      lineItemMutation.mutate({ id: lineItemId, updates: { isUnipassDone: value as boolean } });
-    } else if (field === 'lineItem.sourcingAmount') {
-      // 소싱금액은 SourcingData 필드 → 소싱 엔드포인트로 전송(라인아이템 PATCH DTO에는 없음)
-      sourcingMutation.mutate({ id: lineItemId, updates: { sourcingAmount: value as number } });
-    } else if (field === 'lineItem.logisticsCost') {
-      // 물류비도 SourcingData 필드 → 소싱 엔드포인트로 전송
-      sourcingMutation.mutate({ id: lineItemId, updates: { logisticsCost: value as number } });
+      return lineItemMutation.mutateAsync({ id: lineItemId, updates: { isUnipassDone: value as boolean } });
+    } else if (field === 'lineItem.financial') {
+      // 실구매가+물류비 한 세트 → sourcing 1회 호출.
+      const v = value as { sourcingAmount: number; logisticsCost: number };
+      return sourcingMutation.mutateAsync({ id: lineItemId, updates: v });
     } else if (field === 'lineItem.sourcing') {
-      // 구매계정+공급처+구매주문번호+할인코드를 한 세트로 1회 전송 → updateSourcingInfo 1회 호출.
+      // 구매계정+공급처+구매주문번호+할인코드 한 세트 → sourcing 1회 호출.
       const v = value as { sourcingAccount: string; sourcingVendor: string; sourcingOrderNo: string; discountCode: string };
-      sourcingMutation.mutate({ id: lineItemId, updates: { sourcingAccount: v.sourcingAccount, sourcingVendor: v.sourcingVendor, sourcingOrderNo: v.sourcingOrderNo, discountCode: v.discountCode } });
+      return sourcingMutation.mutateAsync({ id: lineItemId, updates: v });
     } else if (field === 'lineItem.shipping') {
-      // 택배사+송장을 한 세트로 1회 전송 → updateShippingInfo 1회 → 마켓 API 1회 호출.
+      // 택배사+송장 한 세트 → updateShippingInfo 1회 → 마켓 API 1회 호출.
       const v = value as { shippingCarrier: string; trackingNo: string };
-      shippingMutation.mutate({ id: lineItemId, updates: { trackingNo: v.trackingNo, shippingCarrier: v.shippingCarrier } });
+      return shippingMutation.mutateAsync({ id: lineItemId, updates: { trackingNo: v.trackingNo, shippingCarrier: v.shippingCarrier } });
     } else if (field === 'lineItem.purchaseStatus') {
-      purchaseStatusMutation.mutate({ id: lineItemId, status: value as 'NOT_PURCHASED' | 'PURCHASED' | 'WAITING_STOCK' });
+      return purchaseStatusMutation.mutateAsync({ id: lineItemId, status: value as 'NOT_PURCHASED' | 'PURCHASED' | 'WAITING_STOCK' });
     }
+    return Promise.resolve();
   }, [orderMutation, lineItemMutation, sourcingMutation, shippingMutation, purchaseStatusMutation]);
 
   useEffect(() => {
@@ -939,7 +1055,7 @@ const OrderGrid: React.FC = () => {
         }
         if (row.original.rowType === 'fulfillment') return null;
         const val = row.original.order?.customsData?.customsClearanceNo || '';
-        return <input style={inputStyle} defaultValue={val} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'order.customsClearanceNo', e.target.value)} />;
+        return <InlineInput value={val} onCommit={(v) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'order.customsClearanceNo', v)} />;
       }
     }),
     // 배송정보: 행1=우편번호|배송메시지, 행2=주소
@@ -950,7 +1066,7 @@ const OrderGrid: React.FC = () => {
       cell: ({ row }) => {
         if (row.original.rowType === 'product') {
           const val = row.original.order?.address || '';
-          return <input style={inputStyle} defaultValue={val} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'order.address', e.target.value)} />;
+          return <InlineInput value={val} onCommit={(v) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'order.address', v)} />;
         }
         if (row.original.rowType === 'fulfillment') return null;
         const zipcode = row.original.order?.zipcode || '';
@@ -1079,19 +1195,14 @@ const OrderGrid: React.FC = () => {
       size: 160,
       cell: ({ row }) => {
         if (row.original.rowType === 'product') {
-          const sourcingAmount = row.original.lineItem?.sourcingData?.sourcingAmount || 0;
-          const logisticsCost = row.original.lineItem?.sourcingData?.logisticsCost || 0;
+          const sourcingAmount = (row.original.lineItem?.sourcingData?.sourcingAmount || 0) as number;
+          const logisticsCost = (row.original.lineItem?.sourcingData?.logisticsCost || 0) as number;
           return (
-            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', textAlign: 'center' }}>실구매가</div>
-                <input style={{...inputStyle, textAlign: 'center'}} type="number" defaultValue={sourcingAmount} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.sourcingAmount', Number(e.target.value))} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', textAlign: 'center' }}>물류비</div>
-                <input style={{...inputStyle, textAlign: 'center'}} type="number" defaultValue={logisticsCost} onBlur={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.logisticsCost', Number(e.target.value))} />
-              </div>
-            </div>
+            <FinancialEditCell
+              sourcingAmount={sourcingAmount}
+              logisticsCost={logisticsCost}
+              onSave={(v) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.financial', v)}
+            />
           );
         }
         if (row.original.rowType === 'fulfillment') return null;
@@ -1122,7 +1233,7 @@ const OrderGrid: React.FC = () => {
       cell: ({ row }) => {
         if (row.original.rowType !== 'order') return null;
         const isDone = row.original.lineItem?.isUnipassDone;
-        return <div style={{ textAlign: 'center' }}><input type="checkbox" checked={!!isDone} onChange={(e) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.isUnipassDone', e.target.checked)} /></div>;
+        return <div style={{ textAlign: 'center' }}><input type="checkbox" checked={!!isDone} onChange={(e) => { void handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.isUnipassDone', e.target.checked).catch(() => {}); }} /></div>;
       }
     }),
     columnHelper.accessor('lineItem.purchaseStatus', {
@@ -1142,7 +1253,7 @@ const OrderGrid: React.FC = () => {
 
         const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
           if (!lineItemId) return;
-          handleUpdate(row.order?.id || 0, lineItemId, 'lineItem.purchaseStatus', e.target.value);
+          void handleUpdate(row.order?.id || 0, lineItemId, 'lineItem.purchaseStatus', e.target.value).catch(() => {});
         };
 
         return (
