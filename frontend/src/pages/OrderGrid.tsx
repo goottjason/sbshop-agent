@@ -1162,7 +1162,7 @@ const OrderGrid: React.FC = () => {
       size: 70,
       cell: ({ row }) => {
         const qty = (row.original.lineItem?.quantity || 1) as number;
-        const bundle = (row.original.product?.productSpec?.bundleQuantity || 1) as number;
+        const bundle = (row.original.product?.logisticsInfo?.bundleQuantity || 1) as number;
         const total = qty * bundle;
         return (
           <div style={{ textAlign: 'center', lineHeight: '1.4' }}>

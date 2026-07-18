@@ -60,7 +60,14 @@ export interface ProductDto {
   // 상품 마지막 갱신시각(재고 크롤 save 시 갱신). "재고 반영 시각" 프록시로 사용.
   updatedAt?: string;
   productSpec?: {
+    barcode?: string;
+    capacity?: number;
+    measureUnit?: string;
+  };
+  logisticsInfo?: {
     bundleQuantity?: number;
+    stock?: number;
+    weight?: number;
   };
 }
 
