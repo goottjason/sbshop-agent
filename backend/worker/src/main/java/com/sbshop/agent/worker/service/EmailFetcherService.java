@@ -14,9 +14,13 @@ import com.sbshop.agent.core.domain.order.vo.SourcingData;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import com.sbshop.agent.core.config.EmailAccountProperties;
 import jakarta.mail.*;
+import jakarta.mail.search.SubjectTerm;
 import java.math.BigDecimal;
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
@@ -30,18 +34,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class EmailFetcherService {
-
-	/**
-	 * 인박스에서 스캔할 최근 메일 건수. 소싱 계정을 중앙 Gmail로 자동전달해 모으면
-	 * 인박스가 붐비므로, 주문 메일이 창 밖으로 밀려 누락되지 않도록 넉넉히 잡는다.
-	 * (Gmail IMAP은 SubjectTerm이 불안정해 최근 N건을 받아 제목 필터링하는 방식.)
-	 */
-	static final int INBOX_SCAN_WINDOW = 1000;
-
-	/** 최근 {@link #INBOX_SCAN_WINDOW}건만 받기 위한 시작 인덱스(1-based, JavaMail getMessages 규약). */
-	static int inboxScanStart(int totalMessages) {
-		return Math.max(1, totalMessages - (INBOX_SCAN_WINDOW - 1));
-	}
 
 	private final EmailAccountProperties properties;
 	private final OrderEmailParser parser;
@@ -88,21 +80,16 @@ public class EmailFetcherService {
 				return true;
 			}
 
-			// 2. 소싱 주문번호 추출 및 중복 제거
-			Set<String> orderNos = new HashSet<>();
-			for (OrderLineItem item : items) {
-				String orderNo = item.getSourcingData() != null
-					? item.getSourcingData().getSourcingOrderNo() : null;
-				if (orderNo != null && !orderNo.isBlank()) {
-					orderNos.add(orderNo);
-				}
-			}
+			// 2. 라우팅: 주문의 소싱 계정(sourcing_account)으로 검색할 메일함을 좁힌다.
+			//    - Gmail 소싱분은 중앙 계정으로 자동전달되므로 중앙(Gmail) 메일함만
+			//    - 비-Gmail 소싱분은 해당 제공자 메일함만 (미매칭·미상은 전 계정 폴백)
+			Map<EmailAccountProperties.Account, Set<String>> plan = buildSearchPlan(items);
+			log.info("이메일 검색 계획: 계정 {}곳, 주문 {}건", plan.size(),
+				plan.values().stream().mapToInt(Set::size).sum());
 
-			log.info("이메일 검색 대상 iHerb 주문번호 {}건: {}", orderNos.size(), orderNos);
-
-			// 3. 각 주문번호별로 이메일 계정 순회하며 검색
-			for (String orderNo : orderNos) {
-				searchAndProcessForOrderNo(orderNo);
+			// 3. 계정별 1회 접속하여 각 주문번호를 서버측 SEARCH로 조회·처리
+			for (Map.Entry<EmailAccountProperties.Account, Set<String>> entry : plan.entrySet()) {
+				searchAccountForOrderNos(entry.getKey(), entry.getValue());
 			}
 			return true;
 		} finally {
@@ -111,25 +98,76 @@ public class EmailFetcherService {
 	}
 
 	/**
-	 * 특정 iHerb 주문번호에 대해 이메일 검색 및 처리
+	 * 처리 대상 라인아이템을 "검색할 메일함(계정) → 주문번호 집합"으로 라우팅한다.
+	 * 주문의 소싱 계정({@code sourcing_account})으로 대상 메일함을 좁혀, 전 계정 스캔을 피한다.
 	 */
-	private void searchAndProcessForOrderNo(String orderNo) {
-		for (EmailAccountProperties.Account account : properties.getAccounts()) {
-			searchInAccountForOrderNo(account, orderNo);
+	private Map<EmailAccountProperties.Account, Set<String>> buildSearchPlan(List<OrderLineItem> items) {
+		Map<EmailAccountProperties.Account, Set<String>> plan = new LinkedHashMap<>();
+		List<EmailAccountProperties.Account> accounts = properties.getAccounts();
+		for (OrderLineItem item : items) {
+			var sourcingData = item.getSourcingData();
+			String orderNo = sourcingData != null ? sourcingData.getSourcingOrderNo() : null;
+			if (orderNo == null || orderNo.isBlank()) {
+				continue;
+			}
+			String sourcingAccount = sourcingData != null ? sourcingData.getSourcingAccount() : null;
+			for (EmailAccountProperties.Account target : resolveTargetAccounts(sourcingAccount, accounts)) {
+				plan.computeIfAbsent(target, k -> new LinkedHashSet<>()).add(orderNo);
+			}
 		}
+		return plan;
 	}
 
 	/**
-	 * Gmail 호환: 특정 주문번호의 발송/확인 이메일을 검색하여 처리
-	 * Gmail IMAP은 SubjectTerm을 지원하지 않으므로 최근 메일을 가져와서 필터링
+	 * 소싱 계정 이메일로 검색 대상 메일함(들)을 결정한다.
+	 * <ul>
+	 *   <li>Gmail 소싱분 → 중앙 계정으로 자동전달되므로 설정된 Gmail(중앙) 계정</li>
+	 *   <li>비-Gmail 소싱분 → username이 정확히 일치하는 계정(그 제공자 메일함)</li>
+	 *   <li>소싱 계정 미상·미설정 → 설정된 전 계정(폴백, 기존 동작 보존)</li>
+	 * </ul>
+	 * 빈 username 계정(D-E4)은 제외한다.
 	 */
-	private void searchInAccountForOrderNo(EmailAccountProperties.Account account, String orderNo) {
-		// 미설정 계정(빈 username)은 스킵 — 빈 자격증명으로 Gmail 로그인 실패 반복 방지 (D-E4)
+	static List<EmailAccountProperties.Account> resolveTargetAccounts(
+		String sourcingAccount, List<EmailAccountProperties.Account> accounts) {
+		List<EmailAccountProperties.Account> usable = new ArrayList<>();
+		if (accounts != null) {
+			for (EmailAccountProperties.Account a : accounts) {
+				if (a.getUsername() != null && !a.getUsername().isBlank()) {
+					usable.add(a);
+				}
+			}
+		}
+		if (sourcingAccount == null || sourcingAccount.isBlank()) {
+			return usable;
+		}
+		String host = EmailAccountProperties.imapHostForEmail(sourcingAccount);
+		if ("imap.gmail.com".equals(host)) {
+			List<EmailAccountProperties.Account> gmail = new ArrayList<>();
+			for (EmailAccountProperties.Account a : usable) {
+				if ("imap.gmail.com".equals(a.getHost())) {
+					gmail.add(a);
+				}
+			}
+			return gmail.isEmpty() ? usable : gmail;
+		}
+		List<EmailAccountProperties.Account> exact = new ArrayList<>();
+		for (EmailAccountProperties.Account a : usable) {
+			if (sourcingAccount.equalsIgnoreCase(a.getUsername())) {
+				exact.add(a);
+			}
+		}
+		return exact.isEmpty() ? usable : exact;
+	}
+
+	/**
+	 * 한 계정에 1회 접속하여, 주어진 주문번호들을 서버측 IMAP SEARCH(SUBJECT)로 조회·처리한다.
+	 * 주문번호는 숫자(ASCII)라 charset 이슈 없이 서버가 매칭 메일만 반환한다(1000통 스캔 대체).
+	 */
+	private void searchAccountForOrderNos(EmailAccountProperties.Account account, Set<String> orderNos) {
 		if (account.getUsername() == null || account.getUsername().isBlank()) {
-			log.debug("이메일 계정 username 미설정 - 스킵 (orderNo={})", orderNo);
+			log.debug("이메일 계정 username 미설정 - 스킵");
 			return;
 		}
-		log.debug("IMAP 연결 시도: account={}, orderNo={}", account.getUsername(), orderNo);
 		Properties props = new Properties();
 		props.put("mail.store.protocol", account.getProtocol());
 		props.put("mail.imaps.host", account.getHost());
@@ -141,71 +179,53 @@ public class EmailFetcherService {
 			Session session = Session.getDefaultInstance(props, null);
 			Store store = session.getStore(account.getProtocol());
 			store.connect(account.getHost(), account.getUsername(), account.getPassword());
-			log.debug("IMAP 연결 성공: account={}", account.getUsername());
+			log.debug("IMAP 연결 성공: account={}, 대상주문 {}건", account.getUsername(), orderNos.size());
 
 			Folder inbox = store.getFolder("INBOX");
 			inbox.open(Folder.READ_ONLY);
 
-			String shipmentSubject = "주문이 발송되었습니다 #" + orderNo;
-			String confirmationSubject = "주문이 확인되었습니다 #" + orderNo;
-
-			int totalMessages = inbox.getMessageCount();
-			int start = inboxScanStart(totalMessages);
-			log.debug("이메일 검색: account={}, orderNo={}, totalMessages={}, range={}~{}",
-				account.getUsername(), orderNo, totalMessages, start, totalMessages);
-			Message[] messages = inbox.getMessages(start, totalMessages);
-
-			boolean shipmentFound = false;
-			boolean confirmationFound = false;
-
-			for (Message message : messages) {
+			for (String orderNo : orderNos) {
 				try {
-					String subject = message.getSubject();
-					if (subject == null)
-						continue;
-
-					// 발송 이메일 처리
-					if (!shipmentFound && subject.contains(shipmentSubject)) {
-						String body = getTextFromMessage(message);
-						String from = message.getFrom() != null && message.getFrom().length > 0
-							? message.getFrom()[0].toString() : account.getUsername();
-
-						parser.parseIherbShipment(from, subject, body).ifPresent(shipmentData -> {
-							log.info("iHerb 발송 이메일 발견: orderNo={}, tracking={}, account={}",
-								shipmentData.getOrderNo(), shipmentData.getTrackingNo(), account.getUsername());
-							processIherbShipment(shipmentData);
-						});
-						shipmentFound = true;
+					// 서버측 검색: 제목에 주문번호를 포함하는 메일만 반환
+					Message[] matches = inbox.search(new SubjectTerm(orderNo));
+					for (Message message : matches) {
+						processMatchedMessage(account, orderNo, message);
 					}
-
-					// 확인 이메일 처리
-					if (!confirmationFound && subject.contains(confirmationSubject)) {
-						String body = getTextFromMessage(message);
-
-						parser.parseIherbConfirmation(subject, body).ifPresent(confirmData -> {
-							log.info("iHerb 확인 이메일 발견: orderNo={}, amount={}, account={}",
-								confirmData.getOrderNo(), confirmData.getTotalAmount(), account.getUsername());
-							processIherbConfirmation(confirmData);
-						});
-						confirmationFound = true;
-					}
-
-					// 두 이메일 모두 찾았으면 조기 종료
-					if (shipmentFound && confirmationFound)
-						break;
-
 				} catch (Exception e) {
-					log.error("메일 처리 실패: orderNo={}, account={}", orderNo, account.getUsername(), e);
+					log.error("이메일 검색 실패: orderNo={}, account={}", orderNo, account.getUsername(), e);
 				}
 			}
 
 			inbox.close(false);
 			store.close();
-			log.debug("이메일 검색 완료: account={}, orderNo={}, shipmentFound={}, confirmationFound={}",
-				account.getUsername(), orderNo, shipmentFound, confirmationFound);
 		} catch (Exception e) {
-			log.error("IMAP 연결 실패: account={}, orderNo={}, error={}", account.getUsername(), orderNo, e.getMessage(),
-				e);
+			log.error("IMAP 연결 실패: account={}, error={}", account.getUsername(), e.getMessage(), e);
+		}
+	}
+
+	/** SEARCH로 매칭된 메일을 발송/확인 제목으로 분기해 처리한다. */
+	private void processMatchedMessage(EmailAccountProperties.Account account, String orderNo, Message message)
+		throws Exception {
+		String subject = message.getSubject();
+		if (subject == null) {
+			return;
+		}
+		if (subject.contains("주문이 발송되었습니다 #" + orderNo)) {
+			String body = getTextFromMessage(message);
+			String from = message.getFrom() != null && message.getFrom().length > 0
+				? message.getFrom()[0].toString() : account.getUsername();
+			parser.parseIherbShipment(from, subject, body).ifPresent(shipmentData -> {
+				log.info("iHerb 발송 이메일 발견: orderNo={}, tracking={}, account={}",
+					shipmentData.getOrderNo(), shipmentData.getTrackingNo(), account.getUsername());
+				processIherbShipment(shipmentData);
+			});
+		} else if (subject.contains("주문이 확인되었습니다 #" + orderNo)) {
+			String body = getTextFromMessage(message);
+			parser.parseIherbConfirmation(subject, body).ifPresent(confirmData -> {
+				log.info("iHerb 확인 이메일 발견: orderNo={}, amount={}, account={}",
+					confirmData.getOrderNo(), confirmData.getTotalAmount(), account.getUsername());
+				processIherbConfirmation(confirmData);
+			});
 		}
 	}
 
@@ -428,10 +448,8 @@ public class EmailFetcherService {
 
 			String searchSubject = "주문이 확인되었습니다 #" + orderNo;
 
-			// Gmail 호환: 최근 INBOX_SCAN_WINDOW건만 가져와서 제목 필터링
-			int totalMessages = inbox.getMessageCount();
-			int start = inboxScanStart(totalMessages);
-			Message[] messages = inbox.getMessages(start, totalMessages);
+			// 서버측 SEARCH(SUBJECT 주문번호)로 매칭 메일만 조회 (숫자=ASCII, charset 무관)
+			Message[] messages = inbox.search(new SubjectTerm(orderNo));
 
 			for (Message message : messages) {
 				String subject = message.getSubject();

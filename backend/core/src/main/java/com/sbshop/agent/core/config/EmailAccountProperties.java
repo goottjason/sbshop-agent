@@ -29,7 +29,7 @@ public class EmailAccountProperties {
 	private static final String IMAP_PROTOCOL = "imaps";
 
 	/** 이메일 주소의 도메인으로 IMAP host를 판별한다(대소문자 무시). */
-	static String imapHostForEmail(String email) {
+	public static String imapHostForEmail(String email) {
 		int at = email.lastIndexOf('@');
 		if (at < 0) {
 			return DEFAULT_IMAP_HOST;
