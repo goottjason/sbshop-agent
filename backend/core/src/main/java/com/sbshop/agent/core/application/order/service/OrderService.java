@@ -289,20 +289,13 @@ public class OrderService {
 		}
 
 		// 주문번호 필수 가드 제거: 구매상태(PurchaseStatus)가 독립 필드로 분리된 뒤로 주문번호 강제는 불필요.
-		// 항상 편집 가능한 그리드에서 주문번호 삭제·부분수정을 허용한다. (주문번호 입력 시 자동 구매완료 처리는 유지)
+		// 항상 편집 가능한 그리드에서 주문번호 삭제·부분수정을 허용한다.
 
-		// 공통: 소싱데이터 반영 → (주문번호 있고 미구매 상태이면 purchaseStatus 업데이트) → 저장
-		boolean hasSourcingOrderNo = command.getSourcingOrderNo() != null
-			&& !command.getSourcingOrderNo().isEmpty();
+		// 소싱데이터 반영 후 저장. 구매상태(PurchaseStatus)는 이 경로에서 자동 변경하지 않는다 —
+		// 유저가 그리드 구매상태 셀렉트로 수동 관리한다. 이메일 페치는 주문번호(IHB) 유무로 대상을 판단한다.
 		item.applySourcingData(command.toSourcingData(item.getSourcingData()));
-		if (hasSourcingOrderNo && item.getPurchaseStatus() == PurchaseStatus.NOT_PURCHASED) {
-			item.updatePurchaseStatus(PurchaseStatus.PURCHASED);
-			log.info("라인아이템 {} 구매완료로 변경 (vendor: {}, orderNo: {})",
-				lineItemId, command.getSourcingVendor(), command.getSourcingOrderNo());
-		} else {
-			log.info("라인아이템 {} 구매 정보 수정 완료", lineItemId);
-		}
 		orderLineItemRepository.save(item);
+		log.info("라인아이템 {} 구매 정보 수정 완료", lineItemId);
 
 		return item;
 	}

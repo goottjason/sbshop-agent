@@ -6,7 +6,6 @@ import com.sbshop.agent.core.application.order.service.MarketplaceShippingServic
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
-import com.sbshop.agent.core.domain.order.enums.PurchaseStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
@@ -291,9 +290,9 @@ public class EmailFetcherService {
 				continue;
 			}
 
-			// PREPARING 상태이고 구매완료(PurchaseStatus.PURCHASED)인 경우에만 배송 처리
-			if (currentStatus == ShippingStatus.PREPARING
-				&& item.getPurchaseStatus() == PurchaseStatus.PURCHASED) {
+			// PREPARING 상태이면 배송 처리. iHerb 주문번호 존재(발송메일 매칭의 전제)가 곧 "구매함"의 신호이므로
+			// PurchaseStatus는 게이팅에 쓰지 않는다(구매상태는 유저 수동 관리 필드).
+			if (currentStatus == ShippingStatus.PREPARING) {
 				ShippingCarrier carrier = mapCarrier(shipmentData.getCarrier());
 				ShippingData currentShipping = item.getShippingData();
 				if (currentShipping == null) {

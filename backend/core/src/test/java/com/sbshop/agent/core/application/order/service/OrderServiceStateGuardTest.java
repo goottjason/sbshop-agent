@@ -116,10 +116,11 @@ class OrderServiceStateGuardTest {
 			assertThat(result.getSourcingData().getDiscountCode()).isEmpty();
 		}
 
-		/** PREPARING 라인아이템에 유효한 주문번호로 소싱수정 → purchaseStatus=PURCHASED, shippingStatus 유지 (F-S3 특성 고정). */
+		/** 구매상태 수동 관리: PREPARING에 주문번호로 소싱수정해도 purchaseStatus는 자동 변경되지 않는다.
+		 *  (구매상태는 유저가 그리드 셀렉트로 수동 관리. 이메일 페치는 주문번호 유무로 대상 판단.) */
 		@Test
-		@DisplayName("PREPARING 소싱수정(주문번호 있음) → purchaseStatus=PURCHASED로 변경, shippingStatus 유지 (F-S3 특성 고정)")
-		void preparing_sourcing_update_with_orderNo_sets_purchaseStatus() {
+		@DisplayName("PREPARING 소싱수정(주문번호 있음) → purchaseStatus 자동변경 없음(NOT_PURCHASED 유지), shippingStatus 유지")
+		void preparing_sourcing_update_with_orderNo_keeps_purchaseStatus() {
 			OrderLineItem item = itemWithStatus(ShippingStatus.PREPARING);
 			when(orderLineItemRepository.findById(4L)).thenReturn(Optional.of(item));
 			when(orderLineItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -127,7 +128,7 @@ class OrderServiceStateGuardTest {
 			OrderLineItem result = service().updateSourcingInfo(4L,
 				SourcingUpdateCommand.builder().sourcingOrderNo("ORD-99").sourcingVendor("V1").build());
 
-			assertThat(result.getPurchaseStatus()).isEqualTo(PurchaseStatus.PURCHASED);
+			assertThat(result.getPurchaseStatus()).isEqualTo(PurchaseStatus.NOT_PURCHASED);
 			assertThat(result.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.PREPARING);
 			assertThat(result.getSourcingData().getSourcingOrderNo()).isEqualTo("ORD-99");
 			verify(orderLineItemRepository).save(item);

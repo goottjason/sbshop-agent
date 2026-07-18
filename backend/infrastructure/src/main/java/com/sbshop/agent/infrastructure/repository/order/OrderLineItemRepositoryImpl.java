@@ -4,7 +4,6 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepositoryCustom;
-import com.sbshop.agent.core.domain.order.enums.PurchaseStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -46,13 +45,13 @@ public class OrderLineItemRepositoryImpl implements OrderLineItemRepositoryCusto
 	}
 
 	private BooleanExpression shipmentEmailNeeded() {
-		// PREPARING 상태이고 구매완료(PurchaseStatus.PURCHASED)인 경우: 최초 발송 대기
-		BooleanExpression preparingAndPurchased = orderLineItem.shippingData.shippingStatus.eq(ShippingStatus.PREPARING)
-			.and(orderLineItem.purchaseStatus.eq(PurchaseStatus.PURCHASED));
+		// PREPARING 상태: 최초 발송 대기. iHerb 주문번호 존재(외부 조건)가 곧 "구매함"의 신호이므로
+		// PurchaseStatus는 게이팅에 쓰지 않는다(구매상태는 유저 수동 관리 필드).
+		BooleanExpression preparing = orderLineItem.shippingData.shippingStatus.eq(ShippingStatus.PREPARING);
 		// SHIPPED + trackingSentToMarket가 false 또는 null: 마켓 미동기화 (재시도 필요)
 		BooleanExpression shippedNotSynced = orderLineItem.shippingData.shippingStatus.eq(ShippingStatus.SHIPPED)
 			.and(orderLineItem.shippingData.trackingSentToMarket.isFalse()
 				.or(orderLineItem.shippingData.trackingSentToMarket.isNull()));
-		return preparingAndPurchased.or(shippedNotSynced);
+		return preparing.or(shippedNotSynced);
 	}
 }
