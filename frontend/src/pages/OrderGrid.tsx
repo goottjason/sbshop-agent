@@ -56,6 +56,19 @@ const CARRIER_OPTIONS: { value: string; label: string }[] = [
   ...Object.entries(CARRIER_LABELS).map(([value, label]) => ({ value, label })),
 ];
 
+const ACCOUNT_OPTIONS = [
+  '',
+  'shouldbe.shopping@gmail.com', 'kimjw8712@gmail.com', '369butterfly369@gmail.com',
+  'younzara@gmail.com', 'kimjongwon0907@gmail.com', 'spreadyourwings33@gmail.com',
+  'goottjason@gmail.com', 'gootkimjw8712@gmail.com', 'kimsubi.0007@gmail.com',
+  'mariahcarey0815@gmail.com', 'jongwon@skku.edu', 'tomkim8712@gmail.com',
+  'kimshou31@gmail.com', 'kimshou825@gmail.com', 'inegg@g.skku.edu',
+  'wavesea88@naver.com', 'ordinary_things@naver.com', 'younzara@naver.com',
+  'palme86@naver.com', 'tonyworld@daum.net', 'oasis_0907@daum.net',
+  'dnglglzpzp@daum.net', 'younzara@nate.com',
+];
+const VENDOR_OPTIONS = ['', 'IHB', 'AMZ', 'FTN', 'COK', 'OCD', 'TES', 'VTB'];
+
 // 배송 정보(택배사+송장) 통합 인라인 편집 셀.
 // 택배사와 송장번호는 한 세트 → 더블클릭 시 두 컨트롤이 함께 열리고, 편집 종료 시
 // 두 값을 1회 onSave로 넘겨 shippingMutation(=updateShippingInfo)을 한 번만 호출한다.
@@ -163,7 +176,7 @@ function SourcingEditCell({ sourcingAccount, sourcingVendor, sourcingOrderNo, di
   const [draftVendor, setDraftVendor] = useState(sourcingVendor);
   const [draftOrderNo, setDraftOrderNo] = useState(sourcingOrderNo);
   const [draftDiscount, setDraftDiscount] = useState(discountCode);
-  const firstRef = useRef<HTMLInputElement>(null);
+  const firstRef = useRef<HTMLSelectElement>(null);
 
   useEffect(() => {
     if (editing) {
@@ -171,7 +184,7 @@ function SourcingEditCell({ sourcingAccount, sourcingVendor, sourcingOrderNo, di
       setDraftVendor(sourcingVendor);
       setDraftOrderNo(sourcingOrderNo);
       setDraftDiscount(discountCode);
-      setTimeout(() => { firstRef.current?.focus(); firstRef.current?.select(); }, 0);
+      setTimeout(() => firstRef.current?.focus(), 0);
     }
   }, [editing, sourcingAccount, sourcingVendor, sourcingOrderNo, discountCode]);
 
@@ -193,13 +206,17 @@ function SourcingEditCell({ sourcingAccount, sourcingVendor, sourcingOrderNo, di
       <div
         style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}
         onClick={(e) => e.stopPropagation()}
-        // 컨테이너 밖으로 포커스가 나갈 때만 저장. 내부 입력 간 이동은 유지.
+        // relatedTarget이 null이면 Alt-Tab·브라우저탭 전환 → 저장 안 함. 페이지 내 다른 영역 클릭 시에만 저장.
         onBlur={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) commit();
+          if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget as Node)) commit();
         }}
       >
-        <input ref={firstRef} type="text" value={draftAccount} placeholder="구매계정" style={{ ...inputStyle, textAlign: 'center' }} onChange={(e) => setDraftAccount(e.target.value)} onKeyDown={onKeyDown} />
-        <input type="text" value={draftVendor} placeholder="공급처" style={{ ...inputStyle, textAlign: 'center' }} onChange={(e) => setDraftVendor(e.target.value)} onKeyDown={onKeyDown} />
+        <select ref={firstRef} value={draftAccount} style={{ ...inputStyle, textAlign: 'center' }} onChange={(e) => setDraftAccount(e.target.value)} onKeyDown={onKeyDown}>
+          {ACCOUNT_OPTIONS.map(a => <option key={a} value={a}>{a || '(계정 선택)'}</option>)}
+        </select>
+        <select value={draftVendor} style={{ ...inputStyle, textAlign: 'center' }} onChange={(e) => setDraftVendor(e.target.value)} onKeyDown={onKeyDown}>
+          {VENDOR_OPTIONS.map(v => <option key={v} value={v}>{v || '(공급처 선택)'}</option>)}
+        </select>
         <input type="text" value={draftOrderNo} placeholder="구매주문번호" style={{ ...inputStyle, textAlign: 'center' }} onChange={(e) => setDraftOrderNo(e.target.value)} onKeyDown={onKeyDown} />
         <input type="text" value={draftDiscount} placeholder="할인코드" style={{ ...inputStyle, textAlign: 'center' }} onChange={(e) => setDraftDiscount(e.target.value)} onKeyDown={onKeyDown} />
       </div>
@@ -508,6 +525,10 @@ const OrderGrid: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
   });
+  const purchaseStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: 'NOT_PURCHASED' | 'PURCHASED' | 'WAITING_STOCK' }) => updatePurchaseStatus(id, status),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
+  });
   const shippingMutation = useMutation({
     mutationFn: ({ id, updates }: { id: number; updates: { trackingNo?: string; shippingCarrier?: string } }) => updateShippingInfo(id, updates),
     // 200 응답 = 마켓 전파가 실제로 성공한 경우만(실패는 백엔드가 롤백 후 500). 성공을 초록 토스트로 확인.
@@ -548,8 +569,10 @@ const OrderGrid: React.FC = () => {
       // 택배사+송장을 한 세트로 1회 전송 → updateShippingInfo 1회 → 마켓 API 1회 호출.
       const v = value as { shippingCarrier: string; trackingNo: string };
       shippingMutation.mutate({ id: lineItemId, updates: { trackingNo: v.trackingNo, shippingCarrier: v.shippingCarrier } });
+    } else if (field === 'lineItem.purchaseStatus') {
+      purchaseStatusMutation.mutate({ id: lineItemId, status: value as 'NOT_PURCHASED' | 'PURCHASED' | 'WAITING_STOCK' });
     }
-  }, [orderMutation, lineItemMutation, sourcingMutation, shippingMutation]);
+  }, [orderMutation, lineItemMutation, sourcingMutation, shippingMutation, purchaseStatusMutation]);
 
   useEffect(() => {
     const eventSource = new EventSource('/sbshop-agent/api/v1/notifications/subscribe');
@@ -1117,14 +1140,9 @@ const OrderGrid: React.FC = () => {
           { value: 'WAITING_STOCK', label: '입고대기' },
         ] as const;
 
-        const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
           if (!lineItemId) return;
-          const newVal = e.target.value as 'NOT_PURCHASED' | 'PURCHASED' | 'WAITING_STOCK';
-          try {
-            await updatePurchaseStatus(lineItemId, newVal);
-          } catch (err) {
-            console.error('구매 상태 변경 실패', err);
-          }
+          handleUpdate(row.order?.id || 0, lineItemId, 'lineItem.purchaseStatus', e.target.value);
         };
 
         return (
