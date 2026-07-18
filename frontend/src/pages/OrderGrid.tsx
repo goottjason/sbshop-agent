@@ -82,6 +82,15 @@ function statusBorder(status: SaveStatus): string {
   }
 }
 
+// blur가 "페이지 내 다른 영역으로 이탈"인지 판정 → 이때만 저장한다.
+//   - 컨테이너 내부 이동(select↔input) → false (계속 편집 중)
+//   - 창/탭 전환(Alt-Tab 등, document.hasFocus()=false) → false (복붙 위해 잠깐 나간 것, 저장 안 함)
+//   - 그 외(페이지 내 다른 셀/빈 영역 클릭 or Tab) → true (저장)
+function blurLeftToPage(e: React.FocusEvent<HTMLElement>): boolean {
+  if (e.currentTarget.contains(e.relatedTarget as Node | null)) return false;
+  return document.hasFocus();
+}
+
 // 인라인 자동저장 입력(통관번호·주소 등 단일 필드).
 // 더블클릭 없이 항상 편집 가능. 포커스 아웃(blur/Tab) 시 변경분만 저장한다.
 //   - Enter: 커밋(=blur 유발). 필수 아님 — Tab/클릭 이탈만으로도 저장됨.
@@ -117,7 +126,8 @@ function InlineInput({ value, onCommit, type = 'text', align = 'left', title }: 
       style={{ ...inputStyle, textAlign: align, borderColor: statusBorder(status), borderWidth: status === 'idle' ? 1 : 2 }}
       onFocus={() => { focused.current = true; }}
       onChange={(e) => { setDraft(e.target.value); setStatus('dirty'); }}
-      onBlur={commit}
+      // 페이지 내 다른 영역으로 이탈할 때만 저장. Alt-Tab(창 전환)에서는 draft 유지·저장 보류.
+      onBlur={() => { if (document.hasFocus()) commit(); }}
       onKeyDown={(e) => {
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
         else if (e.key === 'Escape') { setDraft(value); setStatus('idle'); (e.target as HTMLInputElement).blur(); }
@@ -162,7 +172,7 @@ function FinancialEditCell({ sourcingAmount, logisticsCost, onSave }: {
   return (
     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}
       onFocus={() => { focusedInside.current = true; }}
-      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) commit(); }}>
+      onBlur={(e) => { if (blurLeftToPage(e)) commit(); }}>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', textAlign: 'center' }}>실구매가</div>
         <input type="number" value={amt} style={{ ...inputStyle, textAlign: 'center', borderColor: border, borderWidth: bw }}
@@ -295,7 +305,7 @@ function SourcingEditCell({ sourcingAccount, sourcingVendor, sourcingOrderNo, di
     <div
       style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}
       onFocus={() => { focusedInside.current = true; }}
-      onBlur={(e) => { if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget as Node)) commit(); }}
+      onBlur={(e) => { if (blurLeftToPage(e)) commit(); }}
     >
       <select value={draftAccount} style={fieldStyle} onChange={(e) => { setDraftAccount(e.target.value); markDirty(); }} onKeyDown={onKeyDown}>
         {ACCOUNT_OPTIONS.map(a => <option key={a} value={a}>{a || '(계정 선택)'}</option>)}
