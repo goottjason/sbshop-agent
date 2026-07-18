@@ -31,6 +31,18 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class EmailFetcherService {
 
+	/**
+	 * 인박스에서 스캔할 최근 메일 건수. 소싱 계정을 중앙 Gmail로 자동전달해 모으면
+	 * 인박스가 붐비므로, 주문 메일이 창 밖으로 밀려 누락되지 않도록 넉넉히 잡는다.
+	 * (Gmail IMAP은 SubjectTerm이 불안정해 최근 N건을 받아 제목 필터링하는 방식.)
+	 */
+	static final int INBOX_SCAN_WINDOW = 1000;
+
+	/** 최근 {@link #INBOX_SCAN_WINDOW}건만 받기 위한 시작 인덱스(1-based, JavaMail getMessages 규약). */
+	static int inboxScanStart(int totalMessages) {
+		return Math.max(1, totalMessages - (INBOX_SCAN_WINDOW - 1));
+	}
+
 	private final EmailAccountProperties properties;
 	private final OrderEmailParser parser;
 	private final OrderLineItemRepository orderLineItemRepository;
@@ -138,7 +150,7 @@ public class EmailFetcherService {
 			String confirmationSubject = "주문이 확인되었습니다 #" + orderNo;
 
 			int totalMessages = inbox.getMessageCount();
-			int start = Math.max(1, totalMessages - 199);
+			int start = inboxScanStart(totalMessages);
 			log.debug("이메일 검색: account={}, orderNo={}, totalMessages={}, range={}~{}",
 				account.getUsername(), orderNo, totalMessages, start, totalMessages);
 			Message[] messages = inbox.getMessages(start, totalMessages);
@@ -416,9 +428,9 @@ public class EmailFetcherService {
 
 			String searchSubject = "주문이 확인되었습니다 #" + orderNo;
 
-			// Gmail 호환: 최근 200건만 가져와서 제목 필터링
+			// Gmail 호환: 최근 INBOX_SCAN_WINDOW건만 가져와서 제목 필터링
 			int totalMessages = inbox.getMessageCount();
-			int start = Math.max(1, totalMessages - 199);
+			int start = inboxScanStart(totalMessages);
 			Message[] messages = inbox.getMessages(start, totalMessages);
 
 			for (Message message : messages) {

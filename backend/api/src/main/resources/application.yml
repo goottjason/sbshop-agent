@@ -50,26 +50,17 @@ elevenst:
   api-key: ${ELEVENST_CLIENT_ID:}
   api-url: http://api.11st.co.kr
 
-# 이메일 수집(EmailFetcherService)·검색(IherbEmailSearchService) 공용 계정. 단일 백엔드라 여기 한 곳에서 관리.
+# 이메일 수집(EmailFetcherService)·검색(IherbEmailSearchService) 계정. 단일 백엔드라 여기 한 곳에서 관리.
+# 소싱 계정들은 각자 Gmail 자동전달로 이 '중앙 계정' 인박스에 모으고, 시스템은 중앙 계정 하나만 읽는다.
 sbshop:
   email:
     accounts:
       - host: imap.gmail.com
         port: 993
-        username: ${EMAIL_USERNAME_1}
-        password: ${EMAIL_PASSWORD_1}
+        username: ${EMAIL_CENTRAL_USERNAME:}
+        password: ${EMAIL_CENTRAL_PASSWORD:}
         protocol: imaps
-      - host: imap.gmail.com
-        port: 993
-        username: ${EMAIL_USERNAME_2}
-        password: ${EMAIL_PASSWORD_2}
-        protocol: imaps
-      - host: imap.gmail.com
-        port: 993
-        username: ${EMAIL_USERNAME_3:}
-        password: ${EMAIL_PASSWORD_3:}
-        protocol: imaps
-    # 계정이 더 많으면 EMAIL_ACCOUNTS(=user:pass 목록) env로 추가 등록된다(EmailAccountProperties).
+    # 전달을 못 거는 직접 수집 계정이 있으면 EMAIL_ACCOUNTS(=user:pass 목록) env로 추가 등록된다(EmailAccountProperties).
 
 logging:
   level:
