@@ -6,6 +6,7 @@ import com.sbshop.agent.core.application.order.service.MarketplaceShippingServic
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.domain.order.enums.PurchaseStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
@@ -290,8 +291,9 @@ public class EmailFetcherService {
 				continue;
 			}
 
-			// PURCHASED 상태인 경우에만 배송 처리
-			if (currentStatus == ShippingStatus.PURCHASED) {
+			// PREPARING 상태이고 구매완료(PurchaseStatus.PURCHASED)인 경우에만 배송 처리
+			if (currentStatus == ShippingStatus.PREPARING
+				&& item.getPurchaseStatus() == PurchaseStatus.PURCHASED) {
 				ShippingCarrier carrier = mapCarrier(shipmentData.getCarrier());
 				ShippingData currentShipping = item.getShippingData();
 				if (currentShipping == null) {
@@ -308,12 +310,12 @@ public class EmailFetcherService {
 					item.getId(), shipmentData.getTrackingNo(), carrier);
 
 				// 마켓플러스에 송장 전송 — 실패해도 배송 저장은 보존, 성공 시에만 전송완료 마킹
-				// PURCHASED 최초 발송 — 마켓에 아직 송장이 없으므로 초기등록(shipOrder) 경로.
+				// 최초 발송 — 마켓에 아직 송장이 없으므로 초기등록(shipOrder) 경로.
 				MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, false);
 				handleMarketResult(item, sendResult, shipmentData.getOrderNo(), "최초발송");
 			} else {
-				log.info("iHerb 주문 {} 상태({})가 PURCHASED가 아니어서 배송 처리 스킵",
-					shipmentData.getOrderNo(), currentStatus);
+				log.info("iHerb 주문 {} 상태({}/구매={})가 배송 처리 조건 미충족 — 스킵",
+					shipmentData.getOrderNo(), currentStatus, item.getPurchaseStatus());
 			}
 		}
 	}

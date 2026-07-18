@@ -4,6 +4,7 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepositoryCustom;
+import com.sbshop.agent.core.domain.order.enums.PurchaseStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -45,11 +46,13 @@ public class OrderLineItemRepositoryImpl implements OrderLineItemRepositoryCusto
 	}
 
 	private BooleanExpression shipmentEmailNeeded() {
-		BooleanExpression purchased = orderLineItem.shippingData.shippingStatus.eq(ShippingStatus.PURCHASED);
+		// PREPARING 상태이고 구매완료(PurchaseStatus.PURCHASED)인 경우: 최초 발송 대기
+		BooleanExpression preparingAndPurchased = orderLineItem.shippingData.shippingStatus.eq(ShippingStatus.PREPARING)
+			.and(orderLineItem.purchaseStatus.eq(PurchaseStatus.PURCHASED));
 		// SHIPPED + trackingSentToMarket가 false 또는 null: 마켓 미동기화 (재시도 필요)
 		BooleanExpression shippedNotSynced = orderLineItem.shippingData.shippingStatus.eq(ShippingStatus.SHIPPED)
 			.and(orderLineItem.shippingData.trackingSentToMarket.isFalse()
 				.or(orderLineItem.shippingData.trackingSentToMarket.isNull()));
-		return purchased.or(shippedNotSynced);
+		return preparingAndPurchased.or(shippedNotSynced);
 	}
 }

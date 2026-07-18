@@ -72,13 +72,6 @@ public class OrderLineItem extends BaseEntity {
 
 	// ======================== 상태 변경 ========================
 
-	/** 구매 완료로 변경 */
-	public void markAsPurchased() {
-		this.shippingData = this.shippingData.toBuilder()
-			.shippingStatus(ShippingStatus.PURCHASED)
-			.build();
-	}
-
 	/** 배송 시작으로 변경 */
 	public void markAsShipped() {
 		this.shippingData = this.shippingData.toBuilder()

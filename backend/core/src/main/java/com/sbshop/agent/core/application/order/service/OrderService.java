@@ -289,8 +289,8 @@ public class OrderService {
 		}
 
 		// PREPARING이면 주문번호 가드 (소싱데이터 반영 전에 검증한다).
-		boolean isPurchaseTransition = currentStatus == ShippingStatus.PREPARING;
-		if (isPurchaseTransition
+		boolean isPreparingStatus = currentStatus == ShippingStatus.PREPARING;
+		if (isPreparingStatus
 			&& (command.getSourcingOrderNo() == null || command.getSourcingOrderNo().isEmpty())) {
 			throw new IllegalStateException("구매정보 수정 시 주문번호는 필수입니다.");
 		}
