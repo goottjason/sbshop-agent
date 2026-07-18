@@ -15,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import static com.sbshop.agent.core.domain.order.enums.ShippingStatus.SHIPPED;
 
 /**
  * F-ORD-31: 주문 1건의 발송(외부 마켓 전송 + DB 저장)을 <b>주문 단위의 독립 트랜잭션</b>으로 커밋한다.
@@ -72,12 +71,12 @@ public class OrderShipProcessor {
 				continue;
 			}
 
-			// 이미 발송(SHIPPED)·배송완료(DELIVERED)·종료(취소/반품/교환) 상태면 재발송하지 않는다(F-ORD-29).
+			// 이미 배송지시(DISPATCHED)·발송(SHIPPED)·배송완료(DELIVERED)·종료(취소/반품/교환) 상태면 재발송하지 않는다(F-ORD-29).
 			ShippingStatus status = item.getShippingData() != null
 				? item.getShippingData().getShippingStatus() : null;
-			if (status == ShippingStatus.SHIPPED || status == ShippingStatus.DELIVERED
-				|| status == ShippingStatus.CANCELED || status == ShippingStatus.RETURNED
-				|| status == ShippingStatus.EXCHANGED) {
+			if (status == ShippingStatus.DISPATCHED || status == ShippingStatus.SHIPPED
+				|| status == ShippingStatus.DELIVERED || status == ShippingStatus.CANCELED
+				|| status == ShippingStatus.RETURNED || status == ShippingStatus.EXCHANGED) {
 				log.info("라인아이템 {} 스킵 — 이미 {} 상태(재발송 대상 아님)", item.getId(), status);
 				continue;
 			}
@@ -92,7 +91,7 @@ public class OrderShipProcessor {
 
 				ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
 					.trackingNo(trackingNo)
-					.shippingStatus(SHIPPED)
+					.shippingStatus(ShippingStatus.DISPATCHED)
 					.build();
 				item.applyShippingData(cmd.toShippingData(item.getShippingData()));
 				// 정산액은 주문 수집(sync) 시점에 마켓별 요율로 1회 계산·저장된다.

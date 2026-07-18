@@ -25,6 +25,7 @@ import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.order.enums.PurchaseStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
@@ -115,10 +116,10 @@ class OrderServiceStateGuardTest {
 			assertThat(result.getSourcingData().getDiscountCode()).isEmpty();
 		}
 
-		/** PREPARING 라인아이템에 유효한 주문번호로 소싱수정 → PURCHASED 전이 + 소싱데이터 반영 (F-S3 특성 고정). */
+		/** PREPARING 라인아이템에 유효한 주문번호로 소싱수정 → purchaseStatus=PURCHASED, shippingStatus 유지 (F-S3 특성 고정). */
 		@Test
-		@DisplayName("PREPARING 소싱수정(주문번호 있음) → PURCHASED 전이 + 소싱데이터 반영 + 저장")
-		void preparingItem_sourcingUpdateWithOrderNo_becomesPurchased() {
+		@DisplayName("PREPARING 소싱수정(주문번호 있음) → purchaseStatus=PURCHASED로 변경, shippingStatus 유지 (F-S3 특성 고정)")
+		void preparing_sourcing_update_with_orderNo_sets_purchaseStatus() {
 			OrderLineItem item = itemWithStatus(ShippingStatus.PREPARING);
 			when(orderLineItemRepository.findById(4L)).thenReturn(Optional.of(item));
 			when(orderLineItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -126,7 +127,8 @@ class OrderServiceStateGuardTest {
 			OrderLineItem result = service().updateSourcingInfo(4L,
 				SourcingUpdateCommand.builder().sourcingOrderNo("ORD-99").sourcingVendor("V1").build());
 
-			assertThat(result.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.PURCHASED);
+			assertThat(result.getPurchaseStatus()).isEqualTo(PurchaseStatus.PURCHASED);
+			assertThat(result.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.PREPARING);
 			assertThat(result.getSourcingData().getSourcingOrderNo()).isEqualTo("ORD-99");
 			verify(orderLineItemRepository).save(item);
 		}
@@ -167,10 +169,10 @@ class OrderServiceStateGuardTest {
 		}
 
 		@Test
-		@DisplayName("PURCHASED 주문 취소 → 차단(IllegalStateException)")
-		void purchasedOrder_cancel_blocked() {
+		@DisplayName("DISPATCHED 주문 취소 → 차단(IllegalStateException)")
+		void dispatched_cancel_blocked() {
 			Order order = Order.builder().marketType(MarketType.COUPANG).marketOrderNo("O-2").build();
-			OrderLineItem item = itemWithStatus(ShippingStatus.PURCHASED);
+			OrderLineItem item = itemWithStatus(ShippingStatus.DISPATCHED);
 			when(orderRepository.findById(2L)).thenReturn(Optional.of(order));
 			when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(item));
 

@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -28,6 +29,7 @@ import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
+import org.mockito.ArgumentCaptor;
 
 /**
  * F-ORD-30 / SP-3: 주문 1건 발송이 마켓 shipOrder 실패를 삼키지 않고 결과({@link OrderShipOutcome})로
@@ -56,7 +58,7 @@ class OrderShipServiceResultTest {
 			.orderId(1L)
 			.quantity(1)
 			.shippingData(ShippingData.builder()
-				.shippingStatus(ShippingStatus.PURCHASED)
+				.shippingStatus(ShippingStatus.PREPARING)
 				.trackingNo("TRK-1")
 				.shippingCarrier(ShippingCarrier.CJ_LOGISTICS)
 				.build())
@@ -85,7 +87,7 @@ class OrderShipServiceResultTest {
 	}
 
 	@Test
-	@DisplayName("발송 성공 시 SHIPPED 결과를 반환한다")
+	@DisplayName("발송 성공 시 SHIPPED 결과를 반환하고 저장된 상태가 DISPATCHED다")
 	void success_returnsShippedOutcome() {
 		when(orderRepository.findById(1L)).thenReturn(Optional.of(order(1L)));
 		stubCoupang();
@@ -95,6 +97,9 @@ class OrderShipServiceResultTest {
 		OrderShipOutcome outcome = processor().shipSingleOrder(1L);
 
 		assertThat(outcome.isShipped()).isTrue();
+		ArgumentCaptor<OrderLineItem> captor = ArgumentCaptor.forClass(OrderLineItem.class);
+		verify(orderLineItemRepository).save(captor.capture());
+		assertThat(captor.getValue().getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.DISPATCHED);
 	}
 
 	@Test

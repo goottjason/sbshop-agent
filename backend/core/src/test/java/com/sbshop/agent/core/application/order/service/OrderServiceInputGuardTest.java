@@ -30,7 +30,7 @@ import com.sbshop.agent.core.domain.order.vo.ShippingData;
 
 /**
  * 저순위 order 입력검증·엣지케이스 가드.
- * - F-H4: PURCHASED→SHIPPED 전이 시 trackingNo(공백 포함) 필수.
+ * - F-H4: PREPARING→DISPATCHED 전이 시 trackingNo(공백 포함) 필수.
  * - F-ORD-22: 라인아이템 없는 주문의 발주확인 차단.
  * - F-ORD-26: isUnipassDone null(빈 요청) 차단 — no-op 성공 방지.
  */
@@ -58,9 +58,9 @@ class OrderServiceInputGuardTest {
 	// ===================== F-H4 =====================
 
 	@Test
-	@DisplayName("F-H4: PURCHASED→SHIPPED 전이 시 trackingNo 없으면 차단, 마켓 전송·저장 없음")
-	void purchasedToShipped_withoutTrackingNo_blocked() {
-		OrderLineItem item = itemWithStatus(ShippingStatus.PURCHASED);
+	@DisplayName("F-H4: PREPARING→DISPATCHED 전이 시 trackingNo 없으면 차단, 마켓 전송·저장 없음")
+	void preparing_to_dispatched_without_trackingNo_blocked() {
+		OrderLineItem item = itemWithStatus(ShippingStatus.PREPARING);
 		when(orderLineItemRepository.findById(1L)).thenReturn(Optional.of(item));
 
 		ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
@@ -76,9 +76,9 @@ class OrderServiceInputGuardTest {
 	}
 
 	@Test
-	@DisplayName("F-H4: PURCHASED→SHIPPED 전이 시 trackingNo가 공백이면 차단")
-	void purchasedToShipped_withBlankTrackingNo_blocked() {
-		OrderLineItem item = itemWithStatus(ShippingStatus.PURCHASED);
+	@DisplayName("F-H4: PREPARING→DISPATCHED 전이 시 trackingNo가 공백이면 차단")
+	void preparing_to_dispatched_with_blank_trackingNo_blocked() {
+		OrderLineItem item = itemWithStatus(ShippingStatus.PREPARING);
 		when(orderLineItemRepository.findById(2L)).thenReturn(Optional.of(item));
 
 		ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()

@@ -130,14 +130,14 @@ class OrderServiceShippingRollbackTest {
 	}
 
 	@Test
-	@DisplayName("PURCHASED + 기존 송장 없음 → sendTrackingToMarketplace(item, false) 호출(최초 등록)")
-	void updateShipping_purchasedWithoutInvoice_passesFalse() {
-		// 송장이 없는 PURCHASED 아이템 — 진짜 최초 배송처리.
+	@DisplayName("PREPARING + 기존 송장 없음 → sendTrackingToMarketplace(item, false) 호출(최초 등록)")
+	void updateShipping_preparingWithoutInvoice_passesFalse() {
+		// 송장이 없는 PREPARING 아이템 — 진짜 최초 배송처리(DISPATCHED 전이).
 		OrderLineItem item = OrderLineItem.builder()
 			.orderId(10L)
 			.quantity(1)
 			.shippingData(ShippingData.builder()
-				.shippingStatus(ShippingStatus.PURCHASED)
+				.shippingStatus(ShippingStatus.PREPARING)
 				.build())
 			.build();
 		when(orderLineItemRepository.findById(5L)).thenReturn(Optional.of(item));

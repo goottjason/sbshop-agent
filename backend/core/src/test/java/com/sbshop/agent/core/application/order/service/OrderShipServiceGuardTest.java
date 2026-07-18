@@ -79,10 +79,10 @@ class OrderShipServiceGuardTest {
 	}
 
 	@Test
-	@DisplayName("PURCHASED 라인아이템은 발송한다(port.shipOrder 호출)")
-	void purchasedItem_shipped() {
+	@DisplayName("PREPARING 라인아이템은 발송한다(port.shipOrder 호출)")
+	void preparing_lineItem_ships() {
 		Order order = Order.builder().marketType(MarketType.COUPANG).marketOrderNo("O-2").build();
-		OrderLineItem item = itemWith(ShippingStatus.PURCHASED);
+		OrderLineItem item = itemWith(ShippingStatus.PREPARING);
 		MarketCredential cred = MarketCredential.builder().marketType(MarketType.COUPANG).build();
 		when(orderRepository.findById(2L)).thenReturn(Optional.of(order));
 		when(credentialRepository.findByMarketType(MarketType.COUPANG)).thenReturn(Optional.of(cred));
@@ -92,5 +92,20 @@ class OrderShipServiceGuardTest {
 		processor().shipSingleOrder(2L);
 
 		verify(port).shipOrder(same(cred), same(order), same(item), eq("TRK-1"), eq(ShippingCarrier.CJ_LOGISTICS));
+	}
+
+	@Test
+	@DisplayName("DISPATCHED 라인아이템은 재발송 스킵한다(port.shipOrder 미호출)")
+	void dispatched_lineItem_skipped() {
+		Order order = Order.builder().marketType(MarketType.COUPANG).marketOrderNo("O-3").build();
+		when(orderRepository.findById(3L)).thenReturn(Optional.of(order));
+		when(credentialRepository.findByMarketType(MarketType.COUPANG))
+			.thenReturn(Optional.of(MarketCredential.builder().marketType(MarketType.COUPANG).build()));
+		when(orderLineItemRepository.findByOrderId(3L)).thenReturn(List.of(itemWith(ShippingStatus.DISPATCHED)));
+		lenient().when(marketplaceShippingService.getPort(MarketType.COUPANG)).thenReturn(port);
+
+		processor().shipSingleOrder(3L);
+
+		verify(port, never()).shipOrder(any(), any(), any(), anyString(), any());
 	}
 }

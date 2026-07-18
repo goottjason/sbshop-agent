@@ -1,6 +1,8 @@
 package com.sbshop.agent.core.application.order.service;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.lenient;
@@ -17,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
+import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
@@ -32,6 +35,7 @@ import com.sbshop.agent.core.domain.order.vo.ShippingData;
  * - 종료(CANCELED/RETURNED/EXCHANGED) 상태의 라인아이템은 송장 수정 대상이 아니므로
  *   로컬 저장도 하지 않고 차단한다.
  * - 마켓 전송 결과가 terminal(영구 잠금)이면 일시 실패(failed)와 구분되는 전용 메시지로 롤백한다.
+ * - PREPARING + trackingNo 있으면 → DISPATCHED 전이 성공 (차단 없음).
  */
 @ExtendWith(MockitoExtension.class)
 class OrderServiceShippingGuardTest {
@@ -100,5 +104,19 @@ class OrderServiceShippingGuardTest {
 		assertThatThrownBy(() -> service().updateShippingInfo(3L, command()))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("동기화");
+	}
+
+	@Test
+	@DisplayName("PREPARING + trackingNo 있으면 → DISPATCHED 전이 성공 (차단 없음)")
+	void preparing_with_trackingNo_proceeds() {
+		OrderLineItem item = itemWithStatus(ShippingStatus.PREPARING);
+		when(orderLineItemRepository.findById(4L)).thenReturn(Optional.of(item));
+		lenient().when(orderRepository.findById(10L))
+			.thenReturn(Optional.of(Order.builder().marketType(MarketType.COUPANG).build()));
+		lenient().when(credentialRepository.findByMarketType(any())).thenReturn(Optional.empty());
+		when(marketplaceShippingService.sendTrackingToMarketplace(same(item), anyBoolean()))
+			.thenReturn(MarketShippingResult.ofSkipped("test"));
+
+		assertThatCode(() -> service().updateShippingInfo(4L, command())).doesNotThrowAnyException();
 	}
 }

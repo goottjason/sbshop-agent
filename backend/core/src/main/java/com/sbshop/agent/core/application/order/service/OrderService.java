@@ -23,6 +23,7 @@ import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.order.enums.PurchaseStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
@@ -287,27 +288,25 @@ public class OrderService {
 			throw new IllegalStateException("발주확인 전에는 구매 정보를 수정할 수 없습니다.");
 		}
 
-		// PREPARING이면 구매 처리 (PREPARING -> PURCHASED). 주문번호 가드는 소싱데이터 반영 전에 검증한다.
+		// PREPARING이면 주문번호 가드 (소싱데이터 반영 전에 검증한다).
 		boolean isPurchaseTransition = currentStatus == ShippingStatus.PREPARING;
 		if (isPurchaseTransition
 			&& (command.getSourcingOrderNo() == null || command.getSourcingOrderNo().isEmpty())) {
 			throw new IllegalStateException("구매정보 수정 시 주문번호는 필수입니다.");
 		}
 
-		// 공통: 소싱데이터 반영 → (전이 시에만 PURCHASED 마킹) → 저장
+		// 공통: 소싱데이터 반영 → (주문번호 있고 미구매 상태이면 purchaseStatus 업데이트) → 저장
+		boolean hasSourcingOrderNo = command.getSourcingOrderNo() != null
+			&& !command.getSourcingOrderNo().isEmpty();
 		item.applySourcingData(command.toSourcingData(item.getSourcingData()));
-		if (isPurchaseTransition) {
-			item.markAsPurchased();
-		}
-		orderLineItemRepository.save(item);
-
-		if (isPurchaseTransition) {
-			log.info("라인아이템 {} PURCHASED로 변경 (vendor: {}, orderNo: {})",
+		if (hasSourcingOrderNo && item.getPurchaseStatus() == PurchaseStatus.NOT_PURCHASED) {
+			item.updatePurchaseStatus(PurchaseStatus.PURCHASED);
+			log.info("라인아이템 {} 구매완료로 변경 (vendor: {}, orderNo: {})",
 				lineItemId, command.getSourcingVendor(), command.getSourcingOrderNo());
 		} else {
-			// PURCHASED 이후면 단순 정보 수정
 			log.info("라인아이템 {} 구매 정보 수정 완료", lineItemId);
 		}
+		orderLineItemRepository.save(item);
 
 		return item;
 	}
@@ -335,25 +334,24 @@ public class OrderService {
 			throw new IllegalStateException("종료된 주문(취소/반품/교환)은 마켓 송장 전송 대상이 아닙니다.");
 		}
 
-		// NEW/UNKNOWN/PREPARING 상태이면 수정 차단
-		if (currentStatus == null || currentStatus == ShippingStatus.NEW || currentStatus == ShippingStatus.UNKNOWN
-			|| currentStatus == ShippingStatus.PREPARING) {
-			throw new IllegalStateException("발주확인 또는 구매완료 전에는 배송 정보를 수정할 수 없습니다.");
+		// NEW/UNKNOWN 상태이면 수정 차단 (PREPARING은 이제 허용 — 첫 송장 등록 진입점)
+		if (currentStatus == null || currentStatus == ShippingStatus.NEW || currentStatus == ShippingStatus.UNKNOWN) {
+			throw new IllegalStateException("발주확인 전에는 배송 정보를 수정할 수 없습니다.");
 		}
 
-		// PURCHASED면 배송 처리 (PURCHASED -> SHIPPED), SHIPPED 이후면 송장 수정.
-		boolean isShipTransition = currentStatus == ShippingStatus.PURCHASED;
+		// PREPARING이면 최초 배송처리 → DISPATCHED, DISPATCHED/SHIPPED 이후는 송장만 수정.
+		boolean isDispatchTransition = currentStatus == ShippingStatus.PREPARING;
 
-		// PURCHASED→SHIPPED 최초 전이에는 송장번호가 필수 — 없으면 송장 없이 SHIPPED로 넘어가는 것을 차단(F-H4).
-		// (소싱의 sourcingOrderNo 가드와 대칭. SHIPPED 이후 단순수정은 이 가드 없이 기존대로 허용.)
-		if (isShipTransition && (command.getTrackingNo() == null || command.getTrackingNo().isBlank())) {
+		// PREPARING→DISPATCHED 최초 전이에는 송장번호 필수 — 없으면 송장 없이 DISPATCHED로 넘어가는 것을 차단(F-H4).
+		// (소싱의 sourcingOrderNo 가드와 대칭. DISPATCHED 이후 단순수정은 이 가드 없이 허용.)
+		if (isDispatchTransition && (command.getTrackingNo() == null || command.getTrackingNo().isBlank())) {
 			throw new IllegalStateException("배송 처리 시 송장번호는 필수입니다.");
 		}
 
-		// 공통: 송장데이터 반영 → (전이 시에만 SHIPPED 마킹) → 저장
+		// 공통: 송장데이터 반영 → (PREPARING → DISPATCHED 전이 시에만 마킹) → 저장
 		item.applyShippingData(command.toShippingData(item.getShippingData()));
-		if (isShipTransition) {
-			item.markAsShipped();
+		if (isDispatchTransition) {
+			item.markAsDispatched();
 		}
 		orderLineItemRepository.save(item);
 
@@ -363,8 +361,8 @@ public class OrderService {
 		failIfNotSent(item, sendResult);
 		markSentIfSucceeded(item, sendResult, lineItemId);
 
-		if (isShipTransition) {
-			log.info("라인아이템 {} 배송 처리: tracking={}, carrier={}", lineItemId, command.getTrackingNo(),
+		if (isDispatchTransition) {
+			log.info("라인아이템 {} 배송지시 처리: tracking={}, carrier={}", lineItemId, command.getTrackingNo(),
 				command.getShippingCarrier());
 		} else {
 			log.info("라인아이템 {} 송장번호 업데이트: tracking={}, carrier={}", lineItemId,
@@ -391,7 +389,7 @@ public class OrderService {
 				"구매 처리는 PREPARING 상태에서만 가능합니다. 현재: " + currentStatus);
 		}
 
-		// 소싱 데이터 적용 및 PURCHASED로 변경
+		// 소싱 데이터 적용 및 purchaseStatus를 PURCHASED로 변경
 		SourcingData data = SourcingData.builder()
 			.sourcingVendor(sourcingVendor)
 			.sourcingAccount(sourcingAccount)
@@ -399,11 +397,11 @@ public class OrderService {
 			.discountCode(discountCode)
 			.build();
 		item.applySourcingData(data);
-		item.markAsPurchased();
+		item.updatePurchaseStatus(PurchaseStatus.PURCHASED);
 		orderLineItemRepository.save(item);
 
-		log.info("라인아이템 {} PURCHASED로 변경 (vendor: {}, orderNo: {})",
-			lineItemId, sourcingVendor, sourcingOrderNo);
+		log.info("라인아이템 {} 구매완료로 변경 (account: {}, orderNo: {})",
+			lineItemId, sourcingAccount, sourcingOrderNo);
 	}
 
 	/** 라인아이템 구매 처리 (금액 포함) */
@@ -424,7 +422,7 @@ public class OrderService {
 				"구매 처리는 PREPARING 상태에서만 가능합니다. 현재: " + currentStatus);
 		}
 
-		// 소싱 데이터 적용 및 PURCHASED로 변경
+		// 소싱 데이터 적용 및 purchaseStatus를 PURCHASED로 변경
 		SourcingData data = SourcingData.builder()
 			.sourcingVendor(sourcingVendor)
 			.sourcingAccount(sourcingAccount)
@@ -433,10 +431,10 @@ public class OrderService {
 			.discountCode(discountCode)
 			.build();
 		item.applySourcingData(data);
-		item.markAsPurchased();
+		item.updatePurchaseStatus(PurchaseStatus.PURCHASED);
 		orderLineItemRepository.save(item);
 
-		log.info("라인아이템 {} PURCHASED로 변경 (vendor: {}, orderNo: {}, emailAmount: {})",
+		log.info("라인아이템 {} 구매완료로 변경 (vendor: {}, orderNo: {}, emailAmount: {})",
 			lineItemId, sourcingVendor, sourcingOrderNo, emailAmount);
 	}
 
@@ -461,7 +459,7 @@ public class OrderService {
 		log.info("LineItem {} 실구매가 업데이트: {}", lineItemId, amount);
 	}
 
-	/** 배송 처리 (PURCHASED -> SHIPPED) */
+	/** 배송 처리 (PREPARING → DISPATCHED) */
 	@Transactional
 	public void processShipping(Long lineItemId, String trackingNo,
 		ShippingCarrier carrier) {
@@ -470,11 +468,11 @@ public class OrderService {
 		OrderLineItem item = orderLineItemRepository.findById(lineItemId)
 			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + lineItemId));
 
-		// PURCHASED 상태 확인
+		// PREPARING 또는 DISPATCHED 상태 확인
 		ShippingStatus currentStatus = item.getShippingData() != null
 			? item.getShippingData().getShippingStatus() : null;
-		if (currentStatus != ShippingStatus.PURCHASED) {
-			throw new IllegalStateException("배송 처리는 PURCHASED 상태에서만 가능합니다. 현재: " + currentStatus);
+		if (currentStatus != ShippingStatus.PREPARING && currentStatus != ShippingStatus.DISPATCHED) {
+			throw new IllegalStateException("배송 처리는 PREPARING 또는 DISPATCHED 상태에서만 가능합니다. 현재: " + currentStatus);
 		}
 
 		// 이번 편집 이전에 마켓에 송장이 이미 존재했는지 — 초기등록/수정 판단 근거(applyShippingData 전에 계산).
@@ -482,15 +480,13 @@ public class OrderService {
 			&& item.getShippingData().getTrackingNo() != null
 			&& !item.getShippingData().getTrackingNo().isBlank();
 
-		// 배송 데이터 적용 및 SHIPPED로 변경
-		ShippingData currentShipping = item.getShippingData();
-		if (currentShipping == null) {
-			currentShipping = ShippingData.builder().build();
-		}
+		// 배송 데이터 적용 및 DISPATCHED로 변경
+		ShippingData currentShipping = item.getShippingData() != null
+			? item.getShippingData() : ShippingData.builder().build();
 		item.applyShippingData(currentShipping.toBuilder()
 			.trackingNo(trackingNo)
 			.shippingCarrier(carrier)
-			.shippingStatus(ShippingStatus.SHIPPED)
+			.shippingStatus(ShippingStatus.DISPATCHED)
 			.build());
 		orderLineItemRepository.save(item);
 
@@ -498,7 +494,7 @@ public class OrderService {
 		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, invoiceAlreadyExists);
 		markSentIfSucceeded(item, sendResult, lineItemId);
 
-		log.info("라인아이템 {} 배송 처리: tracking={}, carrier={}", lineItemId, trackingNo, carrier);
+		log.info("라인아이템 {} 배송지시 처리: tracking={}, carrier={}", lineItemId, trackingNo, carrier);
 	}
 
 	/** 송장 정보 업데이트 */
@@ -510,11 +506,11 @@ public class OrderService {
 		OrderLineItem item = orderLineItemRepository.findById(lineItemId)
 			.orElseThrow(() -> new IllegalArgumentException("LineItem not found: " + lineItemId));
 
-		// SHIPPED 상태 확인
+		// DISPATCHED 또는 SHIPPED 상태 확인
 		ShippingStatus currentStatus = item.getShippingData() != null
 			? item.getShippingData().getShippingStatus() : null;
-		if (currentStatus != ShippingStatus.SHIPPED) {
-			throw new IllegalStateException("송장 수정은 SHIPPED 상태에서만 가능합니다. 현재: " + currentStatus);
+		if (currentStatus != ShippingStatus.DISPATCHED && currentStatus != ShippingStatus.SHIPPED) {
+			throw new IllegalStateException("송장 수정은 DISPATCHED 또는 SHIPPED 상태에서만 가능합니다. 현재: " + currentStatus);
 		}
 
 		// 송장 정보 업데이트
