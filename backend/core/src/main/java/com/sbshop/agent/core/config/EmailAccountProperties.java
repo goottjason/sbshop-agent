@@ -3,6 +3,7 @@ package com.sbshop.agent.core.config;
 import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,10 +16,27 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "sbshop.email")
 public class EmailAccountProperties {
 
-	/** Gmail 컴팩트 목록의 고정 접속 정보 — 전 계정 Gmail 전제(비-Gmail은 대표 Gmail로 포워딩). */
-	private static final String GMAIL_HOST = "imap.gmail.com";
-	private static final int GMAIL_PORT = 993;
-	private static final String GMAIL_PROTOCOL = "imaps";
+	/** 이메일 도메인 → IMAP 서버. 비-Gmail(naver/daum/nate)은 자동전달이 없어 시스템이 직접 IMAP 수집한다. */
+	private static final Map<String, String> DOMAIN_IMAP_HOST = Map.of(
+		"gmail.com", "imap.gmail.com",
+		"naver.com", "imap.naver.com",
+		"hanmail.net", "imap.daum.net",
+		"daum.net", "imap.daum.net",
+		"nate.com", "imap.mail.nate.com");
+	/** 알 수 없는 도메인·@없음 시 폴백(대부분 Gmail이므로). */
+	private static final String DEFAULT_IMAP_HOST = "imap.gmail.com";
+	private static final int IMAP_PORT = 993;
+	private static final String IMAP_PROTOCOL = "imaps";
+
+	/** 이메일 주소의 도메인으로 IMAP host를 판별한다(대소문자 무시). */
+	static String imapHostForEmail(String email) {
+		int at = email.lastIndexOf('@');
+		if (at < 0) {
+			return DEFAULT_IMAP_HOST;
+		}
+		String domain = email.substring(at + 1).toLowerCase();
+		return DOMAIN_IMAP_HOST.getOrDefault(domain, DEFAULT_IMAP_HOST);
+	}
 
 	/** application.yml `sbshop.email.accounts`로 바인딩되는 계정(레거시 EMAIL_USERNAME_N 슬롯). */
 	private List<Account> accounts = new ArrayList<>();
@@ -42,7 +60,7 @@ public class EmailAccountProperties {
 	 *   <li>구분자: 쉼표 또는 줄바꿈</li>
 	 *   <li>각 항목 첫 콜론으로 username/password 분리 — 앱 비밀번호의 공백은 보존</li>
 	 *   <li>빈 항목·콜론 없는 항목·username 없는 항목은 스킵</li>
-	 *   <li>host/port/protocol은 Gmail 고정</li>
+	 *   <li>host는 이메일 도메인으로 자동 판별({@link #imapHostForEmail}), port/protocol은 993/imaps 고정</li>
 	 * </ul>
 	 */
 	public static List<Account> parseCompactAccounts(String raw) {
@@ -65,9 +83,9 @@ public class EmailAccountProperties {
 				continue;
 			}
 			Account account = new Account();
-			account.setHost(GMAIL_HOST);
-			account.setPort(GMAIL_PORT);
-			account.setProtocol(GMAIL_PROTOCOL);
+			account.setHost(imapHostForEmail(username));
+			account.setPort(IMAP_PORT);
+			account.setProtocol(IMAP_PROTOCOL);
 			account.setUsername(username);
 			account.setPassword(password);
 			result.add(account);

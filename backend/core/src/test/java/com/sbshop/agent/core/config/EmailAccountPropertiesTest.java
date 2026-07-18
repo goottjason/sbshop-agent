@@ -30,12 +30,12 @@ class EmailAccountPropertiesTest {
 		@DisplayName("user:pass 한 쌍이면 Gmail 기본값(imap.gmail.com/993/imaps)으로 계정 1개")
 		void singlePairUsesGmailDefaults() {
 			List<Account> result =
-				EmailAccountProperties.parseCompactAccounts("shouldbe.shopping@gmail.com:kcxkokflhucicvpb");
+				EmailAccountProperties.parseCompactAccounts("central@gmail.com:abcdefghijklmnop");
 
 			assertThat(result).hasSize(1);
 			Account a = result.get(0);
-			assertThat(a.getUsername()).isEqualTo("shouldbe.shopping@gmail.com");
-			assertThat(a.getPassword()).isEqualTo("kcxkokflhucicvpb");
+			assertThat(a.getUsername()).isEqualTo("central@gmail.com");
+			assertThat(a.getPassword()).isEqualTo("abcdefghijklmnop");
 			assertThat(a.getHost()).isEqualTo("imap.gmail.com");
 			assertThat(a.getPort()).isEqualTo(993);
 			assertThat(a.getProtocol()).isEqualTo("imaps");
@@ -55,10 +55,10 @@ class EmailAccountPropertiesTest {
 		@DisplayName("공백 포함 앱 비밀번호(구글 표기)를 그대로 보존")
 		void preservesSpacedAppPassword() {
 			List<Account> result =
-				EmailAccountProperties.parseCompactAccounts("369butterfly369@gmail.com:wmdj qgrd iiyv yzrc");
+				EmailAccountProperties.parseCompactAccounts("spaced@gmail.com:abcd efgh ijkl mnop");
 
 			assertThat(result).hasSize(1);
-			assertThat(result.get(0).getPassword()).isEqualTo("wmdj qgrd iiyv yzrc");
+			assertThat(result.get(0).getPassword()).isEqualTo("abcd efgh ijkl mnop");
 		}
 
 		@Test
@@ -80,6 +80,54 @@ class EmailAccountPropertiesTest {
 			assertThat(result).hasSize(1);
 			assertThat(result.get(0).getUsername()).isEqualTo("a@gmail.com");
 			assertThat(result.get(0).getPassword()).isEqualTo("pw1");
+		}
+
+		@Test
+		@DisplayName("비-Gmail 계정은 도메인으로 IMAP host 자동 판별")
+		void derivesHostByDomain() {
+			String raw = String.join(",",
+				"a@naver.com:pw1",
+				"b@daum.net:pw2",
+				"c@hanmail.net:pw3",
+				"d@nate.com:pw4",
+				"e@gmail.com:pw5");
+			List<Account> result = EmailAccountProperties.parseCompactAccounts(raw);
+
+			assertThat(result).extracting(Account::getUsername, Account::getHost).containsExactly(
+				org.assertj.core.api.Assertions.tuple("a@naver.com", "imap.naver.com"),
+				org.assertj.core.api.Assertions.tuple("b@daum.net", "imap.daum.net"),
+				org.assertj.core.api.Assertions.tuple("c@hanmail.net", "imap.daum.net"),
+				org.assertj.core.api.Assertions.tuple("d@nate.com", "imap.mail.nate.com"),
+				org.assertj.core.api.Assertions.tuple("e@gmail.com", "imap.gmail.com"));
+			assertThat(result).allMatch(a -> a.getPort() == 993 && "imaps".equals(a.getProtocol()));
+		}
+	}
+
+	@Nested
+	@DisplayName("imapHostForEmail")
+	class ImapHostForEmail {
+
+		@Test
+		@DisplayName("알려진 제공자 도메인 매핑")
+		void knownProviders() {
+			assertThat(EmailAccountProperties.imapHostForEmail("x@gmail.com")).isEqualTo("imap.gmail.com");
+			assertThat(EmailAccountProperties.imapHostForEmail("x@naver.com")).isEqualTo("imap.naver.com");
+			assertThat(EmailAccountProperties.imapHostForEmail("x@daum.net")).isEqualTo("imap.daum.net");
+			assertThat(EmailAccountProperties.imapHostForEmail("x@hanmail.net")).isEqualTo("imap.daum.net");
+			assertThat(EmailAccountProperties.imapHostForEmail("x@nate.com")).isEqualTo("imap.mail.nate.com");
+		}
+
+		@Test
+		@DisplayName("대소문자 무시")
+		void caseInsensitive() {
+			assertThat(EmailAccountProperties.imapHostForEmail("X@Naver.COM")).isEqualTo("imap.naver.com");
+		}
+
+		@Test
+		@DisplayName("알 수 없는 도메인·@없음은 Gmail 기본값")
+		void unknownFallsBackToGmail() {
+			assertThat(EmailAccountProperties.imapHostForEmail("x@unknown-provider.co")).isEqualTo("imap.gmail.com");
+			assertThat(EmailAccountProperties.imapHostForEmail("no-at-sign")).isEqualTo("imap.gmail.com");
 		}
 	}
 }
