@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import type { CSSProperties } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import type { ColDef, CellClickedEvent } from 'ag-grid-community';
 import { Input, Button, Space, Modal, InputNumber, message, Descriptions, Image, Spin, Collapse, Typography, Divider, Pagination, Tooltip, Switch, Popconfirm } from 'antd';
@@ -12,67 +13,59 @@ const MARKET_LABELS: Record<string, string> = {
 };
 const marketLabel = (code: string) => MARKET_LABELS[code] || code;
 
-// D-047: 마켓별 연동코드 컬럼 정의. 키는 백엔드 MarketType.name()과 정확히 일치해야 한다.
-// G마켓·옥션은 마켓 상품코드가 없어(ESM+ 연동코드 부재) 컬럼에서 제외한다.
-const MARKET_COLUMNS: { key: string; header: string }[] = [
-  { key: 'COUPANG', header: '쿠팡' },
-  { key: 'SMART_STORE', header: '스토어' },
-  { key: 'ELEVEN_STREET', header: '11번가' },
-  { key: 'CAFE24', header: '카페24' },
+// 마켓 배지 컬럼: 백엔드 marketRegistrations(마켓명 → 상품페이지 URL)를 배지로 렌더.
+// - 키가 있으면 그 마켓에 등록됨(배지 표시)
+// - 값(URL)이 있으면 클릭 시 새 탭, 값이 빈 문자열이면 링크식별자 미확보 → 비링크 배지(옅게)
+// 표시 순서·라벨(카페24 제외). 키는 백엔드 MarketType.name()과 일치.
+const MARKET_BADGES: { key: string; label: string; color: string }[] = [
+  { key: 'COUPANG', label: '쿠팡', color: '#e53935' },
+  { key: 'SMART_STORE', label: 'N스토어', color: '#22c55e' },
+  { key: 'GMARKET', label: 'G마켓', color: '#16a34a' },
+  { key: 'AUCTION', label: '옥션', color: '#dc2626' },
+  { key: 'ELEVEN_STREET', label: '11번가', color: '#e11d48' },
 ];
 
-// D-047: 마켓 상품코드 → 마켓 상품 페이지 URL.
-// 스토어(스토어 slug 필요)·카페24(자사 도메인 필요)는 코드만으로 신뢰 링크를 만들 수 없어 null(코드 텍스트만 표시).
-// 쿠팡/11번가/G마켓/옥션 패턴은 공개 상품 URL 기준 best-guess — 실제 응답/문서로 재확인 필요(_workspace/fixes/batchD.md).
-const buildMarketUrl = (marketKey: string, code: string): string | null => {
-  switch (marketKey) {
-    case 'COUPANG':
-      return `https://www.coupang.com/vp/products/${code}`;
-    case 'ELEVEN_STREET':
-      return `https://www.11st.co.kr/products/${code}`;
-    case 'GMARKET':
-      return `http://item.gmarket.co.kr/Item?goodscode=${code}`;
-    case 'AUCTION':
-      return `http://itempage3.auction.co.kr/DetailView.aspx?itemno=${code}`;
-    default:
-      return null;
-  }
-};
-
-// D-047: 마켓별 연동코드 셀.
-// - 미등록: '-'
-// - 등록됐으나 코드가 내부 productId 폴백(= row.id, D-046 미해결 시 쿠팡 등): '미확인' 배지(오클릭 방지, 링크 없음)
-// - 실제 마켓코드: 클릭 시 새 탭으로 마켓 상품 페이지 이동(링크 불가 마켓은 코드 텍스트)
-const renderMarketCell = (marketKey: string) => (params: { data?: ProductList }) => {
-  const code = params.data?.marketRegistrations?.[marketKey];
-  if (!code) {
+const renderMarketBadges = (params: { data?: ProductList }) => {
+  const links = params.data?.marketRegistrations;
+  if (!links) {
     return <span style={{ color: '#ccc' }}>-</span>;
   }
-  const isFallback = params.data != null && code === String(params.data.id);
-  if (isFallback) {
-    return (
-      <span
-        style={{ color: '#faad14', fontSize: 12 }}
-        title="등록됨 · 마켓 상품코드 미확인 (해당 마켓 연동정보에 상품코드 키 없음)"
-      >
-        미확인
-      </span>
-    );
-  }
-  const url = buildMarketUrl(marketKey, code);
-  if (!url) {
-    return <span title="마켓 상품코드">{code}</span>;
+  const badges = MARKET_BADGES.filter((m) => links[m.key] !== undefined);
+  if (badges.length === 0) {
+    return <span style={{ color: '#ccc' }}>-</span>;
   }
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={(e) => e.stopPropagation()}
-      title="마켓 상품 페이지 열기"
-    >
-      {code}
-    </a>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+      {badges.map((m) => {
+        const url = links[m.key];
+        const base: CSSProperties = {
+          fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 10, lineHeight: 1.5,
+          border: `1px solid ${m.color}`,
+        };
+        if (url) {
+          return (
+            <a
+              key={m.key}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title={`${m.label} 상품 페이지 열기`}
+              style={{ ...base, color: '#fff', background: m.color, textDecoration: 'none', cursor: 'pointer' }}
+            >
+              {m.label}
+            </a>
+          );
+        }
+        // 등록됐으나 링크용 식별자 미확보 → 옅은 비링크 배지
+        return (
+          <span key={m.key} title={`${m.label} 등록됨 · 링크 식별자 미확보`}
+            style={{ ...base, color: m.color, background: '#fff', opacity: 0.55 }}>
+            {m.label}
+          </span>
+        );
+      })}
+    </div>
   );
 };
 
@@ -328,13 +321,15 @@ const ProductPage = () => {
       valueFormatter: (p: { value?: number }) => p.value ? `${p.value.toLocaleString()}원` : '-' },
     { headerName: '재고', field: 'stock', width: 80, type: 'rightAligned',
       cellStyle: { justifyContent: 'flex-end', color: '#334155' } },
-    // D-047: 마켓별 연동코드 컬럼(클릭 시 마켓 상품 페이지 새 탭)
-    ...MARKET_COLUMNS.map((m): ColDef<ProductList> => ({
-      headerName: m.header,
-      width: 90,
+    // 마켓 배지 컬럼: 등록된 마켓만 배지로 표시, 클릭 시 상품 페이지 새 탭(카페24 제외)
+    {
+      headerName: '마켓',
+      width: 220,
       sortable: false,
-      cellRenderer: renderMarketCell(m.key),
-    })),
+      autoHeight: true,
+      cellStyle: { display: 'flex', alignItems: 'center' },
+      cellRenderer: renderMarketBadges,
+    },
     {
       headerName: '관리',
       width: 110,
@@ -385,6 +380,9 @@ const ProductPage = () => {
           rowHeight={56}
           headerHeight={44}
           defaultColDef={{ sortable: true, resizable: true }}
+          // 셀 텍스트 드래그 선택 + Ctrl+C 복사 활성화(SB코드·상품명 복사). AG Grid 기본은 비활성.
+          enableCellTextSelection={true}
+          ensureDomOrder={true}
         />
       </div>
 

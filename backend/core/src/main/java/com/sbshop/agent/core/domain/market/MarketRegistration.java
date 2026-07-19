@@ -208,6 +208,68 @@ public class MarketRegistration extends BaseEntity {
 		this.marketIdentifiers = marketIdentifiers;
 	}
 
+	/** marketIdentifiers JSON에서 단일 키 값을 읽는다(없으면 null). */
+	public String identifier(String key) {
+		if (marketIdentifiers == null || marketIdentifiers.isEmpty()) {
+			return null;
+		}
+		try {
+			String v = MAPPER.readTree(marketIdentifiers).path(key).asText(null);
+			return (v != null && !v.isEmpty()) ? v : null;
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	// 스마트스토어 스토어 slug(공개 상품 URL용). 현재 단일 스토어 운영 — 상수.
+	private static final String SMARTSTORE_SLUG = "shouldbe_shop";
+
+	/**
+	 * 마켓 상품 페이지 공개 URL을 만든다. 링크에 필요한 식별자가 없으면 null.
+	 * <ul>
+	 *   <li>쿠팡: products/{productId}?vendorItemId={vendorItemId} — productId 필수(vendorItemId는 있으면 부가)</li>
+	 *   <li>스토어: smartstore.naver.com/{slug}/products/{channelProductNo}</li>
+	 *   <li>11번가: 11st.co.kr/products/{prdNo}</li>
+	 *   <li>G마켓/옥션: Cafe24 등록행에 백필된 gmarket_goodsNo/auction_goodsNo (ESM=Cafe24 경유 연동)</li>
+	 * </ul>
+	 */
+	public String buildMarketUrl() {
+		switch (marketType) {
+			case COUPANG: {
+				String productId = identifier("productId");
+				if (productId == null) {
+					return null;
+				}
+				String vendorItemId = identifier("vendorItemId");
+				return vendorItemId != null
+					? "https://www.coupang.com/vp/products/" + productId + "?vendorItemId=" + vendorItemId
+					: "https://www.coupang.com/vp/products/" + productId;
+			}
+			case SMART_STORE: {
+				String ch = identifier("channelProductNo");
+				return ch != null ? "https://smartstore.naver.com/" + SMARTSTORE_SLUG + "/products/" + ch : null;
+			}
+			case ELEVEN_STREET: {
+				String prd = identifier("prdNo");
+				return prd != null ? "https://www.11st.co.kr/products/" + prd : null;
+			}
+			default:
+				return null;
+		}
+	}
+
+	/** Cafe24 등록행에 ESM 백필된 G마켓 상품 URL(없으면 null). */
+	public String buildGmarketUrl() {
+		String goods = identifier("gmarket_goodsNo");
+		return goods != null ? "http://item.gmarket.co.kr/Item?goodscode=" + goods : null;
+	}
+
+	/** Cafe24 등록행에 ESM 백필된 옥션 상품 URL(없으면 null). */
+	public String buildAuctionUrl() {
+		String item = identifier("auction_goodsNo");
+		return item != null ? "http://itempage3.auction.co.kr/DetailView.aspx?ItemNo=" + item : null;
+	}
+
 	/**
 	 * 기존 marketIdentifiers JSON을 보존하며 단일 키를 병합한다.
 	 * (D-046) 발행 시 sellerProductId만 저장되고 vendorItemId를 채우는 write-path가
