@@ -200,6 +200,38 @@ public class CoupangMarketClient implements MarketClient {
 		}
 	}
 
+	/** 백필용: sourceIdentifier(=sellerProductId)로 링크식별자(productId)를 조회한다. */
+	@Override
+	public java.util.Optional<String> fetchLinkIdentifier(String sourceIdentifier) {
+		return fetchProductId(sourceIdentifier);
+	}
+
+	/** seller-products GET에서 공개 productId를 조회한다(상품페이지 링크용). 없으면 Optional.empty(). */
+	public java.util.Optional<String> fetchProductId(String sellerProductId) {
+		if (sellerProductId == null || sellerProductId.isBlank()) {
+			return java.util.Optional.empty();
+		}
+		try {
+			// syncImagesAndHtml 과 동일한 seller-products GET 경로 접두사 재사용.
+			String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + sellerProductId;
+			String resp = restClient.get(path);
+			// 응답은 { code, message, data: { sellerProductId, productId, items:[...], ... } } 형태.
+			JsonNode root = objectMapper.readTree(resp);
+			JsonNode productIdNode = root.path("data").path("productId");
+			if (productIdNode.isMissingNode() || productIdNode.isNull() || productIdNode.asLong(0L) <= 0L) {
+				return java.util.Optional.empty();
+			}
+			String productId = productIdNode.asText();
+			if (productId == null || productId.isBlank()) {
+				return java.util.Optional.empty();
+			}
+			return java.util.Optional.of(productId);
+		} catch (Exception e) {
+			log.warn("[쿠팡] productId 조회 실패: {}", e.getMessage());
+			return java.util.Optional.empty();
+		}
+	}
+
 	@Override
 	public Map<String, Object> syncImagesAndHtml(String marketItemId, Map<String, Object> currentRawData,
 		List<String> hostedImages, String newDetailHtml) {

@@ -42,4 +42,14 @@ public interface MarketClient {
 		throw new UnsupportedOperationException(
 			getSupportedMarket() + " 삭제 API 미구현");
 	}
+
+	/**
+	 * 상품 그리드 링크에 필요한 부가 식별자를 마켓 API로 조회한다(백필용, best-effort).
+	 * <p>입력 {@code sourceIdentifier}는 마켓별 조회 키(쿠팡=sellerProductId, 스토어=originProductNo).
+	 * 반환값은 백필 대상 식별자 값(쿠팡=productId, 스토어=channelProductNo). 미지원/미확보면 empty.
+	 * <p>기본 구현은 no-op(empty) — 링크 식별자 확보가 필요한 마켓만 override 한다.
+	 */
+	default java.util.Optional<String> fetchLinkIdentifier(String sourceIdentifier) {
+		return java.util.Optional.empty();
+	}
 }

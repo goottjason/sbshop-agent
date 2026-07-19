@@ -197,6 +197,56 @@ public class SmartstoreMarketClient implements MarketClient {
 		return currentRawData;
 	}
 
+	/** 백필용: sourceIdentifier(=originProductNo)로 링크식별자(channelProductNo)를 조회한다. */
+	@Override
+	public java.util.Optional<String> fetchLinkIdentifier(String sourceIdentifier) {
+		return fetchChannelProductNo(sourceIdentifier);
+	}
+
+	/** 상품검색 API로 originProductNo → 스마트스토어 channelProductNo 를 조회한다(상품 링크용). 없으면 empty. */
+	public java.util.Optional<String> fetchChannelProductNo(String originProductNo) {
+		if (originProductNo == null || originProductNo.isBlank()) {
+			return java.util.Optional.empty();
+		}
+		try {
+			long originNo = Long.parseLong(originProductNo.trim());
+			Map<String, Object> body = new HashMap<>();
+			body.put("originProductNos", List.of(originNo));
+			body.put("page", 1);
+			body.put("size", 50);
+
+			String response = restClient.post("/v1/products/search", body);
+			JsonNode root = objectMapper.readTree(response);
+
+			for (JsonNode content : root.path("contents")) {
+				if (!originProductNo.trim().equals(content.path("originProductNo").asText())) {
+					continue;
+				}
+				JsonNode channelProducts = content.path("channelProducts");
+				JsonNode chosen = null;
+				for (JsonNode cp : channelProducts) {
+					if ("STOREFARM".equals(cp.path("channelServiceType").asText())) {
+						chosen = cp;
+						break;
+					}
+					if (chosen == null) {
+						chosen = cp; // 폴백: STOREFARM 없으면 첫 채널상품
+					}
+				}
+				if (chosen != null) {
+					String channelProductNo = chosen.path("channelProductNo").asText("");
+					if (!channelProductNo.isBlank()) {
+						return java.util.Optional.of(channelProductNo);
+					}
+				}
+			}
+			return java.util.Optional.empty();
+		} catch (Exception e) {
+			log.warn("[Smartstore] channelProductNo 조회 실패: {}", e.getMessage());
+			return java.util.Optional.empty();
+		}
+	}
+
 	/**
 	 * 커머스API 이미지 스키마 적용: originProduct.images.representativeImage.url (오브젝트),
 	 * originProduct.images.optionalImages = [{url}, ...].
