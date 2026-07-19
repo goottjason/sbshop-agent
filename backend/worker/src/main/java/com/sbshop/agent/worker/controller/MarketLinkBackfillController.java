@@ -1,6 +1,7 @@
 package com.sbshop.agent.worker.controller;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +31,10 @@ public class MarketLinkBackfillController {
 	private final MarketLinkIdentifierBackfillService backfillService;
 	private final InternalAccessGuard internalAccessGuard;
 
+	// 백필은 수천 건 × 마켓 API 지연으로 수분~십수분 걸린다 → 백그라운드 실행, 요청은 즉시 반환.
+	// 재진입 가드로 중복 실행을 막는다(진행률은 DB의 채워진 식별자 수로 확인).
+	private final AtomicBoolean running = new AtomicBoolean(false);
+
 	@PostMapping("/market-link-ids")
 	public ResponseEntity<Map<String, Object>> backfill(
 			@RequestHeader(value = InternalAccessGuard.HEADER_NAME, required = false) String internalToken,
@@ -39,14 +44,14 @@ public class MarketLinkBackfillController {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 				.body(Map.of("ok", false, "message", "forbidden: invalid internal token"));
 		}
-		log.info("[내부트리거] 마켓 링크식별자 백필 실행 요청 (limit={})", limit);
-		try {
-			Map<String, Object> result = backfillService.backfillAll(limit);
-			return ResponseEntity.ok(Map.of("ok", true, "result", result));
-		} catch (Exception e) {
-			log.error("[내부트리거] 링크식별자 백필 실패: {}", e.getMessage(), e);
-			return ResponseEntity.internalServerError()
-				.body(Map.of("ok", false, "error", String.valueOf(e.getMessage())));
+		if (!running.compareAndSet(false, true)) {
+			return ResponseEntity.ok(Map.of("ok", true, "started", false, "message", "already running"));
 		}
+		log.info("[내부트리거] 마켓 링크식별자 백필 백그라운드 실행 시작 (limit={})", limit);
+		// 서비스의 @Async 진입점 호출(별도 빈이므로 프록시 경유 — self-invocation 문제 없음).
+		// 완료 콜백에서 재진입 가드 해제.
+		backfillService.backfillAllAsync(limit, () -> running.set(false));
+		return ResponseEntity.ok(Map.of("ok", true, "started", true,
+			"message", "backfill started in background; check DB for progress"));
 	}
 }
