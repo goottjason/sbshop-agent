@@ -17,6 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 @Slf4j
@@ -31,6 +32,9 @@ public class SmartstoreRestClient {
 	private final RestClient restClient = RestClient.create();
 
 	private String accessToken;
+	// 토큰 만료 시각. Naver 커머스 토큰은 ~3시간 후 만료되는데, 과거엔 accessToken이 null일 때만
+	// 재발급해 만료된 토큰을 계속 재사용 → 재시작 전까지 상품 API가 401 GW.AUTHN을 반환했다.
+	private volatile Instant tokenExpiresAt = Instant.EPOCH;
 
 	private static boolean blank(String s) {
 		return s == null || s.isBlank();
@@ -47,10 +51,16 @@ public class SmartstoreRestClient {
 	}
 
 	public synchronized String getValidAccessToken() {
-		if (accessToken == null) {
+		// 미발급이거나 만료(버퍼 포함)면 재발급 — 만료 토큰 재사용으로 인한 401을 방지한다.
+		if (accessToken == null || Instant.now().isAfter(tokenExpiresAt)) {
 			fetchAccessToken();
 		}
 		return accessToken;
+	}
+
+	private synchronized void invalidateToken() {
+		accessToken = null;
+		tokenExpiresAt = Instant.EPOCH;
 	}
 
 	private void fetchAccessToken() {
@@ -76,7 +86,10 @@ public class SmartstoreRestClient {
 				.body(String.class);
 			JsonNode node = objectMapper.readTree(response);
 			accessToken = node.path("access_token").asText();
-			log.info("[Smartstore] OAuth2 토큰 발급 완료");
+			// expires_in(초) - 60초 버퍼로 만료 시각 계산. 응답에 없으면 3시간 기본.
+			long expiresIn = node.path("expires_in").asLong(10800);
+			tokenExpiresAt = Instant.now().plusSeconds(Math.max(60, expiresIn - 60));
+			log.info("[Smartstore] OAuth2 토큰 발급 완료 (만료 {}s 후)", expiresIn);
 		} catch (Exception e) {
 			log.error("[Smartstore] 토큰 발급 실패", e);
 			throw new RuntimeException("Smartstore OAuth2 인증 실패", e);
@@ -101,17 +114,35 @@ public class SmartstoreRestClient {
 
 	private String request(String method, String path, Object body) {
 		try {
-			var spec = restClient.method(org.springframework.http.HttpMethod.valueOf(method))
-				.uri(properties.getApiUrl() + path)
-				.header(HttpHeaders.AUTHORIZATION, "Bearer " + getValidAccessToken())
-				.header("X-Time-Stamp", String.valueOf(Instant.now().toEpochMilli()));
-			if (body != null) {
-				spec.contentType(MediaType.APPLICATION_JSON).body(body);
+			return doRequest(method, path, body);
+		} catch (HttpClientErrorException e) {
+			// 401(GW.AUTHN): 만료/무효 토큰일 수 있으므로 토큰을 무효화하고 1회 재발급 재시도한다.
+			if (e.getStatusCode().value() == 401) {
+				log.warn("[Smartstore] 401 인증 실패 — 토큰 재발급 후 1회 재시도: {} {}", method, path);
+				invalidateToken();
+				try {
+					return doRequest(method, path, body);
+				} catch (Exception retry) {
+					log.error("[Smartstore {} Error(재시도 후)] path: {}, msg: {}", method, path, retry.getMessage());
+					throw new RuntimeException("Smartstore API 호출 실패", retry);
+				}
 			}
-			return spec.retrieve().body(String.class);
+			log.error("[Smartstore {} Error] path: {}, msg: {}", method, path, e.getMessage());
+			throw new RuntimeException("Smartstore API 호출 실패", e);
 		} catch (Exception e) {
 			log.error("[Smartstore {} Error] path: {}, msg: {}", method, path, e.getMessage());
 			throw new RuntimeException("Smartstore API 호출 실패", e);
 		}
+	}
+
+	private String doRequest(String method, String path, Object body) {
+		var spec = restClient.method(org.springframework.http.HttpMethod.valueOf(method))
+			.uri(properties.getApiUrl() + path)
+			.header(HttpHeaders.AUTHORIZATION, "Bearer " + getValidAccessToken())
+			.header("X-Time-Stamp", String.valueOf(Instant.now().toEpochMilli()));
+		if (body != null) {
+			spec.contentType(MediaType.APPLICATION_JSON).body(body);
+		}
+		return spec.retrieve().body(String.class);
 	}
 }
