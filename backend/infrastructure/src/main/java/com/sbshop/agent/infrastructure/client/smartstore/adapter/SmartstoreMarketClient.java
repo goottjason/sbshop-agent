@@ -235,6 +235,19 @@ public class SmartstoreMarketClient implements MarketClient {
 
 			String response = restClient.post("/v1/products/search", body);
 			JsonNode root = objectMapper.readTree(response);
+			// [임시 디버그] search 응답 구조 확인: 최상위 필드, contents 크기·첫 요소 키·originProductNo 반영 여부.
+			java.util.List<String> topKeys = new java.util.ArrayList<>();
+			root.fieldNames().forEachRemaining(topKeys::add);
+			JsonNode contentsNode = root.path("contents");
+			JsonNode first = contentsNode.isArray() && contentsNode.size() > 0 ? contentsNode.get(0) : null;
+			java.util.List<String> firstKeys = new java.util.ArrayList<>();
+			if (first != null) {
+				first.fieldNames().forEachRemaining(firstKeys::add);
+			}
+			log.warn("[Smartstore DEBUG] 요청 {}건(예:{}) | 응답 topKeys={} total={} contentsSize={} firstKeys={} firstOriginNo={}",
+				nums.size(), nums.get(0), topKeys, root.path("totalElements").asText("?"),
+				contentsNode.isArray() ? contentsNode.size() : -1, firstKeys,
+				first != null ? first.path("originProductNo").asText("?") : "n/a");
 			for (JsonNode content : root.path("contents")) {
 				String originNo = content.path("originProductNo").asText("");
 				if (originNo.isBlank()) {
