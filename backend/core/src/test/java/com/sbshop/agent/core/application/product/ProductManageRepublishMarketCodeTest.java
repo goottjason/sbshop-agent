@@ -123,6 +123,23 @@ class ProductManageRepublishMarketCodeTest {
 	}
 
 	@Test
+	@DisplayName("COUPANG 재게시는 vendorItemId가 아니라 sellerProductId를 syncImagesAndHtml 인자로 전달한다")
+	void coupang_usesSellerProductId_notVendorItemId() {
+		MarketClient coupangClient = mock(MarketClient.class);
+		when(marketRegistrationRepository.findByProductId(PRODUCT_ID))
+			.thenReturn(List.of(reg(MarketType.COUPANG,
+				"{\"sellerProductId\":\"11658784734\",\"vendorItemId\":\"73567246734\"}")));
+		when(marketClientRouter.hasClient(MarketType.COUPANG)).thenReturn(true);
+		when(marketClientRouter.getClient(MarketType.COUPANG)).thenReturn(coupangClient);
+
+		useCase.updateImagesAndHtml(PRODUCT_ID, files());
+
+		// seller-products 엔드포인트는 sellerProductId가 필요 — vendorItemId를 넘기면 "data not found"
+		verify(coupangClient).syncImagesAndHtml(eq("11658784734"), any(),
+			eq(List.of("https://r2.dev/a.jpg")), eq("<new/>"));
+	}
+
+	@Test
 	@DisplayName("CAFE24 등록의 product_no가 syncImagesAndHtml 첫 번째 인자로 전달된다")
 	void cafe24_usesProductNo_asMarketItemId() {
 		MarketClient cafe24Client = mock(MarketClient.class);

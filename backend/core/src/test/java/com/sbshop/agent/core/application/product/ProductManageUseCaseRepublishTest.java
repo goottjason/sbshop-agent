@@ -91,8 +91,9 @@ class ProductManageUseCaseRepublishTest {
 	@DisplayName("이미지 갱신 후 클라이언트가 있는 마켓별로 syncImagesAndHtml을 호출한다")
 	void updateImagesAndHtml_republishesToRegisteredMarkets() {
 		MarketClient coupangClient = org.mockito.Mockito.mock(MarketClient.class);
+		// 쿠팡 재게시는 seller-products 엔드포인트 → sellerProductId 사용(vendorItemId 아님)
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID))
-			.thenReturn(List.of(reg(MarketType.COUPANG, "{\"vendorItemId\":\"CP123\"}")));
+			.thenReturn(List.of(reg(MarketType.COUPANG, "{\"sellerProductId\":\"CP123\",\"vendorItemId\":\"VI999\"}")));
 		when(marketClientRouter.hasClient(MarketType.COUPANG)).thenReturn(true);
 		when(marketClientRouter.getClient(MarketType.COUPANG)).thenReturn(coupangClient);
 
@@ -124,7 +125,7 @@ class ProductManageUseCaseRepublishTest {
 		MarketClient coupangClient = org.mockito.Mockito.mock(MarketClient.class);
 		MarketClient cafe24Client = org.mockito.Mockito.mock(MarketClient.class);
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID))
-			.thenReturn(List.of(reg(MarketType.COUPANG, "{\"vendorItemId\":\"CP123\"}"),
+			.thenReturn(List.of(reg(MarketType.COUPANG, "{\"sellerProductId\":\"CP123\"}"),
 				reg(MarketType.CAFE24, "{\"product_no\":\"C24\"}")));
 		when(marketClientRouter.hasClient(MarketType.COUPANG)).thenReturn(true);
 		when(marketClientRouter.hasClient(MarketType.CAFE24)).thenReturn(true);

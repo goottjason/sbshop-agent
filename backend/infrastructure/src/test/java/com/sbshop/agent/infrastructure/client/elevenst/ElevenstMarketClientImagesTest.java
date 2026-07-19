@@ -62,4 +62,21 @@ class ElevenstMarketClientImagesTest {
         assertThatThrownBy(() -> client.syncImagesAndHtml("PRD9", raw, List.of(), "<p>hi</p>"))
             .isInstanceOf(RuntimeException.class);
     }
+
+    @Test
+    @DisplayName("상세HTML '기존데이터와 동일' 500 응답은 무변경 성공으로 간주 — 예외 없음")
+    void detailUnchangedResponseIsTreatedAsSuccess() {
+        // 이미지 있음 → 대표이미지 수정 성공 후, 상세HTML은 동일 내용이라 11번가가 500 '동일'로 거부.
+        // 이는 무변경 no-op이므로 예외를 던지지 않고 성공으로 처리되어야 한다(대표이미지 재게시까지 실패로 묶이지 않도록).
+        when(restClient.get(eq("/rest/prodservices/productinfo/PRD9"))).thenReturn("<Product><prdNo>PRD9</prdNo></Product>");
+        when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString())).thenReturn("<message>성공</message>");
+        when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"), contains("prdDescContClob")))
+            .thenReturn("<?xml version=\"1.0\"?><ProductDetailCont><resultCode>500</resultCode>"
+                + "<message>상품상세설명 수정 오류: 수정하려는 데이터가 기존데이터와 동일합니다.</message></ProductDetailCont>");
+
+        // 예외 없이 정상 반환되어야 한다.
+        client.syncImagesAndHtml("PRD9", raw, List.of("u0"), "<p>hi</p>");
+
+        verify(restClient).put(eq("/rest/prodservices/product/PRD9"), anyString());
+    }
 }

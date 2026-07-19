@@ -126,7 +126,11 @@ public class ProductManageUseCase {
 				continue;
 			}
 			try {
-				String marketItemId = reg.extractMarketCode();
+				// 재게시(이미지/HTML)는 삭제와 동일하게 상품 리소스 레벨 API(쿠팡 seller-products)를 호출한다.
+				// 쿠팡은 sellerProductId가 필요한데 extractMarketCode()는 가격/재고용 vendorItemId를 우선하므로,
+				// 재게시에 vendorItemId를 넘기면 "Product(...) data not found"가 난다 → extractDeleteCode(=sellerProductId) 사용.
+				// (SMART_STORE/11번가/Cafe24는 extractDeleteCode==extractMarketCode라 동작 동일)
+				String marketItemId = reg.extractDeleteCode();
 				if (marketItemId == null || marketItemId.isEmpty()) {
 					throw new IllegalStateException("마켓 상품코드 없음(연동정보에 코드 키 부재)");
 				}
