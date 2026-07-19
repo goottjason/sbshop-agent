@@ -105,4 +105,29 @@ class SmartstoreMarketClientFetchChannelTest {
     void unparseableInput_returnsEmpty() {
         assertThat(client.fetchChannelProductNo("not-a-number")).isEmpty();
     }
+
+    @Test
+    @DisplayName("배치 조회: 여러 originProductNo를 1회 요청으로 channelProductNo 맵으로 반환한다")
+    void fetchLinkIdentifiers_batchReturnsMap() {
+        when(restClient.post(eq("/v1/products/search"), any())).thenReturn(
+            "{\"contents\":["
+                + "{\"originProductNo\":5327391662,\"channelProducts\":[{\"channelProductNo\":5348874248,\"channelServiceType\":\"STOREFARM\"}]},"
+                + "{\"originProductNo\":9597246290,\"channelProducts\":[{\"channelProductNo\":9643141399,\"channelServiceType\":\"STOREFARM\"}]}"
+                + "]}");
+
+        var result = client.fetchLinkIdentifiers(java.util.List.of("5327391662", "9597246290"));
+
+        assertThat(result).containsEntry("5327391662", "5348874248");
+        assertThat(result).containsEntry("9597246290", "9643141399");
+        // 배치는 1회 요청만 수행
+        verify(restClient).post(eq("/v1/products/search"), any());
+    }
+
+    @Test
+    @DisplayName("배치 조회: 빈/모두-비숫자 입력은 요청 없이 빈 맵")
+    void fetchLinkIdentifiers_emptyInput() {
+        assertThat(client.fetchLinkIdentifiers(java.util.List.of())).isEmpty();
+        assertThat(client.fetchLinkIdentifiers(java.util.List.of("abc"))).isEmpty();
+        verify(restClient, never()).post(any(), any());
+    }
 }

@@ -52,4 +52,21 @@ public interface MarketClient {
 	default java.util.Optional<String> fetchLinkIdentifier(String sourceIdentifier) {
 		return java.util.Optional.empty();
 	}
+
+	/**
+	 * 백필용 배치 조회: 여러 소스 식별자를 마켓 API로 한 번에 조회한다(rate limit 회피).
+	 * 반환 맵 키=소스 식별자, 값=백필 대상 식별자 값(미확보 건은 미포함).
+	 * <p>기본 구현은 단건 {@link #fetchLinkIdentifier}를 반복한다 —
+	 * 배치 API가 있는 마켓(스토어 상품검색)만 override 해 1회 호출로 최적화한다.
+	 */
+	default Map<String, String> fetchLinkIdentifiers(List<String> sourceIdentifiers) {
+		Map<String, String> out = new java.util.HashMap<>();
+		if (sourceIdentifiers == null) {
+			return out;
+		}
+		for (String s : sourceIdentifiers) {
+			fetchLinkIdentifier(s).ifPresent(v -> out.put(s, v));
+		}
+		return out;
+	}
 }

@@ -203,6 +203,54 @@ public class SmartstoreMarketClient implements MarketClient {
 		return fetchChannelProductNo(sourceIdentifier);
 	}
 
+	/**
+	 * 백필용 배치 조회: 여러 originProductNo를 상품검색 API 1회로 조회해 channelProductNo 맵을 반환한다.
+	 * Naver search rate limit이 빡빡해 단건 반복은 429가 잦으므로, 배열 요청으로 요청 수를 크게 줄인다.
+	 * 결과 맵 키=요청한 originProductNo(String), 값=STOREFARM channelProductNo(없으면 미포함).
+	 */
+	@Override
+	public Map<String, String> fetchLinkIdentifiers(List<String> originProductNos) {
+		Map<String, String> result = new HashMap<>();
+		if (originProductNos == null || originProductNos.isEmpty()) {
+			return result;
+		}
+		List<Long> nums = new java.util.ArrayList<>();
+		for (String s : originProductNos) {
+			if (s != null && !s.isBlank()) {
+				try {
+					nums.add(Long.parseLong(s.trim()));
+				} catch (NumberFormatException ignore) {
+					// 숫자 아닌 originProductNo는 스킵
+				}
+			}
+		}
+		if (nums.isEmpty()) {
+			return result;
+		}
+		try {
+			Map<String, Object> body = new HashMap<>();
+			body.put("originProductNos", nums);
+			body.put("page", 1);
+			body.put("size", nums.size());
+
+			String response = restClient.post("/v1/products/search", body);
+			JsonNode root = objectMapper.readTree(response);
+			for (JsonNode content : root.path("contents")) {
+				String originNo = content.path("originProductNo").asText("");
+				if (originNo.isBlank()) {
+					continue;
+				}
+				String ch = pickChannelProductNo(content.path("channelProducts"));
+				if (ch != null) {
+					result.put(originNo, ch);
+				}
+			}
+		} catch (Exception e) {
+			log.warn("[Smartstore] channelProductNo 배치 조회 실패 ({}건): {}", nums.size(), e.getMessage());
+		}
+		return result;
+	}
+
 	/** 상품검색 API로 originProductNo → 스마트스토어 channelProductNo 를 조회한다(상품 링크용). 없으면 empty. */
 	public java.util.Optional<String> fetchChannelProductNo(String originProductNo) {
 		if (originProductNo == null || originProductNo.isBlank()) {
@@ -222,22 +270,9 @@ public class SmartstoreMarketClient implements MarketClient {
 				if (!originProductNo.trim().equals(content.path("originProductNo").asText())) {
 					continue;
 				}
-				JsonNode channelProducts = content.path("channelProducts");
-				JsonNode chosen = null;
-				for (JsonNode cp : channelProducts) {
-					if ("STOREFARM".equals(cp.path("channelServiceType").asText())) {
-						chosen = cp;
-						break;
-					}
-					if (chosen == null) {
-						chosen = cp; // 폴백: STOREFARM 없으면 첫 채널상품
-					}
-				}
-				if (chosen != null) {
-					String channelProductNo = chosen.path("channelProductNo").asText("");
-					if (!channelProductNo.isBlank()) {
-						return java.util.Optional.of(channelProductNo);
-					}
+				String ch = pickChannelProductNo(content.path("channelProducts"));
+				if (ch != null) {
+					return java.util.Optional.of(ch);
 				}
 			}
 			return java.util.Optional.empty();
@@ -245,6 +280,27 @@ public class SmartstoreMarketClient implements MarketClient {
 			log.warn("[Smartstore] channelProductNo 조회 실패: {}", e.getMessage());
 			return java.util.Optional.empty();
 		}
+	}
+
+	/** channelProducts 배열에서 STOREFARM 채널의 channelProductNo를 고른다(없으면 첫 채널, 그마저 없으면 null). */
+	private String pickChannelProductNo(JsonNode channelProducts) {
+		JsonNode chosen = null;
+		for (JsonNode cp : channelProducts) {
+			if ("STOREFARM".equals(cp.path("channelServiceType").asText())) {
+				chosen = cp;
+				break;
+			}
+			if (chosen == null) {
+				chosen = cp;
+			}
+		}
+		if (chosen != null) {
+			String ch = chosen.path("channelProductNo").asText("");
+			if (!ch.isBlank()) {
+				return ch;
+			}
+		}
+		return null;
 	}
 
 	/**
