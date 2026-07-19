@@ -30,15 +30,15 @@ public class MarketLinkIdentifierBackfillService {
 	private final MarketRegistrationRepository marketRegistrationRepository;
 	private final MarketClientRouter marketClientRouter;
 
-	/** 마켓별: (조회 소스 키, 백필 대상 키, 배치 크기, 배치 간 지연ms). */
-	private record Spec(String sourceKey, String targetKey, int batchSize, long throttleMs) {}
+	/** 마켓별: (조회 소스 키, 백필 대상 키, 배치 크기, 배치/페이지 간 지연ms, 전체스캔 여부). */
+	private record Spec(String sourceKey, String targetKey, int batchSize, long throttleMs, boolean bulkScan) {}
 
 	private static final Map<MarketType, Spec> SPECS = Map.of(
-		// 쿠팡: seller-products GET은 단건 API(배치 불가) → batch=1, 요청 간 100ms.
-		MarketType.COUPANG, new Spec("sellerProductId", "productId", 1, 100L),
-		// 스토어: 상품검색 API가 originProductNos 배열을 받음 → 100건 배치로 요청 수 100배 감소(429 회피).
-		//         배치 간 500ms.
-		MarketType.SMART_STORE, new Spec("originProductNo", "channelProductNo", 100, 500L));
+		// 쿠팡: seller-products GET은 단건 API → batch=1, 요청 간 100ms.
+		MarketType.COUPANG, new Spec("sellerProductId", "productId", 1, 100L, false),
+		// 스토어: 상품검색 API가 originProductNos 필터를 무시하고 전체를 반환(라이브 확인) →
+		//         전체 페이지 순회로 origin→channel 맵을 한 번에 구축(bulkScan), 페이지 간 500ms.
+		MarketType.SMART_STORE, new Spec("originProductNo", "channelProductNo", 100, 500L, true));
 
 	/**
 	 * 전 마켓 백필 1회 실행. 마켓별 처리 결과 요약을 반환한다.
@@ -99,6 +99,31 @@ public class MarketLinkIdentifierBackfillService {
 		}
 
 		List<String> sources = new java.util.ArrayList<>(pending.keySet());
+
+		if (spec.bulkScan()) {
+			// 전체 스캔: 마켓 전 상품의 (소스→링크식별자) 맵을 한 번 구축한 뒤 pending을 매칭.
+			Map<String, String> all = client.fetchAllLinkIdentifiers(spec.throttleMs());
+			if (all == null) {
+				all = Map.of();
+			}
+			for (Map.Entry<String, MarketRegistration> e : pending.entrySet()) {
+				String value = all.get(e.getKey());
+				if (value != null) {
+					e.getValue().enrichIdentifier(spec.targetKey(), value);
+					marketRegistrationRepository.save(e.getValue());
+					updated++;
+					if (limit > 0 && updated >= limit) {
+						break;
+					}
+				} else {
+					failed++;
+				}
+			}
+			log.info("[링크식별자 백필] {} 완료(전체스캔) — 스캔 {}, 스킵 {}, 갱신 {}, 실패 {}",
+				marketType, scanned, skipped, updated, failed);
+			return resultMap(scanned, skipped, updated, failed, "ok");
+		}
+
 		outer:
 		for (int i = 0; i < sources.size(); i += spec.batchSize()) {
 			List<String> chunk = sources.subList(i, Math.min(i + spec.batchSize(), sources.size()));

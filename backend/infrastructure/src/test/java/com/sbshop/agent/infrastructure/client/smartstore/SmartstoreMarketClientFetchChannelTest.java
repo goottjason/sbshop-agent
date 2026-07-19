@@ -107,27 +107,30 @@ class SmartstoreMarketClientFetchChannelTest {
     }
 
     @Test
-    @DisplayName("배치 조회: 여러 originProductNo를 1회 요청으로 channelProductNo 맵으로 반환한다")
-    void fetchLinkIdentifiers_batchReturnsMap() {
-        when(restClient.post(eq("/v1/products/search"), any())).thenReturn(
-            "{\"contents\":["
-                + "{\"originProductNo\":5327391662,\"channelProducts\":[{\"channelProductNo\":5348874248,\"channelServiceType\":\"STOREFARM\"}]},"
-                + "{\"originProductNo\":9597246290,\"channelProducts\":[{\"channelProductNo\":9643141399,\"channelServiceType\":\"STOREFARM\"}]}"
-                + "]}");
+    @DisplayName("전체 스캔: 여러 페이지를 순회해 origin→channel 맵을 통째로 구축한다(last=true에서 종료)")
+    void fetchAllChannelProductNos_paginatesUntilLast() {
+        // page1: last=false, page2: last=true. search는 originProductNos 필터를 무시하므로 전체를 페이지로 훑는다.
+        when(restClient.post(eq("/v1/products/search"), any()))
+            .thenReturn("{\"last\":false,\"contents\":[{\"originProductNo\":5327391662,\"channelProducts\":"
+                + "[{\"channelProductNo\":5348874248,\"channelServiceType\":\"STOREFARM\"}]}]}")
+            .thenReturn("{\"last\":true,\"contents\":[{\"originProductNo\":9597246290,\"channelProducts\":"
+                + "[{\"channelProductNo\":9643141399,\"channelServiceType\":\"STOREFARM\"}]}]}");
 
-        var result = client.fetchLinkIdentifiers(java.util.List.of("5327391662", "9597246290"));
+        var result = client.fetchAllChannelProductNos(0L);
 
         assertThat(result).containsEntry("5327391662", "5348874248");
         assertThat(result).containsEntry("9597246290", "9643141399");
-        // 배치는 1회 요청만 수행
-        verify(restClient).post(eq("/v1/products/search"), any());
+        // 2페이지 순회 → 2회 요청
+        verify(restClient, org.mockito.Mockito.times(2)).post(eq("/v1/products/search"), any());
     }
 
     @Test
-    @DisplayName("배치 조회: 빈/모두-비숫자 입력은 요청 없이 빈 맵")
-    void fetchLinkIdentifiers_emptyInput() {
-        assertThat(client.fetchLinkIdentifiers(java.util.List.of())).isEmpty();
-        assertThat(client.fetchLinkIdentifiers(java.util.List.of("abc"))).isEmpty();
-        verify(restClient, never()).post(any(), any());
+    @DisplayName("전체 스캔: 빈 contents면 즉시 종료하고 빈 맵을 반환한다")
+    void fetchAllChannelProductNos_emptyContents() {
+        when(restClient.post(eq("/v1/products/search"), any()))
+            .thenReturn("{\"last\":true,\"contents\":[]}");
+
+        assertThat(client.fetchAllChannelProductNos(0L)).isEmpty();
+        verify(restClient, org.mockito.Mockito.times(1)).post(eq("/v1/products/search"), any());
     }
 }

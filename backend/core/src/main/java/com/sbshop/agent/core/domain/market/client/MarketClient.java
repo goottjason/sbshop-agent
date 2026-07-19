@@ -69,4 +69,14 @@ public interface MarketClient {
 		}
 		return out;
 	}
+
+	/**
+	 * 백필용 전체 스캔: 마켓 전 상품을 순회해 (소스 식별자 → 링크 식별자) 맵을 통째로 구축한다.
+	 * <p>단건/배치 조회가 필터 미지원 등으로 부적합한 마켓(스토어 상품검색)에서 override 한다.
+	 * 기본은 {@code null}(미지원) — 백필 서비스는 null이면 단건/청크 경로를 쓴다.
+	 * @param throttleMs 페이지 간 지연(rate limit 회피)
+	 */
+	default Map<String, String> fetchAllLinkIdentifiers(long throttleMs) {
+		return null;
+	}
 }

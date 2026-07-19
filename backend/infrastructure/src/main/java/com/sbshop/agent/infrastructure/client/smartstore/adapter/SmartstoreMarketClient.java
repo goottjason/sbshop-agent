@@ -197,71 +197,59 @@ public class SmartstoreMarketClient implements MarketClient {
 		return currentRawData;
 	}
 
-	/** 백필용: sourceIdentifier(=originProductNo)로 링크식별자(channelProductNo)를 조회한다. */
+	/** 백필용 전체 스캔 진입점(인터페이스): 스토어는 search 필터 미지원이라 전체 페이지 순회로 맵을 구축한다. */
 	@Override
-	public java.util.Optional<String> fetchLinkIdentifier(String sourceIdentifier) {
-		return fetchChannelProductNo(sourceIdentifier);
+	public Map<String, String> fetchAllLinkIdentifiers(long throttleMs) {
+		return fetchAllChannelProductNos(throttleMs);
 	}
 
 	/**
-	 * 백필용 배치 조회: 여러 originProductNo를 상품검색 API 1회로 조회해 channelProductNo 맵을 반환한다.
-	 * Naver search rate limit이 빡빡해 단건 반복은 429가 잦으므로, 배열 요청으로 요청 수를 크게 줄인다.
-	 * 결과 맵 키=요청한 originProductNo(String), 값=STOREFARM channelProductNo(없으면 미포함).
+	 * 백필용 전체 스캔: 스토어 전 상품을 상품검색 API로 페이지네이션 순회해
+	 * (originProductNo → STOREFARM channelProductNo) 맵을 통째로 구축한다.
+	 * <p>주의: {@code /v1/products/search}는 originProductNos 필터를 무시하고 전체를 반환하므로
+	 * (라이브 확인됨), 특정 번호 필터 대신 전체 페이지를 훑는다. total 수천 건이라도 size=500이면
+	 * 수 페이지로 끝나 429 없이 완주한다. 페이지 간 지연은 {@code throttleMs}로 제어.
 	 */
-	@Override
-	public Map<String, String> fetchLinkIdentifiers(List<String> originProductNos) {
-		Map<String, String> result = new HashMap<>();
-		if (originProductNos == null || originProductNos.isEmpty()) {
-			return result;
-		}
-		List<Long> nums = new java.util.ArrayList<>();
-		for (String s : originProductNos) {
-			if (s != null && !s.isBlank()) {
-				try {
-					nums.add(Long.parseLong(s.trim()));
-				} catch (NumberFormatException ignore) {
-					// 숫자 아닌 originProductNo는 스킵
+	public Map<String, String> fetchAllChannelProductNos(long throttleMs) {
+		Map<String, String> all = new HashMap<>();
+		int page = 1;
+		int maxPages = 200; // 안전 상한(무한루프 방지)
+		while (page <= maxPages) {
+			try {
+				Map<String, Object> body = new HashMap<>();
+				body.put("page", page);
+				body.put("size", 500);
+				String response = restClient.post("/v1/products/search", body);
+				JsonNode root = objectMapper.readTree(response);
+				JsonNode contents = root.path("contents");
+				for (JsonNode content : contents) {
+					String originNo = content.path("originProductNo").asText("");
+					if (originNo.isBlank()) {
+						continue;
+					}
+					String ch = pickChannelProductNo(content.path("channelProducts"));
+					if (ch != null) {
+						all.put(originNo, ch);
+					}
 				}
+				boolean last = root.path("last").asBoolean(true) || !contents.isArray() || contents.isEmpty();
+				log.info("[Smartstore] 전체 채널상품 스캔 page={} 누적 {}건 (last={})", page, all.size(), last);
+				if (last) {
+					break;
+				}
+				page++;
+				if (throttleMs > 0) {
+					Thread.sleep(throttleMs);
+				}
+			} catch (InterruptedException ie) {
+				Thread.currentThread().interrupt();
+				break;
+			} catch (Exception e) {
+				log.warn("[Smartstore] 전체 채널상품 스캔 실패 page={}: {}", page, e.getMessage());
+				break;
 			}
 		}
-		if (nums.isEmpty()) {
-			return result;
-		}
-		try {
-			Map<String, Object> body = new HashMap<>();
-			body.put("originProductNos", nums);
-			body.put("page", 1);
-			body.put("size", nums.size());
-
-			String response = restClient.post("/v1/products/search", body);
-			JsonNode root = objectMapper.readTree(response);
-			// [임시 디버그] search 응답 구조 확인: 최상위 필드, contents 크기·첫 요소 키·originProductNo 반영 여부.
-			java.util.List<String> topKeys = new java.util.ArrayList<>();
-			root.fieldNames().forEachRemaining(topKeys::add);
-			JsonNode contentsNode = root.path("contents");
-			JsonNode first = contentsNode.isArray() && contentsNode.size() > 0 ? contentsNode.get(0) : null;
-			java.util.List<String> firstKeys = new java.util.ArrayList<>();
-			if (first != null) {
-				first.fieldNames().forEachRemaining(firstKeys::add);
-			}
-			log.warn("[Smartstore DEBUG] 요청 {}건(예:{}) | 응답 topKeys={} total={} contentsSize={} firstKeys={} firstOriginNo={}",
-				nums.size(), nums.get(0), topKeys, root.path("totalElements").asText("?"),
-				contentsNode.isArray() ? contentsNode.size() : -1, firstKeys,
-				first != null ? first.path("originProductNo").asText("?") : "n/a");
-			for (JsonNode content : root.path("contents")) {
-				String originNo = content.path("originProductNo").asText("");
-				if (originNo.isBlank()) {
-					continue;
-				}
-				String ch = pickChannelProductNo(content.path("channelProducts"));
-				if (ch != null) {
-					result.put(originNo, ch);
-				}
-			}
-		} catch (Exception e) {
-			log.warn("[Smartstore] channelProductNo 배치 조회 실패 ({}건): {}", nums.size(), e.getMessage());
-		}
-		return result;
+		return all;
 	}
 
 	/** 상품검색 API로 originProductNo → 스마트스토어 channelProductNo 를 조회한다(상품 링크용). 없으면 empty. */
