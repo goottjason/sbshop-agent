@@ -1390,3 +1390,9 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - **이식**: sbshop `ElevenstMarketClient.syncImagesAndHtml`을 buildProductXml 재구성 → **GET 라운드트립 + 누락 필수필드 주입**으로 교체. GET 전문에서 htmlDetail·prdImage01~05 정규식 치환 + 주입: dlvEtprsCd=00034(CJ), rmaterialTypCd=03+ProductRmaterial, selMthdCd=01, 원산지(orgnTypCd=02 미국/1405), 배송·반품(dlvCstInstBasiCd=01·dlvCstPayTypCd=03·bndlDlvCnYn=N·rtngd/exchDlvCst=7000·asDetail·rtngExchDetail), **주소코드 addrSeqOut=5(미국 출고지)·addrSeqIn=3(국내 반품지)·outsideYnOut=Y·outsideYnIn=N**(판매자 실계정값). 메타태그(message/validateMsg/nResult) 제거. 성공=resultCode 200/210.
 - 옵션·카테고리·인증·고시는 GET 전문에 있는 원값 보존(재구성 방식의 소실 문제 해결). buildProductXml은 publish(등록) 전용으로 잔존.
 - 테스트: Elevenst 2개 재작성(GET 라운드트립·주소코드 주입·메타제거·resultCode 성공판정). 잔여: 인터페이스의 Product 인자는 이제 미사용(GET 방식) — 정리 후보.
+
+### D-092 나머지 마켓 buying-agent 대응 (2026-07-20)
+- **쿠팡: 완료**(사용자 확인 — 대표이미지+상세설명 성공). requested=true 수정으로 해결.
+- **N스토어(스토어): buying-agent 네이버 이미지 업로드 이식**. "올바른 이미지 파일이 아닙니다"(400)=Naver가 외부 R2 URL 거부 → `SmartstoreRestClient.uploadImages`(멀티파트 POST /v1/product-images/upload) 추가, `SmartstoreMarketClient`에 downloadImage/ensureImageExtension/uploadImagesToNaver + customsTaxType=INCLUDED 주입 + detailContent 이중이스케이프 제거. 네이버 업로드 URL로 representativeImage 등록. 실패 시 외부 URL 폴백.
+- **옥션(Cafe24): 코드 이슈 아님**. buying-agent Cafe24 syncImagesAndHtml이 sbshop과 완전 동일(base64 detail/list/tiny/small_image POST). Cafe24 API 호출 성공·G마켓 전파 정상이나 옥션 미전파 = **Cafe24→옥션(ESM+) 연동 설정**(코드 밖). 사용자 Cafe24 마켓연동 이미지동기화 설정 확인 필요.
+- **G마켓: 정상**(Cafe24 경로).

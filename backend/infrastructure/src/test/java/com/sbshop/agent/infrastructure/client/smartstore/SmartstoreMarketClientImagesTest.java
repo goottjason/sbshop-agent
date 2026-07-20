@@ -50,7 +50,7 @@ class SmartstoreMarketClientImagesTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
 
-        client.syncImagesAndHtml(null, ITEM_ID, new HashMap<>(), List.of("u0", "u1", "u2"), "<html>");
+        client.syncImagesAndHtml(null, ITEM_ID, new HashMap<>(), List.of("u0.jpg", "u1.jpg", "u2.jpg"), "<html>");
 
         verify(restClient).put(eq("/v2/products/origin-products/" + ITEM_ID), captor.capture());
         @SuppressWarnings("unchecked")
@@ -59,8 +59,8 @@ class SmartstoreMarketClientImagesTest {
         Map<String, Object> images = (Map<String, Object>) originProduct.get("images");
         @SuppressWarnings("unchecked")
         Map<String, Object> representativeImage = (Map<String, Object>) images.get("representativeImage");
-        assertThat(representativeImage.get("url")).isEqualTo("u0");
-        assertThat(images.get("optionalImages")).isEqualTo(List.of(Map.of("url", "u1"), Map.of("url", "u2")));
+        assertThat(representativeImage.get("url")).isEqualTo("u0.jpg");
+        assertThat(images.get("optionalImages")).isEqualTo(List.of(Map.of("url", "u1.jpg"), Map.of("url", "u2.jpg")));
         assertThat(originProduct.get("detailContent")).isNotNull();
     }
 
@@ -71,7 +71,7 @@ class SmartstoreMarketClientImagesTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
 
-        client.syncImagesAndHtml(null, ITEM_ID, new HashMap<>(), List.of("u0"), null);
+        client.syncImagesAndHtml(null, ITEM_ID, new HashMap<>(), List.of("u0.jpg"), null);
 
         verify(restClient).put(eq("/v2/products/origin-products/" + ITEM_ID), captor.capture());
         @SuppressWarnings("unchecked")
@@ -80,7 +80,7 @@ class SmartstoreMarketClientImagesTest {
         Map<String, Object> images = (Map<String, Object>) originProduct.get("images");
         @SuppressWarnings("unchecked")
         Map<String, Object> representativeImage = (Map<String, Object>) images.get("representativeImage");
-        assertThat(representativeImage.get("url")).isEqualTo("u0");
+        assertThat(representativeImage.get("url")).isEqualTo("u0.jpg");
         assertThat(images.containsKey("optionalImages")).isFalse();
     }
 
@@ -90,7 +90,7 @@ class SmartstoreMarketClientImagesTest {
         when(restClient.get(any())).thenThrow(new RuntimeException("네트워크 오류"));
 
         assertThatThrownBy(() ->
-            client.syncImagesAndHtml(null, ITEM_ID, new HashMap<>(), List.of("u0"), null)
+            client.syncImagesAndHtml(null, ITEM_ID, new HashMap<>(), List.of("u0.jpg"), null)
         ).isInstanceOf(RuntimeException.class)
          .hasMessageContaining("네트워크 오류");
     }

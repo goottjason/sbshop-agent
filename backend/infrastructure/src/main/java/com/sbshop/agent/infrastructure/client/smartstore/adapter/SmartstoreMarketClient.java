@@ -9,6 +9,7 @@ import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.infrastructure.client.smartstore.client.SmartstoreRestClient;
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -169,13 +170,18 @@ public class SmartstoreMarketClient implements MarketClient {
 			Map<String, Object> originProduct = objectMapper.convertValue(originNode, Map.class);
 
 			if (!hostedImages.isEmpty()) {
-				// 커머스API 스키마: originProduct.images.representativeImage.url (오브젝트).
-				// 최상위 문자열 representativeImage 는 Naver가 조용히 무시하므로 대표이미지가 바뀌지 않는다.
-				// GET 응답의 기존 images 오브젝트를 보존하고 representative/optional 만 덮어쓴다.
-				applyImages(originProduct, hostedImages);
+				// D-092: 네이버는 외부 URL(R2)을 대표이미지로 거부("올바른 이미지 파일이 아닙니다") →
+				// 네이버 이미지 서버에 직접 업로드하고 반환된 네이버 URL로 등록한다(buying-agent 검증).
+				List<String> targetImages = uploadImagesToNaver(hostedImages).stream()
+					.map(this::ensureImageExtension).toList();
+				// 커머스API 스키마: originProduct.images.representativeImage.url. 기존 images 보존, representative/optional만 덮어쓴다.
+				applyImages(originProduct, targetImages);
 			}
+			// D-092: 해외 상품 관부가세 필수 — customsTaxType 미설정 시 수정 거부되므로 INCLUDED로 채운다.
+			applyCustomsTaxType(originProduct);
 			if (newDetailHtml != null) {
-				originProduct.put("detailContent", newDetailHtml.replace("\"", "\\\"").replace("\n", ""));
+				// D-092: 수동 이스케이프 제거 — Map 값은 Jackson이 직렬화 시 이스케이프하므로 이중 이스케이프(HTML 손상)였다.
+				originProduct.put("detailContent", newDetailHtml);
 			}
 
 			Map<String, Object> requestBody = new HashMap<>();
@@ -311,6 +317,77 @@ public class SmartstoreMarketClient implements MarketClient {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * D-092: 이미지를 네이버 커머스 이미지 서버에 업로드하고 반환 URL 목록을 돌려준다(buying-agent 이식).
+	 * 실패 시 외부 URL(hostedImages)로 폴백한다.
+	 */
+	private List<String> uploadImagesToNaver(List<String> hostedImages) {
+		try {
+			org.springframework.util.MultiValueMap<String, Object> body =
+				new org.springframework.util.LinkedMultiValueMap<>();
+			for (String imageUrl : hostedImages) {
+				byte[] bytes = downloadImage(imageUrl);
+				if (bytes != null) {
+					org.springframework.core.io.ByteArrayResource res =
+						new org.springframework.core.io.ByteArrayResource(bytes) {
+							@Override
+							public String getFilename() {
+								return "image.jpg";
+							}
+						};
+					body.add("imageFiles", res);
+				}
+			}
+			if (!body.isEmpty()) {
+				JsonNode resp = restClient.uploadImages(body);
+				if (resp != null && resp.has("images")) {
+					List<String> naverUrls = new ArrayList<>();
+					for (JsonNode img : resp.get("images")) {
+						naverUrls.add(img.get("url").asText());
+					}
+					if (!naverUrls.isEmpty()) {
+						log.info("[D092][스토어] 네이버 이미지 업로드 {}개 완료", naverUrls.size());
+						return naverUrls;
+					}
+				}
+			}
+		} catch (Exception e) {
+			log.warn("[D092][스토어] 네이버 이미지 업로드 실패 — 외부 URL 폴백: {}", e.getMessage());
+		}
+		return hostedImages;
+	}
+
+	private byte[] downloadImage(String imageUrl) {
+		try (java.io.InputStream is = new java.net.URL(imageUrl).openStream()) {
+			return is.readAllBytes();
+		} catch (Exception e) {
+			log.error("[D092][스토어] 이미지 다운로드 실패: {} - {}", imageUrl, e.getMessage());
+			return null;
+		}
+	}
+
+	/** 확장자 없으면 .jpg 힌트 추가(네이버 이미지 검증 통과용). */
+	private String ensureImageExtension(String url) {
+		if (url == null || url.isBlank()) {
+			return url;
+		}
+		String low = url.toLowerCase();
+		if (!low.contains(".jpg") && !low.contains(".jpeg") && !low.contains(".png") && !low.contains(".gif")) {
+			return url + (url.contains("?") ? "&" : "?") + "f=.jpg";
+		}
+		return url;
+	}
+
+	/** D-092: 해외 상품 관부가세 필수 — originProduct.detailAttribute.customsTaxType=INCLUDED. */
+	@SuppressWarnings("unchecked")
+	private void applyCustomsTaxType(Map<String, Object> originProduct) {
+		Object da = originProduct.get("detailAttribute");
+		Map<String, Object> detailAttribute = (da instanceof Map)
+			? (Map<String, Object>) da : new HashMap<>();
+		detailAttribute.put("customsTaxType", "INCLUDED");
+		originProduct.put("detailAttribute", detailAttribute);
 	}
 
 	/**

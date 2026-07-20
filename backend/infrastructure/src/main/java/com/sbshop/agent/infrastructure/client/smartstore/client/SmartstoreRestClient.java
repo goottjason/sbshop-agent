@@ -145,4 +145,24 @@ public class SmartstoreRestClient {
 		}
 		return spec.retrieve().body(String.class);
 	}
+
+	/**
+	 * D-092: 네이버 커머스 이미지 업로드(멀티파트). 네이버는 외부 URL을 대표이미지로 거부("올바른 이미지 파일이
+	 * 아닙니다")하므로, 이미지를 네이버 서버에 직접 업로드하고 반환된 네이버 URL로 등록해야 한다.
+	 * 요청: POST /v1/product-images/upload (multipart, field=imageFiles). 응답: {"images":[{"url":...}]}.
+	 */
+	public JsonNode uploadImages(MultiValueMap<String, Object> body) {
+		try {
+			return restClient.post()
+				.uri(properties.getApiUrl() + "/v1/product-images/upload")
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + getValidAccessToken())
+				.contentType(MediaType.MULTIPART_FORM_DATA)
+				.body(body)
+				.retrieve()
+				.body(JsonNode.class);
+		} catch (Exception e) {
+			log.error("[Smartstore] 이미지 업로드 실패: {}", e.getMessage());
+			throw new RuntimeException("Smartstore 이미지 업로드 실패", e);
+		}
+	}
 }
