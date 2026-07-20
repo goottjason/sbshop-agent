@@ -63,13 +63,26 @@ public class Cafe24OrderApiClient implements Cafe24OrderApiPort {
 		return restClient.post("/admin/orders/" + orderId + "/shipments", requestBody);
 	}
 
-	// Cafe24 주문 상태코드 — 라이브 검증 대상(값·필드명·바디형태 확정 필요).
-	private static final String ACCEPT_STATUS = "N20"; // 배송준비중(=발주확인)
-	private static final String CANCEL_STATUS = "C40"; // 취소완료
+	// Cafe24 배송상태 처리 API(PUT /admin/orders): 쓰기는 process_status 문자열을 쓴다(읽기 order_status N코드와 별개).
+	// prepare=배송준비중(발주확인), prepareproduct=상품준비중, hold=배송보류, unhold=배송보류해제.
+	private static final String ACCEPT_PROCESS_STATUS = "prepare"; // 배송준비중(=발주확인)
+	private static final String CANCEL_STATUS = "C40"; // 취소완료 — 취소는 별도 API 필요(D-091 후속 미검증)
 
+	/**
+	 * D-091: 발주확인. Cafe24 스펙은 PUT /admin/orders(경로에 id 없음)에
+	 * requests 배열로 {order_id, process_status} 전송. 라인아이템 단위(order_item_code)는
+	 * sbshop이 품주코드를 미보존하므로 생략 → 주문 전체에 적용.
+	 */
 	@Override
 	public void acceptOrder(String cafe24OrderId) {
-		updateStatus(cafe24OrderId, ACCEPT_STATUS);
+		java.util.Map<String, Object> request = java.util.Map.of(
+			"order_id", cafe24OrderId,
+			"process_status", ACCEPT_PROCESS_STATUS);
+		java.util.Map<String, Object> body = java.util.Map.of(
+			"shop_no", 1,
+			"requests", java.util.List.of(request));
+		restClient.put("/admin/orders", body);
+		log.info("[Cafe24] 발주확인(배송준비중): orderId={}, process_status={}", cafe24OrderId, ACCEPT_PROCESS_STATUS);
 	}
 
 	@Override

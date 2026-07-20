@@ -1306,3 +1306,11 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 판정근거: 같은 코드베이스의 송장·취소 경로(`MarketplaceShippingService.java:73,141`, `OrderShipProcessor.java:54`)는 이미 `findByMarketType(...).orElse(null)` + "Cafe24 기반(G마켓/옥션)은 cred 없어도 포트 위임" 주석으로 올바르게 처리. **발주확인 경로만 `.orElseThrow`로 누락.**
 - 수정방향(TDD): `OrderService.confirmOrder`의 크레덴셜 조회를 `.orElseThrow(...)` → `.orElse(null)`로 변경(기존 송장/취소 패턴과 일치). Cafe24 어댑터는 null 무시, 타 마켓은 어댑터 내부에서 사용(송장 경로와 동일 계약).
 - 영향: `OrderService.java` 1라인 + 회귀 테스트.
+
+### D-091: Cafe24 발주확인 PUT 포맷 오류 — 잘못된 엔드포인트·바디·상태값
+- 심각도 P1 (기능 불능 — 옥션/G마켓 발주확인 API 호출 실패) / 리스크 등급 표준(마켓 API 계약·라이브 확증) / 상태 수정완료·검증중 (2026-07-20)
+- 신고: 발주확인 재시도 시 "Order 196: 마켓플레이스 주문 접수 실패: Cafe24 API PUT 호출 실패". [[D-090]] 크레덴셜 차단 해소 후 실제 PUT이 노출한 후속 결함. 사용자가 Cafe24 정식 API 스펙 제공.
+- 위치: `backend/infrastructure/src/main/java/com/sbshop/agent/infrastructure/client/cafe24/client/Cafe24OrderApiClient.java:acceptOrder`
+- 근본원인: `acceptOrder`가 `PUT /admin/orders/{id}` + `{shop_no, request:{status:"N20"}}`로 호출했으나, Cafe24 배송상태처리 스펙은 `PUT /admin/orders`(경로에 id 없음) + `{shop_no, requests:[{order_id, process_status:"prepare"}]}`. 3가지 오류: ① 엔드포인트에 id 붙임 ② `request`(객체)→`requests`(배열) ③ `status:"N20"`(읽기 order_status 코드)→`process_status:"prepare"`(쓰기 어휘). 읽기(order_status: N00/N10/N20…)와 쓰기(process_status: prepare/prepareproduct/hold/unhold)가 별개 어휘였음.
+- 수정(2026-07-20, 라이브 스펙 기반): `acceptOrder`를 `PUT /admin/orders` + `requests:[{order_id, process_status:"prepare"}]`로 재작성. order_item_code(품주코드)는 sbshop 미보존이라 생략(주문 전체 적용). 회귀 테스트 `Cafe24OrderApiClientStatusTest.acceptOrderSendsPut` 스펙대로 정정. `:infrastructure:test` 통과.
+- 잔여(후속 결함 후보): `cancelOrder`(CANCEL_STATUS="C40" + 동일 구 엔드포인트/바디)도 같은 포맷 오류일 가능성 높음. 단 Cafe24 취소는 process_status 어휘 밖(별도 취소/환불 API)이라 정식 스펙 확보 후 수정 필요 — 이번 스코프 제외. 실제 발주확인 성공 여부는 배포 후 라이브 확인.

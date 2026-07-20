@@ -20,12 +20,14 @@ class Cafe24OrderApiClientStatusTest {
 	@Mock Cafe24RestClient restClient;
 
 	@Test
-	@DisplayName("acceptOrder는 PUT /admin/orders/{id}에 배송준비 상태(N20)를 보낸다")
+	@DisplayName("D-091: acceptOrder는 PUT /admin/orders에 requests[].process_status=prepare로 발주확인한다")
 	void acceptOrderSendsPut() {
 		var client = new Cafe24OrderApiClient(restClient, new ObjectMapper());
 		client.acceptOrder("O123");
-		verify(restClient).put(eq("/admin/orders/O123"),
-			ArgumentMatchers.argThat(body -> bodyStatus(body).equals("N20")));
+		// 스펙: PUT /admin/orders (경로에 id 없음), body.requests[0]={order_id, process_status:"prepare"}
+		verify(restClient).put(eq("/admin/orders"),
+			ArgumentMatchers.argThat(body -> "O123".equals(firstRequest(body).get("order_id"))
+				&& "prepare".equals(firstRequest(body).get("process_status"))));
 	}
 
 	@Test
@@ -35,6 +37,12 @@ class Cafe24OrderApiClientStatusTest {
 		client.cancelOrder("O123");
 		verify(restClient).put(eq("/admin/orders/O123"),
 			ArgumentMatchers.argThat(body -> bodyStatus(body).equals("C40")));
+	}
+
+	@SuppressWarnings("unchecked")
+	private Map<String, Object> firstRequest(Object body) {
+		var requests = (java.util.List<Map<String, Object>>) ((Map<String, Object>) body).get("requests");
+		return requests.get(0);
 	}
 
 	@SuppressWarnings("unchecked")
