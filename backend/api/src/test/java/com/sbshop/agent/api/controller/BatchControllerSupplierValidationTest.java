@@ -24,7 +24,7 @@ class BatchControllerSupplierValidationTest {
 	@Mock private ActionLogService actionLogService;
 
 	private BatchController controller() {
-		return new BatchController(batchPriceStockService, processStatusService, actionLogService);
+		return new BatchController(batchPriceStockService, processStatusService, actionLogService, org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
 	}
 
 	private SupplierBatchRequest requestWith(String supplierCode) {

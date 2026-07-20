@@ -82,6 +82,20 @@ public class SseNotificationController {
 		broadcast(name, data);
 	}
 
+	// D-089: 배치 시작 이벤트. payload는 batchId 그 자체(프론트가 startTracking에 바로 사용).
+	static String batchStartedEventName() {
+		return "BATCH_STARTED";
+	}
+
+	static String batchStartedPayload(String batchId) {
+		return batchId;
+	}
+
+	@EventListener
+	public void onBatchStarted(com.sbshop.agent.core.application.product.event.BatchStartedEvent event) {
+		broadcast(batchStartedEventName(), batchStartedPayload(event.getBatchId()));
+	}
+
 	// 등록된 모든 클라이언트에 동일 이벤트를 발송하고, 발송 실패한 클라이언트는 목록에서 제거한다.
 	private void broadcast(String name, String data) {
 		for (SseEmitter emitter : emitters) {

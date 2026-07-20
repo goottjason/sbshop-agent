@@ -47,7 +47,7 @@ class BatchControllerTriggerCharacterizationTest {
 		batchPriceStockService = Mockito.mock(BatchPriceStockService.class);
 		processStatusService = Mockito.mock(ProcessStatusService.class);
 		actionLogService = Mockito.mock(ActionLogService.class);
-		controller = new BatchController(batchPriceStockService, processStatusService, actionLogService);
+		controller = new BatchController(batchPriceStockService, processStatusService, actionLogService, org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
 	}
 
 	private ProductUpdateCommand emptyCommand() {

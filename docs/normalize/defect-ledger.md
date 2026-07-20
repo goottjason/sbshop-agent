@@ -1283,3 +1283,15 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 수정계획(TDD): mapStatus에서 N10을 NEW 그룹으로 이동 — `case "N00","N02","N10" -> NEW`(발주확인 전), `case "N20","N21","N22" -> PREPARING`(발주확인 후). `Cafe24OrderSyncServiceTest`의 잘못된 기대값(line 167-168) 정정 + N10→NEW·N20→PREPARING 회귀 테스트 추가.
 - 유의: `Cafe24OrderApiClient.java:66` "상태코드 라이브 검증 대상" 주석 — N20 값 잠정. 다만 (신고증상 + 발주확인 타깃) 2독립근거로 진단 신뢰 높음. 라이브 확정은 주문 2566278285의 실제 Cafe24 order_status 조회로 확인 가능(프로덕션 read 승인 필요).
 - 영향: Cafe24OrderSyncService 단일 파일(core) + 테스트. 배포 후 기존 N10 상태로 저장된 옥션/G마켓 미확인 주문의 재동기화 시 자동 NEW 교정.
+
+### D-089: 배치 업데이트 진행바가 클라이언트(브라우저)별로 격리 — 동업자 간 상호 미표시
+- 심각도 P2 (오동작 — 다중 운영자 협업 시 배치 진행 상호 미가시) / 리스크 등급 표준(프론트 + SSE 이벤트 추가) / 상태 수정완료·검증중 (A안, 2026-07-20)
+- 수정(2026-07-20, A안): `BatchStartedEvent`(core) 신설 → `BatchController.startBatchWithLog`(4개 엔드포인트 공통)에서 발행 → `SseNotificationController.onBatchStarted`가 `BATCH_STARTED`(payload=batchId) 전역 방송. `BatchUpdatePage`가 `/notifications/subscribe` 구독 → BATCH_STARTED 수신 시 startTracking(자기 배치는 batchIdRef로 중복 회피), BATCH_COMPLETED/FAILED 수신 시 즉시 요약 갱신. 테스트: `SseNotificationBatchTest`에 batchStartedEventName/Payload 2건 + 기존 BatchController 생성자 4곳 publisher mock 보정. 프론트 tsc/build 통과. (단일 batchId 슬롯: 최근 시작 배치가 표시됨 — 동시 다른 배치는 latest-wins.)
+- 신고: "내가 배치업데이트한 것은 동업자 컴퓨터에서 안 보이고, 동업자가 한 것은 내게 안 보인다."
+- 위치: `frontend/src/pages/BatchUpdatePage.tsx:5,64,77` (localStorage 단일 구동) · `backend/api/.../SseNotificationController.java`(START 이벤트 부재)
+- 근본원인: 진행 카드가 `localStorage['sbshop.activeBatchId']`에 저장된 batchId로만 폴링(`startTracking`). batchId는 배치를 **개시한 브라우저에만** 반환·저장되므로 타 클라이언트/타 기기는 그 batchId를 알 수 없어 진행바 미표시. 배치 상태는 공유 DB(`ProcessStatus`)에 있고 전역 SSE 브로드캐스트(`SseNotificationController.emitters`)도 존재하나, (a) BatchUpdatePage가 SSE를 구독하지 않고, (b) SSE는 `BATCH_COMPLETED/FAILED`(완료)만 방송하고 **배치 시작(batchId 전파) 이벤트가 없어** 타 클라이언트가 진행 중 배치를 발견할 경로가 전무.
+- 참고: `ProcessStatusPage`는 SSE(BATCH_COMPLETED) 구독 + DB 조회로 완료건은 공유 가시. 실시간 진행"바"만 개시 브라우저 국한.
+- 수정방향(택1, TDD):
+  - A(권장·실시간): 배치 시작 시 `BATCH_STARTED` SSE 이벤트(batchId 포함) 방송 + BatchUpdatePage가 `/notifications/subscribe` 구독해 수신 시 startTracking. 기존 전역 emitters 재사용.
+  - B(폴링): 진행 중(pending>0) batchId 목록 엔드포인트 신설 + BatchUpdatePage 마운트/주기 폴링으로 활성 배치 자동 추적. SSE 불요, 폴링 지연 존재.
+- 영향: 프론트 BatchUpdatePage + (A안) api SseNotificationController/BatchController·이벤트 1종. 백엔드 배치 실행 로직 불변.

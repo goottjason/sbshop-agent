@@ -4,6 +4,8 @@ import { batchApi } from '../api/batchApi';
 
 const ACTIVE_BATCH_KEY = 'sbshop.activeBatchId';
 const POLL_INTERVAL_MS = 30000;
+// D-089: 배치 진행바를 전 클라이언트에 공유하기 위한 SSE 구독 주소(다른 페이지와 동일 경로)
+const SSE_URL = '/sbshop-agent/api/v1/notifications/subscribe';
 
 interface BatchSummary {
   batchId: string;
@@ -26,6 +28,11 @@ const BatchUpdatePage = () => {
   // setState-after-unmount 가드 + 인터벌 핸들
   const mountedRef = useRef(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // SSE 콜백이 최신 batchId를 참조하도록(자기 배치 중복 startTracking 방지)
+  const batchIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    batchIdRef.current = batchId;
+  }, [batchId]);
 
   const clearPoll = useCallback(() => {
     if (intervalRef.current) {
@@ -85,6 +92,35 @@ const BatchUpdatePage = () => {
     // 마운트 시 1회만 실행
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // D-089: SSE 구독 — 다른 클라이언트(동업자)가 시작한 배치도 진행바에 공유한다.
+  // BATCH_STARTED로 batchId를 받으면 추적 시작, 완료 이벤트는 즉시 요약 갱신.
+  useEffect(() => {
+    const es = new EventSource(SSE_URL);
+    const onStarted = (e: Event) => {
+      const startedId = (e as MessageEvent).data as string;
+      // 자기 자신이 방금 시작한 배치면 중복 startTracking(요약 리셋) 회피
+      if (startedId && startedId !== batchIdRef.current) {
+        startTracking(startedId);
+      }
+    };
+    const onCompleted = (e: Event) => {
+      // payload: "batchId|success" — 추적 중인 배치면 즉시 갱신(폴링 주기 대기 없이 완료 반영)
+      const completedId = String((e as MessageEvent).data).split('|')[0];
+      if (completedId && completedId === batchIdRef.current) {
+        void fetchSummary(completedId);
+      }
+    };
+    es.addEventListener('BATCH_STARTED', onStarted);
+    es.addEventListener('BATCH_COMPLETED', onCompleted);
+    es.addEventListener('BATCH_FAILED', onCompleted);
+    es.onerror = () => {
+      if (es.readyState === EventSource.CLOSED) {
+        es.close();
+      }
+    };
+    return () => es.close();
+  }, [startTracking, fetchSummary]);
 
   const handleSubmit = async (values: {
     supplierCode?: string;

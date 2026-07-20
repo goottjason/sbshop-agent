@@ -38,6 +38,8 @@ public class BatchController {
 	private final ProcessStatusService processStatusService;
 	// D-076: 사용자 액션 활동로그 기록 서비스
 	private final ActionLogService actionLogService;
+	// D-089: 배치 시작을 전 클라이언트에 SSE 방송하기 위한 이벤트 발행자
+	private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
 	/**
 	 * SP-11 (F-BATCH-3): 4개 트리거 엔드포인트가 반복하던 공통 골격을 추출한다.
@@ -52,6 +54,9 @@ public class BatchController {
 		java.util.function.Function<String, String> messageBuilder) {
 		String batchId = processStatusService.startBatch(jobType, productCodes);
 		actionLogService.record(actionType, null, ActionStatus.STARTED, messageBuilder.apply(batchId));
+		// D-089: 배치 시작을 전 클라이언트에 방송해 개시하지 않은 브라우저도 진행바를 공유하게 한다.
+		eventPublisher.publishEvent(new com.sbshop.agent.core.application.product.event.BatchStartedEvent(
+			this, batchId, actionType, productCodes.size()));
 		return batchId;
 	}
 
