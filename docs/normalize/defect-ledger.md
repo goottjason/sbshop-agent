@@ -1332,4 +1332,14 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
   - 11번가: `buildProductXml:prdImage01`(POST) vs `applyRepresentativeImages`(productinfo **GET 응답 XML**에 정규식 `<prdImage0N>` 치환 후 PUT). **GET 응답 스키마에 prdImage 태그 없으면 regex no-op**(가장 구체적·검증가능 — productinfo GET 실응답 스키마 확인 필요).
 - 다음 단계: 마켓별 UPDATE-이미지 API 정확한 계약 확증 필요(라이브 GET 실응답 스키마 or API 문서). 등록은 되므로 resync를 delete+republish 또는 마켓 전용 이미지수정 엔드포인트로 전환하는 근본 수정 후보. 확증 전 배포 금지(중대·다마켓, 작동중 G마켓 회귀 위험).
 - 상태: 진단 refined·미수정. 마켓 1개씩 라이브 확증→TDD 수정 권장(11번가 productinfo 스키마부터).
-- **계측 배포(2026-07-20)**: 4개 `syncImagesAndHtml`(쿠팡·스토어·11번가·Cafe24)에 읽기전용 `[D092]` 로깅 추가 — GET 응답 스키마·PUT/POST 요청 바디·응답(현재 다 버려지던 값). 배포 후 마켓별 1건 크롤 트리거→`docker logs ... grep '\[D092\]'`로 실제 req/resp 확보→마켓별 근본 수정. **동작 무변경(로깅만), 진단 후 제거 예정.**
+- **계측 배포(2026-07-20)**: 4개 `syncImagesAndHtml`(쿠팡·스토어·11번가·Cafe24)에 읽기전용 `[D092]` 로깅 추가 — GET 응답 스키마·PUT/POST 요청 바디·응답(현재 다 버려지던 값). 동작 무변경(로깅만), 진단 후 제거 예정.
+- **★라이브 확정 근본원인(2026-07-20, [D092] 로그)★**:
+  - **쿠팡**: `PUT /v2/providers/seller_api/apis/api/v1/marketplace/seller-products/{id}` → **404 PRECONDITION_FAILED "No matched http method ... did you mean GET,DELETE?"**. 상품수정 PUT을 GET/DELETE 전용 경로(id 포함)에 보냄. 수정: **id 없는 `PUT .../seller-products`**(sellerProductId는 바디)로 변경. `/approvals`는 별개 확인.
+  - **스토어**: `PUT /v2/products/origin-products/{id}` → **400 BAD_REQUEST "올바른 이미지 파일이 아닙니다."**. Naver가 외부 R2 URL(representativeImage.url)을 거부 → **Naver 이미지업로드 API로 먼저 업로드 후 Naver URL 사용** 필요. 이미지 거부로 PUT 전체 실패 → 상세도 collateral 실패(이미지 고치면 상세도 통과). GET 스키마·images 스키마·detailContent는 정상.
+  - **11번가**: `GET /rest/prodservices/productinfo/{prdNo}` → **`<AuthMessage><resultCode>-997</resultCode>등록된 API 정보가 존재하지 않습니다`**(인증에러, 상품데이터 아님). applyRepresentativeImages가 에러XML에 no-op(prdImage 포함=false)→PUT에 에러XML 전송→11번가 JAXBException. **에러가드(`ERROR`/`resultCode>500`)가 -997·JAXBException 미포착→"재게시 완료" 가짜성공 오기록**. 상세설명 POST(updateProductDetailCont)는 resultCode 000 진짜성공. 수정: (a) productinfo GET 엔드포인트/인증 교정(-997 해소), (b) 에러가드에 AuthMessage/-997/JAXBException 추가(가짜성공 차단).
+  - **옥션(Cafe24)**: description PUT resp(len~3900)·이미지 POST resp(len 491) 정상 반환 = Cafe24 API 성공. 옥션 대표이미지 미전파는 Cafe24 상품→ESM 옥션 연동 설정(코드 밖). G마켓은 정상.
+- 수정 스코프: 쿠팡(엔드포인트 교정, 확신 높음)·11번가(productinfo GET + 에러가드)·스토어(Naver 이미지업로드 신규, 큼). 옥션은 코드밖. 각 TDD 후 계측 제거.
+- **수정 1차(2026-07-20, 쿠팡+11번가 TDD)**:
+  - 쿠팡: `syncImagesAndHtml` 상품수정 PUT을 id 없는 base(`.../seller-products`)로, 승인은 `.../seller-products/{id}/approvals` 유지(GET/DELETE는 id경로 유지). `CoupangMarketClientImagesTest` 수정 PUT 어서션을 no-id로 정정.
+  - 11번가: GET을 `productinfo`→`product`(‑997 해소 시도), GET/PUT 에러가드에 AuthMessage/‑997/JAXBException/`!<Product>` 추가(가짜성공 차단). `ElevenstMarketClient*Test` mock 경로 product로 정정 + 신규 `throwsWhenGetReturnsAuthError`.
+  - 계측 [D092] 유지(라이브 재검증용). 전체 `./gradlew test` 통과. 스토어(Naver 업로드)·옥션(ESM)은 다음 라운드/코드밖.

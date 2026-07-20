@@ -56,7 +56,7 @@ class ElevenstMarketClientRepresentativeImageTest {
     @Test
     @DisplayName("hostedImages 있음 → productinfo GET 후 PUT 전문에 새 prdImage01 세팅")
     void updatesRepresentativeImageViaFullModify() {
-        when(restClient.get(eq("/rest/prodservices/productinfo/PRD9"))).thenReturn(CURRENT_XML);
+        when(restClient.get(eq("/rest/prodservices/product/PRD9"))).thenReturn(CURRENT_XML);
         when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString())).thenReturn("<message>성공</message>");
         when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"), contains("prdDescContClob")))
             .thenReturn("<message>성공</message>");
@@ -106,7 +106,7 @@ class ElevenstMarketClientRepresentativeImageTest {
     @Test
     @DisplayName("상품 전문 조회 실패 → RuntimeException, PUT 미호출")
     void throwsWhenProductInfoFetchFails() {
-        when(restClient.get(eq("/rest/prodservices/productinfo/PRD9")))
+        when(restClient.get(eq("/rest/prodservices/product/PRD9")))
             .thenReturn("<resultCode>ERROR</resultCode><message>조회실패</message>");
 
         assertThatThrownBy(() -> client.syncImagesAndHtml("PRD9", raw, List.of("http://new/rep.jpg"), "<p>hi</p>"))
@@ -118,11 +118,26 @@ class ElevenstMarketClientRepresentativeImageTest {
     @Test
     @DisplayName("상품수정 PUT ERROR 응답 → RuntimeException")
     void throwsWhenModifyFails() {
-        when(restClient.get(eq("/rest/prodservices/productinfo/PRD9"))).thenReturn(CURRENT_XML);
+        when(restClient.get(eq("/rest/prodservices/product/PRD9"))).thenReturn(CURRENT_XML);
         when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString()))
             .thenReturn("<resultCode>ERROR</resultCode><message>수정실패</message>");
 
         assertThatThrownBy(() -> client.syncImagesAndHtml("PRD9", raw, List.of("http://new/rep.jpg"), "<p>hi</p>"))
             .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    @DisplayName("D-092: GET이 AuthMessage(-997) 인증에러 → 상품데이터 아님으로 판정, RuntimeException·PUT 미호출(가짜성공 차단)")
+    void throwsWhenGetReturnsAuthError() {
+        // 라이브 확정: productinfo/product GET이 상품이 아니라 AuthMessage(-997)를 반환하면
+        // 과거엔 에러가드가 못 걸러 에러XML을 PUT→JAXBException을 "재게시 완료"로 오기록했다.
+        when(restClient.get(eq("/rest/prodservices/product/PRD9"))).thenReturn(
+            "<?xml version=\"1.0\" encoding=\"EUC-KR\"?><AuthMessage><resultCode>-997</resultCode>"
+                + "<resultMessage>등록된 API 정보가 존재하지 않습니다.</resultMessage></AuthMessage>");
+
+        assertThatThrownBy(() -> client.syncImagesAndHtml("PRD9", raw, List.of("http://new/rep.jpg"), "<p>hi</p>"))
+            .isInstanceOf(RuntimeException.class);
+
+        verify(restClient, never()).put(eq("/rest/prodservices/product/PRD9"), anyString());
     }
 }

@@ -69,7 +69,7 @@ class CoupangMarketClientImagesTest {
         client.syncImagesAndHtml("305", raw, List.of("u0", "u1"), "<html>");
 
         InOrder order = inOrder(restClient);
-        order.verify(restClient).put(eq(BASE_PATH + "/305"), any());
+        order.verify(restClient).put(eq(BASE_PATH), any());
         order.verify(restClient).put(eq(BASE_PATH + "/305/approvals"), eq(java.util.Map.of()));
     }
 
@@ -103,7 +103,7 @@ class CoupangMarketClientImagesTest {
 
         InOrder order = inOrder(restClient);
         order.verify(restClient).get(eq(BASE_PATH + "/305"));
-        order.verify(restClient).put(eq(BASE_PATH + "/305"), any());
+        order.verify(restClient).put(eq(BASE_PATH), any());
         order.verify(restClient).put(eq(BASE_PATH + "/305/approvals"), eq(java.util.Map.of()));
     }
 

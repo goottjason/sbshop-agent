@@ -116,10 +116,14 @@ public class ElevenstMarketClient implements MarketClient {
 		// 1) 대표이미지 반영: 상품 전체전문 라운드트립 수정
 		if (hostedImages != null && !hostedImages.isEmpty()) {
 			try {
-				String current = restClient.get("/rest/prodservices/productinfo/" + marketItemId);
-				log.info("[D092][11번가] productinfo GET (len={}): {}", current == null ? -1 : current.length(),
+				// D-092: 상품 전문 조회는 `product` GET. `productinfo`는 -997(등록된 API 정보 없음) 인증에러 반환.
+				String current = restClient.get("/rest/prodservices/product/" + marketItemId);
+				log.info("[D092][11번가] product GET (len={}): {}", current == null ? -1 : current.length(),
 					current == null ? "null" : current.substring(0, Math.min(current.length(), 3000)));
-				if (current == null || current.contains("ERROR") || current.contains("resultCode>500")) {
+				// D-092: -997/AuthMessage/비-상품 응답을 실패로 걸러 가짜성공(에러XML PUT→JAXBException을 완료로 오기록) 차단.
+				if (current == null || current.contains("ERROR") || current.contains("resultCode>500")
+					|| current.contains("AuthMessage") || current.contains("등록된 API 정보가 존재하지 않습니다")
+					|| !current.contains("<Product>")) {
 					throw new RuntimeException("[Elevenst] 상품 전문 조회 실패: " + current);
 				}
 				String modified = applyRepresentativeImages(current, hostedImages);
@@ -128,8 +132,10 @@ public class ElevenstMarketClient implements MarketClient {
 					modified.substring(0, Math.min(modified.length(), 3000)));
 				String modifyResponse = restClient.put("/rest/prodservices/product/" + marketItemId, modified);
 				log.info("[D092][11번가] 상품수정 PUT resp: {}", modifyResponse);
+				// D-092: JAXBException/AuthMessage 등 비정상 응답도 실패로 포착(가짜성공 차단).
 				if (modifyResponse == null || modifyResponse.contains("ERROR")
-					|| modifyResponse.contains("resultCode>500")) {
+					|| modifyResponse.contains("resultCode>500") || modifyResponse.contains("Exception")
+					|| modifyResponse.contains("AuthMessage")) {
 					throw new RuntimeException("[Elevenst] 대표이미지 수정 실패: " + modifyResponse);
 				}
 				log.info("[Elevenst] 대표이미지 재게시 완료: {} -> {}", marketItemId, hostedImages.get(0));

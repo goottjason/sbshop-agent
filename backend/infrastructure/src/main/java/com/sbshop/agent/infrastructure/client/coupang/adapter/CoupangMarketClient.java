@@ -282,8 +282,9 @@ public class CoupangMarketClient implements MarketClient {
 			firstItem.put("contents", contents);
 		}
 
-		// sellerProductId 는 rawData 값이 아니라 권위 있는 marketItemId 를 사용한다.
-		String base = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId;
+		// D-092: 쿠팡 상품수정은 id 없는 base에 PUT(sellerProductId는 바디). publish POST 경로와 동일.
+		// (id 포함 경로 `.../seller-products/{id}`는 GET/DELETE 전용 → PUT 시 404 PRECONDITION_FAILED.)
+		String base = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
 		try {
 			String putBody = objectMapper.writeValueAsString(rawData);
 			log.info("[D092][쿠팡] 상품수정 PUT body (len={}): {}", putBody.length(),
@@ -296,7 +297,8 @@ public class CoupangMarketClient implements MarketClient {
 		// (등록 경로는 POST requested(true)로 자동 제출하지만, 수정 경로에는 이 호출이 필요하다.)
 		// 무바디 PUT은 JDK HttpClient가 Content-Length를 안 보내 Akamai가 411을 반환한다(같은 파일 가격/재고 관습).
 		// 쿠팡이 무시하는 빈 JSON({})을 바디로 보내 Content-Length를 강제한다.
-		String approvalResp = restClient.put(base + "/approvals", java.util.Map.of());
+		// 승인요청은 상품 식별자(sellerProductId)가 경로에 필요하다: .../seller-products/{id}/approvals
+		String approvalResp = restClient.put(base + "/" + marketItemId + "/approvals", java.util.Map.of());
 		log.info("[D092][쿠팡] 승인요청 resp: {}", approvalResp);
 		log.info("[쿠팡] 이미지/HTML 수정 후 승인요청 완료: {}", marketItemId);
 		return rawData;

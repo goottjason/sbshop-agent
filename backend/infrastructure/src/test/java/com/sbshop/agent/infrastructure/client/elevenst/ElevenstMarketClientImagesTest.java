@@ -41,7 +41,7 @@ class ElevenstMarketClientImagesTest {
     @DisplayName("성공 응답 → post 호출 + CDATA HTML 포함 XML 전송")
     void successCallsUpdateDetailContWithCdata() {
         // 이미지 있음 → 대표이미지 상품수정(GET+PUT) 경유 후 상세HTML 수정
-        when(restClient.get(eq("/rest/prodservices/productinfo/PRD9"))).thenReturn("<Product><prdNo>PRD9</prdNo></Product>");
+        when(restClient.get(eq("/rest/prodservices/product/PRD9"))).thenReturn("<Product><prdNo>PRD9</prdNo></Product>");
         when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString())).thenReturn("<message>성공</message>");
         when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"),
             contains("prdDescContClob"))).thenReturn("<Product/><message>성공</message>");
@@ -68,7 +68,7 @@ class ElevenstMarketClientImagesTest {
     void detailUnchangedResponseIsTreatedAsSuccess() {
         // 이미지 있음 → 대표이미지 수정 성공 후, 상세HTML은 동일 내용이라 11번가가 500 '동일'로 거부.
         // 이는 무변경 no-op이므로 예외를 던지지 않고 성공으로 처리되어야 한다(대표이미지 재게시까지 실패로 묶이지 않도록).
-        when(restClient.get(eq("/rest/prodservices/productinfo/PRD9"))).thenReturn("<Product><prdNo>PRD9</prdNo></Product>");
+        when(restClient.get(eq("/rest/prodservices/product/PRD9"))).thenReturn("<Product><prdNo>PRD9</prdNo></Product>");
         when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString())).thenReturn("<message>성공</message>");
         when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"), contains("prdDescContClob")))
             .thenReturn("<?xml version=\"1.0\"?><ProductDetailCont><resultCode>500</resultCode>"
