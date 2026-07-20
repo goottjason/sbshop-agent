@@ -109,23 +109,124 @@ public class ElevenstMarketClient implements MarketClient {
 	@Override
 	public Map<String, Object> syncImagesAndHtml(Product product, String marketItemId,
 		Map<String, Object> currentRawData, List<String> hostedImages, String newDetailHtml) {
-		// D-092: 11번가는 상품수정용 "전체 XML"을 조회로 얻을 수 없다(신규/셀러상품조회 모두 prdImage·brand·
-		// 인증 등 필수 다수 누락, productinfo는 -997 폐기). 상품수정=등록과 동일 전문 포맷이므로,
-		// 등록 때 쓰는 buildProductXml(Product+기본값으로 완전한 상품 XML 생성)을 재사용해 재구성 후 PUT한다.
-		// product는 재게시 직전 새 hostedImages·detailHtml로 갱신된 상태 → 대표이미지+상세HTML을 1회 PUT로 반영.
-		String xml = buildProductXml(product);
-		log.info("[D092][11번가] 상품수정 PUT body prdImage포함={}, htmlDetail포함={}, body(len={}): {}",
-			xml.contains("<prdImage01>"), xml.contains("<htmlDetail>"), xml.length(),
-			xml.substring(0, Math.min(xml.length(), 3000)));
-		String resp = restClient.put("/rest/prodservices/product/" + marketItemId, xml);
+		// D-092: buying-agent 검증 구현 이식. 상품수정은 전체 XML 덮어쓰기라 옵션·카테고리·인증·고시 등을
+		// 보존해야 한다 → 신규상품조회(/rest/prodmarketservice/prodmarket/{prdNo})로 "현재 전체 전문"을 GET한 뒤,
+		// 이미지/상세HTML만 정규식 치환하고 11번가가 등록 후 필수로 승격한 필드(택배사·원재료·원산지·배송/반품·
+		// 출고지/반품지 주소코드)를 주입해 PUT한다. (buildProductXml 재구성·productinfo -997 경로는 폐기.)
+		String currentXml;
+		try {
+			currentXml = restClient.get("/rest/prodmarketservice/prodmarket/" + marketItemId);
+			if (currentXml == null || currentXml.isEmpty()) {
+				throw new RuntimeException("11번가 기존 상품 XML 조회 실패");
+			}
+		} catch (RuntimeException e) {
+			log.error("[Elevenst] 11번가 상품 전문 조회 실패: {}", e.getMessage());
+			throw e;
+		}
+		log.info("[D092][11번가] prodmarket GET (len={})", currentXml.length());
+
+		String updatedXml = currentXml;
+		// (1) 상세HTML 치환 (esmplus http→https: SK Planet 방화벽 409 방지)
+		String safeHtml = (newDetailHtml == null ? "" : newDetailHtml).replace("http://ai.esmplus.com", "https://ai.esmplus.com");
+		updatedXml = updatedXml.replaceAll("(?s)<htmlDetail>.*?</htmlDetail>",
+			"<htmlDetail><![CDATA[" + java.util.regex.Matcher.quoteReplacement(safeHtml) + "]]></htmlDetail>");
+		// (2) 대표/추가 이미지 치환
+		if (hostedImages != null && !hostedImages.isEmpty()) {
+			updatedXml = updatedXml.replaceAll("(?s)<prdImage01>.*?</prdImage01>",
+				"<prdImage01><![CDATA[" + hostedImages.get(0) + "]]></prdImage01>");
+			for (int i = 1; i < hostedImages.size() && i <= 4; i++) {
+				String tag = "prdImage0" + (i + 1);
+				String newTag = "<" + tag + "><![CDATA[" + hostedImages.get(i) + "]]></" + tag + ">";
+				if (updatedXml.contains("<" + tag + ">")) {
+					updatedXml = updatedXml.replaceAll("(?s)<" + tag + ">.*?</" + tag + ">", newTag);
+				} else {
+					updatedXml = updatedXml.replace("</prdImage01>", "</prdImage01>\n  " + newTag);
+				}
+			}
+		}
+		// (3) 등록 후 필수 승격 필드 주입(11번가 단골 에러 방지)
+		updatedXml = injectElevenstRequiredFields(updatedXml);
+
+		String resp = restClient.put("/rest/prodservices/product/" + marketItemId, updatedXml);
 		log.info("[D092][11번가] 상품수정 PUT resp: {}", resp);
-		// 성공은 ClientMessage resultCode 200(일반)/210(신규). ERROR/500/Exception/AuthMessage/동일-거부는 실패.
-		if (resp == null || resp.contains("ERROR") || resp.contains("resultCode>500")
-			|| resp.contains("Exception") || resp.contains("AuthMessage")) {
+		// 성공: <resultCode>200</resultCode>(일반) 또는 210(신규). 그 외는 실패.
+		if (resp == null
+			|| (!resp.contains("<resultCode>200</resultCode>") && !resp.contains("<resultCode>210</resultCode>"))) {
 			throw new RuntimeException("[Elevenst] 상품수정(이미지/상세) 실패: " + resp);
 		}
-		log.info("[Elevenst] 이미지/상세HTML 재게시 완료(상품수정 전문 재구성): {}", marketItemId);
+		log.info("[Elevenst] 이미지/상세HTML 재게시 완료(전체 XML 라운드트립): {}", marketItemId);
+		if (currentRawData != null) {
+			currentRawData.put("htmlDetail", newDetailHtml);
+			if (hostedImages != null && !hostedImages.isEmpty()) {
+				currentRawData.put("prdImage01", hostedImages.get(0));
+			}
+		}
 		return currentRawData;
+	}
+
+	/**
+	 * D-092: 11번가가 등록 후 필수로 승격한 필드를 GET한 전문에 주입/치환한다(buying-agent 검증 로직 이식).
+	 * 조회 응답의 메타태그(message/validateMsg/nResult)는 수정 PUT 파서 에러를 유발하므로 제거한다.
+	 * 출고지(5)/반품지(3) 주소 시퀀스코드는 이 판매자 실계정 값(11번가 주소조회 결과).
+	 */
+	private String injectElevenstRequiredFields(String xml) {
+		String out = xml;
+		// 발송택배사 CJ대한통운
+		if (out.contains("<dlvEtprsCd>")) {
+			out = out.replaceAll("(?s)<dlvEtprsCd>.*?</dlvEtprsCd>", "<dlvEtprsCd>00034</dlvEtprsCd>");
+		} else {
+			out = out.replace("</Product>", "  <dlvEtprsCd>00034</dlvEtprsCd>\n</Product>");
+		}
+		// 원재료 유형(가공품 03) + ProductRmaterial
+		String rmaterial = "  <ProductRmaterial>\n"
+			+ "    <rmaterialNm><![CDATA[상세설명 참조]]></rmaterialNm>\n"
+			+ "    <ingredNm><![CDATA[상세설명 참조]]></ingredNm>\n"
+			+ "    <orgnCountry><![CDATA[상세설명 참조]]></orgnCountry>\n"
+			+ "    <content><![CDATA[상세설명 참조]]></content>\n"
+			+ "  </ProductRmaterial>";
+		if (out.contains("<rmaterialTypCd>")) {
+			out = out.replaceAll("(?s)<rmaterialTypCd>.*?</rmaterialTypCd>", "<rmaterialTypCd>03</rmaterialTypCd>");
+			if (!out.contains("<ProductRmaterial>")) {
+				out = out.replace("</Product>", rmaterial + "\n</Product>");
+			}
+		} else {
+			out = out.replace("</Product>", "  <rmaterialTypCd>03</rmaterialTypCd>\n" + rmaterial + "\n</Product>");
+		}
+		// 판매방식 고정가
+		if (out.contains("<selMthdCd>")) {
+			out = out.replaceAll("(?s)<selMthdCd>.*?</selMthdCd>", "<selMthdCd>01</selMthdCd>");
+		} else {
+			out = out.replace("</Product>", "  <selMthdCd>01</selMthdCd>\n</Product>");
+		}
+		// 인코딩 EUC-KR 강제
+		out = out.replace("encoding=\"UTF-8\"", "encoding=\"euc-kr\"").replace("encoding=\"utf-8\"", "encoding=\"euc-kr\"");
+		// 원산지: 기존 태그 제거 후 해외(미국) 재주입 (태그명 유사 → 긴 것부터 제거)
+		for (String t : new String[] {"orgnNmDetail", "orgnAreaNm", "orgnTypCd", "orgnOriginCd", "orgnTypDtlsCd", "orgnNmVal", "orgnNm"}) {
+			out = out.replaceAll("(?s)<" + t + "[^>]*>.*?</" + t + ">", "").replaceAll("<" + t + "\\s*/>", "");
+		}
+		String origin = "\n  <orgnTypCd>02</orgnTypCd>\n  <orgnTypDtlsCd>1405</orgnTypDtlsCd>\n  <orgnOriginCd>1405</orgnOriginCd>"
+			+ "\n  <orgnNmVal>미국</orgnNmVal>\n  <orgnNm>미국</orgnNm>\n  <orgnAreaNm>미국</orgnAreaNm>\n  <orgnNmDetail>미국</orgnNmDetail>";
+		if (out.contains("<Product>")) {
+			out = out.replace("<Product>", "<Product>" + origin);
+		}
+		// 메타태그 제거(수정 PUT 파서 에러 유발)
+		for (String t : new String[] {"message", "validateMsg", "nResult"}) {
+			out = out.replaceAll("(?s)<" + t + "[^>]*>.*?</" + t + ">", "").replaceAll("<" + t + "\\s*/>", "");
+		}
+		// 배송/반품 필수값 일괄 주입(없을 때만)
+		if (!out.contains("<dlvCstInstBasiCd>")) {
+			out = out.replace("</Product>",
+				"  <dlvCstInstBasiCd>01</dlvCstInstBasiCd>\n  <dlvCstPayTypCd>03</dlvCstPayTypCd>\n  <bndlDlvCnYn>N</bndlDlvCnYn>\n"
+				+ "  <rtngdDlvCst>7000</rtngdDlvCst>\n  <exchDlvCst>7000</exchDlvCst>\n"
+				+ "  <asDetail><![CDATA[상품 상세설명 참조]]></asDetail>\n  <rtngExchDetail><![CDATA[상품 상세설명 참조]]></rtngExchDetail>\n</Product>");
+		}
+		// 출고지/반품지 주소 시퀀스코드(판매자 실계정: 출고지 5=미국, 반품지 3=국내)
+		for (String t : new String[] {"addrSeqOut", "addrSeqIn", "outsideYnOut", "outsideYnIn"}) {
+			out = out.replaceAll("(?s)<" + t + "[^>]*>.*?</" + t + ">", "").replaceAll("<" + t + "\\s*/>", "");
+		}
+		out = out.replace("</Product>",
+			"\n  <addrSeqOut>5</addrSeqOut>\n  <addrSeqIn>3</addrSeqIn>\n  <outsideYnOut>Y</outsideYnOut>\n  <outsideYnIn>N</outsideYnIn>\n</Product>");
+		return out;
 	}
 
 	private String buildProductXml(Product product) {

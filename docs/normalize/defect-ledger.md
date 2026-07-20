@@ -1378,3 +1378,15 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 사용자 통찰: 11번가가 등록 후 일부 필드를 필수로 승격 → 홈페이지 수정에서도 동일 에러. 기본값으로 채워 성공시키는 방식 채택.
 - buildProductXml에 기본값 추가: selMthdCd=01(고정가), prdTypCd=01(일반배송), rmaterialTypCd=05(원산지 상세설명참조), minorSelCnYn=N, suplDtyfrPrdClfCd=01(과세), dlvClf=02(업체배송), dlvCnAreaCd=01(전국), dlvWyCd=01(택배), dlvEtprsCd=00034(CJ대한통운·사용자지정), asDetail=., rtngExchDetail=.
 - **한계/권고**: 전체 덮어쓰기라 기본값이 기존 택배사·배송비·AS안내를 덮어쓸 위험. 견고한 해법은 **상품수정 전문과 동일한 전체 필드를 돌려주는 11번가 상품상세조회 API로 round-trip**(이미지만 교체·나머지 원값 보존). 다중/신규/셀러조회는 요약이라 인증/고시/주소코드 부재 → 11번가 고객센터에 전체 편집전문 조회 API 문의 권고. 그때까지 기본값으로 진행하며 다음 에러(고시/인증/주소코드 등) 시 추가 대응.
+
+### D-092 11번가 라운드트립 불가 원인 분석 (2026-07-20)
+- 배송비 기본값 후 다음 에러: "출고지 주소를 확인해주세요"(addrSeqOut 필수) — 예측한 주소코드 벽 도달.
+- **신규상품조회(전체조회)로 부족한 이유**: 상품수정=등록과 동일 전체전문(수십필드) 요구. 신규상품조회는 요약이라 상품수정 필수필드 중 미제공: prdImage(우리가새로넣음), brand/prdSelQty(우리DB), 판매방식/유형/원재료/부가세/배송비종류/택배사(기본값가능) — **그러나 addrSeqOut/addrSeqIn(출고지·반품지 주소코드=판매자실제값), ProductCertGroup/Cert(인증), ProductNotification(고시), ProductOption(옵션)은 조회 안 되고 기본값도 위험**(실제 배송지·법적고시·옵션 훼손).
+- **결론**: 11번가엔 상품수정 전문과 동일한 전체 편집전문을 돌려주는 조회 API가 없음(신규/다중/셀러조회 모두 요약). 라운드트립 근본 불가.
+- **가능 경로**: (a) 주소코드는 판매자레벨 1값 → 출고지/반품지 주소조회 API로 획득 or 셀러 제공(벽 아님). (b) 인증/고시는 카테고리 표준 기본값(건강식품)으로 defaultable하나 규정리스크. (c) 옵션상품이면 옵션 소실 → 옵션 보존 불가면 대표이미지 자동수정 포기. (d) 근본해법=등록시 전체전문을 우리DB에 저장→수정시 재사용(기존상품은 데이터 없음). → 11번가 고객센터에 "상품수정용 전체 편집전문 조회 API 유무" 문의 권고.
+
+### D-092 11번가 buying-agent 라운드트립 이식 (2026-07-20, 결정적 해법)
+- **형제 프로젝트 buying-agent에 검증된 완성 구현 발견**(사용자 제보). 핵심: 상품수정 전체XML 조회 엔드포인트는 **`GET /rest/prodmarketservice/prodmarket/{prdNo}`(신규상품조회)** — 이게 현재 전체 전문(옵션·카테고리·인증·고시 포함) 반환. 우리가 쓰던 `/rest/prodservices/productinfo/`(-997)는 폐기 경로였음.
+- **이식**: sbshop `ElevenstMarketClient.syncImagesAndHtml`을 buildProductXml 재구성 → **GET 라운드트립 + 누락 필수필드 주입**으로 교체. GET 전문에서 htmlDetail·prdImage01~05 정규식 치환 + 주입: dlvEtprsCd=00034(CJ), rmaterialTypCd=03+ProductRmaterial, selMthdCd=01, 원산지(orgnTypCd=02 미국/1405), 배송·반품(dlvCstInstBasiCd=01·dlvCstPayTypCd=03·bndlDlvCnYn=N·rtngd/exchDlvCst=7000·asDetail·rtngExchDetail), **주소코드 addrSeqOut=5(미국 출고지)·addrSeqIn=3(국내 반품지)·outsideYnOut=Y·outsideYnIn=N**(판매자 실계정값). 메타태그(message/validateMsg/nResult) 제거. 성공=resultCode 200/210.
+- 옵션·카테고리·인증·고시는 GET 전문에 있는 원값 보존(재구성 방식의 소실 문제 해결). buildProductXml은 publish(등록) 전용으로 잔존.
+- 테스트: Elevenst 2개 재작성(GET 라운드트립·주소코드 주입·메타제거·resultCode 성공판정). 잔여: 인터페이스의 Product 인자는 이제 미사용(GET 방식) — 정리 후보.

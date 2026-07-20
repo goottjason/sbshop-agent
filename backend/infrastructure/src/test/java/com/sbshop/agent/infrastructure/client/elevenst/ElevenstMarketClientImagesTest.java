@@ -4,14 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.infrastructure.client.elevenst.adapter.ElevenstMarketClient;
 import com.sbshop.agent.infrastructure.client.elevenst.client.ElevenstMarketRestClient;
-import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,38 +21,36 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * D-092: ElevenstMarketClient.syncImagesAndHtml — buildProductXml 재구성 상품수정 PUT 경로 테스트.
+ * D-092: ElevenstMarketClient.syncImagesAndHtml — 전체전문 GET 라운드트립 경로 테스트.
  */
 @ExtendWith(MockitoExtension.class)
 class ElevenstMarketClientImagesTest {
 
     @Mock private ElevenstMarketRestClient restClient;
-    @Mock private Product product;
 
     private ElevenstMarketClient client;
     private Map<String, Object> raw;
+
+    private static final String CURRENT_XML = "<?xml version=\"1.0\" encoding=\"euc-kr\"?>"
+        + "<Product><prdNo>PRD9</prdNo>"
+        + "<prdImage01>http://old/rep.jpg</prdImage01>"
+        + "<htmlDetail><![CDATA[<p>old</p>]]></htmlDetail></Product>";
 
     @BeforeEach
     void setUp() {
         client = new ElevenstMarketClient(restClient);
         raw = new HashMap<>();
         raw.put("prdNo", "PRD9");
-        lenient().when(product.getProductName()).thenReturn("상품명");
-        lenient().when(product.getBaseName()).thenReturn("base");
-        lenient().when(product.getBrand()).thenReturn("브랜드");
-        lenient().when(product.getSalePrice()).thenReturn(new BigDecimal("10000"));
-        lenient().when(product.getStock()).thenReturn(99);
-        lenient().when(product.getHostedImages()).thenReturn(List.of("u0"));
-        lenient().when(product.getDetailHtml()).thenReturn("<p>hi</p>");
     }
 
     @Test
-    @DisplayName("성공 응답 → 상품수정 PUT + 상세HTML CDATA 포함 전문 전송")
-    void successCallsProductUpdateWithCdata() {
+    @DisplayName("성공(resultCode 200) → 상세HTML CDATA 포함 전문 PUT")
+    void successPutsUpdatedXmlWithCdata() {
+        when(restClient.get(eq("/rest/prodmarketservice/prodmarket/PRD9"))).thenReturn(CURRENT_XML);
         when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString()))
             .thenReturn("<ClientMessage><resultCode>200</resultCode></ClientMessage>");
 
-        client.syncImagesAndHtml(product, "PRD9", raw, List.of("u0"), "<p>hi</p>");
+        client.syncImagesAndHtml(null, "PRD9", raw, List.of("u0"), "<p>hi</p>");
 
         ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
         verify(restClient).put(eq("/rest/prodservices/product/PRD9"), body.capture());
@@ -63,12 +58,13 @@ class ElevenstMarketClientImagesTest {
     }
 
     @Test
-    @DisplayName("상품수정 ERROR 응답 → RuntimeException 발생")
+    @DisplayName("PUT 실패 응답(200/210 아님) → RuntimeException")
     void errorResponseThrowsRuntimeException() {
+        when(restClient.get(eq("/rest/prodmarketservice/prodmarket/PRD9"))).thenReturn(CURRENT_XML);
         when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString()))
-            .thenReturn("<resultCode>ERROR</resultCode><message>실패</message>");
+            .thenReturn("<ClientMessage><resultCode>500</resultCode></ClientMessage>");
 
-        assertThatThrownBy(() -> client.syncImagesAndHtml(product, "PRD9", raw, List.of("u0"), "<p>hi</p>"))
+        assertThatThrownBy(() -> client.syncImagesAndHtml(null, "PRD9", raw, List.of("u0"), "<p>hi</p>"))
             .isInstanceOf(RuntimeException.class);
     }
 }
