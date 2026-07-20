@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -60,29 +61,29 @@ class CoupangMarketClientImagesTest {
     }
 
     @Test
-    @DisplayName("items 존재 → marketItemId 경로로 PUT + 승인요청(/approvals) 호출")
-    void syncImagesAndHtml_withItems_putsThenSubmitsApproval() {
+    @DisplayName("D-092: items 존재 → id 없는 base로 PUT(requested=true), /approvals 미호출")
+    void syncImagesAndHtml_withItems_putsWithRequestedTrue() {
         Map<String, Object> firstItem = new HashMap<>();
         Map<String, Object> raw = new HashMap<>();
         raw.put("items", List.of(firstItem));
 
         client.syncImagesAndHtml("305", raw, List.of("u0", "u1"), "<html>");
 
-        InOrder order = inOrder(restClient);
-        order.verify(restClient).put(eq(BASE_PATH), any());
-        order.verify(restClient).put(eq(BASE_PATH + "/305/approvals"), eq(java.util.Map.of()));
+        verify(restClient).put(eq(BASE_PATH), any());
+        // 별도 승인요청 API는 임시저장 전용 → 편집 경로에선 호출하지 않는다.
+        verify(restClient, never()).put(eq(BASE_PATH + "/305/approvals"), any());
     }
 
     @Test
-    @DisplayName("승인요청 PUT(/approvals) 을 반드시 호출한다 (임시저장 버그 회귀 가드)")
-    void syncImagesAndHtml_alwaysSubmitsApproval() {
+    @DisplayName("D-092: PUT 바디에 requested=true 를 넣어 자동 승인요청(임시저장 방지)")
+    void syncImagesAndHtml_setsRequestedTrue() {
         Map<String, Object> firstItem = new HashMap<>();
         Map<String, Object> raw = new HashMap<>();
         raw.put("items", List.of(firstItem));
 
         client.syncImagesAndHtml("305", raw, List.of("u0"), "<html>");
 
-        verify(restClient).put(eq(BASE_PATH + "/305/approvals"), eq(java.util.Map.of()));
+        assertThat(raw.get("requested")).isEqualTo(true);
     }
 
     @Test
@@ -104,7 +105,7 @@ class CoupangMarketClientImagesTest {
         InOrder order = inOrder(restClient);
         order.verify(restClient).get(eq(BASE_PATH + "/305"));
         order.verify(restClient).put(eq(BASE_PATH), any());
-        order.verify(restClient).put(eq(BASE_PATH + "/305/approvals"), eq(java.util.Map.of()));
+        verify(restClient, never()).put(eq(BASE_PATH + "/305/approvals"), any());
     }
 
     @Test
@@ -123,7 +124,8 @@ class CoupangMarketClientImagesTest {
         client.syncImagesAndHtml("305", null, List.of("u0"), "<html>");
 
         verify(restClient).get(eq(BASE_PATH + "/305"));
-        verify(restClient).put(eq(BASE_PATH + "/305/approvals"), eq(java.util.Map.of()));
+        verify(restClient).put(eq(BASE_PATH), any());
+        verify(restClient, never()).put(eq(BASE_PATH + "/305/approvals"), any());
     }
 
     @Test

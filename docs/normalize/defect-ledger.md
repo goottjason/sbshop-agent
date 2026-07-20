@@ -1343,3 +1343,16 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
   - 쿠팡: `syncImagesAndHtml` 상품수정 PUT을 id 없는 base(`.../seller-products`)로, 승인은 `.../seller-products/{id}/approvals` 유지(GET/DELETE는 id경로 유지). `CoupangMarketClientImagesTest` 수정 PUT 어서션을 no-id로 정정.
   - 11번가: GET을 `productinfo`→`product`(‑997 해소 시도), GET/PUT 에러가드에 AuthMessage/‑997/JAXBException/`!<Product>` 추가(가짜성공 차단). `ElevenstMarketClient*Test` mock 경로 product로 정정 + 신규 `throwsWhenGetReturnsAuthError`.
   - 계측 [D092] 유지(라이브 재검증용). 전체 `./gradlew test` 통과. 스토어(Naver 업로드)·옥션(ESM)은 다음 라운드/코드밖.
+
+### D-092 라이브 재검증 (2026-07-20, 쿠팡+11번가 1차 수정 배포 후)
+- **쿠팡**: 404 PRECONDITION_FAILED **해소**(id 없는 PUT 성공). 그러나 새 사실 2개 — ① 상품수정 PUT resp `{"code":"SUCCESS", message:"필수 구매 옵션이 존재하지 않습니다/유효하지 않은 구매 옵션..."}` (라운드트립 payload의 구매옵션 검증 경고), ② 승인요청 resp `{"code":"ERROR","message":"'임시저장' 상태의 상품만 승인 요청 가능합니다."}` → **이미 승인/판매중 상품 수정엔 `/approvals`가 부적합**. 쿠팡 승인상품 수정 플로우(부분수정 API or 자동 승인대기 전환) 확인 필요. 이미지 실제 반영 여부 미정(승인대기 지연 가능성).
+- **11번가**: 에러가드 수정 성공 — 이제 가짜성공 없이 `failed`로 정직하게 잡힘. 그러나 `/rest/prodservices/product/{prdNo}`도 `/productinfo`와 동일하게 **-997 "등록된 API 정보가 존재하지 않습니다"** → 상품조회 API가 해당 openapikey에 미등록/미허용(계정측). 주문·상세수정 API는 정상. **코드밖(11번가 셀러 API 설정) 가능성 높음** — 셀러오피스에서 상품조회 API 활성화 or 올바른 조회 엔드포인트/인증 확인 필요.
+- 스토어: 미착수(Naver 이미지업로드 신규). 옥션: Cafe24 ESM 설정(코드밖).
+- 다음: 쿠팡 승인상품 수정·승인 플로우 확정(문서/셀러오피스), 11번가 -997 계정측 해소. 확정 후 2차 수정.
+
+### D-092 2차 확정 (2026-07-20, 사용자 제공 문서 기반)
+- **쿠팡 근본원인 확정(문서 `쿠팡상품수정(승인필요).pdf`)**: 상품수정(승인필요) = `PUT .../seller-products`(id無), body에 **`requested` 필드**. `false`(기본)=임시저장, `true`=저장+자동승인요청. 우리 코드는 GET한 rawData 그대로 PUT→requested 부재→**임시저장으로 떨어짐**(11583618874 임시저장 재현). 별도 `/approvals`("상품 승인 요청")는 임시저장 전용이라 승인상품 편집엔 부적합.
+  - **수정**: `rawData.put("requested", true)` + `/approvals` 호출 제거. 테스트 정정(requested=true 검증, approvals never). `:infrastructure:test` 통과. 라이브 재검증 대기.
+  - **잔여 리스크**: PUT resp에 "유효하지 않은 구매 옵션 값/단위(개당 용량/중량/정)" 경고 동반. 문서 Error Spec의 "Invalid Attribute Value(s)" — 라운드트립 attributes가 카테고리 메타와 불일치 가능. requested=true로 승인요청돼도 쿠팡 심사에서 attribute 반려 가능성 → 라이브 확인 필요.
+- **11번가 상품조회 문서(`11번가-상품조회.pdf`)**: 제공된 건 **셀러상품조회**(`GET /rest/prodmarketservice/sellerprodcode/{sellerprdcd}`, 판매자상품코드로 조회, **제한 필드만**: prdNo/selStatCd/selPrc 등). 상품수정(전체XML 덮어쓰기)에 필요한 전체 상품 XML은 **신규상품조회/다중상품조회**(미제공). 현재 `/rest/prodservices/productinfo/`·`/product/` 둘 다 -997 → 폐기 추정. **필요**: 신규상품조회 or 다중상품조회 문서(전체 XML 반환 엔드포인트), 또는 우리 DB에서 전체 XML 재구성 방식. 에러가드 수정으로 현재는 정직하게 failed 처리됨.
+- 상태: 쿠팡 2차수정 배포·재검증 대기. 11번가 전체조회 엔드포인트 확정 대기. 스토어(Naver 이미지업로드)·옥션(ESM) 미착수.

@@ -282,9 +282,12 @@ public class CoupangMarketClient implements MarketClient {
 			firstItem.put("contents", contents);
 		}
 
-		// D-092: 쿠팡 상품수정은 id 없는 base에 PUT(sellerProductId는 바디). publish POST 경로와 동일.
+		// D-092: 쿠팡 상품수정(승인필요)은 id 없는 base에 PUT(sellerProductId는 바디). publish POST 경로와 동일.
 		// (id 포함 경로 `.../seller-products/{id}`는 GET/DELETE 전용 → PUT 시 404 PRECONDITION_FAILED.)
+		// requested=true 를 넣어야 저장 후 자동 판매승인요청까지 진행된다(문서: false면 임시저장에 머묾).
+		// 별도 `/approvals`(상품 승인 요청) API는 임시저장 상품 전용이라 승인상품 편집엔 부적합 → 제거.
 		String base = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
+		rawData.put("requested", true);
 		try {
 			String putBody = objectMapper.writeValueAsString(rawData);
 			log.info("[D092][쿠팡] 상품수정 PUT body (len={}): {}", putBody.length(),
@@ -292,15 +295,7 @@ public class CoupangMarketClient implements MarketClient {
 		} catch (Exception ignore) { /* 로깅 실패 무시 */ }
 		String putResp = restClient.put(base, rawData);
 		log.info("[D092][쿠팡] 상품수정 PUT resp: {}", putResp);
-		log.info("[쿠팡] 이미지/HTML 동기화 완료: {}", marketItemId);
-		// 상품 수정(PUT)만으로는 "임시저장/수정중" 상태에 머문다. 반드시 승인요청을 별도 호출해야 반영된다.
-		// (등록 경로는 POST requested(true)로 자동 제출하지만, 수정 경로에는 이 호출이 필요하다.)
-		// 무바디 PUT은 JDK HttpClient가 Content-Length를 안 보내 Akamai가 411을 반환한다(같은 파일 가격/재고 관습).
-		// 쿠팡이 무시하는 빈 JSON({})을 바디로 보내 Content-Length를 강제한다.
-		// 승인요청은 상품 식별자(sellerProductId)가 경로에 필요하다: .../seller-products/{id}/approvals
-		String approvalResp = restClient.put(base + "/" + marketItemId + "/approvals", java.util.Map.of());
-		log.info("[D092][쿠팡] 승인요청 resp: {}", approvalResp);
-		log.info("[쿠팡] 이미지/HTML 수정 후 승인요청 완료: {}", marketItemId);
+		log.info("[쿠팡] 이미지/HTML 동기화 완료(requested=true 자동승인요청): {}", marketItemId);
 		return rawData;
 	}
 }
