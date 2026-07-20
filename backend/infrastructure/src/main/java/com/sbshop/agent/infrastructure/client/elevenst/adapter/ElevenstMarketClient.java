@@ -107,90 +107,25 @@ public class ElevenstMarketClient implements MarketClient {
 	}
 
 	@Override
-	public Map<String, Object> syncImagesAndHtml(String marketItemId, Map<String, Object> currentRawData,
-		List<String> hostedImages, String newDetailHtml) {
-		// 상세HTML(임베드 이미지 포함)은 상세설명수정 전용 API로 반영한다.
-		// 대표이미지(prdImage01)는 개별 필드 수정 API가 없어, 상품수정(PUT) 전체전문이 필요하다.
-		// → 현재 상품 전문을 GET(productinfo)으로 조회해 prdImage01~04만 덮어쓰는 라운드트립 패턴으로 반영한다.
-
-		// 1) 대표이미지 반영: 상품 전체전문 라운드트립 수정
-		if (hostedImages != null && !hostedImages.isEmpty()) {
-			try {
-				// D-092: 상품 전문 조회는 `product` GET. `productinfo`는 -997(등록된 API 정보 없음) 인증에러 반환.
-				String current = restClient.get("/rest/prodservices/product/" + marketItemId);
-				log.info("[D092][11번가] product GET (len={}): {}", current == null ? -1 : current.length(),
-					current == null ? "null" : current.substring(0, Math.min(current.length(), 3000)));
-				// D-092: -997/AuthMessage/비-상품 응답을 실패로 걸러 가짜성공(에러XML PUT→JAXBException을 완료로 오기록) 차단.
-				if (current == null || current.contains("ERROR") || current.contains("resultCode>500")
-					|| current.contains("AuthMessage") || current.contains("등록된 API 정보가 존재하지 않습니다")
-					|| !current.contains("<Product>")) {
-					throw new RuntimeException("[Elevenst] 상품 전문 조회 실패: " + current);
-				}
-				String modified = applyRepresentativeImages(current, hostedImages);
-				log.info("[D092][11번가] 상품수정 PUT body prdImage 포함여부={}, body(len={}): {}",
-					modified.contains("<prdImage01>"), modified.length(),
-					modified.substring(0, Math.min(modified.length(), 3000)));
-				String modifyResponse = restClient.put("/rest/prodservices/product/" + marketItemId, modified);
-				log.info("[D092][11번가] 상품수정 PUT resp: {}", modifyResponse);
-				// D-092: JAXBException/AuthMessage 등 비정상 응답도 실패로 포착(가짜성공 차단).
-				if (modifyResponse == null || modifyResponse.contains("ERROR")
-					|| modifyResponse.contains("resultCode>500") || modifyResponse.contains("Exception")
-					|| modifyResponse.contains("AuthMessage")) {
-					throw new RuntimeException("[Elevenst] 대표이미지 수정 실패: " + modifyResponse);
-				}
-				log.info("[Elevenst] 대표이미지 재게시 완료: {} -> {}", marketItemId, hostedImages.get(0));
-			} catch (RuntimeException e) {
-				log.error("[Elevenst] 대표이미지 수정 실패: {}", e.getMessage());
-				throw e; // 실패 표면화(SP-A 원칙)
-			}
+	public Map<String, Object> syncImagesAndHtml(Product product, String marketItemId,
+		Map<String, Object> currentRawData, List<String> hostedImages, String newDetailHtml) {
+		// D-092: 11번가는 상품수정용 "전체 XML"을 조회로 얻을 수 없다(신규/셀러상품조회 모두 prdImage·brand·
+		// 인증 등 필수 다수 누락, productinfo는 -997 폐기). 상품수정=등록과 동일 전문 포맷이므로,
+		// 등록 때 쓰는 buildProductXml(Product+기본값으로 완전한 상품 XML 생성)을 재사용해 재구성 후 PUT한다.
+		// product는 재게시 직전 새 hostedImages·detailHtml로 갱신된 상태 → 대표이미지+상세HTML을 1회 PUT로 반영.
+		String xml = buildProductXml(product);
+		log.info("[D092][11번가] 상품수정 PUT body prdImage포함={}, htmlDetail포함={}, body(len={}): {}",
+			xml.contains("<prdImage01>"), xml.contains("<htmlDetail>"), xml.length(),
+			xml.substring(0, Math.min(xml.length(), 3000)));
+		String resp = restClient.put("/rest/prodservices/product/" + marketItemId, xml);
+		log.info("[D092][11번가] 상품수정 PUT resp: {}", resp);
+		// 성공은 ClientMessage resultCode 200(일반)/210(신규). ERROR/500/Exception/AuthMessage/동일-거부는 실패.
+		if (resp == null || resp.contains("ERROR") || resp.contains("resultCode>500")
+			|| resp.contains("Exception") || resp.contains("AuthMessage")) {
+			throw new RuntimeException("[Elevenst] 상품수정(이미지/상세) 실패: " + resp);
 		}
-
-		// 2) 상세HTML 반영: 상세설명수정 전용 API
-		String xml = "<?xml version=\"1.0\" encoding=\"euc-kr\"?>"
-			+ "<ProductDetailCont>"
-			+ "<prdDescContClob><![CDATA[" + (newDetailHtml == null ? "" : newDetailHtml) + "]]></prdDescContClob>"
-			+ "</ProductDetailCont>";
-		String response = restClient.post("/rest/prodservices/updateProductDetailCont/" + marketItemId, xml);
-		log.info("[D092][11번가] 상세설명 POST resp: {}", response);
-		// "기존데이터와 동일합니다"는 상세HTML이 이미 최신이라는 뜻 → 무변경(no-op)이므로 성공으로 간주한다.
-		// (11번가는 동일 내용 재전송을 resultCode 500으로 거부한다. 이를 실패로 던지면 이미 성공한
-		//  대표이미지 재게시까지 전체 재게시가 failed로 수집되는 문제가 생긴다.)
-		if (response != null && response.contains("동일")) {
-			log.info("[Elevenst] 상세HTML 무변경(기존과 동일) — 스킵: {}", marketItemId);
-			return currentRawData;
-		}
-		if (response == null || response.contains("ERROR") || response.contains("resultCode>500")) {
-			throw new RuntimeException("[Elevenst] 상세설명 수정 실패: " + response);
-		}
-		log.info("[Elevenst] 상세HTML 재게시 완료: {}", marketItemId);
+		log.info("[Elevenst] 이미지/상세HTML 재게시 완료(상품수정 전문 재구성): {}", marketItemId);
 		return currentRawData;
-	}
-
-	/**
-	 * 11번가 상품 전체전문(productinfo GET 결과)에서 대표이미지 필드(prdImage01~04)만
-	 * 새 호스팅 이미지 URL로 덮어써서 상품수정(PUT)용 전문으로 반환한다.
-	 * 나머지 필수 필드는 조회 전문 그대로 보존한다(라운드트립).
-	 *
-	 * @param currentXml productinfo GET 응답 전문
-	 * @param images 호스팅된 이미지 URL(0번=대표, 이후 03/04)
-	 * @return prdImage01~04가 갱신된 상품수정 전문
-	 */
-	private String applyRepresentativeImages(String currentXml, List<String> images) {
-		String xml = currentXml;
-		for (int i = 0; i < 4; i++) {
-			String tag = "prdImage0" + (i + 1);
-			String value = i < images.size() ? images.get(i) : null;
-			if (value != null) {
-				// 기존 <prdImageNN>...</prdImageNN> 를 새 값으로 치환, 없으면 <Product> 바로 뒤에 삽입.
-				String replacement = "<" + tag + ">" + value + "</" + tag + ">";
-				if (xml.matches("(?s).*<" + tag + ">.*</" + tag + ">.*")) {
-					xml = xml.replaceAll("<" + tag + ">.*?</" + tag + ">", java.util.regex.Matcher.quoteReplacement(replacement));
-				} else if (xml.contains("<Product>")) {
-					xml = xml.replaceFirst("<Product>", java.util.regex.Matcher.quoteReplacement("<Product>" + replacement));
-				}
-			}
-		}
-		return xml;
 	}
 
 	private String buildProductXml(Product product) {

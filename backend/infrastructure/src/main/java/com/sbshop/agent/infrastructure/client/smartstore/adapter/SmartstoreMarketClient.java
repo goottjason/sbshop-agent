@@ -158,7 +158,8 @@ public class SmartstoreMarketClient implements MarketClient {
 	}
 
 	@Override
-	public Map<String, Object> syncImagesAndHtml(String marketItemId, Map<String, Object> currentRawData,
+	public Map<String, Object> syncImagesAndHtml(com.sbshop.agent.core.domain.product.Product product,
+		String marketItemId, Map<String, Object> currentRawData,
 		List<String> hostedImages, String newDetailHtml) {
 		try {
 			String response = restClient.get("/v2/products/origin-products/" + marketItemId);

@@ -149,7 +149,8 @@ public class Cafe24MarketClient implements MarketClient {
 	}
 
 	@Override
-	public Map<String, Object> syncImagesAndHtml(String marketItemId, Map<String, Object> currentRawData,
+	public Map<String, Object> syncImagesAndHtml(com.sbshop.agent.core.domain.product.Product product,
+		String marketItemId, Map<String, Object> currentRawData,
 		List<String> hostedImages, String newDetailHtml) {
 		Map<String, Object> descriptionRequestBody = new HashMap<>();
 		Map<String, Object> descriptionData = new HashMap<>();

@@ -3,14 +3,15 @@ package com.sbshop.agent.infrastructure.client.elevenst;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.infrastructure.client.elevenst.adapter.ElevenstMarketClient;
 import com.sbshop.agent.infrastructure.client.elevenst.client.ElevenstMarketRestClient;
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,121 +24,71 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * ElevenstMarketClient 대표이미지(prdImage01) 수정 테스트.
- * syncImagesAndHtml 가 상품수정(PUT /rest/prodservices/product/{prdNo}) 전문에
- * 새 호스팅 이미지 URL로 prdImage01 을 세팅해 전송하는지 검증한다.
+ * D-092: 11번가 대표이미지/상세HTML 재게시 테스트.
+ * 어떤 11번가 조회 API도 상품수정용 전체 XML을 반환하지 않으므로(신규/셀러상품조회 필드 누락, productinfo -997),
+ * 등록 때 쓰는 buildProductXml(Product)로 전체 상품 전문을 재구성해 상품수정 PUT
+ * (/rest/prodservices/product/{prdNo})으로 대표이미지+상세HTML을 한 번에 반영한다.
  */
 @ExtendWith(MockitoExtension.class)
 class ElevenstMarketClientRepresentativeImageTest {
 
     @Mock private ElevenstMarketRestClient restClient;
+    @Mock private Product product;
 
     private ElevenstMarketClient client;
     private Map<String, Object> raw;
-
-    // productinfo GET 이 돌려주는 현재 상품 전문(대표이미지 포함, 필수필드 다수 존재).
-    private static final String CURRENT_XML = "<?xml version=\"1.0\" encoding=\"euc-kr\"?>"
-        + "<Product>"
-        + "<prdNo>PRD9</prdNo>"
-        + "<prdNm>기존상품명</prdNm>"
-        + "<selPrc>10000</selPrc>"
-        + "<prdImage01>http://old/img1.jpg</prdImage01>"
-        + "<prdImage02>http://old/img2.jpg</prdImage02>"
-        + "<dlvSendCloseTmpltNo>682132</dlvSendCloseTmpltNo>"
-        + "</Product>";
 
     @BeforeEach
     void setUp() {
         client = new ElevenstMarketClient(restClient);
         raw = new HashMap<>();
-        raw.put("prdNo", "PRD9");
+        // product 는 재게시 직전 새 이미지·상세HTML로 갱신된 상태를 흉내낸다.
+        lenient().when(product.getProductName()).thenReturn("상품명");
+        lenient().when(product.getBaseName()).thenReturn("base");
+        lenient().when(product.getBrand()).thenReturn("브랜드");
+        lenient().when(product.getSalePrice()).thenReturn(new BigDecimal("10000"));
+        lenient().when(product.getStock()).thenReturn(99);
+        lenient().when(product.getHostedImages())
+            .thenReturn(List.of("http://new/rep.jpg", "http://new/img2.jpg"));
+        lenient().when(product.getDetailHtml()).thenReturn("<p>상세</p>");
     }
 
     @Test
-    @DisplayName("hostedImages 있음 → productinfo GET 후 PUT 전문에 새 prdImage01 세팅")
-    void updatesRepresentativeImageViaFullModify() {
-        when(restClient.get(eq("/rest/prodservices/product/PRD9"))).thenReturn(CURRENT_XML);
-        when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString())).thenReturn("<message>성공</message>");
-        when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"), contains("prdDescContClob")))
-            .thenReturn("<message>성공</message>");
+    @DisplayName("상품수정 PUT 전문에 새 prdImage01·htmlDetail 포함(buildProductXml 재구성)")
+    void putsRebuiltProductXmlWithNewImageAndDetail() {
+        when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString()))
+            .thenReturn("<ClientMessage><resultCode>200</resultCode></ClientMessage>");
 
-        client.syncImagesAndHtml("PRD9", raw, List.of("http://new/rep.jpg", "http://new/img2.jpg"), "<p>hi</p>");
+        client.syncImagesAndHtml(product, "PRD9", raw, List.of("http://new/rep.jpg"), "<p>상세</p>");
 
         ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
         verify(restClient).put(eq("/rest/prodservices/product/PRD9"), body.capture());
         String sent = body.getValue();
         assertThat(sent).contains("<prdImage01>http://new/rep.jpg</prdImage01>");
         assertThat(sent).contains("<prdImage02>http://new/img2.jpg</prdImage02>");
-        // 기존 대표이미지는 남지 않아야 한다.
-        assertThat(sent).doesNotContain("http://old/img1.jpg");
-        // 라운드트립: 필수 필드는 보존되어야 한다.
-        assertThat(sent).contains("<dlvSendCloseTmpltNo>682132</dlvSendCloseTmpltNo>");
-        assertThat(sent).contains("<selPrc>10000</selPrc>");
+        assertThat(sent).contains("<![CDATA[<p>상세</p>]]>");
     }
 
     @Test
-    @DisplayName("대표이미지 수정 + 상세HTML 수정 둘 다 호출")
-    void callsBothModifyAndDetailHtml() {
-        when(restClient.get(anyString())).thenReturn(CURRENT_XML);
-        when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString())).thenReturn("<message>성공</message>");
-        when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"), contains("prdDescContClob")))
-            .thenReturn("<message>성공</message>");
-
-        client.syncImagesAndHtml("PRD9", raw, List.of("http://new/rep.jpg"), "<p>hi</p>");
-
-        verify(restClient).put(eq("/rest/prodservices/product/PRD9"), anyString());
-        verify(restClient).post(eq("/rest/prodservices/updateProductDetailCont/PRD9"),
-            contains("<![CDATA[<p>hi</p>]]>"));
-    }
-
-    @Test
-    @DisplayName("hostedImages 비어있음 → 상품수정 PUT 미호출, 상세HTML만 수정")
-    void skipsRepresentativeImageWhenNoImages() {
-        when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"), contains("prdDescContClob")))
-            .thenReturn("<message>성공</message>");
-
-        client.syncImagesAndHtml("PRD9", raw, List.of(), "<p>hi</p>");
-
-        verify(restClient, never()).put(eq("/rest/prodservices/product/PRD9"), anyString());
-        verify(restClient, never()).get(anyString());
-        verify(restClient).post(eq("/rest/prodservices/updateProductDetailCont/PRD9"), anyString());
-    }
-
-    @Test
-    @DisplayName("상품 전문 조회 실패 → RuntimeException, PUT 미호출")
-    void throwsWhenProductInfoFetchFails() {
-        when(restClient.get(eq("/rest/prodservices/product/PRD9")))
-            .thenReturn("<resultCode>ERROR</resultCode><message>조회실패</message>");
-
-        assertThatThrownBy(() -> client.syncImagesAndHtml("PRD9", raw, List.of("http://new/rep.jpg"), "<p>hi</p>"))
-            .isInstanceOf(RuntimeException.class);
-
-        verify(restClient, never()).put(eq("/rest/prodservices/product/PRD9"), anyString());
-    }
-
-    @Test
-    @DisplayName("상품수정 PUT ERROR 응답 → RuntimeException")
-    void throwsWhenModifyFails() {
-        when(restClient.get(eq("/rest/prodservices/product/PRD9"))).thenReturn(CURRENT_XML);
+    @DisplayName("PUT ERROR 응답 → RuntimeException")
+    void throwsWhenPutFails() {
         when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString()))
             .thenReturn("<resultCode>ERROR</resultCode><message>수정실패</message>");
 
-        assertThatThrownBy(() -> client.syncImagesAndHtml("PRD9", raw, List.of("http://new/rep.jpg"), "<p>hi</p>"))
+        assertThatThrownBy(() ->
+            client.syncImagesAndHtml(product, "PRD9", raw, List.of("http://new/rep.jpg"), "<p>상세</p>"))
             .isInstanceOf(RuntimeException.class);
     }
 
     @Test
-    @DisplayName("D-092: GET이 AuthMessage(-997) 인증에러 → 상품데이터 아님으로 판정, RuntimeException·PUT 미호출(가짜성공 차단)")
-    void throwsWhenGetReturnsAuthError() {
-        // 라이브 확정: productinfo/product GET이 상품이 아니라 AuthMessage(-997)를 반환하면
-        // 과거엔 에러가드가 못 걸러 에러XML을 PUT→JAXBException을 "재게시 완료"로 오기록했다.
-        when(restClient.get(eq("/rest/prodservices/product/PRD9"))).thenReturn(
-            "<?xml version=\"1.0\" encoding=\"EUC-KR\"?><AuthMessage><resultCode>-997</resultCode>"
+    @DisplayName("D-092: AuthMessage(-997) 응답 → RuntimeException(가짜성공 차단)")
+    void throwsWhenAuthError() {
+        when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString()))
+            .thenReturn("<AuthMessage><resultCode>-997</resultCode>"
                 + "<resultMessage>등록된 API 정보가 존재하지 않습니다.</resultMessage></AuthMessage>");
 
-        assertThatThrownBy(() -> client.syncImagesAndHtml("PRD9", raw, List.of("http://new/rep.jpg"), "<p>hi</p>"))
+        assertThatThrownBy(() ->
+            client.syncImagesAndHtml(product, "PRD9", raw, List.of("http://new/rep.jpg"), "<p>상세</p>"))
             .isInstanceOf(RuntimeException.class);
-
-        verify(restClient, never()).put(eq("/rest/prodservices/product/PRD9"), anyString());
     }
 }

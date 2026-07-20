@@ -1,14 +1,17 @@
 package com.sbshop.agent.infrastructure.client.elevenst;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.infrastructure.client.elevenst.adapter.ElevenstMarketClient;
 import com.sbshop.agent.infrastructure.client.elevenst.client.ElevenstMarketRestClient;
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,16 +19,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * SP-C Task 3: ElevenstMarketClient 상세설명수정 API(updateProductDetailCont) 테스트.
+ * D-092: ElevenstMarketClient.syncImagesAndHtml — buildProductXml 재구성 상품수정 PUT 경로 테스트.
  */
 @ExtendWith(MockitoExtension.class)
 class ElevenstMarketClientImagesTest {
 
     @Mock private ElevenstMarketRestClient restClient;
+    @Mock private Product product;
 
     private ElevenstMarketClient client;
     private Map<String, Object> raw;
@@ -35,48 +40,35 @@ class ElevenstMarketClientImagesTest {
         client = new ElevenstMarketClient(restClient);
         raw = new HashMap<>();
         raw.put("prdNo", "PRD9");
+        lenient().when(product.getProductName()).thenReturn("상품명");
+        lenient().when(product.getBaseName()).thenReturn("base");
+        lenient().when(product.getBrand()).thenReturn("브랜드");
+        lenient().when(product.getSalePrice()).thenReturn(new BigDecimal("10000"));
+        lenient().when(product.getStock()).thenReturn(99);
+        lenient().when(product.getHostedImages()).thenReturn(List.of("u0"));
+        lenient().when(product.getDetailHtml()).thenReturn("<p>hi</p>");
     }
 
     @Test
-    @DisplayName("성공 응답 → post 호출 + CDATA HTML 포함 XML 전송")
-    void successCallsUpdateDetailContWithCdata() {
-        // 이미지 있음 → 대표이미지 상품수정(GET+PUT) 경유 후 상세HTML 수정
-        when(restClient.get(eq("/rest/prodservices/product/PRD9"))).thenReturn("<Product><prdNo>PRD9</prdNo></Product>");
-        when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString())).thenReturn("<message>성공</message>");
-        when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"),
-            contains("prdDescContClob"))).thenReturn("<Product/><message>성공</message>");
+    @DisplayName("성공 응답 → 상품수정 PUT + 상세HTML CDATA 포함 전문 전송")
+    void successCallsProductUpdateWithCdata() {
+        when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString()))
+            .thenReturn("<ClientMessage><resultCode>200</resultCode></ClientMessage>");
 
-        client.syncImagesAndHtml("PRD9", raw, List.of("u0"), "<p>hi</p>");
+        client.syncImagesAndHtml(product, "PRD9", raw, List.of("u0"), "<p>hi</p>");
 
-        verify(restClient).post(eq("/rest/prodservices/updateProductDetailCont/PRD9"),
-            contains("<![CDATA[<p>hi</p>]]>"));
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(restClient).put(eq("/rest/prodservices/product/PRD9"), body.capture());
+        assertThat(body.getValue()).contains("<![CDATA[<p>hi</p>]]>");
     }
 
     @Test
-    @DisplayName("상세HTML 수정 ERROR 응답 → RuntimeException 발생")
+    @DisplayName("상품수정 ERROR 응답 → RuntimeException 발생")
     void errorResponseThrowsRuntimeException() {
-        // 이미지 없음 → 대표이미지 경로 건너뛰고 상세HTML 수정만 수행(ERROR 응답으로 예외)
-        when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"),
-            contains("prdDescContClob"))).thenReturn("<resultCode>ERROR</resultCode><message>실패</message>");
+        when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString()))
+            .thenReturn("<resultCode>ERROR</resultCode><message>실패</message>");
 
-        assertThatThrownBy(() -> client.syncImagesAndHtml("PRD9", raw, List.of(), "<p>hi</p>"))
+        assertThatThrownBy(() -> client.syncImagesAndHtml(product, "PRD9", raw, List.of("u0"), "<p>hi</p>"))
             .isInstanceOf(RuntimeException.class);
-    }
-
-    @Test
-    @DisplayName("상세HTML '기존데이터와 동일' 500 응답은 무변경 성공으로 간주 — 예외 없음")
-    void detailUnchangedResponseIsTreatedAsSuccess() {
-        // 이미지 있음 → 대표이미지 수정 성공 후, 상세HTML은 동일 내용이라 11번가가 500 '동일'로 거부.
-        // 이는 무변경 no-op이므로 예외를 던지지 않고 성공으로 처리되어야 한다(대표이미지 재게시까지 실패로 묶이지 않도록).
-        when(restClient.get(eq("/rest/prodservices/product/PRD9"))).thenReturn("<Product><prdNo>PRD9</prdNo></Product>");
-        when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString())).thenReturn("<message>성공</message>");
-        when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"), contains("prdDescContClob")))
-            .thenReturn("<?xml version=\"1.0\"?><ProductDetailCont><resultCode>500</resultCode>"
-                + "<message>상품상세설명 수정 오류: 수정하려는 데이터가 기존데이터와 동일합니다.</message></ProductDetailCont>");
-
-        // 예외 없이 정상 반환되어야 한다.
-        client.syncImagesAndHtml("PRD9", raw, List.of("u0"), "<p>hi</p>");
-
-        verify(restClient).put(eq("/rest/prodservices/product/PRD9"), anyString());
     }
 }

@@ -23,7 +23,14 @@ public interface MarketClient {
 		int quantity,
 		boolean soldOut);
 
+	/**
+	 * 상품 이미지/상세HTML을 마켓에 재게시한다.
+	 *
+	 * @param product 원본 상품(D-092: 11번가 등 전체 상품 전문 재구성이 필요한 마켓이 buildProductXml 재사용).
+	 *                조회 API로 전체 편집 전문을 얻을 수 없는 마켓은 이 Product로 전문을 재구성한다.
+	 */
 	Map<String, Object> syncImagesAndHtml(
+		Product product,
 		String marketItemId,
 		Map<String, Object> currentRawData,
 		List<String> hostedImages,

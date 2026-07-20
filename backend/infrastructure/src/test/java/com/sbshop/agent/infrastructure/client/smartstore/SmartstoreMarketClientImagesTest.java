@@ -50,7 +50,7 @@ class SmartstoreMarketClientImagesTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
 
-        client.syncImagesAndHtml(ITEM_ID, new HashMap<>(), List.of("u0", "u1", "u2"), "<html>");
+        client.syncImagesAndHtml(null, ITEM_ID, new HashMap<>(), List.of("u0", "u1", "u2"), "<html>");
 
         verify(restClient).put(eq("/v2/products/origin-products/" + ITEM_ID), captor.capture());
         @SuppressWarnings("unchecked")
@@ -71,7 +71,7 @@ class SmartstoreMarketClientImagesTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
 
-        client.syncImagesAndHtml(ITEM_ID, new HashMap<>(), List.of("u0"), null);
+        client.syncImagesAndHtml(null, ITEM_ID, new HashMap<>(), List.of("u0"), null);
 
         verify(restClient).put(eq("/v2/products/origin-products/" + ITEM_ID), captor.capture());
         @SuppressWarnings("unchecked")
@@ -90,7 +90,7 @@ class SmartstoreMarketClientImagesTest {
         when(restClient.get(any())).thenThrow(new RuntimeException("네트워크 오류"));
 
         assertThatThrownBy(() ->
-            client.syncImagesAndHtml(ITEM_ID, new HashMap<>(), List.of("u0"), null)
+            client.syncImagesAndHtml(null, ITEM_ID, new HashMap<>(), List.of("u0"), null)
         ).isInstanceOf(RuntimeException.class)
          .hasMessageContaining("네트워크 오류");
     }

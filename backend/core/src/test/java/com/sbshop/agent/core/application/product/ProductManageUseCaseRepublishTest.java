@@ -99,7 +99,7 @@ class ProductManageUseCaseRepublishTest {
 
 		useCase.updateImagesAndHtml(PRODUCT_ID, files());
 
-		verify(coupangClient).syncImagesAndHtml(eq("CP123"), any(),
+		verify(coupangClient).syncImagesAndHtml(any(), eq("CP123"), any(),
 			eq(List.of("https://r2.dev/a.jpg")), eq("<new/>"));
 		verify(productWriter).save(product);
 	}
@@ -131,12 +131,12 @@ class ProductManageUseCaseRepublishTest {
 		when(marketClientRouter.hasClient(MarketType.CAFE24)).thenReturn(true);
 		when(marketClientRouter.getClient(MarketType.COUPANG)).thenReturn(coupangClient);
 		when(marketClientRouter.getClient(MarketType.CAFE24)).thenReturn(cafe24Client);
-		when(coupangClient.syncImagesAndHtml(any(), any(), anyList(), any()))
+		when(coupangClient.syncImagesAndHtml(any(), any(), any(), anyList(), any()))
 			.thenThrow(new RuntimeException("쿠팡 API 오류"));
 
 		useCase.updateImagesAndHtml(PRODUCT_ID, files());
 
-		verify(cafe24Client).syncImagesAndHtml(any(), any(), anyList(), any());
+		verify(cafe24Client).syncImagesAndHtml(any(), any(), any(), anyList(), any());
 		verify(productWriter).save(product);
 	}
 }

@@ -101,7 +101,7 @@ public class ProductManageUseCase {
 		log.info("상품 이미지 업데이트 완료: id={}, images={}", productId, hostedImages.size());
 
 		// D-049(결정②): 자사 DB/R2 갱신 후, 연동된 각 마켓에 이미지/HTML 자동 재게시.
-		return republishToMarkets(productId, hostedImages, newHtml);
+		return republishToMarkets(product, productId, hostedImages, newHtml);
 	}
 
 	/**
@@ -112,7 +112,8 @@ public class ProductManageUseCase {
 	 *       (한 마켓 실패가 나머지 마켓·자사 DB 갱신을 롤백하지 않도록).</li>
 	 * </ul>
 	 */
-	private MarketRepublishResult republishToMarkets(Long productId, List<String> hostedImages, String newHtml) {
+	private MarketRepublishResult republishToMarkets(Product product, Long productId,
+		List<String> hostedImages, String newHtml) {
 		List<MarketRegistration> registrations = marketRegistrationRepository.findByProductId(productId);
 		List<MarketType> synced = new ArrayList<>();
 		List<MarketType> skipped = new ArrayList<>();
@@ -137,7 +138,7 @@ public class ProductManageUseCase {
 				Map<String, Object> currentRawData = parseRawData(reg.getMarketDetailedInfo());
 
 				MarketClient client = marketClientRouter.getClient(marketType);
-				Map<String, Object> updated = client.syncImagesAndHtml(marketItemId, currentRawData, hostedImages, newHtml);
+				Map<String, Object> updated = client.syncImagesAndHtml(product, marketItemId, currentRawData, hostedImages, newHtml);
 
 				if (updated != null) {
 					reg.updateMarketDetailedInfo(objectMapper.writeValueAsString(updated));

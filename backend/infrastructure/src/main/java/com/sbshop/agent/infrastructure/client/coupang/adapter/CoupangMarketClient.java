@@ -233,7 +233,8 @@ public class CoupangMarketClient implements MarketClient {
 	}
 
 	@Override
-	public Map<String, Object> syncImagesAndHtml(String marketItemId, Map<String, Object> currentRawData,
+	public Map<String, Object> syncImagesAndHtml(com.sbshop.agent.core.domain.product.Product product,
+		String marketItemId, Map<String, Object> currentRawData,
 		List<String> hostedImages, String newDetailHtml) {
 		if (marketItemId == null || marketItemId.isBlank()) {
 			throw new IllegalStateException("쿠팡 sellerProductId(marketItemId) 없음 — 이미지 재게시 불가");

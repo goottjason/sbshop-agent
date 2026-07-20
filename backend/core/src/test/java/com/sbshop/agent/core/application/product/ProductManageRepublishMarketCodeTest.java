@@ -103,7 +103,7 @@ class ProductManageRepublishMarketCodeTest {
 		useCase.updateImagesAndHtml(PRODUCT_ID, files());
 
 		// extractMarketCode()는 SMART_STORE에서 originProductNo를 읽어야 함
-		verify(smartStoreClient).syncImagesAndHtml(eq("OP123"), any(),
+		verify(smartStoreClient).syncImagesAndHtml(any(), eq("OP123"), any(),
 			eq(List.of("https://r2.dev/a.jpg")), eq("<new/>"));
 	}
 
@@ -118,7 +118,7 @@ class ProductManageRepublishMarketCodeTest {
 
 		useCase.updateImagesAndHtml(PRODUCT_ID, files());
 
-		verify(elevenStreetClient).syncImagesAndHtml(eq("E11_999"), any(),
+		verify(elevenStreetClient).syncImagesAndHtml(any(), eq("E11_999"), any(),
 			eq(List.of("https://r2.dev/a.jpg")), eq("<new/>"));
 	}
 
@@ -135,7 +135,7 @@ class ProductManageRepublishMarketCodeTest {
 		useCase.updateImagesAndHtml(PRODUCT_ID, files());
 
 		// seller-products 엔드포인트는 sellerProductId가 필요 — vendorItemId를 넘기면 "data not found"
-		verify(coupangClient).syncImagesAndHtml(eq("11658784734"), any(),
+		verify(coupangClient).syncImagesAndHtml(any(), eq("11658784734"), any(),
 			eq(List.of("https://r2.dev/a.jpg")), eq("<new/>"));
 	}
 
@@ -150,7 +150,7 @@ class ProductManageRepublishMarketCodeTest {
 
 		useCase.updateImagesAndHtml(PRODUCT_ID, files());
 
-		verify(cafe24Client).syncImagesAndHtml(eq("CF456"), any(),
+		verify(cafe24Client).syncImagesAndHtml(any(), eq("CF456"), any(),
 			eq(List.of("https://r2.dev/a.jpg")), eq("<new/>"));
 	}
 
@@ -175,9 +175,9 @@ class ProductManageRepublishMarketCodeTest {
 		MarketRepublishResult result = useCase.updateImagesAndHtml(PRODUCT_ID, files());
 
 		// 코드 없는 SMART_STORE는 클라이언트 호출 없이 failed 수집
-		verify(smartStoreClient, never()).syncImagesAndHtml(any(), any(), anyList(), any());
+		verify(smartStoreClient, never()).syncImagesAndHtml(any(), any(), any(), anyList(), any());
 		// 코드 있는 ELEVEN_STREET는 정상 호출
-		verify(elevenStreetClient).syncImagesAndHtml(eq("E11_001"), any(), anyList(), any());
+		verify(elevenStreetClient).syncImagesAndHtml(any(), eq("E11_001"), any(), anyList(), any());
 		assertThat(result.failed()).containsKey(MarketType.SMART_STORE);
 		assertThat(result.synced()).contains(MarketType.ELEVEN_STREET);
 	}

@@ -67,7 +67,7 @@ class CoupangMarketClientImagesTest {
         Map<String, Object> raw = new HashMap<>();
         raw.put("items", List.of(firstItem));
 
-        client.syncImagesAndHtml("305", raw, List.of("u0", "u1"), "<html>");
+        client.syncImagesAndHtml(null, "305", raw, List.of("u0", "u1"), "<html>");
 
         verify(restClient).put(eq(BASE_PATH), any());
         // 별도 승인요청 API는 임시저장 전용 → 편집 경로에선 호출하지 않는다.
@@ -81,7 +81,7 @@ class CoupangMarketClientImagesTest {
         Map<String, Object> raw = new HashMap<>();
         raw.put("items", List.of(firstItem));
 
-        client.syncImagesAndHtml("305", raw, List.of("u0"), "<html>");
+        client.syncImagesAndHtml(null, "305", raw, List.of("u0"), "<html>");
 
         assertThat(raw.get("requested")).isEqualTo(true);
     }
@@ -100,7 +100,7 @@ class CoupangMarketClientImagesTest {
             new TypeReference<Map<String, Object>>() {});
         when(objectMapper.convertValue(eq(root.path("data")), any(TypeReference.class))).thenReturn(data);
 
-        client.syncImagesAndHtml("305", new HashMap<>(), List.of("u0"), "<html>");
+        client.syncImagesAndHtml(null, "305", new HashMap<>(), List.of("u0"), "<html>");
 
         InOrder order = inOrder(restClient);
         order.verify(restClient).get(eq(BASE_PATH + "/305"));
@@ -121,7 +121,7 @@ class CoupangMarketClientImagesTest {
             new TypeReference<Map<String, Object>>() {});
         when(objectMapper.convertValue(eq(root.path("data")), any(TypeReference.class))).thenReturn(data);
 
-        client.syncImagesAndHtml("305", null, List.of("u0"), "<html>");
+        client.syncImagesAndHtml(null, "305", null, List.of("u0"), "<html>");
 
         verify(restClient).get(eq(BASE_PATH + "/305"));
         verify(restClient).put(eq(BASE_PATH), any());
@@ -140,7 +140,7 @@ class CoupangMarketClientImagesTest {
         when(objectMapper.convertValue(eq(root.path("data")), any(TypeReference.class)))
             .thenReturn(new HashMap<>());
 
-        assertThatThrownBy(() -> client.syncImagesAndHtml("305", new HashMap<>(), List.of("u0"), "<html>"))
+        assertThatThrownBy(() -> client.syncImagesAndHtml(null, "305", new HashMap<>(), List.of("u0"), "<html>"))
             .isInstanceOf(IllegalStateException.class);
     }
 
@@ -151,7 +151,7 @@ class CoupangMarketClientImagesTest {
         Map<String, Object> raw = new HashMap<>();
         raw.put("items", List.of(firstItem));
 
-        assertThatThrownBy(() -> client.syncImagesAndHtml("", raw, List.of("u0"), "<html>"))
+        assertThatThrownBy(() -> client.syncImagesAndHtml(null, "", raw, List.of("u0"), "<html>"))
             .isInstanceOf(IllegalStateException.class);
     }
 
@@ -162,7 +162,7 @@ class CoupangMarketClientImagesTest {
         Map<String, Object> raw = new HashMap<>();
         raw.put("items", List.of(firstItem));
 
-        client.syncImagesAndHtml("305", raw, List.of("u0", "u1"), "<html>");
+        client.syncImagesAndHtml(null, "305", raw, List.of("u0", "u1"), "<html>");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> images = (List<Map<String, Object>>) firstItem.get("images");

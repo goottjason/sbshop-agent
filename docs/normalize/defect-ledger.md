@@ -1356,3 +1356,15 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
   - **잔여 리스크**: PUT resp에 "유효하지 않은 구매 옵션 값/단위(개당 용량/중량/정)" 경고 동반. 문서 Error Spec의 "Invalid Attribute Value(s)" — 라운드트립 attributes가 카테고리 메타와 불일치 가능. requested=true로 승인요청돼도 쿠팡 심사에서 attribute 반려 가능성 → 라이브 확인 필요.
 - **11번가 상품조회 문서(`11번가-상품조회.pdf`)**: 제공된 건 **셀러상품조회**(`GET /rest/prodmarketservice/sellerprodcode/{sellerprdcd}`, 판매자상품코드로 조회, **제한 필드만**: prdNo/selStatCd/selPrc 등). 상품수정(전체XML 덮어쓰기)에 필요한 전체 상품 XML은 **신규상품조회/다중상품조회**(미제공). 현재 `/rest/prodservices/productinfo/`·`/product/` 둘 다 -997 → 폐기 추정. **필요**: 신규상품조회 or 다중상품조회 문서(전체 XML 반환 엔드포인트), 또는 우리 DB에서 전체 XML 재구성 방식. 에러가드 수정으로 현재는 정직하게 failed 처리됨.
 - 상태: 쿠팡 2차수정 배포·재검증 대기. 11번가 전체조회 엔드포인트 확정 대기. 스토어(Naver 이미지업로드)·옥션(ESM) 미착수.
+
+### D-092 11번가 조회 문서 분석 (2026-07-20)
+- **신규상품조회**(`GET /rest/prodmarketservice/prodmarket/{prdNo}`) 응답에 htmlDetail·selPrc 등은 있으나 **prdImage01·brand·prdTypCd·hsCode·ProductCert 등 상품수정 필수 다수 누락** = 편집용 전체 XML 아님. 셀러상품조회도 제한필드. → **어떤 11번가 조회도 상품수정용 전체 XML을 반환하지 않음.** productinfo(-997)는 폐기.
+- **결론**: 11번가 대표이미지는 라운드트립(조회→수정) 불가. `buildProductXml`(publish 등록 시 사용, Product 7필드+하드코딩 기본값으로 완전한 등록XML 생성 → 등록 성공 실증)을 **재사용**해 새 hostedImages로 전체 XML 재구성 후 PUT하는 방식이 정답(상품수정=등록과 동일 XML 포맷).
+- **필요 변경**: `MarketClient.syncImagesAndHtml`에 Product 전달(현재 marketItemId/rawData/images/html만) 또는 11번가 전용 경로. ProductManageUseCase는 이미 Product 보유. 크로스컷 인터페이스 변경 → 4개 클라이언트+UseCase+테스트. 사용자 확인 후 진행 예정.
+- 쿠팡 requested=true 수정 배포완료(9467fd8) — 라이브 재검증 대기(승인대기 전환·구매옵션 경고).
+
+### D-092 11번가 근본 수정 (2026-07-20, 사용자 승인)
+- **인터페이스 변경**: `MarketClient.syncImagesAndHtml`에 `Product` 첫 인자 추가(4개 클라이언트+`ProductManageUseCase.republishToMarkets`). ProductManageUseCase는 재게시 직전 새 이미지·상세HTML로 갱신된 product를 전달. Coupang/SmartStore/Cafe24는 인자만 추가·동작 불변.
+- **11번가 재작성**: 조회로 전체 편집 XML을 얻을 수 없으므로(신규/셀러상품조회 필드 누락·productinfo -997), 등록 때 쓰는 `buildProductXml(product)`(Product+기본값으로 완전한 상품 XML 생성, publish 등록 성공으로 완전성 실증)를 재사용해 재구성 → `PUT /rest/prodservices/product/{prdNo}`로 대표이미지+상세HTML을 1회에 반영. 기존 GET(productinfo/regex)·별도 상세POST 제거. 실패가드(ERROR/500/Exception/AuthMessage) 유지. 성공=ClientMessage resultCode 200/210.
+- 테스트: Elevenst 2개 테스트 재작성(buildProductXml PUT 전문에 새 prdImage01·htmlDetail 포함·에러 throw·AuthMessage throw), core republish 테스트 2개 mock 시그니처 보정(Product any() 추가), Coupang/SmartStore 테스트 null Product 인자.
+- 잔여 리스크: buildProductXml이 상품수정 필수필드 일부 누락 가능(dispCtgrNo·인증 등). 단 publish 등록이 같은 XML로 성공하므로 수용 추정 — 라이브 PUT 응답으로 최종 확인(누락 시 그 필드 보강). 상품수정은 전체 덮어쓰기라 라이브 첫 검증 신중.
