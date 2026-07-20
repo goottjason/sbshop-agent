@@ -173,6 +173,11 @@ public class ElevenstMarketClient implements MarketClient {
 		sb.append("<dlvEtprsCd>00034</dlvEtprsCd>");         // 발송택배사 CJ대한통운(기본값)
 		sb.append("<asDetail><![CDATA[.]]></asDetail>");     // AS안내(필수·빈값 불가)
 		sb.append("<rtngExchDetail><![CDATA[.]]></rtngExchDetail>"); // 반품/교환 안내(필수)
+		sb.append("<dlvCstInstBasiCd>01</dlvCstInstBasiCd>"); // 배송비 종류: 무료
+		sb.append("<bndlDlvCnYn>N</bndlDlvCnYn>");           // 묶음배송 불가
+		sb.append("<dlvCstPayTypCd>03</dlvCstPayTypCd>");    // 결제방법: 선결제
+		sb.append("<jejuDlvCst>0</jejuDlvCst>");             // 제주 추가배송비
+		sb.append("<islandDlvCst>0</islandDlvCst>");         // 도서산간 추가배송비
 		sb.append("</Product>");
 		return sb.toString();
 	}
