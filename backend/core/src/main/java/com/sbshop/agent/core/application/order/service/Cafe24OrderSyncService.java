@@ -322,8 +322,9 @@ public class Cafe24OrderSyncService {
 			return ShippingStatus.EXCHANGED;
 		}
 		return switch (c) {
-			case "N00", "N02" -> ShippingStatus.NEW;              // 입금전/주문접수중 = 결제완료(신규)
-			case "N10", "N20", "N21", "N22" -> ShippingStatus.PREPARING; // 상품준비중/배송준비중/배송대기/배송보류 = 구매준비
+			// D-088: N10(상품준비중)=발주확인 전(신규주문). 발주확인(acceptOrder)이 N20으로 올리므로 N10은 미확인 상태.
+			case "N00", "N02", "N10" -> ShippingStatus.NEW;       // 입금전/주문접수중/상품준비중(발주확인 전) = 신규
+			case "N20", "N21", "N22" -> ShippingStatus.PREPARING; // 배송준비중/배송대기/배송보류(발주확인 후) = 구매준비
 			case "N30" -> ShippingStatus.SHIPPED;                 // 배송중
 			case "N40", "N50" -> ShippingStatus.DELIVERED;        // 배송완료/구매확정
 			default -> {

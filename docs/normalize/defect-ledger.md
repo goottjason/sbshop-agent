@@ -1272,3 +1272,14 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 
 ### UX 개선(비결함, 동반 배포)
 - 배치 업데이트 진행바(D-082 동반), 상품관리 가격/재고 stockStatus 모달 시드, 통합주문 그리드 **구매/배송정보 셀 병합(rowSpan, 배송사/송장·계정/공급처/주문#/할인 stack) + 더블클릭 통합 인라인편집(택배사+송장 한 세트 1회 저장→마켓 1회 호출) + placeholder + 수정버튼/모달 제거**, 인라인 성공/실패 토스트.
+
+### D-088: 옥션/G마켓 신규주문(발주확인 전)이 "구매준비"로 오분류 — Cafe24 N10 매핑 오류
+- 심각도 P2 (오동작 — 주문상태 오표시, 운영자 발주확인 워크플로우 혼란) / 리스크 등급 표준(마켓 주문상태 계약) / 상태 수정완료·회귀통과(전체 ./gradlew test SUCCESS)·push대기 (2026-07-20 결과서 20260720_1028)
+- 라이브 확증(2026-07-20, /cafe24/preview): 주문 2566278285(cafe24_order_id 20260719-0000018, auction)의 실제 Cafe24 `order_status`=**N10**. 대조군 gmarket 4469254653=N20(발주확인 후, PREPARING 정상)·4469438260=N30(배송중, SHIPPED 정상). N10→PREPARING 오분류 100% 확정.
+- 신고: 주문 2566278285(서종수, 옥션)이 실제로는 신규주문(주문확인 전)인데 시스템은 "구매준비(PREPARING)"로 표시.
+- 위치: `backend/core/src/main/java/com/sbshop/agent/core/application/order/service/Cafe24OrderSyncService.java:326`
+- 근본원인: `mapStatus()`가 `case "N10", "N20", "N21", "N22" -> PREPARING`으로 **N10(상품준비중)을 발주확인 후 상태에 잘못 포함**. 그러나 같은 코드베이스의 발주확인 액션(`Cafe24OrderApiClient.java:67` `ACCEPT_STATUS="N20"`)이 발주확인의 *결과*를 N20으로 정의하므로 **N10=발주확인 전(신규주문)**이 논리적 필연. 옥션/G마켓은 결제완료 상태로 유입되어 Cafe24가 신규건에 N10을 부여 → NEW여야 할 건이 PREPARING으로 표시됨.
+- 모순 근거: `Cafe24OrderSyncService.java:326` + `Cafe24OrderSyncServiceTest.java:167`("N10=발주확인 후" 가정)이 `Cafe24OrderApiClient`의 발주확인 타깃(N20)과 정면충돌. 사용자 신고 증상이 오분류와 정확히 일치.
+- 수정계획(TDD): mapStatus에서 N10을 NEW 그룹으로 이동 — `case "N00","N02","N10" -> NEW`(발주확인 전), `case "N20","N21","N22" -> PREPARING`(발주확인 후). `Cafe24OrderSyncServiceTest`의 잘못된 기대값(line 167-168) 정정 + N10→NEW·N20→PREPARING 회귀 테스트 추가.
+- 유의: `Cafe24OrderApiClient.java:66` "상태코드 라이브 검증 대상" 주석 — N20 값 잠정. 다만 (신고증상 + 발주확인 타깃) 2독립근거로 진단 신뢰 높음. 라이브 확정은 주문 2566278285의 실제 Cafe24 order_status 조회로 확인 가능(프로덕션 read 승인 필요).
+- 영향: Cafe24OrderSyncService 단일 파일(core) + 테스트. 배포 후 기존 N10 상태로 저장된 옥션/G마켓 미확인 주문의 재동기화 시 자동 NEW 교정.

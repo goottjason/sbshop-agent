@@ -164,8 +164,8 @@ class Cafe24OrderSyncServiceTest {
 		verify(orderLineItemRepository, times(1)).save(itemCaptor.capture());
 		OrderLineItem item = itemCaptor.getValue();
 		assertThat(item.getQuantity()).isEqualTo(2);
-		// N10(상품준비중=발주확인 후) → PREPARING(구매준비). 절대 NEW(결제완료)가 아니다.
-		assertThat(item.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.PREPARING);
+		// D-088: N10(상품준비중)=발주확인 전(신규주문) → NEW. 발주확인(acceptOrder)이 N20으로 올리므로 N10은 미확인.
+		assertThat(item.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.NEW);
 	}
 
 	@Test
@@ -271,15 +271,28 @@ class Cafe24OrderSyncServiceTest {
 	}
 
 	@Test
-	@DisplayName("상태 매핑: N10→PREPARING(버그였음), N20→PREPARING, N30→SHIPPED, N40→DELIVERED, N00→NEW")
-	void mapsStatusCodes() throws Exception {
-		assertThat(statusForCode("N10")).isEqualTo(ShippingStatus.PREPARING);
+	@DisplayName("D-088: N10은 NEW(상품준비중=발주확인 전/신규주문). 라이브 확증: 옥션 2566278285")
+	void n10New() throws Exception {
+		// acceptOrder가 N20으로 올리므로 N10은 미확인 상태 → NEW. 과거 PREPARING 오분류(D-088) 회귀.
+		assertThat(statusForCode("N10")).isEqualTo(ShippingStatus.NEW);
 	}
 
 	@Test
-	@DisplayName("N20은 PREPARING")
+	@DisplayName("N20은 PREPARING(발주확인 후)")
 	void n20Preparing() throws Exception {
 		assertThat(statusForCode("N20")).isEqualTo(ShippingStatus.PREPARING);
+	}
+
+	@Test
+	@DisplayName("N21은 PREPARING(발주확인 후)")
+	void n21Preparing() throws Exception {
+		assertThat(statusForCode("N21")).isEqualTo(ShippingStatus.PREPARING);
+	}
+
+	@Test
+	@DisplayName("N22는 PREPARING(발주확인 후)")
+	void n22Preparing() throws Exception {
+		assertThat(statusForCode("N22")).isEqualTo(ShippingStatus.PREPARING);
 	}
 
 	@Test
@@ -321,7 +334,7 @@ class Cafe24OrderSyncServiceTest {
 		// createOrder(신규 save)로 가지 않고 기존 행 갱신 경로를 타야 한다: 신규 주문 save는 없음
 		verify(orderRepository, never()).save(org.mockito.ArgumentMatchers.argThat(
 			ord -> ord != existing));
-		// 라인아이템 상태가 N10 → PREPARING로 갱신
-		assertThat(li.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.PREPARING);
+		// D-088: 라인아이템 상태가 N10 → NEW(발주확인 전/신규)로 갱신
+		assertThat(li.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.NEW);
 	}
 }
