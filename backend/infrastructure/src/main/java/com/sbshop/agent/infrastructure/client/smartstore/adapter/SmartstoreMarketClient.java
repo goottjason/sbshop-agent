@@ -162,6 +162,8 @@ public class SmartstoreMarketClient implements MarketClient {
 		List<String> hostedImages, String newDetailHtml) {
 		try {
 			String response = restClient.get("/v2/products/origin-products/" + marketItemId);
+			log.info("[D092][스토어] origin-products GET (len={}): {}", response == null ? -1 : response.length(),
+				response == null ? "null" : response.substring(0, Math.min(response.length(), 3000)));
 			JsonNode originNode = objectMapper.readTree(response).path("originProduct");
 			Map<String, Object> originProduct = objectMapper.convertValue(originNode, Map.class);
 
@@ -177,7 +179,13 @@ public class SmartstoreMarketClient implements MarketClient {
 
 			Map<String, Object> requestBody = new HashMap<>();
 			requestBody.put("originProduct", originProduct);
-			restClient.put("/v2/products/origin-products/" + marketItemId, requestBody);
+			try {
+				log.info("[D092][스토어] PUT images={}, detailContent(len={})",
+					objectMapper.writeValueAsString(originProduct.get("images")),
+					newDetailHtml == null ? -1 : newDetailHtml.length());
+			} catch (Exception ignore) { /* 로깅 실패 무시 */ }
+			String putResp = restClient.put("/v2/products/origin-products/" + marketItemId, requestBody);
+			log.info("[D092][스토어] PUT resp: {}", putResp);
 
 			log.info("[Smartstore] 이미지/HTML 동기화 완료: {}", marketItemId);
 			if (currentRawData != null) {

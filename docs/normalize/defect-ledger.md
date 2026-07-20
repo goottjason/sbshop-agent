@@ -1314,3 +1314,22 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 근본원인: `acceptOrder`가 `PUT /admin/orders/{id}` + `{shop_no, request:{status:"N20"}}`로 호출했으나, Cafe24 배송상태처리 스펙은 `PUT /admin/orders`(경로에 id 없음) + `{shop_no, requests:[{order_id, process_status:"prepare"}]}`. 3가지 오류: ① 엔드포인트에 id 붙임 ② `request`(객체)→`requests`(배열) ③ `status:"N20"`(읽기 order_status 코드)→`process_status:"prepare"`(쓰기 어휘). 읽기(order_status: N00/N10/N20…)와 쓰기(process_status: prepare/prepareproduct/hold/unhold)가 별개 어휘였음.
 - 수정(2026-07-20, 라이브 스펙 기반): `acceptOrder`를 `PUT /admin/orders` + `requests:[{order_id, process_status:"prepare"}]`로 재작성. order_item_code(품주코드)는 sbshop 미보존이라 생략(주문 전체 적용). 회귀 테스트 `Cafe24OrderApiClientStatusTest.acceptOrderSendsPut` 스펙대로 정정. `:infrastructure:test` 통과.
 - 잔여(후속 결함 후보): `cancelOrder`(CANCEL_STATUS="C40" + 동일 구 엔드포인트/바디)도 같은 포맷 오류일 가능성 높음. 단 Cafe24 취소는 process_status 어휘 밖(별도 취소/환불 API)이라 정식 스펙 확보 후 수정 필요 — 이번 스코프 제외. 실제 발주확인 성공 여부는 배포 후 라이브 확인.
+
+### D-092: 소스이미지 크롤 재게시 — 대표이미지가 마켓에 반영 안 됨(마켓별 교차 결함)
+- 심각도 P2 (오동작 — 상품 이미지/상세 재게시 불완전) / 리스크 등급 중대(마켓 API 계약·다마켓, 라이브 검증 필수) / 상태 진단완료·수정보류(라이브 확증 필요)
+- 신고 매트릭스: 쿠팡·스토어=대표이미지·상세 둘 다 ✗ / G마켓=둘 다 ✓ / 옥션·11번가=대표이미지 ✗·상세 ✓.
+- 진단(4에이전트 병렬 + 리더 코드확인):
+  - 진입: `ProductManageUseCase.updateImagesAndHtml`→`republishToMarkets`→마켓별 `MarketClient.syncImagesAndHtml(marketItemId, currentRawData, hostedImages, newHtml)`. GMARKET/AUCTION은 marketType 클라이언트 부재로 스킵되고, 실제 반영은 CAFE24 등록행(ESM 백필 identifiers) 1개를 Cafe24MarketClient가 처리 → G마켓/옥션 공통 경로.
+  - **확정 비대칭(핵심 가설)**: 작동하는 Cafe24(G마켓)는 이미지를 **base64 업로드**(`Cafe24MarketClient` `POST /admin/products/{id}/images`, image_upload_type=B, detail_image/list_image=dataUri). 실패 마켓들은 **우리 외부 hostedImage URL을 대표이미지 필드에 그대로** 전송: 쿠팡 `items[0].images[].vendorPath`(CoupangMarketClient:~269-273), 스토어 `originProduct.images.representativeImage.url`(SmartstoreMarketClient:168-172,314-332), 11번가 `prdImage01~04`(ElevenstMarketClient:117-134,165-181). 마켓이 외부 URL을 대표이미지로 안 받고 조용히 무시 → 대표이미지 ✗. 상세 HTML은 외부 `<img>` URL 렌더되어 ✓.
+  - 마켓별 부가:
+    - 스토어 상세 ✗: `SmartstoreMarketClient:175` `newDetailHtml.replace("\"","\\\"").replace("\n","")` 수동 이스케이프 후 Jackson이 재이스케이프 → **이중 이스케이프**로 detailContent 손상(코드 확정 버그). currentRawData 미러도 최상위 representativeImage로 스키마 불일치(183-188, 미러 한정 2차).
+    - 쿠팡 둘 다 ✗: items[0].images/contents를 rawData PUT + `/approvals`. 외부 vendorPath는 쿠팡이 받을 수도 있어(추정) 승인요청·상태전이 등 별개 원인 가능 — 라이브 응답 확인 필요.
+    - 11번가 대표 ✗: prdImage01에 외부 URL. (부차: 대표이미지 PUT은 "동일" 응답을 성공 처리 안 함 124-127 vs 상세 145 — 비대칭, 단 신규 이미지엔 무관.)
+    - 옥션 대표 ✗: Cafe24 base64 업로드가 옥션 오픈마켓 연동으로 전파 안 되는 ESM 설정(코드 밖) 가능 — 라이브 확인 필요.
+- **publish↔resync 대조 결과(2026-07-20, 리더 확정 — 앞선 가설 반증)**: 3개 실패 마켓 모두 publish()와 syncImagesAndHtml()이 **동일한 외부 호스팅 URL**을 이미지에 사용(스토어·쿠팡은 이미지/이스케이프 코드까지 동일). ∴ "외부 URL 미수용"·"detailContent 이중 이스케이프"는 **근본원인 아님**(등록이 같은 코드로 작동). 진짜 차이는 **CREATE(publish=새 페이로드 POST, 작동) vs UPDATE(resync=GET 전문→필드수정→PUT, 실패)** 라운드트립.
+  - 스토어: `publish:43,48`과 `syncImagesAndHtml:172,175`이 `applyImages`·동일 이스케이프 공유 → CREATE만 되고 PUT UPDATE는 안 되는 Naver 의미 차이(추정, 라이브 필요).
+  - 쿠팡: `publish:56-60`(POST typed payload) vs `syncImagesAndHtml:265-273`(GET rawData.firstItem.images 교체 후 통째 PUT+/approvals). 이미지 ID 없는 신규 이미지 무시/별도처리 가능(추정).
+  - 11번가: `buildProductXml:prdImage01`(POST) vs `applyRepresentativeImages`(productinfo **GET 응답 XML**에 정규식 `<prdImage0N>` 치환 후 PUT). **GET 응답 스키마에 prdImage 태그 없으면 regex no-op**(가장 구체적·검증가능 — productinfo GET 실응답 스키마 확인 필요).
+- 다음 단계: 마켓별 UPDATE-이미지 API 정확한 계약 확증 필요(라이브 GET 실응답 스키마 or API 문서). 등록은 되므로 resync를 delete+republish 또는 마켓 전용 이미지수정 엔드포인트로 전환하는 근본 수정 후보. 확증 전 배포 금지(중대·다마켓, 작동중 G마켓 회귀 위험).
+- 상태: 진단 refined·미수정. 마켓 1개씩 라이브 확증→TDD 수정 권장(11번가 productinfo 스키마부터).
+- **계측 배포(2026-07-20)**: 4개 `syncImagesAndHtml`(쿠팡·스토어·11번가·Cafe24)에 읽기전용 `[D092]` 로깅 추가 — GET 응답 스키마·PUT/POST 요청 바디·응답(현재 다 버려지던 값). 배포 후 마켓별 1건 크롤 트리거→`docker logs ... grep '\[D092\]'`로 실제 req/resp 확보→마켓별 근본 수정. **동작 무변경(로깅만), 진단 후 제거 예정.**

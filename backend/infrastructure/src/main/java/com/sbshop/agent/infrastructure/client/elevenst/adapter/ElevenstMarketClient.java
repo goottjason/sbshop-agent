@@ -117,11 +117,17 @@ public class ElevenstMarketClient implements MarketClient {
 		if (hostedImages != null && !hostedImages.isEmpty()) {
 			try {
 				String current = restClient.get("/rest/prodservices/productinfo/" + marketItemId);
+				log.info("[D092][11번가] productinfo GET (len={}): {}", current == null ? -1 : current.length(),
+					current == null ? "null" : current.substring(0, Math.min(current.length(), 3000)));
 				if (current == null || current.contains("ERROR") || current.contains("resultCode>500")) {
 					throw new RuntimeException("[Elevenst] 상품 전문 조회 실패: " + current);
 				}
 				String modified = applyRepresentativeImages(current, hostedImages);
+				log.info("[D092][11번가] 상품수정 PUT body prdImage 포함여부={}, body(len={}): {}",
+					modified.contains("<prdImage01>"), modified.length(),
+					modified.substring(0, Math.min(modified.length(), 3000)));
 				String modifyResponse = restClient.put("/rest/prodservices/product/" + marketItemId, modified);
+				log.info("[D092][11번가] 상품수정 PUT resp: {}", modifyResponse);
 				if (modifyResponse == null || modifyResponse.contains("ERROR")
 					|| modifyResponse.contains("resultCode>500")) {
 					throw new RuntimeException("[Elevenst] 대표이미지 수정 실패: " + modifyResponse);
@@ -139,6 +145,7 @@ public class ElevenstMarketClient implements MarketClient {
 			+ "<prdDescContClob><![CDATA[" + (newDetailHtml == null ? "" : newDetailHtml) + "]]></prdDescContClob>"
 			+ "</ProductDetailCont>";
 		String response = restClient.post("/rest/prodservices/updateProductDetailCont/" + marketItemId, xml);
+		log.info("[D092][11번가] 상세설명 POST resp: {}", response);
 		// "기존데이터와 동일합니다"는 상세HTML이 이미 최신이라는 뜻 → 무변경(no-op)이므로 성공으로 간주한다.
 		// (11번가는 동일 내용 재전송을 resultCode 500으로 거부한다. 이를 실패로 던지면 이미 성공한
 		//  대표이미지 재게시까지 전체 재게시가 failed로 수집되는 문제가 생긴다.)

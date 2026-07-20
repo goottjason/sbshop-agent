@@ -245,6 +245,8 @@ public class CoupangMarketClient implements MarketClient {
 		if (rawData == null || !rawData.containsKey("items")) {
 			String getPath = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId;
 			String responseJson = restClient.get(getPath);
+			log.info("[D092][쿠팡] seller-products GET (len={}): {}", responseJson == null ? -1 : responseJson.length(),
+				responseJson == null ? "null" : responseJson.substring(0, Math.min(responseJson.length(), 3000)));
 			try {
 				// 응답은 { code, message, data: { sellerProductId, items:[...], ... } } 형태.
 				JsonNode root = objectMapper.readTree(responseJson);
@@ -282,13 +284,20 @@ public class CoupangMarketClient implements MarketClient {
 
 		// sellerProductId 는 rawData 값이 아니라 권위 있는 marketItemId 를 사용한다.
 		String base = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId;
-		restClient.put(base, rawData);
+		try {
+			String putBody = objectMapper.writeValueAsString(rawData);
+			log.info("[D092][쿠팡] 상품수정 PUT body (len={}): {}", putBody.length(),
+				putBody.substring(0, Math.min(putBody.length(), 3000)));
+		} catch (Exception ignore) { /* 로깅 실패 무시 */ }
+		String putResp = restClient.put(base, rawData);
+		log.info("[D092][쿠팡] 상품수정 PUT resp: {}", putResp);
 		log.info("[쿠팡] 이미지/HTML 동기화 완료: {}", marketItemId);
 		// 상품 수정(PUT)만으로는 "임시저장/수정중" 상태에 머문다. 반드시 승인요청을 별도 호출해야 반영된다.
 		// (등록 경로는 POST requested(true)로 자동 제출하지만, 수정 경로에는 이 호출이 필요하다.)
 		// 무바디 PUT은 JDK HttpClient가 Content-Length를 안 보내 Akamai가 411을 반환한다(같은 파일 가격/재고 관습).
 		// 쿠팡이 무시하는 빈 JSON({})을 바디로 보내 Content-Length를 강제한다.
-		restClient.put(base + "/approvals", java.util.Map.of());
+		String approvalResp = restClient.put(base + "/approvals", java.util.Map.of());
+		log.info("[D092][쿠팡] 승인요청 resp: {}", approvalResp);
 		log.info("[쿠팡] 이미지/HTML 수정 후 승인요청 완료: {}", marketItemId);
 		return rawData;
 	}

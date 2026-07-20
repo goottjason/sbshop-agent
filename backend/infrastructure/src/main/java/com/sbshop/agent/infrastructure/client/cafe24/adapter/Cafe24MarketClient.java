@@ -161,7 +161,9 @@ public class Cafe24MarketClient implements MarketClient {
 		descriptionRequestBody.put("request", descriptionData);
 
 		try {
-			cafe24RestClient.put("/admin/products/" + marketItemId, descriptionRequestBody);
+			String descResp = cafe24RestClient.put("/admin/products/" + marketItemId, descriptionRequestBody);
+			log.info("[D092][카페24] 상세설명 PUT resp (len={}): {}", descResp == null ? -1 : descResp.length(),
+				descResp == null ? "null" : descResp.substring(0, Math.min(descResp.length(), 2000)));
 			log.info("[카페24] 상세설명 업데이트 완료: {}", marketItemId);
 		} catch (Exception e) {
 			log.error("[카페24] 상세설명 업데이트 실패 (ID: {}): {}", marketItemId, e.getMessage());
@@ -191,7 +193,9 @@ public class Cafe24MarketClient implements MarketClient {
 					imageData.put("small_image", dataUri);
 					imageRequestBody.put("request", imageData);
 
-					cafe24RestClient.post("/admin/products/" + marketItemId + "/images", imageRequestBody);
+					String imgResp = cafe24RestClient.post("/admin/products/" + marketItemId + "/images", imageRequestBody);
+					log.info("[D092][카페24] 이미지 POST resp (len={}): {}", imgResp == null ? -1 : imgResp.length(),
+						imgResp == null ? "null" : imgResp.substring(0, Math.min(imgResp.length(), 2000)));
 					log.info("[카페24] 이미지 업로드 완료: {}", marketItemId);
 				}
 			} catch (Exception e) {
