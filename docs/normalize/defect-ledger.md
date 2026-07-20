@@ -1368,3 +1368,13 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - **11번가 재작성**: 조회로 전체 편집 XML을 얻을 수 없으므로(신규/셀러상품조회 필드 누락·productinfo -997), 등록 때 쓰는 `buildProductXml(product)`(Product+기본값으로 완전한 상품 XML 생성, publish 등록 성공으로 완전성 실증)를 재사용해 재구성 → `PUT /rest/prodservices/product/{prdNo}`로 대표이미지+상세HTML을 1회에 반영. 기존 GET(productinfo/regex)·별도 상세POST 제거. 실패가드(ERROR/500/Exception/AuthMessage) 유지. 성공=ClientMessage resultCode 200/210.
 - 테스트: Elevenst 2개 테스트 재작성(buildProductXml PUT 전문에 새 prdImage01·htmlDetail 포함·에러 throw·AuthMessage throw), core republish 테스트 2개 mock 시그니처 보정(Product any() 추가), Coupang/SmartStore 테스트 null Product 인자.
 - 잔여 리스크: buildProductXml이 상품수정 필수필드 일부 누락 가능(dispCtgrNo·인증 등). 단 publish 등록이 같은 XML로 성공하므로 수용 추정 — 라이브 PUT 응답으로 최종 확인(누락 시 그 필드 보강). 상품수정은 전체 덮어쓰기라 라이브 첫 검증 신중.
+
+### D-092 3차 라이브 검증 (2026-07-20, 인터페이스변경+11번가 재작성 배포 후)
+- **쿠팡: 대표+서브이미지 반영 성공 ✓**(사용자 육안 확인). 상세설명은 미반영 — 같은 PUT resp `code:SUCCESS`+"필수 구매 옵션" 경고. requested=true로 승인대기 전환됐을 가능성 → 쿠팡 심사 후 상세 반영 대기 가능성(재확인 필요). 이미지 즉시반영 vs 상세 지연 비대칭은 추가 관찰.
+- **11번가: 상품수정 PUT 실패** — resp `<resultCode>500</resultCode> 원재료 유형 코드 필수 입력 대상 카테고리입니다`. buildProductXml이 `rmaterialTypCd` 등 상품수정 필수필드 다수 누락(원재료·dispCtgrNo·인증정보 ProductCertGroup/Cert·상품정보제공고시 ProductNotification·selMthdCd·prdTypCd·hsCode·asDetail·rtngExchDetail). 일부(카테고리·인증·고시)는 우리 DB에 없어 기본값 대체 곤란. → 전체 상품수정 재구성은 whack-a-mole + 인증/고시/카테고리 벽 가능성.
+- 판단: 11번가 대표이미지 API 수정은 데이터 완전성 한계로 난이도 높음. 상세설명은 기존 전용 API(updateProductDetailCont, resultCode 000 실증)로 확실히 가능 → **상세는 전용 API 복원, 대표이미지는 buildProductXml 필수필드 보강(신규상품조회로 dispCtgrNo 획득 + 기본값) 반복 or 보류** 결정 필요(사용자).
+
+### D-092 11번가 필수필드 기본값 채우기 (2026-07-20, 사용자 결정)
+- 사용자 통찰: 11번가가 등록 후 일부 필드를 필수로 승격 → 홈페이지 수정에서도 동일 에러. 기본값으로 채워 성공시키는 방식 채택.
+- buildProductXml에 기본값 추가: selMthdCd=01(고정가), prdTypCd=01(일반배송), rmaterialTypCd=05(원산지 상세설명참조), minorSelCnYn=N, suplDtyfrPrdClfCd=01(과세), dlvClf=02(업체배송), dlvCnAreaCd=01(전국), dlvWyCd=01(택배), dlvEtprsCd=00034(CJ대한통운·사용자지정), asDetail=., rtngExchDetail=.
+- **한계/권고**: 전체 덮어쓰기라 기본값이 기존 택배사·배송비·AS안내를 덮어쓸 위험. 견고한 해법은 **상품수정 전문과 동일한 전체 필드를 돌려주는 11번가 상품상세조회 API로 round-trip**(이미지만 교체·나머지 원값 보존). 다중/신규/셀러조회는 요약이라 인증/고시/주소코드 부재 → 11번가 고객센터에 전체 편집전문 조회 API 문의 권고. 그때까지 기본값으로 진행하며 다음 에러(고시/인증/주소코드 등) 시 추가 대응.

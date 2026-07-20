@@ -160,6 +160,19 @@ public class ElevenstMarketClient implements MarketClient {
 		sb.append("<rtngdDlvCst>7000</rtngdDlvCst>");
 		sb.append("<exchDlvCst>14000</exchDlvCst>");
 		sb.append("<dlvSendCloseTmpltNo>682132</dlvSendCloseTmpltNo>");
+		// D-092: 11번가가 등록 후 필수로 승격한 필드들 — 빈값이면 상품수정이 거부되므로 기본값으로 채운다.
+		// (전체 덮어쓰기 방식의 한계: 기존값을 못 읽어 기본값으로 대체. 견고한 해법은 전체 상품상세조회 round-trip.)
+		sb.append("<selMthdCd>01</selMthdCd>");              // 고정가판매
+		sb.append("<prdTypCd>01</prdTypCd>");                // 일반배송상품
+		sb.append("<rmaterialTypCd>05</rmaterialTypCd>");    // 상품별 원산지는 상세설명 참조
+		sb.append("<minorSelCnYn>N</minorSelCnYn>");         // 미성년자 구매가능
+		sb.append("<suplDtyfrPrdClfCd>01</suplDtyfrPrdClfCd>"); // 과세상품
+		sb.append("<dlvClf>02</dlvClf>");                    // 업체배송
+		sb.append("<dlvCnAreaCd>01</dlvCnAreaCd>");          // 배송가능지역 전국
+		sb.append("<dlvWyCd>01</dlvWyCd>");                  // 배송방법 택배
+		sb.append("<dlvEtprsCd>00034</dlvEtprsCd>");         // 발송택배사 CJ대한통운(기본값)
+		sb.append("<asDetail><![CDATA[.]]></asDetail>");     // AS안내(필수·빈값 불가)
+		sb.append("<rtngExchDetail><![CDATA[.]]></rtngExchDetail>"); // 반품/교환 안내(필수)
 		sb.append("</Product>");
 		return sb.toString();
 	}
