@@ -1295,3 +1295,14 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
   - A(권장·실시간): 배치 시작 시 `BATCH_STARTED` SSE 이벤트(batchId 포함) 방송 + BatchUpdatePage가 `/notifications/subscribe` 구독해 수신 시 startTracking. 기존 전역 emitters 재사용.
   - B(폴링): 진행 중(pending>0) batchId 목록 엔드포인트 신설 + BatchUpdatePage 마운트/주기 폴링으로 활성 배치 자동 추적. SSE 불요, 폴링 지연 존재.
 - 영향: 프론트 BatchUpdatePage + (A안) api SseNotificationController/BatchController·이벤트 1종. 백엔드 배치 실행 로직 불변.
+
+### D-090: 옥션/G마켓 발주확인이 "AUCTION credentials not found"로 실패 — Cafe24 기반 마켓 크레덴셜 필수 오요구
+- 심각도 P1 (기능 불능 — 옥션/G마켓 발주확인 전건 실패) / 리스크 등급 표준(발주확인 경로 1라인) / 상태 수정완료·검증중 (2026-07-20)
+- 수정(2026-07-20): `OrderService.confirmOrder:96` `.orElseThrow(...)` → `.orElse(null)`. 회귀 테스트 `OrderServiceStateGuardTest.ConfirmOrderCafe24NoCredential`(AUCTION 크레덴셜 없이 발주확인 성공·null credential 포트 위임·NEW→PREPARING). 전체 `./gradlew test` 통과. 잔여: Cafe24 acceptOrder PUT 자체(status N20·body)는 `Cafe24OrderApiClient.java:66` "라이브 검증 대상" — 실제 발주확인 성공은 배포 후 라이브 확인 필요(크레덴셜 차단만 해소, PUT 포맷은 별개 미검증).
+- 신고: 서종수 옥션 주문(196) 발주확인 시 오류. 로그: `주문 196 접수 확인 실패: AUCTION credentials not found`.
+- 위치: `backend/core/src/main/java/com/sbshop/agent/core/application/order/service/OrderService.java:96`
+- 근본원인: `confirmOrder`가 `credentialRepository.findByMarketType(marketType).orElseThrow(...)`로 마켓 크레덴셜을 **필수**로 요구. 그러나 옥션/G마켓 발주확인은 `Cafe24AuctionOrderAdapter/Cafe24GmarketOrderAdapter.acceptOrders`가 **credential 파라미터를 무시**하고 Cafe24 토큰(Cafe24TokenManager)으로 호출 → AUCTION/GMARKET 크레덴셜은 DB에 없음(설계상 Cafe24가 연동주체). 크레덴셜 조회에서 실제 Cafe24 호출 전에 실패.
+- 노출 경위: [[D-088]] 수정 전에는 N10이 PREPARING으로 오분류돼 `hasProgressedOrEnded` 가드("이미 발주확인됨")에서 차단 → 크레덴셜 조회에 도달 못 함. D-088(N10→NEW)로 발주확인이 실행되며 잠재 버그 노출.
+- 판정근거: 같은 코드베이스의 송장·취소 경로(`MarketplaceShippingService.java:73,141`, `OrderShipProcessor.java:54`)는 이미 `findByMarketType(...).orElse(null)` + "Cafe24 기반(G마켓/옥션)은 cred 없어도 포트 위임" 주석으로 올바르게 처리. **발주확인 경로만 `.orElseThrow`로 누락.**
+- 수정방향(TDD): `OrderService.confirmOrder`의 크레덴셜 조회를 `.orElseThrow(...)` → `.orElse(null)`로 변경(기존 송장/취소 패턴과 일치). Cafe24 어댑터는 null 무시, 타 마켓은 어댑터 내부에서 사용(송장 경로와 동일 계약).
+- 영향: `OrderService.java` 1라인 + 회귀 테스트.

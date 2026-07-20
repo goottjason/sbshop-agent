@@ -227,4 +227,35 @@ class OrderServiceStateGuardTest {
 				.isInstanceOf(IllegalStateException.class);
 		}
 	}
+
+	// ==================== D-090. Cafe24 기반(옥션/G마켓) 발주확인은 마켓 크레덴셜 불요 ====================
+
+	@Nested
+	class ConfirmOrderCafe24NoCredential {
+
+		/**
+		 * 옥션/G마켓 발주확인은 Cafe24 토큰으로 호출하므로 마켓 크레덴셜이 없어도 성공해야 한다.
+		 * (송장/취소 경로는 이미 orElse(null)로 처리됨 — 발주확인만 orElseThrow로 누락됐던 버그.)
+		 */
+		@Test
+		@DisplayName("AUCTION 주문 발주확인 → 마켓 크레덴셜 없어도 성공(NEW→PREPARING), 포트 위임")
+		void auctionOrder_confirm_withoutCredential_succeeds() {
+			Order order = Order.builder().marketType(MarketType.AUCTION).marketOrderNo("2566278285").build();
+			OrderLineItem item = itemWithStatus(ShippingStatus.NEW);
+			when(orderRepository.findById(6L)).thenReturn(Optional.of(order));
+			when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(item));
+			when(orderLineItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+			// AUCTION 크레덴셜은 설계상 DB에 없음
+			when(credentialRepository.findByMarketType(MarketType.AUCTION)).thenReturn(Optional.empty());
+			com.sbshop.agent.core.application.order.port.MarketOrderPort port =
+				org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.port.MarketOrderPort.class);
+			when(marketplaceShippingService.getPort(MarketType.AUCTION)).thenReturn(port);
+
+			service().confirmOrder(6L);
+
+			// 크레덴셜 없이도 마켓 접수 포트가 호출되고(null credential 위임), 상태가 PREPARING로 전이
+			verify(port).acceptOrders(org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq(order));
+			assertThat(item.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.PREPARING);
+		}
+	}
 }

@@ -92,9 +92,10 @@ public class OrderService {
 			throw new IllegalStateException("이미 발주확인되었거나 종료된 주문은 재확인할 수 없습니다.");
 		}
 
-		// 마켓 크레덴셜 조회 및 접수 API 호출
-		MarketCredential credential = credentialRepository.findByMarketType(order.getMarketType())
-			.orElseThrow(() -> new RuntimeException(order.getMarketType() + " credentials not found"));
+		// 마켓 크레덴셜 조회(nullable). Cafe24 기반 발주확인(G마켓/옥션)은 마켓 자격증명이 아니라
+		// Cafe24 토큰을 쓰므로, cred가 없어도(옥션 등) 조기 종료하지 않고 포트에 위임한다(D-090).
+		// (송장/취소 경로 MarketplaceShippingService·OrderShipProcessor와 동일 패턴.)
+		MarketCredential credential = credentialRepository.findByMarketType(order.getMarketType()).orElse(null);
 
 		try {
 			callMarketplaceAcceptApi(order, credential);
