@@ -1448,3 +1448,9 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 회귀: core 전체+api test BUILD SUCCESSFUL, 전 모듈 컴파일 OK. 신규 테스트: MarginCalculator 6-arg, per-market sync, 배치 경로.
 - **라이브 검증(배치 95f77d61, 3상품 10/15/3500)**: 마켓별 저장 payload에서 상이 가격 확인 — 277: 스토어(8%)=65400·11번가/Cafe24(18%)=74500·쿠팡(11%,기준가)=67900. 4마켓 반영 성공. 마켓 실수수료에 맞춰 가격이 실제로 갈라짐 확정.
 - 잔여: BatchController 수동배치 기본값(15/20/5000)은 유지 — 사용자 수동배치는 10/15/3500 명시 전달. 사용자 마켓 리스팅 최종 확인 대기.
+
+### D-096: 스마트스토어 판매자 즉시할인 일괄 제거 (2026-07-21, 사용자 승인·TDD)
+- 배경: D-094로 마켓별 가격이 스토어 저수수료(8%)에 맞게 낮게 산정됨. 그런데 상품마다 판매자 즉시할인이 별도로 걸려 있어 겹치면 이중할인 손해(사용자 신고). 사용자 결정: 일회성 일괄 제거, 범위=전체 스토어 상품.
+- 구현(TDD, 커밋 3d0787b): MarketClient.removeSellerImmediateDiscount(default no-op)+Smartstore override(GET→customerBenefit.immediateDiscountPolicy만 제거→PUT, 적립 등 보존). SmartstoreSellerDiscountRemovalService(순회·집계, 소규모동기/전체비동기). 내부 엔드포인트 POST /internal/smartstore/remove-seller-discount(productIds, dryRun). core+infra+api 회귀 통과.
+- 라이브 검증(3상품 277·245·3006): dryRun→즉시할인 확인(277=9%·245=12%·3006=12%, 구조 immediateDiscountPolicy.discountMethod.value/unitType). 실제 제거(removed=3)→재조회 dryRun(skipped=3=할인없음)로 제거 확정. "키 제거+PUT"이 네이버에서 실제 할인 제거함을 확인.
+- 잔여: 전체 스토어 3183건 비동기 실행(productIds 미지정, dryRun=false) — 사용자 최종 승인 후. 스토어 상품 수=3183(ACTIVE).
