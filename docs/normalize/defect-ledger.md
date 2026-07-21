@@ -1468,4 +1468,6 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 라이브 근거: 주문 2101402034506(김대섭, order_id 33/li 264) — DB=DELIVERED·정산 63,724. 쿠팡 returnRequests=receiptId 1799887551 RETURN/RETURNS_COMPLETED(고객변심, 완료확정 2026-07-13). 쿠팡 단건 ordersheet=400 "취소 또는 반품".
 - D-027과의 구분: D-027은 "이미 RETURNED인 주문의 오취소 방지"(역방향 보호, 수정완료). D-097은 "DELIVERED→RETURNED 전방 전환 경로 신설"(별개).
 - 수정 설계(사용자 승인): 쿠팡 returnRequests API(searchType=timeFrame, ≤7일 창 분할)로 receiptStatus=RETURNS_COMPLETED 확증 → 해당 orderId의 lineItem을 RETURNED+settlement 0+verified 전환. absence 추론 아님(오취소 없음), 멱등, 정산동기화(DELIVERED만 처리)가 RETURNED 스킵해 재부풀지 않음.
-- 상태: 발견 → 수정중(TDD)
+- 수정(2026-07-21, TDD, 커밋 bfe9d2c): queryReturns(port/client, 7일 창 분할·nextToken·URI.create 콜론 원본전송) + detectReturns(adapter, RETURN·RETURNS_COMPLETED만 → RETURNED+정산0+verified, 멱등) + postSyncProcess 배선. Red: `CoupangDetectReturnsTest` 4건(완료반품 전환 / 미완료 미전환 / DB무 no-op / 멱등). core+infra+api 회귀 전체 통과.
+- 검증(2026-07-21, 라이브): 배포(Started 08:39:53Z) 후 쿠팡 동기화 수동 트리거 → 로그 "쿠팡 반품완료 반영: 6건 RETURNED+정산0 전환", COUPANG_SYNC SUCCESS. DB 확인: 쿠팡 RETURNED 6건(김대섭 2101402034506 포함) 전부 settlement 0.00·verified=t. 김대섭 li 264: DELIVERED/63724 → RETURNED/0.00/t. absence 아닌 원본 확증이라 오취소 0.
+- 상태: 검증통과 (2026-07-21 라이브 — 배송완료 주문 반품 전방 감지·정산0 자동교정, 자가치유·멱등)
