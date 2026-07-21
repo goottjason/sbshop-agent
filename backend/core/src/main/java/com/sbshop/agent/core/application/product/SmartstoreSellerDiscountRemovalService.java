@@ -31,8 +31,21 @@ public class SmartstoreSellerDiscountRemovalService {
 	private final MarketRegistrationRepository marketRegistrationRepository;
 	private final MarketClientRouter marketClientRouter;
 
-	/** 네이버 API rate limit 회피용 항목 간 지연(ms). */
-	private static final long THROTTLE_MS = 200L;
+	/** 네이버 API rate limit(429) 회피용 항목 간 지연(ms). 동시 주문동기화와 경합하므로 여유있게. */
+	private long throttleMs = 500L;
+	/** 항목별 최대 시도 횟수(1회 + 재시도 2회). 429는 대개 일시적이라 백오프 재시도로 복원한다. */
+	private static final int MAX_ATTEMPTS = 3;
+	/** 재시도 기본 백오프(ms). 시도마다 배수 증가(2s, 4s). */
+	private long retryBackoffMs = 2000L;
+
+	/** 테스트/튜닝용 세터. */
+	public void setThrottleMs(long throttleMs) {
+		this.throttleMs = throttleMs;
+	}
+
+	public void setRetryBackoffMs(long retryBackoffMs) {
+		this.retryBackoffMs = retryBackoffMs;
+	}
 
 	/** 소규모 동기 실행(검증용): 지정 상품의 스토어 등록행만 처리. */
 	public Map<String, Object> removeForProducts(List<Long> productIds, boolean dryRun) {
@@ -78,14 +91,14 @@ public class SmartstoreSellerDiscountRemovalService {
 				continue;
 			}
 			try {
-				Optional<String> res = client.removeSellerImmediateDiscount(code, dryRun);
+				Optional<String> res = removeWithRetry(client, code, dryRun);
 				if (res.isPresent()) {
 					removed++;
 					removedDetails.add(code + "=" + res.get());
 				} else {
 					skipped++;
 				}
-				Thread.sleep(THROTTLE_MS);
+				Thread.sleep(throttleMs);
 			} catch (InterruptedException ie) {
 				Thread.currentThread().interrupt();
 				failed++;
@@ -97,6 +110,29 @@ public class SmartstoreSellerDiscountRemovalService {
 			}
 		}
 		return summary(regs.size(), removed, skipped, failed, removedDetails, failures);
+	}
+
+	/**
+	 * 429 등 일시 실패에 대해 백오프 재시도한다. 마지막 시도까지 실패하면 예외를 던진다(호출부가 failed 집계).
+	 * InterruptedException은 재시도하지 않고 즉시 전파한다(중단 신호).
+	 */
+	private Optional<String> removeWithRetry(MarketClient client, String code, boolean dryRun)
+		throws InterruptedException {
+		RuntimeException last = null;
+		for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+			try {
+				return client.removeSellerImmediateDiscount(code, dryRun);
+			} catch (RuntimeException e) {
+				last = e;
+				if (attempt < MAX_ATTEMPTS) {
+					long backoff = retryBackoffMs * attempt; // 2s, 4s
+					log.warn("[스토어즉시할인제거] {} 실패(시도 {}/{}) — {}ms 후 재시도: {}",
+						code, attempt, MAX_ATTEMPTS, backoff, e.getMessage());
+					Thread.sleep(backoff);
+				}
+			}
+		}
+		throw last;
 	}
 
 	private Map<String, Object> summary(int total, int removed, int skipped, int failed,

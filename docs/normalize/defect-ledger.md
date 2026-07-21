@@ -1454,3 +1454,8 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 구현(TDD, 커밋 3d0787b): MarketClient.removeSellerImmediateDiscount(default no-op)+Smartstore override(GET→customerBenefit.immediateDiscountPolicy만 제거→PUT, 적립 등 보존). SmartstoreSellerDiscountRemovalService(순회·집계, 소규모동기/전체비동기). 내부 엔드포인트 POST /internal/smartstore/remove-seller-discount(productIds, dryRun). core+infra+api 회귀 통과.
 - 라이브 검증(3상품 277·245·3006): dryRun→즉시할인 확인(277=9%·245=12%·3006=12%, 구조 immediateDiscountPolicy.discountMethod.value/unitType). 실제 제거(removed=3)→재조회 dryRun(skipped=3=할인없음)로 제거 확정. "키 제거+PUT"이 네이버에서 실제 할인 제거함을 확인.
 - 잔여: 전체 스토어 3183건 비동기 실행(productIds 미지정, dryRun=false) — 사용자 최종 승인 후. 스토어 상품 수=3183(ACTIVE).
+
+### D-096 전체 실행 결과 + rate limit 복원력 개선 (2026-07-21)
+- 전체 3183건 비동기 실행 완료: removed=2160, skipped=4(할인없음), **failed=1019(429 TOO_MANY_REQUESTS)**. 실패는 네이버 API 분당 한도 초과 — throttle 200ms에 GET+PUT 2콜 + 동시 주문동기화(SyncWorker)까지 경합.
+- **개선(TDD)**: SmartstoreSellerDiscountRemovalService에 항목별 재시도(최대3회, 백오프 2s·4s) + throttle 200→500ms. throttle/backoff는 세터로 튜닝·테스트 가능. 멱등이라 재실행 시 이미 제거된 건은 스킵(GET만).
+- 잔여: 실패 1019건 mop-up — 개선 배포 후 전체 재실행(자가치유). 스킵 GET 비용은 있으나 재시도로 429 대부분 흡수.

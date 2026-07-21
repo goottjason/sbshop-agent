@@ -34,6 +34,8 @@ class SmartstoreSellerDiscountRemovalServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new SmartstoreSellerDiscountRemovalService(marketRegistrationRepository, marketClientRouter);
+		service.setRetryBackoffMs(0L); // 테스트: 백오프 지연 제거
+		service.setThrottleMs(0L);
 	}
 
 	private MarketRegistration reg(String originProductNo) {
@@ -63,5 +65,22 @@ class SmartstoreSellerDiscountRemovalServiceTest {
 		assertThat(summary.get("skipped")).isEqualTo(1);
 		assertThat(summary.get("failed")).isEqualTo(0);
 		assertThat(summary.get("total")).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("일시 실패(429 등)는 재시도해 성공으로 처리한다 — rate limit 복원력")
+	void transientFailure_isRetriedThenSucceeds() {
+		when(marketRegistrationRepository.findByProductIdIn(List.of(1L)))
+			.thenReturn(List.of(reg("OP1")));
+		when(marketClientRouter.hasClient(MarketType.SMART_STORE)).thenReturn(true);
+		when(marketClientRouter.getClient(MarketType.SMART_STORE)).thenReturn(smartstoreClient);
+		when(smartstoreClient.removeSellerImmediateDiscount(eq("OP1"), eq(false)))
+			.thenThrow(new RuntimeException("429 TOO_MANY_REQUESTS"))
+			.thenReturn(Optional.of("9 PERCENT"));
+
+		Map<String, Object> summary = service.removeForProducts(List.of(1L), false);
+
+		assertThat(summary.get("removed")).isEqualTo(1);
+		assertThat(summary.get("failed")).isEqualTo(0);
 	}
 }
