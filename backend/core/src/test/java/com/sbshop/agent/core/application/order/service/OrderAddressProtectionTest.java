@@ -97,7 +97,8 @@ class OrderAddressProtectionTest {
 	private SmartStoreOrderSyncService smartStoreService() {
 		return new SmartStoreOrderSyncService(credentialRepository, orderRepository,
 			orderLineItemRepository, productRepository, eventPublisher, smartStoreOrderAdapter,
-			syncStatusService, marketFeeService);
+			syncStatusService, marketFeeService,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class));
 	}
 
 	@Test
@@ -163,6 +164,7 @@ class OrderAddressProtectionTest {
 			orderRepository, orderLineItemRepository, productRepository,
 			marketRegistrationRepository, eventPublisher, coupangOrderAdapter, coupangStatusMapper,
 			syncStatusService, marketFeeService,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
 			org.mockito.Mockito.mock(com.sbshop.agent.core.application.actionlog.ActionLogService.class));
 		service.syncCoupangOrders();
 

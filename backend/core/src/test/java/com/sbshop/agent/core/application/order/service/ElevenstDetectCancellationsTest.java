@@ -59,7 +59,7 @@ class ElevenstDetectCancellationsTest {
 	private ElevenstOrderSyncService service() {
 		return new ElevenstOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository,
-			productRepository, eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService);
+			productRepository, eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService, org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class));
 	}
 
 	private void stubCredentialAndEmptyApi() {

@@ -42,6 +42,7 @@ public class ElevenstOrderSyncService {
 	private final ElevenstOrderAdapter elevenstOrderAdapter;
 	private final com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 	private final MarketFeeService marketFeeService;
+	private final TerminalSettlementService terminalSettlementService;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -223,6 +224,8 @@ public class ElevenstOrderSyncService {
 		LocalDate fromDate = LocalDate.now().minusDays(30);
 		LocalDate toDate = LocalDate.now();
 		detectCancellations(orders, fromDate, toDate);
+		// D-098: 취소·반품 종결 lineItem 정산0 정규화(멱등).
+		terminalSettlementService.zeroSettlementForRefunded(MarketType.ELEVEN_STREET);
 	}
 
 	private void detectCancellations(List<MarketOrderDto> apiOrders, LocalDate fromDate, LocalDate toDate) {

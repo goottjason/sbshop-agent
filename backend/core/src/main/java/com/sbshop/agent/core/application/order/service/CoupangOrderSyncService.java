@@ -48,6 +48,7 @@ public class CoupangOrderSyncService {
 	private final CoupangStatusMapper statusMapper;
 	private final com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 	private final MarketFeeService marketFeeService;
+	private final TerminalSettlementService terminalSettlementService;
 	// D-087: 정산(S5)은 SyncCompletedEvent 미발행 → ActionLogSyncListener가 완료를 못 남긴다.
 	// 이 서비스가 완료/실패를 COUPANG_SETTLEMENT_SYNC 로 직접 기록해 운영자가 실패를 인지하게 한다.
 	private final com.sbshop.agent.core.application.actionlog.ActionLogService actionLogService;
@@ -374,7 +375,9 @@ public class CoupangOrderSyncService {
 		coupangOrderAdapter.detectCancellations(orders, fromDate, toDate);
 		// 2. (D-097) 반품완료 전방 감지 → DELIVERED건을 RETURNED+정산0으로 전환
 		coupangOrderAdapter.detectReturns(credential, fromDate, toDate);
-		// 3. 택배사 ETC → 실제 택배사로 보정
+		// 3. (D-098) 취소 종결 lineItem 정산0 정규화(반품은 detectReturns가 이미 처리, 여기선 CANCELED 커버·멱등).
+		terminalSettlementService.zeroSettlementForRefunded(MarketType.COUPANG);
+		// 4. 택배사 ETC → 실제 택배사로 보정
 		coupangOrderAdapter.fixCarriers(orders);
 	}
 }

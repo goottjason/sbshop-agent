@@ -50,7 +50,7 @@ class SyncServiceSelfRecordsStatusTest {
 	void setUp() {
 		service = new Cafe24OrderSyncService(cafe24OrderApiPort, orderRepository,
 			orderLineItemRepository, marketRegistrationRepository, eventPublisher, syncStatusService,
-			marketFeeService);
+			marketFeeService, org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class));
 	}
 
 	@Test

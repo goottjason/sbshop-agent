@@ -1471,3 +1471,12 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 수정(2026-07-21, TDD, 커밋 bfe9d2c): queryReturns(port/client, 7일 창 분할·nextToken·URI.create 콜론 원본전송) + detectReturns(adapter, RETURN·RETURNS_COMPLETED만 → RETURNED+정산0+verified, 멱등) + postSyncProcess 배선. Red: `CoupangDetectReturnsTest` 4건(완료반품 전환 / 미완료 미전환 / DB무 no-op / 멱등). core+infra+api 회귀 전체 통과.
 - 검증(2026-07-21, 라이브): 배포(Started 08:39:53Z) 후 쿠팡 동기화 수동 트리거 → 로그 "쿠팡 반품완료 반영: 6건 RETURNED+정산0 전환", COUPANG_SYNC SUCCESS. DB 확인: 쿠팡 RETURNED 6건(김대섭 2101402034506 포함) 전부 settlement 0.00·verified=t. 김대섭 li 264: DELIVERED/63724 → RETURNED/0.00/t. absence 아닌 원본 확증이라 오취소 0.
 - 상태: 검증통과 (2026-07-21 라이브 — 배송완료 주문 반품 전방 감지·정산0 자동교정, 자가치유·멱등)
+
+### D-098: 취소·반품 종결 lineItem 정산0 미처리 (전 마켓, 쿠팡 제외) — 정산액 부풀림 (2026-07-22)
+- 심각도: P1 (오동작 — 취소/반품 주문의 정산액이 부풀린 채 유지, 손익 왜곡)
+- 리스크 등급: 표준 (다마켓·정산 데이터, 회귀 게이트 필수)
+- 위치: 각 마켓 postSyncProcess(SmartStore line 204 빈 껍데기·Elevenst·Cafe24), 쿠팡만 detectReturns가 RETURNED 0 처리(D-097).
+- 라이브 근거(DB 실측 2026-07-22): CANCELED/RETURNED인데 정산액 유지 3건 — GMARKET 곽금희(4460696482) RETURNED 26,611 / SMART_STORE 정가영(2026061471696071) CANCELED 78,140 / 이명동(2026061486764551) CANCELED 47,590. 전부 settlement_verified=f.
+- 상태 감지 자체는 Cafe24(R*→RETURNED 라이브작동)·스토어(취소 매핑작동)에서 이미 됨 → 공백은 "종결됐는데 정산0으로 안 내림"뿐. 마켓 API 무관, DB 파생 가능.
+- 수정 설계: ShippingStatus.isRefundTerminal()(취소·반품=true, 교환은 결제유지라 제외) + 마켓무관 TerminalSettlementService.zeroSettlementForRefunded(marketType) — 환불성 종결 lineItem 정산0+verified(멱등). 각 마켓 postSyncProcess에 배선. 쿠팡도 CANCELED 커버 위해 추가.
+- 상태: 발견 → 수정중(TDD)

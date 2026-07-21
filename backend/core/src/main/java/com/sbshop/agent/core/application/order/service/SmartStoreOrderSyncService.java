@@ -41,6 +41,7 @@ public class SmartStoreOrderSyncService {
 	private final SmartStoreOrderAdapter smartStoreOrderAdapter;
 	private final com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 	private final MarketFeeService marketFeeService;
+	private final TerminalSettlementService terminalSettlementService;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -201,5 +202,9 @@ public class SmartStoreOrderSyncService {
 			.build();
 	}
 
-	private void postSyncProcess(List<MarketOrderDto> orders) {}
+	private void postSyncProcess(List<MarketOrderDto> orders) {
+		// D-098: 취소·반품 종결 lineItem 정산0 정규화(멱등). 네이버는 취소/반품을 갱신상태로 계속
+		// 반환하므로 상태 감지는 갱신 경로에서 이뤄지고, 여기선 그 종결 건의 정산액을 0으로 내린다.
+		terminalSettlementService.zeroSettlementForRefunded(MarketType.SMART_STORE);
+	}
 }

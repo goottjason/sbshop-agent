@@ -83,7 +83,7 @@ class OrderSyncEventEmissionTest {
 		when(credentialRepository.findByMarketType(MarketType.SMART_STORE)).thenReturn(Optional.empty());
 		SmartStoreOrderSyncService service = new SmartStoreOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, smartStoreOrderAdapter, syncStatusService, marketFeeService);
+			eventPublisher, smartStoreOrderAdapter, syncStatusService, marketFeeService, org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class));
 
 		service.syncSmartStoreOrders();
 
@@ -100,6 +100,7 @@ class OrderSyncEventEmissionTest {
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
 			marketRegistrationRepository, eventPublisher, coupangOrderAdapter, coupangStatusMapper,
 			syncStatusService, marketFeeService,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
 			org.mockito.Mockito.mock(com.sbshop.agent.core.application.actionlog.ActionLogService.class));
 
 		service.syncCoupangOrders();
@@ -115,7 +116,7 @@ class OrderSyncEventEmissionTest {
 		when(credentialRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(Optional.empty());
 		ElevenstOrderSyncService service = new ElevenstOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService);
+			eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService, org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class));
 
 		service.syncElevenstOrders();
 
@@ -136,7 +137,7 @@ class OrderSyncEventEmissionTest {
 		when(smartStoreOrderAdapter.fetchOrders(any(), any(), any())).thenReturn(List.of());
 		SmartStoreOrderSyncService service = new SmartStoreOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, smartStoreOrderAdapter, syncStatusService, marketFeeService);
+			eventPublisher, smartStoreOrderAdapter, syncStatusService, marketFeeService, org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class));
 
 		service.syncSmartStoreOrders();
 

@@ -53,6 +53,7 @@ public class Cafe24OrderSyncService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final SyncStatusService syncStatusService;
 	private final MarketFeeService marketFeeService;
+	private final TerminalSettlementService terminalSettlementService;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -68,6 +69,9 @@ public class Cafe24OrderSyncService {
 		boolean success = false;
 		try {
 			int count = fetchAndPersist(LocalDate.now().minusDays(30), LocalDate.now());
+			// D-098: 취소·반품 종결 lineItem 정산0 정규화(멱등). Cafe24 경로는 G마켓·옥션 두 마켓을 담으므로 둘 다.
+			terminalSettlementService.zeroSettlementForRefunded(MarketType.GMARKET);
+			terminalSettlementService.zeroSettlementForRefunded(MarketType.AUCTION);
 			log.info("[CAFE24-ORDER] G마켓/옥션 주문 동기화 완료: {}건", count);
 			success = true;
 			syncStatusService.markCompleted(SyncMarketKeys.GMARKET);
