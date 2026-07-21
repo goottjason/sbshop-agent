@@ -28,13 +28,15 @@ class ProductMarketSyncServiceSoldOutTest {
 
     @Mock private MarketRegistrationRepository marketRegistrationRepository;
     @Mock private MarketClientRouter marketClientRouter;
+    @Mock private com.sbshop.agent.core.application.fee.MarketFeeService marketFeeService;
 
     private ProductMarketSyncService service;
     private static final Long PRODUCT_ID = 1L;
 
     @BeforeEach
     void setUp() {
-        service = new ProductMarketSyncService(marketRegistrationRepository, marketClientRouter);
+        service = new ProductMarketSyncService(marketRegistrationRepository, marketClientRouter,
+            new com.sbshop.agent.core.domain.product.service.MarginCalculator(), marketFeeService);
     }
 
     private MarketRegistration reg(MarketType type, String identifiersJson) {

@@ -1,8 +1,11 @@
 package com.sbshop.agent.core.application.product;
 
+import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
+import com.sbshop.agent.core.application.product.dto.PricingInputs;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
 import com.sbshop.agent.core.application.product.port.ProductStockCrawlerPort;
+import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
@@ -34,6 +37,8 @@ public class BatchPriceStockService {
 	private final MarginCalculator marginCalculator;
 	private final ApplicationEventPublisher eventPublisher;
 	private final ProductMarketSyncService productMarketSyncService;
+	// D-094: 기준가(sb_product.sale_price)를 쿠팡 실수수료로 산정하기 위해 마켓별 수수료를 조회.
+	private final MarketFeeService marketFeeService;
 
 	/**
 	 * 크롤 기반 배치에서 상품 간 딜레이(ms). 외부 소싱 사이트 rate-limit 완화용.
@@ -64,8 +69,11 @@ public class BatchPriceStockService {
 					&& product.getLogisticsInfo().getBundleQuantity() != null
 						? product.getLogisticsInfo().getBundleQuantity() : 1;
 				// F-BATCH-6: 쿠폰율을 실매입가에 반영(구매가 × (1-쿠폰%))한 뒤 판매가를 산정한다.
+				// D-094: 기준가(sb_product.sale_price)는 쿠팡 실수수료 기준으로 산정한다(표시·단건용).
+				// 각 마켓 전송가는 아래 syncPriceStockPerMarket에서 마켓별 실수수료로 따로 재산정한다.
+				BigDecimal coupangFee = marketFeeService.feeRate(MarketType.COUPANG);
 				BigDecimal salePrice = marginCalculator.calculateSalePrice(buyPrice, bundleQty, marginRate,
-					couponRate, minMarginPrice);
+					couponRate, minMarginPrice, coupangFee);
 
 				// 이전 DB값 대비 실제 변경 여부(가격·판매상태) — 변경 없으면 Cafe24 재전송 스킵 대상.
 				BigDecimal oldSalePrice = product.getSalePrice();
@@ -85,10 +93,12 @@ public class BatchPriceStockService {
 				product.updateRestockDate(result.restockDate());
 				productWriter.save(product);
 
-				// D-060: 배치 갱신분도 연동 마켓에 반영(단건과 동일 경로). 부분 실패는 메시지로 표면화.
+				// D-094: 배치 갱신분은 마켓별 실수수료로 가격을 따로 산정해 각 마켓에 반영한다.
 				// changed=false면 Cafe24(직전 성공분)는 재전송 스킵.
-				MarketRepublishResult sync = productMarketSyncService.syncPriceStock(
-					productId, salePrice != null ? salePrice.intValue() : null, result.status(), changed);
+				MarketRepublishResult sync = productMarketSyncService.syncPriceStockPerMarket(
+					productId,
+					new PricingInputs(buyPrice, bundleQty, marginRate, couponRate, minMarginPrice),
+					result.status(), changed);
 				processStatusService.markSuccess(batchId, String.valueOf(productId),
 					String.format("[%s] 가격:%s, 재고:%d · 마켓반영 성공%d/스킵%d/실패%d%s",
 						product.getSbCode(), salePrice, result.stock(), sync.synced().size(), sync.skipped().size(),

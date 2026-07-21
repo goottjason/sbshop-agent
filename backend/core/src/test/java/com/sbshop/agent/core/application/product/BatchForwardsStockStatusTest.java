@@ -44,6 +44,7 @@ class BatchForwardsStockStatusTest {
     @Mock private MarginCalculator marginCalculator;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private ProductMarketSyncService productMarketSyncService;
+    @Mock private com.sbshop.agent.core.application.fee.MarketFeeService marketFeeService;
     @Mock private Product product;
 
     private BatchPriceStockService service;
@@ -54,17 +55,21 @@ class BatchForwardsStockStatusTest {
     void setUp() {
         service = new BatchPriceStockService(productReader, productWriter, productRepository,
             productStockCrawlerPort, processStatusService, marginCalculator, eventPublisher,
-            productMarketSyncService);
+            productMarketSyncService, marketFeeService);
 
         lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
         lenient().when(product.getSourcingUrl()).thenReturn("https://example.com/item/42");
         lenient().when(product.getLogisticsInfo()).thenReturn(null);
         lenient().when(product.getSbCode()).thenReturn("SB-042");
+        lenient().when(marketFeeService.feeRate(any())).thenReturn(new BigDecimal("11"));
+        // 크롤 경로: 기준가 계산은 6-arg(수수료 포함), 수동 경로 등 4-arg도 방어적으로 스텁.
+        lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any(), any(), any()))
+            .thenReturn(new BigDecimal("9900"));
         lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any()))
             .thenReturn(new BigDecimal("9900"));
         lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class)))
             .thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
-        lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class), anyBoolean()))
+        lenient().when(productMarketSyncService.syncPriceStockPerMarket(any(), any(), any(StockStatus.class), anyBoolean()))
             .thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
     }
 
@@ -83,7 +88,7 @@ class BatchForwardsStockStatusTest {
         // @Async — small sleep to let the async thread finish
         Thread.sleep(500);
 
-        verify(productMarketSyncService).syncPriceStock(eq(PRODUCT_ID), any(), eq(StockStatus.OUT_OF_STOCK), anyBoolean());
+        verify(productMarketSyncService).syncPriceStockPerMarket(eq(PRODUCT_ID), any(), eq(StockStatus.OUT_OF_STOCK), anyBoolean());
     }
 
     @Test
@@ -100,7 +105,7 @@ class BatchForwardsStockStatusTest {
 
         Thread.sleep(500);
 
-        verify(productMarketSyncService).syncPriceStock(eq(PRODUCT_ID), any(), eq(StockStatus.IN_STOCK), anyBoolean());
+        verify(productMarketSyncService).syncPriceStockPerMarket(eq(PRODUCT_ID), any(), eq(StockStatus.IN_STOCK), anyBoolean());
     }
 
     @Test

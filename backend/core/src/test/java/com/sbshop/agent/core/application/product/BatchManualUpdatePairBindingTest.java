@@ -42,6 +42,7 @@ class BatchManualUpdatePairBindingTest {
     @Mock private MarginCalculator marginCalculator;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private ProductMarketSyncService productMarketSyncService;
+    @Mock private com.sbshop.agent.core.application.fee.MarketFeeService marketFeeService;
 
     @Mock private Product product1;
     @Mock private Product product2;
@@ -55,7 +56,7 @@ class BatchManualUpdatePairBindingTest {
     void setUp() {
         service = new BatchPriceStockService(productReader, productWriter, productRepository,
             productStockCrawlerPort, processStatusService, marginCalculator, eventPublisher,
-            productMarketSyncService);
+            productMarketSyncService, marketFeeService);
 
         lenient().when(productReader.findById(PID_1)).thenReturn(Optional.of(product1));
         lenient().when(productReader.findById(PID_2)).thenReturn(Optional.of(product2));

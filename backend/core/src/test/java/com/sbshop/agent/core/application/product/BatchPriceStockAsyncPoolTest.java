@@ -9,6 +9,7 @@ import com.sbshop.agent.core.config.AsyncConfig;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
 import com.sbshop.agent.core.domain.product.component.ProductWriter;
+import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.domain.product.service.MarginCalculator;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
@@ -101,7 +102,7 @@ class BatchPriceStockAsyncPoolTest {
 			return new BatchPriceStockService(mock(ProductReader.class), mock(ProductWriter.class),
 				mock(ProductRepository.class), mock(ProductStockCrawlerPort.class),
 				mock(ProcessStatusService.class), mock(MarginCalculator.class), recordingPublisher,
-				mock(ProductMarketSyncService.class));
+				mock(ProductMarketSyncService.class), mock(MarketFeeService.class));
 		}
 	}
 }

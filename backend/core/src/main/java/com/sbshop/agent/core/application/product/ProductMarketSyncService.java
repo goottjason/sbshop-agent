@@ -2,6 +2,8 @@ package com.sbshop.agent.core.application.product;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sbshop.agent.core.application.fee.MarketFeeService;
+import com.sbshop.agent.core.application.product.dto.PricingInputs;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
@@ -9,11 +11,14 @@ import com.sbshop.agent.core.domain.market.repository.MarketRegistrationReposito
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
+import com.sbshop.agent.core.domain.product.service.MarginCalculator;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,6 +34,8 @@ public class ProductMarketSyncService {
 
 	private final MarketRegistrationRepository marketRegistrationRepository;
 	private final MarketClientRouter marketClientRouter;
+	private final MarginCalculator marginCalculator;
+	private final MarketFeeService marketFeeService;
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	public MarketRepublishResult syncPriceStock(Long productId, Integer price, StockStatus stockStatus) {
@@ -44,11 +51,32 @@ public class ProductMarketSyncService {
 		boolean changed) {
 		boolean soldOut = stockStatus == StockStatus.OUT_OF_STOCK;
 		int quantity = soldOut ? 1 : Product.DEFAULT_IN_STOCK_QUANTITY;
-		return syncInternal(productId, price, quantity, soldOut, changed);
+		// 단일 가격 경로(단건 수정 등): 모든 마켓에 같은 price를 전송(현행 동작 보존).
+		return syncInternal(productId, marketType -> price, quantity, soldOut, changed);
 	}
 
-	private MarketRepublishResult syncInternal(Long productId, Integer price, int quantity, boolean soldOut,
-		boolean changed) {
+	/**
+	 * D-094: 마켓별 실수수료(sb_fee_policy)로 판매가를 <b>따로 산정</b>해 각 마켓에 전송한다.
+	 * 같은 원가·마진·쿠폰·최소마진이라도 쿠팡(11%)·스토어(8%)·G마켓/11번가(18%)의 수수료 차이만큼
+	 * 전송 가격이 달라져, 모든 마켓에서 목표 마진에 맞는 경쟁력 있는 가격을 유지한다.
+	 */
+	public MarketRepublishResult syncPriceStockPerMarket(Long productId, PricingInputs pricing,
+		StockStatus stockStatus, boolean changed) {
+		boolean soldOut = stockStatus == StockStatus.OUT_OF_STOCK;
+		int quantity = soldOut ? 1 : Product.DEFAULT_IN_STOCK_QUANTITY;
+		return syncInternal(productId, marketType -> priceForMarket(pricing, marketType), quantity, soldOut,
+			changed);
+	}
+
+	/** 마켓 실수수료로 산정한 그 마켓의 판매가(원, 정수). */
+	private Integer priceForMarket(PricingInputs p, MarketType marketType) {
+		BigDecimal fee = marketFeeService.feeRate(marketType);
+		return marginCalculator.calculateSalePrice(p.buyPrice(), p.bundleQty(), p.marginRate(),
+			p.couponRate(), p.minMarginPrice(), fee).intValue();
+	}
+
+	private MarketRepublishResult syncInternal(Long productId, Function<MarketType, Integer> priceResolver,
+		int quantity, boolean soldOut, boolean changed) {
 		List<MarketRegistration> registrations = marketRegistrationRepository.findByProductId(productId);
 		List<MarketType> synced = new ArrayList<>();
 		List<MarketType> skipped = new ArrayList<>();
@@ -76,7 +104,8 @@ public class ProductMarketSyncService {
 
 				MarketClient client = marketClientRouter.getClient(marketType);
 				Map<String, Object> updated =
-					client.syncPriceAndStock(marketItemId, currentRawData, price, quantity, soldOut);
+					client.syncPriceAndStock(marketItemId, currentRawData, priceResolver.apply(marketType),
+							quantity, soldOut);
 
 				if (updated != null) {
 					reg.updateMarketDetailedInfo(objectMapper.writeValueAsString(updated));

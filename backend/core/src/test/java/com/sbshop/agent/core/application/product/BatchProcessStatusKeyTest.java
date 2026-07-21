@@ -45,6 +45,7 @@ class BatchProcessStatusKeyTest {
     @Mock private MarginCalculator marginCalculator;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private ProductMarketSyncService productMarketSyncService;
+    @Mock private com.sbshop.agent.core.application.fee.MarketFeeService marketFeeService;
     @Mock private Product product;
 
     private BatchPriceStockService service;
@@ -57,13 +58,18 @@ class BatchProcessStatusKeyTest {
     void setUp() {
         service = new BatchPriceStockService(productReader, productWriter, productRepository,
             productStockCrawlerPort, processStatusService, marginCalculator, eventPublisher,
-            productMarketSyncService);
+            productMarketSyncService, marketFeeService);
 
         lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
         lenient().when(product.getSbCode()).thenReturn(SB_CODE);
         lenient().when(product.getLogisticsInfo()).thenReturn(null);
+        lenient().when(marketFeeService.feeRate(any())).thenReturn(new BigDecimal("11"));
         lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any()))
             .thenReturn(new BigDecimal("9900"));
+        lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any(), any(), any()))
+            .thenReturn(new BigDecimal("9900"));
+        lenient().when(productMarketSyncService.syncPriceStockPerMarket(any(), any(), any(StockStatus.class), anyBoolean()))
+            .thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
         lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class)))
             .thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
         lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class), anyBoolean()))

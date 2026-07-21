@@ -13,6 +13,7 @@ import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
 import com.sbshop.agent.core.domain.product.component.ProductWriter;
 import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
+import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.domain.product.service.MarginCalculator;
 import java.util.List;
 import java.util.Optional;
@@ -46,7 +47,8 @@ class BatchCompletedEventPublishTest {
 			mock(ProcessStatusService.class),
 			mock(MarginCalculator.class),
 			eventPublisher,
-			mock(ProductMarketSyncService.class)
+			mock(ProductMarketSyncService.class),
+			mock(MarketFeeService.class)
 		);
 	}
 
