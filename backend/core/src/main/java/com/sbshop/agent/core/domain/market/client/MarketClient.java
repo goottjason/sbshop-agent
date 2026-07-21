@@ -86,4 +86,17 @@ public interface MarketClient {
 	default Map<String, String> fetchAllLinkIdentifiers(long throttleMs) {
 		return null;
 	}
+
+	/**
+	 * D-096: 판매자 즉시할인 정책을 제거한다(저수수료 마켓의 중복 할인 정리, 일회성).
+	 * 마켓별 가격이 이미 각 수수료에 맞게 산정되므로 별도 즉시할인이 겹치면 이중할인 손해가 난다.
+	 *
+	 * @param marketItemId 마켓 상품코드(스토어=originProductNo)
+	 * @param dryRun       true면 현재 즉시할인만 조회해 보고(수정하지 않음)
+	 * @return 발견(또는 제거)한 즉시할인 설명. 즉시할인이 없으면 empty.
+	 *         <p>기본 구현은 no-op(empty) — 지원 마켓(스토어)만 override.
+	 */
+	default java.util.Optional<String> removeSellerImmediateDiscount(String marketItemId, boolean dryRun) {
+		return java.util.Optional.empty();
+	}
 }

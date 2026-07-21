@@ -158,6 +158,49 @@ public class SmartstoreMarketClient implements MarketClient {
 		return currentRawData;
 	}
 
+	/**
+	 * D-096: 판매자 즉시할인(customerBenefit.immediateDiscountPolicy)만 제거하고 다른 혜택(적립 등)은 보존한다.
+	 * origin-product를 GET → 즉시할인 정책 확인 → (dryRun 아니면) 그 키만 제거 후 PUT.
+	 */
+	@Override
+	public java.util.Optional<String> removeSellerImmediateDiscount(String marketItemId, boolean dryRun) {
+		try {
+			String response = restClient.get("/v2/products/origin-products/" + marketItemId);
+			JsonNode originNode = objectMapper.readTree(response).path("originProduct");
+			Map<String, Object> originProduct = objectMapper.convertValue(originNode, Map.class);
+
+			Object benefitObj = originProduct.get("customerBenefit");
+			if (!(benefitObj instanceof Map)) {
+				return java.util.Optional.empty();
+			}
+			@SuppressWarnings("unchecked")
+			Map<String, Object> customerBenefit = (Map<String, Object>) benefitObj;
+			Object immediate = customerBenefit.get("immediateDiscountPolicy");
+			if (immediate == null) {
+				return java.util.Optional.empty();
+			}
+			String description = String.valueOf(immediate);
+
+			if (dryRun) {
+				log.info("[Smartstore] 즉시할인 확인(dryRun): {} — {}", marketItemId, description);
+				return java.util.Optional.of(description);
+			}
+
+			customerBenefit.remove("immediateDiscountPolicy");
+			Map<String, Object> requestBody = new HashMap<>();
+			requestBody.put("originProduct", originProduct);
+			restClient.put("/v2/products/origin-products/" + marketItemId, requestBody);
+			log.info("[Smartstore] 즉시할인 제거 완료: {} — 제거값 {}", marketItemId, description);
+			return java.util.Optional.of(description);
+		} catch (RuntimeException e) {
+			log.error("[Smartstore] 즉시할인 제거 실패: {} — {}", marketItemId, e.getMessage());
+			throw e;
+		} catch (Exception e) {
+			log.error("[Smartstore] 즉시할인 제거 실패: {} — {}", marketItemId, e.getMessage());
+			throw new RuntimeException("[Smartstore] 즉시할인 제거 실패", e);
+		}
+	}
+
 	@Override
 	public Map<String, Object> syncImagesAndHtml(com.sbshop.agent.core.domain.product.Product product,
 		String marketItemId, Map<String, Object> currentRawData,
