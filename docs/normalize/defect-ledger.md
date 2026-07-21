@@ -1396,3 +1396,43 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - **N스토어(스토어): buying-agent 네이버 이미지 업로드 이식**. "올바른 이미지 파일이 아닙니다"(400)=Naver가 외부 R2 URL 거부 → `SmartstoreRestClient.uploadImages`(멀티파트 POST /v1/product-images/upload) 추가, `SmartstoreMarketClient`에 downloadImage/ensureImageExtension/uploadImagesToNaver + customsTaxType=INCLUDED 주입 + detailContent 이중이스케이프 제거. 네이버 업로드 URL로 representativeImage 등록. 실패 시 외부 URL 폴백.
 - **옥션(Cafe24): 코드 이슈 아님**. buying-agent Cafe24 syncImagesAndHtml이 sbshop과 완전 동일(base64 detail/list/tiny/small_image POST). Cafe24 API 호출 성공·G마켓 전파 정상이나 옥션 미전파 = **Cafe24→옥션(ESM+) 연동 설정**(코드 밖). 사용자 Cafe24 마켓연동 이미지동기화 설정 확인 필요.
 - **G마켓: 정상**(Cafe24 경로).
+
+---
+
+### D-093: 가격 배치가 사용자 마진/할인/최소마진 정책을 무시 — 하드코딩 15/20/5000이 실가격 지배 (P1)
+
+- 심각도: **P1 (기능 불능 — 사용자가 설정한 가격정책이 실제 판매가에 반영되지 않음)**
+- 리스크 등급: **중대** (실 판매가·전 상품 마진에 직접 영향, 다마켓, 스케줄러 행위 변경)
+- 조사 계기: 2026-07-21 사용자 신고 — 배한순·안희수·이호엽·강정란 주문건 판매가 이상. "배치로 마진율 10%·할인율 15%·최소마진 3500 설정했는데 반영 안 된 듯".
+- 위치:
+  - `backend/worker/src/main/java/com/sbshop/agent/worker/scheduler/BatchScheduler.java:34-37` — 매일 05:00 KST 정기 배치가 **`new BigDecimal("15"), new BigDecimal("20"), new BigDecimal("5000")` 하드코딩** 파라미터로 iHerb 전 상품 재가격.
+  - `backend/api/src/main/java/com/sbshop/agent/api/controller/BatchController.java:80-82, 152-154` — 수동 배치도 요청 미지정 시 기본값 **15/20/5000**.
+  - 마진·할인·최소마진 정책을 **영속 저장하는 테이블/설정이 없음** (grep: config/policy/@Value 읽기 흔적 0). 사용자의 수동 배치 파라미터는 일회성.
+- 근본원인: (1) 스케줄러가 정책 파라미터를 하드코딩 → 사용자가 수동 배치로 10/15/3500을 넣어도 다음 정기/공급사 배치(하루 다회)가 15/20/5000으로 **덮어씀**. (2) 크롤 기반이라 매 실행 소싱가·환율 변동으로 가격이 요동. 동일 상품 277(210116IHB040)이 4일간 74000~79400 사이 진동(sb_process_status 이력 확인).
+- 증거(계산 대조, 현재 cost_price 기준 15/20/5000 역산 = 현재 sale_price 정확히 일치):
+  - 277: cost31522·bq2 → (31522×0.8×2+0)/0.665=75842→올림100→**75,900** = 현재가 75,900 ✓
+  - 245: cost28383·bq1 → (28383×0.8+6000)/0.665=43168→**43,200** = 현재가 43,200 ✓
+  - 3006: cost6587·bq2 → (6587×0.8×2+6000)/0.665=24870→**24,900** = 현재가 24,900 ✓
+  - 사용자 의도(10/15/3500) 계산값: 277=75,000 / 245=42,200 / 3006=24,100 — 실제가와 전부 불일치.
+- 진단 결론: 사용자 질문의 **가설(2) "가격 반영 안 됨"이 정답**. 단 일회성 반영 실패가 아니라 **구조적**: 정책 저장소 부재 + 스케줄러 하드코딩이 매일 사용자 값을 덮어쓰는 것. 주문 4건은 전부 이익 상태(손실 없음)이나, 사용자가 의도한 마진 10%(더 경쟁적 저가)가 아니라 15%로 상시 판매 중.
+- 상태: **발견** (수정 미착수 — 올바른 목표동작이 사업 결정 사항: 스케줄러가 사용자 정책을 읽도록 정책 저장소 신설 vs 스케줄러 상수 교체 vs 정책 UI. 사용자 방향 확인 필요)
+- 이력: 2026-07-21 발견·확정(리더 직접 진단, 운영 DB read-only + 코드 대조)
+
+---
+
+### D-094: MarginCalculator가 마켓별 수수료(sb_fee_policy)를 무시하고 채널수수료 18.5% 전 마켓 고정 (P2)
+
+- 심각도: P2 (오동작 — 마켓별 실수수료와 괴리, 단일가 산정의 경제성 왜곡)
+- 리스크 등급: 표준
+- 위치: `backend/core/src/main/java/com/sbshop/agent/core/domain/product/service/MarginCalculator.java:10` — `CHANNEL_FEE_RATE = 18.5` 하드코딩, 전 마켓 동일 적용.
+- 근본원인: `sb_fee_policy` 테이블에 마켓별 수수료율이 존재(COUPANG 11%·SMART_STORE 8%·ELEVEN_STREET 18%·GMARKET 18%·AUCTION 18%·CAFE24 18%)하나 `MarginCalculator`는 이를 읽지 않고 18.5% 고정. 쿠팡(11%)·스토어(8%)는 실제보다 높은 수수료를 가정해 과대 산정(보수적이나 경쟁력 저하), 정책 테이블은 사실상 사장(死藏).
+- 증거: `SELECT * FROM sb_fee_policy` 6행 존재·ACTIVE. grep 결과 MarketFeeService는 별도 존재하나 가격 산정 경로(MarginCalculator)와 미연결.
+- 상태: **발견** (D-093과 연계 — 가격정책 재설계 시 함께 처리 권장. 단, 다마켓 단일 sale_price 구조에서는 마켓별 수수료 반영이 설계 변경을 수반)
+- 이력: 2026-07-21 발견(리더 진단 중 파생)
+
+---
+
+### D-093 스케줄러 비활성화 + 계산식 실측 검증 (2026-07-21, 사용자 결정)
+- **BatchScheduler @Scheduled 비활성화**(`BatchScheduler.java:22`, 주석 처리 + 사유 명시). 사용자가 정기 자동재가격 존재를 몰랐고, 향후 고도화(매출 급감 대응 등) 시 정책 저장소 연결 후 복원키로 함. 가역·경량. :worker:compileJava 통과. **미배포(push 대기)**.
+- **계산식 실측 대조(16개 최근 주문, sourcing_amount 보유)**: 현재 DB 판매가 = 15/20/5000 계산값과 **14/14 정확히 일치** → 계산식(MarginCalculator) 자체는 버그 없이 설계대로 정상. 문제는 순수 파라미터.
+- **D-095 파생(계산모델 한계)**: 판매가는 cost_price(크롤 스냅샷)×(1-쿠폰가정)으로 산정하나, 실제 iHerb 매입가(sourcing_amount)가 상품별로 ±20% 편차. 특히 231108IHB098(실매입이 가정보다 +10~15% 초과)·220130IHB051(+7%)은 실현마진 4~12%로 붕괴(정두호 4%·장용/윤현주 8%). minMargin은 '가정매입' 기준이라 이 원가 과소평가를 보호하지 못함. 함의: 마진 10%로 낮추면(=판매가 700~1300 하락) 이런 저마진 상품은 손실 위험 증가. 조치 후보: 만성 저마진 상품 cost_price 갱신 or 마켓별/상품별 마진 차등.
