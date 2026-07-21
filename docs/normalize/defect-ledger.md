@@ -1479,4 +1479,6 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 라이브 근거(DB 실측 2026-07-22): CANCELED/RETURNED인데 정산액 유지 3건 — GMARKET 곽금희(4460696482) RETURNED 26,611 / SMART_STORE 정가영(2026061471696071) CANCELED 78,140 / 이명동(2026061486764551) CANCELED 47,590. 전부 settlement_verified=f.
 - 상태 감지 자체는 Cafe24(R*→RETURNED 라이브작동)·스토어(취소 매핑작동)에서 이미 됨 → 공백은 "종결됐는데 정산0으로 안 내림"뿐. 마켓 API 무관, DB 파생 가능.
 - 수정 설계: ShippingStatus.isRefundTerminal()(취소·반품=true, 교환은 결제유지라 제외) + 마켓무관 TerminalSettlementService.zeroSettlementForRefunded(marketType) — 환불성 종결 lineItem 정산0+verified(멱등). 각 마켓 postSyncProcess에 배선. 쿠팡도 CANCELED 커버 위해 추가.
-- 상태: 발견 → 수정중(TDD)
+- 수정(2026-07-22, TDD, 커밋 7cf213e): 위 설계대로 구현. `TerminalSettlementServiceTest` 5건(RETURNED/CANCELED 0처리, EXCHANGED·DELIVERED 불변, 이미0 멱등). 생성자 파라미터 추가로 깨진 기존 테스트 7파일 목 주입 보정. core+infra+api 회귀 전체 통과.
+- 검증(2026-07-22, 라이브): 배포(재시작 23:55:02Z) 후 스토어·Cafe24 동기화 트리거 → 로그 "[GMARKET] 1건·[SMART_STORE] 2건 정산0 정규화". DB 확인: 곽금희 RETURNED 26611→0.00/verified, 정가영 CANCELED 78140→0.00, 이명동 CANCELED 47590→0.00. DB 전체 스캔이라 30일 창 밖(곽금희 06-23)도 교정됨.
+- 상태: 검증통과 (2026-07-22 라이브 — 전 마켓 취소·반품 정산0 정규화, 멱등·자가치유)
