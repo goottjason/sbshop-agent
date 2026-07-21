@@ -1459,3 +1459,13 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 전체 3183건 비동기 실행 완료: removed=2160, skipped=4(할인없음), **failed=1019(429 TOO_MANY_REQUESTS)**. 실패는 네이버 API 분당 한도 초과 — throttle 200ms에 GET+PUT 2콜 + 동시 주문동기화(SyncWorker)까지 경합.
 - **개선(TDD)**: SmartstoreSellerDiscountRemovalService에 항목별 재시도(최대3회, 백오프 2s·4s) + throttle 200→500ms. throttle/backoff는 세터로 튜닝·테스트 가능. 멱등이라 재실행 시 이미 제거된 건은 스킵(GET만).
 - 잔여: 실패 1019건 mop-up — 개선 배포 후 전체 재실행(자가치유). 스킵 GET 비용은 있으나 재시도로 429 대부분 흡수.
+
+### D-097: 쿠팡 반품완료 전방 감지 부재 — 배송완료 주문의 반품이 RETURNED+정산0으로 전환되지 않음 (2026-07-21, 사용자 신고 "김대섭 반품건이 배송완료로 표시")
+- 심각도: P1 (오동작 — 반품완료 주문이 배송완료로 표시·정산액 유지)
+- 리스크 등급: 중대 (마켓 API 계약 신설 — 쿠팡 returnRequests)
+- 위치: `CoupangOrderSyncService.postSyncProcess` / `CoupangOrderAdapter`(반품 조회 경로 자체 부재)
+- 증상: 배송완료(DELIVERED) 후 고객이 반품하면 쿠팡이 그 주문을 ordersheet API에서 제거(단건조회 400 "취소 또는 반품"). 그러나 앱에는 쿠팡 returnRequests(반품) API 호출 경로가 없어 반품완료를 학습 못 함. detectCancellations는 DELIVERED를 terminal로 보호(D-027)하므로 absence로도 안 잡힘 → 영구 DELIVERED 고착, 정산액도 유지.
+- 라이브 근거: 주문 2101402034506(김대섭, order_id 33/li 264) — DB=DELIVERED·정산 63,724. 쿠팡 returnRequests=receiptId 1799887551 RETURN/RETURNS_COMPLETED(고객변심, 완료확정 2026-07-13). 쿠팡 단건 ordersheet=400 "취소 또는 반품".
+- D-027과의 구분: D-027은 "이미 RETURNED인 주문의 오취소 방지"(역방향 보호, 수정완료). D-097은 "DELIVERED→RETURNED 전방 전환 경로 신설"(별개).
+- 수정 설계(사용자 승인): 쿠팡 returnRequests API(searchType=timeFrame, ≤7일 창 분할)로 receiptStatus=RETURNS_COMPLETED 확증 → 해당 orderId의 lineItem을 RETURNED+settlement 0+verified 전환. absence 추론 아님(오취소 없음), 멱등, 정산동기화(DELIVERED만 처리)가 RETURNED 스킵해 재부풀지 않음.
+- 상태: 발견 → 수정중(TDD)

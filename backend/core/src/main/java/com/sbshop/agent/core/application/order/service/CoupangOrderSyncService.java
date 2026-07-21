@@ -76,8 +76,8 @@ public class CoupangOrderSyncService {
 				credential, LocalDate.now().minusDays(30), LocalDate.now());
 			// 4. 주문 저장/업데이트
 			processOrders(orders, credential);
-			// 5. 사후 처리 (취소감지, 택배사 보정)
-			postSyncProcess(orders);
+			// 5. 사후 처리 (취소감지, 반품완료 반영, 택배사 보정)
+			postSyncProcess(orders, credential);
 
 			log.info("[COUPANG] 주문 동기화 완료: {}건 처리", orders.size());
 			success = true;
@@ -367,12 +367,14 @@ public class CoupangOrderSyncService {
 	}
 
 	/* ----- 사후 처리 ----- */
-	private void postSyncProcess(List<MarketOrderDto> orders) {
+	private void postSyncProcess(List<MarketOrderDto> orders, MarketCredential credential) {
 		LocalDate fromDate = LocalDate.now().minusDays(30);
 		LocalDate toDate = LocalDate.now();
 		// 1. API에 없는 주문 → CANCELED 처리
 		coupangOrderAdapter.detectCancellations(orders, fromDate, toDate);
-		// 2. 택배사 ETC → 실제 택배사로 보정
+		// 2. (D-097) 반품완료 전방 감지 → DELIVERED건을 RETURNED+정산0으로 전환
+		coupangOrderAdapter.detectReturns(credential, fromDate, toDate);
+		// 3. 택배사 ETC → 실제 택배사로 보정
 		coupangOrderAdapter.fixCarriers(orders);
 	}
 }

@@ -99,6 +99,85 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 		return CoupangHmacUtil.generateSignatureUtc(method, url, accessKey, secretKey);
 	}
 
+	/**
+	 * 쿠팡 반품요청 목록 조회 (v4 returnRequests, searchType=timeFrame). D-097.
+	 * createdAt 기준 [from, to] 구간을 조회한다. 구간 폭 제한(≈7일)을 넘지 않도록 7일 창으로 분할하고,
+	 * nextToken으로 페이지를 순회한다. status는 미지정(전 상태) — 어댑터가 RETURNS_COMPLETED만 필터링한다.
+	 */
+	@Override
+	public JsonNode queryReturns(MarketCredential credential, String fromDate, String toDate) {
+		String vendorId = credential.getClientId();
+		String accessKey = credential.getAccessKey();
+		String secretKey = credential.getSecretKey();
+
+		List<JsonNode> all = new ArrayList<>();
+		java.time.LocalDate from = java.time.LocalDate.parse(fromDate);
+		java.time.LocalDate to = java.time.LocalDate.parse(toDate);
+
+		for (java.time.LocalDate windowStart = from; !windowStart.isAfter(to); windowStart = windowStart.plusDays(7)) {
+			java.time.LocalDate windowEnd = windowStart.plusDays(6);
+			if (windowEnd.isAfter(to)) {
+				windowEnd = to;
+			}
+			String createdAtFrom = windowStart + "T00:00";
+			String createdAtTo = windowEnd + "T23:59";
+			String nextToken = "";
+
+			while (true) {
+				String path = "/v2/providers/openapi/apis/api/v4/vendors/" + vendorId + "/returnRequests"
+					+ "?searchType=timeFrame"
+					+ "&createdAtFrom=" + createdAtFrom
+					+ "&createdAtTo=" + createdAtTo
+					+ "&maxPerPage=50";
+				if (!nextToken.isEmpty()) {
+					path += "&nextToken=" + nextToken;
+				}
+
+				String authorization = generateHmacSignature("GET", path, accessKey, secretKey);
+
+				try {
+					// URI.create로 그대로 전송(템플릿 인코딩 회피) — createdAt의 콜론이 서명 대상 쿼리와 일치해야 함.
+					String response = restClient.get()
+						.uri(java.net.URI.create(DOMAIN + path))
+						.header(HttpHeaders.AUTHORIZATION, authorization)
+						.header("X-Requested-By", vendorId)
+						.accept(MediaType.APPLICATION_JSON)
+						.retrieve()
+						.body(String.class);
+
+					JsonNode root = objectMapper.readTree(response);
+					String code = root.path("code").asText();
+					if (!"200".equals(code) && !"SUCCESS".equalsIgnoreCase(code)) {
+						log.error("쿠팡 반품조회 오류: {} ({}~{})",
+							root.path("message").asText(), createdAtFrom, createdAtTo);
+						break;
+					}
+
+					JsonNode data = root.path("data");
+					if (data.isArray()) {
+						for (JsonNode n : data) {
+							all.add(n);
+						}
+					}
+
+					nextToken = root.path("nextToken").asText("");
+					if (nextToken.isEmpty()) {
+						break;
+					}
+					Thread.sleep(300);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					throw new RuntimeException("쿠팡 반품조회 중단됨", e);
+				} catch (Exception e) {
+					log.error("쿠팡 반품조회 실패: {} ({}~{})", e.getMessage(), createdAtFrom, createdAtTo);
+					break;
+				}
+			}
+		}
+
+		return objectMapper.valueToTree(all);
+	}
+
 	@Override
 	public void shipOrder(MarketCredential credential, CoupangInvoiceUploadRequest request) {
 		String vendorId = credential.getClientId();

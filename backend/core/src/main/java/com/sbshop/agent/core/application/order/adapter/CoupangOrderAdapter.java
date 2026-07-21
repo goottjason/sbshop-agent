@@ -524,6 +524,75 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 	}
 
 	/**
+	 * D-097: 쿠팡 반품완료 전방 감지. returnRequests API로 receiptStatus=RETURNS_COMPLETED를 확증하면
+	 * 해당 주문의 lineItem을 RETURNED + 정산 0 + verified로 전환한다.
+	 *
+	 * <p>배송완료(DELIVERED) 후 고객 반품 시 쿠팡은 그 주문을 ordersheet에서 제거하므로 fetchOrders로는
+	 * 반품을 학습할 수 없다(단건조회 400 "취소 또는 반품"). detectCancellations는 DELIVERED를 terminal로
+	 * 보호하므로 absence로도 못 잡는다. 이 경로만이 반품완료를 권위 있게 확증한다 — absence 추론이 아니라
+	 * 쿠팡 원본 대조라 오취소가 없다. 멱등이며(RETURNED+0은 재전환하지 않음), 정산동기화는 DELIVERED만
+	 * 처리하므로 RETURNED건은 스킵되어 정산액이 다시 부풀지 않는다.
+	 */
+	public void detectReturns(MarketCredential credential, LocalDate fromDate, LocalDate toDate) {
+		JsonNode returns = coupangOrderApiPort.queryReturns(
+			credential, fromDate.toString(), toDate.toString());
+		if (returns == null || !returns.isArray()) {
+			return;
+		}
+
+		Set<String> completedReturnOrderIds = new HashSet<>();
+		for (JsonNode node : returns) {
+			String receiptType = node.path("receiptType").asText("");
+			String receiptStatus = node.path("receiptStatus").asText("");
+			if ("RETURN".equalsIgnoreCase(receiptType)
+				&& "RETURNS_COMPLETED".equalsIgnoreCase(receiptStatus)) {
+				String orderId = node.path("orderId").asText(null);
+				if (orderId != null && !orderId.isEmpty()) {
+					completedReturnOrderIds.add(orderId);
+				}
+			}
+		}
+		if (completedReturnOrderIds.isEmpty()) {
+			return;
+		}
+
+		List<Order> dbOrders = orderRepository.findByMarketType(MarketType.COUPANG);
+		int returnedCount = 0;
+		for (Order order : dbOrders) {
+			if (!completedReturnOrderIds.contains(order.getMarketOrderNo())) {
+				continue;
+			}
+			List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
+			for (OrderLineItem item : items) {
+				if (isAlreadyReturnedWithZeroSettlement(item)) {
+					continue; // 멱등: 재실행 시 이미 반영된 건은 스킵
+				}
+				ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
+					.shippingStatus(ShippingStatus.RETURNED)
+					.build();
+				item.applyShippingData(cmd.toShippingData(item.getShippingData()));
+				item.applySettlement(BigDecimal.ZERO);
+				item.markSettlementVerified();
+				orderLineItemRepository.save(item);
+				returnedCount++;
+			}
+		}
+
+		if (returnedCount > 0) {
+			log.info("쿠팡 반품완료 반영: {}건 RETURNED+정산0 전환", returnedCount);
+		}
+	}
+
+	private boolean isAlreadyReturnedWithZeroSettlement(OrderLineItem item) {
+		boolean returned = item.getShippingData() != null
+			&& item.getShippingData().getShippingStatus() == ShippingStatus.RETURNED;
+		boolean zeroSettlement = item.getSettlementData() != null
+			&& item.getSettlementData().getSettlementAmount() != null
+			&& item.getSettlementData().getSettlementAmount().compareTo(BigDecimal.ZERO) == 0;
+		return returned && zeroSettlement;
+	}
+
+	/**
 	 * terminal(종결) 상태가 아닌지 판정한다. fetchOrders가 조회하지 않는 종결 상태
 	 * (CANCELED·DELIVERED·RETURNED·EXCHANGED)는 API 응답에 없어도 취소로 오인해선 안 된다. (D-027)
 	 */
