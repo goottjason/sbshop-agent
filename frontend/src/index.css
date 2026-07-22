@@ -15,6 +15,17 @@
   --warning: #f59e0b;
 }
 
+/* 상품 관리 전용 테마 스코프 — 전역 --primary-color(남색)를 건드리지 않고 포레스트 그린으로 격리 */
+.product-theme {
+  --product-primary: #166534;
+  --product-hover: #14532d;
+  --product-light: #f0fdf4;
+  --product-badge-bg: #dcfce7;
+}
+.product-theme ::selection {
+  background: #bbf7d0;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
