@@ -1490,4 +1490,6 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 발견: `claimservice/orderlistalladdr` 단건 상세조회 응답에 ordPrdStat(901)·ordPrdStatNm(구매확정 등) 실재. D-031의 "상태 필드 없음" 결론이 틀림 — 파서가 안 읽었을 뿐.
 - 수정 설계: ElevenstStatusMapper.mapClaimStatus(ordPrdStatNm 부분일치: 취소→CANCELED·반품→RETURNED·교환→EXCHANGED, 그외 null) + ElevenstOrderAdapter.resolveClaimStatus(단건조회·매핑) + detectClaims(사라진 non-terminal 주문을 상세조회로 실상태 판정, 클레임 아니면 상태 불변=오취소 방지). 반품·취소는 D-098이 정산0 처리.
 - 검증 한계: 현 DB에 11번가 클레임 주문 0건 → 라이브 E2E 불가, 단위테스트로 검증. 실 클레임 발생 시 라이브 확인.
-- 상태: 발견 → 수정중(TDD)
+- 수정(2026-07-22, TDD, 커밋 5658431): 위 설계대로 구현. `ElevenstClaimStatusMapperTest` 5건 + `ElevenstDetectCancellationsTest`에 D-099 4건(취소/반품/교환 판정·클레임아님 오취소방지) 추가. core+infra+api 회귀 전체 통과.
+- 검증(2026-07-22, 스모크): 배포(재시작 00:44:34Z) 후 11번가 동기화 트리거 → ELEVEN_STREET_SYNC SUCCESS. 새 상세조회 경로가 sync 무결. 현 DB 클레임 0건이라 상태변경 로그 없음(정상). 라이브 E2E(실 클레임 RETURNED 전환)는 실 클레임 발생 시.
+- 상태: 검증통과(단위+스모크) — 라이브 E2E는 실 11번가 클레임 발생 대기
