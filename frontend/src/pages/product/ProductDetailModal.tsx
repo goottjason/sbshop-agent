@@ -1,13 +1,49 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Modal, Form, Input, InputNumber, Button, Space, Spin, Image, Divider,
-  Typography, Collapse, message, Tooltip, Popconfirm,
-} from 'antd';
+import { Modal, Image, Collapse, message, Tooltip, Popconfirm } from 'antd';
 import { UploadOutlined, LinkOutlined, CloudDownloadOutlined } from '@ant-design/icons';
 import { productApi, type ProductDetail, type ImageUploadResult, type ProductEditFields } from '../../api/productApi';
 import { updateProductFields } from './productMockApi';
 
-const { TextArea } = Input;
+type Fields = Partial<ProductEditFields>;
+
+const GREEN = '#166534';
+
+// 편집 행: 라벨(불릿) 좌 · 고스트 인풋 우(포커스 시 그린 밑줄).
+// 모듈 최상위에 두어 매 입력 리렌더 시 리마운트(포커스 이탈)를 방지한다.
+function EditRow({ label, value, type = 'text', full = false, onChange }: {
+  label: string;
+  value: string | number | undefined;
+  type?: 'text' | 'number';
+  full?: boolean;
+  onChange: (v: string | number | undefined) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', gridColumn: full ? '1 / -1' : undefined, borderBottom: '1px solid #f4f4f5' }}>
+      <span style={{ color: '#9ca3af', fontSize: 13 }}>•</span>
+      <span style={{ color: '#6b7280', fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}>{label}</span>
+      <input
+        className="pd-inp"
+        type={type}
+        value={value ?? ''}
+        onChange={(e) => onChange(type === 'number' ? (e.target.value === '' ? undefined : Number(e.target.value)) : e.target.value)}
+      />
+    </div>
+  );
+}
+
+// ProductDetail(중첩) → 편집폼(평탄) 로드
+function toFields(d: ProductDetail): Fields {
+  return {
+    brand: d.brand, productName: d.productName, baseName: d.baseName, originalName: d.originalName,
+    category: d.category, costPrice: d.priceInfo?.costPrice, salePrice: d.priceInfo?.salePrice,
+    marginRate: d.priceInfo?.marginRate, stock: d.logisticsInfo?.stock, weight: d.logisticsInfo?.weight,
+    bundleQuantity: d.logisticsInfo?.bundleQuantity, barcode: d.productSpec?.barcode,
+    capacity: d.productSpec?.capacity, measureUnit: d.productSpec?.measureUnit,
+    vendor: d.sourcingInfo?.vendor, manufacturer: d.sourcingInfo?.manufacturer,
+    origin: d.sourcingInfo?.origin, hsCode: d.sourcingInfo?.hsCode, sourceUrl: d.sourcingInfo?.sourceUrl,
+    memo: d.memo, detailHtml: d.detailHtml,
+  };
+}
 
 export function ProductDetailModal({ productId, open, onClose, onSaved }: {
   productId: number | null;
@@ -15,18 +51,17 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [form] = Form.useForm<ProductEditFields>();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [detail, setDetail] = useState<ProductDetail | null>(null);
+  const [fields, setFields] = useState<Fields>({});
   const [urlInput, setUrlInput] = useState('');
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open || productId == null) return;
-    // 모달 오픈 시 상세를 비동기 로드하기 위한 로딩 시딩. 기존 모달(Settings 등)과 동일 패턴이라
-    // set-state-in-effect 규칙만 이 라인에 한정 완화한다(코드베이스 baseline 동일 클래스).
+    // baseline 패턴(코드베이스 다수 파일에 동일): effect 진입 시 로딩 표시.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setUrlInput('');
@@ -34,35 +69,28 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
       .then((res) => {
         const d = res.data as ProductDetail;
         setDetail(d);
-        form.setFieldsValue({
-          brand: d.brand, productName: d.productName, baseName: d.baseName, originalName: d.originalName,
-          category: d.category, costPrice: d.priceInfo?.costPrice, salePrice: d.priceInfo?.salePrice,
-          marginRate: d.priceInfo?.marginRate, stock: d.logisticsInfo?.stock, weight: d.logisticsInfo?.weight,
-          bundleQuantity: d.logisticsInfo?.bundleQuantity, barcode: d.productSpec?.barcode,
-          capacity: d.productSpec?.capacity, measureUnit: d.productSpec?.measureUnit,
-          vendor: d.sourcingInfo?.vendor, manufacturer: d.sourcingInfo?.manufacturer,
-          origin: d.sourcingInfo?.origin, hsCode: d.sourcingInfo?.hsCode, sourceUrl: d.sourcingInfo?.sourceUrl,
-          memo: d.memo, detailHtml: d.detailHtml,
-        });
+        setFields(toFields(d));
       })
       .catch(() => message.error('상품 상세 조회에 실패했습니다.'))
       .finally(() => setLoading(false));
-  }, [open, productId, form]);
+  }, [open, productId]);
+
+  const set = <K extends keyof Fields>(name: K, value: Fields[K]) => setFields((f) => ({ ...f, [name]: value }));
 
   const refreshDetail = async () => {
     if (productId == null) return;
     try {
       const res = await productApi.fetchProductDetail(productId);
       setDetail(res.data as ProductDetail);
+      setFields(toFields(res.data as ProductDetail));
     } catch { message.error('상세 정보 갱신 실패'); }
   };
 
   const handleSave = async () => {
     if (productId == null) return;
-    const values = await form.validateFields();
     setSaving(true);
     try {
-      await updateProductFields(productId, values); // MOCK
+      await updateProductFields(productId, fields); // MOCK
       message.success('상품 정보 저장됨 (백엔드 반영은 다음 세션 구현)');
       onSaved();
       onClose();
@@ -121,103 +149,160 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
     finally { setUploading(false); }
   };
 
-  const num = (label: string, name: keyof ProductEditFields) => (
-    <Form.Item label={label} name={name} style={{ marginBottom: 8 }}>
-      <InputNumber style={{ width: '100%' }} />
-    </Form.Item>
+  // keyof Fields 이름으로 EditRow를 렌더하는 헬퍼(값 바인딩·set 위임).
+  const row = (label: string, name: keyof Fields, type: 'text' | 'number' = 'text', full = false) => (
+    <EditRow label={label} value={fields[name] as string | number | undefined} type={type} full={full}
+      onChange={(v) => set(name, v as Fields[typeof name])} />
   );
-  const txt = (label: string, name: keyof ProductEditFields, span2 = false) => (
-    <Form.Item label={label} name={name} style={{ marginBottom: 8, gridColumn: span2 ? '1 / -1' : undefined }}>
-      <Input />
-    </Form.Item>
-  );
+
+  const sectionTitle: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: GREEN, letterSpacing: 0.3, margin: '14px 0 2px' };
+  const grid2: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 28px' };
+
+  const d = detail;
 
   return (
     <Modal
-      title={detail ? `상품 편집 · ${detail.productName}` : '상품 편집'}
       open={open}
       onCancel={onClose}
-      width={880}
-      footer={[
-        <Button key="cancel" onClick={onClose}>닫기</Button>,
-        <Button key="save" type="primary" loading={saving} onClick={handleSave}
-          style={{ background: '#166534', borderColor: '#166534' }}>저장</Button>,
-      ]}
+      width={660}
+      centered
+      title={null}
+      styles={{ body: { maxHeight: '72vh', overflowY: 'auto', padding: '4px 28px 8px' } }}
+      footer={
+        <div style={{ display: 'flex', gap: 12, padding: '4px 20px 4px' }}>
+          <button onClick={onClose}
+            style={{ flex: 1, padding: '11px 0', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+            닫기
+          </button>
+          <button onClick={handleSave} disabled={saving || loading || !d}
+            style={{ flex: 1.4, padding: '11px 0', background: saving || loading || !d ? '#9ca3af' : GREEN, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: saving || loading || !d ? 'default' : 'pointer' }}>
+            {saving ? '저장 중…' : '저장'}
+          </button>
+        </div>
+      }
     >
-      {loading || !detail ? (
-        <div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>
+      <style>{`
+        .pd-inp { flex: 1; min-width: 0; border: none; border-bottom: 1px solid transparent; background: transparent;
+          text-align: right; font-weight: 600; color: #111827; font-size: 13px; outline: none; padding: 2px 0; }
+        .pd-inp:hover { border-bottom-color: #e5e7eb; }
+        .pd-inp:focus { border-bottom-color: ${GREEN}; }
+        .pd-inp::placeholder { color: #cbd5e1; font-weight: 400; }
+        .pd-ta { width: 100%; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 10px; font-size: 13px;
+          outline: none; resize: vertical; font-family: inherit; box-sizing: border-box; }
+        .pd-ta:focus { border-color: ${GREEN}; }
+        .pd-imgbtn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 8px;
+          border: 1px solid #d1d5db; background: #fff; color: #374151; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .pd-imgbtn:hover { border-color: ${GREEN}; color: ${GREEN}; }
+        .pd-imgbtn:disabled { opacity: 0.5; cursor: default; }
+      `}</style>
+
+      {loading || !d ? (
+        <div style={{ textAlign: 'center', padding: 64, color: '#94a3b8' }}>불러오는 중…</div>
       ) : (
-        <Form form={form} layout="vertical" size="small">
-          <Typography.Text type="secondary">SB코드: {detail.sbCode}</Typography.Text>
-          <Divider style={{ margin: '10px 0' }}>기본 정보</Divider>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
-            {txt('브랜드', 'brand')}
-            {txt('카테고리', 'category')}
-            {txt('상품명', 'productName', true)}
-            {txt('기본명', 'baseName')}
-            {txt('원문명', 'originalName')}
+        <>
+          {/* 헤더: 중앙 정렬 제목 + 배지 + 부제 */}
+          <div style={{ textAlign: 'center', paddingTop: 14 }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#111827', lineHeight: 1.25 }}>{d.productName || '상품 상세'}</div>
+            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: GREEN, background: 'var(--product-badge-bg, #dcfce7)', border: `1px solid ${GREEN}`, borderRadius: 999, padding: '2px 10px' }}>
+                {d.category || '카테고리 없음'}
+              </span>
+              <span style={{ fontSize: 13, color: '#6b7280' }}>
+                {d.sbCode}{d.brand ? ` · ${d.brand}` : ''}{d.sourcingInfo?.vendor ? ` · ${d.sourcingInfo.vendor}` : ''}
+              </span>
+            </div>
           </div>
 
-          <Divider style={{ margin: '10px 0' }}>가격</Divider>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0 16px' }}>
-            {num('원가', 'costPrice')}{num('판매가', 'salePrice')}{num('마진율(%)', 'marginRate')}
+          <div style={{ borderBottom: '2px solid #1f2937', margin: '16px 0 4px' }} />
+
+          {/* 기본 정보 */}
+          <div style={sectionTitle}>기본 정보</div>
+          <div style={grid2}>
+            {row('브랜드', 'brand')}
+            {row('카테고리', 'category')}
+            {row('상품명', 'productName', 'text', true)}
+            {row('기본명', 'baseName')}
+            {row('원문명', 'originalName')}
           </div>
 
-          <Divider style={{ margin: '10px 0' }}>물류·스펙</Divider>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0 16px' }}>
-            {num('재고', 'stock')}{num('무게', 'weight')}{num('묶음수량', 'bundleQuantity')}
-            {txt('바코드', 'barcode')}{num('용량', 'capacity')}{txt('단위', 'measureUnit')}
+          {/* 가격 */}
+          <div style={sectionTitle}>가격</div>
+          <div style={grid2}>
+            {row('원가', 'costPrice', 'number')}
+            {row('판매가', 'salePrice', 'number')}
+            {row('마진율(%)', 'marginRate', 'number')}
           </div>
 
-          <Divider style={{ margin: '10px 0' }}>소싱</Divider>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
-            {txt('소싱처', 'vendor')}{txt('제조사', 'manufacturer')}
-            {txt('원산지', 'origin')}{txt('HS코드', 'hsCode')}
-            {txt('소스 URL', 'sourceUrl', true)}
+          {/* 물류·스펙 */}
+          <div style={sectionTitle}>물류 · 스펙</div>
+          <div style={grid2}>
+            {row('재고', 'stock', 'number')}
+            {row('무게', 'weight', 'number')}
+            {row('묶음수량', 'bundleQuantity', 'number')}
+            {row('바코드', 'barcode')}
+            {row('용량', 'capacity', 'number')}
+            {row('단위', 'measureUnit')}
           </div>
 
-          <Form.Item label="메모" name="memo" style={{ marginTop: 8 }}>
-            <TextArea rows={2} />
-          </Form.Item>
-
-          <Divider style={{ margin: '10px 0' }}>이미지</Divider>
-          <Typography.Text type="secondary">등록 이미지 (hosted)</Typography.Text>
-          <div style={{ marginTop: 8, marginBottom: 12 }}>
-            {detail.hostedImages && detail.hostedImages.length > 0 ? (
-              <Image.PreviewGroup>
-                <Space wrap>{detail.hostedImages.map((url, i) => (
-                  <Image key={`h-${i}`} src={url} width={72} height={72} style={{ objectFit: 'cover', borderRadius: 4 }} />
-                ))}</Space>
-              </Image.PreviewGroup>
-            ) : <Typography.Text type="secondary"> 없음</Typography.Text>}
+          {/* 소싱 */}
+          <div style={sectionTitle}>소싱</div>
+          <div style={grid2}>
+            {row('소싱처', 'vendor')}
+            {row('제조사', 'manufacturer')}
+            {row('원산지', 'origin')}
+            {row('HS코드', 'hsCode')}
+            {row('소스 URL', 'sourceUrl', 'text', true)}
           </div>
-          <Space direction="vertical" style={{ width: '100%' }} size="small">
-            <Space wrap>
+
+          {/* 메모 */}
+          <div style={sectionTitle}>메모</div>
+          <textarea className="pd-ta" rows={2} value={fields.memo ?? ''} onChange={(e) => set('memo', e.target.value)} placeholder="메모" />
+
+          {/* 이미지 카드 (참고 디자인의 카드 섹션) */}
+          <div style={{ marginTop: 16, background: '#f8fafc', border: '1px solid #eef2f7', borderRadius: 12, padding: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 10 }}>이미지</div>
+            <div style={{ marginBottom: 12 }}>
+              {d.hostedImages && d.hostedImages.length > 0 ? (
+                <Image.PreviewGroup>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {d.hostedImages.map((url, i) => (
+                      <Image key={`h-${i}`} src={url} width={64} height={64} style={{ objectFit: 'cover', borderRadius: 6, border: '1px solid #e5e7eb' }} />
+                    ))}
+                  </div>
+                </Image.PreviewGroup>
+              ) : <span style={{ color: '#94a3b8', fontSize: 13 }}>등록된 이미지 없음</span>}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
               <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
                 onChange={(e) => handleFilesSelected(e.target.files)} />
-              <Button icon={<UploadOutlined />} loading={uploading} onClick={() => fileInputRef.current?.click()}>파일 업로드</Button>
+              <button className="pd-imgbtn" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+                <UploadOutlined /> 파일 업로드
+              </button>
               <Popconfirm title="소스 이미지 크롤·업로드"
                 description="크롤한 이미지를 R2에 업로드하고 연동된 모든 마켓에 재게시합니다. 진행할까요?"
                 okText="진행" cancelText="취소" onConfirm={handleCrawl}>
-                <Tooltip title={detail.sourcingInfo?.vendor !== 'IHB' ? '현재 iHerb 상품만 지원' : ''}>
-                  <Button icon={<CloudDownloadOutlined />} loading={uploading}>소스 이미지 크롤</Button>
+                <Tooltip title={d.sourcingInfo?.vendor !== 'IHB' ? '현재 iHerb 상품만 지원' : ''}>
+                  <button className="pd-imgbtn" disabled={uploading}><CloudDownloadOutlined /> 소스 이미지 크롤</button>
                 </Tooltip>
               </Popconfirm>
-            </Space>
-            <TextArea placeholder="이미지 URL을 줄바꿈 또는 쉼표로 구분해 입력" value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)} rows={2} />
-            <Button type="primary" icon={<LinkOutlined />} loading={uploading} onClick={handleUploadByUrl}
-              style={{ background: '#166534', borderColor: '#166534' }}>URL로 등록</Button>
-          </Space>
+            </div>
+            <textarea className="pd-ta" rows={2} placeholder="이미지 URL을 줄바꿈 또는 쉼표로 구분해 입력"
+              value={urlInput} onChange={(e) => setUrlInput(e.target.value)} />
+            <div style={{ marginTop: 8 }}>
+              <button className="pd-imgbtn" disabled={uploading} style={{ borderColor: GREEN, color: GREEN }} onClick={handleUploadByUrl}>
+                <LinkOutlined /> URL로 등록
+              </button>
+            </div>
+          </div>
 
-          {detail.detailHtml && (
-            <Collapse style={{ marginTop: 12 }} items={[{
+          {d.detailHtml && (
+            <Collapse style={{ marginTop: 14 }} items={[{
               key: 'detailHtml', label: '상세 설명 (HTML, 읽기전용)',
-              children: <iframe title="detailHtml" sandbox="" srcDoc={detail.detailHtml}
+              children: <iframe title="detailHtml" sandbox="" srcDoc={d.detailHtml}
                 style={{ width: '100%', height: 320, border: '1px solid #eee' }} />,
             }]} />
           )}
-        </Form>
+        </>
       )}
     </Modal>
   );
