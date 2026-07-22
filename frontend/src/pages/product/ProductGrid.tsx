@@ -2,13 +2,17 @@ import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   useReactTable, getCoreRowModel, flexRender, createColumnHelper,
+  type RowSelectionState,
 } from '@tanstack/react-table';
 import { toast } from 'react-toastify';
+import { Modal as AntModal } from 'antd';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/Table';
 import { productApi, type ProductList, type PriceStockSyncResult } from '../../api/productApi';
 import { renderMarketBadges, MARKET_FILTER_OPTIONS } from './productGridShared';
 import { ProductFilterPanel, type ProductFilters } from './ProductFilterPanel';
 import { PriceStockEditCell } from './PriceStockEditCell';
+import { ProductDetailModal } from './ProductDetailModal';
+import { bulkDeleteProducts } from './productMockApi';
 
 const columnHelper = createColumnHelper<ProductList>();
 const DEFAULT_FILTERS: ProductFilters = {
@@ -38,6 +42,8 @@ export function applyClientFilters(rows: ProductList[], f: ProductFilters): Prod
 export default function ProductGrid() {
   const [filters, setFilters] = useState<ProductFilters>(DEFAULT_FILTERS);
   const [keyword, setKeyword] = useState('');
+  const [detailId, setDetailId] = useState<number | null>(null);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['products', keyword],
@@ -98,6 +104,18 @@ export default function ProductGrid() {
   });
 
   const columns = useMemo(() => [
+    columnHelper.display({
+      id: 'select', header: ({ table }) => (
+        <input type="checkbox" checked={table.getIsAllRowsSelected()}
+          ref={(el) => { if (el) el.indeterminate = table.getIsSomeRowsSelected(); }}
+          onChange={table.getToggleAllRowsSelectedHandler()}
+          style={{ width: 16, height: 16, accentColor: 'var(--product-primary)', cursor: 'pointer' }} />
+      ), size: 40,
+      cell: ({ row }) => (
+        <input type="checkbox" checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()}
+          style={{ width: 16, height: 16, accentColor: 'var(--product-primary)', cursor: 'pointer' }} />
+      ),
+    }),
     columnHelper.accessor('repImageUrl', {
       id: 'image', header: '이미지', size: 64,
       cell: (info) => info.getValue()
@@ -113,8 +131,8 @@ export default function ProductGrid() {
     columnHelper.display({
       id: 'productInfo', header: '상품정보', size: 300,
       cell: ({ row }) => (
-        <div style={{ textAlign: 'left', cursor: 'pointer', color: 'var(--product-primary)' }}
-          title="상세 보기">
+        <div onClick={() => setDetailId(row.original.id)}
+          style={{ textAlign: 'left', cursor: 'pointer', color: 'var(--product-primary)' }} title="상세 보기">
           <div style={{ fontWeight: 600 }}>{row.original.productName}</div>
           <div style={{ fontSize: 11, color: '#94a3b8' }}>{row.original.originalName || ' '}</div>
         </div>
@@ -147,7 +165,33 @@ export default function ProductGrid() {
     }),
   ], [priceStockMutation]);
 
-  const table = useReactTable({ data: rows, columns, getCoreRowModel: getCoreRowModel() });
+  const table = useReactTable({
+    data: rows,
+    columns,
+    state: { rowSelection },
+    enableRowSelection: true,
+    onRowSelectionChange: setRowSelection,
+    getRowId: (r) => String(r.id),
+    getCoreRowModel: getCoreRowModel(),
+  });
+
+  const selectedIds = Object.keys(rowSelection).filter((k) => rowSelection[k]).map(Number);
+
+  const handleBulkDelete = () => {
+    if (selectedIds.length === 0) { toast.warning('삭제할 상품을 선택하세요.'); return; }
+    AntModal.confirm({
+      title: `상품 ${selectedIds.length}개 삭제`,
+      content: '선택한 상품을 삭제합니다. 되돌릴 수 없습니다. 진행할까요?',
+      okText: '삭제', okType: 'danger', cancelText: '취소',
+      onOk: async () => {
+        const { deleted, failed } = await bulkDeleteProducts(selectedIds);
+        if (failed.length === 0) toast.success(`${deleted}개 삭제 완료`);
+        else toast.warn(`${deleted}개 삭제, ${failed.length}개 실패`);
+        setRowSelection({});
+        refetch();
+      },
+    });
+  };
 
   return (
     <div className="product-theme" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '16px 24px', background: '#f8f9fa' }}>
@@ -156,7 +200,14 @@ export default function ProductGrid() {
           <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--product-primary)' }}>상품 관리</h2>
           <span style={{ fontSize: 13, color: '#94a3b8' }}>표시 {rows.length.toLocaleString()} / 로드 {allRows.length.toLocaleString()}개</span>
         </div>
-        <button onClick={() => refetch()} style={{ padding: '8px 16px', backgroundColor: '#fff', color: '#333', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>새로고침</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {selectedIds.length > 0 && (
+            <button onClick={handleBulkDelete} style={{ padding: '8px 16px', backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}>
+              선택 삭제 ({selectedIds.length})
+            </button>
+          )}
+          <button onClick={() => refetch()} style={{ padding: '8px 16px', backgroundColor: '#fff', color: '#333', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>새로고침</button>
+        </div>
       </div>
 
       <ProductFilterPanel categoryOptions={categoryOptions} onSearch={handleSearch} />
@@ -195,6 +246,13 @@ export default function ProductGrid() {
           </TableBody>
         </Table>
       </div>
+
+      <ProductDetailModal
+        productId={detailId}
+        open={detailId != null}
+        onClose={() => setDetailId(null)}
+        onSaved={() => refetch()}
+      />
     </div>
   );
 }
