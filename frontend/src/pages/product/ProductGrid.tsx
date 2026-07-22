@@ -5,7 +5,7 @@ import {
   type RowSelectionState,
 } from '@tanstack/react-table';
 import { toast } from 'react-toastify';
-import { Modal as AntModal } from 'antd';
+import { Modal as AntModal, Pagination } from 'antd';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/Table';
 import { productApi, type ProductList, type PriceStockSyncResult } from '../../api/productApi';
 import { renderMarketBadges, MARKET_FILTER_OPTIONS } from './productGridShared';
@@ -44,6 +44,8 @@ export default function ProductGrid() {
   const [keyword, setKeyword] = useState('');
   const [detailId, setDetailId] = useState<number | null>(null);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['products', keyword],
@@ -55,12 +57,19 @@ export default function ProductGrid() {
 
   const allRows = useMemo(() => data ?? [], [data]);
   const rows = useMemo(() => applyClientFilters(allRows, filters), [allRows, filters]);
+  // 필터링된 결과에 클라이언트 페이지네이션 적용. 현재 페이지가 범위를 벗어나면 마지막 페이지로 보정.
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRows = useMemo(
+    () => rows.slice(safePage * pageSize, safePage * pageSize + pageSize),
+    [rows, safePage, pageSize],
+  );
   const categoryOptions = useMemo(
     () => Array.from(new Set(allRows.map((r) => r.category).filter((c): c is string => !!c))).sort(),
     [allRows],
   );
 
-  const handleSearch = (f: ProductFilters) => { setKeyword(f.keyword); setFilters(f); };
+  const handleSearch = (f: ProductFilters) => { setKeyword(f.keyword); setFilters(f); setPage(0); };
 
   const queryClient = useQueryClient();
 
@@ -166,7 +175,7 @@ export default function ProductGrid() {
   ], [priceStockMutation]);
 
   const table = useReactTable({
-    data: rows,
+    data: pageRows,
     columns,
     state: { rowSelection },
     enableRowSelection: true,
@@ -249,6 +258,20 @@ export default function ProductGrid() {
             ))}
           </TableBody>
         </Table>
+      </div>
+
+      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 12, color: '#94a3b8' }}>표시 {rows.length.toLocaleString()}건 · {safePage + 1}/{pageCount} 페이지</span>
+        <Pagination
+          current={safePage + 1}
+          pageSize={pageSize}
+          total={rows.length}
+          showSizeChanger
+          pageSizeOptions={[20, 50, 100, 200]}
+          showQuickJumper
+          size="small"
+          onChange={(p, s) => { setPage(p - 1); setPageSize(s); }}
+        />
       </div>
 
       <ProductDetailModal
