@@ -9,7 +9,7 @@
 - **프라이머리 컬러:** 포레스트 그린 `#166534` (남색 주문관리와 시각적 구분)
 - **그리드 라이브러리:** AG Grid 제거 → TanStack Table v8 + 공통 `components/ui/Table.tsx`
 - **필터:** 키워드 · 카테고리 · 마켓 등록상태 · 재고·판매상태 · 소싱처 · 재고유무
-- **편집:** 모달 상세편집(내부 필드 전체) + 그리드 인라인(판매가/재고)
+- **편집:** 모달 상세편집(내부 필드 전체) + 그리드 인라인 **판매가+판매상태(품절) 세트**(주문관리 배송정보 칸처럼 명시적 [전송] 버튼)
 - **삭제:** 체크박스 다중 선택 → 일괄 삭제
 - **진행:** 4단계, 각 단계 끝 push로 피드백 수령
 
@@ -23,7 +23,7 @@ pages/ProductGrid.tsx          ← ProductPage.tsx 대체 (신규 메인)
   ├─ ProductToolbar            ← 선택 개수·[선택 삭제]·총 개수·[새로고침]
   ├─ TanStack Table            ← 커스텀 Table 컴포넌트 (components/ui/Table.tsx)
   │   ├─ SelectCheckbox        ← 행/전체 선택 (일괄 삭제용)
-  │   ├─ PriceStockInlineCell  ← 판매가·재고 인라인 자동저장 (InlineInput 패턴 재사용)
+  │   ├─ PriceStockEditCell    ← 판매가+판매상태(품절) 세트 편집, 명시적 [전송] 버튼 (ShippingEditCell 패턴 재사용)
   │   └─ MarketBadges          ← 마켓 등록 배지 (기존 renderMarketBadges 로직 이식)
   └─ ProductDetailModal        ← 내부 필드 편집 폼 (기존 읽기 모달 → 편집 가능화)
 ```
@@ -56,9 +56,9 @@ pages/ProductGrid.tsx          ← ProductPage.tsx 대체 (신규 메인)
 | `productInfo` | 상품정보 | 상품명 / 원문명 (2줄), 클릭 → 상세 모달 | — |
 | `category` | 카테고리 | category 배지 | — |
 | `vendor` | 소싱처 | vendor | — |
-| `salePrice` | 판매가 | salePrice | **인라인** |
+| `priceStock` | 판매가·판매상태 | salePrice 입력 + 판매중/품절 토글, [전송] 버튼 (세트) | **인라인 세트** |
 | `costMargin` | 원가·마진 | costPrice / marginRate (2줄) | — |
-| `stock` | 재고 | stock + 재고상태 배지 | **인라인** |
+| `stock` | 재고 | stock 수량 + 재고상태 배지 (표시 전용, 수량 편집은 상세 모달) | — |
 | `markets` | 마켓 | 등록 마켓 배지 (링크) | — |
 
 ### 필터 패널 (3행 레이아웃, 그린 top-border)
@@ -69,9 +69,11 @@ pages/ProductGrid.tsx          ← ProductPage.tsx 대체 (신규 메인)
 
 ## C. 편집 · 삭제 · 모킹 전략
 
-### 인라인 편집 (판매가/재고) — 실제 동작
+### 인라인 편집 (판매가+판매상태 세트) — 실제 동작
 
-기존 `PUT /api/v1/products/{id}/price-stock` 엔드포인트가 존재하므로 인라인 저장은 실제 동작한다. blur 시 변경분만 커밋, 상태색(dirty→saving→saved→error) 표시. 응답의 `synced/skipped/failed` 마켓 반영 결과를 토스트로 표면화.
+기존 `PUT /api/v1/products/{id}/price-stock` 엔드포인트가 `{ price, soldOut }`를 함께 받으므로, 그리드 셀은 **판매가 입력 + 판매중/품절 토글 두 필드를 한 세트**로 다룬다. 주문관리 `ShippingEditCell`(택배사+송장) 패턴을 그대로 차용: blur 자동저장이 아니라 **변경 시 활성화되는 명시적 [전송] 버튼**으로 한 번에 커밋한다(트리거 명확). 저장 중 상태색(dirty→saving→saved→error) 표시, 실패 시 원본값 롤백. 응답의 `synced/skipped/failed` 마켓 반영 결과를 토스트로 표면화.
+
+재고 수량(`LogisticsInfo.stock`) 편집은 price-stock 계약 밖이므로 그리드에서는 표시만 하고, 편집은 상세 모달(모킹 PATCH)에서 처리한다.
 
 ### 상세 모달 편집 (내부 필드 전체) — 모킹
 
@@ -94,7 +96,7 @@ pages/ProductGrid.tsx          ← ProductPage.tsx 대체 (신규 메인)
 각 Stage 종료 시 `git push origin main`으로 피드백 수령. (배포 중 배치가 돌고 있지 않은지 확인 후 push)
 
 1. **Stage 1** — 그린 테마 스캐폴딩 + `ProductFilterPanel` + TanStack 그리드로 AG Grid 교체 (조회 전용, 키워드검색·페이징). → push
-2. **Stage 2** — 인라인 편집(판매가/재고, 실제 endpoint) + 낙관적 업데이트. → push
+2. **Stage 2** — 인라인 세트 편집(판매가+판매상태, [전송] 버튼, 실제 price-stock endpoint) + 낙관적 업데이트. → push
 3. **Stage 3** — 상세 모달 편집 폼(모킹 저장) + 체크박스 일괄 삭제. → push
 4. **Stage 4** — 고급 필터 연결(클라이언트+모킹) · 마켓 배지 · 빈/로딩 상태 폴리시. → push
 
