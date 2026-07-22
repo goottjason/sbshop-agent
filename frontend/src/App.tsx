@@ -11,7 +11,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 
-const ProductPage = lazy(() => import('./pages/ProductPage'));
+const ProductGrid = lazy(() => import('./pages/product/ProductGrid'));
 const ProductRegisterPage = lazy(() => import('./pages/ProductRegisterPage'));
 const BatchUpdatePage = lazy(() => import('./pages/BatchUpdatePage'));
 const ProcessStatusPage = lazy(() => import('./pages/ProcessStatusPage'));
@@ -25,7 +25,7 @@ function App() {
         <Route path="/" element={<MainLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="orders" element={<OrderGrid />} />
-          <Route path="products" element={<Suspense fallback={<Loading />}><ProductPage /></Suspense>} />
+          <Route path="products" element={<Suspense fallback={<Loading />}><ProductGrid /></Suspense>} />
           <Route path="register" element={<Suspense fallback={<Loading />}><ProductRegisterPage /></Suspense>} />
           <Route path="batch" element={<Suspense fallback={<Loading />}><BatchUpdatePage /></Suspense>} />
           <Route path="process-status" element={<Suspense fallback={<Loading />}><ProcessStatusPage /></Suspense>} />
