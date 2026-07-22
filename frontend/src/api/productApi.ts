@@ -43,6 +43,31 @@ export interface ProductDetail {
   memo: string;
 }
 
+// 상세 모달 편집 대상 필드(평탄화). 백엔드 PATCH 미구현 → productMockApi로 모킹(다음 세션 구현).
+export interface ProductEditFields {
+  brand: string;
+  productName: string;
+  baseName: string;
+  originalName: string;
+  category: string;
+  costPrice: number;
+  salePrice: number;
+  marginRate: number;
+  stock: number;
+  weight: number;
+  bundleQuantity: number;
+  barcode: string;
+  capacity: number;
+  measureUnit: string;
+  vendor: string;
+  manufacturer: string;
+  origin: string;
+  hsCode: string;
+  sourceUrl: string;
+  memo: string;
+  detailHtml: string;
+}
+
 // D-049(반려 재수정): 이미지 업로드 응답. 자사 저장 성공 여부(storageUpdated)와
 // 마켓별 재게시 결과(성공/스킵/실패)를 분리해 담는다. 부분 실패를 사용자에게 표면화하기 위함.
 export interface MarketOutcome {
