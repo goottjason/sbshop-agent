@@ -1,16 +1,16 @@
 import { useMemo, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   useReactTable, getCoreRowModel, flexRender, createColumnHelper,
   type RowSelectionState,
 } from '@tanstack/react-table';
 import { toast } from 'react-toastify';
-import { Modal as AntModal, Pagination } from 'antd';
+import { Modal as AntModal, Pagination, InputNumber } from 'antd';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/Table';
-import { productApi, type ProductList, type PriceStockSyncResult } from '../../api/productApi';
+import { productApi, type ProductList } from '../../api/productApi';
+import { batchApi } from '../../api/batchApi';
 import { renderMarketBadges, MARKET_FILTER_OPTIONS } from './productGridShared';
 import { ProductFilterPanel, type ProductFilters } from './ProductFilterPanel';
-import { PriceStockEditCell } from './PriceStockEditCell';
 import { ProductDetailModal } from './ProductDetailModal';
 import { bulkDeleteProducts } from './productMockApi';
 
@@ -18,6 +18,15 @@ const columnHelper = createColumnHelper<ProductList>();
 const DEFAULT_FILTERS: ProductFilters = {
   keyword: '', categories: [], markets: [], vendors: [], stockStatuses: [], inStockOnly: false,
 };
+
+// 판매상태 배지(읽기전용): 활성만 채색(판매중=그린, 품절=레드), 비활성=옅은 아웃라인.
+function statusPill(active: boolean, kind: 'in' | 'out'): React.CSSProperties {
+  const color = kind === 'in' ? '#16a34a' : '#dc2626';
+  return {
+    fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 999, border: `1px solid ${color}`,
+    color: active ? '#fff' : color, background: active ? color : '#fff', opacity: active ? 1 : 0.45,
+  };
+}
 
 // 로드된 500건에 고급필터를 적용(서버는 keyword만). 카테고리/마켓/소싱처/재고상태·재고유무.
 export function applyClientFilters(rows: ProductList[], f: ProductFilters): ProductList[] {
@@ -46,6 +55,12 @@ export default function ProductGrid() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
+  // 선택 상품 가격/재고 일괄 업데이트 모달(배치 crawl-and-update 3파라미터)
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [marginRate, setMarginRate] = useState<number | null>(15);
+  const [couponRate, setCouponRate] = useState<number | null>(20);
+  const [minMarginPrice, setMinMarginPrice] = useState<number | null>(5000);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['products', keyword],
@@ -70,47 +85,6 @@ export default function ProductGrid() {
   );
 
   const handleSearch = (f: ProductFilters) => { setKeyword(f.keyword); setFilters(f); setPage(0); };
-
-  const queryClient = useQueryClient();
-
-  const MARKET_LABELS: Record<string, string> = {
-    COUPANG: '쿠팡', SMART_STORE: '스토어', ELEVEN_STREET: '11번가', GMARKET: 'G마켓', AUCTION: '옥션', CAFE24: '카페24',
-  };
-  const marketLabel = (c: string) => MARKET_LABELS[c] || c;
-
-  const surfacePriceStockResult = (result?: PriceStockSyncResult) => {
-    const synced = result?.synced ?? [];
-    const skipped = result?.skipped ?? [];
-    const failedEntries = Object.entries(result?.failed ?? {});
-    const syncedMsg = synced.length > 0 ? ` — ${synced.map(marketLabel).join(', ')} 반영 완료` : '';
-    if (failedEntries.length > 0) {
-      toast.warn(`저장됨${syncedMsg}. 단, ${failedEntries.length}개 마켓 반영 실패: ${failedEntries.map(([m]) => marketLabel(m)).join(', ')}`);
-    } else if (synced.length > 0) {
-      toast.success(`수정 완료${syncedMsg}`);
-    } else if (skipped.length > 0) {
-      toast.success(`수정 완료 (연동 마켓 없음: ${skipped.map(marketLabel).join(', ')})`);
-    } else {
-      toast.success('수정 완료 (연동된 마켓 없음)');
-    }
-  };
-
-  const priceStockMutation = useMutation({
-    mutationFn: ({ id, price, soldOut }: { id: number; price: number; soldOut: boolean }) =>
-      productApi.updatePriceStock(id, price, soldOut).then((r) => r.data as PriceStockSyncResult),
-    onMutate: async ({ id, price, soldOut }) => {
-      const key = ['products', keyword];
-      await queryClient.cancelQueries({ queryKey: key });
-      const prev = queryClient.getQueryData<ProductList[]>(key);
-      queryClient.setQueryData<ProductList[]>(key, (old) =>
-        (old ?? []).map((p) => p.id === id ? { ...p, salePrice: price, stockStatus: soldOut ? 'OUT_OF_STOCK' : 'IN_STOCK' } : p));
-      return { prev, key };
-    },
-    onError: (_e, _v, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(ctx.key, ctx.prev);
-      toast.error('판매가/판매상태 저장 실패');
-    },
-    onSuccess: (result) => surfacePriceStockResult(result),
-  });
 
   const columns = useMemo(() => [
     columnHelper.display({
@@ -152,27 +126,26 @@ export default function ProductGrid() {
     columnHelper.accessor('vendor', { id: 'vendor', header: '소싱처', size: 80,
       cell: (info) => <span style={{ color: '#64748b' }}>{info.getValue() || '-'}</span> }),
     columnHelper.accessor('salePrice', {
-      id: 'priceStock', header: '판매가·상태', size: 160,
+      id: 'priceStock', header: '판매가·재고', size: 150,
       cell: (info) => {
         const r = info.row.original;
+        const soldOut = r.stockStatus === 'OUT_OF_STOCK';
         return (
-          <PriceStockEditCell
-            salePrice={r.salePrice ?? 0}
-            soldOut={r.stockStatus === 'OUT_OF_STOCK'}
-            onSave={({ price, soldOut }) => priceStockMutation.mutateAsync({ id: r.id, price, soldOut })}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+            <span style={{ fontWeight: 700, color: '#0f172a' }}>{r.salePrice ? `${r.salePrice.toLocaleString()}원` : '-'}</span>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <span style={statusPill(!soldOut, 'in')}>판매중</span>
+              <span style={statusPill(soldOut, 'out')}>품절</span>
+            </div>
+          </div>
         );
       },
-    }),
-    columnHelper.display({
-      id: 'stock', header: '재고', size: 80,
-      cell: ({ row }) => <span style={{ color: '#334155' }}>{row.original.stock ?? '-'}</span>,
     }),
     columnHelper.display({
       id: 'markets', header: '마켓', size: 220,
       cell: ({ row }) => renderMarketBadges(row.original.marketRegistrations),
     }),
-  ], [priceStockMutation]);
+  ], []);
 
   const table = useReactTable({
     data: pageRows,
@@ -202,6 +175,23 @@ export default function ProductGrid() {
     });
   };
 
+  // 선택 상품 크롤 기반 가격/재고 일괄 업데이트(배치). 마켓별 실수수료로 판매가 재산정 후 연동 마켓 반영.
+  const handleBulkUpdate = async () => {
+    if (selectedIds.length === 0) { toast.warning('업데이트할 상품을 선택하세요.'); return; }
+    setBulkSubmitting(true);
+    try {
+      const res = await batchApi.crawlAndUpdate(selectedIds, marginRate ?? 15, couponRate ?? 20, minMarginPrice ?? 5000);
+      const batchId = (res.data as Record<string, string> | undefined)?.batchId;
+      toast.success(`가격/재고 업데이트 배치 시작 (${selectedIds.length}건${batchId ? ` · ${batchId}` : ''}). 진행 현황에서 결과를 확인하세요.`);
+      setBulkOpen(false);
+      setRowSelection({});
+    } catch {
+      toast.error('배치 시작 실패 — 소싱 URL이 없는 상품이 포함됐을 수 있습니다.');
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
   return (
     <div className="product-theme" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '16px 24px', background: '#f8f9fa' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -210,6 +200,11 @@ export default function ProductGrid() {
           <span style={{ fontSize: 13, color: '#94a3b8' }}>표시 {rows.length.toLocaleString()} / 로드 {allRows.length.toLocaleString()}개</span>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {selectedIds.length > 0 && (
+            <button onClick={() => setBulkOpen(true)} style={{ padding: '8px 16px', backgroundColor: 'var(--product-primary)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}>
+              선택 가격/재고 업데이트 ({selectedIds.length})
+            </button>
+          )}
           {selectedIds.length > 0 && (
             <button onClick={handleBulkDelete} style={{ padding: '8px 16px', backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}>
               선택 삭제 ({selectedIds.length})
@@ -273,6 +268,35 @@ export default function ProductGrid() {
           onChange={(p, s) => { setPage(p - 1); setPageSize(s); }}
         />
       </div>
+
+      <AntModal
+        title={`선택 상품 가격/재고 업데이트 (${selectedIds.length}개)`}
+        open={bulkOpen}
+        onCancel={() => setBulkOpen(false)}
+        onOk={handleBulkUpdate}
+        okText="적용"
+        cancelText="취소"
+        confirmLoading={bulkSubmitting}
+        okButtonProps={{ style: { background: 'var(--product-primary)', borderColor: 'var(--product-primary)' } }}
+      >
+        <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '8px 10px', marginBottom: 14 }}>
+          선택 상품을 소싱처에서 크롤해 마켓별 실수수료로 판매가를 재산정하고 연동 마켓에 반영합니다. 비동기 배치로 실행되며, 소싱 URL이 없는 상품은 실패할 수 있습니다.
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <span style={{ color: '#374151' }}>마진율 (%)</span>
+            <InputNumber min={0} value={marginRate} onChange={setMarginRate} style={{ width: 160 }} />
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <span style={{ color: '#374151' }}>쿠폰율 (구매시 할인율, %)</span>
+            <InputNumber min={0} value={couponRate} onChange={setCouponRate} style={{ width: 160 }} />
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <span style={{ color: '#374151' }}>최소 마진가 (원)</span>
+            <InputNumber min={0} step={100} value={minMarginPrice} onChange={setMinMarginPrice} style={{ width: 160 }} />
+          </label>
+        </div>
+      </AntModal>
 
       <ProductDetailModal
         productId={detailId}
