@@ -176,6 +176,31 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		return null;
 	}
 
+	/**
+	 * D-099: 주문 단건 상세조회(claimservice/orderlistalladdr)로 실제 클레임 상태를 판정한다.
+	 *
+	 * <p>11번가는 클레임 목록 조회 REST가 없어(라이브 확정) 진행상태 목록에서 사라진 주문을 detectCancellations가
+	 * 무조건 CANCELED로 뭉뚱그렸다. 상세 응답의 {@code ordPrdStatNm}(취소완료/반품완료/교환완료 등)을 읽어
+	 * 취소·반품·교환을 구분한다. 클레임이 아니면(구매확정·배송완료 등) {@code null} — 오취소를 막는다.
+	 *
+	 * @return 클레임 상태(CANCELED/RETURNED/EXCHANGED) 또는 클레임 아님/조회실패 시 {@code null}
+	 */
+	public ShippingStatus resolveClaimStatus(String apiKey, String ordNo) {
+		try {
+			List<Element> details = elevenstOrderApiPort.fetchOrderDetail(apiKey, ordNo);
+			if (details == null || details.isEmpty()) {
+				return null;
+			}
+			Element el = details.get(0);
+			String ordPrdStat = ElevenstXmlUtils.getElementText(el, "ordPrdStat");
+			String ordPrdStatNm = ElevenstXmlUtils.getElementText(el, "ordPrdStatNm");
+			return statusMapper.mapClaimStatus(ordPrdStat, ordPrdStatNm);
+		} catch (Exception e) {
+			log.warn("11번가 클레임 상태 조회 실패: ordNo={}, error={}", ordNo, e.getMessage());
+			return null;
+		}
+	}
+
 	private String mapCarrierCode(ShippingCarrier carrier) {
 		if (carrier == null) {
 			throw new IllegalArgumentException("배송사 정보가 없습니다.");

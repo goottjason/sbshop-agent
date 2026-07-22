@@ -1482,3 +1482,12 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 수정(2026-07-22, TDD, 커밋 7cf213e): 위 설계대로 구현. `TerminalSettlementServiceTest` 5건(RETURNED/CANCELED 0처리, EXCHANGED·DELIVERED 불변, 이미0 멱등). 생성자 파라미터 추가로 깨진 기존 테스트 7파일 목 주입 보정. core+infra+api 회귀 전체 통과.
 - 검증(2026-07-22, 라이브): 배포(재시작 23:55:02Z) 후 스토어·Cafe24 동기화 트리거 → 로그 "[GMARKET] 1건·[SMART_STORE] 2건 정산0 정규화". DB 확인: 곽금희 RETURNED 26611→0.00/verified, 정가영 CANCELED 78140→0.00, 이명동 CANCELED 47590→0.00. DB 전체 스캔이라 30일 창 밖(곽금희 06-23)도 교정됨.
 - 상태: 검증통과 (2026-07-22 라이브 — 전 마켓 취소·반품 정산0 정규화, 멱등·자가치유)
+
+### D-099: 11번가 클레임(취소/반품/교환) 감지 정밀화 — 상세조회 ordPrdStatNm 활용 (2026-07-22)
+- 심각도: P2 (오동작 — 반품/교환을 CANCELED로 뭉뚱그림·오취소 가능)
+- 리스크 등급: 표준 (라이브 주문 상태, 회귀 게이트 필수)
+- 배경: 11번가는 클레임 목록 조회 REST가 없음(라이브 확정 2026-07-22: claimservice/ordservices 7개 후보 전부 -997, 정상 엔드포인트 complete·orderlistalladdr는 200으로 대조검증). 기존 detectCancellations(D-028)는 4개 진행상태 목록에서 사라진 주문을 무조건 CANCELED 처리 → 반품/교환 미구분, 정상 aged-out 주문 오취소 위험.
+- 발견: `claimservice/orderlistalladdr` 단건 상세조회 응답에 ordPrdStat(901)·ordPrdStatNm(구매확정 등) 실재. D-031의 "상태 필드 없음" 결론이 틀림 — 파서가 안 읽었을 뿐.
+- 수정 설계: ElevenstStatusMapper.mapClaimStatus(ordPrdStatNm 부분일치: 취소→CANCELED·반품→RETURNED·교환→EXCHANGED, 그외 null) + ElevenstOrderAdapter.resolveClaimStatus(단건조회·매핑) + detectClaims(사라진 non-terminal 주문을 상세조회로 실상태 판정, 클레임 아니면 상태 불변=오취소 방지). 반품·취소는 D-098이 정산0 처리.
+- 검증 한계: 현 DB에 11번가 클레임 주문 0건 → 라이브 E2E 불가, 단위테스트로 검증. 실 클레임 발생 시 라이브 확인.
+- 상태: 발견 → 수정중(TDD)

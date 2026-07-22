@@ -63,7 +63,7 @@ public class ElevenstOrderSyncService {
 				credential, LocalDate.now().minusDays(30), LocalDate.now());
 
 			processOrders(orders, credential);
-			postSyncProcess(orders);
+			postSyncProcess(orders, credential);
 
 			log.info("[ELEVEN_STREET] 주문 동기화 완료: {}건 처리", orders.size());
 			success = true;
@@ -220,22 +220,30 @@ public class ElevenstOrderSyncService {
 	 * 쿠팡 detectCancellations 정본 패턴을 이식 — 11번가는 취소/반품/교환 조회 API가 없어
 	 * 이 감지가 없으면 취소된 주문이 이전 상태(NEW/PREPARING)로 영구 잔류한다. (D-028)
 	 */
-	private void postSyncProcess(List<MarketOrderDto> orders) {
+	private void postSyncProcess(List<MarketOrderDto> orders, MarketCredential credential) {
 		LocalDate fromDate = LocalDate.now().minusDays(30);
 		LocalDate toDate = LocalDate.now();
-		detectCancellations(orders, fromDate, toDate);
+		detectClaims(orders, fromDate, toDate, credential.getAccessKey());
 		// D-098: 취소·반품 종결 lineItem 정산0 정규화(멱등).
 		terminalSettlementService.zeroSettlementForRefunded(MarketType.ELEVEN_STREET);
 	}
 
-	private void detectCancellations(List<MarketOrderDto> apiOrders, LocalDate fromDate, LocalDate toDate) {
+	/**
+	 * D-099: 진행상태 목록에서 사라진 주문의 실제 상태를 단건 상세조회로 판정해 취소·반품·교환을 구분 반영한다.
+	 *
+	 * <p>기존(D-028)엔 사라진 주문을 무조건 CANCELED로 뭉뚱그렸다. 11번가는 클레임 목록 조회 REST가 없어
+	 * (라이브 확정) 이 방법뿐이었으나, 상세조회의 ordPrdStatNm으로 취소/반품/교환을 구분할 수 있어 정밀화한다.
+	 * 상세조회가 클레임이 아니라고 답하면(구매확정 등 정상 상태로 목록 창을 벗어난 경우) 상태를 바꾸지 않아
+	 * 오취소를 막는다. 반품·취소는 이어지는 정산0 정규화(D-098)로 정산액도 0이 된다.
+	 */
+	private void detectClaims(List<MarketOrderDto> apiOrders, LocalDate fromDate, LocalDate toDate, String apiKey) {
 		java.util.Set<String> apiOrderNos = new java.util.HashSet<>();
 		for (MarketOrderDto dto : apiOrders) {
 			apiOrderNos.add(dto.getMarketOrderNo());
 		}
 
 		List<Order> dbOrders = orderRepository.findByMarketType(MarketType.ELEVEN_STREET);
-		int canceledCount = 0;
+		int claimCount = 0;
 
 		for (Order order : dbOrders) {
 			if (order.getOrderDate() != null) {
@@ -245,27 +253,35 @@ public class ElevenstOrderSyncService {
 				}
 			}
 
-			if (!apiOrderNos.contains(order.getMarketOrderNo())) {
-				List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
-				boolean hasNonTerminal = items.stream().anyMatch(this::isNonTerminal);
+			if (apiOrderNos.contains(order.getMarketOrderNo())) {
+				continue;
+			}
+			List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
+			if (items.stream().noneMatch(this::isNonTerminal)) {
+				continue;
+			}
 
-				if (hasNonTerminal) {
-					for (OrderLineItem item : items) {
-						if (isNonTerminal(item)) {
-							ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
-								.shippingStatus(ShippingStatus.CANCELED)
-								.build();
-							item.applyShippingData(cmd.toShippingData(item.getShippingData()));
-							orderLineItemRepository.save(item);
-						}
-					}
-					canceledCount++;
+			// 사라진 주문의 실제 상태를 단건 상세조회로 판정. 클레임이 아니면 null → 상태 변경 없음(오취소 방지).
+			ShippingStatus claimStatus = elevenstOrderAdapter.resolveClaimStatus(apiKey, order.getMarketOrderNo());
+			if (claimStatus == null) {
+				continue;
+			}
+
+			for (OrderLineItem item : items) {
+				if (isNonTerminal(item)) {
+					ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
+						.shippingStatus(claimStatus)
+						.build();
+					item.applyShippingData(cmd.toShippingData(item.getShippingData()));
+					orderLineItemRepository.save(item);
 				}
 			}
+			claimCount++;
+			log.info("[ELEVEN_STREET] 클레임 감지: ordNo={} → {}", order.getMarketOrderNo(), claimStatus);
 		}
 
-		if (canceledCount > 0) {
-			log.info("[ELEVEN_STREET] 취소 감지: {}건 CANCELED로 업데이트", canceledCount);
+		if (claimCount > 0) {
+			log.info("[ELEVEN_STREET] 클레임 감지: {}건 상태 반영", claimCount);
 		}
 	}
 

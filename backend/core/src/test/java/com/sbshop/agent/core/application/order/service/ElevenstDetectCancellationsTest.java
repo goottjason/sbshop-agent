@@ -88,16 +88,60 @@ class ElevenstDetectCancellationsTest {
 	}
 
 	@Test
-	@DisplayName("[D-028] NEW 주문이 API 응답에서 사라지면 CANCELED로 처리된다")
-	void newOrder_absentFromApi_isCanceled() {
+	@DisplayName("[D-099] 사라진 NEW 주문의 실상태가 취소면 CANCELED로 처리된다(상세조회 판정)")
+	void newOrder_absentFromApi_resolvedCanceled() {
 		stubCredentialAndEmptyApi();
 		OrderLineItem li = item(ShippingStatus.NEW);
 		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(order("A-1")));
 		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(li));
+		when(elevenstOrderAdapter.resolveClaimStatus(any(), any())).thenReturn(ShippingStatus.CANCELED);
 
 		service().syncElevenstOrders();
 
 		assertThat(li.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.CANCELED);
+	}
+
+	@Test
+	@DisplayName("[D-099] 사라진 주문의 실상태가 반품이면 RETURNED로 처리된다(취소로 뭉뚱그리지 않음)")
+	void absentOrder_resolvedReturned() {
+		stubCredentialAndEmptyApi();
+		OrderLineItem li = item(ShippingStatus.SHIPPED);
+		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(order("RT-1")));
+		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(li));
+		when(elevenstOrderAdapter.resolveClaimStatus(any(), any())).thenReturn(ShippingStatus.RETURNED);
+
+		service().syncElevenstOrders();
+
+		assertThat(li.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.RETURNED);
+	}
+
+	@Test
+	@DisplayName("[D-099] 사라진 주문의 실상태가 교환이면 EXCHANGED로 처리된다")
+	void absentOrder_resolvedExchanged() {
+		stubCredentialAndEmptyApi();
+		OrderLineItem li = item(ShippingStatus.SHIPPED);
+		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(order("EX-1")));
+		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(li));
+		when(elevenstOrderAdapter.resolveClaimStatus(any(), any())).thenReturn(ShippingStatus.EXCHANGED);
+
+		service().syncElevenstOrders();
+
+		assertThat(li.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.EXCHANGED);
+	}
+
+	@Test
+	@DisplayName("[D-099] 사라졌지만 실상태가 클레임이 아니면(구매확정 등) 오취소하지 않고 상태 유지")
+	void absentOrder_notAClaim_isNotCanceled() {
+		stubCredentialAndEmptyApi();
+		OrderLineItem li = item(ShippingStatus.SHIPPED);
+		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(order("OK-1")));
+		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(li));
+		// 상세조회가 구매확정 등 정상 상태 → 클레임 아님(null)
+		when(elevenstOrderAdapter.resolveClaimStatus(any(), any())).thenReturn(null);
+
+		service().syncElevenstOrders();
+
+		assertThat(li.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.SHIPPED);
 	}
 
 	@Test
