@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   useReactTable, getCoreRowModel, flexRender, createColumnHelper,
 } from '@tanstack/react-table';
 import { toast } from 'react-toastify';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/Table';
-import { productApi, type ProductList } from '../../api/productApi';
+import { productApi, type ProductList, type PriceStockSyncResult } from '../../api/productApi';
 import { renderMarketBadges, MARKET_FILTER_OPTIONS } from './productGridShared';
 import { ProductFilterPanel, type ProductFilters } from './ProductFilterPanel';
+import { PriceStockEditCell } from './PriceStockEditCell';
 
 const columnHelper = createColumnHelper<ProductList>();
 const DEFAULT_FILTERS: ProductFilters = {
@@ -55,6 +56,47 @@ export default function ProductGrid() {
 
   const handleSearch = (f: ProductFilters) => { setKeyword(f.keyword); setFilters(f); };
 
+  const queryClient = useQueryClient();
+
+  const MARKET_LABELS: Record<string, string> = {
+    COUPANG: '쿠팡', SMART_STORE: '스토어', ELEVEN_STREET: '11번가', GMARKET: 'G마켓', AUCTION: '옥션', CAFE24: '카페24',
+  };
+  const marketLabel = (c: string) => MARKET_LABELS[c] || c;
+
+  const surfacePriceStockResult = (result?: PriceStockSyncResult) => {
+    const synced = result?.synced ?? [];
+    const skipped = result?.skipped ?? [];
+    const failedEntries = Object.entries(result?.failed ?? {});
+    const syncedMsg = synced.length > 0 ? ` — ${synced.map(marketLabel).join(', ')} 반영 완료` : '';
+    if (failedEntries.length > 0) {
+      toast.warn(`저장됨${syncedMsg}. 단, ${failedEntries.length}개 마켓 반영 실패: ${failedEntries.map(([m]) => marketLabel(m)).join(', ')}`);
+    } else if (synced.length > 0) {
+      toast.success(`수정 완료${syncedMsg}`);
+    } else if (skipped.length > 0) {
+      toast.success(`수정 완료 (연동 마켓 없음: ${skipped.map(marketLabel).join(', ')})`);
+    } else {
+      toast.success('수정 완료 (연동된 마켓 없음)');
+    }
+  };
+
+  const priceStockMutation = useMutation({
+    mutationFn: ({ id, price, soldOut }: { id: number; price: number; soldOut: boolean }) =>
+      productApi.updatePriceStock(id, price, soldOut).then((r) => r.data as PriceStockSyncResult),
+    onMutate: async ({ id, price, soldOut }) => {
+      const key = ['products', keyword];
+      await queryClient.cancelQueries({ queryKey: key });
+      const prev = queryClient.getQueryData<ProductList[]>(key);
+      queryClient.setQueryData<ProductList[]>(key, (old) =>
+        (old ?? []).map((p) => p.id === id ? { ...p, salePrice: price, stockStatus: soldOut ? 'OUT_OF_STOCK' : 'IN_STOCK' } : p));
+      return { prev, key };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(ctx.key, ctx.prev);
+      toast.error('판매가/판매상태 저장 실패');
+    },
+    onSuccess: (result) => surfacePriceStockResult(result),
+  });
+
   const columns = useMemo(() => [
     columnHelper.accessor('repImageUrl', {
       id: 'image', header: '이미지', size: 64,
@@ -86,12 +128,12 @@ export default function ProductGrid() {
       id: 'priceStock', header: '판매가·상태', size: 160,
       cell: (info) => {
         const r = info.row.original;
-        const soldOut = r.stockStatus === 'OUT_OF_STOCK';
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end' }}>
-            <span style={{ fontWeight: 600, color: '#0f172a' }}>{r.salePrice ? `${r.salePrice.toLocaleString()}원` : '-'}</span>
-            <span style={{ fontSize: 11, color: soldOut ? '#dc2626' : '#16a34a' }}>{soldOut ? '품절' : '판매중'}</span>
-          </div>
+          <PriceStockEditCell
+            salePrice={r.salePrice ?? 0}
+            soldOut={r.stockStatus === 'OUT_OF_STOCK'}
+            onSave={({ price, soldOut }) => priceStockMutation.mutateAsync({ id: r.id, price, soldOut })}
+          />
         );
       },
     }),
@@ -103,7 +145,7 @@ export default function ProductGrid() {
       id: 'markets', header: '마켓', size: 220,
       cell: ({ row }) => renderMarketBadges(row.original.marketRegistrations),
     }),
-  ], []);
+  ], [priceStockMutation]);
 
   const table = useReactTable({ data: rows, columns, getCoreRowModel: getCoreRowModel() });
 
@@ -156,6 +198,3 @@ export default function ProductGrid() {
     </div>
   );
 }
-
-// 조회 실패 토스트는 axios 인터셉터/상위에서 처리. 필요 시 useQuery onError 확장.
-void toast;
