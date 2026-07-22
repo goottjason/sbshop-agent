@@ -210,6 +210,10 @@ export default function ProductGrid() {
         </div>
       </div>
 
+      <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '6px 10px', marginBottom: 8 }}>
+        고급필터(카테고리·마켓·소싱처·재고상태)는 현재 로드된 500건 대상 클라이언트 필터입니다. 카테고리는 목록 API 확장 후 활성화됩니다. (다음 세션 백엔드 구현)
+      </div>
+
       <ProductFilterPanel categoryOptions={categoryOptions} onSearch={handleSearch} />
 
       <div style={{ flex: 1, backgroundColor: 'white', position: 'relative', overflow: 'auto' }}>
