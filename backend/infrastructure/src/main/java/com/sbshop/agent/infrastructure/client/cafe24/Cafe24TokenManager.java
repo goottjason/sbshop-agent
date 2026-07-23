@@ -1,5 +1,6 @@
 package com.sbshop.agent.infrastructure.client.cafe24;
 
+import com.sbshop.agent.core.application.market.port.Cafe24TokenRefreshPort;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.TokenRefreshLock;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
@@ -15,7 +16,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class Cafe24TokenManager {
+public class Cafe24TokenManager implements Cafe24TokenRefreshPort {
 
 	private static final long CAFE24_TOKEN_LOCK_KEY = 0xCAFE24L; // 모든 프로세스 공통 상수
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -66,6 +67,28 @@ public class Cafe24TokenManager {
 				"Cafe24 access token 획득 실패 — 재인증이 필요합니다(refresh token 만료/무효 또는 미발급)");
 		}
 		return token;
+	}
+
+	/**
+	 * D-103: 트래픽과 독립적으로 리프레시 토큰을 선제 회전한다(2주 시한 만료 방지).
+	 * access token 유효 여부와 무관하게 refresh를 강제해 리프레시 토큰의 2주 시한을 매번 연장한다.
+	 * 과거 startup 강제 refresh는 2 JVM 경쟁 때문에 폐지됐으나(init 주석 참조), 현재 단일 JVM +
+	 * advisory lock 하에서는 안전하다. 실패는 삼켜 호출 스케줄러를 보호한다.
+	 */
+	@Override
+	public void refreshProactively() {
+		MarketCredential credential = getCredential();
+		if (credential == null
+			|| credential.getRefreshToken() == null || credential.getRefreshToken().isBlank()) {
+			log.info("Cafe24 선제 토큰 갱신 건너뜀 — refresh token 미보유(재인증 필요).");
+			return;
+		}
+		try {
+			refreshLock.runExclusively(CAFE24_TOKEN_LOCK_KEY, () -> doRefresh(getCredential()));
+			log.info("✅ Cafe24 선제 토큰 갱신 완료 — 리프레시 토큰 회전(2주 시한 연장).");
+		} catch (Exception e) {
+			log.error("❌ Cafe24 선제 토큰 갱신 실패 — 재인증이 필요할 수 있습니다.", e);
+		}
 	}
 
 	private boolean isTokenValid(MarketCredential c) {

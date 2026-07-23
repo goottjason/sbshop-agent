@@ -1493,3 +1493,14 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 수정(2026-07-22, TDD, 커밋 5658431): 위 설계대로 구현. `ElevenstClaimStatusMapperTest` 5건 + `ElevenstDetectCancellationsTest`에 D-099 4건(취소/반품/교환 판정·클레임아님 오취소방지) 추가. core+infra+api 회귀 전체 통과.
 - 검증(2026-07-22, 스모크): 배포(재시작 00:44:34Z) 후 11번가 동기화 트리거 → ELEVEN_STREET_SYNC SUCCESS. 새 상세조회 경로가 sync 무결. 현 DB 클레임 0건이라 상태변경 로그 없음(정상). 라이브 E2E(실 클레임 RETURNED 전환)는 실 클레임 발생 시.
 - 상태: 검증통과(단위+스모크) — 라이브 E2E는 실 11번가 클레임 발생 대기
+
+### D-103: Cafe24 리프레시 토큰 자동 갱신 구조 결함 — 선제 갱신 스케줄러 부재 (2026-07-23)
+- 심각도: P1 (오동작 — 오랜 미사용/트래픽 공백 시 리프레시 토큰 만료→재인증 외 복구 불가, Cafe24 연동 전면 중단)
+- 리스크 등급: 중대 (스케줄러 활성화 — 사용자 승인 필수, 획득)
+- 근본 원인: 토큰 갱신이 주문동기화 API 트래픽의 부산물로만 발생. `Cafe24TokenManager.getValidAccessToken()`(:49-78)은 액세스 토큰(2h) 만료 임박 때만 doRefresh→리프레시 토큰 회전. Cafe24 전용 토큰 스케줄러 부재. Cafe24 리프레시 토큰은 유효 2주·refresh 때마다 회전/연장 → API 호출 공백 ≥2주면 만료. refresh_token_expires_at 추적도 전무.
+- 수정 설계(사용자 승인 "선제 스케줄러만", 스키마 무변경): core에 `Cafe24TokenRefreshPort.refreshProactively()` 포트 신설 → `Cafe24TokenManager`가 구현(리프레시 토큰 보유 시 access 유효 여부 무관 강제 refresh·회전·시한연장, advisory lock 하, 실패 삼킴) → worker `MarketTokenScheduler` 매일 03:00(KST) 호출. 과거 startup 강제 refresh는 2 JVM 경쟁으로 폐지됐으나 현 단일 JVM+lock 하 안전.
+- 수정(2026-07-23, TDD): `Cafe24TokenManagerTest`에 선제갱신 3종(강제회전·토큰없으면건너뜀·실패삼킴). :infrastructure:test PASS, 전 모듈 compile PASS, `./gradlew test` 전체 PASS.
+- 미해결: 이미 만료된 토큰은 코드 복구 불가 → UI 재인증 필요(즉시 조치). refresh_token_expires_at 추적/만료임박경고는 범위 제외(선택 후속).
+- 상태: 수정완료(라이브 검증대기) — 재인증+배포 후 익일 03:00 로그 "Cafe24 선제 토큰 갱신 완료" 확인 대기
+
+> 참고(번호): 같은 세션 2026-07-23 프론트 UI 배치(커밋 f53563a)가 커밋 메시지에서 D-099~D-102 라벨을 느슨히 사용했으나 원장 미등재. 원장 정본 기준 D-099는 11번가 클레임(상단)이며, 본 D-103이 원장상 다음 번호다. 프론트 배치 상세는 working_history/20260723_1001_결과서.md 참조.

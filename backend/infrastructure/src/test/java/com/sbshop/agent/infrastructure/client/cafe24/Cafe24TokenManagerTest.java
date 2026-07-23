@@ -112,4 +112,55 @@ class Cafe24TokenManagerTest {
 		assertThat(c.getTokenExpiresAt()).isNotNull();
 		verify(repo).save(c);
 	}
+
+	// ─── D-103: 선제 갱신(트래픽 독립) — 리프레시 토큰 2주 시한 만료 방지 ───
+
+	@Test
+	@DisplayName("선제 갱신: refresh token이 있으면 access token 유효 여부와 무관하게 refresh를 강제해 회전시킨다")
+	void proactiveRefreshForcesRotationEvenWhenAccessValid() {
+		MarketCredential c = credential("AT-VALID",
+			LocalDateTime.now().plusHours(1), "RT1"); // access token은 아직 유효
+		when(repo.findByMarketType(any())).thenReturn(Optional.of(c));
+		when(tokenClient.exchange(any(), any(), any(), any()))
+			.thenReturn(new Cafe24OAuthTokenClient.TokenResponse(
+				"AT-NEW", "RT2", Instant.now().plusSeconds(7200)));
+
+		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);
+		manager.refreshProactively();
+
+		// access token이 유효해도 강제 refresh → 리프레시 토큰 회전(시한 연장)
+		verify(tokenClient).exchange(any(), any(), any(), any());
+		assertThat(c.getRefreshToken()).isEqualTo("RT2");
+		assertThat(c.getAccessToken()).isEqualTo("AT-NEW");
+		verify(repo).save(c);
+	}
+
+	@Test
+	@DisplayName("선제 갱신: refresh token이 없으면 exchange 없이 조용히 건너뛴다(예외 없음)")
+	void proactiveRefreshSkipsWhenNoRefreshToken() {
+		MarketCredential c = credential("AT",
+			LocalDateTime.now().plusHours(1), null); // refresh token 없음
+		when(repo.findByMarketType(any())).thenReturn(Optional.of(c));
+
+		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);
+		manager.refreshProactively(); // 예외 없이 리턴해야 한다
+
+		verify(tokenClient, never()).exchange(any(), any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("선제 갱신: refresh 실패 시 예외를 삼켜 스케줄러가 죽지 않게 한다")
+	void proactiveRefreshSwallowsFailure() {
+		MarketCredential c = credential("AT",
+			LocalDateTime.now().plusHours(1), "RT1");
+		when(repo.findByMarketType(any())).thenReturn(Optional.of(c));
+		when(tokenClient.exchange(any(), any(), any(), any()))
+			.thenThrow(new RuntimeException("boom"));
+
+		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);
+		// 예외가 전파되지 않아야 한다(스케줄러 보호)
+		manager.refreshProactively();
+
+		verify(tokenClient).exchange(any(), any(), any(), any());
+	}
 }
