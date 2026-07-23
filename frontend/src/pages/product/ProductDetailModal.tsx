@@ -90,8 +90,15 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
     if (productId == null) return;
     setSaving(true);
     try {
-      await updateProductFields(productId, fields); // MOCK
-      message.success('상품 정보 저장됨 (백엔드 반영은 다음 세션 구현)');
+      // 판매가 변경은 실제 엔드포인트로 저장한다(재고상태는 미변경 → soldOut null).
+      // D-060/F-PROD-7 경로: DB 반영 + 연동 마켓 가격 동기화.
+      const origSale = detail?.priceInfo?.salePrice;
+      if (fields.salePrice != null && fields.salePrice !== origSale) {
+        await productApi.updatePriceStock(productId, fields.salePrice, null);
+      }
+      // 그 외 필드는 백엔드 PATCH 미구현 → 모킹(로컬 반영). 다음 세션 구현 예정.
+      await updateProductFields(productId, fields);
+      message.success('상품 정보 저장됨 (판매가 외 필드는 다음 세션 반영)');
       onSaved();
       onClose();
     } catch {

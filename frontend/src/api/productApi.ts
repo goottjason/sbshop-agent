@@ -107,7 +107,8 @@ export const productApi = {
   fetchProductDetail: (id: number) =>
     apiClient.get(`/api/v1/products/${id}`),
 
-  updatePriceStock: (id: number, price: number, soldOut: boolean) =>
+  // soldOut=null이면 재고상태는 변경하지 않고 가격만 반영한다(백엔드 F-PROD-7).
+  updatePriceStock: (id: number, price: number, soldOut: boolean | null) =>
     apiClient.put(`/api/v1/products/${id}/price-stock`, { price, soldOut }),
 
   uploadImages: (id: number, formData: FormData) =>

@@ -8,6 +8,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchOrders, updateOrder, updateOrderLineItem, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, syncProductStock, fetchSyncStatus, updatePurchaseStatus } from '../api/orderApi';
 import type { OrderGridDto, ProductDto, OrderDto, OrderLineItemDto, OrderDetailResponseDto, PageResponse } from '../api/orderApi';
+import { formatPhone } from '../utils/phone';
 import { toKstDate } from '../utils/datetime';
 
 // 재고현황 셀 표시 규칙(순수 함수, 테스트 가능):
@@ -1035,7 +1036,7 @@ const OrderGrid: React.FC = () => {
       meta: { frozen: true, freezeLeft: 290 },
       cell: ({ row }) => {
         if (row.original.rowType === 'product') {
-          return <span>{row.original.order?.recipientPhone || '-'}</span>;
+          return <span>{formatPhone(row.original.order?.recipientPhone) || '-'}</span>;
         }
         if (row.original.rowType === 'fulfillment') return null;
         const recipientName = (row.original.order?.recipientName || '').trim();
@@ -1476,11 +1477,14 @@ const OrderGrid: React.FC = () => {
                 ))}
               </TableHeader>
               <TableBody>
-                {table.getRowModel().rows.map(row => {
+                {table.getRowModel().rows.map((row, rowIdx, rows) => {
                   const baseBgCol = row.original.isFirstLineItem ? '#ffffff' : row.original.isSecondRow ? '#fdfdfd' : '#f9f9f9';
+                  // 주문 경계: 다음 행이 다른 주문(또는 마지막 행)이면 이 행이 주문의 마지막 행이다.
+                  // 해당 위치에 전체 폭 검은 구분선(스페이서 행)을 삽입해 주문 단위를 뚜렷이 구분한다.
+                  const isOrderBoundary = rows[rowIdx + 1]?.original.order?.id !== row.original.order?.id;
                   return (
+                  <React.Fragment key={row.id}>
                   <TableRow
-                    key={row.id}
                     data-order-id={row.original.order?.id ?? undefined}
                     style={{ backgroundColor: baseBgCol }}
                     onMouseEnter={undefined}
@@ -1528,6 +1532,12 @@ const OrderGrid: React.FC = () => {
                       );
                     })}
                   </TableRow>
+                  {isOrderBoundary && (
+                    <tr aria-hidden="true">
+                      <td colSpan={table.getVisibleLeafColumns().length} style={{ padding: 0, height: '2px', backgroundColor: '#111827' }} />
+                    </tr>
+                  )}
+                  </React.Fragment>
                   );
                 })}
               </TableBody>
