@@ -468,14 +468,21 @@ const OrderTableRow = React.memo(function OrderTableRow({ row, isOrderBoundary, 
   && prev.colCount === next.colCount,
 );
 
+// 종결(취소/반품/교환) 상태 — 기본 조회에서 제외한다.
+const TERMINAL_STATUSES = ['CANCELED', 'RETURNED', 'EXCHANGED'];
+const ALL_STATUSES = ['UNKNOWN', 'NEW', 'PREPARING', 'DISPATCHED', 'SHIPPED', 'DELIVERED', 'CANCELED', 'RETURNED', 'EXCHANGED'];
+// 통합 주문 관리 진입 시 기본 표시 상태(종결상태 제외). 유저가 필터에서 별도 체크해야 종결건이 보인다.
+const DEFAULT_VISIBLE_STATUSES = ALL_STATUSES.filter(s => !TERMINAL_STATUSES.includes(s));
+
 // 상단 필터 패널 컴포넌트 (UI)
 function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: string[], statuses: string[], startDate: string, endDate: string, purchaseStatuses: string[]) => void }) {
    const allMarkets = ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'];
-  const allStatuses = ['UNKNOWN', 'NEW', 'PREPARING', 'DISPATCHED', 'SHIPPED', 'DELIVERED', 'CANCELED', 'RETURNED', 'EXCHANGED'];
+  const allStatuses = ALL_STATUSES;
   const allPurchaseStatuses = ['NOT_PURCHASED', 'PURCHASED', 'WAITING_STOCK'];
 
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(allMarkets);
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(allStatuses);
+  // 기본 조회에서 종결상태(취소/반품/교환)는 제외 — 보고 싶으면 유저가 직접 체크.
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(DEFAULT_VISIBLE_STATUSES);
   const [selectedPurchaseStatuses, setSelectedPurchaseStatuses] = useState<string[]>(allPurchaseStatuses);
   const [keyword, setKeyword] = useState('');
 
@@ -707,7 +714,7 @@ const OrderGrid: React.FC = () => {
   const [queryParams, setQueryParams] = useState<{keyword?: string, markets?: string[], statuses?: string[], purchaseStatuses?: string[], startDate?: string, endDate?: string}>({
     keyword: '',
     markets: ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'],
-    statuses: ['UNKNOWN', 'NEW', 'PREPARING', 'DISPATCHED', 'SHIPPED', 'DELIVERED', 'CANCELED', 'RETURNED', 'EXCHANGED'],
+    statuses: DEFAULT_VISIBLE_STATUSES,
     purchaseStatuses: ['NOT_PURCHASED', 'PURCHASED', 'WAITING_STOCK'],
     startDate: defaultStart,
     endDate: defaultEnd
