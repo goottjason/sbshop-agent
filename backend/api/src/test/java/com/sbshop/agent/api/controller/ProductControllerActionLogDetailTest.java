@@ -35,7 +35,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * D-077 / D-078: 상품 액션 활동로그의 마켓별 상세 표시와 소스이미지 크롤 로그 배선 검증.
  *
  * <p>D-077: 가격/재고·이미지 수정 활동로그가 {@code MarketRepublishResult}(synced/skipped/failed)와
- * 마켓별 상품번호(extractMarketCode)를 조합해 "쿠팡 {번호} 성공, 스마트스토어 {번호} 실패(사유)" 형태로
+ * 마켓별 상품번호(extractMarketCode)를 조합해 "쿠팡 {번호} 성공, N스토어 {번호} 실패(사유)" 형태로
  * 기록하는지 단언한다(현재는 "가격/재고 수정 성공 (상품 N)" 한 줄 → Red).
  *
  * <p>D-078: {@code crawlSourceImages}가 성공/빈결과/실패 각각에 대해 {@code SOURCE_IMAGE_CRAWL}
@@ -97,7 +97,7 @@ class ProductControllerActionLogDetailTest {
 
 		String message = capturedSuccessMessage(ActionLogConstants.PRODUCT_PRICE_STOCK_UPDATE);
 		assertThat(message).contains("쿠팡 7283748383 성공");
-		assertThat(message).contains("스마트스토어 2939395 실패");
+		assertThat(message).contains("N스토어 2939395 실패");
 		assertThat(message).contains("401 Unauthorized");
 		assertThat(message).contains("G마켓");
 		// DB 저장은 항상 성공(SUCCESS 진입) — 접두로 명시
@@ -136,7 +136,7 @@ class ProductControllerActionLogDetailTest {
 
 		String message = capturedSuccessMessage(ActionLogConstants.PRODUCT_IMAGE_UPDATE);
 		assertThat(message).contains("쿠팡 7283748383 성공");
-		assertThat(message).contains("스마트스토어 실패");
+		assertThat(message).contains("N스토어 실패");
 	}
 
 	@Test

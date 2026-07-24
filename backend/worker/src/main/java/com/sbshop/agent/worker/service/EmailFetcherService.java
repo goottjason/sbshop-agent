@@ -60,7 +60,11 @@ public class EmailFetcherService {
 	 *         여부를 응답에 반영할 수 있도록 표면화한다(F-MISC-20). 계정 미설정·처리대상 없음은
 	 *         "정상 실행(처리할 것이 없었을 뿐)"이므로 true 로 간주한다.
 	 */
-	@Transactional
+	// 트랜잭션 없음(2026-07-24): 이 메서드는 계정별 IMAP 접속(각 최대 30s)과 마켓 API 호출 등
+	// 느린 네트워크 I/O를 다수 수행한다. 전체를 @Transactional로 감싸면 그 긴 시간 동안 DB 커넥션을
+	// 붙잡아 풀이 커넥션을 닫고 "Unable to rollback against JDBC Connection"으로 실패한다.
+	// DB 읽기는 각 리포지토리 호출이, 쓰기는 각 orderLineItemRepository.save()가 자체 트랜잭션으로
+	// 원자적이므로 바깥 트랜잭션은 불필요하다.
 	public boolean fetchAndProcessEmails() {
 		// 재진입/동시실행 가드: 이미 실행 중이면 본처리를 스킵하고 즉시 반환(실행 안 함 → false).
 		if (!fetching.compareAndSet(false, true)) {
@@ -110,6 +114,12 @@ public class EmailFetcherService {
 			if (orderNo == null || orderNo.isBlank()) {
 				continue;
 			}
+			// 사용자 편집 필드라 비ASCII 값(예: 한글 "재고")이 들어올 수 있다. 그대로 IMAP SEARCH에
+			// 넣으면 charset 미지정으로 서버가 파싱 실패(BAD)를 던져 검색 루프가 끊긴다 → 제외.
+			if (!isImapSearchable(orderNo)) {
+				log.warn("이메일 검색 제외 — 비ASCII 구매주문번호(itemId={}, orderNo='{}')", item.getId(), orderNo);
+				continue;
+			}
 			String sourcingAccount = sourcingData != null ? sourcingData.getSourcingAccount() : null;
 			for (EmailAccountProperties.Account target : resolveTargetAccounts(sourcingAccount, accounts)) {
 				plan.computeIfAbsent(target, k -> new LinkedHashSet<>()).add(orderNo);
@@ -157,6 +167,18 @@ public class EmailFetcherService {
 			}
 		}
 		return exact.isEmpty() ? usable : exact;
+	}
+
+	/**
+	 * IMAP SEARCH(SubjectTerm)에 안전하게 쓸 수 있는 검색어인지 판정한다.
+	 * 비ASCII 문자가 포함되면 charset 미지정 SEARCH에서 서버가 파싱 실패(BAD)를 던지므로 제외한다.
+	 * iHerb 주문번호는 숫자(ASCII)라 정상 값은 모두 통과한다.
+	 */
+	static boolean isImapSearchable(String value) {
+		if (value == null || value.isBlank()) {
+			return false;
+		}
+		return value.chars().allMatch(c -> c < 128);
 	}
 
 	/**
@@ -412,6 +434,11 @@ public class EmailFetcherService {
 	// iHerb 주문 확인 이메일 즉시 검색 (구매처리 시 호출)
 	public Optional<BigDecimal> findIherbConfirmationAmount(String orderNo) {
 		if (properties.getAccounts() == null || properties.getAccounts().isEmpty()) {
+			return Optional.empty();
+		}
+		// 비ASCII 주문번호는 IMAP SEARCH 파싱 실패를 유발하므로 검색하지 않는다(buildSearchPlan과 동일 가드).
+		if (!isImapSearchable(orderNo)) {
+			log.debug("iHerb 확인금액 검색 제외 — 비ASCII 주문번호 '{}'", orderNo);
 			return Optional.empty();
 		}
 
