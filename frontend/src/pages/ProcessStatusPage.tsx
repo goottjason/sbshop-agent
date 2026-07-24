@@ -15,7 +15,7 @@ const actionStatusColor: Record<string, string> = {
 // D-050: 마켓 코드 → 한글 라벨 (OrderGrid.tsx:416 marketLabels 선례 이식)
 const marketTypeLabels: Record<string, string> = {
   COUPANG: '쿠팡',
-  SMART_STORE: '스마트스토어',
+  SMART_STORE: 'N스토어',
   ELEVEN_STREET: '11번가',
   GMARKET: 'G마켓/옥션',
   AUCTION: '옥션',

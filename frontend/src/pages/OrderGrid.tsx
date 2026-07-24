@@ -69,6 +69,27 @@ const ACCOUNT_OPTIONS = [
 ];
 const VENDOR_OPTIONS = ['', 'IHB', 'AMZ', 'FTN', 'COK', 'OCD', 'TES', 'VTB'];
 
+// 구매계정 이메일을 도메인 축약 라벨로 표시(값은 원본 이메일 유지).
+//   @gmail.com→G · @skku.edu/@g.skku.edu→SKKU · @naver.com→NAVER · @daum.net→DAUM · @nate.com→NATE
+// 예) kimjongwon0907@gmail.com → "kimjongwon0907 G", jongwon@skku.edu → "jongwon SKKU"
+export function shortAccountLabel(email: string): string {
+  if (!email) return '';
+  const at = email.lastIndexOf('@');
+  if (at < 0) return email;
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1).toLowerCase();
+  const DOMAIN_TAGS: Record<string, string> = {
+    'gmail.com': 'G',
+    'skku.edu': 'SKKU',
+    'g.skku.edu': 'SKKU',
+    'naver.com': 'NAVER',
+    'daum.net': 'DAUM',
+    'nate.com': 'NATE',
+  };
+  const tag = DOMAIN_TAGS[domain];
+  return tag ? `${local} ${tag}` : email;
+}
+
 // ─── 인라인 즉시편집 공통 저장상태 언어 ───
 // 모든 자동저장 셀이 동일한 시각 신호를 공유한다:
 //   dirty(앰버)=변경됨·미저장, saving(파랑)=전송중, saved(초록)=저장완료 플래시, error(빨강)=실패·원복
@@ -309,7 +330,7 @@ function SourcingEditCell({ sourcingAccount, sourcingVendor, sourcingOrderNo, di
       onBlur={(e) => { if (blurLeftToPage(e)) commit(); }}
     >
       <select value={draftAccount} style={fieldStyle} onChange={(e) => { setDraftAccount(e.target.value); markDirty(); }} onKeyDown={onKeyDown}>
-        {ACCOUNT_OPTIONS.map(a => <option key={a} value={a}>{a || '(계정 선택)'}</option>)}
+        {ACCOUNT_OPTIONS.map(a => <option key={a} value={a}>{a ? shortAccountLabel(a) : '(계정 선택)'}</option>)}
       </select>
       <select value={draftVendor} style={fieldStyle} onChange={(e) => { setDraftVendor(e.target.value); markDirty(); }} onKeyDown={onKeyDown}>
         {VENDOR_OPTIONS.map(v => <option key={v} value={v}>{v || '(공급처 선택)'}</option>)}
@@ -437,7 +458,7 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
             </label>
             {[
               { id: 'COUPANG', label: '쿠팡' },
-              { id: 'SMART_STORE', label: '스마트스토어' },
+              { id: 'SMART_STORE', label: 'N스토어' },
                { id: 'ELEVEN_STREET', label: '11번가' },
                { id: 'CAFE24', label: '카페24' },
                { id: 'GMARKET', label: 'G마켓' },
@@ -573,7 +594,7 @@ const OrderGrid: React.FC = () => {
 
   const marketLabels: Record<string, string> = {
     COUPANG: '쿠팡',
-    SMART_STORE: '스마트스토어',
+    SMART_STORE: 'N스토어',
     ELEVEN_STREET: '11번가',
     GMARKET: 'G마켓/옥션',
     EMAIL: '이메일',
@@ -781,11 +802,11 @@ const OrderGrid: React.FC = () => {
         // D-023: SSE(SYNC_COMPLETED/FAILED) 미도달 시 로딩 영구 고착 방지 안전장치
         setTimeout(() => setIsSyncing(false), 30000);
       } else {
-        toast.error(res.message || '스마트스토어 동기화에 실패했습니다.');
+        toast.error(res.message || 'N스토어 동기화에 실패했습니다.');
         setIsSyncing(false);
       }
     } catch {
-      toast.error('스마트스토어 동기화 중 오류가 발생했습니다.');
+      toast.error('N스토어 동기화 중 오류가 발생했습니다.');
       setIsSyncing(false);
     }
   };
@@ -979,7 +1000,7 @@ const OrderGrid: React.FC = () => {
     columnHelper.display({
       id: 'orderInfo',
       header: '주문정보',
-      size: 150,
+      size: 130,
       cell: ({ row }) => {
         const dateObj = row.original.order?.orderDate ? new Date(row.original.order.orderDate as string) : null;
         const dateStr = dateObj ? `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')} ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}` : '-';
@@ -990,8 +1011,8 @@ const OrderGrid: React.FC = () => {
           'COUPANG': { bg: '#fce4ec', text: '#c2185b' },
           'ELEVEN_STREET': { bg: '#e3f2fd', text: '#1565c0' },
           'CAFE24': { bg: '#fffde7', text: '#fbc02d' },
-          'GMARKET': { bg: '#fff9c4', text: '#f57f17' },
-          'AUCTION': { bg: '#fce4ec', text: '#d32f2f' }
+          'GMARKET': { bg: '#dcedc8', text: '#33691e' },
+          'AUCTION': { bg: '#fff3e0', text: '#e65100' }
         };
         const style = marketColorMap[market] || { bg: '#f5f5f5', text: '#666' };
         return (
@@ -1007,8 +1028,8 @@ const OrderGrid: React.FC = () => {
     columnHelper.accessor('lineItem.shippingData.shippingStatus', {
       id: 'shippingStatus',
       header: '주문상태',
-      size: 100,
-      meta: { frozen: true, freezeLeft: 190 },
+      size: 90,
+      meta: { frozen: true, freezeLeft: 170 },
       cell: info => {
         const val = info.getValue() as string;
         const colorMap: Record<string, { bg: string; text: string }> = {
@@ -1033,7 +1054,7 @@ const OrderGrid: React.FC = () => {
       id: 'ordererInfo',
       header: '주문자정보',
       size: 120,
-      meta: { frozen: true, freezeLeft: 290 },
+      meta: { frozen: true, freezeLeft: 260 },
       cell: ({ row }) => {
         if (row.original.rowType === 'product') {
           return <span>{formatPhone(row.original.order?.recipientPhone) || '-'}</span>;
@@ -1077,7 +1098,7 @@ const OrderGrid: React.FC = () => {
           </svg>
         </div>
       ),
-      size: 120,
+      size: 126,
       cell: ({ row }) => {
         if (row.original.rowType === 'product') {
           const val = row.original.order?.customsData?.customsStatus;
@@ -1101,7 +1122,7 @@ const OrderGrid: React.FC = () => {
     columnHelper.display({
       id: 'shippingInfoPair',
       header: '배송정보',
-      size: 240,
+      size: 190,
       cell: ({ row }) => {
         if (row.original.rowType === 'product') {
           const val = row.original.order?.address || '';
@@ -1135,7 +1156,7 @@ const OrderGrid: React.FC = () => {
     columnHelper.display({
       id: 'productNamePair',
       header: '상품정보',
-      size: 300,
+      size: 315,
       cell: ({ row }) => {
         const url = row.original.product?.sourcingInfo?.sourceUrl;
         if (row.original.rowType === 'product') {
@@ -1148,25 +1169,45 @@ const OrderGrid: React.FC = () => {
       }
     }),
 
+    // 수량: 상품정보 옆 배치(라인아이템 병합 rowSpan=3).
+    columnHelper.display({
+      id: 'quantity',
+      header: '수량',
+      size: 56,
+      cell: ({ row }) => {
+        const qty = (row.original.lineItem?.quantity || 1) as number;
+        const bundle = (row.original.product?.logisticsInfo?.bundleQuantity || 1) as number;
+        const total = qty * bundle;
+        return (
+          <div style={{ textAlign: 'center', lineHeight: '1.4' }}>
+            <div style={{ fontSize: '12px', color: '#666' }}>
+              {bundle} × <span style={qty >= 2 ? { fontWeight: 'bold', color: '#d32f2f' } : {}}>{qty}</span>
+            </div>
+            <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#1e293b' }}>{total}</div>
+          </div>
+        );
+      }
+    }),
+
     // ─── Row 1 전용 컬럼 (주문 행에만 표시) ───
     // ─── 2줄 병합 컬럼 (행 1, 행 2) ───
     columnHelper.display({
       id: 'stockInfo',
       header: () => (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-          재고현황
+          재고
           <svg onClick={handleSyncProductStock} xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="#555" style={{ cursor: 'pointer' }}>
             <path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/>
           </svg>
         </div>
       ),
-      size: 100,
+      size: 64,
       cell: ({ row }) => {
         if (row.original.rowType === 'product') return null;
         if (row.original.rowType === 'fulfillment') return null;
         const info = stockCellInfo(row.original.product);
         let badge = <span style={{ color: '#999' }}>-</span>;
-        if (info.badge === 'IN_STOCK') badge = <span style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>구입가능</span>;
+        if (info.badge === 'IN_STOCK') badge = <span style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>있음</span>;
         if (info.badge === 'OUT_OF_STOCK') badge = <span style={{ backgroundColor: '#ffebee', color: '#c62828', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>품절</span>;
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
@@ -1305,25 +1346,6 @@ const OrderGrid: React.FC = () => {
         );
       }
     }),
-    // ─── Row 1 전용 컬럼 (주문 행에만 표시) ───
-    columnHelper.display({
-      id: 'quantity',
-      header: '수량',
-      size: 70,
-      cell: ({ row }) => {
-        const qty = (row.original.lineItem?.quantity || 1) as number;
-        const bundle = (row.original.product?.logisticsInfo?.bundleQuantity || 1) as number;
-        const total = qty * bundle;
-        return (
-          <div style={{ textAlign: 'center', lineHeight: '1.4' }}>
-            <div style={{ fontSize: '12px', color: '#666' }}>
-              {bundle} × <span style={qty >= 2 ? { fontWeight: 'bold', color: '#d32f2f' } : {}}>{qty}</span>
-            </div>
-            <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#1e293b' }}>{total}</div>
-          </div>
-        );
-      }
-    }),
   ], [handleUpdate, commonCodes, getCommonLabel]);
 
   const table = useReactTable({
@@ -1369,7 +1391,7 @@ const OrderGrid: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#1e293b' }}>통합 주문 관리</h2>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <button onClick={handleSyncSmartStore} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>스마트스토어 동기화</button>
+          <button onClick={handleSyncSmartStore} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>N스토어 동기화</button>
           <button onClick={handleSyncCoupang} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>쿠팡 동기화</button>
           <button onClick={handleSyncElevenStreet} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>11번가 동기화</button>
           <button onClick={handleSyncEsmplus} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>G마켓/옥션 동기화</button>
@@ -1534,7 +1556,7 @@ const OrderGrid: React.FC = () => {
                   </TableRow>
                   {isOrderBoundary && (
                     <tr aria-hidden="true">
-                      <td colSpan={table.getVisibleLeafColumns().length} style={{ padding: 0, height: '2px', backgroundColor: '#111827' }} />
+                      <td colSpan={table.getVisibleLeafColumns().length} style={{ padding: 0, height: '2px', backgroundColor: '#9ca3af' }} />
                     </tr>
                   )}
                   </React.Fragment>

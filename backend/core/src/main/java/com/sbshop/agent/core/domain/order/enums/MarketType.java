@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum MarketType implements EnumMapperType {
 	COUPANG("쿠팡"),
-	SMART_STORE("스마트스토어"),
+	SMART_STORE("N스토어"),
 	ELEVEN_STREET("11번가"),
 	GMARKET("G마켓"),
 	AUCTION("옥션"),

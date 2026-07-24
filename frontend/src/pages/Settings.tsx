@@ -86,7 +86,7 @@ const Settings = () => {
 
   const tabs = [
     { id: 'COUPANG', label: '쿠팡 (Coupang)' },
-    { id: 'SMART_STORE', label: '스마트스토어 (Naver)' },
+    { id: 'SMART_STORE', label: 'N스토어 (Naver)' },
     { id: 'ELEVEN_STREET', label: '11번가 (11st)' },
     { id: 'CAFE24', label: '카페24 (Cafe24)' },
   ];

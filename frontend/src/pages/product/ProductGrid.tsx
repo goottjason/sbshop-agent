@@ -19,13 +19,10 @@ const DEFAULT_FILTERS: ProductFilters = {
   keyword: '', categories: [], markets: [], vendors: [], stockStatuses: [], inStockOnly: false,
 };
 
-// 판매상태 배지(읽기전용): 활성만 채색(판매중=그린, 품절=레드), 비활성=옅은 아웃라인.
-function statusPill(active: boolean, kind: 'in' | 'out'): React.CSSProperties {
-  const color = kind === 'in' ? '#16a34a' : '#dc2626';
-  return {
-    fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 999, border: `1px solid ${color}`,
-    color: active ? '#fff' : color, background: active ? color : '#fff', opacity: active ? 1 : 0.45,
-  };
+// 재고 배지(읽기전용): 통합 주문 관리와 동일한 파스텔 톤. 있음(연녹)·품절(연적) 중 하나만 표시.
+function stockBadge(soldOut: boolean): React.CSSProperties {
+  const c = soldOut ? { bg: '#ffebee', text: '#c62828' } : { bg: '#e8f5e9', text: '#2e7d32' };
+  return { fontSize: 11, fontWeight: 600, padding: '2px 10px', borderRadius: 4, background: c.bg, color: c.text };
 }
 
 // 로드된 500건에 고급필터를 적용(서버는 keyword만). 카테고리/마켓/소싱처/재고상태·재고유무.
@@ -115,8 +112,8 @@ export default function ProductGrid() {
       id: 'productInfo', header: '상품정보', size: 300,
       cell: ({ row }) => (
         <div onClick={() => setDetailId(row.original.id)}
-          style={{ textAlign: 'left', cursor: 'pointer', color: 'var(--product-primary)' }} title="상세 보기">
-          <div style={{ fontWeight: 600 }}>{row.original.productName}</div>
+          style={{ textAlign: 'left', cursor: 'pointer' }} title="상세 보기">
+          <div style={{ fontWeight: 600, color: '#1e293b' }}>{row.original.productName}</div>
           <div style={{ fontSize: 11, color: '#94a3b8' }}>{row.original.originalName || ' '}</div>
         </div>
       ),
@@ -133,16 +130,13 @@ export default function ProductGrid() {
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
             <span style={{ fontWeight: 700, color: '#0f172a' }}>{r.salePrice ? `${r.salePrice.toLocaleString()}원` : '-'}</span>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <span style={statusPill(!soldOut, 'in')}>판매중</span>
-              <span style={statusPill(soldOut, 'out')}>품절</span>
-            </div>
+            <span style={stockBadge(soldOut)}>{soldOut ? '품절' : '있음'}</span>
           </div>
         );
       },
     }),
     columnHelper.display({
-      id: 'markets', header: '마켓', size: 220,
+      id: 'markets', header: '마켓', size: 270,
       cell: ({ row }) => renderMarketBadges(row.original.marketRegistrations),
     }),
   ], []);
