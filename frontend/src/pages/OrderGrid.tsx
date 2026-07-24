@@ -4,6 +4,7 @@ import {
   getCoreRowModel,
   flexRender,
   createColumnHelper,
+  type Row,
 } from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchOrders, updateOrder, updateOrderLineItem, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, syncProductStock, fetchSyncStatus, updatePurchaseStatus } from '../api/orderApi';
@@ -356,11 +357,16 @@ function patchLineItemInCache(cache: OrdersCache | undefined, lineItemId: number
   if (!cache) return cache;
   return {
     ...cache,
-    content: cache.content.map(item => ({
-      ...item,
-      lineItems: (item.lineItems || []).map(d =>
-        d.lineItem?.id === lineItemId ? { ...d, lineItem: mutate(d.lineItem) } : d),
-    })),
+    // 해당 lineItem을 가진 주문만 새 객체로 교체하고 나머지 주문은 참조를 그대로 유지한다.
+    // 이 참조 안정성이 행 메모이제이션(변경된 주문의 행만 재렌더)의 전제가 된다.
+    content: cache.content.map(item => {
+      if (!(item.lineItems || []).some(d => d.lineItem?.id === lineItemId)) return item;
+      return {
+        ...item,
+        lineItems: (item.lineItems || []).map(d =>
+          d.lineItem?.id === lineItemId ? { ...d, lineItem: mutate(d.lineItem) } : d),
+      };
+    }),
   };
 }
 
@@ -378,6 +384,80 @@ const ORDER_COLUMNS: string[] = [];
 
 // Row 2 전용 컬럼 (상품 행에만 표시)
 const PRODUCT_COLUMNS: string[] = [];
+
+// ─── 메모된 주문 행 ───
+// 셀 1개를 편집하면 낙관적 캐시 패치로 "그 주문의 행 객체"만 새 참조가 되고(patch* 참조 보존),
+// 나머지 행은 original 참조가 동일하므로 이 memo가 재렌더를 건너뛴다. 결과적으로 편집 시
+// 변경된 주문의 3행만 재렌더 → 수백~수천 셀 전체 재렌더로 인한 굼뜸이 사라진다.
+// row 인스턴스는 매 렌더 새로 생성되므로 비교에서 의도적으로 무시하고, 안정적인
+// original/isSelected/isOrderBoundary/colCount만 비교한다(스킵 시 이전 렌더 출력은 동일 데이터라 안전).
+interface OrderTableRowProps {
+  row: Row<RowData>;
+  isSelected: boolean;
+  isOrderBoundary: boolean;
+  colCount: number;
+}
+const OrderTableRow = React.memo(function OrderTableRow({ row, isOrderBoundary, colCount }: OrderTableRowProps) {
+  const baseBgCol = row.original.isFirstLineItem ? '#ffffff' : row.original.isSecondRow ? '#fdfdfd' : '#f9f9f9';
+  return (
+    <>
+      <TableRow data-order-id={row.original.order?.id ?? undefined} style={{ backgroundColor: baseBgCol }}>
+        {row.getVisibleCells().map(cell => {
+          const isOrderSpanned = ORDER_SPANNED_COLUMNS.includes(cell.column.id);
+          const isLineItemSpanned = LINEITEM_SPANNED_COLUMNS.includes(cell.column.id);
+          const isTwoRowColumn = TWO_ROW_COLUMNS.includes(cell.column.id);
+          const isOrderColumn = ORDER_COLUMNS.includes(cell.column.id);
+          const isProductColumn = PRODUCT_COLUMNS.includes(cell.column.id);
+          if (isOrderSpanned && !row.original.isFirstLineItem) return null;
+          if (isLineItemSpanned && row.original.rowType !== 'order') return null;
+          if (isTwoRowColumn && row.original.rowType === 'fulfillment') return null;
+          if (isOrderColumn && row.original.rowType !== 'order') return null;
+          if (isProductColumn && row.original.rowType !== 'product') return null;
+          const meta = cell.column.columnDef.meta as { frozen?: boolean; freezeLeft?: number } | undefined;
+          const isFrozen = meta?.frozen;
+          const freezeLeft = meta?.freezeLeft;
+          return (
+            <TableCell
+              key={cell.id}
+              rowSpan={isOrderSpanned ? row.original.totalRowCount || 1 : isLineItemSpanned ? 3 : 1}
+              style={{
+                borderRight: '1px solid #e5e7eb',
+                width: cell.column.getSize(),
+                minWidth: cell.column.getSize(),
+                maxWidth: cell.column.getSize(),
+                height: '48px', // 행 높이를 48px로 고정
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'normal',
+                wordBreak: 'break-word',
+                padding: '6px 8px',
+                textAlign: ['shippingInfoPair', 'productNamePair'].includes(cell.column.id) ? 'left' : 'center',
+                position: isFrozen ? 'sticky' : undefined,
+                left: isFrozen ? freezeLeft : undefined,
+                zIndex: isFrozen ? 2 : undefined,
+                backgroundColor: isFrozen ? baseBgCol : undefined,
+                boxShadow: isFrozen ? '2px 0 4px rgba(0,0,0,0.1)' : undefined,
+              }}
+            >
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </TableCell>
+          );
+        })}
+      </TableRow>
+      {isOrderBoundary && (
+        <tr aria-hidden="true">
+          <td colSpan={colCount} style={{ padding: 0, height: '2px', backgroundColor: '#9ca3af' }} />
+        </tr>
+      )}
+    </>
+  );
+}, (prev, next) =>
+  // row 인스턴스 identity는 무시(매 렌더 새로 생성됨). 데이터·선택·경계·컬럼수가 같으면 재렌더 스킵.
+  prev.row.original === next.row.original
+  && prev.isSelected === next.isSelected
+  && prev.isOrderBoundary === next.isOrderBoundary
+  && prev.colCount === next.colCount,
+);
 
 // 상단 필터 패널 컴포넌트 (UI)
 function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: string[], statuses: string[], startDate: string, endDate: string, purchaseStatuses: string[]) => void }) {
@@ -529,7 +609,6 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
 }
 
 const OrderGrid: React.FC = () => {
-  const [rowData, setRowData] = useState<RowData[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   // isSyncing의 최신값을 SSE onerror 콜백(이펙트 클로저)에서 stale 없이 읽기 위한 ref (D-023)
   const isSyncingRef = useRef(false);
@@ -631,37 +710,6 @@ const OrderGrid: React.FC = () => {
     queryFn: () => fetchOrders(0, 500, queryParams.keyword, queryParams.markets, queryParams.statuses, queryParams.startDate, queryParams.endDate, queryParams.purchaseStatuses)
   });
 
-  useEffect(() => {
-    if (data) {
-      const flattened = data.content.flatMap(item =>
-        (item.lineItems || []).map(li => ([
-          {
-            order: item.order,
-            lineItem: li.lineItem,
-            product: li.product,
-            marketRegistration: li.marketRegistration,
-            rowType: 'order',
-          },
-          {
-            order: item.order,
-            lineItem: li.lineItem,
-            product: li.product,
-            marketRegistration: li.marketRegistration,
-            rowType: 'product',
-          },
-          {
-            order: item.order,
-            lineItem: li.lineItem,
-            product: li.product,
-            marketRegistration: li.marketRegistration,
-            rowType: 'fulfillment',
-          }
-        ]))
-      ).flat();
-      setRowData(flattened);
-    }
-  }, [data]);
-
   // 낙관적 스냅샷 + 캐시 패치. 반환값(이전 상태)은 onError 롤백에 쓴다.
   type CacheSnapshot = ReturnType<typeof queryClient.getQueriesData<OrdersCache>>;
   const optimisticPatch = useCallback(async (patch: (c: OrdersCache | undefined) => OrdersCache | undefined): Promise<CacheSnapshot> => {
@@ -748,7 +796,9 @@ const OrderGrid: React.FC = () => {
       return purchaseStatusMutation.mutateAsync({ id: lineItemId, status: value as 'NOT_PURCHASED' | 'PURCHASED' | 'WAITING_STOCK' });
     }
     return Promise.resolve();
-  }, [orderMutation, lineItemMutation, sourcingMutation, shippingMutation, purchaseStatusMutation]);
+    // react-query v5의 mutateAsync는 렌더 간 안정 참조라 handleUpdate가 안정된다
+    // → columns useMemo가 매 렌더 재생성되지 않아 전체 그리드 재렌더가 사라진다.
+  }, [orderMutation.mutateAsync, lineItemMutation.mutateAsync, sourcingMutation.mutateAsync, shippingMutation.mutateAsync, purchaseStatusMutation.mutateAsync]);
 
   useEffect(() => {
     const eventSource = new EventSource('/sbshop-agent/api/v1/notifications/subscribe');
@@ -946,33 +996,57 @@ const OrderGrid: React.FC = () => {
     }
   };
 
+  // 주문 데이터를 그리드 행(주문/상품/발송 3행 × lineItem)으로 평탄화 + 병합정보 계산.
+  // data가 바뀔 때만 재계산하고, 변경되지 않은 주문의 행 객체는 이전 참조를 재사용한다
+  // → 낙관적 캐시 패치로 한 주문만 바뀌면 그 주문의 행만 새 참조가 되어, 메모된 행이
+  //   변경된 주문의 3행만 재렌더한다(셀 1개 편집에 전체 그리드가 재렌더되던 문제 제거).
+  const rowCacheRef = useRef<Map<string, RowData>>(new Map());
+  const ROW_TYPES = ['order', 'product', 'fulfillment'] as const;
   const processedData = useMemo(() => {
-    if (!rowData || rowData.length === 0) return [];
-    const orderCounts: Record<number, number> = {};
-    const orderLineItemCounts: Record<number, number> = {};
-    rowData.forEach((row) => {
-      const id = row.order?.id || 0;
-      orderCounts[id] = (orderCounts[id] || 0) + 1;
-      if (row.rowType === 'order') {
-        orderLineItemCounts[id] = (orderLineItemCounts[id] || 0) + 1;
-      }
-    });
+    const content = data?.content;
+    if (!content || content.length === 0) { rowCacheRef.current = new Map(); return [] as RowData[]; }
 
-    let currentOrderId = -1;
-    return rowData.map((row) => {
-      const id = row.order?.id || 0;
-      const isFirst = id !== currentOrderId && row.rowType === 'order';
-      if (id !== currentOrderId && row.rowType === 'order') currentOrderId = id;
-      return {
-        ...row,
-        isFirstLineItem: isFirst,
-        isSecondRow: row.rowType === 'product',
-        isThirdRow: row.rowType === 'fulfillment',
-        lineItemCount: orderLineItemCounts[id],
-        totalRowCount: orderCounts[id],
-      };
+    const prev = rowCacheRef.current;
+    const next = new Map<string, RowData>();
+    const result: RowData[] = [];
+
+    content.forEach((item) => {
+      const lineItems = item.lineItems || [];
+      const totalRowCount = lineItems.length * ROW_TYPES.length; // 주문 전체 병합 행 수
+      const lineItemCount = lineItems.length;
+      lineItems.forEach((li, liIndex) => {
+        ROW_TYPES.forEach((rowType) => {
+          const isFirst = rowType === 'order' && liIndex === 0; // 주문의 첫 order 행에만 구분선/병합
+          const key = `${li.lineItem?.id ?? `idx${liIndex}`}-${rowType}`;
+          const cached = prev.get(key);
+          const reusable = cached
+            && cached.order === item.order
+            && cached.lineItem === li.lineItem
+            && cached.product === li.product
+            && cached.marketRegistration === li.marketRegistration
+            && cached.isFirstLineItem === isFirst
+            && cached.lineItemCount === lineItemCount
+            && cached.totalRowCount === totalRowCount;
+          const row: RowData = reusable ? cached! : {
+            order: item.order,
+            lineItem: li.lineItem,
+            product: li.product,
+            marketRegistration: li.marketRegistration,
+            rowType,
+            isFirstLineItem: isFirst,
+            isSecondRow: rowType === 'product',
+            isThirdRow: rowType === 'fulfillment',
+            lineItemCount,
+            totalRowCount,
+          };
+          next.set(key, row);
+          result.push(row);
+        });
+      });
     });
-  }, [rowData]);
+    rowCacheRef.current = next;
+    return result;
+  }, [data]);
 
   const canConfirmSelected = useMemo(() => {
     const selectedIndices = Object.keys(rowSelection).filter(k => rowSelection[k]);
@@ -1499,69 +1573,24 @@ const OrderGrid: React.FC = () => {
                 ))}
               </TableHeader>
               <TableBody>
-                {table.getRowModel().rows.map((row, rowIdx, rows) => {
-                  const baseBgCol = row.original.isFirstLineItem ? '#ffffff' : row.original.isSecondRow ? '#fdfdfd' : '#f9f9f9';
-                  // 주문 경계: 다음 행이 다른 주문(또는 마지막 행)이면 이 행이 주문의 마지막 행이다.
-                  // 해당 위치에 전체 폭 검은 구분선(스페이서 행)을 삽입해 주문 단위를 뚜렷이 구분한다.
-                  const isOrderBoundary = rows[rowIdx + 1]?.original.order?.id !== row.original.order?.id;
-                  return (
-                  <React.Fragment key={row.id}>
-                  <TableRow
-                    data-order-id={row.original.order?.id ?? undefined}
-                    style={{ backgroundColor: baseBgCol }}
-                    onMouseEnter={undefined}
-                    onMouseLeave={undefined}
-                  >
-                    {row.getVisibleCells().map(cell => {
-                      const isOrderSpanned = ORDER_SPANNED_COLUMNS.includes(cell.column.id);
-                      const isLineItemSpanned = LINEITEM_SPANNED_COLUMNS.includes(cell.column.id);
-                      const isTwoRowColumn = TWO_ROW_COLUMNS.includes(cell.column.id);
-                      const isOrderColumn = ORDER_COLUMNS.includes(cell.column.id);
-                      const isProductColumn = PRODUCT_COLUMNS.includes(cell.column.id);
-                      if (isOrderSpanned && !row.original.isFirstLineItem) return null;
-                      if (isLineItemSpanned && row.original.rowType !== 'order') return null;
-                      if (isTwoRowColumn && row.original.rowType === 'fulfillment') return null;
-                      if (isOrderColumn && row.original.rowType !== 'order') return null;
-                      if (isProductColumn && row.original.rowType !== 'product') return null;
-                      const meta = cell.column.columnDef.meta as { frozen?: boolean; freezeLeft?: number } | undefined;
-                      const isFrozen = meta?.frozen;
-                      const freezeLeft = meta?.freezeLeft;
-                      return (
-                        <TableCell 
-                          key={cell.id} 
-                          rowSpan={isOrderSpanned ? row.original.totalRowCount || 1 : isLineItemSpanned ? 3 : 1}
-                          style={{ 
-                            borderRight: '1px solid #e5e7eb', 
-                            width: cell.column.getSize(), 
-                            minWidth: cell.column.getSize(),
-                            maxWidth: cell.column.getSize(), 
-                            height: '48px', // 행 높이를 48px로 고정
-                            overflow: 'hidden', 
-                            textOverflow: 'ellipsis', 
-                            whiteSpace: 'normal',
-                            wordBreak: 'break-word',
-                            padding: '6px 8px',
-                            textAlign: ['shippingInfoPair', 'productNamePair'].includes(cell.column.id) ? 'left' : 'center',
-                            position: isFrozen ? 'sticky' : undefined,
-                            left: isFrozen ? freezeLeft : undefined,
-                            zIndex: isFrozen ? 2 : undefined,
-                            backgroundColor: isFrozen ? baseBgCol : undefined,
-                            boxShadow: isFrozen ? '2px 0 4px rgba(0,0,0,0.1)' : undefined,
-                          }}
-                        >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                  {isOrderBoundary && (
-                    <tr aria-hidden="true">
-                      <td colSpan={table.getVisibleLeafColumns().length} style={{ padding: 0, height: '2px', backgroundColor: '#9ca3af' }} />
-                    </tr>
-                  )}
-                  </React.Fragment>
-                  );
-                })}
+                {(() => {
+                  const rows = table.getRowModel().rows;
+                  const colCount = table.getVisibleLeafColumns().length;
+                  return rows.map((row, rowIdx) => {
+                    // 주문 경계: 다음 행이 다른 주문(또는 마지막 행)이면 이 행이 주문의 마지막 행.
+                    // 그 위치에 전체 폭 회색 구분선(스페이서 행)을 삽입해 주문 단위를 구분한다.
+                    const isOrderBoundary = rows[rowIdx + 1]?.original.order?.id !== row.original.order?.id;
+                    return (
+                      <OrderTableRow
+                        key={row.id}
+                        row={row}
+                        isSelected={row.getIsSelected()}
+                        isOrderBoundary={isOrderBoundary}
+                        colCount={colCount}
+                      />
+                    );
+                  });
+                })()}
               </TableBody>
             </Table>
         </div>

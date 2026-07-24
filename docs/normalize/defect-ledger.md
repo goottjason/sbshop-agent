@@ -1504,3 +1504,13 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 상태: 수정완료(라이브 검증대기) — 재인증+배포 후 익일 03:00 로그 "Cafe24 선제 토큰 갱신 완료" 확인 대기
 
 > 참고(번호): 같은 세션 2026-07-23 프론트 UI 배치(커밋 f53563a)가 커밋 메시지에서 D-099~D-102 라벨을 느슨히 사용했으나 원장 미등재. 원장 정본 기준 D-099는 11번가 클레임(상단)이며, 본 D-103이 원장상 다음 번호다. 프론트 배치 상세는 working_history/20260723_1001_결과서.md 참조.
+
+### D-104: 통합 주문 관리 인라인 편집 성능 — FE 전체 그리드 재렌더 병목 (2026-07-24)
+- 심각도: P2 (사용성 — 구매상태 셀렉트/인라인 편집 시 화면 굼뜸)
+- 리스크 등급: 표준 (다중 FE 리팩토링·행위 보존, 회귀 게이트 필수. BE 무변경)
+- 근본원인: BE 단건 엔드포인트는 PK 단건 조회+저장으로 빠름(Explore 조사). 굼뜸의 주범은 FE — ①`columns` useMemo가 매 렌더 재생성(`handleUpdate` deps가 매 렌더 새 mutation 객체 참조) ②`rowData` state+`useEffect([data])`로 편집마다 500건 flatMap+setState 이중 렌더 ③`patchLineItemInCache`가 전 주문 객체 재생성 ④행 메모이제이션 부재로 셀 1개 편집에 수천 셀 재렌더.
+- 수정 설계(frontend/src/pages/OrderGrid.tsx, 행위 보존): (1)`handleUpdate` deps→`*.mutateAsync`(RQ v5 안정참조)로 `columns` 안정화 (2)`rowData` 제거·`processedData` 단일 useMemo로 `data`에서 직접 평탄화 (3)`rowCacheRef`로 변경 안 된 주문의 행 객체 참조 재사용 (4)`patchLineItemInCache` 참조 보존(해당 주문만 새 객체) (5)`OrderTableRow=React.memo`(비교자: row.original·isSelected·isOrderBoundary·colCount) → 편집 시 변경된 주문의 3행만 재렌더.
+- 수정(2026-07-24): 위 5개. `tsc -p tsconfig.app.json --noEmit` PASS, `npm run build` PASS. FE 테스트 러너 부재로 자동 단위테스트 대신 빌드+독립 QA 리뷰 게이트. 수정요지 `_workspace/fixes/D-104.md`.
+- BE 후속(미적용·P3): shippingMutation 성공 시 500건 무효화 유지(상태전이 정확성), OrderLineItem.order_id 인덱스, purchaseStatus EXISTS 서브쿼리, 구매상태 액션로그 부가 2쿼리 — 측정 후 개선 여지.
+- 검증(2026-07-24, qa-verifier): **PASS**. 회귀 게이트 2종 독립 재실행 — `tsc -p tsconfig.app.json --noEmit` EXIT 0(에러 0), `npm run build` EXIT 0(에러 0, 청크경고는 정보성·기존). 행위 동등성 A~H 전항 보존 확인: 행 순서·개수(flatMap↔forEach 동일), isFirstLineItem(`id!==currentOrderId&&order` ↔ `liIndex===0` 다중 lineItem 케이스까지 동등), totalRowCount/lineItemCount/rowSpan 동일, 메모스킵 안전(getRowId 미설정=인덱스 rowId, `key=row.id`로 위치기준 비교→데이터불변 시 stale핸들러 정확·변동 시 original바뀌어 재렌더), 선택토글/전체선택(isSelected 프롭이 memo 무효화) 정상, 셀가시성/frozen/경계선(colCount 프롭化만 차이·값 동일) 보존, 호버(data-order-id DOM위임 불변) 보존, 낙관패치/롤백(patchLineItemInCache 비매칭 조기반환=참조보존·매칭 출력 동일) 정확. 미검증: FE 러너 부재로 런타임 실동작(재렌더 카운트·클릭·refetch후 선택정합)은 코드논증 대체 → 브라우저 수동확인 권함. 판정서: `_workspace/verify/D-104_perf_verdict.md`.
+- 상태: 검증통과 — 커밋 게이트 통과 가능. 라이브 성능 체감은 배포 후 사용자 확인 권장.
