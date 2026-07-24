@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchCredentials, saveCredential, getCafe24Status, issueCafe24Token } from '../api/marketApi';
 import type { MarketCredential } from '../api/marketApi';
+import { getAdminAuth, setAdminAuth } from '../api/axios';
 
 // 시크릿 입력칸 플레이스홀더: 서버에 이미 저장돼 있으면(hasXxx=true) '설정됨' 안내를 보이고,
 // 비운 채 저장하면 기존 값이 유지된다(F-CRED-8). 미설정이면 기본 안내(예시 등)를 사용한다.
@@ -13,6 +14,34 @@ const Settings = () => {
   const [activeTab, setActiveTab] = useState('COUPANG');
   const [formData, setFormData] = useState<Partial<MarketCredential>>({});
   const [authCode, setAuthCode] = useState('');
+
+  // 관리자 인증 게이트 — 시크릿(access/secret/refresh)은 인증된 관리자만 조회·수정할 수 있다.
+  // 인증 성공 시 base64("id:pw")를 sessionStorage에 저장하고, axios 인터셉터가 요청에 실어보낸다.
+  const [authed, setAuthed] = useState<boolean>(!!getAdminAuth());
+  const [loginId, setLoginId] = useState('admin');
+  const [loginPw, setLoginPw] = useState('');
+  const [loginErr, setLoginErr] = useState('');
+
+  const handleLogin = async () => {
+    const token = btoa(`${loginId}:${loginPw}`);
+    setAdminAuth(token);
+    try {
+      await fetchCredentials(); // 인터셉터가 토큰 첨부 — 성공하면 인증 통과
+      setAuthed(true);
+      setLoginErr('');
+      queryClient.invalidateQueries({ queryKey: ['market-credentials'] });
+    } catch {
+      setAdminAuth(null);
+      setLoginErr('관리자 인증 실패 — 아이디/비밀번호를 확인하세요.');
+    }
+  };
+
+  const handleLogout = () => {
+    setAdminAuth(null);
+    setAuthed(false);
+    setLoginPw('');
+    queryClient.removeQueries({ queryKey: ['market-credentials'] });
+  };
 
   // Cafe24 실연동 상태(토큰 유효성 실검증) — '존재'가 아니라 실제 API 호출 성공 여부.
   const { data: cafe24Status, isFetching: cafe24Checking, refetch: refetchCafe24Status } = useQuery({
@@ -41,16 +70,17 @@ const Settings = () => {
   const { data: credentials, isLoading } = useQuery({
     queryKey: ['market-credentials'],
     queryFn: fetchCredentials,
+    enabled: authed, // 인증 전에는 조회하지 않음(401 방지)
+    retry: false,
   });
 
   useEffect(() => {
     if (credentials) {
       const cred = credentials.find((c) => c.marketType === activeTab);
       if (cred) {
-        // 시크릿(accessKey·secretKey)은 서버가 마스킹해 내려주지 않는다(응답엔 hasAccessKey/hasSecretKey만).
-        // 입력칸은 항상 빈 상태로 시작하며, 비운 채 저장하면 서버가 기존 값을 유지한다(F-CRED-8).
-        // 새 값을 입력한 경우에만 갱신된다.
-        setFormData({ ...cred, accessKey: '', secretKey: '' });
+        // 인증된 관리자에게는 서버가 시크릿 평문을 내려주므로 저장값을 그대로 표시한다.
+        // 비운 채 저장하면 서버가 기존 값을 유지한다(F-CRED-8).
+        setFormData({ ...cred });
       } else {
         setFormData({
           marketType: activeTab,
@@ -91,11 +121,47 @@ const Settings = () => {
     { id: 'CAFE24', label: '카페24 (Cafe24)' },
   ];
 
+  // 관리자 인증 게이트: 인증 전에는 로그인 폼만 노출(시크릿 조회 차단).
+  if (!authed) {
+    return (
+      <div style={{ maxWidth: '420px' }}>
+        <h1 style={{ marginBottom: '24px' }}>설정 및 연동</h1>
+        <div className="card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <h2 style={{ margin: 0 }}>관리자 인증</h2>
+          <p style={{ color: '#666', fontSize: 14, margin: 0 }}>
+            마켓 API 키(시크릿)를 조회·수정하려면 관리자 로그인이 필요합니다.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontWeight: 500 }}>아이디</label>
+            <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)}
+              className="input-field" autoComplete="username" />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontWeight: 500 }}>비밀번호</label>
+            <input type="password" value={loginPw} onChange={(e) => setLoginPw(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleLogin(); }}
+              className="input-field" autoComplete="current-password" />
+          </div>
+          {loginErr && <div style={{ color: '#b91c1c', fontSize: 13 }}>{loginErr}</div>}
+          <button type="button" onClick={handleLogin} className="btn-primary" style={{ marginTop: 8 }}>
+            로그인
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (isLoading) return <div>로딩 중...</div>;
 
   return (
     <div style={{ maxWidth: '800px' }}>
-      <h1 style={{ marginBottom: '24px' }}>설정 및 연동</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <h1 style={{ margin: 0 }}>설정 및 연동</h1>
+        <button type="button" onClick={handleLogout}
+          style={{ padding: '6px 14px', fontSize: 13, borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>
+          로그아웃
+        </button>
+      </div>
 
       <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
         {tabs.map((tab) => (
@@ -149,7 +215,7 @@ const Settings = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontWeight: 500 }}>Secret Key</label>
                 <input
-                  type="password"
+                  type="text"
                   name="secretKey"
                   value={formData.secretKey || ''}
                   onChange={handleChange}
@@ -176,7 +242,7 @@ const Settings = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontWeight: 500 }}>Client Secret</label>
                 <input
-                  type="password"
+                  type="text"
                   name="secretKey"
                   value={formData.secretKey || ''}
                   onChange={handleChange}
@@ -192,7 +258,7 @@ const Settings = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontWeight: 500 }}>API Key (OpenAPI)</label>
                 <input
-                  type="password"
+                  type="text"
                   name="accessKey"
                   value={formData.accessKey || ''}
                   onChange={handleChange}
@@ -230,7 +296,7 @@ const Settings = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontWeight: 500 }}>Client Secret</label>
                 <input
-                  type="password"
+                  type="text"
                   name="secretKey"
                   value={formData.secretKey || ''}
                   onChange={handleChange}
