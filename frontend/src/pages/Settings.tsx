@@ -47,9 +47,10 @@ const Settings = () => {
     if (credentials) {
       const cred = credentials.find((c) => c.marketType === activeTab);
       if (cred) {
-        // 관리자 전용 화면(2026-07-24 사용자 지시): 서버가 시크릿 평문을 내려주므로 저장된 값을
-        // 그대로 입력칸에 표시한다. 비운 채 저장하면 서버가 기존 값을 유지한다(F-CRED-8).
-        setFormData({ ...cred });
+        // 시크릿(accessKey·secretKey)은 서버가 마스킹해 내려주지 않는다(응답엔 hasAccessKey/hasSecretKey만).
+        // 입력칸은 항상 빈 상태로 시작하며, 비운 채 저장하면 서버가 기존 값을 유지한다(F-CRED-8).
+        // 새 값을 입력한 경우에만 갱신된다.
+        setFormData({ ...cred, accessKey: '', secretKey: '' });
       } else {
         setFormData({
           marketType: activeTab,
@@ -148,7 +149,7 @@ const Settings = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontWeight: 500 }}>Secret Key</label>
                 <input
-                  type="text"
+                  type="password"
                   name="secretKey"
                   value={formData.secretKey || ''}
                   onChange={handleChange}
@@ -175,7 +176,7 @@ const Settings = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontWeight: 500 }}>Client Secret</label>
                 <input
-                  type="text"
+                  type="password"
                   name="secretKey"
                   value={formData.secretKey || ''}
                   onChange={handleChange}
@@ -191,7 +192,7 @@ const Settings = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontWeight: 500 }}>API Key (OpenAPI)</label>
                 <input
-                  type="text"
+                  type="password"
                   name="accessKey"
                   value={formData.accessKey || ''}
                   onChange={handleChange}
@@ -229,7 +230,7 @@ const Settings = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontWeight: 500 }}>Client Secret</label>
                 <input
-                  type="text"
+                  type="password"
                   name="secretKey"
                   value={formData.secretKey || ''}
                   onChange={handleChange}
