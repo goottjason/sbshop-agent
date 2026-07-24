@@ -1007,11 +1007,11 @@ const OrderGrid: React.FC = () => {
         const market = row.original.order?.marketType || '';
         const orderNo = row.original.order?.marketOrderNo || '-';
         const marketColorMap: Record<string, { bg: string; text: string }> = {
-          'SMART_STORE': { bg: '#e8f5e9', text: '#2e7d32' },
+          'SMART_STORE': { bg: '#f1f8e9', text: '#689f38' },
           'COUPANG': { bg: '#fce4ec', text: '#c2185b' },
           'ELEVEN_STREET': { bg: '#e3f2fd', text: '#1565c0' },
           'CAFE24': { bg: '#fffde7', text: '#fbc02d' },
-          'GMARKET': { bg: '#dcedc8', text: '#33691e' },
+          'GMARKET': { bg: '#c8e6c9', text: '#1b5e20' },
           'AUCTION': { bg: '#fff3e0', text: '#e65100' }
         };
         const style = marketColorMap[market] || { bg: '#f5f5f5', text: '#666' };
@@ -1225,7 +1225,7 @@ const OrderGrid: React.FC = () => {
     columnHelper.display({
       id: 'sourcingInfoPair',
       header: '구매 정보',
-      size: 200,
+      size: 190,
       // 라인아이템 병합 셀(rowSpan=3): 상품코드처럼 라인아이템 첫 행에 1회만 렌더된다.
       // 구매계정/공급처/구매주문번호/할인코드를 4줄 stack으로 표시하고,
       // 더블클릭 시 통합 편집(네 필드를 한 세트로 1회 저장).

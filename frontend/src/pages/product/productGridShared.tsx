@@ -39,8 +39,8 @@ export const STOCK_STATUS_OPTIONS: { id: 'IN_STOCK' | 'OUT_OF_STOCK'; label: str
 // 통합 주문 관리 배지와 동일한 파스텔 팔레트(연배경 + 채도 낮춘 글자색)를 채용한다.
 const MARKET_BADGES: { key: string; label: string; bg: string; text: string }[] = [
   { key: 'COUPANG', label: '쿠팡', bg: '#fce4ec', text: '#c2185b' },
-  { key: 'SMART_STORE', label: 'N스토어', bg: '#e8f5e9', text: '#2e7d32' },
-  { key: 'GMARKET', label: 'G마켓', bg: '#dcedc8', text: '#33691e' },
+  { key: 'SMART_STORE', label: 'N스토어', bg: '#f1f8e9', text: '#689f38' },
+  { key: 'GMARKET', label: 'G마켓', bg: '#c8e6c9', text: '#1b5e20' },
   { key: 'AUCTION', label: '옥션', bg: '#fff3e0', text: '#e65100' },
   { key: 'ELEVEN_STREET', label: '11번가', bg: '#e3f2fd', text: '#1565c0' },
 ];
