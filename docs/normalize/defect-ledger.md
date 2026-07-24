@@ -1514,3 +1514,13 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - BE 후속(미적용·P3): shippingMutation 성공 시 500건 무효화 유지(상태전이 정확성), OrderLineItem.order_id 인덱스, purchaseStatus EXISTS 서브쿼리, 구매상태 액션로그 부가 2쿼리 — 측정 후 개선 여지.
 - 검증(2026-07-24, qa-verifier): **PASS**. 회귀 게이트 2종 독립 재실행 — `tsc -p tsconfig.app.json --noEmit` EXIT 0(에러 0), `npm run build` EXIT 0(에러 0, 청크경고는 정보성·기존). 행위 동등성 A~H 전항 보존 확인: 행 순서·개수(flatMap↔forEach 동일), isFirstLineItem(`id!==currentOrderId&&order` ↔ `liIndex===0` 다중 lineItem 케이스까지 동등), totalRowCount/lineItemCount/rowSpan 동일, 메모스킵 안전(getRowId 미설정=인덱스 rowId, `key=row.id`로 위치기준 비교→데이터불변 시 stale핸들러 정확·변동 시 original바뀌어 재렌더), 선택토글/전체선택(isSelected 프롭이 memo 무효화) 정상, 셀가시성/frozen/경계선(colCount 프롭化만 차이·값 동일) 보존, 호버(data-order-id DOM위임 불변) 보존, 낙관패치/롤백(patchLineItemInCache 비매칭 조기반환=참조보존·매칭 출력 동일) 정확. 미검증: FE 러너 부재로 런타임 실동작(재렌더 카운트·클릭·refetch후 선택정합)은 코드논증 대체 → 브라우저 수동확인 권함. 판정서: `_workspace/verify/D-104_perf_verdict.md`.
 - 상태: 검증통과 — 커밋 게이트 통과 가능. 라이브 성능 체감은 배포 후 사용자 확인 권장.
+
+### D-105: 이메일 수집 실패 2종 — IMAP 비ASCII 검색어 크래시 + 긴 트랜잭션 커넥션 실패 (2026-07-24)
+- 심각도: P1 (오동작 — 이메일 동기화 빨간불, iHerb 송장 자동반영 파이프라인 부분 중단)
+- 리스크 등급: 표준 (worker 서비스 행위 변경, 회귀 게이트 필수)
+- 근본원인(라이브 로그 진단): ①`EmailFetcherService.searchAccountForOrderNos`가 사용자 편집 필드 `sourcing_order_no`를 그대로 `SubjectTerm` IMAP SEARCH에 사용 — 한글("재고") 등 비ASCII 값이 charset 미지정으로 서버 `BAD Could not parse command`(`BadCommandException`) 유발, 계정 검색 루프 중단. ②`fetchAndProcessEmails`가 `@Transactional`로 계정별 IMAP 접속(각 30s)·마켓 API 호출 등 느린 I/O 전체를 감싸 DB 커넥션 장기 점유 → 풀이 커넥션 닫아 `Unable to rollback against JDBC Connection`.
+- 수정(2026-07-24, TDD, backend/worker/.../EmailFetcherService.java): (1)`isImapSearchable(orderNo)` 정적 가드(비ASCII·blank 제외) 신설 → `buildSearchPlan`·`findIherbConfirmationAmount`에서 비ASCII 주문번호를 검색에서 제외(iHerb 숫자 주문번호는 통과, warn 로그). (2)`fetchAndProcessEmails`의 `@Transactional` 제거 — 읽기는 리포지토리 호출별, 쓰기는 각 `save()`별 자체 트랜잭션(모든 쓰기 경로가 명시적 save 확인).
+- 테스트: `EmailFetcherOrderNoGuardTest` 4건(숫자/ASCII 통과·한글 제외·blank 제외). `./gradlew test` 전체 PASS.
+- 파생 수습: `MarketType.SMART_STORE` 라벨 스마트스토어→N스토어(앞선 UI 배치) 이후 `ProductControllerActionLogDetailTest` "스마트스토어" 단정 2건이 실패하던 회귀를 "N스토어"로 갱신(라벨 변경 시 전체 test 미실행으로 누락됐던 것). 동일 커밋 d5afd43에 포함.
+- 미해결(별건): iHerb 개별 송장 전송 경고(11번가 "존재하지 않는 배송번호", 쿠팡 "이미 송장 있음")는 운영성·다음 사이클 재시도라 본 결함과 무관. Cafe24 송장 실패는 D-103/토큰 무효(재인증 필요) 소관.
+- 상태: 수정완료(검증통과) — 회귀 전체 PASS. 배포 후 이메일 동기화 빨간불 해소·`이메일 검색 실패`/`Unable to rollback` 로그 소멸 라이브 확인 권장.
