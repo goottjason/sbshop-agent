@@ -1524,3 +1524,12 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 파생 수습: `MarketType.SMART_STORE` 라벨 스마트스토어→N스토어(앞선 UI 배치) 이후 `ProductControllerActionLogDetailTest` "스마트스토어" 단정 2건이 실패하던 회귀를 "N스토어"로 갱신(라벨 변경 시 전체 test 미실행으로 누락됐던 것). 동일 커밋 d5afd43에 포함.
 - 미해결(별건): iHerb 개별 송장 전송 경고(11번가 "존재하지 않는 배송번호", 쿠팡 "이미 송장 있음")는 운영성·다음 사이클 재시도라 본 결함과 무관. Cafe24 송장 실패는 D-103/토큰 무효(재인증 필요) 소관.
 - 상태: 수정완료(검증통과) — 회귀 전체 PASS. 배포 후 이메일 동기화 빨간불 해소·`이메일 검색 실패`/`Unable to rollback` 로그 소멸 라이브 확인 권장.
+- 검증(2026-07-24, 라이브): 배포 후 `/internal/email/fetch` 수동 트리거 → 로그 `이메일 검색 제외 — 비ASCII 구매주문번호(itemId=428, orderNo='재고')` 정상 스킵 + iHerb 발송/확인 메일 다수 발견, `BadCommand`/`Unable to rollback` 소멸 확인.
+
+### F-CRED-9: 마켓 크레덴셜 시크릿 관리자 인증 게이트 + 평문 표시 (2026-07-24)
+- 배경: 사용자 요구 — 설정 및 연동 화면에서 저장된 마켓 API 키(시크릿)를 직접 확인·수정. 기존 F-CRED-1·7은 시크릿을 마스킹했는데, 그 근거는 `/api/v1/**`가 `SecurityConfig`에서 `permitAll`(무인증 공개)이었기 때문. 무인증 상태로 시크릿 평문 노출 시 안전 가드레일이 하드블록(credential exfiltration) → 인증 선행이 필수.
+- 심각도: 기능 요청(P2) / 리스크 등급: 표준(보안 경계 변경, 회귀 게이트 필수)
+- 수정(2026-07-24, TDD): (BE) `SecurityConfig`에 HTTP Basic + in-memory 관리자 계정(기본 admin/admin, `admin.username`/`admin.password` = env `ADMIN_USERNAME`/`ADMIN_PASSWORD` 재정의 가능), `/api/v1/market-credentials/**`만 `authenticated()`(permitAll 매처보다 앞)·나머지 permitAll 유지(SSE·주문·상품 무영향). `MarketCredentialDto`가 시크릿 평문(access/secret/refresh) 재노출(인증 게이트가 안전성 보장). `MarketCredentialDtoMaskingTest`를 새 정책으로 재작성(시크릿 포함 검증). (FE) axios 요청 인터셉터가 sessionStorage Basic 토큰 첨부, Settings에 관리자 로그인 게이트(로그인/로그아웃)·시크릿 평문 입력칸.
+- 검증(2026-07-24): `./gradlew test` 전체 PASS, FE 빌드 PASS. 라이브(배포 후): 무인증 `GET /market-credentials` → **401**, `admin:admin` → **200**, 주문 API 무인증 → **200**(기존 기능 유지) 확인.
+- 보안 주의: admin/admin은 약함 + FE가 base64로 전송(브라우저서 열람 가능) — "무인증 접근"은 차단하나 강보안 아님(사용자 선택). `.env ADMIN_PASSWORD`로 코드 변경 없이 강화 가능. 인증 매처 제거 시 F-CRED-1·7 노출 결함 재발하므로 유지 필수.
+- 상태: 수정완료(검증통과·라이브 확인) — 커밋 2ca7efa 배포 반영.
