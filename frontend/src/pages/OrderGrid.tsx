@@ -159,37 +159,46 @@ function InlineInput({ value, onCommit, type = 'text', align = 'left', title }: 
   );
 }
 
+// 금액 입력 표시용: 숫자를 천단위 콤마 문자열로 포맷(값 저장은 숫자로 파싱).
+// type="number"는 콤마를 못 담으므로 type="text"+inputMode로 두고 표시만 포맷한다. 음수·소수 없음(금액·물류비).
+const formatThousands = (v: string | number): string => {
+  const digits = String(v).replace(/[^\d]/g, '');
+  return digits === '' ? '' : Number(digits).toLocaleString();
+};
+const parseThousands = (v: string): number => Number(v.replace(/[^\d]/g, '')) || 0;
+
 // 정산 정보(실구매가+물류비) 통합 인라인 편집 셀.
 // 두 숫자를 한 세트로 → 컨테이너 밖으로 포커스가 나갈 때 변경분을 1회 sourcing 저장.
+// 입력 즉시 천단위 콤마 자동 표시(예: 12000 → 12,000).
 function FinancialEditCell({ sourcingAmount, logisticsCost, onSave }: {
   sourcingAmount: number;
   logisticsCost: number;
   onSave: (v: { sourcingAmount: number; logisticsCost: number }) => Promise<unknown>;
 }) {
-  const [amt, setAmt] = useState(String(sourcingAmount));
-  const [cost, setCost] = useState(String(logisticsCost));
+  const [amt, setAmt] = useState(formatThousands(sourcingAmount));
+  const [cost, setCost] = useState(formatThousands(logisticsCost));
   const [status, setStatus] = useState<SaveStatus>('idle');
   const focusedInside = useRef(false);
 
   useEffect(() => {
-    if (!focusedInside.current) { setAmt(String(sourcingAmount)); setCost(String(logisticsCost)); }
+    if (!focusedInside.current) { setAmt(formatThousands(sourcingAmount)); setCost(formatThousands(logisticsCost)); }
   }, [sourcingAmount, logisticsCost]);
 
   const commit = () => {
     focusedInside.current = false;
-    const nAmt = Number(amt) || 0, nCost = Number(cost) || 0;
+    const nAmt = parseThousands(amt), nCost = parseThousands(cost);
     if (nAmt === sourcingAmount && nCost === logisticsCost) { setStatus('idle'); return; }
     setStatus('saving');
     onSave({ sourcingAmount: nAmt, logisticsCost: nCost })
       .then(() => { setStatus('saved'); setTimeout(() => setStatus('idle'), 800); })
-      .catch(() => { setAmt(String(sourcingAmount)); setCost(String(logisticsCost)); setStatus('error'); setTimeout(() => setStatus('idle'), 1200); });
+      .catch(() => { setAmt(formatThousands(sourcingAmount)); setCost(formatThousands(logisticsCost)); setStatus('error'); setTimeout(() => setStatus('idle'), 1200); });
   };
 
   const border = statusBorder(status);
   const bw = status === 'idle' ? 1 : 2;
   const numKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-    else if (e.key === 'Escape') { setAmt(String(sourcingAmount)); setCost(String(logisticsCost)); setStatus('idle'); (e.target as HTMLInputElement).blur(); }
+    else if (e.key === 'Escape') { setAmt(formatThousands(sourcingAmount)); setCost(formatThousands(logisticsCost)); setStatus('idle'); (e.target as HTMLInputElement).blur(); }
   };
 
   return (
@@ -198,13 +207,13 @@ function FinancialEditCell({ sourcingAmount, logisticsCost, onSave }: {
       onBlur={(e) => { if (blurLeftToPage(e)) commit(); }}>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', textAlign: 'center' }}>실구매가</div>
-        <input type="number" value={amt} style={{ ...inputStyle, textAlign: 'center', borderColor: border, borderWidth: bw }}
-          onChange={(e) => { setAmt(e.target.value); setStatus('dirty'); }} onKeyDown={numKeyDown} />
+        <input type="text" inputMode="numeric" value={amt} style={{ ...inputStyle, textAlign: 'center', borderColor: border, borderWidth: bw }}
+          onChange={(e) => { setAmt(formatThousands(e.target.value)); setStatus('dirty'); }} onKeyDown={numKeyDown} />
       </div>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', textAlign: 'center' }}>물류비</div>
-        <input type="number" value={cost} style={{ ...inputStyle, textAlign: 'center', borderColor: border, borderWidth: bw }}
-          onChange={(e) => { setCost(e.target.value); setStatus('dirty'); }} onKeyDown={numKeyDown} />
+        <input type="text" inputMode="numeric" value={cost} style={{ ...inputStyle, textAlign: 'center', borderColor: border, borderWidth: bw }}
+          onChange={(e) => { setCost(formatThousands(e.target.value)); setStatus('dirty'); }} onKeyDown={numKeyDown} />
       </div>
     </div>
   );
