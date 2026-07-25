@@ -599,23 +599,27 @@ public class DashboardService {
 
 	public List<TimeseriesBucket> timeseries(LocalDateTime start, LocalDateTime end, Unit unit) {
 		List<AggRow> rows = repo.findRowsBetween(start, end);
-		// 버킷별: distinct 주문 집합 + 금액 합
-		Map<LocalDate, Set<Long>> orders = new LinkedHashMap<>();
-		Map<LocalDate, long[]> sums = new LinkedHashMap<>();   // [settlement, profit]
-		for (LocalDate b : DashboardBucketing.bucketRange(start, end, unit)) {
-			orders.put(b, new java.util.HashSet<>());
-			sums.put(b, new long[2]);
-		}
+		// 버킷별: distinct 주문 집합 + 금액 합.
+		// A1 리뷰 Important 대응: 축(x)은 bucketRange(빈 구간 0채움)와 실제 주문의 KST 버킷키의
+		// 합집합으로 구성한다. naive 경계(bucketRange)와 KST 주문키(bucketKey)의 9h 스큐로 마지막 날
+		// UTC 꼬리 주문이 다음 KST 버킷으로 가더라도 축에 포함되어 절대 누락되지 않는다.
+		Map<LocalDate, Set<Long>> orders = new java.util.TreeMap<>();  // 버킷키 오름차순 정렬
+		Map<LocalDate, long[]> sums = new java.util.HashMap<>();       // [settlement, profit]
+		java.util.function.Consumer<LocalDate> ensure = b -> {
+			orders.computeIfAbsent(b, k -> new java.util.HashSet<>());
+			sums.computeIfAbsent(b, k -> new long[2]);
+		};
+		for (LocalDate b : DashboardBucketing.bucketRange(start, end, unit)) ensure.accept(b);
 		for (AggRow r : rows) {
 			LocalDate b = DashboardBucketing.bucketKey(r.orderDate(), unit);
-			if (!orders.containsKey(b)) continue; // 경계 밖 방어
+			ensure.accept(b);                     // 축에 없던 KST 꼬리 버킷도 편입(누락 방지)
 			orders.get(b).add(r.orderId());
 			long[] s = sums.get(b);
 			s[0] += r.settlementAmount();
 			s[1] += r.profit();
 		}
 		List<TimeseriesBucket> out = new ArrayList<>();
-		for (LocalDate b : orders.keySet()) {
+		for (LocalDate b : orders.keySet()) {     // TreeMap → 오름차순
 			long[] s = sums.get(b);
 			out.add(new TimeseriesBucket(b.toString(), orders.get(b).size(), s[0], s[1]));
 		}
