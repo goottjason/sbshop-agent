@@ -725,7 +725,7 @@ const OrderGrid: React.FC = () => {
     const keyword = searchParams.get('keyword') ?? '';
     const startDate = searchParams.get('startDate') ?? defaultStart;
     const endDate = searchParams.get('endDate') ?? defaultEnd;
-    const hasAny = markets.length || statuses.length || stockStatuses.length || vendors.length || customsStatuses.length || searchParams.get('keyword');
+    const hasAny = markets.length || statuses.length || stockStatuses.length || vendors.length || customsStatuses.length || searchParams.get('keyword') || searchParams.get('startDate') || searchParams.get('endDate');
     return hasAny ? {
       keyword,
       markets: markets.length ? markets : ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'],
