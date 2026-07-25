@@ -132,24 +132,35 @@ public class Order extends BaseEntity {
 			.build();
 	}
 
-	/** 주문 정보 전체 업데이트 (동기화 전용) */
+	/**
+	 * 주문 정보 전체 업데이트 (마켓 동기화 전용).
+	 *
+	 * <p>모든 마켓(쿠팡·스마트스토어·11번가·Cafe24)의 sync 서비스가 이 단일 메서드를 거치므로
+	 * 개인정보 보호 방어의 정본 지점이다. 마켓은 배송중·배송완료·오래된 주문에서 개인정보 보호차원으로
+	 * 이름/주소를 반환하지 않거나("") 마스킹("정*영", "010-****-****")해 내려준다. 이런 비실값으로
+	 * 기존 실값을 덮으면 PII가 유실된다(사용자 신고 2026-07-25, 11번가 배송중 이름 소실 → 전 마켓 확장).
+	 * 따라서 이름·주소·우편번호·구매자명은 blank+마스킹을, 전화번호는 blank+마스킹을 거부하고 기존 값을
+	 * 보존한다. 메시지는 자유텍스트라 마스킹 판정 없이 blank만 거부한다.
+	 * 실값→다른 실값으로의 정상 변경은 모두 허용한다(고객이 배송지·연락처를 바꾼 경우).
+	 *
+	 * <p>수동 편집(빈값="" 클리어)은 {@code updateAddress}/{@code updateCustomsClearanceNo} 등 별도
+	 * 경로이므로 이 가드의 영향을 받지 않는다(F-ORD-23 클리어 시맨틱 유지).
+	 */
 	public void update(
 		String recipientName, String recipientPhone, String zipcode, String address, String message,
 		String ordererName, String ordererPhone, String shipmentBoxId, MarketType marketType) {
-		if (recipientName != null)
+		if (isMeaningfulPii(recipientName))
 			this.recipientName = recipientName;
-		// 전화번호는 "쓸 수 있는 실번호"일 때만 반영한다. 마스킹(*** 포함)·빈값으로는 기존 실번호를
-		// 덮지 않는다(쿠팡 등 마켓이 배송완료·오래된 주문을 마스킹/안심번호 만료 상태로 내려주는 경우 PII 유실 방지).
-		// 실번호→다른 실번호로의 정상 변경은 허용한다(고객이 연락처를 바꾼 경우).
 		if (isUsablePhone(recipientPhone))
 			this.recipientPhone = recipientPhone;
-		if (zipcode != null)
+		if (isMeaningfulPii(zipcode))
 			this.zipcode = zipcode;
-		if (address != null)
+		if (isMeaningfulPii(address))
 			this.address = address;
-		if (message != null)
+		// 메시지는 자유텍스트('*' 포함 가능) — 마스킹 판정 없이 빈값만 거부(동기화가 기존 요청사항을 지우지 않게).
+		if (message != null && !message.isBlank())
 			this.message = message;
-		if (ordererName != null)
+		if (isMeaningfulPii(ordererName))
 			this.ordererName = ordererName;
 		if (isUsablePhone(ordererPhone))
 			this.ordererPhone = ordererPhone;
@@ -157,6 +168,15 @@ public class Order extends BaseEntity {
 			this.shipmentBoxId = shipmentBoxId;
 		if (marketType != null)
 			this.marketType = marketType;
+	}
+
+	/**
+	 * 동기화로 들어온 개인정보 텍스트(이름·주소·우편번호)가 저장 가능한 "실값"인지 판정한다.
+	 * null·공백은 물론, 마스킹 문자('*')가 하나라도 포함되면(예: "정*영", "서울시 ***") 실값이 아니므로
+	 * 반영하지 않아 기존 실값을 보존한다. 전화번호는 {@link #isUsablePhone}이 동일 정책으로 판정한다.
+	 */
+	private static boolean isMeaningfulPii(String value) {
+		return value != null && !value.isBlank() && value.indexOf('*') < 0;
 	}
 
 	/**

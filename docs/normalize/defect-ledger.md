@@ -1553,3 +1553,12 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 검증(2026-07-25): Red→Green. 신규 `ElevenstShippingRecipientPreservationTest` 2건(rcvrNm 부재→null 보존 / rcvrNm·주소 존재→복원) PASS. D-066 배송중 통관번호 테스트 회귀 PASS. `:core:test` 전체 PASS. FE·타 모듈 무변경(private 파서 내부 수정, 시그니처 불변).
 - 상태: 수정완료(검증통과) — 커밋 대기. push는 사용자 승인 후(자동배포=api 재시작). 이미 ""로 오염된 기존 배송중 주문은 다음 동기화 때 배송중 목록의 rcvrNm으로 자동 복원(목록이 이름을 담고 있을 경우), 아니면 배송완료 전환 시 dlvcompleted 경로가 복원.
 - 후속(2026-07-25, 라이브 진단): 배포 후 재동기화에도 이름이 복원 안 돼 서버 로그·DB 확인 → **배송중 목록 API(`/rest/ordservices/shipping/`)가 `rcvrNm`을 아예 주지 않음**(주소는 protectAddress로 이미 DB에 보존, 이름만 `""`)이 확정. 1차 수정은 "추가 손실 방지"만 했고 이미 오염된 이름은 복원 못함. **2차 수정**: `fetchOrders` 배송중 루프에서 이름이 null이면 단건 상세조회(`claimservice/orderlistalladdr`, `rcvrNm` 포함)로 수취인/구매자 정보를 복원(`enrichRecipientFromDetail`, 배송상태·송장은 배송중 값 유지, 상세도 비면 null 유지). 원 주석 "개별 조회로 폴백" 실구현. 신규 테스트 2건(상세조회 복원/상세도 공백 시 null) 추가, `:core:test` 전체 PASS.
+
+### D-108: 전 마켓 동기화 병합이 마스킹/빈 개인정보로 실값을 덮어씀 — 중앙 방어 (2026-07-25)
+- 신고: 사용자 — "11번가 외 다른 마켓도 배송중·배송완료 시 개인정보 보호차원에서 기존 필드를 반환하지 않는 경우 유실되지 않도록 전수로 검토·방어해줘."
+- 심각도: P1 (PII 유실 — 마켓이 배송중/배송완료/오래된 주문에서 이름·주소를 "" 또는 마스킹("정*영")으로 내려줄 때 기존 실값이 덮여 사라짐)
+- 리스크 등급: 표준~중대 (전 마켓 공통 도메인 병합 경로. 단 사용자 명시 요청 + 시그니처 불변 + Red→Green·전 모듈 컴파일·전 마켓 DB 감사로 커버)
+- 근본원인: 4개 마켓 sync 서비스(쿠팡·스마트스토어·11번가·Cafe24)가 모두 단일 `Order.update`(9-arg)를 거치는데, 전화번호만 `isUsablePhone`(blank+마스킹 거부)로 보호되고 **이름·주소·우편번호·구매자명은 `!= null`로만 가드** → ""·마스킹값이 실값을 덮었다. (D-107 11번가 배송중 이름 소실의 일반화된 뿌리.)
+- 수정(2026-07-25): `Order.update`에 `isMeaningfulPii`(null·blank·'*' 마스킹 거부) 신설, recipientName/zipcode/address/ordererName에 적용. 메시지는 자유텍스트라 blank만 거부. 전화는 기존 `isUsablePhone` 유지. **전 마켓 한 지점 방어.** 수동 편집 클리어("")는 `updateAddress`/`updateCustomsClearanceNo` 별도 경로라 무영향(F-ORD-23 유지).
+- 검증(2026-07-25): 신규 `OrderSyncMergeGuardTest` 4건(blank 미덮음/마스킹 미덮음/실값 갱신/null 유지) Red→Green. `:core:test` 전체 PASS, api·worker 컴파일 PASS. **전 마켓 DB 감사**: empty_name·masked_name·empty_addr 전 마켓 0건 → 오염 데이터 없음(순수 예방). 라이브 확정: 11번가 재동기화로 정채영·이선 복원 확인.
+- 상태: 수정완료(검증통과) — 커밋·push.
