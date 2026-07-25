@@ -17,15 +17,15 @@ const STATUS_LABEL: Record<string, string> = {
 export function BreakdownPanels({ range }: { range: { start: string; end: string } }) {
   const nav = useNavigate();
   const d0 = range.start.slice(0, 10), d1 = range.end.slice(0, 10);
-  const q = (dim: Dimension, limit = 10) => useQuery({
+  const useBreakdownQuery = (dim: Dimension, limit = 10) => useQuery({
     queryKey: ['breakdown', dim, range.start, range.end],
     queryFn: () => fetchBreakdown(range.start, range.end, dim, limit),
   });
   // 훅 규칙: 고정 4회 명시 호출 (조건/반복 금지)
-  const market = q('MARKET');
-  const status = q('STATUS');
-  const product = q('PRODUCT', 10);
-  const vendor = q('VENDOR');
+  const market = useBreakdownQuery('MARKET');
+  const status = useBreakdownQuery('STATUS');
+  const product = useBreakdownQuery('PRODUCT', 10);
+  const vendor = useBreakdownQuery('VENDOR');
   const go = (f: DrilldownFilters) => nav(buildOrderGridUrl({ ...f, startDate: d0, endDate: d1 }));
 
   const statusRows = (status.data ?? []).map((s) => ({ ...s, label: STATUS_LABEL[s.key] ?? s.key }));
