@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Modal, Image, Collapse, message, Tooltip, Popconfirm } from 'antd';
 import { UploadOutlined, LinkOutlined, CloudDownloadOutlined } from '@ant-design/icons';
 import { productApi, type ProductDetail, type ImageUploadResult, type ProductEditFields } from '../../api/productApi';
-import { updateProductFields } from './productMockApi';
 
 type Fields = Partial<ProductEditFields>;
 
@@ -90,15 +89,17 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
     if (productId == null) return;
     setSaving(true);
     try {
-      // 판매가 변경은 실제 엔드포인트로 저장한다(재고상태는 미변경 → soldOut null).
+      // 판매가 변경 시 먼저 마켓 가격 동기화 경로로 반영한다(재고상태는 미변경 → soldOut null).
       // D-060/F-PROD-7 경로: DB 반영 + 연동 마켓 가격 동기화.
       const origSale = detail?.priceInfo?.salePrice;
       if (fields.salePrice != null && fields.salePrice !== origSale) {
         await productApi.updatePriceStock(productId, fields.salePrice, null);
       }
-      // 그 외 필드는 백엔드 PATCH 미구현 → 모킹(로컬 반영). 다음 세션 구현 예정.
-      await updateProductFields(productId, fields);
-      message.success('상품 정보 저장됨 (판매가 외 필드는 다음 세션 반영)');
+      // D-106: 소스URL 등 전체 편집 필드를 실제 엔드포인트(PUT /api/v1/products/{id})로 저장한다.
+      // 평탄 폼 → ProductUpdateRequest 매핑(유일 차이: productName → name).
+      const { productName, ...rest } = fields;
+      await productApi.updateProduct(productId, { ...rest, name: productName });
+      message.success('상품 정보가 저장되었습니다.');
       onSaved();
       onClose();
     } catch {

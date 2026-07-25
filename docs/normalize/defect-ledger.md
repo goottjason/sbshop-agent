@@ -1533,3 +1533,13 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 검증(2026-07-24): `./gradlew test` 전체 PASS, FE 빌드 PASS. 라이브(배포 후): 무인증 `GET /market-credentials` → **401**, `admin:admin` → **200**, 주문 API 무인증 → **200**(기존 기능 유지) 확인.
 - 보안 주의: admin/admin은 약함 + FE가 base64로 전송(브라우저서 열람 가능) — "무인증 접근"은 차단하나 강보안 아님(사용자 선택). `.env ADMIN_PASSWORD`로 코드 변경 없이 강화 가능. 인증 매처 제거 시 F-CRED-1·7 노출 결함 재발하므로 유지 필수.
 - 상태: 수정완료(검증통과·라이브 확인) — 커밋 2ca7efa 배포 반영.
+
+### D-106: 상품 상세 모달 필드 편집이 서버에 저장 안 됨 — 실제 PUT 대신 모킹 호출 (2026-07-25)
+- 신고: 사용자 — "상품 관리 상세 모달에서 소스 URL을 바꿔도 안 바뀐다."
+- 심각도: P1 (오동작 — 소스URL·브랜드·카테고리·소싱·메모 등 판매가 외 모든 편집 필드가 저장 안 됨. 저장 성공 토스트만 뜨고 실제 반영 없음)
+- 리스크 등급: 표준 (프론트 배선 변경, FE 게이트 필수)
+- 근본원인: `ProductDetailModal.handleSave`가 판매가는 실제 `updatePriceStock`로 저장하지만, **그 외 필드(`sourceUrl` 포함)는 `productMockApi.updateProductFields`(모킹 — 300ms 지연 후 성공만 반환, 서버 미도달)로 처리**. 모킹은 `console.warn`만 남기고 로컬 반영도 안 해 저장 후 모달을 닫으면 값이 사라진다. 백엔드는 정상 — `PUT /api/v1/products/{id}`(`ProductController.updateProduct` → `ProductUpdateCommand` → `Product.updateSourcingInfo`가 `sourceUrl` 반영)가 존재하고 `productApi.updateProduct`(FE 클라이언트)도 이미 있는데 모달만 연결 안 됨(product-grid 리팩토링 때 남긴 "다음 세션 백엔드 TODO" 모킹).
+- 수정(2026-07-25): `handleSave`가 판매가 변경 시 `updatePriceStock`(마켓 동기화)를 유지하고, 판매가 포함 전체 편집 필드를 실제 `productApi.updateProduct(id, body)`로 저장하도록 배선. 평탄 폼 `Fields` → `ProductUpdateRequest` 매핑(유일 차이 `productName`→`name`, 나머지 필드명 동일; enum 필드 category/vendor/measureUnit은 상세 응답이 enum명 문자열로 내려주므로 라운드트립). `productMockApi.updateProductFields` 사용 제거(파일은 bulkDelete 때문에 유지).
+- 잔여(별건, 본 결함 범위 밖): 카테고리·소싱처·단위 입력이 자유 텍스트라 잘못된 enum명 입력 시 400 가능(모킹 시절엔 검증 안 됨) → 드롭다운化 후속 과제.
+- 검증(2026-07-25): FE 게이트 `tsc -p tsconfig.app.json --noEmit` EXIT 0, `npm run build` PASS. enum 라운드트립 안전 확인 — ProductCategory/VendorType/MeasureUnit 모두 `@JsonValue`/`@JsonCreator` 부재로 `name()` 대칭 직렬화(상세 응답이 내려준 enum명을 그대로 되돌려 역직렬화). 백엔드 PUT 경로는 기존 테스트로 커버됨. FE 러너 부재로 런타임 실동작은 배포 후 브라우저 수동확인 권장(소스URL 편집→저장→재조회 시 반영).
+- 상태: 수정완료(검증통과) — 커밋 대기. push는 사용자 승인 후(자동배포=api 재시작).
