@@ -508,7 +508,14 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
   const isAllVendorsSelected = selectedVendors.length === allVendors.length;
 
   const handleSearch = () => {
-    onSearch(keyword, selectedMarkets, selectedStatuses, startDate, endDate, selectedPurchaseStatuses, selectedStockStatuses, selectedVendors);
+    // stockStatuses/vendors는 백엔드에서 correlated EXISTS 서브쿼리(Product.stockStatus,
+    // OrderLineItem.productId, sourcingData.sourcingVendor — 모두 nullable/미설정 가능)로 필터링된다.
+    // SQL IN(...)은 NULL을 매치하지 않으므로, "전체 선택" 상태에서 명시적 전체 목록을 보내면
+    // 상품/재고/소싱 메타데이터가 없는 라인아이템의 주문이 검색 결과에서 조용히 누락된다.
+    // 전체 선택(기본값)은 빈 배열(=백엔드 no-op, 무필터)로 보내고, 실제 부분선택일 때만 목록을 보낸다.
+    const stockFilter = isAllStockSelected ? [] : selectedStockStatuses;
+    const vendorFilter = isAllVendorsSelected ? [] : selectedVendors;
+    onSearch(keyword, selectedMarkets, selectedStatuses, startDate, endDate, selectedPurchaseStatuses, stockFilter, vendorFilter);
   };
 
   const handlePeriod = (idx: number) => {
