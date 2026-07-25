@@ -35,6 +35,7 @@ export function stockCellInfo(product?: ProductDto): StockCellInfo {
   return { badge: 'NONE', updatedAt };
 }
 import { toast } from 'react-toastify';
+import { useSearchParams } from 'react-router-dom';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 
 type RowData = OrderGridDto & { isFirstLineItem?: boolean; lineItemCount?: number; totalRowCount?: number; rowType?: string; isSecondRow?: boolean; isThirdRow?: boolean };
@@ -711,7 +712,31 @@ const OrderGrid: React.FC = () => {
   const defaultStart = (() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().split('T')[0]; })();
   const defaultEnd = new Date().toISOString().split('T')[0];
 
-  const [queryParams, setQueryParams] = useState<{keyword?: string, markets?: string[], statuses?: string[], purchaseStatuses?: string[], startDate?: string, endDate?: string}>({
+  const [searchParams] = useSearchParams();
+  // 대시보드 드릴다운 등에서 URL 쿼리파라미터로 넘어온 경우, 이를 초기 필터로 사용.
+  // 관련 파라미터가 하나도 없으면 기존 기본값(종결상태 제외 등)을 그대로 유지.
+  const initialFromUrl = useMemo(() => {
+    const getAll = (k: string) => searchParams.getAll(k);
+    const markets = getAll('markets');
+    const statuses = getAll('statuses');
+    const stockStatuses = getAll('stockStatuses');
+    const vendors = getAll('vendors');
+    const customsStatuses = getAll('customsStatuses');
+    const keyword = searchParams.get('keyword') ?? '';
+    const startDate = searchParams.get('startDate') ?? defaultStart;
+    const endDate = searchParams.get('endDate') ?? defaultEnd;
+    const hasAny = markets.length || statuses.length || stockStatuses.length || vendors.length || customsStatuses.length || searchParams.get('keyword');
+    return hasAny ? {
+      keyword,
+      markets: markets.length ? markets : ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'],
+      statuses: statuses.length ? statuses : DEFAULT_VISIBLE_STATUSES,
+      purchaseStatuses: ['NOT_PURCHASED', 'PURCHASED', 'WAITING_STOCK'],
+      stockStatuses, vendors, customsStatuses, startDate, endDate,
+    } : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const [queryParams, setQueryParams] = useState<{keyword?: string, markets?: string[], statuses?: string[], purchaseStatuses?: string[], stockStatuses?: string[], vendors?: string[], customsStatuses?: string[], startDate?: string, endDate?: string}>(initialFromUrl ?? {
     keyword: '',
     markets: ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'],
     statuses: DEFAULT_VISIBLE_STATUSES,
@@ -723,7 +748,7 @@ const OrderGrid: React.FC = () => {
 
   const { data, isLoading: queryLoading, refetch } = useQuery({
     queryKey: ['orders', queryParams, searchTrigger],
-    queryFn: () => fetchOrders(0, 500, queryParams.keyword, queryParams.markets, queryParams.statuses, queryParams.startDate, queryParams.endDate, queryParams.purchaseStatuses)
+    queryFn: () => fetchOrders(0, 500, queryParams.keyword, queryParams.markets, queryParams.statuses, queryParams.startDate, queryParams.endDate, queryParams.purchaseStatuses, queryParams.stockStatuses, queryParams.vendors, queryParams.customsStatuses)
   });
 
   // 낙관적 스냅샷 + 캐시 패치. 반환값(이전 상태)은 onError 롤백에 쓴다.
