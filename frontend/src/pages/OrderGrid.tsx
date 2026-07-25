@@ -406,8 +406,9 @@ interface OrderTableRowProps {
   isSelected: boolean;
   isOrderBoundary: boolean;
   colCount: number;
+  colScale: number;
 }
-const OrderTableRow = React.memo(function OrderTableRow({ row, isOrderBoundary, colCount }: OrderTableRowProps) {
+const OrderTableRow = React.memo(function OrderTableRow({ row, isOrderBoundary, colCount, colScale }: OrderTableRowProps) {
   const baseBgCol = row.original.isFirstLineItem ? '#ffffff' : row.original.isSecondRow ? '#fdfdfd' : '#f9f9f9';
   return (
     <>
@@ -432,9 +433,9 @@ const OrderTableRow = React.memo(function OrderTableRow({ row, isOrderBoundary, 
               rowSpan={isOrderSpanned ? row.original.totalRowCount || 1 : isLineItemSpanned ? 3 : 1}
               style={{
                 borderRight: '1px solid #e5e7eb',
+                // 폭은 table-layout:fixed가 헤더 기준으로 비율 확장 → 셀에는 최소폭만 두고 maxWidth 캡은 제거.
                 width: cell.column.getSize(),
                 minWidth: cell.column.getSize(),
-                maxWidth: cell.column.getSize(),
                 height: '48px', // 행 높이를 48px로 고정
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -443,7 +444,7 @@ const OrderTableRow = React.memo(function OrderTableRow({ row, isOrderBoundary, 
                 padding: '6px 8px',
                 textAlign: ['shippingInfoPair', 'productNamePair'].includes(cell.column.id) ? 'left' : 'center',
                 position: isFrozen ? 'sticky' : undefined,
-                left: isFrozen ? freezeLeft : undefined,
+                left: isFrozen ? (freezeLeft ?? 0) * colScale : undefined,
                 zIndex: isFrozen ? 2 : undefined,
                 backgroundColor: isFrozen ? baseBgCol : undefined,
                 boxShadow: isFrozen ? '2px 0 4px rgba(0,0,0,0.1)' : undefined,
@@ -537,7 +538,7 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
   const toggleVendor = (val: string) => setSelectedVendors(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
 
   return (
-    <div style={{ backgroundColor: '#f8f9fa', borderTop: '2px solid var(--primary-color)', borderBottom: '1px solid #ddd', padding: '12px 20px', marginBottom: '12px', fontSize: '13px' }}>
+    <div style={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderTop: '2px solid var(--primary-color)', borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', padding: '14px 20px', marginBottom: '14px', fontSize: '13px' }}>
       {/* Row 1: Period and Search */}
       <div style={{ display: 'flex', borderBottom: '1px solid #eaeaea', paddingBottom: '8px', marginBottom: '8px' }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
@@ -1527,6 +1528,24 @@ const OrderGrid: React.FC = () => {
     getCoreRowModel: getCoreRowModel(),
   });
 
+  // 반응형 컬럼 확장: 뷰 폭이 총 컬럼폭보다 넓으면 그 비율(scale)만큼 모든 컬럼이 늘어난다
+  // (table-layout:fixed + width:100%가 폭은 자동 확장). frozen 컬럼의 고정 left 오프셋은
+  // 이 scale로 함께 보정해야 늘어난 컬럼과 정렬이 어긋나지 않는다.
+  const totalColWidth = table.getTotalSize();
+  const [colScale, setColScale] = useState(1);
+  useEffect(() => {
+    const el = gridScrollRef.current;
+    if (!el) return;
+    const recompute = () => {
+      const avail = el.clientWidth;
+      setColScale(totalColWidth > 0 && avail > totalColWidth ? avail / totalColWidth : 1);
+    };
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [totalColWidth]);
+
   const handleShipSelected = async () => {
     const selectedRows = table.getSelectedRowModel().rows;
     const orderIds = Array.from(new Set(selectedRows.map(r => r.original.order?.id))).filter(id => id);
@@ -1558,15 +1577,15 @@ const OrderGrid: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '0', backgroundColor: '#f8fafc', borderRadius: '0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#1e293b' }}>통합 주문 관리</h2>
+        <h2 style={{ margin: 0, fontSize: '19px', fontWeight: 800, color: 'var(--primary-color)', letterSpacing: -0.2 }}>통합 주문 관리</h2>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <button onClick={handleSyncSmartStore} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>N스토어 동기화</button>
-          <button onClick={handleSyncCoupang} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>쿠팡 동기화</button>
-          <button onClick={handleSyncElevenStreet} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>11번가 동기화</button>
-          <button onClick={handleSyncEsmplus} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>G마켓/옥션 동기화</button>
-          <button onClick={handleConfirmOrders} disabled={!canConfirmSelected} style={{ padding: '8px 16px', backgroundColor: canConfirmSelected ? '#e8f5e9' : '#f5f5f5', color: canConfirmSelected ? '#2e7d32' : '#999', border: `1px solid ${canConfirmSelected ? '#c8e6c9' : '#e0e0e0'}`, borderRadius: '4px', cursor: canConfirmSelected ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: canConfirmSelected ? 1 : 0.6 }}>선택 주문 확인</button>
-          <button onClick={handleCancelOrders} style={{ padding: '8px 16px', backgroundColor: '#ffebee', color: '#c62828', border: '1px solid #ffcdd2', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>선택 주문 거부</button>
-          <button onClick={handleShipSelected} style={{ padding: '8px 16px', backgroundColor: '#fff', color: '#333', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>선택 발송</button>
+          <button onClick={handleSyncSmartStore} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>N스토어 동기화</button>
+          <button onClick={handleSyncCoupang} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>쿠팡 동기화</button>
+          <button onClick={handleSyncElevenStreet} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>11번가 동기화</button>
+          <button onClick={handleSyncEsmplus} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>G마켓/옥션 동기화</button>
+          <button onClick={handleConfirmOrders} disabled={!canConfirmSelected} style={{ padding: '8px 16px', backgroundColor: canConfirmSelected ? '#e8f5e9' : '#f5f5f5', color: canConfirmSelected ? '#2e7d32' : '#999', border: `1px solid ${canConfirmSelected ? '#c8e6c9' : '#e0e0e0'}`, borderRadius: '8px', cursor: canConfirmSelected ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: canConfirmSelected ? 1 : 0.6 }}>선택 주문 확인</button>
+          <button onClick={handleCancelOrders} style={{ padding: '8px 16px', backgroundColor: '#ffebee', color: '#c62828', border: '1px solid #ffcdd2', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>선택 주문 거부</button>
+          <button onClick={handleShipSelected} style={{ padding: '8px 16px', backgroundColor: '#fff', color: '#333', border: '1px solid #ddd', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>선택 발송</button>
         </div>
       </div>
       {syncStatuses && (
@@ -1625,7 +1644,7 @@ const OrderGrid: React.FC = () => {
               background-color: #f8fafc;
             }
           `}</style>
-          <Table style={{ tableLayout: 'fixed', width: 'max-content' }}>
+          <Table fluid minTableWidth={totalColWidth} style={{ tableLayout: 'fixed', width: '100%' }}>
               <TableHeader>
                 {table.getHeaderGroups().map(headerGroup => (
                   <TableRow key={headerGroup.id}>
@@ -1645,7 +1664,7 @@ const OrderGrid: React.FC = () => {
                           borderBottom: '1px solid #e5e7eb',
                           position: 'sticky',
                           top: 0,
-                          left: isFrozen ? freezeLeft : undefined,
+                          left: isFrozen ? (freezeLeft ?? 0) * colScale : undefined,
                           zIndex: isFrozen ? 4 : 3,
                           boxShadow: isFrozen ? '2px 0 4px rgba(0,0,0,0.1)' : undefined,
                           textAlign: ['shippingInfoPair', 'productNamePair'].includes(header.column.id) ? 'left' : 'center',
@@ -1682,6 +1701,7 @@ const OrderGrid: React.FC = () => {
                         isSelected={row.getIsSelected()}
                         isOrderBoundary={isOrderBoundary}
                         colCount={colCount}
+                        colScale={colScale}
                       />
                     );
                   });
