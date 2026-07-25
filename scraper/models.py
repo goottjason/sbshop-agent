@@ -37,8 +37,10 @@ class ScrapeResult(BaseModel):
     availabilityText: Optional[str] = None # 원문 재고 문구(디버깅/근거)
     weightGrams: Optional[float] = None    # 상품 표기 무게(g). 배대지 배송비 계산 입력. 불명 시 None
     sku: Optional[str] = None
-    # 원가 산출(status=ok일 때) — Java 배치의 buyPrice(원) 입력. costKrw = (price£ + shipping£) × fx
-    costKrw: Optional[int] = None
+    # 원가 산출(status=ok일 때). goodsKrw=상품원가(묶음수량 곱 대상), shippingKrw=배송비(주문당 1회).
+    goodsKrw: Optional[int] = None
+    shippingKrw: Optional[int] = None
+    costKrw: Optional[int] = None      # goods+shipping (참고/표시)
     fxGbpKrw: Optional[float] = None
     shippingGbp: Optional[float] = None
     landedGbp: Optional[float] = None

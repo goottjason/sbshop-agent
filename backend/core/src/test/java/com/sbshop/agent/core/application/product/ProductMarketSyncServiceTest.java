@@ -40,7 +40,8 @@ class ProductMarketSyncServiceTest {
 	void setUp() {
 		// 단일 가격 경로 검증이라 MarginCalculator/MarketFeeService는 실제로 호출되지 않는다.
 		service = new ProductMarketSyncService(marketRegistrationRepository, marketClientRouter,
-			new com.sbshop.agent.core.domain.product.service.MarginCalculator(), marketFeeService);
+			new com.sbshop.agent.core.domain.product.service.MarginCalculator(), marketFeeService,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.domain.product.component.ProductReader.class));
 	}
 
 	private MarketRegistration reg(MarketType type, String identifiersJson) {
@@ -63,7 +64,7 @@ class ProductMarketSyncServiceTest {
 
 		MarketRepublishResult result = service.syncPriceStock(PRODUCT_ID, 40700, StockStatus.IN_STOCK);
 
-		verify(coupangClient).syncPriceAndStock(eq("CP123"), any(), eq(40700), eq(999), eq(false));
+		verify(coupangClient).syncPriceAndStock(eq("CP123"), any(), eq(40700), eq(999), eq(false), any());
 		assertThat(result.synced()).containsExactly(MarketType.COUPANG);
 		assertThat(result.failed()).isEmpty();
 	}
@@ -95,12 +96,12 @@ class ProductMarketSyncServiceTest {
 		when(marketClientRouter.hasClient(MarketType.SMART_STORE)).thenReturn(true);
 		when(marketClientRouter.getClient(MarketType.COUPANG)).thenReturn(coupangClient);
 		when(marketClientRouter.getClient(MarketType.SMART_STORE)).thenReturn(storeClient);
-		when(coupangClient.syncPriceAndStock(any(), any(), any(), anyInt(), anyBoolean()))
+		when(coupangClient.syncPriceAndStock(any(), any(), any(), anyInt(), anyBoolean(), any()))
 			.thenThrow(new RuntimeException("쿠팡 API 오류"));
 
 		MarketRepublishResult result = service.syncPriceStock(PRODUCT_ID, 1000, StockStatus.IN_STOCK);
 
-		verify(storeClient).syncPriceAndStock(eq("OP99"), any(), eq(1000), eq(999), eq(false));
+		verify(storeClient).syncPriceAndStock(eq("OP99"), any(), eq(1000), eq(999), eq(false), any());
 		assertThat(result.synced()).containsExactly(MarketType.SMART_STORE);
 		assertThat(result.failed()).containsKey(MarketType.COUPANG);
 	}
@@ -134,7 +135,7 @@ class ProductMarketSyncServiceTest {
 
 		service.syncPriceStock(PRODUCT_ID, 38300, StockStatus.OUT_OF_STOCK, false);
 
-		verify(cafeClient).syncPriceAndStock(eq("21159"), any(), eq(38300), eq(1), eq(true));
+		verify(cafeClient).syncPriceAndStock(eq("21159"), any(), eq(38300), eq(1), eq(true), any());
 	}
 
 	@Test
@@ -149,7 +150,7 @@ class ProductMarketSyncServiceTest {
 
 		service.syncPriceStock(PRODUCT_ID, 40000, StockStatus.IN_STOCK, true);
 
-		verify(cafeClient).syncPriceAndStock(eq("21159"), any(), eq(40000), eq(999), eq(false));
+		verify(cafeClient).syncPriceAndStock(eq("21159"), any(), eq(40000), eq(999), eq(false), any());
 	}
 
 	@Test
@@ -164,7 +165,7 @@ class ProductMarketSyncServiceTest {
 
 		service.syncPriceStock(PRODUCT_ID, 40700, StockStatus.IN_STOCK, false);
 
-		verify(coupangClient).syncPriceAndStock(eq("CP123"), any(), eq(40700), eq(999), eq(false));
+		verify(coupangClient).syncPriceAndStock(eq("CP123"), any(), eq(40700), eq(999), eq(false), any());
 	}
 
 	@Test
@@ -176,7 +177,7 @@ class ProductMarketSyncServiceTest {
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID)).thenReturn(List.of(cp));
 		when(marketClientRouter.hasClient(MarketType.COUPANG)).thenReturn(true);
 		when(marketClientRouter.getClient(MarketType.COUPANG)).thenReturn(coupangClient);
-		when(coupangClient.syncPriceAndStock(any(), any(), any(), anyInt(), anyBoolean()))
+		when(coupangClient.syncPriceAndStock(any(), any(), any(), anyInt(), anyBoolean(), any()))
 			.thenThrow(new RuntimeException("API 오류"));
 
 		service.syncPriceStock(PRODUCT_ID, 1000, StockStatus.IN_STOCK);

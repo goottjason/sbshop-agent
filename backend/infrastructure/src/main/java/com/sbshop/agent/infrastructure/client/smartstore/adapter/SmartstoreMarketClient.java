@@ -6,6 +6,8 @@ import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
+import com.sbshop.agent.core.domain.product.enums.MeasureUnit;
+import com.sbshop.agent.core.domain.product.vo.ProductSpec;
 import com.sbshop.agent.infrastructure.client.smartstore.client.SmartstoreRestClient;
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -118,10 +120,20 @@ public class SmartstoreMarketClient implements MarketClient {
 	@Override
 	public Map<String, Object> syncPriceAndStock(String marketItemId, Map<String, Object> currentRawData,
 		Integer price, int quantity, boolean soldOut) {
+		// 상품 없이 호출되는 경로(단건 수정 등)는 unitCapacity 없이 기존 동작.
+		return syncPriceAndStock(marketItemId, currentRawData, price, quantity, soldOut, null);
+	}
+
+	@Override
+	public Map<String, Object> syncPriceAndStock(String marketItemId, Map<String, Object> currentRawData,
+		Integer price, int quantity, boolean soldOut, Product product) {
 		try {
 			String response = restClient.get("/v2/products/origin-products/" + marketItemId);
 			JsonNode originNode = objectMapper.readTree(response).path("originProduct");
 			Map<String, Object> originProduct = objectMapper.convertValue(originNode, Map.class);
+
+			// 가격표시제(2026-04-29 필수): GET 스냅샷에 unitCapacity가 없으면 400. 상품 용량·단위로 채운다.
+			applyUnitPrice(originProduct, product);
 
 			if (price != null)
 				originProduct.put("salePrice", price);
@@ -431,6 +443,67 @@ public class SmartstoreMarketClient implements MarketClient {
 			? (Map<String, Object>) da : new HashMap<>();
 		detailAttribute.put("customsTaxType", "INCLUDED");
 		originProduct.put("detailAttribute", detailAttribute);
+	}
+
+	/**
+	 * 가격표시제(단위가격) 필수 대응(2026-04-29~): originProduct.detailAttribute.unitCapacity를 채운다.
+	 * 상품 용량·단위가 있으면 unitPriceYn=true + totalCapacityValue/indicationUnit/unitCapacity(기준),
+	 * 없으면 unitPriceYn=false(필수필드 누락 400만 회피). 단위가격 자체는 네이버가 판매가/용량으로 산정.
+	 */
+	@SuppressWarnings("unchecked")
+	private void applyUnitPrice(Map<String, Object> originProduct, Product product) {
+		Object da = originProduct.get("detailAttribute");
+		Map<String, Object> detailAttribute = (da instanceof Map)
+			? (Map<String, Object>) da : new HashMap<>();
+
+		ProductSpec spec = product != null ? product.getProductSpec() : null;
+		BigDecimal capacity = spec != null ? spec.getCapacity() : null;
+		String unit = spec != null ? indicationUnit(spec.getMeasureUnit()) : null;
+
+		Map<String, Object> unitCapacity = new HashMap<>();
+		if (capacity != null && capacity.signum() > 0 && unit != null) {
+			unitCapacity.put("unitPriceYn", true);
+			unitCapacity.put("totalCapacityValue", capacity);
+			unitCapacity.put("unitCapacity", ("g".equals(unit) || "ml".equals(unit)) ? 100 : 1);
+			unitCapacity.put("indicationUnit", unit);
+		} else {
+			unitCapacity.put("unitPriceYn", false);
+		}
+		detailAttribute.put("unitCapacity", unitCapacity);
+		originProduct.put("detailAttribute", detailAttribute);
+	}
+
+	/** MeasureUnit → 네이버 unitCapacity.indicationUnit(허용: g·kg·ml·L·개·정·캡슐·포 …). 애매하면 null(=미표시). */
+	private String indicationUnit(MeasureUnit unit) {
+		if (unit == null) {
+			return null;
+		}
+		switch (unit) {
+			case G:
+				return "g";
+			case KG:
+				return "kg";
+			case ML:
+				return "ml";
+			case L:
+				return "L";
+			case TABLET:
+				return "정";
+			case CAPSULE:
+				return "캡슐";
+			case T_BAG:
+				return "포";
+			case EA:
+			case COUNT:
+			case PIECE:
+			case PACK:
+			case BOX:
+			case BOTTLE:
+				return "개";
+			default:
+				// MG/OZ/LB(무게 환산 필요)·UNKNOWN 등은 값 오표시 방지 위해 미표시(false).
+				return null;
+		}
 	}
 
 	/**

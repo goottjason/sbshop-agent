@@ -36,7 +36,8 @@ class ProductMarketSyncServiceSoldOutTest {
     @BeforeEach
     void setUp() {
         service = new ProductMarketSyncService(marketRegistrationRepository, marketClientRouter,
-            new com.sbshop.agent.core.domain.product.service.MarginCalculator(), marketFeeService);
+            new com.sbshop.agent.core.domain.product.service.MarginCalculator(), marketFeeService,
+            org.mockito.Mockito.mock(com.sbshop.agent.core.domain.product.component.ProductReader.class));
     }
 
     private MarketRegistration reg(MarketType type, String identifiersJson) {
@@ -59,7 +60,7 @@ class ProductMarketSyncServiceSoldOutTest {
 
         service.syncPriceStock(PRODUCT_ID, 1000, StockStatus.OUT_OF_STOCK);
 
-        verify(client).syncPriceAndStock(eq("V1"), any(), eq(1000), eq(1), eq(true));
+        verify(client).syncPriceAndStock(eq("V1"), any(), eq(1000), eq(1), eq(true), any());
     }
 
     @Test
@@ -73,6 +74,6 @@ class ProductMarketSyncServiceSoldOutTest {
 
         service.syncPriceStock(PRODUCT_ID, 1000, StockStatus.IN_STOCK);
 
-        verify(client).syncPriceAndStock(eq("V1"), any(), eq(1000), eq(999), eq(false));
+        verify(client).syncPriceAndStock(eq("V1"), any(), eq(1000), eq(999), eq(false), any());
     }
 }

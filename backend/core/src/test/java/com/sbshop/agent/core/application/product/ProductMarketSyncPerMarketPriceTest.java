@@ -41,7 +41,8 @@ class ProductMarketSyncPerMarketPriceTest {
 	@BeforeEach
 	void setUp() {
 		service = new ProductMarketSyncService(
-			marketRegistrationRepository, marketClientRouter, new MarginCalculator(), marketFeeService);
+			marketRegistrationRepository, marketClientRouter, new MarginCalculator(), marketFeeService,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.domain.product.component.ProductReader.class));
 	}
 
 	private MarketRegistration reg(MarketType type, String identifiersJson) {
@@ -75,7 +76,7 @@ class ProductMarketSyncPerMarketPriceTest {
 		service.syncPriceStockPerMarket(PRODUCT_ID, pricing, StockStatus.IN_STOCK, true);
 
 		// 쿠팡 11% → 67900, 스토어 8% → 65400
-		verify(coupangClient).syncPriceAndStock(eq("CP123"), any(), eq(67900), eq(999), eq(false));
-		verify(storeClient).syncPriceAndStock(eq("OP99"), any(), eq(65400), eq(999), eq(false));
+		verify(coupangClient).syncPriceAndStock(eq("CP123"), any(), eq(67900), eq(999), eq(false), any());
+		verify(storeClient).syncPriceAndStock(eq("OP99"), any(), eq(65400), eq(999), eq(false), any());
 	}
 }

@@ -10,6 +10,7 @@ import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
+import com.sbshop.agent.core.domain.product.component.ProductReader;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.service.MarginCalculator;
 import java.math.BigDecimal;
@@ -36,6 +37,8 @@ public class ProductMarketSyncService {
 	private final MarketClientRouter marketClientRouter;
 	private final MarginCalculator marginCalculator;
 	private final MarketFeeService marketFeeService;
+	// 스마트스토어 단위가격(가격표시제) 등 상품 속성 전달용 — 마켓 전송 시 Product 조회.
+	private final ProductReader productReader;
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	public MarketRepublishResult syncPriceStock(Long productId, Integer price, StockStatus stockStatus) {
@@ -78,6 +81,8 @@ public class ProductMarketSyncService {
 	private MarketRepublishResult syncInternal(Long productId, Function<MarketType, Integer> priceResolver,
 		int quantity, boolean soldOut, boolean changed) {
 		List<MarketRegistration> registrations = marketRegistrationRepository.findByProductId(productId);
+		// 스토어 단위가격 등 상품 속성 전달용(best-effort — 없으면 null로 기존 동작).
+		Product product = productReader.findById(productId).orElse(null);
 		List<MarketType> synced = new ArrayList<>();
 		List<MarketType> skipped = new ArrayList<>();
 		Map<MarketType, String> failed = new LinkedHashMap<>();
@@ -105,7 +110,7 @@ public class ProductMarketSyncService {
 				MarketClient client = marketClientRouter.getClient(marketType);
 				Map<String, Object> updated =
 					client.syncPriceAndStock(marketItemId, currentRawData, priceResolver.apply(marketType),
-							quantity, soldOut);
+							quantity, soldOut, product);
 
 				if (updated != null) {
 					reg.updateMarketDetailedInfo(objectMapper.writeValueAsString(updated));

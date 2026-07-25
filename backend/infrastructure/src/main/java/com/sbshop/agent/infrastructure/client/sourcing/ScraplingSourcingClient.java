@@ -63,18 +63,21 @@ public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 		String status = res.path("status").asText("error");
 		switch (status) {
 			case "ok": {
-				if (!res.hasNonNull("costKrw")) {
-					throw new IllegalStateException("F&M 원가(costKrw) 없음 — 스킵: " + sourceUrl);
+				if (!res.hasNonNull("goodsKrw")) {
+					throw new IllegalStateException("F&M 원가(goodsKrw) 없음 — 스킵: " + sourceUrl);
 				}
 				// 재고 판별 불가(inStock 누락/null)면 오품절 방지 위해 스킵(예외→배치 실패 기록).
 				if (!res.hasNonNull("inStock")) {
 					throw new IllegalStateException("F&M 재고 판별 불가(inStock 없음) — 스킵: " + sourceUrl);
 				}
 				boolean inStock = res.path("inStock").asBoolean(false);
-				BigDecimal costPrice = BigDecimal.valueOf(res.get("costKrw").asLong());
+				// costPrice=상품원가(묶음수량 곱 대상), shippingCost=배송비(주문당 1회 가산).
+				BigDecimal goods = BigDecimal.valueOf(res.get("goodsKrw").asLong());
+				BigDecimal shipping = res.hasNonNull("shippingKrw")
+					? BigDecimal.valueOf(res.get("shippingKrw").asLong()) : BigDecimal.ZERO;
 				return new StockCheckResult(
 					inStock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
-					costPrice, inStock ? 100 : 0, null, false);
+					goods, inStock ? 100 : 0, null, false, shipping);
 			}
 			case "not_found":
 				// 링크 소멸(404) → 품절(가격 미변경). sourceGone=true 신호로 배치가 재고만 내린다.

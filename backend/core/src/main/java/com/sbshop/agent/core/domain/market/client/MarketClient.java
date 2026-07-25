@@ -24,6 +24,20 @@ public interface MarketClient {
 		boolean soldOut);
 
 	/**
+	 * 단위가격(가격표시제) 등 상품 속성이 필요한 마켓(스마트스토어)을 위해 {@link Product}를 함께 받는 오버로드.
+	 * 기본 구현은 상품을 무시하고 5-인자 경로로 위임한다 — 스토어만 override 해 unitCapacity 등을 채운다.
+	 */
+	default Map<String, Object> syncPriceAndStock(
+		String marketItemId,
+		Map<String, Object> currentRawData,
+		Integer price,
+		int quantity,
+		boolean soldOut,
+		Product product) {
+		return syncPriceAndStock(marketItemId, currentRawData, price, quantity, soldOut);
+	}
+
+	/**
 	 * 상품 이미지/상세HTML을 마켓에 재게시한다.
 	 *
 	 * @param product 원본 상품(D-092: 11번가 등 전체 상품 전문 재구성이 필요한 마켓이 buildProductXml 재사용).

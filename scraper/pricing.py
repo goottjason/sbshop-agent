@@ -57,18 +57,23 @@ class CostBreakdown:
     shipping_gbp: float
     landed_gbp: float          # price + shipping
     fx_gbp_krw: float
-    cost_krw: int              # 원화 원가(반올림) = 판매가 계산의 buyPrice 입력
+    goods_krw: int             # 상품 원가(배송비 제외) = 묶음수량이 곱해지는 단가
+    shipping_krw: int          # 배대지 배송비(원) = 주문당 1회만 가산(묶음수량 무관)
+    cost_krw: int              # goods+shipping(참고/표시용)
 
 
 def landed_cost_krw(price_gbp: float, weight_grams: float | None, fx: float | None = None) -> CostBreakdown:
     fx = fx if fx is not None else fetch_gbp_krw()
     ship = shipping_gbp(weight_grams)
-    landed = price_gbp + ship
+    goods_krw = round(price_gbp * fx)
+    shipping_krw = round(ship * fx)
     return CostBreakdown(
         price_gbp=price_gbp,
         weight_grams=weight_grams,
         shipping_gbp=ship,
-        landed_gbp=round(landed, 2),
+        landed_gbp=round(price_gbp + ship, 2),
         fx_gbp_krw=round(fx, 2),
-        cost_krw=round(landed * fx),
+        goods_krw=goods_krw,
+        shipping_krw=shipping_krw,
+        cost_krw=goods_krw + shipping_krw,
     )

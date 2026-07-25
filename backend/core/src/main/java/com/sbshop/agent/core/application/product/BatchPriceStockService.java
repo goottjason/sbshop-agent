@@ -89,7 +89,15 @@ public class BatchPriceStockService {
 					continue;
 				}
 
-				BigDecimal buyPrice = result.costPrice() != null ? result.costPrice() : BigDecimal.ZERO;
+				// buyPrice = 상품원가 + 배송비/묶음수량 (유효단가). 이후 계산이 ×묶음수량 하므로
+				// 결과적으로 (원가×묶음) + 배송비 1회가 된다(배송비는 묶음수량과 무관하게 주문당 1회).
+				// iHerb 등 shippingCost 없는 경로는 원가 그대로(동작 불변).
+				BigDecimal goods = result.costPrice() != null ? result.costPrice() : BigDecimal.ZERO;
+				BigDecimal buyPrice = goods;
+				if (result.shippingCost() != null && result.shippingCost().signum() > 0 && bundleQty > 0) {
+					buyPrice = goods.add(result.shippingCost()
+						.divide(BigDecimal.valueOf(bundleQty), 4, java.math.RoundingMode.HALF_UP));
+				}
 				// F-BATCH-6: 쿠폰율을 실매입가에 반영(구매가 × (1-쿠폰%))한 뒤 판매가를 산정한다.
 				// D-094: 기준가(sb_product.sale_price)는 쿠팡 실수수료 기준으로 산정한다(표시·단건용).
 				// 각 마켓 전송가는 아래 syncPriceStockPerMarket에서 마켓별 실수수료로 따로 재산정한다.
