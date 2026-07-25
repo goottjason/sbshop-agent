@@ -112,9 +112,9 @@ export default function ProductGrid() {
       id: 'productInfo', header: '상품정보', size: 300,
       cell: ({ row }) => (
         <div onClick={() => setDetailId(row.original.id)}
-          style={{ textAlign: 'left', cursor: 'pointer' }} title="상세 보기">
-          <div style={{ fontWeight: 600, color: '#1e293b' }}>{row.original.productName}</div>
-          <div style={{ fontSize: 11, color: '#94a3b8' }}>{row.original.originalName || ' '}</div>
+          style={{ textAlign: 'left', cursor: 'pointer', minWidth: 0 }} title={row.original.productName}>
+          <div style={{ fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.original.productName}</div>
+          <div style={{ fontSize: 11, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.original.originalName || ' '}</div>
         </div>
       ),
     }),
@@ -188,33 +188,49 @@ export default function ProductGrid() {
 
   return (
     <div className="product-theme" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '16px 24px', background: '#f8f9fa' }}>
+      <style>{`
+        .pg-size {
+          appearance: none; -webkit-appearance: none; -moz-appearance: none;
+          padding: 7px 30px 7px 12px; border: 1px solid #d1d5db; border-radius: 8px;
+          background-color: #fff;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+          background-repeat: no-repeat; background-position: right 10px center;
+          font-size: 13px; font-weight: 600; color: #475569; cursor: pointer;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.04); transition: border-color .15s, box-shadow .15s;
+        }
+        .pg-size:hover { border-color: #cbd5e1; }
+        .pg-size:focus { outline: none; border-color: var(--product-primary); box-shadow: 0 0 0 3px rgba(22,101,52,0.12); }
+      `}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--product-primary)' }}>상품 관리</h2>
-          <span style={{ fontSize: 13, color: '#94a3b8' }}>표시 {rows.length.toLocaleString()} / 로드 {allRows.length.toLocaleString()}개</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h2 style={{ margin: 0, fontSize: '19px', fontWeight: 800, color: 'var(--product-primary)', letterSpacing: -0.2 }}>상품 관리</h2>
+          <span style={{ fontSize: 12, color: '#64748b', background: '#eef2f7', borderRadius: 999, padding: '3px 10px', fontWeight: 600 }}>
+            표시 {rows.length.toLocaleString()} · 로드 {allRows.length.toLocaleString()}
+          </span>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {selectedIds.length > 0 && (
-            <button onClick={() => setBulkOpen(true)} style={{ padding: '8px 16px', backgroundColor: 'var(--product-primary)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}>
+            <button onClick={() => setBulkOpen(true)} style={{ padding: '8px 16px', backgroundColor: 'var(--product-primary)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 700, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>
               선택 가격/재고 업데이트 ({selectedIds.length})
             </button>
           )}
           {selectedIds.length > 0 && (
-            <button onClick={handleBulkDelete} style={{ padding: '8px 16px', backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}>
+            <button onClick={handleBulkDelete} style={{ padding: '8px 16px', backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}>
               선택 삭제 ({selectedIds.length})
             </button>
           )}
-          <button onClick={() => refetch()} style={{ padding: '8px 16px', backgroundColor: '#fff', color: '#333', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>새로고침</button>
+          <button onClick={() => refetch()} style={{ padding: '8px 16px', backgroundColor: '#fff', color: '#475569', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>새로고침</button>
         </div>
       </div>
 
-      <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '6px 10px', marginBottom: 8 }}>
-        고급필터(카테고리·마켓·소싱처·재고상태)는 현재 로드된 500건 대상 클라이언트 필터입니다. 카테고리는 목록 API 확장 후 활성화됩니다. (다음 세션 백엔드 구현)
+      <div style={{ fontSize: 11.5, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6, padding: '0 2px', marginBottom: 10 }}>
+        <span style={{ display: 'inline-flex', width: 14, height: 14, borderRadius: 999, background: '#e2e8f0', color: '#64748b', fontSize: 10, fontWeight: 700, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>i</span>
+        고급필터는 로드된 500건 대상 클라이언트 필터입니다. 카테고리는 목록 API 확장 후 활성화됩니다.
       </div>
 
       <ProductFilterPanel categoryOptions={categoryOptions} onSearch={handleSearch} />
 
-      <div style={{ flex: 1, backgroundColor: 'white', position: 'relative', overflow: 'auto' }}>
+      <div style={{ flex: 1, position: 'relative', overflow: 'auto', paddingBottom: 4 }}>
         {isLoading && (
           <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,255,255,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10 }}>
             <div style={{ padding: '16px 32px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', fontSize: '15px', fontWeight: 600, color: 'var(--product-primary)' }}>로딩 중...</div>
@@ -223,12 +239,12 @@ export default function ProductGrid() {
         {!isLoading && rows.length === 0 && (
           <div style={{ padding: 48, textAlign: 'center', color: '#94a3b8' }}>조건에 맞는 상품이 없습니다.</div>
         )}
-        <Table style={{ width: '100%' }}>
+        <Table fluid minTableWidth={1080} style={{ width: '100%', tableLayout: 'fixed' }}>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id}>
                 {hg.headers.map((header) => (
-                  <TableHead key={header.id} style={{ width: header.getSize(), backgroundColor: '#f9fafb', borderTop: '2px solid var(--product-primary)', borderRight: '1px solid #e5e7eb' }}>
+                  <TableHead key={header.id} style={{ width: header.getSize(), backgroundColor: '#f9fafb', borderTop: '2px solid var(--product-primary)', fontWeight: 600, color: '#475569', letterSpacing: 0.2 }}>
                     {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                   </TableHead>
                 ))}
@@ -239,7 +255,7 @@ export default function ProductGrid() {
             {table.getRowModel().rows.map((row) => (
               <TableRow key={row.id}>
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id} style={{ borderRight: '1px solid #e5e7eb', height: 56, textAlign: ['productInfo'].includes(cell.column.id) ? 'left' : 'center' }}>
+                  <TableCell key={cell.id} style={{ height: 56, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: cell.column.id === 'productInfo' ? 'left' : 'center' }}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}
@@ -249,17 +265,23 @@ export default function ProductGrid() {
         </Table>
       </div>
 
-      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 12, color: '#94a3b8' }}>표시 {rows.length.toLocaleString()}건 · {safePage + 1}/{pageCount} 페이지</span>
+      <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        {/* 좌: 페이지 크기 선택(페이지네이션과 분리) + 카운트 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <select className="pg-size" value={pageSize}
+            onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}>
+            {[20, 50, 100, 200].map((n) => <option key={n} value={n}>{n}개씩 보기</option>)}
+          </select>
+          <span style={{ fontSize: 12, color: '#94a3b8' }}>표시 {rows.length.toLocaleString()}건 · {safePage + 1}/{pageCount} 페이지</span>
+        </div>
+        {/* 우: 페이지 이동(숫자만 — 크기 변경·바로가기 제거) */}
         <Pagination
           current={safePage + 1}
           pageSize={pageSize}
           total={rows.length}
-          showSizeChanger
-          pageSizeOptions={[20, 50, 100, 200]}
-          showQuickJumper
+          showSizeChanger={false}
           size="small"
-          onChange={(p, s) => { setPage(p - 1); setPageSize(s); }}
+          onChange={(p) => setPage(p - 1)}
         />
       </div>
 

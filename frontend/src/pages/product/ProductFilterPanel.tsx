@@ -38,14 +38,19 @@ export function ProductFilterPanel({ categoryOptions, onSearch }: { categoryOpti
   const isAllCategories = categoryOptions.length > 0 && categories.length === categoryOptions.length;
 
   return (
-    <div style={{ backgroundColor: '#f8f9fa', borderTop: '2px solid var(--product-primary)', borderBottom: '1px solid #ddd', padding: '12px 20px', marginBottom: '12px', fontSize: '13px' }}>
+    <div style={{ backgroundColor: '#fff', borderTop: '2px solid var(--product-primary)', border: '1px solid #e5e7eb', borderTopColor: 'var(--product-primary)', borderTopWidth: 2, borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', padding: '14px 20px', marginBottom: '14px', fontSize: '13px' }}>
+      <style>{`
+        .pf-search:focus { border-color: var(--product-primary); box-shadow: 0 0 0 3px rgba(22,101,52,0.12); }
+        .pf-search::placeholder { color: #cbd5e1; }
+        .pf-searchbtn:hover { filter: brightness(1.08); box-shadow: 0 2px 8px rgba(22,101,52,0.25); }
+      `}</style>
       {/* Row 1: 통합검색 + 카테고리 */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #eaeaea', paddingBottom: '8px', marginBottom: '8px' }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px', marginBottom: '8px' }}>
         <div style={{ flex: 1, ...rowStyle }}>
           <span style={labelStyle}>통합 검색</span>
-          <input type="text" placeholder="상품명, SB코드, 브랜드" value={keyword}
+          <input type="text" className="pf-search" placeholder="상품명, SB코드, 브랜드" value={keyword}
             onChange={(e) => setKeyword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            style={{ flex: 1, padding: '6px 12px', border: '1px solid #ccc', outline: 'none' }} />
+            style={{ flex: 1, padding: '7px 12px', border: '1px solid #d1d5db', borderRadius: 8, outline: 'none', fontSize: 13, transition: 'border-color .15s, box-shadow .15s' }} />
         </div>
         <div style={{ flex: 1, ...rowStyle }}>
           <span style={labelStyle}>카테고리</span>
@@ -67,7 +72,7 @@ export function ProductFilterPanel({ categoryOptions, onSearch }: { categoryOpti
       </div>
 
       {/* Row 2: 마켓 등록상태 + 소싱처 */}
-      <div style={{ display: 'flex', paddingBottom: '8px', marginBottom: '8px', borderBottom: '1px solid #eaeaea' }}>
+      <div style={{ display: 'flex', paddingBottom: '8px', marginBottom: '8px', borderBottom: '1px solid #f1f5f9' }}>
         <div style={{ flex: 1, ...rowStyle }}>
           <span style={labelStyle}>마켓 등록상태</span>
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
@@ -127,7 +132,7 @@ export function ProductFilterPanel({ categoryOptions, onSearch }: { categoryOpti
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
-        <button onClick={handleSearch} style={{ backgroundColor: 'var(--product-primary)', color: 'white', border: 'none', padding: '8px 32px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', borderRadius: '4px' }}>검색</button>
+        <button onClick={handleSearch} className="pf-searchbtn" style={{ backgroundColor: 'var(--product-primary)', color: 'white', border: 'none', padding: '9px 40px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', borderRadius: '8px', boxShadow: '0 1px 3px rgba(22,101,52,0.2)', transition: 'filter .15s, box-shadow .15s' }}>검색</button>
       </div>
     </div>
   );

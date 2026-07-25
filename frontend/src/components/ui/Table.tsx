@@ -1,8 +1,22 @@
 import React from 'react';
 
-export const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  (props, ref) => (
-    <div className="table-container" style={{ display: 'inline-block', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)' }}>
+// fluid=true면 컨테이너가 부모 폭을 100% 채운다(전폭 데이터테이블용). 기본값(false)은
+// inline-block으로 콘텐츠 폭에 맞춘다 — OrderGrid 등 가로스크롤·frozen 컬럼 화면 하위호환.
+// minTableWidth: fluid일 때 컨테이너 최소 폭(px). 좁은 화면에선 이 값이 유지돼 바깥
+// overflow 컨테이너에서 가로 스크롤이 나므로 컬럼이 찌그러지지 않는다.
+export const Table = React.forwardRef<
+  HTMLTableElement,
+  React.HTMLAttributes<HTMLTableElement> & { fluid?: boolean; minTableWidth?: number }
+>(
+  ({ fluid, minTableWidth, ...props }, ref) => (
+    <div className="table-container" style={{
+      display: fluid ? 'block' : 'inline-block',
+      width: fluid ? '100%' : undefined,
+      minWidth: fluid ? minTableWidth : undefined,
+      overflow: fluid ? 'hidden' : undefined,
+      border: '1px solid #e5e7eb', borderRadius: '8px',
+      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+    }}>
       <table
         ref={ref}
         {...props}
