@@ -1543,3 +1543,12 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 후속 UI 개선(2026-07-25, 사용자 요청 "UI 개선"): ①카테고리·소싱처·단위를 자유텍스트→**드롭다운化**(enum명 value·한글 라벨, 옵션 밖 레거시 값은 보존 표시) — 잘못된 enum 저장 400 리스크 원천 차단. ②저장 UX — baseline 대비 **dirty 추적**(변경 없으면 저장 버튼 비활성 + "변경됨" 배지), 저장 실패 시 `GlobalExceptionHandler`의 `{message}`를 토스트에 표면화. ③시각 — 셀렉트 행을 고스트 인풋 톤에 정렬, 헤더 배지 카테고리 한글 라벨화. `tsc`/`build` PASS.
 - 검증(2026-07-25): FE 게이트 `tsc -p tsconfig.app.json --noEmit` EXIT 0, `npm run build` PASS. enum 라운드트립 안전 확인 — ProductCategory/VendorType/MeasureUnit 모두 `@JsonValue`/`@JsonCreator` 부재로 `name()` 대칭 직렬화(상세 응답이 내려준 enum명을 그대로 되돌려 역직렬화). 백엔드 PUT 경로는 기존 테스트로 커버됨. FE 러너 부재로 런타임 실동작은 배포 후 브라우저 수동확인 권장(소스URL 편집→저장→재조회 시 반영).
 - 상태: 수정완료(검증통과) — 커밋 대기. push는 사용자 승인 후(자동배포=api 재시작).
+
+### D-107: 11번가 배송중 주문 동기화가 수취인 이름·주소를 지워 "-"로 표시 (2026-07-25)
+- 신고: 사용자 — "11번가 주문 동기화 긴급. 이름과 주소가 사라져서 -로 보인다." (스크린샷: 배송중 11번가 주문 20260722086940464·20260721086527055가 이름 "-", 쿠팡·N스토어는 정상)
+- 심각도: P1 (오동작 — PII 유실. 배송중 상태의 11번가 주문에서 수취인 이름이 그리드에 "-"로 표시, 주소도 소실 위험)
+- 리스크 등급: 표준 (core 1파일 파서 수정, 마켓 API 매핑 계약)
+- 근본원인: `ElevenstOrderAdapter.parseShippingElement`(배송중 목록 파서)가 `recipientName`·`address`·`message`·`ordererName` 등을 **빈 문자열("")로 하드코딩**해 DTO를 만들었다. `ElevenstOrderSyncService.updateExistingOrder`→`Order.update`는 `recipientName`을 `!= null`로만 보호하므로 ""가 기존 실이름을 **덮어썼다**. `recipientPhone`은 `isUsablePhone`(blank 거부)로, `address`는 `protectAddress`(D-074, progressed 시 null)로 각각 보호돼 살아남아 — 스크린샷의 "전화·주소는 있고 이름만 '-'" 패턴과 정확히 일치. 주문이 결제완료→배송중으로 넘어가 배송중 목록에만 잡히는 순간 이름이 소실됐다. (D-066에서 통관번호는 이미 `emptyToNull`로 이 함정을 피했으나 이름/주소는 방치됨.)
+- 수정(2026-07-25): `parseShippingElement`가 배송중 목록의 `rcvrNm`/`rcvrPrtblNo`/`rcvrMailNo`/`rcvrBaseAddr`/`rcvrDtlsAddr`/`ordDlvReqCont`/`ordNm`/`ordPrtblTel`을 파싱하고, 태그 부재 시 `emptyToNull`로 null 정규화 → `Order.update` null-guard가 기존 값을 보존. 태그가 있으면 파싱해 **복원**(11번가 배송중 목록도 수취인 정보를 담고 있음). `marketProductCode`/`productName`도 ""→null.
+- 검증(2026-07-25): Red→Green. 신규 `ElevenstShippingRecipientPreservationTest` 2건(rcvrNm 부재→null 보존 / rcvrNm·주소 존재→복원) PASS. D-066 배송중 통관번호 테스트 회귀 PASS. `:core:test` 전체 PASS. FE·타 모듈 무변경(private 파서 내부 수정, 시그니처 불변).
+- 상태: 수정완료(검증통과) — 커밋 대기. push는 사용자 승인 후(자동배포=api 재시작). 이미 ""로 오염된 기존 배송중 주문은 다음 동기화 때 배송중 목록의 rcvrNm으로 자동 복원(목록이 이름을 담고 있을 경우), 아니면 배송완료 전환 시 dlvcompleted 경로가 복원.

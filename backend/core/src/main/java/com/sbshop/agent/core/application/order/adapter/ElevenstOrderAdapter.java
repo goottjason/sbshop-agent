@@ -428,24 +428,38 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				return null;
 			}
 
+			// D-107: 배송중 목록도 수취인/구매자 정보를 담고 있으므로 파싱해 복원한다. 과거엔 이 경로가
+			// 이름·주소를 ""로 하드코딩해 내보냈고, Order.update가 recipientName을 !=null 로만 보호해
+			// ""가 기존 실이름을 덮어써 그리드에 "-"로 표시됐다(사용자 신고). 태그 부재 시 ""를 null로
+			// 정규화 — null-guard가 기존 값을 보존하도록 한다(통관번호와 동일 정책).
+			String rcvrNm = emptyToNull(ElevenstXmlUtils.getElementText(element, "rcvrNm"));
+			String rcvrPrtblNo = emptyToNull(ElevenstXmlUtils.getElementText(element, "rcvrPrtblNo"));
+			String rcvrMailNo = emptyToNull(ElevenstXmlUtils.getElementText(element, "rcvrMailNo"));
+			String rcvrBaseAddr = ElevenstXmlUtils.getElementText(element, "rcvrBaseAddr");
+			String rcvrDtlsAddr = ElevenstXmlUtils.getElementText(element, "rcvrDtlsAddr");
+			String address = emptyToNull((rcvrBaseAddr + " " + rcvrDtlsAddr).trim());
+			String ordDlvReqCont = emptyToNull(ElevenstXmlUtils.getElementText(element, "ordDlvReqCont"));
+			String ordNm = emptyToNull(ElevenstXmlUtils.getElementText(element, "ordNm"));
+			String ordPrtblTel = emptyToNull(ElevenstXmlUtils.getElementText(element, "ordPrtblTel"));
+
 			ShippingStatus status = ShippingStatus.SHIPPED;
 			ShippingCarrier carrier = parseCarrierCode(dlvEtprsCd);
 
 			return MarketOrderDto.builder()
 				.marketType(getMarketType())
 				.marketOrderNo(ordNo)
-				.marketProductCode("")
-				.productName("")
+				.marketProductCode(null)
+				.productName(null)
 				.quantity(0)
 				.orderPrice(BigDecimal.ZERO)
 				.totalAmount(BigDecimal.ZERO)
-				.recipientName("")
-				.recipientPhone("")
-				.zipcode("")
-				.address("")
-				.message("")
-				.ordererName("")
-				.ordererPhone("")
+				.recipientName(rcvrNm)
+				.recipientPhone(rcvrPrtblNo)
+				.zipcode(rcvrMailNo)
+				.address(address)
+				.message(ordDlvReqCont)
+				.ordererName(ordNm)
+				.ordererPhone(ordPrtblTel)
 				.customsClearanceNo(psnCscUniqNo)
 				.status(status)
 				.trackingNo(invcNo)
