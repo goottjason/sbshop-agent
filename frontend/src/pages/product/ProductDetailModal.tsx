@@ -5,7 +5,34 @@ import { productApi, type ProductDetail, type ImageUploadResult, type ProductEdi
 
 type Fields = Partial<ProductEditFields>;
 
+// axios 에러 바디에서 사람이 읽을 사유를 추출(GlobalExceptionHandler는 { message } 형태).
+function extractErrorMessage(e: unknown): string {
+  const data = (e as { response?: { data?: unknown } })?.response?.data;
+  if (typeof data === 'string' && data) return data;
+  if (data && typeof data === 'object' && typeof (data as { message?: unknown }).message === 'string') {
+    return (data as { message: string }).message;
+  }
+  if (e instanceof Error && e.message) return e.message;
+  return '알 수 없는 오류';
+}
+
 const GREEN = '#166534';
+
+// enum 필드 옵션(백엔드 enum명 = value, 한글 라벨 = label). 잘못된 값 저장(400)을 원천 차단.
+type Opt = { value: string; label: string };
+const CATEGORY_OPTIONS: Opt[] = [
+  { value: 'SUPPLEMENT', label: '영양제' },
+  { value: 'FOOD', label: '식품' },
+  { value: 'COSMETICS', label: '화장품' },
+  { value: 'UNKNOWN', label: '기타' },
+];
+const VENDOR_OPTIONS: Opt[] = ['IHB', 'AMZ', 'FTN', 'COK', 'OCD', 'TES', 'VTB'].map((v) => ({ value: v, label: v }));
+const MEASURE_UNIT_OPTIONS: Opt[] = [
+  ['EA', '개'], ['CAPSULE', '캡슐'], ['TABLET', '정(타블렛)'], ['PIECE', '조각'], ['PACK', '팩'],
+  ['BOX', '박스'], ['BOTTLE', '병'], ['T_BAG', '티백'], ['COUNT', '개(COUNT)'],
+  ['MG', '밀리그램'], ['G', '그램'], ['KG', '킬로그램'], ['OZ', '온스'], ['LB', '파운드'],
+  ['ML', '밀리리터'], ['L', '리터'], ['UNKNOWN', '기타/미지정'],
+].map(([value, label]) => ({ value, label }));
 
 // 편집 행: 라벨(불릿) 좌 · 고스트 인풋 우(포커스 시 그린 밑줄).
 // 모듈 최상위에 두어 매 입력 리렌더 시 리마운트(포커스 이탈)를 방지한다.
@@ -26,6 +53,30 @@ function EditRow({ label, value, type = 'text', full = false, onChange }: {
         value={value ?? ''}
         onChange={(e) => onChange(type === 'number' ? (e.target.value === '' ? undefined : Number(e.target.value)) : e.target.value)}
       />
+    </div>
+  );
+}
+
+// 선택 행: EditRow와 동일 레이아웃(우측정렬 고스트 셀렉트). 현재 값이 옵션에 없으면(레거시 값)
+// 그 값도 옵션에 보존해 표시 — 사용자가 건드리지 않으면 원값이 유지되도록.
+function EditSelectRow({ label, value, options, full = false, onChange }: {
+  label: string;
+  value: string | undefined;
+  options: Opt[];
+  full?: boolean;
+  onChange: (v: string) => void;
+}) {
+  const hasValue = value != null && value !== '';
+  const known = options.some((o) => o.value === value);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', gridColumn: full ? '1 / -1' : undefined, borderBottom: '1px solid #f4f4f5' }}>
+      <span style={{ color: '#9ca3af', fontSize: 13 }}>•</span>
+      <span style={{ color: '#6b7280', fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}>{label}</span>
+      <select className="pd-inp pd-sel" value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+        <option value="">— 선택 —</option>
+        {hasValue && !known && <option value={value}>{value}</option>}
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
     </div>
   );
 }
@@ -54,6 +105,8 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
   const [saving, setSaving] = useState(false);
   const [detail, setDetail] = useState<ProductDetail | null>(null);
   const [fields, setFields] = useState<Fields>({});
+  // 저장 시점 원본(로드/갱신 때 확정) — 현재 폼과 비교해 변경 여부(dirty)를 판정.
+  const [baseline, setBaseline] = useState<Fields>({});
   const [urlInput, setUrlInput] = useState('');
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,8 +120,10 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
     productApi.fetchProductDetail(productId)
       .then((res) => {
         const d = res.data as ProductDetail;
+        const f = toFields(d);
         setDetail(d);
-        setFields(toFields(d));
+        setFields(f);
+        setBaseline(f);
       })
       .catch(() => message.error('상품 상세 조회에 실패했습니다.'))
       .finally(() => setLoading(false));
@@ -76,12 +131,17 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
 
   const set = <K extends keyof Fields>(name: K, value: Fields[K]) => setFields((f) => ({ ...f, [name]: value }));
 
+  // dirty 판정: 로드 시 baseline과 현재 폼 비교(둘 다 toFields 산출이라 키 순서 동일 → JSON 비교 안전).
+  const dirty = JSON.stringify(fields) !== JSON.stringify(baseline);
+
   const refreshDetail = async () => {
     if (productId == null) return;
     try {
       const res = await productApi.fetchProductDetail(productId);
+      const f = toFields(res.data as ProductDetail);
       setDetail(res.data as ProductDetail);
-      setFields(toFields(res.data as ProductDetail));
+      setFields(f);
+      setBaseline(f);
     } catch { message.error('상세 정보 갱신 실패'); }
   };
 
@@ -102,8 +162,9 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
       message.success('상품 정보가 저장되었습니다.');
       onSaved();
       onClose();
-    } catch {
-      message.error('상품 정보 저장 실패');
+    } catch (e) {
+      // 백엔드는 실패 시 { message } 를 준다(GlobalExceptionHandler) — 사유를 그대로 표면화.
+      message.error(`상품 정보 저장 실패: ${extractErrorMessage(e)}`);
     } finally {
       setSaving(false);
     }
@@ -163,6 +224,12 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
       onChange={(v) => set(name, v as Fields[typeof name])} />
   );
 
+  // enum 필드용 셀렉트 행 헬퍼. 빈 선택은 undefined로 저장(미변경 = 백엔드에서 스킵).
+  const selectRow = (label: string, name: keyof Fields, options: Opt[], full = false) => (
+    <EditSelectRow label={label} value={fields[name] as string | undefined} options={options} full={full}
+      onChange={(v) => set(name, (v === '' ? undefined : v) as Fields[typeof name])} />
+  );
+
   const sectionTitle: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: GREEN, letterSpacing: 0.3, margin: '14px 0 2px' };
   const grid2: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 28px' };
 
@@ -177,13 +244,19 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
       title={null}
       styles={{ body: { maxHeight: '72vh', overflowY: 'auto', padding: '4px 28px 8px' } }}
       footer={
-        <div style={{ display: 'flex', gap: 12, padding: '4px 20px 4px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 20px 4px' }}>
+          {/* 변경 상태 표시: 저장할 내용이 있을 때만 점+라벨 노출 */}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 64, fontSize: 12, fontWeight: 600,
+            color: dirty ? GREEN : 'transparent', visibility: d ? 'visible' : 'hidden' }}>
+            <span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? GREEN : 'transparent' }} />
+            {dirty ? '변경됨' : ''}
+          </span>
           <button onClick={onClose}
             style={{ flex: 1, padding: '11px 0', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
             닫기
           </button>
-          <button onClick={handleSave} disabled={saving || loading || !d}
-            style={{ flex: 1.4, padding: '11px 0', background: saving || loading || !d ? '#9ca3af' : GREEN, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: saving || loading || !d ? 'default' : 'pointer' }}>
+          <button onClick={handleSave} disabled={saving || loading || !d || !dirty}
+            style={{ flex: 1.4, padding: '11px 0', background: saving || loading || !d || !dirty ? '#9ca3af' : GREEN, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: saving || loading || !d || !dirty ? 'default' : 'pointer' }}>
             {saving ? '저장 중…' : '저장'}
           </button>
         </div>
@@ -195,6 +268,10 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
         .pd-inp:hover { border-bottom-color: #e5e7eb; }
         .pd-inp:focus { border-bottom-color: ${GREEN}; }
         .pd-inp::placeholder { color: #cbd5e1; font-weight: 400; }
+        /* enum 셀렉트: 고스트 인풋과 동일 톤. 우측정렬 + 화살표 여백 확보. */
+        .pd-sel { cursor: pointer; text-align: right; text-align-last: right; padding-right: 2px;
+          appearance: none; -webkit-appearance: none; -moz-appearance: none; }
+        .pd-sel:hover { border-bottom-color: #e5e7eb; }
         .pd-ta { width: 100%; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 10px; font-size: 13px;
           outline: none; resize: vertical; font-family: inherit; box-sizing: border-box; }
         .pd-ta:focus { border-color: ${GREEN}; }
@@ -213,7 +290,7 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
             <div style={{ fontSize: 22, fontWeight: 800, color: '#111827', lineHeight: 1.25 }}>{d.productName || '상품 상세'}</div>
             <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: GREEN, background: 'var(--product-badge-bg, #dcfce7)', border: `1px solid ${GREEN}`, borderRadius: 999, padding: '2px 10px' }}>
-                {d.category || '카테고리 없음'}
+                {CATEGORY_OPTIONS.find((o) => o.value === d.category)?.label || d.category || '카테고리 없음'}
               </span>
               <span style={{ fontSize: 13, color: '#6b7280' }}>
                 {d.sbCode}{d.brand ? ` · ${d.brand}` : ''}{d.sourcingInfo?.vendor ? ` · ${d.sourcingInfo.vendor}` : ''}
@@ -227,7 +304,7 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
           <div style={sectionTitle}>기본 정보</div>
           <div style={grid2}>
             {row('브랜드', 'brand')}
-            {row('카테고리', 'category')}
+            {selectRow('카테고리', 'category', CATEGORY_OPTIONS)}
             {row('상품명', 'productName', 'text', true)}
             {row('기본명', 'baseName')}
             {row('원문명', 'originalName')}
@@ -249,13 +326,13 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
             {row('묶음수량', 'bundleQuantity', 'number')}
             {row('바코드', 'barcode')}
             {row('용량', 'capacity', 'number')}
-            {row('단위', 'measureUnit')}
+            {selectRow('단위', 'measureUnit', MEASURE_UNIT_OPTIONS)}
           </div>
 
           {/* 소싱 */}
           <div style={sectionTitle}>소싱</div>
           <div style={grid2}>
-            {row('소싱처', 'vendor')}
+            {selectRow('소싱처', 'vendor', VENDOR_OPTIONS)}
             {row('제조사', 'manufacturer')}
             {row('원산지', 'origin')}
             {row('HS코드', 'hsCode')}
