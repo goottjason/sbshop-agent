@@ -23,10 +23,12 @@ class FortnumScraper(VendorScraper):
     def scrape(self, url: str, *, stealth: bool = False, dump_html: str | None = None) -> ScrapeResult:
         now = datetime.now(timezone.utc).isoformat()
         try:
+            # wait: JS 하이드레이션(가격·담기버튼)이 network_idle 직후에도 늦을 수 있어 추가 대기.
             if stealth:
-                page = StealthyFetcher.fetch(url, headless=True, network_idle=True, solve_cloudflare=True)
+                page = StealthyFetcher.fetch(url, headless=True, network_idle=True,
+                                             wait=2500, solve_cloudflare=True)
             else:
-                page = DynamicFetcher.fetch(url, headless=True, network_idle=True)
+                page = DynamicFetcher.fetch(url, headless=True, network_idle=True, wait=2500)
         except Exception as e:  # noqa: BLE001
             return ScrapeResult(ok=False, status="error", sourceUrl=url, vendor=self.vendor,
                                 error=f"fetch error: {e}", scrapedAt=now)
@@ -92,14 +94,18 @@ class FortnumScraper(VendorScraper):
         if weight is None:
             weight = parse_weight_grams(page.get_all_text() or "")
 
-        # 재고: 담기 버튼 유무 / 품절 문구
+        # 재고 판정(안전 기본): 가격 있는 정상(200) 페이지는 명시적 품절 신호가 없으면 재고 있음으로 본다.
+        # F&M 품절 상품은 담기 대신 "notify me"/"out of stock" 등을 노출하므로 그 신호만 품절로 판정.
+        # (담기 버튼 텍스트는 하이드레이션 타이밍에 따라 놓칠 수 있어 '버튼 유무'에 의존하지 않는다 —
+        #  오품절 방지가 최우선.)
         text = (page.get_all_text() or "").lower()
-        in_stock = None
-        avail = None
-        if "add to bag" in text or "add to basket" in text:
-            in_stock, avail = True, "Add to Bag"
-        elif any(s in text for s in ("out of stock", "sold out", "notify me", "currently unavailable")):
+        oos_markers = ("out of stock", "sold out", "notify me", "currently unavailable",
+                       "temporarily unavailable", "email when available")
+        if any(s in text for s in oos_markers):
             in_stock, avail = False, "Out of stock"
+        else:
+            in_stock = True
+            avail = "Add to Bag" if ("add to bag" in text or "add to basket" in text) else "In stock"
 
         # (3) 200인데 가격 못 찾음 → 레이아웃 변경 등 이상. 오품절 방지 위해 error로 스킵(재고 미변경).
         ok = price is not None

@@ -61,10 +61,14 @@ public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 		String status = res.path("status").asText("error");
 		switch (status) {
 			case "ok": {
-				boolean inStock = res.path("inStock").asBoolean(false);
 				if (!res.hasNonNull("costKrw")) {
 					throw new IllegalStateException("F&M 원가(costKrw) 없음 — 스킵: " + sourceUrl);
 				}
+				// 재고 판별 불가(inStock 누락/null)면 오품절 방지 위해 스킵(예외→배치 실패 기록).
+				if (!res.hasNonNull("inStock")) {
+					throw new IllegalStateException("F&M 재고 판별 불가(inStock 없음) — 스킵: " + sourceUrl);
+				}
+				boolean inStock = res.path("inStock").asBoolean(false);
 				BigDecimal costPrice = BigDecimal.valueOf(res.get("costKrw").asLong());
 				return new StockCheckResult(
 					inStock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
