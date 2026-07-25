@@ -55,7 +55,9 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 				purchaseStatusIn(condition.getPurchaseStatuses()),
 				customsStatusIn(condition.getCustomsStatuses()),
 				keywordContains(condition.getKeyword(), qLineItem, qProduct),
-				dateBetween(condition.getStartDate(), condition.getEndDate()))
+				dateBetween(condition.getStartDate(), condition.getEndDate()),
+				stockStatusExists(condition.getStockStatuses()),
+				vendorExists(condition.getVendors()))
 			.orderBy(order.orderDate.desc())
 			.offset(pageable.getOffset())
 			.limit(pageable.getPageSize());
@@ -128,7 +130,9 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 				purchaseStatusIn(condition.getPurchaseStatuses()),
 				customsStatusIn(condition.getCustomsStatuses()),
 				keywordContains(condition.getKeyword(), qLineItem, qProduct),
-				dateBetween(condition.getStartDate(), condition.getEndDate()));
+				dateBetween(condition.getStartDate(), condition.getEndDate()),
+				stockStatusExists(condition.getStockStatuses()),
+				vendorExists(condition.getVendors()));
 
 		return PageableExecutionUtils.getPage(dtoList, pageable, countQuery::fetchOne);
 	}
@@ -200,6 +204,30 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.exists();
 
 		return orderFields.or(hasMatchingLineItem);
+	}
+
+	/** 재고상태 필터 — 라인아이템 연결 상품의 재고상태(enum name 문자열 비교)로 존재 여부 판정 */
+	private BooleanExpression stockStatusExists(List<String> stockStatuses) {
+		if (stockStatuses == null || stockStatuses.isEmpty()) {
+			return null;
+		}
+		QOrderLineItem sli = QOrderLineItem.orderLineItem;
+		QProduct sp = QProduct.product;
+		return com.querydsl.jpa.JPAExpressions.selectOne().from(sli)
+			.leftJoin(sp).on(sp.id.eq(sli.productId))
+			.where(sli.orderId.eq(order.id), sp.stockStatus.stringValue().in(stockStatuses))
+			.exists();
+	}
+
+	/** 소싱처 필터 — 라인아이템의 소싱 벤더로 존재 여부 판정 */
+	private BooleanExpression vendorExists(List<String> vendors) {
+		if (vendors == null || vendors.isEmpty()) {
+			return null;
+		}
+		QOrderLineItem sli = QOrderLineItem.orderLineItem;
+		return com.querydsl.jpa.JPAExpressions.selectOne().from(sli)
+			.where(sli.orderId.eq(order.id), sli.sourcingData.sourcingVendor.in(vendors))
+			.exists();
 	}
 
 	/** 기간 필터 (한쪽만 주어져도 그 경계는 적용한다 — F-ORD-2) */
