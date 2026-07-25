@@ -28,6 +28,9 @@ services:
       EMAIL_CENTRAL_PASSWORD: ${EMAIL_CENTRAL_PASSWORD:-}
       EMAIL_ACCOUNTS: ${EMAIL_ACCOUNTS:-}
       SELENIUM_REMOTE_URL: http://sbshop-selenium:4444/wd/hub
+      # Fortnum&Mason 등 소싱 크롤 담당 Scrapling 서비스. depends_on 없음(스크래퍼 장애가
+      # api 기동을 막지 않도록) — 스크래퍼 미기동 시 F&M 배치는 안전하게 실패 기록만 남긴다.
+      SCRAPER_BASE_URL: http://sbshop-scraper:8099
     depends_on:
       - sbshop-selenium
     networks:
@@ -38,6 +41,17 @@ services:
   sbshop-selenium:
     image: seleniarm/standalone-chromium:latest
     container_name: projects-sbshop-selenium-1
+    shm_size: "2g"
+    networks:
+      - shared-net
+    restart: unless-stopped
+
+  # Scrapling(Playwright) 소싱 스크래핑 서비스 — Fortnum&Mason 재고·가격·원가.
+  sbshop-scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile.scraper
+    container_name: projects-sbshop-scraper-1
     shm_size: "2g"
     networks:
       - shared-net

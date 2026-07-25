@@ -1,0 +1,21 @@
+# sbshop-scraper — Scrapling(Playwright) 기반 소싱 스크래핑 서비스(FastAPI).
+# Fortnum&Mason 등 JS렌더+Cloudflare 페이지를 브라우저로 렌더해 재고·가격·원가를 반환한다.
+# Playwright 공식 이미지(브라우저 OS 의존성 + ARM64 지원)에 Scrapling을 얹는다.
+FROM mcr.microsoft.com/playwright/python:v1.61.0-noble
+
+WORKDIR /app
+ENV PIP_NO_CACHE_DIR=1 \
+    PYTHONUNBUFFERED=1
+
+COPY scraper/requirements.txt .
+RUN pip install -r requirements.txt
+
+# Scrapling 브라우저(patchright chromium 등) 설치
+RUN scrapling install
+
+# 소스(.venv/__pycache__ 제외하고 명시적으로만 복사)
+COPY scraper/app.py scraper/models.py scraper/pricing.py ./
+COPY scraper/scrapers/ ./scrapers/
+
+EXPOSE 8099
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8099"]

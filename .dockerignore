@@ -11,3 +11,9 @@ build
 .gradle
 .idea
 *.iml
+# Python scraper 로컬 산출물(서버엔 없지만 로컬 빌드 컨텍스트 오염 방지)
+**/.venv
+**/__pycache__
+*.pyc
+scraper/fm.html
+scraper/fm_rendered.html
