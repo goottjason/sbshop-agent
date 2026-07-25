@@ -33,7 +33,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 
+	// HTTP/1.1 고정: 기본 HTTP/2 협상 시 uvicorn(HTTP/1.1 전용)에 POST 본문이 유실돼 422가 난다.
 	private final HttpClient httpClient = HttpClient.newBuilder()
+		.version(HttpClient.Version.HTTP_1_1)
 		.connectTimeout(Duration.ofSeconds(15))
 		.build();
 	private final ObjectMapper objectMapper;
