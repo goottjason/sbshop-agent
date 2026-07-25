@@ -775,8 +775,10 @@ const OrderGrid: React.FC = () => {
     const vendors = getAll('vendors');
     const customsStatuses = getAll('customsStatuses');
     const keyword = searchParams.get('keyword') ?? '';
-    const startDate = searchParams.get('startDate') ?? defaultStart;
-    const endDate = searchParams.get('endDate') ?? defaultEnd;
+    // 대시보드 드릴다운은 기간 무관 조회(전체 기간)를 의도하고 startDate/endDate를 의도적으로 생략할 수 있다.
+    // 이 경우 그리드 기본값(1개월 전)으로 클램프하면 오래된 주문(예: 40일 지연 NEW)이 숨겨지므로 undefined(무제한)로 둔다.
+    const startDate = searchParams.get('startDate') ?? undefined;
+    const endDate = searchParams.get('endDate') ?? undefined;
     const hasAny = markets.length || statuses.length || stockStatuses.length || vendors.length || customsStatuses.length || searchParams.get('keyword') || searchParams.get('startDate') || searchParams.get('endDate');
     return hasAny ? {
       keyword,
