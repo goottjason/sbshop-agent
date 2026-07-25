@@ -476,15 +476,19 @@ const ALL_STATUSES = ['UNKNOWN', 'NEW', 'PREPARING', 'DISPATCHED', 'SHIPPED', 'D
 const DEFAULT_VISIBLE_STATUSES = ALL_STATUSES.filter(s => !TERMINAL_STATUSES.includes(s));
 
 // 상단 필터 패널 컴포넌트 (UI)
-function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: string[], statuses: string[], startDate: string, endDate: string, purchaseStatuses: string[]) => void }) {
+function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: string[], statuses: string[], startDate: string, endDate: string, purchaseStatuses: string[], stockStatuses: string[], vendors: string[]) => void }) {
    const allMarkets = ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'];
   const allStatuses = ALL_STATUSES;
   const allPurchaseStatuses = ['NOT_PURCHASED', 'PURCHASED', 'WAITING_STOCK'];
+  const allStockStatuses = ['IN_STOCK', 'OUT_OF_STOCK'];
+  const allVendors = VENDOR_OPTIONS.filter(v => v !== '');
 
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(allMarkets);
   // 기본 조회에서 종결상태(취소/반품/교환)는 제외 — 보고 싶으면 유저가 직접 체크.
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(DEFAULT_VISIBLE_STATUSES);
   const [selectedPurchaseStatuses, setSelectedPurchaseStatuses] = useState<string[]>(allPurchaseStatuses);
+  const [selectedStockStatuses, setSelectedStockStatuses] = useState<string[]>(allStockStatuses);
+  const [selectedVendors, setSelectedVendors] = useState<string[]>(allVendors);
   const [keyword, setKeyword] = useState('');
 
   // 날짜 기본값: 1개월 전 ~ 오늘
@@ -500,9 +504,11 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
   const isAllMarketsSelected = selectedMarkets.length === allMarkets.length;
   const isAllStatusesSelected = selectedStatuses.length === allStatuses.length;
   const isAllPurchaseSelected = selectedPurchaseStatuses.length === allPurchaseStatuses.length;
+  const isAllStockSelected = selectedStockStatuses.length === allStockStatuses.length;
+  const isAllVendorsSelected = selectedVendors.length === allVendors.length;
 
   const handleSearch = () => {
-    onSearch(keyword, selectedMarkets, selectedStatuses, startDate, endDate, selectedPurchaseStatuses);
+    onSearch(keyword, selectedMarkets, selectedStatuses, startDate, endDate, selectedPurchaseStatuses, selectedStockStatuses, selectedVendors);
   };
 
   const handlePeriod = (idx: number) => {
@@ -520,6 +526,8 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
   const toggleMarket = (val: string) => setSelectedMarkets(prev => prev.includes(val) ? prev.filter(m => m !== val) : [...prev, val]);
   const toggleStatus = (val: string) => setSelectedStatuses(prev => prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]);
   const togglePurchase = (val: string) => setSelectedPurchaseStatuses(prev => prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]);
+  const toggleStock = (val: string) => setSelectedStockStatuses(prev => prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]);
+  const toggleVendor = (val: string) => setSelectedVendors(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
 
   return (
     <div style={{ backgroundColor: '#f8f9fa', borderTop: '2px solid var(--primary-color)', borderBottom: '1px solid #ddd', padding: '12px 20px', marginBottom: '12px', fontSize: '13px' }}>
@@ -595,7 +603,7 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
         </div>
       </div>
 
-      {/* Row 3: 구매상태 */}
+      {/* Row 3: 구매상태 / 재고상태 */}
       <div style={{ display: 'flex', paddingTop: '8px', marginTop: '8px', borderTop: '1px solid #eaeaea' }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
           <span style={{ width: '120px', fontWeight: 600, color: '#555' }}>구매상태</span>
@@ -612,6 +620,43 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
               <label key={ps.id} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#333' }}>
                 <input type="checkbox" checked={selectedPurchaseStatuses.includes(ps.id)} onChange={() => togglePurchase(ps.id)} style={{ marginRight: '6px', accentColor: 'var(--primary-color)', width: '16px', height: '16px', cursor: 'pointer' }} />
                 {ps.label}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+          <span style={{ width: '120px', fontWeight: 600, color: '#555' }}>재고상태</span>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#333' }}>
+              <input type="checkbox" checked={isAllStockSelected} onChange={() => setSelectedStockStatuses(isAllStockSelected ? [] : allStockStatuses)} style={{ marginRight: '6px', accentColor: 'var(--primary-color)', width: '16px', height: '16px', cursor: 'pointer' }} />
+              전체
+            </label>
+            {[
+              { id: 'IN_STOCK', label: '있음' },
+              { id: 'OUT_OF_STOCK', label: '품절' }
+            ].map(ss => (
+              <label key={ss.id} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#333' }}>
+                <input type="checkbox" checked={selectedStockStatuses.includes(ss.id)} onChange={() => toggleStock(ss.id)} style={{ marginRight: '6px', accentColor: 'var(--primary-color)', width: '16px', height: '16px', cursor: 'pointer' }} />
+                {ss.label}
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Row 4: 소싱처 */}
+      <div style={{ display: 'flex', paddingTop: '8px', marginTop: '8px', borderTop: '1px solid #eaeaea' }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+          <span style={{ width: '120px', fontWeight: 600, color: '#555' }}>소싱처</span>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#333' }}>
+              <input type="checkbox" checked={isAllVendorsSelected} onChange={() => setSelectedVendors(isAllVendorsSelected ? [] : allVendors)} style={{ marginRight: '6px', accentColor: 'var(--primary-color)', width: '16px', height: '16px', cursor: 'pointer' }} />
+              전체
+            </label>
+            {allVendors.map(vendor => (
+              <label key={vendor} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#333' }}>
+                <input type="checkbox" checked={selectedVendors.includes(vendor)} onChange={() => toggleVendor(vendor)} style={{ marginRight: '6px', accentColor: 'var(--primary-color)', width: '16px', height: '16px', cursor: 'pointer' }} />
+                {vendor}
               </label>
             ))}
           </div>
@@ -1530,7 +1575,7 @@ const OrderGrid: React.FC = () => {
           })}
         </div>
       )}
-      <OrderFilterPanel onSearch={(keyword, markets, statuses, startDate, endDate, purchaseStatuses) => { setQueryParams({ keyword, markets, statuses, purchaseStatuses, startDate, endDate }); setSearchTrigger(c => c + 1); }} />
+      <OrderFilterPanel onSearch={(keyword, markets, statuses, startDate, endDate, purchaseStatuses, stockStatuses, vendors) => { setQueryParams(prev => ({ keyword, markets, statuses, purchaseStatuses, startDate, endDate, stockStatuses, vendors, customsStatuses: prev.customsStatuses })); setSearchTrigger(c => c + 1); }} />
 
       <div style={{ flex: 1, backgroundColor: 'white', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
         <div className="force-scrollbar" ref={gridScrollRef} onMouseOver={applyRowHover} onMouseLeave={clearRowHover} style={{ flex: 1, overflow: 'scroll' }}>
