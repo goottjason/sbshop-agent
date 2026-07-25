@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Form, Input, InputNumber, Button, Radio, message, Card, Progress, Space, Typography } from 'antd';
+import { Form, Input, InputNumber, Button, Radio, message, Card, Progress, Space, Typography, Select, ConfigProvider } from 'antd';
 import { batchApi } from '../api/batchApi';
+import { VENDOR_OPTIONS } from './product/productGridShared';
+
+// 그린 테마(상품/주문 페이지와 통일). antd 전역 primary는 검정이라 이 페이지만 ConfigProvider로 그린 적용.
+const GREEN = '#166534';
 
 const ACTIVE_BATCH_KEY = 'sbshop.activeBatchId';
 const POLL_INTERVAL_MS = 30000;
@@ -174,42 +178,49 @@ const BatchUpdatePage = () => {
       : 'active';
 
   return (
-    <div style={{ padding: 24 }}>
-      <Card title="배치 가격/재고 일괄 업데이트">
-        <Radio.Group value={mode} onChange={(e) => setMode(e.target.value)} style={{ marginBottom: 16 }}>
+    <ConfigProvider theme={{ token: { colorPrimary: GREEN } }}>
+    <div className="product-theme" style={{ padding: 24, background: '#f8f9fa', minHeight: '100%' }}>
+      <Card
+        title={<span style={{ color: GREEN, fontWeight: 700 }}>배치 가격/재고 일괄 업데이트</span>}
+        style={{ borderRadius: 10 }}
+      >
+        <Radio.Group value={mode} onChange={(e) => setMode(e.target.value)} style={{ marginBottom: 20 }}>
           <Radio.Button value="supplier">소싱업체별</Radio.Button>
           <Radio.Button value="manual">상품ID 지정</Radio.Button>
         </Radio.Group>
 
         <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ marginRate: 15, couponRate: 20, minMarginPrice: 5000 }}>
-          {mode === 'supplier' ? (
-            <Form.Item name="supplierCode" label="소싱업체 코드" initialValue="IHB">
-              <Input style={{ width: 200 }} />
+          {/* 입력을 한 줄로: 라벨은 위, 필드는 나란히, 실행 버튼은 줄 끝 정렬 */}
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            {mode === 'supplier' ? (
+              <Form.Item name="supplierCode" label="소싱업체 코드" initialValue="IHB" style={{ marginBottom: 0 }}>
+                <Select style={{ width: 160 }} options={VENDOR_OPTIONS.map((v) => ({ value: v, label: v }))} />
+              </Form.Item>
+            ) : (
+              <Form.Item name="productIds" label="상품 ID (콤마 구분)" style={{ marginBottom: 0 }}>
+                <Input placeholder="1, 2, 3" style={{ width: 240 }} />
+              </Form.Item>
+            )}
+            <Form.Item name="marginRate" label="마진율 (%)" style={{ marginBottom: 0 }}>
+              <InputNumber min={0} max={100} style={{ width: 120 }} />
             </Form.Item>
-          ) : (
-            <Form.Item name="productIds" label="상품 ID (콤마 구분)">
-              <Input placeholder="1, 2, 3" />
+            <Form.Item name="couponRate" label="쿠폰율 (%)" style={{ marginBottom: 0 }}>
+              <InputNumber min={0} max={100} style={{ width: 120 }} />
             </Form.Item>
-          )}
-          <Form.Item name="marginRate" label="마진율 (%)">
-            <InputNumber min={0} max={100} />
-          </Form.Item>
-          <Form.Item name="couponRate" label="쿠폰율 (%)">
-            <InputNumber min={0} max={100} />
-          </Form.Item>
-          <Form.Item name="minMarginPrice" label="최소 마진가 (원)">
-            <InputNumber min={0} />
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading}>배치 실행</Button>
-          </Form.Item>
+            <Form.Item name="minMarginPrice" label="최소 마진가 (원)" style={{ marginBottom: 0 }}>
+              <InputNumber min={0} style={{ width: 150 }} />
+            </Form.Item>
+            <Form.Item style={{ marginBottom: 0 }}>
+              <Button type="primary" htmlType="submit" loading={loading} style={{ fontWeight: 600 }}>배치 실행</Button>
+            </Form.Item>
+          </div>
         </Form>
       </Card>
 
       {batchId && (
         <Card
-          title="배치 진행현황"
-          style={{ marginTop: 16 }}
+          title={<span style={{ color: GREEN, fontWeight: 700 }}>배치 진행현황</span>}
+          style={{ marginTop: 16, borderRadius: 10 }}
           extra={
             <Button size="small" onClick={() => void fetchSummary(batchId)}>새로고침</Button>
           }
@@ -238,6 +249,7 @@ const BatchUpdatePage = () => {
         </Card>
       )}
     </div>
+    </ConfigProvider>
   );
 };
 
