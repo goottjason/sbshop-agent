@@ -11,7 +11,6 @@ import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
-import com.sbshop.agent.core.application.product.port.ProductStockCrawlerPort;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
@@ -40,7 +39,7 @@ class BatchProcessStatusKeyTest {
     @Mock private ProductReader productReader;
     @Mock private ProductWriter productWriter;
     @Mock private ProductRepository productRepository;
-    @Mock private ProductStockCrawlerPort productStockCrawlerPort;
+    @Mock private StockCrawlerRouter stockCrawlerRouter;
     @Mock private ProcessStatusService processStatusService;
     @Mock private MarginCalculator marginCalculator;
     @Mock private ApplicationEventPublisher eventPublisher;
@@ -57,7 +56,7 @@ class BatchProcessStatusKeyTest {
     @BeforeEach
     void setUp() {
         service = new BatchPriceStockService(productReader, productWriter, productRepository,
-            productStockCrawlerPort, processStatusService, marginCalculator, eventPublisher,
+            stockCrawlerRouter, processStatusService, marginCalculator, eventPublisher,
             productMarketSyncService, marketFeeService);
 
         lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
@@ -80,7 +79,7 @@ class BatchProcessStatusKeyTest {
     @DisplayName("크롤 배치 성공 시 markSuccess의 KEY는 sbCode가 아니라 productId(String.valueOf)여야 한다")
     void crawlBatch_success_marksWithProductIdKey() {
         lenient().when(product.getSourcingUrl()).thenReturn("https://example.com/item/132");
-        when(productStockCrawlerPort.checkStockWithDetails("https://example.com/item/132"))
+        when(stockCrawlerRouter.checkStockWithDetails(any(), eq("https://example.com/item/132")))
             .thenReturn(new StockCheckResult(StockStatus.IN_STOCK, new BigDecimal("5000"), 100, null));
 
         service.crawlAndUpdatePriceStock("batch-1", List.of(PRODUCT_ID),

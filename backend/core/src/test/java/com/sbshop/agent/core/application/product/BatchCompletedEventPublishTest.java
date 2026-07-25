@@ -6,7 +6,6 @@ import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.event.BatchCompletedEvent;
-import com.sbshop.agent.core.application.product.port.ProductStockCrawlerPort;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
@@ -43,7 +42,7 @@ class BatchCompletedEventPublishTest {
 			productReader,
 			productWriter,
 			mock(ProductRepository.class),
-			mock(ProductStockCrawlerPort.class),
+			mock(StockCrawlerRouter.class),
 			mock(ProcessStatusService.class),
 			mock(MarginCalculator.class),
 			eventPublisher,

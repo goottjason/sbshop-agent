@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import com.sbshop.agent.core.application.process.ProcessStatusService;
-import com.sbshop.agent.core.application.product.port.ProductStockCrawlerPort;
 import com.sbshop.agent.core.config.AsyncConfig;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
@@ -100,7 +99,7 @@ class BatchPriceStockAsyncPoolTest {
 				completed.countDown();
 			};
 			return new BatchPriceStockService(mock(ProductReader.class), mock(ProductWriter.class),
-				mock(ProductRepository.class), mock(ProductStockCrawlerPort.class),
+				mock(ProductRepository.class), mock(StockCrawlerRouter.class),
 				mock(ProcessStatusService.class), mock(MarginCalculator.class), recordingPublisher,
 				mock(ProductMarketSyncService.class), mock(MarketFeeService.class));
 		}

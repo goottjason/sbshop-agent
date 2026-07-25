@@ -1,0 +1,4 @@
+# Python 3.10+ 필요 (권장 3.12). 설치 후 브라우저: `scrapling install`
+scrapling[fetchers]==0.4.11
+fastapi==0.140.0
+uvicorn[standard]==0.51.0

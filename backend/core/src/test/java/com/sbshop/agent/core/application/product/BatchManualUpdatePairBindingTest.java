@@ -37,7 +37,7 @@ class BatchManualUpdatePairBindingTest {
     @Mock private ProductReader productReader;
     @Mock private ProductWriter productWriter;
     @Mock private ProductRepository productRepository;
-    @Mock private com.sbshop.agent.core.application.product.port.ProductStockCrawlerPort productStockCrawlerPort;
+    @Mock private StockCrawlerRouter stockCrawlerRouter;
     @Mock private ProcessStatusService processStatusService;
     @Mock private MarginCalculator marginCalculator;
     @Mock private ApplicationEventPublisher eventPublisher;
@@ -55,7 +55,7 @@ class BatchManualUpdatePairBindingTest {
     @BeforeEach
     void setUp() {
         service = new BatchPriceStockService(productReader, productWriter, productRepository,
-            productStockCrawlerPort, processStatusService, marginCalculator, eventPublisher,
+            stockCrawlerRouter, processStatusService, marginCalculator, eventPublisher,
             productMarketSyncService, marketFeeService);
 
         lenient().when(productReader.findById(PID_1)).thenReturn(Optional.of(product1));

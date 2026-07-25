@@ -50,6 +50,11 @@ elevenst:
   api-key: ${ELEVENST_CLIENT_ID:}
   api-url: http://api.11st.co.kr
 
+# Fortnum&Mason 등 브라우저 렌더 소싱 크롤을 담당하는 Python Scrapling 서비스(sbshop-scraper).
+# 운영 배포 시 SCRAPER_BASE_URL로 사이드카 주소 지정(예: http://scraper:8099).
+scraper:
+  base-url: ${SCRAPER_BASE_URL:http://localhost:8099}
+
 # 이메일 수집(EmailFetcherService)·검색(IherbEmailSearchService) 계정. 단일 백엔드라 여기 한 곳에서 관리.
 # 소싱 계정들은 각자 Gmail 자동전달로 이 '중앙 계정' 인박스에 모으고, 시스템은 중앙 계정 하나만 읽는다.
 sbshop:

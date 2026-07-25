@@ -11,7 +11,6 @@ import static org.mockito.ArgumentMatchers.argThat;
 
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
-import com.sbshop.agent.core.application.product.port.ProductStockCrawlerPort;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
@@ -39,7 +38,7 @@ class BatchForwardsStockStatusTest {
     @Mock private ProductReader productReader;
     @Mock private ProductWriter productWriter;
     @Mock private ProductRepository productRepository;
-    @Mock private ProductStockCrawlerPort productStockCrawlerPort;
+    @Mock private StockCrawlerRouter stockCrawlerRouter;
     @Mock private ProcessStatusService processStatusService;
     @Mock private MarginCalculator marginCalculator;
     @Mock private ApplicationEventPublisher eventPublisher;
@@ -54,7 +53,7 @@ class BatchForwardsStockStatusTest {
     @BeforeEach
     void setUp() {
         service = new BatchPriceStockService(productReader, productWriter, productRepository,
-            productStockCrawlerPort, processStatusService, marginCalculator, eventPublisher,
+            stockCrawlerRouter, processStatusService, marginCalculator, eventPublisher,
             productMarketSyncService, marketFeeService);
 
         lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
@@ -78,7 +77,7 @@ class BatchForwardsStockStatusTest {
     void crawlBatch_outOfStock_forwardsStockStatusToSync() throws InterruptedException {
         StockCheckResult crawlResult = new StockCheckResult(
             StockStatus.OUT_OF_STOCK, new BigDecimal("5000"), 0, null);
-        when(productStockCrawlerPort.checkStockWithDetails("https://example.com/item/42"))
+        when(stockCrawlerRouter.checkStockWithDetails(any(), eq("https://example.com/item/42")))
             .thenReturn(crawlResult);
 
         service.crawlAndUpdatePriceStock("batch-1", List.of(PRODUCT_ID),
@@ -96,7 +95,7 @@ class BatchForwardsStockStatusTest {
     void crawlBatch_inStock_forwardsStockStatusToSync() throws InterruptedException {
         StockCheckResult crawlResult = new StockCheckResult(
             StockStatus.IN_STOCK, new BigDecimal("5000"), 100, null);
-        when(productStockCrawlerPort.checkStockWithDetails("https://example.com/item/42"))
+        when(stockCrawlerRouter.checkStockWithDetails(any(), eq("https://example.com/item/42")))
             .thenReturn(crawlResult);
 
         service.crawlAndUpdatePriceStock("batch-1", List.of(PRODUCT_ID),

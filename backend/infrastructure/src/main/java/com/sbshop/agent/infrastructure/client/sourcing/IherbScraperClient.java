@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
 import com.sbshop.agent.core.application.product.port.ProductInfoCrawlerPort;
-import com.sbshop.agent.core.application.product.port.ProductStockCrawlerPort;
+import com.sbshop.agent.core.application.product.port.VendorAwareStockCrawler;
 import com.sbshop.agent.core.application.sourcing.dto.ScrapedProductDto;
 import com.sbshop.agent.core.application.sourcing.dto.SourcingCrawlResult;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
@@ -24,17 +24,25 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
+@Primary
 @RequiredArgsConstructor
-public class IherbScraperClient implements ProductStockCrawlerPort, ProductInfoCrawlerPort {
+public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoCrawlerPort {
 
 	private final HttpClient httpClient = HttpClient.newBuilder()
 		.connectTimeout(Duration.ofSeconds(10))
 		.build();
 	private final ObjectMapper objectMapper;
+
+	// 벤더 라우팅용(StockCrawlerRouter). iHerb가 기본 크롤러.
+	@Override
+	public VendorType vendor() {
+		return VendorType.IHB;
+	}
 
 	@Override
 	public StockStatus checkStockStatus(String sourceUrl) {

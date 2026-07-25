@@ -4,7 +4,6 @@ import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.dto.PricingInputs;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
-import com.sbshop.agent.core.application.product.port.ProductStockCrawlerPort;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
@@ -32,7 +31,8 @@ public class BatchPriceStockService {
 	private final ProductReader productReader;
 	private final ProductWriter productWriter;
 	private final ProductRepository productRepository;
-	private final ProductStockCrawlerPort productStockCrawlerPort;
+	// 벤더별 재고 크롤러 라우팅(IHB=iHerb 내부API, FTN=Fortnum&Mason Scrapling 서비스).
+	private final StockCrawlerRouter stockCrawlerRouter;
 	private final ProcessStatusService processStatusService;
 	private final MarginCalculator marginCalculator;
 	private final ApplicationEventPublisher eventPublisher;
@@ -63,11 +63,33 @@ public class BatchPriceStockService {
 					continue;
 				}
 
-				StockCheckResult result = productStockCrawlerPort.checkStockWithDetails(sourceUrl);
-				BigDecimal buyPrice = result.costPrice() != null ? result.costPrice() : BigDecimal.ZERO;
+				// 벤더별 크롤러로 재고/원가 조회(F&M은 Scrapling 서비스가 원가를 원화로 산출해 반환).
+				StockCheckResult result = stockCrawlerRouter.checkStockWithDetails(product.getVendor(), sourceUrl);
 				int bundleQty = product.getLogisticsInfo() != null
 					&& product.getLogisticsInfo().getBundleQuantity() != null
 						? product.getLogisticsInfo().getBundleQuantity() : 1;
+
+				// 링크 소멸(404 등) → 가격 재산정 없이 재고만 품절 처리(오가격 방지). 기존 가격/원가 유지.
+				if (result.sourceGone()) {
+					boolean goneChanged = product.getStockStatus() != StockStatus.OUT_OF_STOCK;
+					product.updateStockStatus(StockStatus.OUT_OF_STOCK);
+					productWriter.save(product);
+					BigDecimal existingCost = product.getPriceInfo() != null
+						? product.getPriceInfo().getCostPrice() : null;
+					MarketRepublishResult goneSync = productMarketSyncService.syncPriceStockPerMarket(
+						productId,
+						new PricingInputs(existingCost != null ? existingCost : BigDecimal.ZERO,
+							bundleQty, marginRate, couponRate, minMarginPrice),
+						StockStatus.OUT_OF_STOCK, goneChanged);
+					processStatusService.markSuccess(batchId, String.valueOf(productId),
+						String.format("[%s] 소스 링크 없음 → 품절 처리(가격 미변경) · 마켓반영 성공%d/스킵%d/실패%d",
+							product.getSbCode(), goneSync.synced().size(), goneSync.skipped().size(),
+							goneSync.failed().size()));
+					Thread.sleep(CRAWL_THROTTLE_MS);
+					continue;
+				}
+
+				BigDecimal buyPrice = result.costPrice() != null ? result.costPrice() : BigDecimal.ZERO;
 				// F-BATCH-6: 쿠폰율을 실매입가에 반영(구매가 × (1-쿠폰%))한 뒤 판매가를 산정한다.
 				// D-094: 기준가(sb_product.sale_price)는 쿠팡 실수수료 기준으로 산정한다(표시·단건용).
 				// 각 마켓 전송가는 아래 syncPriceStockPerMarket에서 마켓별 실수수료로 따로 재산정한다.
