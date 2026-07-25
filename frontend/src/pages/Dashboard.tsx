@@ -21,7 +21,7 @@ export default function Dashboard() {
       <h1 style={{ marginBottom: 16 }}>대시보드</h1>
       <PeriodControl value={period} onChange={setPeriod} />
       <KpiCards data={summary.data} range={range} />
-      <div style={{ marginTop: 16 }}><TrendChart data={timeseries.data} /></div>
+      <div style={{ marginTop: 16 }}><TrendChart data={timeseries.data} unit={period.unit} /></div>
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginTop: 16 }}>
         <BreakdownPanels range={range} />
         <AttentionPanel data={attention.data} />
