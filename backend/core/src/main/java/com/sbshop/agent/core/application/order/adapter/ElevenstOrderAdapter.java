@@ -85,6 +85,13 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				for (Element orderElement : shippingOrders) {
 					MarketOrderDto dto = parseShippingElement(orderElement);
 					if (dto != null) {
+						// D-107: 배송중 목록은 수취인 이름을 주지 않는다(최소 정보). 이름이 비면 단건 상세조회
+						// (claimservice/orderlistalladdr, rcvrNm 포함)로 수취인 정보를 복원한다. 원 설계 주석의
+						// "개별 조회로 폴백"이 미구현이었던 부분 — 이름이 ""로 유실돼 그리드에 "-"로 남던 결함 해소.
+						if (dto.getRecipientName() == null) {
+							enrichRecipientFromDetail(apiKey, dto);
+							Thread.sleep(300);
+						}
 						result.add(dto);
 					}
 				}
@@ -470,6 +477,48 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			log.error("11번가 배송중 주문 파싱 실패: {}", e.getMessage());
 			return null;
 		}
+	}
+
+	/**
+	 * D-107: 배송중 목록이 수취인 이름을 주지 않을 때 단건 상세조회로 수취인/구매자 정보를 복원한다.
+	 * 배송 상태·송장은 배송중 값을 유지하고, 비어 있는 수취인 필드만 상세조회 값으로 채운다.
+	 * 상세조회 실패·값 부재 시 조용히 지나가 기존 값(null)을 유지한다(SyncService null-guard가 DB 보존).
+	 */
+	private void enrichRecipientFromDetail(String apiKey, MarketOrderDto dto) {
+		try {
+			List<Element> details = elevenstOrderApiPort.fetchOrderDetail(apiKey, dto.getMarketOrderNo());
+			if (details == null || details.isEmpty()) {
+				return;
+			}
+			MarketOrderDto detail = parseOrderDetailElement(details.get(0));
+			if (detail == null) {
+				return;
+			}
+			if (dto.getRecipientName() == null) {
+				dto.setRecipientName(blankToNull(detail.getRecipientName()));
+			}
+			if (dto.getRecipientPhone() == null) {
+				dto.setRecipientPhone(blankToNull(detail.getRecipientPhone()));
+			}
+			if (dto.getZipcode() == null) {
+				dto.setZipcode(blankToNull(detail.getZipcode()));
+			}
+			if (dto.getAddress() == null) {
+				dto.setAddress(blankToNull(detail.getAddress()));
+			}
+			if (dto.getOrdererName() == null) {
+				dto.setOrdererName(blankToNull(detail.getOrdererName()));
+			}
+			if (dto.getOrdererPhone() == null) {
+				dto.setOrdererPhone(blankToNull(detail.getOrdererPhone()));
+			}
+		} catch (Exception e) {
+			log.warn("11번가 배송중 수취인 상세 복원 실패: ordNo={}, error={}", dto.getMarketOrderNo(), e.getMessage());
+		}
+	}
+
+	private String blankToNull(String value) {
+		return (value == null || value.isBlank()) ? null : value;
 	}
 
 	private String formatDateTime(LocalDate date, String time) {

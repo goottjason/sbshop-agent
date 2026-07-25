@@ -82,4 +82,54 @@ class ElevenstShippingRecipientPreservationTest {
 		assertThat(shipped.getRecipientName()).isEqualTo("홍길동");
 		assertThat(shipped.getAddress()).contains("서울시 강남구");
 	}
+
+	private Element detailElement(String ordNo, String rcvrNm, String rcvrBaseAddr) throws Exception {
+		StringBuilder xml = new StringBuilder("<order><ordNo>").append(ordNo).append("</ordNo>");
+		if (rcvrNm != null) {
+			xml.append("<rcvrNm>").append(rcvrNm).append("</rcvrNm>");
+		}
+		if (rcvrBaseAddr != null) {
+			xml.append("<rcvrBaseAddr>").append(rcvrBaseAddr).append("</rcvrBaseAddr>");
+		}
+		xml.append("</order>");
+		return DocumentBuilderFactory.newInstance()
+			.newDocumentBuilder()
+			.parse(new ByteArrayInputStream(xml.toString().getBytes(StandardCharsets.UTF_8)))
+			.getDocumentElement();
+	}
+
+	@Test
+	@DisplayName("[D-107] 배송중 목록이 이름을 안 주면 단건 상세조회(rcvrNm)로 복원한다")
+	void shippingOrder_withoutName_enrichesFromDetail() throws Exception {
+		String ordNo = "20260701000012";
+		when(elevenstOrderApiPort.fetchShippingOrders(anyString(), anyString(), anyString()))
+			.thenReturn(List.of(shippingElement(ordNo, null, null)));
+		when(elevenstOrderApiPort.fetchOrderDetail(anyString(), anyString()))
+			.thenReturn(List.of(detailElement(ordNo, "김수취", "부산시 해운대구 100")));
+
+		ElevenstOrderAdapter adapter = new ElevenstOrderAdapter(elevenstOrderApiPort, statusMapper);
+		MarketOrderDto shipped = adapter.fetchOrders(credential(), LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 1))
+			.stream().filter(dto -> ordNo.equals(dto.getMarketOrderNo())).findFirst().orElseThrow();
+
+		assertThat(shipped.getRecipientName()).isEqualTo("김수취");
+		assertThat(shipped.getAddress()).contains("부산시 해운대구");
+		// 배송 상태는 배송중 값 유지(상세조회로 덮지 않음)
+		assertThat(shipped.getStatus()).isEqualTo(com.sbshop.agent.core.domain.order.enums.ShippingStatus.SHIPPED);
+	}
+
+	@Test
+	@DisplayName("[D-107] 상세조회도 이름을 안 주면 null 유지(기존 값 보존)")
+	void shippingOrder_detailAlsoBlank_staysNull() throws Exception {
+		String ordNo = "20260701000013";
+		when(elevenstOrderApiPort.fetchShippingOrders(anyString(), anyString(), anyString()))
+			.thenReturn(List.of(shippingElement(ordNo, null, null)));
+		when(elevenstOrderApiPort.fetchOrderDetail(anyString(), anyString()))
+			.thenReturn(List.of(detailElement(ordNo, null, null)));
+
+		ElevenstOrderAdapter adapter = new ElevenstOrderAdapter(elevenstOrderApiPort, statusMapper);
+		MarketOrderDto shipped = adapter.fetchOrders(credential(), LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 1))
+			.stream().filter(dto -> ordNo.equals(dto.getMarketOrderNo())).findFirst().orElseThrow();
+
+		assertThat(shipped.getRecipientName()).isNull();
+	}
 }
