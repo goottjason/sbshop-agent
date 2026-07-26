@@ -89,6 +89,12 @@ public class ProductCreateUseCase {
 		if (command.sourceImages() == null || command.sourceImages().isEmpty()) {
 			return command;
 		}
+		// 이미 호스팅된 이미지가 있으면 다시 올리지 않는다.
+		// 소싱 초안 경로는 인리치먼트 단계에서 R2 업로드를 이미 끝내고 오는데, 여기서 또 올리면
+		// 같은 이미지가 R2에 중복 적재되고(고아 사본) 등록도 그만큼 느려진다.
+		if (command.hostedImages() != null && !command.hostedImages().isEmpty()) {
+			return command;
+		}
 		try {
 			List<ImageUploadFile> downloadFiles = imageDownloadClient.downloadAndConvert(command.sourceImages());
 			Map<String, String> uploadedUrlMap = imageStorageClient.uploadImages(downloadFiles);
