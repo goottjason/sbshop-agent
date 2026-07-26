@@ -55,6 +55,35 @@ elevenst:
 scraper:
   base-url: ${SCRAPER_BASE_URL:http://localhost:8099}
 
+# ── 신규 상품 등록 자동화(소싱 파이프라인) ──────────────────────────────────────
+# 아래 셋은 전부 "있으면 더 좋은" 선택적 의존이다. 미설정이어도 파이프라인은 돈다:
+#   naver.*  없으면 → 국내 수요 신호를 결측 처리하고 나머지 신호로 정규화해 채점
+#   zen.*    없으면 → 상품명·키워드를 규칙 기반으로 생성
+#   customs.mfds는 인증키가 필요 없다(식품안전나라 공개 목록).
+
+# 네이버 검색 API(쇼핑) — 경쟁 상품 수·국내 최저가. developers.naver.com, 일 25,000회 무료.
+# 네이버 검색광고 API(키워드도구) — 월간 검색량·연관 키워드. 무료(광고계정 CUSTOMER_ID 필요).
+naver:
+  openapi:
+    client-id: ${NAVER_OPENAPI_CLIENT_ID:}
+    client-secret: ${NAVER_OPENAPI_CLIENT_SECRET:}
+  searchad:
+    api-key: ${NAVER_SEARCHAD_API_KEY:}
+    secret-key: ${NAVER_SEARCHAD_SECRET_KEY:}
+    customer-id: ${NAVER_SEARCHAD_CUSTOMER_ID:}
+
+# OpenCode Zen — 상품명·키워드 생성용 LLM. 무료 모델만 쓴다(유료 API 미사용 방침).
+# 모델은 앞에서부터 시도하고 실패하면 다음으로 넘어간다. 전부 실패하면 규칙 기반 폴백.
+zen:
+  base-url: ${ZEN_BASE_URL:https://opencode.ai/zen/v1}
+  api-key: ${ZEN_API_KEY:}
+  models: ${ZEN_MODELS:nemotron-3-ultra-free,ling-3.0-flash-free}
+
+# 식약처 해외직구 반입차단 원료·성분 목록(통관 게이트) — 인증키 불필요.
+customs:
+  mfds:
+    base-url: ${MFDS_BASE_URL:https://www.foodsafetykorea.go.kr}
+
 # 이메일 수집(EmailFetcherService)·검색(IherbEmailSearchService) 계정. 단일 백엔드라 여기 한 곳에서 관리.
 # 소싱 계정들은 각자 Gmail 자동전달로 이 '중앙 계정' 인박스에 모으고, 시스템은 중앙 계정 하나만 읽는다.
 sbshop:
