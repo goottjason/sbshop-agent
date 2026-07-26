@@ -15,6 +15,9 @@ const ProductGrid = lazy(() => import('./pages/product/ProductGrid'));
 const ProductRegisterPage = lazy(() => import('./pages/ProductRegisterPage'));
 const BatchUpdatePage = lazy(() => import('./pages/BatchUpdatePage'));
 const ProcessStatusPage = lazy(() => import('./pages/ProcessStatusPage'));
+const DiscoveryPage = lazy(() => import('./pages/sourcing/DiscoveryPage'));
+const DraftReviewPage = lazy(() => import('./pages/sourcing/DraftReviewPage'));
+const SourcingSettingsPage = lazy(() => import('./pages/sourcing/SourcingSettingsPage'));
 
 const Loading = () => <div style={{ padding: 24, textAlign: 'center' }}>로딩 중...</div>;
 
@@ -27,6 +30,10 @@ function App() {
           <Route path="orders" element={<OrderGrid />} />
           <Route path="products" element={<Suspense fallback={<Loading />}><ProductGrid /></Suspense>} />
           <Route path="register" element={<Suspense fallback={<Loading />}><ProductRegisterPage /></Suspense>} />
+          {/* 신규 상품 등록 자동화 — 추천 → 검수 → 등록. /register(URL 직접입력)는 수동 경로로 남긴다. */}
+          <Route path="sourcing" element={<Suspense fallback={<Loading />}><DiscoveryPage /></Suspense>} />
+          <Route path="sourcing/drafts/:id" element={<Suspense fallback={<Loading />}><DraftReviewPage /></Suspense>} />
+          <Route path="sourcing/settings" element={<Suspense fallback={<Loading />}><SourcingSettingsPage /></Suspense>} />
           <Route path="batch" element={<Suspense fallback={<Loading />}><BatchUpdatePage /></Suspense>} />
           <Route path="process-status" element={<Suspense fallback={<Loading />}><ProcessStatusPage /></Suspense>} />
           <Route path="settings" element={<Settings />} />
