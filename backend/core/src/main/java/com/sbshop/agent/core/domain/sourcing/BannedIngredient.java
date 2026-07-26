@@ -31,8 +31,19 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BannedIngredient extends BaseEntity {
 
-	/** 매칭 키 최소 길이. 1~2글자 키는 무관한 성분에 걸려 오탐을 만든다. */
-	private static final int MIN_KEY_LENGTH = 3;
+	/**
+	 * 매칭 키 최소 길이. 1글자 키는 아무 성분에나 걸린다.
+	 *
+	 * <p>2글자 키("대마" 등)는 버리기엔 중요하고 그대로 BLOCKED로 쓰기엔 위험해서, 저장은 하되
+	 * 매칭 시 {@code REVIEW}로 낮춘다({@code isWeakKey}) — 판정은 CustomsEligibilityService가 한다.
+	 */
+	private static final int MIN_KEY_LENGTH = 2;
+
+	/** 이 길이 미만의 키로 걸리면 확정(BLOCKED)이 아니라 사람 확인(REVIEW) 대상이다. */
+	public static final int STRONG_KEY_LENGTH = 3;
+
+	/** 영문 첫 토큰을 별도 키로 쓸 최소 길이. 짧은 토큰("kava", "herb")은 오탐을 만든다. */
+	private static final int MIN_EN_TOKEN_LENGTH = 6;
 
 	@Column(name = "name_ko", length = 300)
 	private String nameKo;
@@ -119,23 +130,63 @@ public class BannedIngredient extends BaseEntity {
 
 	static String buildNormKeys(String nameKo, String nameEn, String aliases) {
 		Set<String> keys = new LinkedHashSet<>();
-		addKey(keys, nameKo);
-		addKey(keys, nameEn);
+		addKoreanKeys(keys, nameKo);
+		addEnglishKeys(keys, nameEn);
 		if (aliases != null) {
 			for (String alias : aliases.split("[,;\\n/]")) {
-				addKey(keys, alias);
+				addKoreanKeys(keys, alias);
+				addEnglishKeys(keys, alias);
 			}
 		}
 		return String.join("|", keys);
+	}
+
+	/**
+	 * 한글 키 — 전체명과 <b>괄호 앞 부분</b>을 모두 넣는다.
+	 *
+	 * <p>식약처 원문에는 "카바카바(뿌리, 잎, 줄기)", "대마(「마약류 관리에 관한 법률」…)"처럼 괄호 설명이
+	 * 붙는다. 전체를 정규화하면 "카바카바뿌리잎줄기"가 되어 성분표의 "카바카바"와 절대 매칭되지 않는다.
+	 * 괄호 앞 머리부를 반드시 별도 키로 넣어야 한다.
+	 */
+	private static void addKoreanKeys(Set<String> keys, String raw) {
+		if (raw == null)
+			return;
+		addKey(keys, raw);
+		String head = stripParenthetical(raw);
+		if (!head.equals(raw.trim()))
+			addKey(keys, head);
+	}
+
+	/** 영문 키 — 전체명 + 충분히 긴 첫 토큰("Ephedra herb" → "ephedra"). */
+	private static void addEnglishKeys(Set<String> keys, String raw) {
+		if (raw == null)
+			return;
+		String head = stripParenthetical(raw);
+		addKey(keys, head);
+		String[] tokens = head.trim().split("\\s+");
+		if (tokens.length > 1) {
+			String first = normalize(tokens[0]);
+			if (first.length() >= MIN_EN_TOKEN_LENGTH)
+				keys.add(first);
+		}
+	}
+
+	private static String stripParenthetical(String raw) {
+		return raw.replaceAll("[(\\[{（【].*", "").trim();
 	}
 
 	private static void addKey(Set<String> keys, String raw) {
 		if (raw == null)
 			return;
 		String norm = normalize(raw);
-		// 너무 짧은 키는 오탐 공장이 된다("차", "산" 등) → 버린다.
+		// 1글자 키는 아무 성분에나 걸린다("차", "산" 등) → 버린다.
 		if (norm.length() >= MIN_KEY_LENGTH)
 			keys.add(norm);
+	}
+
+	/** 이 키로 걸린 매칭은 확정이 아니라 사람 확인 대상인가. */
+	public static boolean isWeakKey(String normKey) {
+		return normKey != null && normKey.length() < STRONG_KEY_LENGTH;
 	}
 
 	/** 시딩·테스트용 — 별칭 목록을 리스트로 받는 편의 팩토리. */

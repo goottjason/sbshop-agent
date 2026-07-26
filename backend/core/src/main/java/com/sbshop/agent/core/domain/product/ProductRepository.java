@@ -30,6 +30,14 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 	List<Product> findByVendor(@Param("vendor")
 	com.sbshop.agent.core.domain.product.enums.VendorType vendor);
 
+	/**
+	 * 등록된 모든 상품의 소싱 URL. 신규 상품 발굴의 중복 제외(S1)가 이 목록에서 벤더 상품 ID를 뽑아
+	 * 후보와 대조한다. 엔티티 전체가 아니라 URL 문자열만 가져와 대량 스캔 비용을 낮춘다.
+	 */
+	@Query("SELECT p.sourcingInfo.sourceUrl FROM Product p "
+		+ "WHERE p.sourcingInfo.sourceUrl IS NOT NULL AND p.sourcingInfo.sourceUrl <> ''")
+	List<String> findAllSourceUrls();
+
 	@Query("SELECT p FROM Product p WHERE " +
 		"LOWER(p.productName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
 		"LOWER(p.sbCode) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
