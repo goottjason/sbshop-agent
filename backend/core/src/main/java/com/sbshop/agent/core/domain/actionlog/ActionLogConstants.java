@@ -88,4 +88,16 @@ public final class ActionLogConstants {
 	public static final String CREDENTIAL_SAVE = "CREDENTIAL_SAVE";
 	/** Cafe24 재인증 토큰 발급 (CA1) */
 	public static final String CAFE24_AUTH = "CAFE24_AUTH";
+
+	/** 소싱 후보 발굴(iHerb 베스트셀러 크롤 → 통관 게이트 → 스코어링). */
+	public static final String SOURCING_DISCOVERY = "SOURCING_DISCOVERY";
+
+	/** 소싱 후보 → 등록 초안 생성(마켓별 상품명·카테고리·가격 인리치먼트). */
+	public static final String SOURCING_DRAFT = "SOURCING_DRAFT";
+
+	/** 검수 완료 초안의 마켓 등록. */
+	public static final String SOURCING_PUBLISH = "SOURCING_PUBLISH";
+
+	/** 식약처 반입차단 원료·성분 목록 동기화. */
+	public static final String BANNED_INGREDIENT_SYNC = "BANNED_INGREDIENT_SYNC";
 }

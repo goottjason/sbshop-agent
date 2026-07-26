@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.domain.market.client;
 
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
+import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import java.util.List;
@@ -11,6 +12,17 @@ public interface MarketClient {
 	MarketType getSupportedMarket();
 
 	Map<String, String> publish(Product product);
+
+	/**
+	 * 검수된 마켓별 등록 데이터를 함께 받는 게시 오버로드(신규 상품 등록 자동화 경로).
+	 *
+	 * <p>카테고리·검색키워드·상품고시정보·출고지 코드처럼 {@code Product}에 없고 마켓마다 다른
+	 * 값들이 {@link MarketPublishContext}로 온다. 기본 구현은 컨텍스트를 무시하고 기존
+	 * {@link #publish(Product)}로 위임한다 — 어댑터를 하나씩 옮겨도 나머지가 깨지지 않는다.
+	 */
+	default Map<String, String> publish(Product product, MarketPublishContext context) {
+		return publish(product);
+	}
 
 	MarketItemInfo extractMarketItem(String marketItemId);
 
