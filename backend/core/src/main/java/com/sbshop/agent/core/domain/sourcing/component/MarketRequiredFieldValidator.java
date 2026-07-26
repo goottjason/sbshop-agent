@@ -86,8 +86,11 @@ public final class MarketRequiredFieldValidator {
 	private static void validateElevenst(ProductDraft draft, MarketDraft md, List<String> missing) {
 		if (isBlank(draft.getOrigin()))
 			missing.add("원산지");
-		requireExtra(md, missing, "dlvCnAreaCd", "출고지 주소코드");
-		requireExtra(md, missing, "rtngdDlvCnAreaCd", "반품지 주소코드");
+		// 출고지·반품지는 주소 시퀀스코드(addrSeq*)다. dlvCnAreaCd(배송가능지역)와 혼동하면
+		// 값이 있는데도 11번가가 "출고지 주소를 확인해주세요"로 거절한다(D-092에서 겪은 벽).
+		requireExtra(md, missing, "addrSeqOut", "출고지 주소코드");
+		requireExtra(md, missing, "addrSeqIn", "반품지 주소코드");
+		requireExtra(md, missing, "dlvEtprsCd", "발송택배사");
 		requireExtra(md, missing, "abrdBuyPlace", "해외구매대행 구매처");
 		if (isBlank(md.getNoticeFields()))
 			missing.add("상품고시정보");

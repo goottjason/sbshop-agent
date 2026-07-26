@@ -79,6 +79,25 @@ zen:
   api-key: ${ZEN_API_KEY:}
   models: ${ZEN_MODELS:nemotron-3-ultra-free,ling-3.0-flash-free}
 
+# 마켓 신규 등록 계정 고정값. 기본값은 라이브에서 검증된 실계정 값이라 보통 그대로 두면 된다.
+# 스마트스토어 출고지·반품지 주소록 ID와 Cafe24 진열분류 번호는 여기 없다 — 마켓 API로 자동 조회·캐시한다.
+# (자동 조회가 틀렸을 때만 market.smartstore.shipping-address-id 등으로 덮어쓴다.)
+market:
+  coupang:
+    outbound-shipping-place-code: ${MARKET_COUPANG_OUTBOUND_CODE:1206157}
+    return-center-code: ${MARKET_COUPANG_RETURN_CENTER:1000519746}
+  smartstore:
+    after-service-telephone: ${MARKET_SMARTSTORE_AS_TEL:010-2597-2480}
+    # shipping-address-id / return-address-id: 미설정 시 커머스API 주소록에서 자동 조회
+  elevenst:
+    # D-092 라이브 검증값: 출고지 5(미국, outsideYnOut=Y) / 반품지 3(국내, outsideYnIn=N)
+    # ⚠️ dlvCnAreaCd(=01 전국)는 '배송가능지역'이지 주소코드가 아니다.
+    addr-seq-out: ${MARKET_ELEVENST_ADDR_SEQ_OUT:5}
+    addr-seq-in: ${MARKET_ELEVENST_ADDR_SEQ_IN:3}
+  cafe24:
+    # default-category-no: 미설정 시 쇼핑몰 분류 목록에서 자동 매칭
+    default-category-no: ${MARKET_CAFE24_CATEGORY_NO:}
+
 # 식약처 해외직구 반입차단 원료·성분 목록(통관 게이트) — 인증키 불필요.
 customs:
   mfds:

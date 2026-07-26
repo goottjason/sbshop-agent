@@ -3,6 +3,7 @@ package com.sbshop.agent.core.application.sourcing.enrich;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.sourcing.dto.MarketCategory;
+import com.sbshop.agent.core.application.sourcing.port.MarketAccountResourcePort;
 import com.sbshop.agent.core.application.sourcing.port.MarketCategoryResolverPort;
 import com.sbshop.agent.core.config.MarketRegistrationDefaults;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -40,10 +41,14 @@ public class MarketDraftBuilder {
 	private final ObjectMapper objectMapper;
 	private final Map<MarketType, MarketCategoryResolverPort> categoryResolvers =
 		new EnumMap<>(MarketType.class);
+	/** 마켓 API로 자동 조회하는 계정 리소스(스토어 주소록 등). */
+	private final Map<MarketType, MarketAccountResourcePort> accountResources =
+		new EnumMap<>(MarketType.class);
 
 	public MarketDraftBuilder(MarketFeeService marketFeeService, MarginCalculator marginCalculator,
 		ProductNoticeBuilder noticeBuilder, MarketRegistrationDefaults defaults,
-		ObjectMapper objectMapper, List<MarketCategoryResolverPort> resolvers) {
+		ObjectMapper objectMapper, List<MarketCategoryResolverPort> resolvers,
+		List<MarketAccountResourcePort> accountResourcePorts) {
 		this.marketFeeService = marketFeeService;
 		this.marginCalculator = marginCalculator;
 		this.noticeBuilder = noticeBuilder;
@@ -51,6 +56,9 @@ public class MarketDraftBuilder {
 		this.objectMapper = objectMapper;
 		for (MarketCategoryResolverPort r : resolvers) {
 			categoryResolvers.put(r.market(), r);
+		}
+		for (MarketAccountResourcePort a : accountResourcePorts) {
+			accountResources.put(a.market(), a);
 		}
 	}
 
@@ -134,8 +142,8 @@ public class MarketDraftBuilder {
 				extra.put("maximumBuyForPersonPeriod", 30);
 			}
 			case SMART_STORE -> {
-				putIfPresent(extra, "shippingAddressId", defaults.getSmartstoreShippingAddressId());
-				putIfPresent(extra, "returnAddressId", defaults.getSmartstoreReturnAddressId());
+				// 출고지·반품지 주소록 ID는 커머스API로 자동 조회한다(계정마다 다르고 잘 바뀌지 않음).
+				extra.putAll(accountResource(MarketType.SMART_STORE));
 				putIfPresent(extra, "afterServiceTelephoneNumber",
 					defaults.getSmartstoreAfterServiceTelephone());
 				putIfPresent(extra, "afterServiceGuideContent", defaults.getSmartstoreAfterServiceGuide());
@@ -146,18 +154,40 @@ public class MarketDraftBuilder {
 				extra.put("importer", "구매대행");
 			}
 			case ELEVEN_STREET -> {
-				putIfPresent(extra, "dlvCnAreaCd", defaults.getElevenstOutboundAreaCode());
-				putIfPresent(extra, "rtngdDlvCnAreaCd", defaults.getElevenstReturnAreaCode());
+				// 출고지·반품지는 '주소 시퀀스코드'(addrSeq*)다. dlvCnAreaCd는 배송가능지역(01=전국)이라
+				// 필수 주소코드가 아니다 — 둘을 혼동하면 "출고지 주소를 확인해주세요" 오류가 난다(D-092).
+				putIfPresent(extra, "addrSeqOut", defaults.getElevenstAddrSeqOut());
+				putIfPresent(extra, "addrSeqIn", defaults.getElevenstAddrSeqIn());
+				putIfPresent(extra, "outsideYnOut", defaults.getElevenstOutsideYnOut());
+				putIfPresent(extra, "outsideYnIn", defaults.getElevenstOutsideYnIn());
+				putIfPresent(extra, "dlvEtprsCd", defaults.getElevenstDeliveryCompanyCode());
+				extra.put("rtngdDlvCst", defaults.getElevenstReturnDeliveryFee());
+				extra.put("exchDlvCst", defaults.getElevenstExchangeDeliveryFee());
+				putIfPresent(extra, "orgnTypDtlsCd", defaults.getElevenstOriginDetailCode());
 				putIfPresent(extra, "abrdBuyPlace", defaults.getElevenstAbroadBuyPlace());
+				extra.put("dlvCnAreaCd", "01");   // 배송가능지역: 전국
 				extra.put("abrdCntrCd", "US");
 			}
 			case CAFE24 -> {
-				putIfPresent(extra, "categoryNo", defaults.getCafe24DefaultCategoryNo());
+				// 진열 분류는 Cafe24CategoryResolver가 categoryId로 이미 채운다.
 				extra.put("originPlace", nz(draft.getOrigin(), defaults.getDefaultOrigin()));
 			}
 			default -> { }
 		}
 		return extra;
+	}
+
+	/** 마켓 API 자동 조회 결과. 조회 실패는 빈 맵이고, 그러면 검증기가 미충족으로 잡는다. */
+	private Map<String, Object> accountResource(MarketType marketType) {
+		MarketAccountResourcePort port = accountResources.get(marketType);
+		if (port == null)
+			return Map.of();
+		try {
+			return new LinkedHashMap<>(port.resolve());
+		} catch (Exception e) {
+			log.warn("[초안생성] {} 계정 리소스 조회 실패: {}", marketType, e.getMessage());
+			return Map.of();
+		}
 	}
 
 	private void putIfPresent(Map<String, Object> target, String key, String value) {
