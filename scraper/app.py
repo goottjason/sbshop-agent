@@ -12,15 +12,20 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI
 
-from models import ScrapeRequest, ScrapeResult
+from models import (
+    CandidateCard, DiscoverFailure, DiscoverRequest, DiscoverResult,
+    ProductDetail, ScrapeRequest, ScrapeResult,
+)
 from scrapers.base import VendorScraper
 from scrapers.fortnum import FortnumScraper
+from scrapers import iherb as iherb_mod
+from scrapers.iherb import IherbScraper
 from pricing import landed_cost_krw
 
 # 벤더 스크래퍼 레지스트리 — supports(url)로 첫 매칭 사용(Java SourcingAgentFactory와 대칭).
 SCRAPERS: list[VendorScraper] = [
     FortnumScraper(),
-    # 향후: IherbScraper(), AmazonScraper(), ...
+    IherbScraper(),
 ]
 
 app = FastAPI(title="sbshop-scraper", version="0.1.0")
@@ -49,6 +54,9 @@ def scrape_stock_price(req: ScrapeRequest) -> ScrapeResult:
         )
     result = scraper.scrape(req.url)
     # status=ok면 원가(원) 산출을 응답에 첨부(FX·배송비 포함). 실패해도 스크랩 결과는 유지.
+    # kr.iherb.com처럼 이미 원화로 표기되는 벤더는 환산 대상이 아니다(스크래퍼가 goodsKrw를 채운다).
+    if result.currency == "KRW":
+        return result
     if result.status == "ok" and result.price is not None:
         try:
             cb = landed_cost_krw(result.price, result.weightGrams)
@@ -64,3 +72,51 @@ def scrape_stock_price(req: ScrapeRequest) -> ScrapeResult:
             result.status = "error"
             result.error = f"원가 산출 실패(FX): {e}"
     return result
+
+
+@app.post("/discover/bestsellers", response_model=DiscoverResult)
+def discover_bestsellers(req: DiscoverRequest) -> DiscoverResult:
+    """카테고리별 베스트셀러를 긁어 후보 카드를 반환한다(신규 상품 등록 S0).
+
+    페이지 단위 실패는 조용히 삼키지 않고 failures에 담아 반환한다 — 일부 카테고리가
+    차단당했는데 "후보가 적다"로 오인하면 추천 품질이 조용히 무너진다.
+    """
+    cards: list[CandidateCard] = []
+    failures: list[DiscoverFailure] = []
+    seen: set[str] = set()
+
+    for slug in req.categories:
+        for page in range(1, req.pages + 1):
+            page_cards, err = iherb_mod.fetch_bestsellers(slug, page)
+            if err:
+                failures.append(DiscoverFailure(categorySlug=slug, page=page, reason=err))
+                # 첫 페이지부터 막히면 뒷 페이지도 막힐 가능성이 높다 → 해당 카테고리 조기 중단.
+                if page == 1:
+                    break
+                continue
+            for c in page_cards:
+                # 같은 상품이 여러 카테고리에 걸쳐 나온다 — 첫 등장(상위 랭킹)만 남긴다.
+                key = f"{c.vendor}:{c.externalId}"
+                if key in seen:
+                    continue
+                seen.add(key)
+                cards.append(c)
+
+    return DiscoverResult(
+        ok=bool(cards),
+        cards=cards,
+        failures=failures,
+        scrapedAt=datetime.now(timezone.utc).isoformat(),
+    )
+
+
+@app.post("/scrape/product-detail", response_model=ProductDetail)
+def scrape_product_detail(req: ScrapeRequest) -> ProductDetail:
+    """상품 상세 크롤 — 성분(통관 게이트) · 중량 · UPC · 이미지 · 사용법/주의사항."""
+    if not iherb_mod.IherbScraper().supports(req.url):
+        return ProductDetail(
+            ok=False, status="error", sourceUrl=req.url,
+            error="상세 크롤을 지원하지 않는 URL입니다(현재 iHerb만 지원).",
+            scrapedAt=datetime.now(timezone.utc).isoformat(),
+        )
+    return iherb_mod.fetch_detail(req.url)

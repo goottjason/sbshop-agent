@@ -19,6 +19,87 @@ class ScrapeRequest(BaseModel):
     vendor: Optional[str] = Field(None, description="VendorType 코드(FTN 등). 라우팅/기록용")
 
 
+class DiscoverRequest(BaseModel):
+    """베스트셀러 후보 발굴 요청 — Java SourcingDiscoveryUseCase(S0)가 호출."""
+
+    categories: list[str] = Field(..., description="iHerb 카테고리 slug (supplements, grocery, ...)")
+    pages: int = Field(3, ge=1, le=20, description="카테고리당 크롤 페이지 수")
+    vendor: str = Field("IHB", description="VendorType 코드")
+
+
+class CandidateCard(BaseModel):
+    """목록 페이지 카드 1장에서 뽑은 후보. 스코어링에 필요한 신호가 전부 여기 있다."""
+
+    vendor: str = "IHB"
+    externalId: str
+    sourceUrl: str
+    partNumber: Optional[str] = None
+    brand: Optional[str] = None
+    brandCode: Optional[str] = None
+    nameKo: Optional[str] = None
+    categorySlug: Optional[str] = None
+    currency: str = "KRW"
+    listPrice: Optional[float] = None       # 정가(원)
+    discountPrice: Optional[float] = None   # 실제 구매가(원) — 원가 산정 기준
+    discountPct: Optional[int] = None
+    rating: Optional[float] = None
+    reviewCount: Optional[int] = None
+    sales30d: Optional[int] = None          # "30일 동안 N개 판매" 파싱값
+    rankPosition: Optional[int] = None
+    isOutOfStock: bool = False
+    isDiscontinued: bool = False
+    isSponsored: bool = False
+    imageUrl: Optional[str] = None
+
+
+class DiscoverFailure(BaseModel):
+    categorySlug: str
+    page: int
+    reason: str
+
+
+class DiscoverResult(BaseModel):
+    ok: bool
+    cards: list[CandidateCard] = []
+    failures: list[DiscoverFailure] = []
+    scrapedAt: str = ""
+
+
+class ProductDetail(BaseModel):
+    """상세 페이지 크롤 결과 — 통관 게이트(성분)와 마켓 필수필드(중량·바코드·수량)의 원천."""
+
+    ok: bool
+    status: str = "ok"                      # ok / not_found / blocked / error
+    httpStatus: Optional[int] = None
+    sourceUrl: str
+    externalId: Optional[str] = None
+    nameKo: Optional[str] = None
+    brandKo: Optional[str] = None           # "California Gold Nutrition (캘리포니아골드뉴트리션)"
+    brandCode: Optional[str] = None
+    rootCategory: Optional[str] = None      # "보충제"
+    rootCategoryId: Optional[str] = None
+    isDiscontinued: bool = False
+    partNumber: Optional[str] = None
+    upc: Optional[str] = None               # 바코드
+    priceKrw: Optional[float] = None
+    listPriceKrw: Optional[float] = None
+    currency: str = "KRW"
+    inStock: Optional[bool] = None
+    shippingWeightGrams: Optional[float] = None
+    packageQuantity: Optional[int] = None   # "180 개"
+    dimensions: Optional[str] = None
+    ingredientsRaw: Optional[str] = None    # 성분 원문(한글) — 반입차단 대조 입력
+    mainIngredients: Optional[str] = None
+    otherIngredients: Optional[str] = None
+    description: Optional[str] = None       # 제품소개
+    usage: Optional[str] = None             # 사용법
+    caution: Optional[str] = None           # 주의사항
+    images: list[str] = []                  # 원본(/l/) 이미지 URL
+    specs: dict = {}
+    scrapedAt: str = ""
+    error: Optional[str] = None
+
+
 class ScrapeResult(BaseModel):
     ok: bool
     # 결과 구분 — Java 배치가 이걸로 분기:
