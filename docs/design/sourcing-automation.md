@@ -524,24 +524,34 @@ frontend/src/
 ### 필요 환경변수
 
 ```bash
-# 네이버 검색API (쇼핑)
+# 네이버 검색API (쇼핑) — 경쟁상품수·최저가
 NAVER_OPENAPI_CLIENT_ID=
 NAVER_OPENAPI_CLIENT_SECRET=
-# 네이버 검색광고API
+# 네이버 검색광고API — 월간 검색량·연관 키워드
 NAVER_SEARCHAD_API_KEY=
 NAVER_SEARCHAD_SECRET_KEY=
 NAVER_SEARCHAD_CUSTOMER_ID=
-# 공공데이터포털 (식약처 반입차단 원료성분)
-DATA_GO_KR_SERVICE_KEY=
 # OpenCode Zen (무료모델)
 ZEN_API_KEY=
-ZEN_BASE_URL=https://opencode.ai/zen/v1
-ZEN_MODEL_PRIMARY=nemotron-3-ultra-free
-ZEN_MODEL_FALLBACK=ling-3.0-flash-free
 ```
 
-전부 **없어도 파이프라인이 도는** 선택적 의존이다. 미설정 시 해당 신호는 가중치 0으로 빠지고
-LLM은 규칙기반으로 폴백한다.
+전부 **없어도 파이프라인이 도는** 선택적 의존이다. 미설정 시 해당 신호는 가중치에서 빠지고
+LLM은 규칙기반으로 폴백한다. 식약처 반입차단 성분 목록은 **인증키가 필요 없다**.
+
+### 마켓 계정 고정값 (2026-07-26 확정)
+
+| 값 | 처리 |
+|---|---|
+| 쿠팡 출고지 `1206157` / 반품지 `1000519746` | 기존 `CoupangProductPayload` 하드코딩값 승계 |
+| 스마트스토어 A/S 전화 `010-2597-2480` | 설정 기본값 |
+| 스마트스토어 출고지·반품지 주소록 ID | **커머스API 자동 조회 + 캐시** (`SmartstoreAddressBookResolver`) |
+| 11번가 출고지 `addrSeqOut=5`(미국) / 반품지 `addrSeqIn=3`(국내) | D-092 라이브 검증값 승계 |
+| 11번가 택배사 `00034`(CJ) / 반품·교환배송비 `7000` / 원산지 `1405`(미국) | D-092 승계 |
+| Cafe24 진열 분류번호 | **`GET /admin/categories` 자동 조회 + 이름 매칭**, 실패 시 최소 번호 폴백 |
+
+> ⚠️ 11번가 출고지는 **주소 시퀀스코드 `addrSeqOut`** 이다. `dlvCnAreaCd`(=01 전국)는
+> *배송가능지역* 코드지 주소코드가 아니다. D-092에서 이 혼동으로 "출고지 주소를 확인해주세요"
+> 벽에 부딪힌 전례가 있어 `MarketRequiredFieldValidatorTest`로 키 이름을 고정해 두었다.
 
 ---
 
