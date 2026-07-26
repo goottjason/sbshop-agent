@@ -35,7 +35,10 @@ class SmartstoreMarketClientImagesTest {
 
     @BeforeEach
     void setUp() {
-        client = new SmartstoreMarketClient(restClient, new ObjectMapper());
+        client = new SmartstoreMarketClient(
+            // 신규 등록(publish) 전용 협력자 — 이 테스트가 검증하는 경로에서는 호출되지 않는다.
+            null, null, null, null,
+            restClient, new ObjectMapper());
     }
 
     private void stubGet(String json) {

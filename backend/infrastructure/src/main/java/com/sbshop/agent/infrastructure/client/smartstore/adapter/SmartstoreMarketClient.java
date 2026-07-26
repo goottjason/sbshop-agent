@@ -4,6 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
+import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
+import com.sbshop.agent.core.config.MarketRegistrationDefaults;
+import com.sbshop.agent.infrastructure.client.smartstore.component.SmartstoreAddressBookResolver;
+import com.sbshop.agent.infrastructure.client.smartstore.component.SmartstoreCategoryResolver;
+import com.sbshop.agent.infrastructure.client.smartstore.component.SmartstoreProductPayloadBuilder;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.enums.MeasureUnit;
@@ -23,6 +28,11 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class SmartstoreMarketClient implements MarketClient {
 
+	private final SmartstoreProductPayloadBuilder payloadBuilder;
+	private final SmartstoreCategoryResolver categoryResolver;
+	private final SmartstoreAddressBookResolver addressBookResolver;
+	private final MarketRegistrationDefaults defaults;
+
 	private final SmartstoreRestClient restClient;
 	private final ObjectMapper objectMapper;
 
@@ -33,35 +43,63 @@ public class SmartstoreMarketClient implements MarketClient {
 
 	@Override
 	public Map<String, String> publish(Product product) {
+		// 컨텍스트 없는 기존 경로(수동 등록)도 같은 완전한 payload를 쓰게 한다.
+		// 카테고리는 상품명으로 검색하고 주소록·A/S는 계정 설정에서 채워 컨텍스트를 즉석 구성한다 —
+		// 종전의 6필드 payload로는 커머스API 필수필드를 못 채워 어차피 등록이 안 됐다.
+		return publish(product, autoContext(product));
+	}
+
+	/** 검수 초안이 없을 때 마켓 API·설정에서 컨텍스트를 자동 구성한다. */
+	private MarketPublishContext autoContext(Product product) {
+		var category = categoryResolver.resolve(null, product.getProductName(), product.getBrand());
+		Map<String, Object> extra = new HashMap<>(addressBookResolver.resolve());
+		extra.put("afterServiceTelephoneNumber", defaults.getSmartstoreAfterServiceTelephone());
+		extra.put("afterServiceGuideContent", defaults.getSmartstoreAfterServiceGuide());
+		extra.put("returnDeliveryFee", defaults.getSmartstoreReturnDeliveryFee());
+		extra.put("exchangeDeliveryFee", defaults.getSmartstoreExchangeDeliveryFee());
+		extra.put("originAreaCode", defaults.getSmartstoreOriginAreaCode());
+		return new MarketPublishContext(
+			category.categoryId(), category.categoryPath(), product.getSalePrice(),
+			List.of(), Map.of(), extra);
+	}
+
+	/**
+	 * 커머스API {@code POST /v2/products} 등록.
+	 *
+	 * <p>응답의 {@code originProductNo}뿐 아니라 {@code smartstoreChannelProductNo}도 함께 저장한다 —
+	 * 상품 그리드의 스토어 링크가 채널 상품번호를 쓰는데, 없으면 나중에 전체 페이지 스캔으로
+	 * 백필해야 한다(기존 MarketLinkIdentifierBackfillService가 그 일을 하고 있다).
+	 */
+	@Override
+	public Map<String, String> publish(Product product, MarketPublishContext context) {
 		log.info("[Smartstore] 상품 등록 시작: {}", product.getSbCode());
 		try {
-			List<String> hostedImages = product.getHostedImages();
-
-			Map<String, Object> originProduct = new HashMap<>();
-			originProduct.put("productName", product.getProductName());
-			originProduct.put("salePrice", product.getSalePrice() != null ? product.getSalePrice().intValue() : 0);
-			originProduct.put("stockQuantity", product.getStock() != null ? product.getStock() : 0);
-			originProduct.put("productCode", product.getSbCode());
-			if (product.getDetailHtml() != null) {
-				originProduct.put("detailContent", product.getDetailHtml().replace("\"", "\\\"").replace("\n", ""));
-			}
-			if (!hostedImages.isEmpty()) {
-				// 커머스API 스키마: originProduct.images.representativeImage.url (오브젝트).
-				// 최상위 문자열 representativeImage 는 Naver가 조용히 무시하므로 대표이미지가 바뀌지 않는다.
-				applyImages(originProduct, hostedImages);
-			}
-
-			Map<String, Object> requestBody = new HashMap<>();
-			requestBody.put("originProduct", originProduct);
-
+			Map<String, Object> requestBody = payloadBuilder.build(product, context);
 			String response = restClient.post("/v2/products", requestBody);
 			JsonNode node = objectMapper.readTree(response);
-			String originProductNo = node.path("originProduct").path("originProductNo").asText("");
 
-			log.info("[Smartstore] 상품 등록 성공: originProductNo={}", originProductNo);
+			String originProductNo = node.path("originProductNo").asText("");
+			if (originProductNo.isEmpty()) {
+				// 스키마 버전에 따라 originProduct 아래에 오는 경우가 있다.
+				originProductNo = node.path("originProduct").path("originProductNo").asText("");
+			}
+			if (originProductNo.isEmpty()) {
+				throw new RuntimeException("스마트스토어 등록 응답에 originProductNo가 없습니다: "
+					+ response.substring(0, Math.min(response.length(), 300)));
+			}
+			String channelProductNo = node.path("smartstoreChannelProductNo").asText("");
+
+			log.info("[Smartstore] 상품 등록 성공: originProductNo={}, channelProductNo={}",
+				originProductNo, channelProductNo);
 			Map<String, String> identifiers = new HashMap<>();
 			identifiers.put("originProductNo", originProductNo);
+			if (!channelProductNo.isEmpty()) {
+				identifiers.put("channelProductNo", channelProductNo);
+			}
 			return identifiers;
+		} catch (RuntimeException e) {
+			log.error("[Smartstore] 상품 등록 실패: {}", e.getMessage());
+			throw e;
 		} catch (Exception e) {
 			log.error("[Smartstore] 상품 등록 실패: {}", e.getMessage());
 			throw new RuntimeException("Smartstore 상품 등록 오류", e);

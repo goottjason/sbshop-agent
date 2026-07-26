@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
+import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.infrastructure.client.coupang.client.CoupangRestClient;
@@ -46,11 +47,27 @@ public class CoupangMarketClient implements MarketClient {
 
 	@Override
 	public Map<String, String> publish(Product product) {
+		return publish(product, MarketPublishContext.empty());
+	}
+
+	/**
+	 * 검수된 마켓 초안 값을 우선 사용해 등록한다.
+	 *
+	 * <p>컨텍스트가 비어 있으면(기존 경로) 종전대로 카테고리를 자동 예측하고 태그를 규칙 생성한다.
+	 * 컨텍스트가 있으면 <b>사용자가 검수한 값</b>이 이긴다 — 검수 화면에서 고친 카테고리·판매가·
+	 * 키워드가 등록에 반영되지 않으면 검수 자체가 무의미하다.
+	 */
+	@Override
+	public Map<String, String> publish(Product product, MarketPublishContext context) {
 		log.info("[쿠팡] 상품 등록 파이프라인 가동 - SKU: {}", product.getSbCode());
 		try {
-			Long categoryId = categoryPredictor.predictCategory(product);
+			Long categoryId = resolveCategoryId(product, context);
 			CategoryMetaResult metaResult = metaService.getCategoryMeta(categoryId, product);
-			List<String> tags = searchTagGenerator.generateTags(product);
+			List<String> tags = context.keywords().isEmpty()
+				? searchTagGenerator.generateTags(product) : context.keywords();
+			int salePrice = context.salePrice() != null
+				? context.salePrice().intValue()
+				: (product.getSalePrice() != null ? product.getSalePrice().intValue() : 0);
 
 			List<String> hostedUrls = product.getHostedImages();
 			List<CoupangProductPayload.Item.Image> images = IntStream.range(0, hostedUrls.size())
@@ -64,9 +81,9 @@ public class CoupangMarketClient implements MarketClient {
 			CoupangProductPayload payload = CoupangProductPayload.create(
 				product, categoryId,
 				product.getBaseName(), product.getBaseName(), product.getBrand(),
-				product.getSalePrice() != null ? product.getSalePrice().intValue() : 0,
+				salePrice,
 				tags, images, metaResult.notices(), metaResult.attributes(),
-				product.getDetailHtml());
+				product.getDetailHtml(), shippingAccount(context));
 
 			String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
 			String responseJson = restClient.requestWithBody("POST", path, payload);
@@ -85,6 +102,48 @@ public class CoupangMarketClient implements MarketClient {
 			log.error("[쿠팡] 연동 실패: {}", e.getMessage());
 			throw new RuntimeException("쿠팡 연동 오류", e);
 		}
+	}
+
+	/** 검수된 카테고리가 있으면 그 값을, 없으면 추천 API 예측값을 쓴다. */
+	private Long resolveCategoryId(Product product, MarketPublishContext context) {
+		if (context.hasCategory()) {
+			try {
+				return Long.parseLong(context.categoryId().trim());
+			} catch (NumberFormatException e) {
+				log.warn("[쿠팡] 검수 카테고리가 숫자가 아니라 자동 예측으로 폴백: {}", context.categoryId());
+			}
+		}
+		return categoryPredictor.predictCategory(product);
+	}
+
+	/** 계정 고정값 — 초안이 넘긴 출고지/반품지 코드를 우선 적용한다. */
+	private CoupangProductPayload.ShippingAccount shippingAccount(MarketPublishContext context) {
+		CoupangProductPayload.ShippingAccount base = CoupangProductPayload.ShippingAccount.legacyDefaults();
+		String outbound = context.extraString("outboundShippingPlaceCode");
+		String returnCenter = context.extraString("returnCenterCode");
+		if (outbound == null && returnCenter == null) {
+			return base;
+		}
+		Integer outboundCode = base.outboundShippingPlaceCode();
+		if (outbound != null) {
+			try {
+				outboundCode = Integer.parseInt(outbound.trim());
+			} catch (NumberFormatException e) {
+				log.warn("[쿠팡] 출고지 코드가 숫자가 아님 — 기본값 사용: {}", outbound);
+			}
+		}
+		return CoupangProductPayload.ShippingAccount.builder()
+			.vendorId(base.vendorId())
+			.vendorUserId(base.vendorUserId())
+			.outboundShippingPlaceCode(outboundCode)
+			.returnCenterCode(returnCenter != null ? returnCenter : base.returnCenterCode())
+			.returnChargeName(base.returnChargeName())
+			.companyContactNumber(base.companyContactNumber())
+			.returnZipCode(base.returnZipCode())
+			.returnAddress(base.returnAddress())
+			.returnAddressDetail(base.returnAddressDetail())
+			.returnCharge(context.extraInt("deliveryChargeOnReturn", base.returnCharge()))
+			.build();
 	}
 
 	@Override

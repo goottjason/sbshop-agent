@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
+import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.infrastructure.client.cafe24.client.Cafe24RestClient;
@@ -32,19 +33,56 @@ public class Cafe24MarketClient implements MarketClient {
 
 	@Override
 	public Map<String, String> publish(Product product) {
+		return publish(product, MarketPublishContext.empty());
+	}
+
+	/**
+	 * Cafe24 자사몰 등록.
+	 *
+	 * <p>기존 구현은 진열 분류를 지정하지 않아 등록은 되지만 <b>어느 진열에도 노출되지 않았다</b>.
+	 * 검수된 분류번호({@code categoryId})를 {@code add_category_no}로 넣고 전시·판매 플래그를 켠다.
+	 *
+	 * <p>Cafe24는 미지원 필드를 보내면 422로 거절하므로, 확신이 있는 필드만 채운다.
+	 */
+	@Override
+	public Map<String, String> publish(Product product, MarketPublishContext context) {
 		log.info("[카페24] 상품 등록 시작: {}", product.getSbCode());
 		try {
-			Map<String, Object> requestBody = new HashMap<>();
+			int salePrice = context.salePrice() != null
+				? context.salePrice().intValue()
+				: (product.getSalePrice() != null ? product.getSalePrice().intValue() : 0);
+
 			Map<String, Object> productData = new HashMap<>();
 			productData.put("shop_no", 1);
 			productData.put("product_name", product.getProductName());
 			productData.put("custom_product_code", product.getSbCode());
-			productData.put("price", product.getSalePrice() != null ? product.getSalePrice().toString() : "0");
-			productData.put("supply_quantity", product.getStock() != null ? String.valueOf(product.getStock()) : "0");
+			productData.put("price", String.valueOf(salePrice));
+			productData.put("supply_quantity", product.getStock() != null
+				? String.valueOf(product.getStock()) : "0");
+			// 전시·판매를 켜지 않으면 등록만 되고 쇼핑몰에 보이지 않는다.
+			productData.put("display", "T");
+			productData.put("selling", "T");
+			productData.put("product_condition", "N");
 			if (product.getBrand() != null)
 				productData.put("brand", product.getBrand());
 			if (product.getDetailHtml() != null)
 				productData.put("description", product.getDetailHtml());
+
+			String origin = context.extraString("originPlace");
+			if (origin != null && !origin.isBlank())
+				productData.put("origin_place_value", origin);
+
+			// 진열 분류 — 없으면 넣지 않는다(빈 값을 보내면 422).
+			if (context.hasCategory()) {
+				Map<String, Object> category = new HashMap<>();
+				category.put("category_no", parseCategoryNo(context.categoryId()));
+				category.put("recommend", "F");
+				category.put("new", "T");
+				productData.put("add_category_no", List.of(category));
+			} else {
+				log.warn("[카페24] 진열 분류가 지정되지 않아 상품이 쇼핑몰에 노출되지 않습니다: {}",
+					product.getSbCode());
+			}
 
 			List<String> hostedImages = product.getHostedImages();
 			if (!hostedImages.isEmpty()) {
@@ -53,6 +91,7 @@ public class Cafe24MarketClient implements MarketClient {
 				productData.put("detail_image", hostedImages.get(0));
 			}
 
+			Map<String, Object> requestBody = new HashMap<>();
 			requestBody.put("request", productData);
 
 			String responseJson = cafe24RestClient.post("/admin/products", requestBody);
@@ -60,15 +99,30 @@ public class Cafe24MarketClient implements MarketClient {
 			JsonNode productNode = responseNode.path("product");
 			String productNo = productNode.path("product_no").asText("");
 			String productCode = productNode.path("product_code").asText("");
+			if (productNo.isEmpty()) {
+				throw new RuntimeException("카페24 등록 실패(product_no 없음): "
+					+ responseJson.substring(0, Math.min(responseJson.length(), 300)));
+			}
 
 			log.info("[카페24] 상품 등록 성공: product_no={}, product_code={}", productNo, productCode);
 			Map<String, String> identifiers = new HashMap<>();
 			identifiers.put("product_no", productNo);
 			identifiers.put("product_code", productCode);
 			return identifiers;
+		} catch (RuntimeException e) {
+			log.error("[카페24] 상품 등록 실패: {}", e.getMessage());
+			throw e;
 		} catch (Exception e) {
 			log.error("[카페24] 상품 등록 실패: {}", e.getMessage());
 			throw new RuntimeException("카페24 상품 등록 오류", e);
+		}
+	}
+
+	private Integer parseCategoryNo(String raw) {
+		try {
+			return Integer.parseInt(raw.trim());
+		} catch (NumberFormatException e) {
+			throw new IllegalStateException("카페24 분류번호가 숫자가 아닙니다: " + raw);
 		}
 	}
 

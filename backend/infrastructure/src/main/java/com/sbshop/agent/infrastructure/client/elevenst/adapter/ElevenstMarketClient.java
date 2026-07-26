@@ -2,6 +2,7 @@ package com.sbshop.agent.infrastructure.client.elevenst.adapter;
 
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
+import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.infrastructure.client.elevenst.client.ElevenstMarketRestClient;
@@ -26,19 +27,32 @@ public class ElevenstMarketClient implements MarketClient {
 
 	@Override
 	public Map<String, String> publish(Product product) {
+		return publish(product, MarketPublishContext.empty());
+	}
+
+	@Override
+	public Map<String, String> publish(Product product, MarketPublishContext context) {
 		log.info("[Elevenst] 상품 등록 시작: {}", product.getSbCode());
 		try {
-			String xml = buildProductXml(product);
+			String xml = buildProductXml(product, context);
 			String response = restClient.post("/rest/prodservices/product", xml);
 			log.info("[Elevenst] 상품 등록 응답: {}", response.substring(0, Math.min(response.length(), 200)));
 
 			String productNo = extractXmlValue(response, "prdNo");
-			if (productNo.isEmpty())
-				productNo = "11ST-" + product.getSbCode();
+			if (productNo.isEmpty()) {
+				// 등록 실패인데 가짜 ID를 만들어 SYNCED로 저장하면, 존재하지 않는 상품을 등록됨으로
+				// 오인해 이후 가격·재고 동기화가 매번 실패한다. 실패는 실패로 표면화한다.
+				String reason = extractXmlValue(response, "resultMsg");
+				throw new RuntimeException("11번가 등록 실패(prdNo 없음): "
+					+ (reason.isEmpty() ? response.substring(0, Math.min(response.length(), 300)) : reason));
+			}
 
 			Map<String, String> identifiers = new HashMap<>();
 			identifiers.put("elevenstId", productNo);
 			return identifiers;
+		} catch (RuntimeException e) {
+			log.error("[Elevenst] 상품 등록 실패: {}", e.getMessage());
+			throw e;
 		} catch (Exception e) {
 			log.error("[Elevenst] 상품 등록 실패: {}", e.getMessage());
 			throw new RuntimeException("Elevenst 상품 등록 오류", e);
@@ -230,6 +244,17 @@ public class ElevenstMarketClient implements MarketClient {
 	}
 
 	private String buildProductXml(Product product) {
+		return buildProductXml(product, MarketPublishContext.empty());
+	}
+
+	/**
+	 * 신규 등록 전문. 컨텍스트가 있으면 검수된 카테고리·판매가·출고지 코드·고시정보를 반영한다.
+	 *
+	 * <p>D-092에서 확인된 필수 승격 필드를 모두 채운다. 특히 <b>출고지·반품지는 주소 시퀀스코드
+	 * {@code addrSeqOut}/{@code addrSeqIn}</b>이다 — {@code dlvCnAreaCd}(배송가능지역 01=전국)와
+	 * 혼동하면 "출고지 주소를 확인해주세요"로 거절된다.
+	 */
+	private String buildProductXml(Product product, MarketPublishContext context) {
 		StringBuilder sb = new StringBuilder();
 		sb.append("<?xml version=\"1.0\" encoding=\"euc-kr\"?>");
 		sb.append("<Product>");
@@ -241,8 +266,15 @@ public class ElevenstMarketClient implements MarketClient {
 		sb.append("<makerNm>").append("<![CDATA[").append(product.getBrand() != null ? product.getBrand() : "")
 			.append("]]>").append("</makerNm>");
 		sb.append("<dptNo>1012345</dptNo>");
-		sb.append("<selPrc>").append(product.getSalePrice() != null ? product.getSalePrice().intValue() : 0)
-			.append("</selPrc>");
+		// 전시 카테고리 — 검수된 값이 있으면 그것을 쓴다. 없으면 태그를 넣지 않는다
+		// (빈 dispCtgrNo를 보내면 11번가가 카테고리 오류로 거절한다).
+		String dispCtgrNo = context.categoryId();
+		if (dispCtgrNo != null && !dispCtgrNo.isBlank()) {
+			sb.append("<dispCtgrNo>").append(dispCtgrNo.trim()).append("</dispCtgrNo>");
+		}
+		int selPrc = context.salePrice() != null ? context.salePrice().intValue()
+			: (product.getSalePrice() != null ? product.getSalePrice().intValue() : 0);
+		sb.append("<selPrc>").append(selPrc).append("</selPrc>");
 		sb.append("<prdSelQty>").append(product.getStock() != null ? product.getStock() : 999).append("</prdSelQty>");
 		List<String> images = product.getHostedImages();
 		if (!images.isEmpty()) {
@@ -258,8 +290,8 @@ public class ElevenstMarketClient implements MarketClient {
 			sb.append("<htmlDetail>").append("<![CDATA[").append(product.getDetailHtml()).append("]]>")
 				.append("</htmlDetail>");
 		}
-		sb.append("<rtngdDlvCst>7000</rtngdDlvCst>");
-		sb.append("<exchDlvCst>14000</exchDlvCst>");
+		sb.append("<rtngdDlvCst>").append(context.extraInt("rtngdDlvCst", 7000)).append("</rtngdDlvCst>");
+		sb.append("<exchDlvCst>").append(context.extraInt("exchDlvCst", 7000)).append("</exchDlvCst>");
 		sb.append("<dlvSendCloseTmpltNo>682132</dlvSendCloseTmpltNo>");
 		// D-092: 11번가가 등록 후 필수로 승격한 필드들 — 빈값이면 상품수정이 거부되므로 기본값으로 채운다.
 		// (전체 덮어쓰기 방식의 한계: 기존값을 못 읽어 기본값으로 대체. 견고한 해법은 전체 상품상세조회 round-trip.)
@@ -279,8 +311,73 @@ public class ElevenstMarketClient implements MarketClient {
 		sb.append("<dlvCstPayTypCd>03</dlvCstPayTypCd>");    // 결제방법: 선결제
 		sb.append("<jejuDlvCst>0</jejuDlvCst>");             // 제주 추가배송비
 		sb.append("<islandDlvCst>0</islandDlvCst>");         // 도서산간 추가배송비
+
+		// 원산지(해외/미국) — D-092에서 검증된 코드 조합.
+		String originDetail = nvl(context.extraString("orgnTypDtlsCd"), "1405");
+		sb.append("<orgnTypCd>02</orgnTypCd>");
+		sb.append("<orgnTypDtlsCd>").append(originDetail).append("</orgnTypDtlsCd>");
+		sb.append("<orgnNm><![CDATA[미국]]></orgnNm>");
+
+        // 해외구매대행 표기 — 누락 시 국내 배송 상품으로 오인돼 클레임 사유가 된다.
+		sb.append("<abrdBuyPlace><![CDATA[")
+			.append(nvl(context.extraString("abrdBuyPlace"), "iHerb")).append("]]></abrdBuyPlace>");
+		sb.append("<abrdCntrCd>US</abrdCntrCd>");
+
+		// 출고지/반품지 주소 시퀀스코드(판매자 실계정). dlvCnAreaCd와 다른 값이다.
+		sb.append("<addrSeqOut>").append(nvl(context.extraString("addrSeqOut"), "5")).append("</addrSeqOut>");
+		sb.append("<addrSeqIn>").append(nvl(context.extraString("addrSeqIn"), "3")).append("</addrSeqIn>");
+		sb.append("<outsideYnOut>").append(nvl(context.extraString("outsideYnOut"), "Y")).append("</outsideYnOut>");
+		sb.append("<outsideYnIn>").append(nvl(context.extraString("outsideYnIn"), "N")).append("</outsideYnIn>");
+
+		sb.append(buildNotificationXml(context));
 		sb.append("</Product>");
 		return sb.toString();
+	}
+
+	/**
+	 * 상품정보제공고시(ProductNotification). 초안이 만든 마켓 중립 고시 항목을 11번가 스키마로 옮긴다.
+	 * 고시가 비면 전자상거래법 위반이자 11번가 심사 반려 사유라, 값이 없으면 "상세설명 참조"로 채운다.
+	 */
+	private String buildNotificationXml(MarketPublishContext context) {
+		Map<String, String> notice = context.noticeFields();
+		if (notice.isEmpty()) {
+			return "";
+		}
+		StringBuilder sb = new StringBuilder();
+		sb.append("<ProductNotification>");
+		sb.append("<pdNo>1</pdNo>");
+		appendNotice(sb, "제품명", pickNotice(notice, "productName"));
+		appendNotice(sb, "식품의 유형", pickNotice(notice, "foodType"));
+		appendNotice(sb, "제조업소의 명칭과 소재지", pickNotice(notice, "producer"));
+		appendNotice(sb, "제조연월일 및 유통기한", pickNotice(notice, "expirationDate"));
+		appendNotice(sb, "포장단위별 내용물의 용량(중량), 수량", pickNotice(notice, "capacity"));
+		appendNotice(sb, "원재료명 및 함량", pickNotice(notice, "ingredients"));
+		appendNotice(sb, "영양성분", pickNotice(notice, "nutrition"));
+		appendNotice(sb, "섭취량 및 섭취방법", pickNotice(notice, "intakeMethod"));
+		appendNotice(sb, "질병의 예방 및 치료를 위한 의약품이 아니라는 내용의 표현",
+			"본 제품은 질병의 예방 및 치료를 위한 의약품이 아닙니다.");
+		appendNotice(sb, "유전자재조합식품에 해당하는 경우의 표시", pickNotice(notice, "gmoInfo"));
+		appendNotice(sb, "수입식품에 해당하는 경우 \"수입식품안전관리특별법에 따른 수입신고를 필함\"의 문구",
+			pickNotice(notice, "importDeclaration"));
+		appendNotice(sb, "소비자상담 관련 전화번호", pickNotice(notice, "customerServiceNumber"));
+		sb.append("</ProductNotification>");
+		return sb.toString();
+	}
+
+	private void appendNotice(StringBuilder sb, String name, String value) {
+		sb.append("<ProductNotificationItem>")
+			.append("<itemName><![CDATA[").append(name).append("]]></itemName>")
+			.append("<itemValue><![CDATA[").append(value).append("]]></itemValue>")
+			.append("</ProductNotificationItem>");
+	}
+
+	private String pickNotice(Map<String, String> notice, String key) {
+		String v = notice.get(key);
+		return v == null || v.isBlank() ? "상세설명 참조" : v;
+	}
+
+	private String nvl(String value, String fallback) {
+		return value == null || value.isBlank() ? fallback : value;
 	}
 
 	private String extractXmlValue(String xml, String tagName) {
