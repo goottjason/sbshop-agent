@@ -50,6 +50,8 @@ _KG_RE = re.compile(r"([0-9.]+)\s*kg", re.IGNORECASE)
 _G_RE = re.compile(r"([0-9.]+)\s*g\b", re.IGNORECASE)
 # 상세 이미지에서 취할 유형(Campaign 배너·Image360 제외)
 _WANTED_IMAGE_TYPES = ("Main", "Enhanced")
+# 페이지가 한국어로 왔는지 확인용
+_HANGUL_RE = re.compile(r"[가-힣]")
 
 
 def extract_product_id(url: str) -> str | None:
@@ -129,8 +131,18 @@ def _is_blocked(page) -> bool:
     return any(k in title for k in BLOCK_TITLE_MARKERS)
 
 
+# iHerb는 **브라우저 로케일**로 페이지 언어를 정한다. Scrapling은 시스템 기본 로케일을 쓰므로
+# 개발자 맥(한국어)에서는 한글이 나오고 Linux 컨테이너(en-US)에서는 영문이 나온다.
+# 영문 페이지가 오면 (1) 상품명이 영문이라 국내 검색량이 0으로 잡히고
+# (2) 성분표 섹션 제목이 달라져 추출에 실패 → 통관 판정이 전건 REVIEW가 된다(운영 실측).
+# 그래서 로케일과 Accept-Language를 명시적으로 고정한다.
+KO_LOCALE = "ko-KR"
+KO_HEADERS = {"Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8"}
+
+
 def _fetch(url: str, *, wait: int = 1500, timeout: int = 60000):
-    return DynamicFetcher.fetch(url, headless=True, network_idle=True, wait=wait, timeout=timeout)
+    return DynamicFetcher.fetch(url, headless=True, network_idle=True, wait=wait,
+                                timeout=timeout, locale=KO_LOCALE, extra_headers=KO_HEADERS)
 
 
 # ── 목록(베스트셀러) 파싱 ─────────────────────────────────────────────────────
@@ -244,6 +256,15 @@ def fetch_bestsellers(category_slug: str, page: int = 1) -> tuple[list[Candidate
             card = None
         if card:
             cards.append(card)
+
+    # 언어 검증 — 영문 페이지가 오면 상품명이 영문이라 국내 검색량이 0으로 잡히고
+    # 성분표 추출도 실패해 통관 판정이 전건 REVIEW가 된다. 조용히 진행하면 원인을 못 찾는다.
+    named = [c.nameKo for c in cards if c.nameKo]
+    if named:
+        korean = sum(1 for n in named if _HANGUL_RE.search(n))
+        if korean < len(named) * 0.5:
+            return cards, ("영문 페이지 수신(한글 상품명 %d/%d) — 브라우저 로케일 확인 필요. "
+                           "상품명·성분 추출 품질이 떨어집니다." % (korean, len(named)))
     return cards, None
 
 
@@ -358,14 +379,18 @@ def fetch_detail(url: str) -> ProductDetail:
     if not images and props.get("data-product-primary-image-url"):
         images = [props["data-product-primary-image-url"]]
 
-    # 성분: "기타 부원료" 섹션에 '주요 성분'/'기타 성분'이 함께 들어온다.
-    ingredients = sections.get("기타 부원료") or sections.get("성분") or ""
+    # 성분 섹션. 한글 페이지가 정상 경로지만, 로케일이 어긋나 영문이 와도 조용히 빈 값이 되지 않도록
+    # 영문 제목도 함께 본다(빈 성분표는 통관 게이트에서 전건 REVIEW를 유발한다).
+    ingredients = (sections.get("기타 부원료") or sections.get("성분")
+                   or sections.get("Other Ingredients") or sections.get("Ingredients") or "")
     main_ing = other_ing = None
     if ingredients:
-        m = re.search(r"주요 성분\s*(.*?)(?:기타 성분|$)", ingredients, re.S)
+        m = re.search(r"(?:주요 성분|Main Ingredients)\s*(.*?)(?:기타 성분|Other Ingredients|$)",
+                      ingredients, re.S)
         if m:
             main_ing = m.group(1).strip(" ,")
-        m = re.search(r"기타 성분\s*(.*?)(?:이 상품은|$)", ingredients, re.S)
+        m = re.search(r"(?:기타 성분|Other Ingredients)\s*(.*?)(?:이 상품은|Contains|$)",
+                      ingredients, re.S)
         if m:
             other_ing = m.group(1).strip(" ,")
 
@@ -403,9 +428,9 @@ def fetch_detail(url: str) -> ProductDetail:
         ingredientsRaw=ingredients or None,
         mainIngredients=main_ing,
         otherIngredients=other_ing,
-        description=sections.get("제품소개"),
-        usage=sections.get("사용법"),
-        caution=sections.get("주의사항"),
+        description=sections.get("제품소개") or sections.get("Product Overview"),
+        usage=sections.get("사용법") or sections.get("Suggested Use"),
+        caution=sections.get("주의사항") or sections.get("Warnings"),
         images=images,
         specs=spec,
         scrapedAt=now,
