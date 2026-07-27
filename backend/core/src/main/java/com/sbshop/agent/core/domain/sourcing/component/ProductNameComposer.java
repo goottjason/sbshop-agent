@@ -2,6 +2,7 @@ package com.sbshop.agent.core.domain.sourcing.component;
 
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import java.math.BigDecimal;
+import java.util.regex.Pattern;
 
 /**
  * 마켓 상품명 조립 — {@code [브랜드] [핵심명] [용량단위] [묶음수]}.
@@ -14,6 +15,15 @@ import java.math.BigDecimal;
  */
 public final class ProductNameComposer {
 
+	/**
+	 * 이미 상품명에 들어 있는 규격 표기(454g · 180정 · 100캡슐 · 32oz …).
+	 * LLM이 만든 핵심명은 대개 규격을 포함하는데, 여기에 iHerb "상품 수량"을 또 붙이면
+	 * "크레아틴 일수화물 무맛 454g <b>453개</b>" 같은 이름이 나온다(실측).
+	 */
+	private static final Pattern HAS_SIZE = Pattern.compile(
+		"[0-9][0-9,.]*\\s*(g|kg|mg|ml|l|oz|lb|정|개|캡슐|소프트젤|포|정제|티백|스쿱|회분)",
+		Pattern.CASE_INSENSITIVE);
+
 	private ProductNameComposer() {
 	}
 
@@ -22,7 +32,9 @@ public final class ProductNameComposer {
 		StringBuilder sb = new StringBuilder();
 		append(sb, brandKo);
 		append(sb, baseName);
-		append(sb, capacityPart(capacity, unitDesc));
+		// 핵심명에 이미 규격이 있으면 중복 표기하지 않는다.
+		if (baseName == null || !HAS_SIZE.matcher(baseName).find())
+			append(sb, capacityPart(capacity, unitDesc));
 		if (bundleQty > 1)
 			append(sb, bundleQty + "개");
 

@@ -86,6 +86,20 @@ public final class SearchKeywordDeriver {
 		return result;
 	}
 
+	/**
+	 * 가격 비교·연관키워드 확장에 쓰는 <b>구체적</b> 키워드 — 한글브랜드 + 제품 핵심부.
+	 *
+	 * <p>일반어로 연관 키워드를 뽑으면 상품과 무관한 말이 섞인다
+	 * (실측: 시드 "스포츠" → "축구", "스포츠토토"). 상품을 특정하는 말로 확장해야 한다.
+	 */
+	public static String deriveSpecific(String nameKo, String brand) {
+		String core = derive(nameKo, brand);
+		String brandKo = extractKoreanBrand(nameKo);
+		if (brandKo != null && !core.isBlank())
+			return brandKo + " " + core;
+		return core;
+	}
+
 	/** "California Gold Nutrition (캘리포니아골드뉴트리션)" → "캘리포니아골드뉴트리션" */
 	public static String extractKoreanBrand(String nameKo) {
 		if (nameKo == null)

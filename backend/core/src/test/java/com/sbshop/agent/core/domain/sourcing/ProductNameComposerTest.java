@@ -33,6 +33,28 @@ class ProductNameComposerTest {
 	}
 
 	@Test
+	@DisplayName("핵심명에 이미 규격이 있으면 용량을 중복 표기하지 않는다")
+	void skipsCapacityWhenBaseNameAlreadyHasSize() {
+		// 실측: LLM 핵심명 "크레아틴 일수화물 무맛 454g" + iHerb 상품수량 453 →
+		//       "…454g 453개 3개" 라는 이름이 나왔다.
+		String name = ProductNameComposer.compose(
+			"캘리포니아골드뉴트리션", "크레아틴 일수화물 무맛 454g", new BigDecimal("453"), "개",
+			3, MarketType.COUPANG);
+
+		assertThat(name).isEqualTo("캘리포니아골드뉴트리션 크레아틴 일수화물 무맛 454g 3개");
+		assertThat(name).doesNotContain("453");
+	}
+
+	@Test
+	@DisplayName("핵심명에 규격이 없으면 용량을 붙인다")
+	void appendsCapacityWhenBaseNameHasNoSize() {
+		String name = ProductNameComposer.compose(
+			"나우푸드", "비타민C", new BigDecimal("250"), "정", 1, MarketType.COUPANG);
+
+		assertThat(name).isEqualTo("나우푸드 비타민C 250정");
+	}
+
+	@Test
 	@DisplayName("용량 소수점 0은 떼고 표기한다")
 	void stripsTrailingZeros() {
 		String name = ProductNameComposer.compose(

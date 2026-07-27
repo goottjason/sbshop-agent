@@ -229,14 +229,11 @@ public class CandidateEnrichmentPipeline {
 		c.applyDemandSignals(bestVolume, competitors, lowPrice, medianPrice, volumeKeyword);
 	}
 
-	/** 가격 비교용 키워드 — 한글 브랜드 + 제품 핵심부. 브랜드를 못 뽑으면 가장 긴 후보를 쓴다. */
+	/** 가격 비교용 키워드 — 한글 브랜드 + 제품 핵심부. 못 만들면 가장 긴 후보를 쓴다. */
 	private String specificKeyword(SourcingCandidate c, List<String> keywords) {
-		String core = SearchKeywordDeriver.derive(c.getNameKo(), c.getBrand());
-		String brandKo = SearchKeywordDeriver.extractKoreanBrand(c.getNameKo());
-		if (brandKo != null && !core.isBlank())
-			return brandKo + " " + core;
-		if (!core.isBlank())
-			return core;
+		String specific = SearchKeywordDeriver.deriveSpecific(c.getNameKo(), c.getBrand());
+		if (!specific.isBlank())
+			return specific;
 		return keywords.stream().max(java.util.Comparator.comparingInt(String::length))
 			.orElse(keywords.get(0));
 	}

@@ -88,10 +88,14 @@ public class ProductTextService {
 			add(ordered, brandKo);
 
 		// 2) 검색량 근거가 있는 연관 키워드(내림차순)
+		//
+		// 시드는 **구체적** 키워드여야 한다. candidate.demandKeyword는 검색량을 재려고 고른
+		// 일반어라(예: "스포츠") 그걸로 확장하면 "축구", "스포츠토토" 같은 무관한 말이 섞인다(실측).
 		if (keywordVolumePort.isEnabled()) {
-			String seed = candidate.getDemandKeyword() != null
-				? candidate.getDemandKeyword()
-				: SearchKeywordDeriver.derive(candidate.getNameKo(), candidate.getBrand());
+			String seed = SearchKeywordDeriver.deriveSpecific(
+				candidate.getNameKo(), candidate.getBrand());
+			if (seed.isBlank())
+				seed = SearchKeywordDeriver.derive(candidate.getNameKo(), candidate.getBrand());
 			List<KeywordVolume> volumes = new ArrayList<>(keywordVolumePort.lookup(seed));
 			volumes.sort(Comparator.comparingInt(KeywordVolume::total).reversed());
 			for (KeywordVolume v : volumes) {
