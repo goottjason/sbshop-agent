@@ -22,6 +22,8 @@ export interface Candidate {
   monthlySearchVolume: number | null;
   competitorCount: number | null;
   domesticLowPrice: number | null;
+  /** 국내 시세 중앙값 — 가격 경쟁력 판정 기준(최저가는 소용량·샘플에 걸려 비교 불가). */
+  domesticMedianPrice: number | null;
   demandKeyword: string | null;
   customsVerdict: CustomsVerdict | null;
   customsReason: string | null;

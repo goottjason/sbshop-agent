@@ -68,7 +68,7 @@ class CandidateScoringServiceTest {
 		// 동일한 iHerb 신호. 한쪽만 국내 수요 신호가 없다.
 		SourcingCandidate withDemand = candidate(new BigDecimal("20000"), 50000, 34000,
 			new BigDecimal("4.8"), 1);
-		withDemand.applyDemandSignals(30000, 500, new BigDecimal("40000"), "테스트");
+		withDemand.applyDemandSignals(30000, 500, new BigDecimal("35000"), new BigDecimal("40000"), "테스트");
 
 		SourcingCandidate withoutDemand = candidate(new BigDecimal("20000"), 50000, 34000,
 			new BigDecimal("4.8"), 1);
@@ -106,12 +106,12 @@ class CandidateScoringServiceTest {
 	void rejectsWhenPricedAboveDomesticFloor() {
 		SourcingCandidate c = candidate(new BigDecimal("50000"), 50000, 34000,
 			new BigDecimal("4.8"), 1);
-		// 국내 최저가 20,000원 — 우리 판매가는 배송비·수수료 포함이라 훨씬 높아진다.
-		c.applyDemandSignals(30000, 500, new BigDecimal("20000"), "테스트");
+		// 국내 시세(중앙값) 20,000원 — 우리 판매가는 배송비·수수료 포함이라 훨씬 높아진다.
+		c.applyDemandSignals(30000, 500, new BigDecimal("15000"), new BigDecimal("20000"), "테스트");
 
 		String reject = service.score(c, config(), SalesHistorySnapshot.empty());
 
-		assertThat(reject).contains("국내 최저가");
+		assertThat(reject).contains("국내 시세");
 	}
 
 	@Test
@@ -141,11 +141,11 @@ class CandidateScoringServiceTest {
 	void competitionIsInverse() {
 		SourcingCandidate lowComp = candidate(new BigDecimal("20000"), 10000, 5000,
 			new BigDecimal("4.5"), 10);
-		lowComp.applyDemandSignals(10000, 50, new BigDecimal("40000"), "키워드");
+		lowComp.applyDemandSignals(10000, 50, new BigDecimal("38000"), new BigDecimal("40000"), "키워드");
 
 		SourcingCandidate highComp = candidate(new BigDecimal("20000"), 10000, 5000,
 			new BigDecimal("4.5"), 10);
-		highComp.applyDemandSignals(10000, 90000, new BigDecimal("40000"), "키워드");
+		highComp.applyDemandSignals(10000, 90000, new BigDecimal("38000"), new BigDecimal("40000"), "키워드");
 
 		service.score(lowComp, config(), SalesHistorySnapshot.empty());
 		service.score(highComp, config(), SalesHistorySnapshot.empty());
@@ -171,6 +171,30 @@ class CandidateScoringServiceTest {
 
 		assertThat(known.getTotalScore().doubleValue())
 			.isGreaterThan(unknown.getTotalScore().doubleValue());
+	}
+
+	@Test
+	@DisplayName("가격 가드는 최저가가 아니라 중앙값을 기준으로 한다")
+	void priceGuardUsesMedianNotLowest() {
+		// 실측 사례: "비타민D3" 최저가 250원(소용량·샘플)에 걸려 240정 제품이 전멸했다.
+		// 중앙값이 있으면 그쪽을 써야 한다.
+		SourcingCandidate c = candidate(new BigDecimal("20000"), 10000, 5000,
+			new BigDecimal("4.5"), 10);
+		c.applyDemandSignals(10000, 500, new BigDecimal("250"), new BigDecimal("45000"), "비타민D3");
+
+		assertThat(service.score(c, config(), SalesHistorySnapshot.empty())).isNull();
+		assertThat(c.priceBenchmark()).isEqualByComparingTo("45000");
+	}
+
+	@Test
+	@DisplayName("중앙값이 없으면 최저가로 폴백한다")
+	void fallsBackToLowestWhenMedianMissing() {
+		SourcingCandidate c = candidate(new BigDecimal("50000"), 10000, 5000,
+			new BigDecimal("4.5"), 10);
+		c.applyDemandSignals(10000, 500, new BigDecimal("20000"), null, "키워드");
+
+		assertThat(service.score(c, config(), SalesHistorySnapshot.empty()))
+			.contains("국내 최저가");
 	}
 
 	@Test

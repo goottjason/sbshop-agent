@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS sb_sourcing_candidate (
 
     monthly_search_volume INTEGER,                                  -- 네이버 검색광고
     competitor_count      INTEGER,                                  -- 네이버 쇼핑검색 total
-    domestic_low_price    NUMERIC(15,2),                            -- 네이버 쇼핑검색 lprice
+    domestic_low_price    NUMERIC(15,2),                            -- 네이버 lprice (표시용)
+    domestic_median_price NUMERIC(15,2),                            -- 네이버 결과 중앙값 (가격 판정 기준)
     demand_keyword        VARCHAR(200),
 
     customs_verdict       VARCHAR(20)  NOT NULL DEFAULT 'UNKNOWN',  -- PASS/REVIEW/BLOCKED/UNKNOWN

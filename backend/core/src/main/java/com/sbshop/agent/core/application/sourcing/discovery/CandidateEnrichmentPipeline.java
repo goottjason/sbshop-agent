@@ -179,26 +179,42 @@ public class CandidateEnrichmentPipeline {
 	}
 
 	private void applyDemandSignals(SourcingCandidate c) {
-		String keyword = SearchKeywordDeriver.derive(c.getNameKo(), c.getBrand());
-		if (keyword.isBlank())
-			return;
+		// 파생 키워드는 상품명이 구체적일수록 길어지고, 길수록 국내 검색량이 0에 수렴한다
+		// (실측: "Gold C USP 등급 비타민C" 10회 vs "비타민C" 수만 회). 후보 여러 개를 시도해
+		// **검색량이 가장 큰 것**을 대표 키워드로 삼는다 — 그게 실제 수요를 재는 말이다.
+		List<String> keywords = SearchKeywordDeriver.deriveCandidates(c.getNameKo(), c.getBrand());
+		if (keywords.isEmpty()) {
+			String fallback = SearchKeywordDeriver.derive(c.getNameKo(), c.getBrand());
+			if (fallback.isBlank())
+				return;
+			keywords = List.of(fallback);
+		}
 
-		Integer volume = null;
+		String bestKeyword = keywords.get(0);
+		Integer bestVolume = null;
 		if (keywordVolumePort.isEnabled()) {
-			List<KeywordVolume> volumes = keywordVolumePort.lookup(keyword);
-			volume = pickSeedVolume(volumes, keyword);
+			for (String kw : keywords) {
+				Integer v = pickSeedVolume(keywordVolumePort.lookup(kw), kw);
+				if (v != null && (bestVolume == null || v > bestVolume)) {
+					bestVolume = v;
+					bestKeyword = kw;
+				}
+			}
 		}
 
 		Integer competitors = null;
 		BigDecimal lowPrice = null;
+		BigDecimal medianPrice = null;
 		if (shoppingMarketPort.isEnabled()) {
-			Optional<ShoppingStats> stats = shoppingMarketPort.lookup(keyword);
+			Optional<ShoppingStats> stats = shoppingMarketPort.lookup(bestKeyword);
 			if (stats.isPresent()) {
 				competitors = stats.get().totalCount();
 				lowPrice = stats.get().lowestPrice();
+				// 가격 경쟁력 판정은 중앙값으로 한다 — 최저가는 소용량·샘플에 걸려 비교가 안 된다.
+				medianPrice = stats.get().medianPrice();
 			}
 		}
-		c.applyDemandSignals(volume, competitors, lowPrice, keyword);
+		c.applyDemandSignals(bestVolume, competitors, lowPrice, medianPrice, bestKeyword);
 	}
 
 	/**

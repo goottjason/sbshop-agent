@@ -71,7 +71,7 @@ public class CandidateScoringService {
 		// --- 국내 수요 (자격증명 없으면 결측) ---
 		put(subScores, "searchVolume", logScore(c.getMonthlySearchVolume(), SEARCH_LOG_MAX));
 		put(subScores, "competition", competitionScore(c.getCompetitorCount()));
-		put(subScores, "priceEdge", priceEdgeScore(c.getDomesticLowPrice(), pricing.salePrice()));
+		put(subScores, "priceEdge", priceEdgeScore(c.priceBenchmark(), pricing.salePrice()));
 
 		// --- 자사 이력 (주문 이력이 없으면 결측) ---
 		if (!history.isEmpty()) {
@@ -136,15 +136,20 @@ public class CandidateScoringService {
 				pricing.margin().setScale(0, RoundingMode.DOWN), minMargin.setScale(0, RoundingMode.DOWN));
 		}
 
-		// 국내 최저가를 크게 웃돌면 가격 경쟁이 불가능하다. 신호가 없으면 판단하지 않는다.
-		BigDecimal low = c.getDomesticLowPrice();
+		// 국내 시세를 크게 웃돌면 가격 경쟁이 불가능하다. 신호가 없으면 판단하지 않는다.
+		//
+		// ⚠️ 기준은 **중앙값**이다. 최저가(lprice)로 재면 광범위 키워드의 절대 최저가가
+		//    소용량·샘플 같은 비교 불가 상품에 걸려 멀쩡한 후보를 전부 죽인다
+		//    (운영 실측: "비타민D3" 최저가 250원 → 240정 제품이 탈락. 25/25 전멸).
+		BigDecimal benchmark = c.priceBenchmark();
 		BigDecimal ratio = config.getMaxPriceRatio();
-		if (low != null && low.signum() > 0 && ratio != null) {
-			BigDecimal ceiling = low.multiply(ratio);
+		if (benchmark != null && benchmark.signum() > 0 && ratio != null) {
+			BigDecimal ceiling = benchmark.multiply(ratio);
 			if (pricing.salePrice().compareTo(ceiling) > 0) {
-				return "예상 판매가 %s원 > 국내 최저가 %s원의 %s배".formatted(
-					pricing.salePrice().setScale(0, RoundingMode.DOWN),
-					low.setScale(0, RoundingMode.DOWN), ratio);
+				String basis = c.getDomesticMedianPrice() != null ? "국내 시세(중앙값)" : "국내 최저가";
+				return "예상 판매가 %s원 > %s %s원의 %s배".formatted(
+					pricing.salePrice().setScale(0, RoundingMode.DOWN), basis,
+					benchmark.setScale(0, RoundingMode.DOWN), ratio);
 			}
 		}
 		return null;
@@ -195,11 +200,11 @@ public class CandidateScoringService {
 		return clamp(1.0 - (Math.log10(competitorCount) / COMPETITION_LOG_MAX));
 	}
 
-	/** 국내 최저가 대비 우리 예상 판매가가 얼마나 싼가. 비싸면 0. */
-	private Double priceEdgeScore(BigDecimal domesticLow, BigDecimal ourPrice) {
-		if (domesticLow == null || domesticLow.signum() <= 0 || ourPrice == null || ourPrice.signum() <= 0)
+	/** 국내 시세(중앙값) 대비 우리 예상 판매가가 얼마나 싼가. 비싸면 0. */
+	private Double priceEdgeScore(BigDecimal benchmark, BigDecimal ourPrice) {
+		if (benchmark == null || benchmark.signum() <= 0 || ourPrice == null || ourPrice.signum() <= 0)
 			return null;
-		double edge = (domesticLow.doubleValue() - ourPrice.doubleValue()) / domesticLow.doubleValue();
+		double edge = (benchmark.doubleValue() - ourPrice.doubleValue()) / benchmark.doubleValue();
 		// 30% 이상 저렴하면 만점.
 		return clamp(edge / 0.3);
 	}

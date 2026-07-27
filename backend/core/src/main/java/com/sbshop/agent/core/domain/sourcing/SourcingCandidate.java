@@ -120,9 +120,19 @@ public class SourcingCandidate extends BaseEntity {
 	@Column(name = "competitor_count")
 	private Integer competitorCount;
 
-	/** 네이버 쇼핑검색 최저가(원). 가격 경쟁력 산정 기준. */
+	/**
+	 * 네이버 쇼핑검색 최저가(원). <b>표시용</b>이다.
+	 *
+	 * <p>가격 경쟁력 판정에는 쓰지 않는다 — 광범위 키워드의 절대 최저가는 소용량·샘플 같은
+	 * 비교 불가 상품에 걸린다(실측: "비타민D3" 최저가 250원). 판정은
+	 * {@link #domesticMedianPrice}로 한다.
+	 */
 	@Column(name = "domestic_low_price", precision = 15, scale = 2)
 	private BigDecimal domesticLowPrice;
+
+	/** 네이버 쇼핑검색 결과의 <b>중앙값</b>(원). 가격 경쟁력 판정 기준 — 시장가 대리값. */
+	@Column(name = "domestic_median_price", precision = 15, scale = 2)
+	private BigDecimal domesticMedianPrice;
 
 	@Column(name = "demand_keyword", length = 200)
 	private String demandKeyword;
@@ -253,11 +263,19 @@ public class SourcingCandidate extends BaseEntity {
 	}
 
 	public void applyDemandSignals(Integer monthlySearchVolume, Integer competitorCount,
-		BigDecimal domesticLowPrice, String demandKeyword) {
+		BigDecimal domesticLowPrice, BigDecimal domesticMedianPrice, String demandKeyword) {
 		this.monthlySearchVolume = monthlySearchVolume;
 		this.competitorCount = competitorCount;
 		this.domesticLowPrice = domesticLowPrice;
+		this.domesticMedianPrice = domesticMedianPrice;
 		this.demandKeyword = demandKeyword;
+	}
+
+	/** 가격 비교 기준가 — 중앙값 우선, 없으면 최저가. */
+	public BigDecimal priceBenchmark() {
+		if (domesticMedianPrice != null && domesticMedianPrice.signum() > 0)
+			return domesticMedianPrice;
+		return domesticLowPrice;
 	}
 
 	public void applyScore(BigDecimal totalScore, String scoreBreakdown,

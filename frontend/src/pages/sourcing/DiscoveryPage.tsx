@@ -252,7 +252,7 @@ const DiscoveryPage = () => {
             {c.competitorCount?.toLocaleString() ?? '-'}
           </div>
           <Text type="secondary">
-            최저 {won(c.domesticLowPrice)} → 예상 {won(c.estimatedSalePrice)}
+            시세 {won(c.domesticMedianPrice ?? c.domesticLowPrice)} → 예상 {won(c.estimatedSalePrice)}
           </Text>
         </div>
       ),
