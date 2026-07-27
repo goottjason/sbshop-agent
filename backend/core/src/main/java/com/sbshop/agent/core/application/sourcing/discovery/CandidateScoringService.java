@@ -40,6 +40,12 @@ public class CandidateScoringService {
 	/** 랭킹 점수 산정 시 "이 순위 밖은 동일 취급" 기준. */
 	private static final double RANK_HORIZON = 200.0;
 
+	/**
+	 * 국내 시세를 비교 기준으로 인정할 최소 비율(매입원가 대비).
+	 * 이보다 낮으면 키워드가 다른 상품군을 물어온 것으로 본다 — 근거는 {@code isBenchmarkReliable}.
+	 */
+	private static final double MIN_PLAUSIBLE_BENCHMARK_RATIO = 0.35;
+
 	private final MarginCalculator marginCalculator;
 	private final ObjectMapper objectMapper;
 
@@ -71,7 +77,10 @@ public class CandidateScoringService {
 		// --- 국내 수요 (자격증명 없으면 결측) ---
 		put(subScores, "searchVolume", logScore(c.getMonthlySearchVolume(), SEARCH_LOG_MAX));
 		put(subScores, "competition", competitionScore(c.getCompetitorCount()));
-		put(subScores, "priceEdge", priceEdgeScore(c.priceBenchmark(), pricing.salePrice()));
+		BigDecimal benchmark = c.priceBenchmark();
+		put(subScores, "priceEdge",
+			benchmark != null && isBenchmarkReliable(benchmark, c)
+				? priceEdgeScore(benchmark, pricing.salePrice()) : null);
 
 		// --- 자사 이력 (주문 이력이 없으면 결측) ---
 		if (!history.isEmpty()) {
@@ -143,7 +152,8 @@ public class CandidateScoringService {
 		//    (운영 실측: "비타민D3" 최저가 250원 → 240정 제품이 탈락. 25/25 전멸).
 		BigDecimal benchmark = c.priceBenchmark();
 		BigDecimal ratio = config.getMaxPriceRatio();
-		if (benchmark != null && benchmark.signum() > 0 && ratio != null) {
+		if (benchmark != null && benchmark.signum() > 0 && ratio != null
+			&& isBenchmarkReliable(benchmark, c)) {
 			BigDecimal ceiling = benchmark.multiply(ratio);
 			if (pricing.salePrice().compareTo(ceiling) > 0) {
 				String basis = c.getDomesticMedianPrice() != null ? "국내 시세(중앙값)" : "국내 최저가";
@@ -153,6 +163,37 @@ public class CandidateScoringService {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * 이 시세를 비교 기준으로 믿어도 되는가.
+	 *
+	 * <p>키워드 검색은 종종 다른 상품군을 물어온다. 문제는 "시세 &lt; 원가"만으로는
+	 * <b>키워드 오매칭</b>과 <b>진짜 가격경쟁력 없음</b>을 구분할 수 없다는 것이다 —
+	 * 후자는 걸러내야 하는 정상 케이스다. 구분선은 <b>격차의 크기</b>다.
+	 *
+	 * <p>실측값으로 기준을 잡았다(매입원가 대비 국내 중앙값 비율):
+	 * <pre>
+	 *   "Gold"      중앙값 10원    / 원가 23,172원 = 0.0004  ← 명백한 오매칭
+	 *   "비타민D3"   중앙값 2,820원 / 원가 12,763원 = 0.22    ← 240정 vs 소용량, 오매칭
+	 *   "Neuro-Mag" 중앙값 43,000원 / 원가 42,327원 = 1.02    ← 같은 상품군, 신뢰 가능
+	 * </pre>
+	 * 원가의 {@value #MIN_PLAUSIBLE_BENCHMARK_RATIO}배 미만이면 같은 상품을 본 것으로 보기 어렵다.
+	 * 못 믿는 신호로 후보를 떨어뜨리느니 <b>판정하지 않는</b> 편이 낫다.
+	 */
+	private boolean isBenchmarkReliable(BigDecimal benchmark, SourcingCandidate c) {
+		BigDecimal buyPrice = c.effectiveBuyPrice();
+		if (buyPrice == null || buyPrice.signum() <= 0)
+			return true;
+		BigDecimal floor = buyPrice.multiply(BigDecimal.valueOf(MIN_PLAUSIBLE_BENCHMARK_RATIO));
+		if (benchmark.compareTo(floor) < 0) {
+			log.info("[스코어링] 국내 시세({})가 매입원가({}) 대비 너무 낮아 가격 가드를 적용하지 않음 "
+				+ "— 키워드가 다른 상품군을 물었을 가능성: {}",
+				benchmark.setScale(0, RoundingMode.DOWN), buyPrice.setScale(0, RoundingMode.DOWN),
+				c.getDemandKeyword());
+			return false;
+		}
+		return true;
 	}
 
 	// --- 서브스코어 (모두 0.0~1.0, 결측이면 null → 가중치에서 제외) ---

@@ -178,10 +178,20 @@ public class CandidateEnrichmentPipeline {
 		return customsService.evaluateAgainst(c.getIngredientsRaw(), c.getNameKo(), bannedList);
 	}
 
+	/**
+	 * 국내 수요 신호. <b>검색량과 가격은 서로 다른 키워드로 조회한다.</b>
+	 *
+	 * <p>둘의 목적이 다르기 때문이다:
+	 * <ul>
+	 *   <li><b>검색량</b>은 카테고리 수요를 재는 것이라 <i>일반적인</i> 말이어야 한다("비타민D3")</li>
+	 *   <li><b>가격</b>은 같은 상품과 비교해야 하므로 <i>구체적인</i> 말이어야 한다
+	 *       (브랜드 + 제품 핵심부)</li>
+	 * </ul>
+	 *
+	 * <p>둘을 한 키워드로 묶었더니 실측에서 무너졌다 — 검색량을 최대화하면 "Gold" 같은 일반어가
+	 * 뽑히고 그 중앙값이 10원이 나와 멀쩡한 후보가 전부 탈락했다.
+	 */
 	private void applyDemandSignals(SourcingCandidate c) {
-		// 파생 키워드는 상품명이 구체적일수록 길어지고, 길수록 국내 검색량이 0에 수렴한다
-		// (실측: "Gold C USP 등급 비타민C" 10회 vs "비타민C" 수만 회). 후보 여러 개를 시도해
-		// **검색량이 가장 큰 것**을 대표 키워드로 삼는다 — 그게 실제 수요를 재는 말이다.
 		List<String> keywords = SearchKeywordDeriver.deriveCandidates(c.getNameKo(), c.getBrand());
 		if (keywords.isEmpty()) {
 			String fallback = SearchKeywordDeriver.derive(c.getNameKo(), c.getBrand());
@@ -190,31 +200,45 @@ public class CandidateEnrichmentPipeline {
 			keywords = List.of(fallback);
 		}
 
-		String bestKeyword = keywords.get(0);
+		// 검색량: 후보 중 가장 많이 검색되는 말(= 카테고리 수요).
+		String volumeKeyword = keywords.get(0);
 		Integer bestVolume = null;
 		if (keywordVolumePort.isEnabled()) {
 			for (String kw : keywords) {
 				Integer v = pickSeedVolume(keywordVolumePort.lookup(kw), kw);
 				if (v != null && (bestVolume == null || v > bestVolume)) {
 					bestVolume = v;
-					bestKeyword = kw;
+					volumeKeyword = kw;
 				}
 			}
 		}
 
+		// 가격·경쟁: 브랜드를 붙인 가장 구체적인 말(= 같은 상품군).
+		String priceKeyword = specificKeyword(c, keywords);
 		Integer competitors = null;
 		BigDecimal lowPrice = null;
 		BigDecimal medianPrice = null;
 		if (shoppingMarketPort.isEnabled()) {
-			Optional<ShoppingStats> stats = shoppingMarketPort.lookup(bestKeyword);
+			Optional<ShoppingStats> stats = shoppingMarketPort.lookup(priceKeyword);
 			if (stats.isPresent()) {
 				competitors = stats.get().totalCount();
 				lowPrice = stats.get().lowestPrice();
-				// 가격 경쟁력 판정은 중앙값으로 한다 — 최저가는 소용량·샘플에 걸려 비교가 안 된다.
 				medianPrice = stats.get().medianPrice();
 			}
 		}
-		c.applyDemandSignals(bestVolume, competitors, lowPrice, medianPrice, bestKeyword);
+		c.applyDemandSignals(bestVolume, competitors, lowPrice, medianPrice, volumeKeyword);
+	}
+
+	/** 가격 비교용 키워드 — 한글 브랜드 + 제품 핵심부. 브랜드를 못 뽑으면 가장 긴 후보를 쓴다. */
+	private String specificKeyword(SourcingCandidate c, List<String> keywords) {
+		String core = SearchKeywordDeriver.derive(c.getNameKo(), c.getBrand());
+		String brandKo = SearchKeywordDeriver.extractKoreanBrand(c.getNameKo());
+		if (brandKo != null && !core.isBlank())
+			return brandKo + " " + core;
+		if (!core.isBlank())
+			return core;
+		return keywords.stream().max(java.util.Comparator.comparingInt(String::length))
+			.orElse(keywords.get(0));
 	}
 
 	/**

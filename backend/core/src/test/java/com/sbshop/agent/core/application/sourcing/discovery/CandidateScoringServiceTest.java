@@ -191,10 +191,47 @@ class CandidateScoringServiceTest {
 	void fallsBackToLowestWhenMedianMissing() {
 		SourcingCandidate c = candidate(new BigDecimal("50000"), 10000, 5000,
 			new BigDecimal("4.5"), 10);
+		// 원가 50,000 대비 40% — 오매칭으로 보기엔 가깝고, 실제로 경쟁이 안 되는 구간이다.
 		c.applyDemandSignals(10000, 500, new BigDecimal("20000"), null, "키워드");
 
 		assertThat(service.score(c, config(), SalesHistorySnapshot.empty()))
 			.contains("국내 최저가");
+	}
+
+	@Test
+	@DisplayName("240정 제품이 소용량 시세에 걸리는 실측 케이스도 걸러진다")
+	void skipsGuardForCapacityMismatch() {
+		// 실측: "비타민D3" 중앙값 2,820원 vs 원가 12,763원(=0.22배) — 소용량 제품과 비교된 것.
+		SourcingCandidate c = candidate(new BigDecimal("12763"), 10000, 5000,
+			new BigDecimal("4.5"), 10);
+		c.applyDemandSignals(5990, 20068, new BigDecimal("250"), new BigDecimal("2820"), "비타민D3");
+
+		assertThat(service.score(c, config(), SalesHistorySnapshot.empty())).isNull();
+	}
+
+	@Test
+	@DisplayName("같은 상품군 시세(원가 수준)면 가드를 정상 적용한다")
+	void appliesGuardWhenBenchmarkComparable() {
+		// 실측: "Neuro-Mag" 중앙값 43,000원 vs 원가 42,327원(=1.02배) — 같은 상품군이다.
+		SourcingCandidate c = candidate(new BigDecimal("42327"), 10000, 5000,
+			new BigDecimal("4.5"), 10);
+		c.applyDemandSignals(25, 500, new BigDecimal("36800"), new BigDecimal("43000"), "Neuro-Mag");
+
+		assertThat(service.score(c, config(), SalesHistorySnapshot.empty()))
+			.contains("국내 시세");
+	}
+
+	@Test
+	@DisplayName("시세가 매입원가보다 낮으면 신호를 믿지 않고 가격 가드를 적용하지 않는다")
+	void skipsGuardWhenBenchmarkBelowCost() {
+		// 실측: 키워드 "Gold"가 중앙값 10원을 돌려줬다 — 다른 상품군을 본 것이다.
+		SourcingCandidate c = candidate(new BigDecimal("23172"), 10000, 5000,
+			new BigDecimal("4.5"), 10);
+		c.applyDemandSignals(2170, 500, new BigDecimal("1"), new BigDecimal("10"), "Gold");
+
+		assertThat(service.score(c, config(), SalesHistorySnapshot.empty())).isNull();
+		// 못 믿는 신호는 채점에서도 빠져야 한다(0점으로 깎으면 안 된다).
+		assertThat(c.getScoreBreakdown()).contains("\"missing\"").contains("priceEdge");
 	}
 
 	@Test
