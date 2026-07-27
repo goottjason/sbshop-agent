@@ -67,6 +67,14 @@ public class SourcingDiscoveryController {
 			return ResponseEntity.status(409)
 				.body(Map.of("message", "발굴이 이미 실행 중입니다."));
 		}
+		try {
+			// 반드시 여기(다른 빈)에서 호출해야 @Async 프록시를 탄다.
+			// runner 내부에서 부르면 self-invocation이라 동기 실행되고 이 요청이 수 분간 블록된다.
+			discoveryRunner.runAsync();
+		} catch (RuntimeException e) {
+			discoveryRunner.abort();
+			throw e;
+		}
 		return ResponseEntity.accepted().body(Map.of(
 			"message", "발굴을 시작했습니다. 수 분 소요되며 완료되면 추천 목록이 갱신됩니다.",
 			"statusUrl", "/api/v1/sourcing/discovery/status"));

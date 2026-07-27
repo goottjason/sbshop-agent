@@ -33,19 +33,24 @@ public class SourcingDiscoveryRunner {
 	private final AtomicBoolean running = new AtomicBoolean(false);
 	private final AtomicReference<DiscoverySummary> lastSummary = new AtomicReference<>();
 
-	/** @return 실행을 시작했으면 true, 이미 돌고 있으면 false */
+	/**
+	 * 중복 실행 가드만 잡는다. <b>실행은 호출측이 {@link #runAsync()}를 따로 불러야 한다.</b>
+	 *
+	 * <p>여기서 {@code runAsync()}를 부르면 안 된다. {@code @Async}는 스프링 프록시로 동작하는데
+	 * 같은 빈 안에서의 호출은 프록시를 거치지 않아 <b>그냥 동기 실행</b>된다.
+	 * (실측: 그렇게 했더니 발굴이 HTTP 워커 스레드 {@code nio-8080-exec-*}에서 돌아
+	 * POST /discovery/run 이 응답 없이 타임아웃됐다. 별도 빈으로 뺀 것만으로는 부족하고,
+	 * 프록시를 타려면 <b>다른 빈에서</b> 호출해야 한다.)
+	 *
+	 * @return 실행 권한을 얻었으면 true, 이미 돌고 있으면 false
+	 */
 	public boolean tryStart() {
-		if (!running.compareAndSet(false, true)) {
-			return false;
-		}
-		try {
-			runAsync();
-			return true;
-		} catch (RuntimeException e) {
-			// 비동기 제출 자체가 실패하면 플래그가 영원히 켜진 채 남는다.
-			running.set(false);
-			throw e;
-		}
+		return running.compareAndSet(false, true);
+	}
+
+	/** 비동기 제출 실패 등으로 실행을 못 시작했을 때 가드를 되돌린다(플래그가 영구히 켜지는 것 방지). */
+	public void abort() {
+		running.set(false);
 	}
 
 	@Async
