@@ -75,51 +75,58 @@ if $DRY_RUN; then
   exit 0
 fi
 
-# 원격에 넘길 스크립트를 구성한다. 값은 stdin으로만 전달하고 명령줄 인자로 두지 않는다
-# (인자는 서버의 프로세스 목록에 노출된다).
+# 값을 base64로 감싸 원격 스크립트 안에 심는다.
+#
+# ⚠️ 여기서 한 번 틀렸다: 처음엔 `printf '%s' "$PAYLOAD" | ssh ... bash -s <<'REMOTE'` 로
+#    데이터를 파이프로 넘겼는데, `bash -s`는 스크립트 자체를 stdin으로 읽는다. 즉 스크립트와
+#    데이터가 같은 stdin을 다투고, 원격의 `while read`가 남은 **스크립트 본문을 데이터로**
+#    읽어 .env에 쓰레기 줄을 append했다. 데이터는 스크립트 안에 담고, 루프의 stdin은
+#    별도 리다이렉션으로 준다.
+# base64는 개행·따옴표·$ 같은 특수문자가 없어 heredoc 안에 그대로 넣어도 안전하다.
 PAYLOAD=""
 for k in ${TO_SYNC[@]+"${TO_SYNC[@]}"}; do
   PAYLOAD+="$(grep -E "^${k}=" "$LOCAL_ENV" | tail -1)"$'\n'
 done
+PAYLOAD_B64=$(printf '%s' "$PAYLOAD" | base64 | tr -d '\n')
 
 echo
 echo "서버에 반영 중..."
-printf '%s' "$PAYLOAD" | ssh -i "$KEY" -o StrictHostKeyChecking=no "$USER@$SERVER" \
-  "cd $REMOTE_DIR && bash -s" <<'REMOTE'
+ssh -i "$KEY" -o StrictHostKeyChecking=no "$USER@$SERVER" "cd $REMOTE_DIR && bash -s" <<REMOTE_SCRIPT
 set -euo pipefail
 cd ~/projects/sbshop-agent
-cp .env ".env.bak-sync-$(date +%Y%m%d-%H%M%S)"
+cp .env ".env.bak-sync-\$(date +%Y%m%d-%H%M%S)"
 
+DATA=\$(printf '%s' '$PAYLOAD_B64' | base64 -d)
 updated=0
+
+# 루프의 stdin을 데이터로 명시 지정한다(스크립트 stdin과 분리).
 while IFS= read -r line; do
-  [ -z "$line" ] && continue
-  key="${line%%=*}"
-  if grep -qE "^${key}=" .env; then
-    # 기존 줄을 교체. 값에 /, &, | 가 들어갈 수 있어 sed 구분자 대신 python으로 안전 치환.
-    python3 - "$key" "$line" <<'PY'
-import sys, io
+  [ -z "\$line" ] && continue
+  key="\${line%%=*}"
+  python3 - "\$key" "\$line" <<'PYEOF'
+import io, sys
 key, newline = sys.argv[1], sys.argv[2]
 with io.open('.env', encoding='utf-8') as f:
     lines = f.readlines()
-out = []
-done = False
+out, replaced = [], False
 for l in lines:
-    if l.startswith(key + '=') and not done:
-        out.append(newline + '\n'); done = True
+    if l.startswith(key + '=') and not replaced:
+        out.append(newline + '\n'); replaced = True
     else:
         out.append(l)
+if not replaced:
+    if out and not out[-1].endswith('\n'):
+        out[-1] += '\n'
+    out.append(newline + '\n')
 with io.open('.env', 'w', encoding='utf-8') as f:
     f.writelines(out)
-PY
-  else
-    printf '%s\n' "$line" >> .env
-  fi
-  echo "  ✔ ${key}"
-  updated=$((updated+1))
-done
+print('  OK ' + key + ('' if replaced else ' (신규 추가)'))
+PYEOF
+  updated=\$((updated+1))
+done <<< "\$DATA"
 
-echo "서버 .env 갱신 완료: ${updated}건 (백업 .env.bak-sync-*)"
-REMOTE
+echo "서버 .env 갱신 완료: \${updated}건 (백업 .env.bak-sync-*)"
+REMOTE_SCRIPT
 
 if $RESTART; then
   echo
