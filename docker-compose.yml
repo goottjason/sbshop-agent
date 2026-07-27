@@ -31,6 +31,23 @@ services:
       # Fortnum&Mason 등 소싱 크롤 담당 Scrapling 서비스. depends_on 없음(스크래퍼 장애가
       # api 기동을 막지 않도록) — 스크래퍼 미기동 시 F&M 배치는 안전하게 실패 기록만 남긴다.
       SCRAPER_BASE_URL: http://sbshop-scraper:8099
+      # ── 신규 상품 등록 자동화(소싱 파이프라인) ──────────────────────────────
+      # 전부 선택적. 비어 있어도 파이프라인은 돌고, 없으면 이렇게 동작한다:
+      #   NAVER_OPENAPI_*   없으면 → 경쟁상품수·국내최저가 신호 결측(가중치에서 제외)
+      #   NAVER_SEARCHAD_*  없으면 → 월간 검색량·연관키워드 결측
+      #   ZEN_API_KEY       없으면 → 상품명·키워드를 규칙 기반으로 생성
+      # 식약처 반입차단 성분 목록은 인증키가 필요 없다.
+      NAVER_OPENAPI_CLIENT_ID: ${NAVER_OPENAPI_CLIENT_ID:-}
+      NAVER_OPENAPI_CLIENT_SECRET: ${NAVER_OPENAPI_CLIENT_SECRET:-}
+      NAVER_SEARCHAD_API_KEY: ${NAVER_SEARCHAD_API_KEY:-}
+      NAVER_SEARCHAD_SECRET_KEY: ${NAVER_SEARCHAD_SECRET_KEY:-}
+      NAVER_SEARCHAD_CUSTOMER_ID: ${NAVER_SEARCHAD_CUSTOMER_ID:-}
+      ZEN_API_KEY: ${ZEN_API_KEY:-}
+      # 마켓 등록 계정 고정값. 기본값을 application.yml과 똑같이 둔다 —
+      # `${VAR:-}`로 빈 값을 넘기면 Spring이 그 빈 문자열을 채택해 yml 기본값이 무시된다.
+      MARKET_SMARTSTORE_AS_TEL: ${MARKET_SMARTSTORE_AS_TEL:-010-2597-2480}
+      # Cafe24 분류번호는 미설정이 정상(자동 조회) — yml 기본값도 비어 있어 그대로 둔다.
+      MARKET_CAFE24_CATEGORY_NO: ${MARKET_CAFE24_CATEGORY_NO:-}
     depends_on:
       - sbshop-selenium
     networks:
