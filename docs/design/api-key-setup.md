@@ -86,46 +86,54 @@ python3 -c "import json;print(json.load(open('$HOME/.local/share/opencode/auth.j
 
 ---
 
-## 4. 서버에 반영하기
+## 4. 키 입력과 서버 반영
 
-키는 **서버의 `~/projects/sbshop-agent/.env`** 에 넣는다. 이 파일은 git에 올리지 않는다.
+키는 **로컬 프로젝트 폴더의 `.env`** 에 넣는다(IDE에서 편집). 이 파일은 git에 올라가지 않는다.
+로컬과 서버 `.env`의 키 목록은 동일하게 맞춰 두었다.
 
-```bash
-# 1) 서버 접속
-ssh -i ssh-key-2026-06-25.key ubuntu@168.107.31.154
+### 4-1. 로컬에 입력
 
-# 2) .env 편집 — 파일 맨 아래에 이미 빈 항목이 만들어져 있다
-cd ~/projects/sbshop-agent
-nano .env      # 또는 vi .env
+프로젝트 루트 `.env` 맨 아래에 빈 항목이 만들어져 있다. `=` 뒤에 값을 붙여넣는다(따옴표 없이):
 
-# 3) 아래 항목의 = 뒤에 값을 붙여넣는다 (따옴표 없이)
-#    NAVER_OPENAPI_CLIENT_ID=
-#    NAVER_OPENAPI_CLIENT_SECRET=
-#    NAVER_SEARCHAD_API_KEY=
-#    NAVER_SEARCHAD_SECRET_KEY=
-#    NAVER_SEARCHAD_CUSTOMER_ID=
-#    ZEN_API_KEY=
-
-# 4) 저장 후 API 컨테이너만 재생성 (env는 재시작이 아니라 재생성해야 반영된다)
-docker compose up -d sbshop-api
+```
+NAVER_OPENAPI_CLIENT_ID=
+NAVER_OPENAPI_CLIENT_SECRET=
+NAVER_SEARCHAD_API_KEY=
+NAVER_SEARCHAD_SECRET_KEY=
+NAVER_SEARCHAD_CUSTOMER_ID=
+ZEN_API_KEY=
 ```
 
-> `docker restart`로는 반영되지 않는다. compose가 환경변수를 컨테이너 생성 시점에 굽기 때문이다.
-> 반드시 `docker compose up -d sbshop-api`를 쓴다.
-
-### 반영 확인
+### 4-2. 서버로 동기화
 
 ```bash
-# 컨테이너에 값이 들어갔는지 (키 이름만 확인 — 값은 출력하지 않는다)
+./sync-env.sh --dry-run    # 무엇이 옮겨지는지 먼저 확인
+./sync-env.sh              # 반영 + API 컨테이너 재생성 + 기동 확인까지
+```
+
+`sync-env.sh`가 하는 일:
+
+- **지정한 키만** 옮긴다. 로컬 `.env`에는 개발용 DB 설정(`DB_HOST=localhost` 등)이 들어 있어
+  통째로 복사하면 운영 API가 로컬 DB를 보려다 부팅에 실패한다.
+- **로컬이 빈 키는 건너뛴다.** 빈 값을 보내면 서버에 이미 넣어둔 키를 지워버린다.
+- 서버 `.env`를 백업한 뒤 해당 줄만 교체한다(다른 키·주석은 그대로).
+- 값을 화면이나 명령줄 인자에 노출하지 않는다(인자는 서버 프로세스 목록에 보인다).
+- `docker compose up -d sbshop-api`로 **재생성**한다 — `docker restart`로는 반영되지 않는다.
+  compose가 환경변수를 컨테이너 생성 시점에 굽기 때문이다.
+
+동기화 대상 키를 늘리려면 `sync-env.sh`의 `SYNC_KEYS` 목록에 추가한다.
+
+### 4-3. 반영 확인
+
+```bash
+# 컨테이너에 값이 들어갔는지 (키 이름만 — 값은 출력하지 않는다)
 docker exec projects-sbshop-api-1 printenv | cut -d= -f1 | grep -E 'NAVER|ZEN'
-
-# 실제 동작 확인: 발굴을 1회 돌리고 후보에 수요 신호가 붙는지 본다
-# 화면: 상품 추천·자동등록 → "지금 재수집" → 완료 후 목록의 '국내 시장' 열에
-#       검색량/경쟁 숫자가 채워지면 성공. '-' 로 남으면 키가 안 먹은 것이다.
 ```
 
-키가 잘못됐을 때는 조용히 실패하고 신호만 비는 설계라(파이프라인을 멈추지 않기 위해),
-값이 계속 `-`로 나오면 API 로그를 본다:
+실제 동작 확인: **상품 추천·자동등록 → "지금 재수집"** → 완료 후 목록의 **국내 시장** 열에
+검색량/경쟁 숫자가 채워지면 성공이다. `-` 로 남으면 키가 안 먹은 것이다.
+
+키가 잘못돼도 파이프라인을 멈추지 않도록 **조용히 신호만 비는** 설계라, 값이 계속 `-`면 로그를 본다:
 
 ```bash
 docker logs projects-sbshop-api-1 | grep '\[수요신호\]'
