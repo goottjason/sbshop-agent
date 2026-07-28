@@ -50,6 +50,37 @@ class OrderEmailParserConfirmationTest {
 	}
 
 	@Test
+	@DisplayName("달러 표기 확인 메일은 원화 실구매가를 산출할 수 없으므로 금액을 비운다")
+	void rejectsUsdDenominatedTotal() {
+		// 실제 운영 메일: "결제 수단: Master Card x2218 총 결제 금액: $48.00"
+		// 원화 청구액은 카드사 환율로 정해지므로 메일에 없다 — 48을 원화로 읽으면 안 된다.
+		String body = "결제 수단: Master Card x2218 총 결제 금액: $48.00 주문 확인 / 관리";
+
+		Optional<OrderEmailParser.IherbConfirmationData> result =
+			parser.parseIherbConfirmation(SUBJECT, body);
+
+		assertThat(result).isPresent();
+		assertThat(result.get().getTotalAmount()).isNull();
+	}
+
+	@Test
+	@DisplayName("달러 금액이 1,000을 넘어도 원화로 오인하지 않는다")
+	void rejectsLargeUsdAmount() {
+		String body = "총 결제 금액: $1,480.00";
+
+		assertThat(parser.parseIherbConfirmation(SUBJECT, body).get().getTotalAmount()).isNull();
+	}
+
+	@Test
+	@DisplayName("통화기호 없는 원화 표기도 실구매가로 인정한다")
+	void acceptsKrwWithoutSymbol() {
+		String body = "총 결제 금액 45,254";
+
+		assertThat(parser.parseIherbConfirmation(SUBJECT, body).get().getTotalAmount())
+			.isEqualByComparingTo(new BigDecimal("45254"));
+	}
+
+	@Test
 	@DisplayName("금액이 실재 불가능한 소액이면 주입하지 않는다(태그 분할 등 오파싱 방어)")
 	void rejectsImplausiblySmallAmount() {
 		// 숫자가 태그 경계로 쪼개져 "31 ,441" 처럼 평탄화되면 앞 토막만 잡힌다.

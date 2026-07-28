@@ -30,9 +30,17 @@ public class OrderEmailParser {
 	 * — 실측에서 70,743원 주문이 48로 기록됐다.
 	 */
 	private static final List<Pattern> IHERB_CONFIRM_AMOUNT_PATTERNS = List.of(
-		Pattern.compile("총 결제 금액[^\\d₩]*₩?\\s*([\\d,]+)"),
-		Pattern.compile("총 금액[^\\d₩]*₩?\\s*([\\d,]+)"),
-		Pattern.compile("합계[^\\d₩]*₩?\\s*([\\d,]+)"));
+		amountPattern("총 결제 금액"),
+		amountPattern("총 금액"),
+		amountPattern("합계"));
+
+	/**
+	 * "{라벨} … [통화기호] 숫자" — 통화기호를 group(1), 금액을 group(2)로 잡는다.
+	 * iHerb는 계정 설정에 따라 원화(₩45,254)로도 달러($48.00)로도 표기하므로 기호를 반드시 확인해야 한다.
+	 */
+	private static Pattern amountPattern(String label) {
+		return Pattern.compile(label + "[^\\d₩$]*([₩$]?)\\s*([\\d,]+(?:\\.\\d{1,2})?)");
+	}
 
 	/**
 	 * HTML 태그와 줄바꿈을 제거하여 단일 라인으로 정리
@@ -138,14 +146,21 @@ public class OrderEmailParser {
 	 */
 	private static final BigDecimal MIN_PLAUSIBLE_AMOUNT = new BigDecimal("1000");
 
-	/** 우선순위 순으로 첫 매칭을 금액으로 채택한다. 변환 실패·비현실 소액이면 다음 패턴을 시도한다. */
+	/** 우선순위 순으로 첫 매칭을 금액으로 채택한다. 달러 표기·변환 실패·비현실 소액이면 다음 패턴을 시도한다. */
 	private BigDecimal extractTotalAmount(String flatBody) {
 		for (Pattern pattern : IHERB_CONFIRM_AMOUNT_PATTERNS) {
 			Matcher matcher = pattern.matcher(flatBody);
 			if (!matcher.find()) {
 				continue;
 			}
-			String amountStr = matcher.group(1).replace(",", "");
+			// 달러 표기 주문은 원화 청구액이 카드사 환율로 정해져 메일에 없다.
+			// $48.00의 48을 원화로 넣으면 원가가 사실상 0이 되어 순수익이 폭증한다 → 주입하지 않는다.
+			if ("$".equals(matcher.group(1))) {
+				log.warn("iHerb 확인메일이 달러 표기($ {}) — 원화 실구매가 산출 불가, 자동 주입 스킵(수동 입력 필요)",
+					matcher.group(2));
+				continue;
+			}
+			String amountStr = matcher.group(2).replace(",", "");
 			BigDecimal candidate;
 			try {
 				candidate = new BigDecimal(amountStr);
@@ -161,7 +176,7 @@ public class OrderEmailParser {
 			}
 			return candidate;
 		}
-		log.debug("iHerb 확인 이메일에서 금액 패턴 미매칭 또는 전부 비현실 값");
+		log.debug("iHerb 확인 이메일에서 금액 패턴 미매칭 또는 전부 채택 불가");
 		return null;
 	}
 
