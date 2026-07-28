@@ -1,6 +1,7 @@
 package com.sbshop.agent.worker.service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -190,8 +191,24 @@ public class OrderEmailParser {
 			}
 			return new ParsedAmount(candidate, KRW);
 		}
-		log.debug("iHerb 확인 이메일에서 금액 패턴 미매칭 또는 전부 채택 불가");
+		// 금액을 못 읽으면 원인 규명 없이는 영구 누락된다. 본문 전체(주소·연락처 포함)를 쏟지 않고,
+		// 통화 표기 주변만 뽑아 실제 라벨이 무엇인지 드러낸다.
+		log.warn("iHerb 확인 이메일 금액 패턴 미매칭 — 통화 표기 주변: {}", currencySnippets(flatBody));
 		return ParsedAmount.NONE;
+	}
+
+	/** 진단용: 본문의 "₩1,234"/"$12.34" 표기 앞 40자를 최대 8개까지 모은다. */
+	private static final Pattern CURRENCY_OCCURRENCE = Pattern.compile("[₩$]\\s*[\\d,]+(?:\\.\\d{1,2})?");
+	private static final int MAX_SNIPPETS = 8;
+
+	static String currencySnippets(String flatBody) {
+		List<String> snippets = new ArrayList<>();
+		Matcher matcher = CURRENCY_OCCURRENCE.matcher(flatBody);
+		while (matcher.find() && snippets.size() < MAX_SNIPPETS) {
+			int from = Math.max(0, matcher.start() - 40);
+			snippets.add("…" + flatBody.substring(from, matcher.end()));
+		}
+		return snippets.isEmpty() ? "(통화 표기 없음)" : String.join(" | ", snippets);
 	}
 
 	/** 진단용: 매칭 구간 앞뒤 60자를 잘라낸다. */

@@ -251,7 +251,7 @@ public class EmailFetcherService {
 					continue;
 				}
 				if (isAllMailFolder(folder)) {
-					log.debug("전체보관함 단독 검색: account={}, folder={}",
+					log.info("전체보관함 단독 검색: account={}, folder={}",
 						account.getUsername(), folder.getFullName());
 					return List.of(folder);
 				}
@@ -269,7 +269,8 @@ public class EmailFetcherService {
 				return List.of();
 			}
 		}
-		log.debug("전 폴더 검색: account={}, 폴더 {}곳", account.getUsername(), holders.size());
+		log.info("전 폴더 검색: account={}, 폴더 {}곳 ({})", account.getUsername(), holders.size(),
+			holders.stream().map(Folder::getFullName).toList());
 		return holders;
 	}
 
