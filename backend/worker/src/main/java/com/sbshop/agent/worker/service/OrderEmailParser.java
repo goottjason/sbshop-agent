@@ -22,8 +22,10 @@ public class OrderEmailParser {
 	private static final Pattern IHERB_ACCOUNT_PATTERN = Pattern
 		.compile("([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})");
 
-	// iHerb 주문 확인 패턴
-	private static final Pattern IHERB_CONFIRM_ORDER_NO = Pattern.compile("주문이\\s+확인되었습니다\\s+#(\\d+)");
+	// iHerb 주문 확인 패턴.
+	// 주문번호는 제목 어디에 있어도 잡는다 — iHerb가 문구 뒤("확인되었습니다 #123")로도,
+	// 앞("주문 #123 결제가 처리되었습니다")으로도 보내기 때문이다.
+	private static final Pattern IHERB_CONFIRM_ORDER_NO = Pattern.compile("#\\s*(\\d+)");
 	/**
 	 * 총액 패턴을 우선순위 순으로 시도한다(앞선 패턴이 맞으면 뒤는 보지 않는다).
 	 * 과거 구현은 판정용 {@code find()} 호출이 매칭 위치를 소비한 뒤 같은 Matcher로 다시
@@ -114,12 +116,27 @@ public class OrderEmailParser {
 	}
 
 	private boolean isIherbShipped(String subject) {
+		return isShipmentSubject(subject);
+	}
+
+	/** 발송 알림 제목인지. */
+	public static boolean isShipmentSubject(String subject) {
 		return subject != null && subject.contains("발송되었습니다");
+	}
+
+	/**
+	 * 실구매가를 담은 주문 확인 제목인지.
+	 * iHerb가 쓰는 두 표현을 모두 받는다 — "주문이 확인되었습니다", "결제가 처리되었습니다".
+	 * "결제 대기 중"은 결제 확정 전이라 금액이 바뀔 수 있으므로 제외한다.
+	 */
+	public static boolean isConfirmationSubject(String subject) {
+		return subject != null
+			&& (subject.contains("확인되었습니다") || subject.contains("결제가 처리되었습니다"));
 	}
 
 	// iHerb 주문 확인 메일 파싱
 	public Optional<IherbConfirmationData> parseIherbConfirmation(String subject, String body) {
-		if (subject == null || !subject.contains("확인되었습니다")) {
+		if (!isConfirmationSubject(subject)) {
 			return Optional.empty();
 		}
 

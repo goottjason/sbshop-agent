@@ -391,7 +391,12 @@ public class EmailFetcherService {
 		if (subject == null) {
 			return;
 		}
-		if (subject.contains("주문이 발송되었습니다 #" + orderNo)) {
+		// 제목에 그 주문번호가 있는 메일만 처리한다. 문구와 주문번호의 순서는 고정하지 않는다 —
+		// iHerb가 "확인되었습니다 #123"으로도, "주문 #123 결제가 처리되었습니다"로도 보낸다.
+		if (!subject.contains("#" + orderNo)) {
+			return;
+		}
+		if (OrderEmailParser.isShipmentSubject(subject)) {
 			String body = getTextFromMessage(message);
 			String from = message.getFrom() != null && message.getFrom().length > 0
 				? message.getFrom()[0].toString() : account.getUsername();
@@ -400,7 +405,7 @@ public class EmailFetcherService {
 					shipmentData.getOrderNo(), shipmentData.getTrackingNo(), account.getUsername());
 				processIherbShipment(shipmentData);
 			});
-		} else if (subject.contains("주문이 확인되었습니다 #" + orderNo)) {
+		} else if (OrderEmailParser.isConfirmationSubject(subject)) {
 			String body = getTextFromMessage(message);
 			parser.parseIherbConfirmation(subject, body).ifPresent(confirmData -> {
 				log.info("iHerb 확인 이메일 발견: orderNo={}, amount={}, account={}",
@@ -625,81 +630,6 @@ public class EmailFetcherService {
 		if (lower.contains("post") || lower.contains("우체국"))
 			return ShippingCarrier.KOREA_POST;
 		return ShippingCarrier.ETC;
-	}
-
-	// iHerb 주문 확인 이메일 즉시 검색 (구매처리 시 호출)
-	public Optional<BigDecimal> findIherbConfirmationAmount(String orderNo) {
-		if (properties.getAccounts() == null || properties.getAccounts().isEmpty()) {
-			return Optional.empty();
-		}
-		// 비ASCII 주문번호는 IMAP SEARCH 파싱 실패를 유발하므로 검색하지 않는다(buildSearchPlan과 동일 가드).
-		if (!isImapSearchable(orderNo)) {
-			log.debug("iHerb 확인금액 검색 제외 — 비ASCII 주문번호 '{}'", orderNo);
-			return Optional.empty();
-		}
-
-		for (EmailAccountProperties.Account account : properties.getAccounts()) {
-			Optional<BigDecimal> result = searchConfirmationInAccount(account, orderNo);
-			if (result.isPresent()) {
-				return result;
-			}
-		}
-		return Optional.empty();
-	}
-
-	/**
-	 * Gmail 호환: 특정 주문번호의 확인 이메일을 검색하여 실구매가 반환
-	 */
-	private Optional<BigDecimal> searchConfirmationInAccount(
-		EmailAccountProperties.Account account, String orderNo) {
-
-		Properties props = new Properties();
-		props.put("mail.store.protocol", account.getProtocol());
-		props.put("mail.imaps.host", account.getHost());
-		props.put("mail.imaps.port", String.valueOf(account.getPort()));
-		props.put("mail.imaps.connectiontimeout", "10000");
-		props.put("mail.imaps.timeout", "30000");
-
-		try {
-			Session session = Session.getDefaultInstance(props, null);
-			Store store = session.getStore(account.getProtocol());
-			store.connect(account.getHost(), account.getUsername(), account.getPassword());
-
-			Folder inbox = store.getFolder("INBOX");
-			inbox.open(Folder.READ_ONLY);
-
-			String searchSubject = "주문이 확인되었습니다 #" + orderNo;
-
-			// 서버측 SEARCH(SUBJECT 주문번호)로 매칭 메일만 조회 (숫자=ASCII, charset 무관)
-			Message[] messages = inbox.search(new SubjectTerm(orderNo));
-
-			for (Message message : messages) {
-				String subject = message.getSubject();
-				if (subject != null && subject.contains(searchSubject)) {
-					String body = getTextFromMessage(message);
-
-					Optional<OrderEmailParser.IherbConfirmationData> parsed = parser
-						.parseIherbConfirmation(subject, body);
-
-					inbox.close(false);
-					store.close();
-
-					return parsed.flatMap(data -> {
-						if (data.getTotalAmount() != null) {
-							log.info("iHerb 주문 확인 메일 발견: orderNo={}, amount={}, account={}",
-								orderNo, data.getTotalAmount(), account.getUsername());
-						}
-						return Optional.ofNullable(data.getTotalAmount());
-					});
-				}
-			}
-
-			inbox.close(false);
-			store.close();
-		} catch (Exception e) {
-			log.debug("이메일 검색 실패 (account: {}): {}", account.getUsername(), e.getMessage());
-		}
-		return Optional.empty();
 	}
 
 	/**

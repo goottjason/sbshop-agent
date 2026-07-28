@@ -50,6 +50,39 @@ class OrderEmailParserConfirmationTest {
 	}
 
 	@Test
+	@DisplayName("'결제가 처리되었습니다' 제목도 확인 메일로 인식한다(주문번호가 문구 앞)")
+	void recognizesPaymentProcessedSubject() {
+		String subject = "iHerb 주문 #343977053 결제가 처리되었습니다";
+		String body = "총 결제 금액: $48.00";
+
+		Optional<OrderEmailParser.IherbConfirmationData> result =
+			parser.parseIherbConfirmation(subject, body);
+
+		assertThat(result).isPresent();
+		assertThat(result.get().getOrderNo()).isEqualTo("343977053");
+		assertThat(result.get().getTotalAmount()).isEqualByComparingTo(new BigDecimal("48.00"));
+	}
+
+	@Test
+	@DisplayName("'결제 대기 중'은 결제 확정 전이므로 확인 메일로 보지 않는다")
+	void ignoresPaymentPendingSubject() {
+		String subject = "주문번호 #343977053 결제 대기 중";
+
+		assertThat(parser.parseIherbConfirmation(subject, "총 결제 금액: $48.00")).isEmpty();
+	}
+
+	@Test
+	@DisplayName("제목 종류 판정: 발송·확인·대기를 구분한다")
+	void classifiesSubjects() {
+		assertThat(OrderEmailParser.isConfirmationSubject("iHerb 주문이 확인되었습니다 #1")).isTrue();
+		assertThat(OrderEmailParser.isConfirmationSubject("iHerb 주문 #1 결제가 처리되었습니다")).isTrue();
+		assertThat(OrderEmailParser.isConfirmationSubject("주문번호 #1 결제 대기 중")).isFalse();
+		assertThat(OrderEmailParser.isConfirmationSubject("주문이 발송되었습니다 #1")).isFalse();
+		assertThat(OrderEmailParser.isShipmentSubject("주문이 발송되었습니다 #1")).isTrue();
+		assertThat(OrderEmailParser.isShipmentSubject("iHerb 주문 #1 결제가 처리되었습니다")).isFalse();
+	}
+
+	@Test
 	@DisplayName("달러 표기 확인 메일은 액면 금액과 USD 통화를 함께 돌려준다")
 	void marksUsdDenominatedTotal() {
 		// 실제 운영 메일: "결제 수단: Master Card x2218 총 결제 금액: $48.00"
