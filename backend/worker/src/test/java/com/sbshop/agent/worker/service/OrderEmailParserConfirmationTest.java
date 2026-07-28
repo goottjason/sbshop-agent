@@ -50,6 +50,32 @@ class OrderEmailParserConfirmationTest {
 	}
 
 	@Test
+	@DisplayName("금액이 실재 불가능한 소액이면 주입하지 않는다(태그 분할 등 오파싱 방어)")
+	void rejectsImplausiblySmallAmount() {
+		// 숫자가 태그 경계로 쪼개져 "31 ,441" 처럼 평탄화되면 앞 토막만 잡힌다.
+		String body = "<td>총 결제 금액</td><td>&#8361;<span>31</span><span>,441</span></td>";
+
+		Optional<OrderEmailParser.IherbConfirmationData> result =
+			parser.parseIherbConfirmation(SUBJECT, body);
+
+		assertThat(result).isPresent();
+		assertThat(result.get().getTotalAmount()).isNull();
+	}
+
+	@Test
+	@DisplayName("소액 매칭 뒤에 정상 금액 패턴이 있으면 그쪽을 채택한다")
+	void fallsBackToNextPatternWhenFirstIsImplausible() {
+		String body = "<td>총 결제 금액</td><td>&#8361;<span>31</span><span>,441</span></td>"
+			+ "<td>합계</td><td>&#8361;31,441</td>";
+
+		Optional<OrderEmailParser.IherbConfirmationData> result =
+			parser.parseIherbConfirmation(SUBJECT, body);
+
+		assertThat(result).isPresent();
+		assertThat(result.get().getTotalAmount()).isEqualByComparingTo(new BigDecimal("31441"));
+	}
+
+	@Test
 	@DisplayName("'합계' 3차 패턴만 있는 확인 메일에서도 실구매가를 추출한다")
 	void extractsAmountFromTertiaryPattern() {
 		String body = "<div>합계 &#8361;45,000</div>";

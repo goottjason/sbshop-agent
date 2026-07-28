@@ -130,7 +130,15 @@ public class OrderEmailParser {
 				.build());
 	}
 
-	/** 우선순위 순으로 첫 매칭을 금액으로 채택한다. 매칭이 숫자로 변환되지 않으면 다음 패턴을 시도한다. */
+	/**
+	 * 실재 가능한 iHerb 주문 최소 금액. 이보다 작으면 파싱 사고로 본다.
+	 * 실측 주문 범위는 2만~7만원대이며, 숫자가 태그 경계로 쪼개져 평탄화되면
+	 * ("₩31,441" → "31 ,441") 앞 토막만 잡혀 31 같은 값이 나온다.
+	 * 잘못된 값은 멱등 가드 때문에 영구 고착되므로, 의심 값은 주입하지 않고 버린다.
+	 */
+	private static final BigDecimal MIN_PLAUSIBLE_AMOUNT = new BigDecimal("1000");
+
+	/** 우선순위 순으로 첫 매칭을 금액으로 채택한다. 변환 실패·비현실 소액이면 다음 패턴을 시도한다. */
 	private BigDecimal extractTotalAmount(String flatBody) {
 		for (Pattern pattern : IHERB_CONFIRM_AMOUNT_PATTERNS) {
 			Matcher matcher = pattern.matcher(flatBody);
@@ -138,13 +146,29 @@ public class OrderEmailParser {
 				continue;
 			}
 			String amountStr = matcher.group(1).replace(",", "");
+			BigDecimal candidate;
 			try {
-				return new BigDecimal(amountStr);
+				candidate = new BigDecimal(amountStr);
 			} catch (NumberFormatException e) {
 				log.warn("iHerb 금액 파싱 실패: {}", amountStr);
+				continue;
 			}
+			if (candidate.compareTo(MIN_PLAUSIBLE_AMOUNT) < 0) {
+				// 원인 규명을 위해 매칭 주변만 남긴다(본문 전체는 개인정보라 로그로 내보내지 않는다).
+				log.warn("iHerb 금액 오파싱 의심 — 값={} 무시. 매칭 주변: '{}'",
+					candidate, contextAround(flatBody, matcher.start(), matcher.end()));
+				continue;
+			}
+			return candidate;
 		}
-		log.debug("iHerb 확인 이메일에서 금액 패턴 미매칭");
+		log.debug("iHerb 확인 이메일에서 금액 패턴 미매칭 또는 전부 비현실 값");
 		return null;
+	}
+
+	/** 진단용: 매칭 구간 앞뒤 60자를 잘라낸다. */
+	private static String contextAround(String text, int start, int end) {
+		int from = Math.max(0, start - 60);
+		int to = Math.min(text.length(), end + 60);
+		return text.substring(from, to);
 	}
 }
