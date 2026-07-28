@@ -52,6 +52,48 @@ class EmailFetcherRoutingTest {
 	}
 
 	@Test
+	@DisplayName("같은 제공자의 별칭 도메인(hanmail.net↔daum.net)은 같은 메일함으로 본다")
+	void aliasDomainRoutesToSameMailbox() {
+		// 운영 실측: 소싱 계정은 tonyworld@hanmail.net인데 설정 계정은 tonyworld@daum.net.
+		// 문자열 완전일치로는 못 찾아 9개 계정 전부로 퍼졌다(검색 계획의 약 67%가 이 팬아웃).
+		assertThat(EmailFetcherService.resolveTargetAccounts("tonyworld@hanmail.net", all))
+			.containsExactly(daum);
+		assertThat(EmailFetcherService.resolveTargetAccounts("TonyWorld@HANMAIL.net", all))
+			.containsExactly(daum);
+	}
+
+	@Test
+	@DisplayName("local-part가 같아도 제공자가 다르면 별개 메일함이다")
+	void sameLocalPartDifferentProviderDoesNotMatch() {
+		// tonyworld@naver.com은 tonyworld@daum.net과 다른 사람의 메일함일 수 있다 → 좁히지 않고 폴백.
+		assertThat(EmailFetcherService.resolveTargetAccounts("tonyworld@nate.com", all))
+			.containsExactlyElementsOf(all);
+	}
+
+	@Test
+	@DisplayName("받은메일이 있을 수 없는 폴더(보낸편지함·임시보관함)는 검색 대상에서 제외")
+	void skipsNonReceivingFolders() {
+		assertThat(EmailFetcherService.isNonReceivingFolderName("Sent Messages")).isTrue();
+		assertThat(EmailFetcherService.isNonReceivingFolderName("Drafts")).isTrue();
+		assertThat(EmailFetcherService.isNonReceivingFolderName("보낼편지함")).isTrue();
+		assertThat(EmailFetcherService.isNonReceivingFolderName("보낼 편지함")).isTrue();
+		assertThat(EmailFetcherService.isNonReceivingFolderName("임시보관함")).isTrue();
+	}
+
+	@Test
+	@DisplayName("받은메일이 있을 수 있는 폴더는 제외하지 않는다")
+	void keepsReceivingFolders() {
+		// 스팸·휴지통에도 진짜 확인메일이 들어갈 수 있다 — 제외 대상이 아니다.
+		assertThat(EmailFetcherService.isNonReceivingFolderName("INBOX")).isFalse();
+		assertThat(EmailFetcherService.isNonReceivingFolderName("Junk")).isFalse();
+		assertThat(EmailFetcherService.isNonReceivingFolderName("Deleted Messages")).isFalse();
+		assertThat(EmailFetcherService.isNonReceivingFolderName("스팸편지함")).isFalse();
+		assertThat(EmailFetcherService.isNonReceivingFolderName("아이허브")).isFalse();
+		assertThat(EmailFetcherService.isNonReceivingFolderName("구매확인메일")).isFalse();
+		assertThat(EmailFetcherService.isNonReceivingFolderName("내게쓴메일함")).isFalse();
+	}
+
+	@Test
 	@DisplayName("소싱 계정 미상(null·blank) → 전 계정 폴백")
 	void blankSourcingFallsBackToAll() {
 		assertThat(EmailFetcherService.resolveTargetAccounts(null, all)).containsExactlyElementsOf(all);

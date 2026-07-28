@@ -181,13 +181,43 @@ public class EmailFetcherService {
 			}
 			return gmail.isEmpty() ? usable : gmail;
 		}
-		List<EmailAccountProperties.Account> exact = new ArrayList<>();
+		List<EmailAccountProperties.Account> matched = new ArrayList<>();
 		for (EmailAccountProperties.Account a : usable) {
-			if (sourcingAccount.equalsIgnoreCase(a.getUsername())) {
-				exact.add(a);
+			if (isSameMailbox(sourcingAccount, a)) {
+				matched.add(a);
 			}
 		}
-		return exact.isEmpty() ? usable : exact;
+		return matched.isEmpty() ? usable : matched;
+	}
+
+	/**
+	 * 소싱 계정과 설정 계정이 같은 메일함인지 판정한다.
+	 *
+	 * <p>주소 문자열 완전일치로는 **같은 제공자의 별칭 도메인**을 못 잡는다 —
+	 * 운영에서 소싱 계정 {@code tonyworld@hanmail.net}이 설정 계정 {@code tonyworld@daum.net}과
+	 * 매칭되지 않아 9개 계정 전부로 퍼졌고, 검색 계획의 약 67%가 이 팬아웃이었다.
+	 * local-part가 같고 해석된 IMAP host가 같으면 같은 메일함으로 본다
+	 * (hanmail.net·daum.net은 {@code DOMAIN_IMAP_HOST}에서 이미 같은 imap.daum.net으로 간다).
+	 * local-part만 같고 제공자가 다르면 남남일 수 있으므로 매칭하지 않는다.
+	 */
+	private static boolean isSameMailbox(String sourcingAccount, EmailAccountProperties.Account account) {
+		String sourcingLocal = localPart(sourcingAccount);
+		String accountLocal = localPart(account.getUsername());
+		if (sourcingLocal == null || accountLocal == null || !sourcingLocal.equalsIgnoreCase(accountLocal)) {
+			return false;
+		}
+		String accountHost = account.getHost() != null && !account.getHost().isBlank()
+			? account.getHost() : EmailAccountProperties.imapHostForEmail(account.getUsername());
+		return EmailAccountProperties.imapHostForEmail(sourcingAccount).equalsIgnoreCase(accountHost);
+	}
+
+	/** 이메일 주소의 @ 앞부분. @가 없으면 전체를 local-part로 본다. */
+	private static String localPart(String email) {
+		if (email == null || email.isBlank()) {
+			return null;
+		}
+		int at = email.lastIndexOf('@');
+		return at < 0 ? email : email.substring(0, at);
 	}
 
 	/**
@@ -250,6 +280,11 @@ public class EmailFetcherService {
 				if ((folder.getType() & Folder.HOLDS_MESSAGES) == 0) {
 					continue;
 				}
+				// 보낸편지함·임시보관함에는 iHerb가 보낸 메일이 있을 수 없다 — 계정당 폴더 2~3곳 절감.
+				// (스팸·휴지통은 진짜 확인메일이 들어갈 수 있으므로 계속 검색한다.)
+				if (isNonReceivingFolder(folder)) {
+					continue;
+				}
 				if (isAllMailFolder(folder)) {
 					log.info("전체보관함 단독 검색: account={}, folder={}",
 						account.getUsername(), folder.getFullName());
@@ -276,12 +311,38 @@ public class EmailFetcherService {
 
 	/** IMAP SPECIAL-USE {@code \All} 속성 보유 여부(Gmail 전체보관함). 속성 조회 불가 구현체면 false. */
 	private static boolean isAllMailFolder(Folder folder) {
+		return hasAttribute(folder, "\\All");
+	}
+
+	/** 받은메일이 있을 수 없는 폴더(보낸편지함·임시보관함)인지. 속성 우선, 없으면 폴더명으로 판정. */
+	private static boolean isNonReceivingFolder(Folder folder) {
+		if (hasAttribute(folder, "\\Sent") || hasAttribute(folder, "\\Drafts")) {
+			return true;
+		}
+		return isNonReceivingFolderName(folder.getName());
+	}
+
+	/** 제공자별 보낸편지함·임시보관함 이름(운영 계정 9곳에서 실제로 관측된 표기). */
+	private static final Set<String> NON_RECEIVING_FOLDER_NAMES = Set.of(
+		"sent", "sent messages", "sent items", "보낸편지함", "보낸 편지함",
+		"보낼편지함", "보낼 편지함", "drafts", "임시보관함");
+
+	// 테스트 접근을 위해 package-private
+	static boolean isNonReceivingFolderName(String name) {
+		if (name == null) {
+			return false;
+		}
+		return NON_RECEIVING_FOLDER_NAMES.contains(name.trim().toLowerCase());
+	}
+
+	/** IMAP SPECIAL-USE 속성 보유 여부. 속성 조회가 불가능한 구현체·오류면 false. */
+	private static boolean hasAttribute(Folder folder, String attribute) {
 		if (!(folder instanceof IMAPFolder imapFolder)) {
 			return false;
 		}
 		try {
-			for (String attribute : imapFolder.getAttributes()) {
-				if ("\\All".equalsIgnoreCase(attribute)) {
+			for (String found : imapFolder.getAttributes()) {
+				if (attribute.equalsIgnoreCase(found)) {
 					return true;
 				}
 			}
