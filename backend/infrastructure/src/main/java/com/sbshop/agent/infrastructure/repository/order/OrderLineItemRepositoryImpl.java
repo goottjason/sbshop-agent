@@ -8,6 +8,7 @@ import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import static com.sbshop.agent.core.domain.order.QOrder.order;
@@ -36,12 +37,34 @@ public class OrderLineItemRepositoryImpl implements OrderLineItemRepositoryCusto
 		return queryFactory
 			.select(orderLineItem)
 			.from(orderLineItem)
-			.where(
-				orderLineItem.sourcingData.sourcingVendor.eq("IHB")
-					.and(orderLineItem.sourcingData.sourcingOrderNo.isNotNull())
-					.and(orderLineItem.sourcingData.sourcingOrderNo.ne(""))
-					.and(shipmentEmailNeeded()))
+			.where(iherbWithOrderNo().and(shipmentEmailNeeded()))
 			.fetch();
+	}
+
+	@Override
+	public List<OrderLineItem> findIherbItemsNeedingPurchaseAmount() {
+		return queryFactory
+			.select(orderLineItem)
+			.from(orderLineItem)
+			.where(iherbWithOrderNo().and(purchaseAmountMissing()))
+			.fetch();
+	}
+
+	/** iHerb 소싱 + 구매주문번호 보유 — 이메일 검색의 공통 전제. */
+	private BooleanExpression iherbWithOrderNo() {
+		return orderLineItem.sourcingData.sourcingVendor.eq("IHB")
+			.and(orderLineItem.sourcingData.sourcingOrderNo.isNotNull())
+			.and(orderLineItem.sourcingData.sourcingOrderNo.ne(""));
+	}
+
+	/**
+	 * 실구매가 미기록 조건. 배송상태를 참조하지 않는다.
+	 * 0 이하도 미기록으로 본다 — EmailFetcherService의 멱등 가드(amount &gt; 0 이면 스킵)와 같은 경계.
+	 */
+	// 테스트 접근을 위해 package-private
+	BooleanExpression purchaseAmountMissing() {
+		return orderLineItem.sourcingData.sourcingAmount.isNull()
+			.or(orderLineItem.sourcingData.sourcingAmount.loe(BigDecimal.ZERO));
 	}
 
 	private BooleanExpression shipmentEmailNeeded() {

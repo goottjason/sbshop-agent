@@ -3,6 +3,7 @@ package com.sbshop.agent.api.service;
 import com.sbshop.agent.core.config.EmailAccountProperties;
 import jakarta.mail.*;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.regex.Matcher;
@@ -16,9 +17,11 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class IherbEmailSearchService {
 
-	private static final Pattern IHERB_CONFIRM_TOTAL = Pattern.compile("총 결제 금액[:\\s]*₩?([\\d,]+)");
-	private static final Pattern IHERB_CONFIRM_TOTAL2 = Pattern.compile("총 금액[:\\s]*₩?([\\d,]+)");
-	private static final Pattern IHERB_CONFIRM_TOTAL3 = Pattern.compile("합계[:\\s]*₩?([\\d,]+)");
+	/** 우선순위 순 총액 패턴. 앞선 패턴이 맞으면 뒤는 보지 않는다(OrderEmailParser와 동일 규약). */
+	private static final List<Pattern> IHERB_CONFIRM_TOTAL_PATTERNS = List.of(
+		Pattern.compile("총 결제 금액[:\\s]*₩?([\\d,]+)"),
+		Pattern.compile("총 금액[:\\s]*₩?([\\d,]+)"),
+		Pattern.compile("합계[:\\s]*₩?([\\d,]+)"));
 
 	private final EmailAccountProperties emailProperties;
 
@@ -120,15 +123,13 @@ public class IherbEmailSearchService {
 		return Optional.empty();
 	}
 
-	private Optional<BigDecimal> parseAmount(String body) {
-		Matcher m = IHERB_CONFIRM_TOTAL.matcher(body);
-		if (!m.find()) {
-			m = IHERB_CONFIRM_TOTAL2.matcher(body);
+	// 테스트 접근을 위해 package-private
+	Optional<BigDecimal> parseAmount(String body) {
+		for (Pattern pattern : IHERB_CONFIRM_TOTAL_PATTERNS) {
+			Matcher m = pattern.matcher(body);
 			if (!m.find()) {
-				m = IHERB_CONFIRM_TOTAL3.matcher(body);
+				continue;
 			}
-		}
-		if (m.find()) {
 			try {
 				return Optional.of(new BigDecimal(m.group(1).replace(",", "")));
 			} catch (NumberFormatException e) {

@@ -77,9 +77,14 @@ public class EmailFetcherService {
 				return true;
 			}
 
-			// 1. DB에서 이메일 처리가 필요한 iHerb 주문번호 조회
-			List<OrderLineItem> items = orderLineItemRepository.findIherbItemsNeedingEmailProcessing();
-			if (items.isEmpty()) {
+			// 1. DB에서 이메일 처리가 필요한 iHerb 주문번호 조회.
+			//    두 큐는 생애주기가 다르다:
+			//    - 배송 큐: 발송메일에서 송장을 받아야 하는 건(PREPARING·미동기 DISPATCHED/SHIPPED)
+			//    - 실구매가 큐: 확인메일에서 금액을 받아야 하는 건(배송상태 무관)
+			//    과거에는 배송 큐만 스캔해, 배송이 끝난 주문은 실구매가를 영영 못 받았다(실측 164/194 미주입).
+			List<OrderLineItem> shipmentItems = orderLineItemRepository.findIherbItemsNeedingEmailProcessing();
+			List<OrderLineItem> amountItems = orderLineItemRepository.findIherbItemsNeedingPurchaseAmount();
+			if (shipmentItems.isEmpty() && amountItems.isEmpty()) {
 				log.debug("이메일 처리가 필요한 iHerb 주문이 없습니다.");
 				return true;
 			}
@@ -87,7 +92,8 @@ public class EmailFetcherService {
 			// 2. 라우팅: 주문의 소싱 계정(sourcing_account)으로 검색할 메일함을 좁힌다.
 			//    - Gmail 소싱분은 중앙 계정으로 자동전달되므로 중앙(Gmail) 메일함만
 			//    - 비-Gmail 소싱분은 해당 제공자 메일함만 (미매칭·미상은 전 계정 폴백)
-			Map<EmailAccountProperties.Account, Set<String>> plan = buildSearchPlan(items);
+			Map<EmailAccountProperties.Account, Set<String>> plan = buildSearchPlan(
+				shipmentItems, amountItems, properties.getAccounts());
 			log.info("이메일 검색 계획: 계정 {}곳, 주문 {}건", plan.size(),
 				plan.values().stream().mapToInt(Set::size).sum());
 
@@ -104,28 +110,41 @@ public class EmailFetcherService {
 	/**
 	 * 처리 대상 라인아이템을 "검색할 메일함(계정) → 주문번호 집합"으로 라우팅한다.
 	 * 주문의 소싱 계정({@code sourcing_account})으로 대상 메일함을 좁혀, 전 계정 스캔을 피한다.
+	 *
+	 * <p>배송 큐와 실구매가 큐를 합쳐 계정별 주문번호 집합으로 정리한다. 한 주문이 두 큐에 모두 있어도
+	 * IMAP SEARCH는 1회다(Set 중복 제거) — 매칭된 메일의 제목으로 발송/확인 처리를 분기하므로,
+	 * 어느 큐에서 왔든 같은 검색 1회로 양쪽이 처리된다.
 	 */
-	private Map<EmailAccountProperties.Account, Set<String>> buildSearchPlan(List<OrderLineItem> items) {
+	// 테스트 접근을 위해 package-private
+	Map<EmailAccountProperties.Account, Set<String>> buildSearchPlan(
+		List<OrderLineItem> shipmentItems, List<OrderLineItem> amountItems,
+		List<EmailAccountProperties.Account> accounts) {
 		Map<EmailAccountProperties.Account, Set<String>> plan = new LinkedHashMap<>();
-		List<EmailAccountProperties.Account> accounts = properties.getAccounts();
-		for (OrderLineItem item : items) {
-			var sourcingData = item.getSourcingData();
-			String orderNo = sourcingData != null ? sourcingData.getSourcingOrderNo() : null;
-			if (orderNo == null || orderNo.isBlank()) {
-				continue;
-			}
-			// 사용자 편집 필드라 비ASCII 값(예: 한글 "재고")이 들어올 수 있다. 그대로 IMAP SEARCH에
-			// 넣으면 charset 미지정으로 서버가 파싱 실패(BAD)를 던져 검색 루프가 끊긴다 → 제외.
-			if (!isImapSearchable(orderNo)) {
-				log.warn("이메일 검색 제외 — 비ASCII 구매주문번호(itemId={}, orderNo='{}')", item.getId(), orderNo);
-				continue;
-			}
-			String sourcingAccount = sourcingData != null ? sourcingData.getSourcingAccount() : null;
-			for (EmailAccountProperties.Account target : resolveTargetAccounts(sourcingAccount, accounts)) {
-				plan.computeIfAbsent(target, k -> new LinkedHashSet<>()).add(orderNo);
+		for (List<OrderLineItem> items : List.of(shipmentItems, amountItems)) {
+			for (OrderLineItem item : items) {
+				addToSearchPlan(plan, item, accounts);
 			}
 		}
 		return plan;
+	}
+
+	private void addToSearchPlan(Map<EmailAccountProperties.Account, Set<String>> plan,
+		OrderLineItem item, List<EmailAccountProperties.Account> accounts) {
+		var sourcingData = item.getSourcingData();
+		String orderNo = sourcingData != null ? sourcingData.getSourcingOrderNo() : null;
+		if (orderNo == null || orderNo.isBlank()) {
+			return;
+		}
+		// 사용자 편집 필드라 비ASCII 값(예: 한글 "재고")이 들어올 수 있다. 그대로 IMAP SEARCH에
+		// 넣으면 charset 미지정으로 서버가 파싱 실패(BAD)를 던져 검색 루프가 끊긴다 → 제외.
+		if (!isImapSearchable(orderNo)) {
+			log.warn("이메일 검색 제외 — 비ASCII 구매주문번호(itemId={}, orderNo='{}')", item.getId(), orderNo);
+			return;
+		}
+		String sourcingAccount = sourcingData.getSourcingAccount();
+		for (EmailAccountProperties.Account target : resolveTargetAccounts(sourcingAccount, accounts)) {
+			plan.computeIfAbsent(target, k -> new LinkedHashSet<>()).add(orderNo);
+		}
 	}
 
 	/**
@@ -370,13 +389,22 @@ public class EmailFetcherService {
 			orderNo, phase, result.failureReason());
 	}
 
-	// iHerb 주문 확인 처리 (실구매가 자동 기록)
-	private void processIherbConfirmation(OrderEmailParser.IherbConfirmationData confirmData) {
+	// iHerb 주문 확인 처리 (실구매가 자동 기록). 테스트 접근을 위해 package-private
+	void processIherbConfirmation(OrderEmailParser.IherbConfirmationData confirmData) {
 		List<OrderLineItem> items = orderLineItemRepository.findBySourcingData_SourcingOrderNo(
 			confirmData.getOrderNo());
 
 		if (items.isEmpty()) {
 			log.info("iHerb 주문번호 {}에 해당하는 라인아이템 없음 (이미 처리되었거나 미동기화)", confirmData.getOrderNo());
+			return;
+		}
+
+		// 확인메일의 총 결제 금액은 iHerb 주문 1건 전체의 금액이다. 한 주문번호가 여러 라인아이템에
+		// 걸리면 총액을 라인별로 배분할 근거가 메일에 없고, 총액을 양쪽에 넣으면 sourcing_amount가
+		// 라인아이템별로 합산되는 순수익 계산에서 원가가 중복 계상된다 → 자동 주입하지 않고 수동 입력에 맡긴다.
+		if (items.size() > 1) {
+			log.warn("iHerb 주문 {}이 라인아이템 {}건에 걸쳐 총액({}) 배분 불가 - 실구매가 자동 주입 스킵(수동 입력 필요)",
+				confirmData.getOrderNo(), items.size(), confirmData.getTotalAmount());
 			return;
 		}
 

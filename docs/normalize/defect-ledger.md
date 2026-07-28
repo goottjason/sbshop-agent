@@ -1562,3 +1562,24 @@ D-045(위 항목)를 근본원인·수정방향으로 심화 갱신함(상태 �
 - 수정(2026-07-25): `Order.update`에 `isMeaningfulPii`(null·blank·'*' 마스킹 거부) 신설, recipientName/zipcode/address/ordererName에 적용. 메시지는 자유텍스트라 blank만 거부. 전화는 기존 `isUsablePhone` 유지. **전 마켓 한 지점 방어.** 수동 편집 클리어("")는 `updateAddress`/`updateCustomsClearanceNo` 별도 경로라 무영향(F-ORD-23 유지).
 - 검증(2026-07-25): 신규 `OrderSyncMergeGuardTest` 4건(blank 미덮음/마스킹 미덮음/실값 갱신/null 유지) Red→Green. `:core:test` 전체 PASS, api·worker 컴파일 PASS. **전 마켓 DB 감사**: empty_name·masked_name·empty_addr 전 마켓 0건 → 오염 데이터 없음(순수 예방). 라이브 확정: 11번가 재동기화로 정채영·이선 복원 확인.
 - 상태: 수정완료(검증통과) — 커밋·push.
+
+### D-109: 확인메일 실구매가 파서가 첫 매칭을 버리고 두 번째 매칭을 주입 (2026-07-28)
+- 신고: 사용자 — "주문 확인 메일에서 실구매비용을 자동 주입하는 기능이 잘 작동하는지 검증해줘"
+- 심각도: P1 (데이터 오염 — 실구매가에 무의미 값이 들어가고, 멱등 가드 때문에 영구 고착. 대시보드 순수익 KPI가 과대계상)
+- 리스크 등급: 표준 (정규식 추출 로직 2곳, 시그니처 불변)
+- 근본원인: `OrderEmailParser.parseIherbConfirmation`이 판정용 `find()`로 매칭 위치를 소비한 뒤 **같은 Matcher로 다시 `find()`를 호출** → 1·2차 패턴의 첫 매칭이 버려지고 본문의 "두 번째" 매칭이 금액으로 채택됐다. 3차 패턴(`합계`)만 우연히 정상. `IherbEmailSearchService.parseAmount`(api)에 동일 결함 복제.
+- 실증(운영 로그 vs DB): 343934680 파서값 **48** / 실값 70,743 · 344006073 **32** / 47,609 · 344005516 **31** / 46,923 · 343914885 **30** / 45,254. 7건 중 4건 오파싱.
+- 수정(2026-07-28): 패턴을 우선순위 리스트(`List<Pattern>`)로 두고 루프에서 **첫 매칭을 즉시 채택**. 숫자 변환 실패 시 다음 패턴으로 진행. 양쪽 클래스 동일 규약.
+- 검증: 신규 `OrderEmailParserConfirmationTest` 3건 Red(2 FAIL: totalAmount=null)→Green, `IherbEmailSearchServiceParseTest` 4건 Green. `:core :infrastructure :worker :api` 전체 test PASS.
+- 상태: 수정완료(검증통과).
+
+### D-110: 실구매가 자동 주입이 배송 큐에 종속 — 배송완료 주문 영구 누락 (2026-07-28)
+- 신고: D-109 검증 중 발견 (같은 기능의 별개 원인)
+- 심각도: P1 (기능 미작동 — iHerb 194건 중 **164건(84.5%)** 실구매가 미주입, 그중 157건은 검색 시도조차 안 됨)
+- 리스크 등급: 표준 (조회 조건 신설 + 검색 계획 합집합. 기존 배송 큐 조건 불변)
+- 근본원인: `findIherbItemsNeedingEmailProcessing()`의 `shipmentEmailNeeded()`는 **송장 처리가 필요한 상태만** 반환(PREPARING, 또는 `trackingSentToMarket≠true`인 DISPATCHED/SHIPPED). 확인메일은 이 큐에 든 주문번호에 대해서만 곁다리로 처리돼, 배송이 끝나 큐를 벗어난 주문은 확인메일을 영영 검색하지 않았다. 실구매가 수집과 송장 수집은 생애주기가 다른데 한 큐를 공유한 것이 원인. 운영 로그 실측(16h): `주문 확인 파싱` 179회 / **실제 DB 쓰기 0회** — 전부 멱등 스킵(같은 7건만 반복 스캔).
+- 수정(2026-07-28): `findIherbItemsNeedingPurchaseAmount()` 신설 — iHerb + 구매주문번호 보유 + `sourcing_amount IS NULL OR <= 0`, **배송상태 미참조**. `EmailFetcherService.fetchAndProcessEmails`가 배송 큐와 실구매가 큐를 조회해 `buildSearchPlan`에서 주문번호 합집합(Set 중복제거)으로 1회 IMAP SEARCH. 매칭 메일의 제목으로 발송/확인을 분기하므로 어느 큐에서 왔든 한 검색으로 양쪽 처리.
+- 부가 가드: 한 iHerb 주문번호가 **여러 라인아이템**에 걸리면(운영 2건) 확인메일 총액을 라인별로 배분할 근거가 없고, 총액을 양쪽에 넣으면 `sourcing_amount`가 라인아이템별 합산되는 순수익 계산(`DashboardRepositoryImpl:45`, `DashboardDtos:26`)에서 원가가 중복 계상된다 → 자동 주입 스킵 + 경고 로그(수동 입력).
+- 검증: 신규 `EmailFetcherConfirmationQueueTest` 6건 + `OrderLineItemRepositoryImplPurchaseAmountTest` 2건 Red→Green. 4개 모듈 전체 test PASS. `spotlessCheck`는 api 모듈 28개 파일에서 **기존 위반**으로 실패(clean HEAD 동일, 본 변경 무관 — spotlessApply 전면 실행 금지).
+- 백필: 별도 마이그레이션 불필요 — 배포 후 새 큐가 미주입 164건을 자동 편입한다. `docker exec projects-sbshop-api-1 curl -s -X POST localhost:8080/internal/email/fetch`로 즉시 1회 실행 가능(스케줄러는 30분 주기).
+- 상태: 수정완료(검증통과) — 배포 후 라이브 확인 필요.

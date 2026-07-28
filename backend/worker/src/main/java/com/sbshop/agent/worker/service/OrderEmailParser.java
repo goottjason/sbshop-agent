@@ -1,6 +1,7 @@
 package com.sbshop.agent.worker.service;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -22,9 +23,16 @@ public class OrderEmailParser {
 
 	// iHerb 주문 확인 패턴
 	private static final Pattern IHERB_CONFIRM_ORDER_NO = Pattern.compile("주문이\\s+확인되었습니다\\s+#(\\d+)");
-	private static final Pattern IHERB_CONFIRM_TOTAL_AMOUNT = Pattern.compile("총 결제 금액[^\\d₩]*₩?\\s*([\\d,]+)");
-	private static final Pattern IHERB_CONFIRM_TOTAL_AMOUNT2 = Pattern.compile("총 금액[^\\d₩]*₩?\\s*([\\d,]+)");
-	private static final Pattern IHERB_CONFIRM_TOTAL_AMOUNT3 = Pattern.compile("합계[^\\d₩]*₩?\\s*([\\d,]+)");
+	/**
+	 * 총액 패턴을 우선순위 순으로 시도한다(앞선 패턴이 맞으면 뒤는 보지 않는다).
+	 * 과거 구현은 판정용 {@code find()} 호출이 매칭 위치를 소비한 뒤 같은 Matcher로 다시
+	 * {@code find()}를 호출해 "첫 매칭을 버리고 두 번째 매칭"을 금액으로 읽었다
+	 * — 실측에서 70,743원 주문이 48로 기록됐다.
+	 */
+	private static final List<Pattern> IHERB_CONFIRM_AMOUNT_PATTERNS = List.of(
+		Pattern.compile("총 결제 금액[^\\d₩]*₩?\\s*([\\d,]+)"),
+		Pattern.compile("총 금액[^\\d₩]*₩?\\s*([\\d,]+)"),
+		Pattern.compile("합계[^\\d₩]*₩?\\s*([\\d,]+)"));
 
 	/**
 	 * HTML 태그와 줄바꿈을 제거하여 단일 라인으로 정리
@@ -111,24 +119,7 @@ public class OrderEmailParser {
 		String flatBody = flattenHtml(body);
 
 		// 본문에서 총 결제 금액 추출
-		BigDecimal totalAmount = null;
-		Matcher amountMatcher = IHERB_CONFIRM_TOTAL_AMOUNT.matcher(flatBody);
-		if (!amountMatcher.find()) {
-			amountMatcher = IHERB_CONFIRM_TOTAL_AMOUNT2.matcher(flatBody);
-			if (!amountMatcher.find()) {
-				amountMatcher = IHERB_CONFIRM_TOTAL_AMOUNT3.matcher(flatBody);
-			}
-		}
-		if (amountMatcher.find()) {
-			String amountStr = amountMatcher.group(1).replace(",", "");
-			try {
-				totalAmount = new BigDecimal(amountStr);
-			} catch (NumberFormatException e) {
-				log.warn("iHerb 금액 파싱 실패: {}", amountStr);
-			}
-		} else {
-			log.debug("iHerb 확인 이메일에서 금액 패턴 미매칭");
-		}
+		BigDecimal totalAmount = extractTotalAmount(flatBody);
 
 		log.info("iHerb 주문 확인 파싱: orderNo={}, totalAmount={}", orderNo, totalAmount);
 
@@ -137,5 +128,23 @@ public class OrderEmailParser {
 				.orderNo(orderNo)
 				.totalAmount(totalAmount)
 				.build());
+	}
+
+	/** 우선순위 순으로 첫 매칭을 금액으로 채택한다. 매칭이 숫자로 변환되지 않으면 다음 패턴을 시도한다. */
+	private BigDecimal extractTotalAmount(String flatBody) {
+		for (Pattern pattern : IHERB_CONFIRM_AMOUNT_PATTERNS) {
+			Matcher matcher = pattern.matcher(flatBody);
+			if (!matcher.find()) {
+				continue;
+			}
+			String amountStr = matcher.group(1).replace(",", "");
+			try {
+				return new BigDecimal(amountStr);
+			} catch (NumberFormatException e) {
+				log.warn("iHerb 금액 파싱 실패: {}", amountStr);
+			}
+		}
+		log.debug("iHerb 확인 이메일에서 금액 패턴 미매칭");
+		return null;
 	}
 }
