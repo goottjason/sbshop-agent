@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,6 +54,9 @@ public class EmailFetcherService {
 	// AtomicBoolean은 서로 다른 스레드 간 겹침은 물론 같은 스레드의 재진입도 막는다
 	// (ReentrantLock은 동일 스레드 재진입을 허용하므로 부적합).
 	private final AtomicBoolean fetching = new AtomicBoolean(false);
+
+	/** 실구매가 인식 실패를 활동 로그에 이미 남긴 주문번호(D-115). 30분마다 같은 건이 쌓이는 것을 막는다. */
+	private final Set<String> amountParseFailuresReported = ConcurrentHashMap.newKeySet();
 
 	/**
 	 * 이메일 수집·처리를 1회 실행한다.
@@ -554,6 +558,10 @@ public class EmailFetcherService {
 		}
 
 		BigDecimal amountKrw = toKrw(confirmData);
+		if (amountKrw == null) {
+			reportAmountParseFailure(confirmData);
+			return;
+		}
 
 		for (OrderLineItem item : items) {
 			if (amountKrw != null) {
@@ -581,6 +589,27 @@ public class EmailFetcherService {
 					confirmData.getTotalAmount(), confirmData.getCurrency());
 			}
 		}
+	}
+
+	/**
+	 * 확인메일은 찾았는데 금액을 못 읽은 경우를 활동 로그로 노출한다(D-115).
+	 *
+	 * <p>iHerb가 총액 라벨이나 제목을 바꾸면 조용히 누락되고, 지금까지는 서버 로그를 뒤져야만
+	 * 알 수 있었다. 화면(활동 로그)에 남겨 즉시 눈에 띄게 한다.
+	 * 같은 주문이 30분마다 재시도되므로 <b>주문번호당 1회</b>만 기록한다(JVM 단위 — 배포 후에는
+	 * 다시 한 번 기록되어, 수정이 실제로 먹혔는지 확인할 수 있다).
+	 */
+	private void reportAmountParseFailure(OrderEmailParser.IherbConfirmationData confirmData) {
+		if (!amountParseFailuresReported.add(confirmData.getOrderNo())) {
+			return;
+		}
+		String detail = confirmData.getAmountDiagnostic() != null
+			? confirmData.getAmountDiagnostic()
+			: "액면 " + confirmData.getTotalAmount() + " " + confirmData.getCurrency() + " (환율 미설정)";
+		actionLogService.record(ActionLogConstants.PURCHASE_AMOUNT_PARSE, "EMAIL", ActionStatus.FAILED,
+			"iHerb 주문 " + confirmData.getOrderNo() + " 확인메일에서 실구매가를 읽지 못했습니다"
+				+ " — 수동 입력 필요. 메일 본문: " + detail);
+		log.warn("iHerb 주문 {} 실구매가 인식 실패 - 활동 로그 기록", confirmData.getOrderNo());
 	}
 
 	/**

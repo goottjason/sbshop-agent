@@ -38,6 +38,11 @@ public final class ActionLogConstants {
 	public static final String PURCHASE_UPDATE = "PURCHASE_UPDATE";
 	/** 배송(송장) 정보 수정 (O8) */
 	public static final String SHIPPING_UPDATE = "SHIPPING_UPDATE";
+	/**
+	 * 확인메일에서 실구매가 자동 인식 (D-115).
+	 * iHerb가 제목·총액 라벨을 바꾸면 조용히 누락되므로, 실패를 화면(활동 로그)에 노출한다.
+	 */
+	public static final String PURCHASE_AMOUNT_PARSE = "PURCHASE_AMOUNT_PARSE";
 	/** 일괄 발송 처리 (O9) */
 	public static final String ORDER_SHIP = "ORDER_SHIP";
 	/** 주문 삭제 (O10) */

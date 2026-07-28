@@ -45,6 +45,7 @@ const actionTypeLabels: Record<string, string> = {
   UNIPASS_UPDATE: '유니패스 완료처리',
   PURCHASE_UPDATE: '구매정보 수정',
   SHIPPING_UPDATE: '배송정보 수정',
+  PURCHASE_AMOUNT_PARSE: '실구매가 자동인식',
   ORDER_SHIP: '발송 처리',
   ORDER_DELETE: '주문 삭제',
   PRODUCT_PRICE_STOCK_UPDATE: '가격/재고 수정',

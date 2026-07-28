@@ -2,7 +2,10 @@ package com.sbshop.agent.worker.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -22,6 +25,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
+import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
+import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.application.order.service.MarketplaceShippingService;
 import com.sbshop.agent.core.config.EmailAccountProperties;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
@@ -126,6 +131,53 @@ class EmailFetcherConfirmationQueueTest {
 		verify(orderLineItemRepository).save(savedItemCaptor.capture());
 		assertThat(savedItemCaptor.getValue().getSourcingData().getSourcingAmount())
 			.isEqualByComparingTo(new BigDecimal("45254"));
+	}
+
+	@Test
+	@DisplayName("금액을 못 읽으면 ActionLog에 남겨 화면에서 보이게 한다")
+	void recordsActionLogWhenAmountUnreadable() {
+		OrderLineItem target = item("A01", ShippingStatus.DELIVERED, null);
+		when(orderLineItemRepository.findBySourcingData_SourcingOrderNo("A01"))
+			.thenReturn(List.of(target));
+
+		service.processIherbConfirmation(OrderEmailParser.IherbConfirmationData.builder()
+			.orderNo("A01").totalAmount(null)
+			.amountDiagnostic("…결제 유형: 페이코 총 주문: ₩40,418").build());
+
+		verify(actionLogService).record(eq(ActionLogConstants.PURCHASE_AMOUNT_PARSE), eq("EMAIL"),
+			eq(ActionStatus.FAILED), contains("A01"));
+		verify(orderLineItemRepository, never()).save(any(OrderLineItem.class));
+	}
+
+	@Test
+	@DisplayName("같은 주문의 반복 실패는 사이클마다 쌓지 않는다(주문번호당 1회)")
+	void doesNotRepeatActionLogForSameOrder() {
+		OrderLineItem target = item("A02", ShippingStatus.DELIVERED, null);
+		when(orderLineItemRepository.findBySourcingData_SourcingOrderNo("A02"))
+			.thenReturn(List.of(target));
+		OrderEmailParser.IherbConfirmationData data = OrderEmailParser.IherbConfirmationData.builder()
+			.orderNo("A02").totalAmount(null).amountDiagnostic("(통화 표기 없음)").build();
+
+		service.processIherbConfirmation(data);
+		service.processIherbConfirmation(data);
+		service.processIherbConfirmation(data);
+
+		verify(actionLogService, times(1)).record(eq(ActionLogConstants.PURCHASE_AMOUNT_PARSE),
+			eq("EMAIL"), eq(ActionStatus.FAILED), contains("A02"));
+	}
+
+	@Test
+	@DisplayName("금액을 정상 주입하면 실패 로그를 남기지 않는다")
+	void noActionLogOnSuccess() {
+		OrderLineItem target = item("A03", ShippingStatus.DELIVERED, null);
+		when(orderLineItemRepository.findBySourcingData_SourcingOrderNo("A03"))
+			.thenReturn(List.of(target));
+
+		service.processIherbConfirmation(OrderEmailParser.IherbConfirmationData.builder()
+			.orderNo("A03").totalAmount(new BigDecimal("45254"))
+			.currency(OrderEmailParser.KRW).build());
+
+		verify(actionLogService, never()).record(any(), any(), any(), any());
 	}
 
 	@Test

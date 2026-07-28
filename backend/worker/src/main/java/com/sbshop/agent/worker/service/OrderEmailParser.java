@@ -82,6 +82,11 @@ public class OrderEmailParser {
 		private BigDecimal totalAmount;
 		/** "KRW" 또는 "USD". 금액을 못 읽었으면 null. */
 		private String currency;
+		/**
+		 * 금액을 못 읽었을 때만 채워지는 진단 발췌(통화 표기 주변). 정상 파싱 시 null.
+		 * 활동 로그로 노출해 포맷 변경을 화면에서 감지하기 위한 값이다(D-115).
+		 */
+		private String amountDiagnostic;
 	}
 
 	public static final String KRW = "KRW";
@@ -156,6 +161,14 @@ public class OrderEmailParser {
 		// 본문에서 총 결제 금액 추출
 		ParsedAmount parsed = extractTotalAmount(flatBody);
 
+		// 금액을 못 읽으면 원인 규명 없이는 영구 누락된다. 본문 전체(주소·연락처 포함)를 쏟지 않고,
+		// 통화 표기 주변만 뽑아 실제 라벨이 무엇인지 드러낸다.
+		String diagnostic = null;
+		if (parsed.amount() == null) {
+			diagnostic = currencySnippets(flatBody);
+			log.warn("iHerb 확인 이메일 금액 패턴 미매칭 — 통화 표기 주변: {}", diagnostic);
+		}
+
 		log.info("iHerb 주문 확인 파싱: orderNo={}, totalAmount={}, currency={}",
 			orderNo, parsed.amount(), parsed.currency());
 
@@ -164,6 +177,7 @@ public class OrderEmailParser {
 				.orderNo(orderNo)
 				.totalAmount(parsed.amount())
 				.currency(parsed.currency())
+				.amountDiagnostic(diagnostic)
 				.build());
 	}
 
@@ -211,9 +225,6 @@ public class OrderEmailParser {
 			}
 			return new ParsedAmount(candidate, KRW);
 		}
-		// 금액을 못 읽으면 원인 규명 없이는 영구 누락된다. 본문 전체(주소·연락처 포함)를 쏟지 않고,
-		// 통화 표기 주변만 뽑아 실제 라벨이 무엇인지 드러낸다.
-		log.warn("iHerb 확인 이메일 금액 패턴 미매칭 — 통화 표기 주변: {}", currencySnippets(flatBody));
 		return ParsedAmount.NONE;
 	}
 
