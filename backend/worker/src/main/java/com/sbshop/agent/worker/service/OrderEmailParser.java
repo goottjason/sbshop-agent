@@ -32,8 +32,11 @@ public class OrderEmailParser {
 	 * {@code find()}를 호출해 "첫 매칭을 버리고 두 번째 매칭"을 금액으로 읽었다
 	 * — 실측에서 70,743원 주문이 48로 기록됐다.
 	 */
+	// 우선순위 순. 앞이 더 명시적인 표현이고, 뒤로 갈수록 일반적이라 오매칭 여지가 크다.
+	// "총 주문"은 페이코 결제 메일("결제 유형: 페이코 총 주문: ₩40,418")에서 쓰는 총액 라벨이다.
 	private static final List<Pattern> IHERB_CONFIRM_AMOUNT_PATTERNS = List.of(
 		amountPattern("총 결제 금액"),
+		amountPattern("총 주문"),
 		amountPattern("총 금액"),
 		amountPattern("합계"));
 

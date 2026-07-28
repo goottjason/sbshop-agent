@@ -64,6 +64,29 @@ class OrderEmailParserConfirmationTest {
 	}
 
 	@Test
+	@DisplayName("'총 주문' 라벨(페이코 결제 메일)에서 실구매가를 읽는다")
+	void extractsAmountFromOrderTotalLabel() {
+		// 실제 운영 본문: "… 대한민국 (KR) 결제 유형: 페이코 총 주문: ₩40,418"
+		String subject = "iHerb 주문 #343977053 결제가 처리되었습니다";
+		String body = "배송지 대한민국 (KR) 결제 유형: 페이코 총 주문: &#8361;40,418";
+
+		OrderEmailParser.IherbConfirmationData data =
+			parser.parseIherbConfirmation(subject, body).get();
+
+		assertThat(data.getTotalAmount()).isEqualByComparingTo(new BigDecimal("40418"));
+		assertThat(data.getCurrency()).isEqualTo(OrderEmailParser.KRW);
+	}
+
+	@Test
+	@DisplayName("'총 주문 수량' 같은 비금액 매칭은 하한 가드로 걸러지고 다음 패턴으로 넘어간다")
+	void orderQuantityDoesNotBecomeAmount() {
+		String body = "총 주문 수량 3 개 합계 &#8361;40,418";
+
+		assertThat(parser.parseIherbConfirmation(SUBJECT, body).get().getTotalAmount())
+			.isEqualByComparingTo(new BigDecimal("40418"));
+	}
+
+	@Test
 	@DisplayName("'결제 대기 중'은 결제 확정 전이므로 확인 메일로 보지 않는다")
 	void ignoresPaymentPendingSubject() {
 		String subject = "주문번호 #343977053 결제 대기 중";
