@@ -641,8 +641,16 @@ public class EmailFetcherService {
 		return Optional.empty();
 	}
 
-	private String getTextFromMessage(Message message) throws Exception {
-		if (message.isMimeType("text/plain")) {
+	/**
+	 * 메일 본문을 텍스트로 뽑는다. HTML 파트도 포함한다(D-112-2).
+	 *
+	 * <p>과거 구현은 {@code text/plain}과 multipart만 다루고 {@code text/html}을 통째로 버려,
+	 * HTML 단독 발송 메일에서 본문이 빈 문자열이 됐다 — 확인메일을 찾고도 금액을 못 읽어
+	 * 실구매가가 영구 누락됐다(younzara@nate.com 8건). HTML 태그 제거는 파서의 flattenHtml이 한다.
+	 */
+	// 테스트 접근을 위해 package-private
+	String getTextFromMessage(Message message) throws Exception {
+		if (message.isMimeType("text/plain") || message.isMimeType("text/html")) {
 			return message.getContent().toString();
 		} else if (message.isMimeType("multipart/*")) {
 			Multipart multipart = (Multipart)message.getContent();
@@ -651,16 +659,26 @@ public class EmailFetcherService {
 		return "";
 	}
 
+	/**
+	 * multipart를 훑어 텍스트를 모은다. plain 파트를 앞에, html 파트를 뒤에 붙인다 —
+	 * multipart/alternative는 같은 내용을 두 벌로 담으므로 순서가 곧 우선순위다
+	 * (패턴은 첫 매칭을 채택하므로 plain이 있으면 기존 동작이 그대로 유지되고,
+	 * plain이 없거나 금액을 담지 않은 메일에서만 html이 실제로 쓰인다).
+	 */
 	private String getTextFromMultipart(Multipart multipart) throws Exception {
-		StringBuilder result = new StringBuilder();
+		StringBuilder plain = new StringBuilder();
+		StringBuilder html = new StringBuilder();
 		for (int i = 0; i < multipart.getCount(); i++) {
 			BodyPart bodyPart = multipart.getBodyPart(i);
 			if (bodyPart.isMimeType("text/plain")) {
-				result.append(bodyPart.getContent());
-			} else if (bodyPart.getContent() instanceof Multipart) {
-				result.append(getTextFromMultipart((Multipart)bodyPart.getContent()));
+				plain.append(bodyPart.getContent());
+			} else if (bodyPart.isMimeType("text/html")) {
+				html.append(bodyPart.getContent());
+			} else if (bodyPart.getContent() instanceof Multipart nested) {
+				// 중첩 파트는 이미 그 서브트리의 최선 텍스트다 — plain 쪽에 이어 붙인다.
+				plain.append(getTextFromMultipart(nested));
 			}
 		}
-		return result.toString();
+		return plain.append(' ').append(html).toString();
 	}
 }
