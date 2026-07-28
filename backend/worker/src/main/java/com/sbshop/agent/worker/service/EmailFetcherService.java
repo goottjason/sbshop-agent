@@ -15,7 +15,9 @@ import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import com.sbshop.agent.core.config.EmailAccountProperties;
 import jakarta.mail.*;
 import jakarta.mail.search.SubjectTerm;
+import org.eclipse.angus.mail.imap.IMAPFolder;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -222,25 +224,101 @@ public class EmailFetcherService {
 			store.connect(account.getHost(), account.getUsername(), account.getPassword());
 			log.debug("IMAP 연결 성공: account={}, 대상주문 {}건", account.getUsername(), orderNos.size());
 
-			Folder inbox = store.getFolder("INBOX");
-			inbox.open(Folder.READ_ONLY);
+			for (Folder folder : resolveSearchFolders(store, account)) {
+				searchFolderForOrderNos(account, folder, orderNos);
+			}
 
+			store.close();
+		} catch (Exception e) {
+			log.error("IMAP 연결 실패: account={}, error={}", account.getUsername(), e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * 검색할 메일함(폴더)을 고른다. INBOX만 보면 보관처리된 메일을 놓친다(D-112).
+	 *
+	 * <p>Gmail은 "전체보관함"({@code \All} 속성)이 INBOX·라벨·보관함을 모두 포함하는 상위집합이라
+	 * 그 한 폴더만 검색하면 충분하다 — 전 폴더를 도는 것보다 검색 횟수가 배수로 줄어 30분 주기를 지킬 수 있다.
+	 * ({@code \All} 폴더명은 로케일마다 다르므로("[Gmail]/All Mail" vs "[Gmail]/전체보관함")
+	 * 이름이 아니라 IMAP SPECIAL-USE 속성으로 판별한다.)
+	 * 그 외 제공자는 메일을 담는 모든 폴더를 훑는다. 폴더 목록 조회가 실패하면 INBOX로 폴백한다.
+	 */
+	private List<Folder> resolveSearchFolders(Store store, EmailAccountProperties.Account account) {
+		List<Folder> holders = new ArrayList<>();
+		try {
+			for (Folder folder : store.getDefaultFolder().list("*")) {
+				if ((folder.getType() & Folder.HOLDS_MESSAGES) == 0) {
+					continue;
+				}
+				if (isAllMailFolder(folder)) {
+					log.debug("전체보관함 단독 검색: account={}, folder={}",
+						account.getUsername(), folder.getFullName());
+					return List.of(folder);
+				}
+				holders.add(folder);
+			}
+		} catch (Exception e) {
+			log.warn("폴더 목록 조회 실패 - INBOX만 검색: account={}, error={}",
+				account.getUsername(), e.getMessage());
+		}
+		if (holders.isEmpty()) {
+			try {
+				return List.of(store.getFolder("INBOX"));
+			} catch (Exception e) {
+				log.error("INBOX 조회 실패: account={}", account.getUsername(), e);
+				return List.of();
+			}
+		}
+		log.debug("전 폴더 검색: account={}, 폴더 {}곳", account.getUsername(), holders.size());
+		return holders;
+	}
+
+	/** IMAP SPECIAL-USE {@code \All} 속성 보유 여부(Gmail 전체보관함). 속성 조회 불가 구현체면 false. */
+	private static boolean isAllMailFolder(Folder folder) {
+		if (!(folder instanceof IMAPFolder imapFolder)) {
+			return false;
+		}
+		try {
+			for (String attribute : imapFolder.getAttributes()) {
+				if ("\\All".equalsIgnoreCase(attribute)) {
+					return true;
+				}
+			}
+		} catch (Exception e) {
+			return false;
+		}
+		return false;
+	}
+
+	/** 폴더 1곳을 열어 주어진 주문번호들을 서버측 SEARCH로 조회·처리한다. */
+	private void searchFolderForOrderNos(EmailAccountProperties.Account account, Folder folder,
+		Set<String> orderNos) {
+		try {
+			folder.open(Folder.READ_ONLY);
+		} catch (Exception e) {
+			log.debug("폴더 열기 실패 - 스킵: account={}, folder={}, error={}",
+				account.getUsername(), folder.getFullName(), e.getMessage());
+			return;
+		}
+		try {
 			for (String orderNo : orderNos) {
 				try {
 					// 서버측 검색: 제목에 주문번호를 포함하는 메일만 반환
-					Message[] matches = inbox.search(new SubjectTerm(orderNo));
+					Message[] matches = folder.search(new SubjectTerm(orderNo));
 					for (Message message : matches) {
 						processMatchedMessage(account, orderNo, message);
 					}
 				} catch (Exception e) {
-					log.error("이메일 검색 실패: orderNo={}, account={}", orderNo, account.getUsername(), e);
+					log.error("이메일 검색 실패: orderNo={}, account={}, folder={}",
+						orderNo, account.getUsername(), folder.getFullName(), e);
 				}
 			}
-
-			inbox.close(false);
-			store.close();
-		} catch (Exception e) {
-			log.error("IMAP 연결 실패: account={}, error={}", account.getUsername(), e.getMessage(), e);
+		} finally {
+			try {
+				folder.close(false);
+			} catch (Exception e) {
+				log.debug("폴더 닫기 실패: {}", e.getMessage());
+			}
 		}
 	}
 
@@ -408,8 +486,10 @@ public class EmailFetcherService {
 			return;
 		}
 
+		BigDecimal amountKrw = toKrw(confirmData);
+
 		for (OrderLineItem item : items) {
-			if (confirmData.getTotalAmount() != null) {
+			if (amountKrw != null) {
 				// 이미 실구매가가 있으면 스킵 (멱등성)
 				BigDecimal existingAmount = item.getSourcingData() != null
 					? item.getSourcingData().getSourcingAmount() : null;
@@ -424,15 +504,41 @@ public class EmailFetcherService {
 				SourcingData updated = (current != null ? current
 					: SourcingData.builder().build())
 					.toBuilder()
-					.sourcingAmount(confirmData.getTotalAmount())
+					.sourcingAmount(amountKrw)
 					.build();
 				item.applySourcingData(updated);
 				orderLineItemRepository.save(item);
 
-				log.info("iHerb 주문 확인 실구매가 기록: itemId={}, orderNo={}, amount={}",
-					item.getId(), confirmData.getOrderNo(), confirmData.getTotalAmount());
+				log.info("iHerb 주문 확인 실구매가 기록: itemId={}, orderNo={}, amount={} (액면 {} {})",
+					item.getId(), confirmData.getOrderNo(), amountKrw,
+					confirmData.getTotalAmount(), confirmData.getCurrency());
 			}
 		}
+	}
+
+	/**
+	 * 확인메일의 액면 금액을 원화 실구매가로 환산한다.
+	 * 달러 표기 주문은 원화 청구액이 카드사 환율로 정해져 메일에 없으므로, 설정된 실효환율로 근사한다
+	 * (사용자 결정 2026-07-28 — 근사값이라도 넣는다). 정확한 값은 수동 편집으로 덮어쓸 수 있다.
+	 */
+	private BigDecimal toKrw(OrderEmailParser.IherbConfirmationData confirmData) {
+		BigDecimal faceValue = confirmData.getTotalAmount();
+		if (faceValue == null) {
+			return null;
+		}
+		if (!OrderEmailParser.USD.equals(confirmData.getCurrency())) {
+			return faceValue;
+		}
+		BigDecimal rate = properties.getUsdKrwRate();
+		if (rate == null || rate.compareTo(BigDecimal.ZERO) <= 0) {
+			log.warn("iHerb 주문 {} 달러 표기(${})지만 환율 미설정 - 자동 주입 스킵",
+				confirmData.getOrderNo(), faceValue);
+			return null;
+		}
+		BigDecimal converted = faceValue.multiply(rate).setScale(0, RoundingMode.HALF_UP);
+		log.info("iHerb 주문 {} 달러 표기 ${} → 환율 {} 적용해 약 {}원으로 환산(근사값)",
+			confirmData.getOrderNo(), faceValue, rate, converted);
+		return converted;
 	}
 
 	// 택배사 매핑

@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.config;
 
 import jakarta.annotation.PostConstruct;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,16 @@ public class EmailAccountProperties {
 	 */
 	@Value("${EMAIL_ACCOUNTS:}")
 	private String compactAccounts;
+
+	/**
+	 * iHerb 달러 표기 확인메일을 원화 실구매가로 환산할 때 쓰는 환율(카드 해외결제 수수료 포함 실효환율).
+	 * 원화 청구액은 카드사가 정하므로 메일에 없다 — 근사 환산이 유일한 자동화 수단이다.
+	 * 기본값 1473은 달러·원화가 모두 확인된 운영 주문 4건에서 도출했다(1469.41~1478.41, 편차 ±0.3%):
+	 * $48.00→70,743 · $32.40→47,609 · $31.91→46,923 · $30.61→45,254.
+	 * 환율이 움직이면 env {@code IHERB_USD_KRW_RATE}로 조정한다.
+	 */
+	@Value("${IHERB_USD_KRW_RATE:1473}")
+	private BigDecimal usdKrwRate;
 
 	@PostConstruct
 	void mergeCompactAccounts() {

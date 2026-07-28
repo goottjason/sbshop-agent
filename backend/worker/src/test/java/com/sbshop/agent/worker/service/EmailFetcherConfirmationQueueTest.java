@@ -129,6 +129,55 @@ class EmailFetcherConfirmationQueueTest {
 	}
 
 	@Test
+	@DisplayName("달러 표기 주문은 설정 환율로 원화 근사값을 주입한다")
+	void usdIsConvertedWithConfiguredRate() {
+		OrderLineItem target = item("777", ShippingStatus.DELIVERED, null);
+		when(orderLineItemRepository.findBySourcingData_SourcingOrderNo("777"))
+			.thenReturn(List.of(target));
+		when(properties.getUsdKrwRate()).thenReturn(new BigDecimal("1473"));
+
+		service.processIherbConfirmation(OrderEmailParser.IherbConfirmationData.builder()
+			.orderNo("777").totalAmount(new BigDecimal("48.00"))
+			.currency(OrderEmailParser.USD).build());
+
+		verify(orderLineItemRepository).save(savedItemCaptor.capture());
+		// 48.00 × 1473 = 70,704 (실제 청구 70,743과 0.06% 차이)
+		assertThat(savedItemCaptor.getValue().getSourcingData().getSourcingAmount())
+			.isEqualByComparingTo(new BigDecimal("70704"));
+	}
+
+	@Test
+	@DisplayName("환율이 설정되지 않으면 달러 주문을 주입하지 않는다")
+	void usdWithoutRateIsSkipped() {
+		OrderLineItem target = item("888", ShippingStatus.DELIVERED, null);
+		when(orderLineItemRepository.findBySourcingData_SourcingOrderNo("888"))
+			.thenReturn(List.of(target));
+		when(properties.getUsdKrwRate()).thenReturn(null);
+
+		service.processIherbConfirmation(OrderEmailParser.IherbConfirmationData.builder()
+			.orderNo("888").totalAmount(new BigDecimal("48.00"))
+			.currency(OrderEmailParser.USD).build());
+
+		verify(orderLineItemRepository, never()).save(any(OrderLineItem.class));
+	}
+
+	@Test
+	@DisplayName("원화 표기 주문은 환율을 적용하지 않는다")
+	void krwIsInjectedAsIs() {
+		OrderLineItem target = item("999", ShippingStatus.DELIVERED, null);
+		when(orderLineItemRepository.findBySourcingData_SourcingOrderNo("999"))
+			.thenReturn(List.of(target));
+
+		service.processIherbConfirmation(OrderEmailParser.IherbConfirmationData.builder()
+			.orderNo("999").totalAmount(new BigDecimal("45254"))
+			.currency(OrderEmailParser.KRW).build());
+
+		verify(orderLineItemRepository).save(savedItemCaptor.capture());
+		assertThat(savedItemCaptor.getValue().getSourcingData().getSourcingAmount())
+			.isEqualByComparingTo(new BigDecimal("45254"));
+	}
+
+	@Test
 	@DisplayName("한 iHerb 주문이 여러 라인아이템에 걸리면 총액을 나눠 넣을 수 없어 주입하지 않는다")
 	void confirmationSkipsMultiItemOrder() {
 		OrderLineItem first = item("666", ShippingStatus.DELIVERED, null);

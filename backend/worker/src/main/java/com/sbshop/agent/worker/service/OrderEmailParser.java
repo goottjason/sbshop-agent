@@ -72,8 +72,14 @@ public class OrderEmailParser {
 	@Builder
 	public static class IherbConfirmationData {
 		private String orderNo;
+		/** 메일에 적힌 액면 금액. 통화는 {@link #currency}로 구분한다(달러면 환산 전 값). */
 		private BigDecimal totalAmount;
+		/** "KRW" 또는 "USD". 금액을 못 읽었으면 null. */
+		private String currency;
 	}
+
+	public static final String KRW = "KRW";
+	public static final String USD = "USD";
 
 	// iHerb 발송 알림 파싱
 	public Optional<IherbShipmentData> parseIherbShipment(String from, String subject, String body) {
@@ -127,15 +133,22 @@ public class OrderEmailParser {
 		String flatBody = flattenHtml(body);
 
 		// 본문에서 총 결제 금액 추출
-		BigDecimal totalAmount = extractTotalAmount(flatBody);
+		ParsedAmount parsed = extractTotalAmount(flatBody);
 
-		log.info("iHerb 주문 확인 파싱: orderNo={}, totalAmount={}", orderNo, totalAmount);
+		log.info("iHerb 주문 확인 파싱: orderNo={}, totalAmount={}, currency={}",
+			orderNo, parsed.amount(), parsed.currency());
 
 		return Optional.of(
 			IherbConfirmationData.builder()
 				.orderNo(orderNo)
-				.totalAmount(totalAmount)
+				.totalAmount(parsed.amount())
+				.currency(parsed.currency())
 				.build());
+	}
+
+	/** 액면 금액 + 통화. 금액을 못 읽으면 둘 다 null. */
+	private record ParsedAmount(BigDecimal amount, String currency) {
+		static final ParsedAmount NONE = new ParsedAmount(null, null);
 	}
 
 	/**
@@ -146,18 +159,15 @@ public class OrderEmailParser {
 	 */
 	private static final BigDecimal MIN_PLAUSIBLE_AMOUNT = new BigDecimal("1000");
 
-	/** 우선순위 순으로 첫 매칭을 금액으로 채택한다. 달러 표기·변환 실패·비현실 소액이면 다음 패턴을 시도한다. */
-	private BigDecimal extractTotalAmount(String flatBody) {
+	/**
+	 * 우선순위 순으로 첫 매칭을 금액으로 채택한다. 변환 실패·비현실 소액(원화만)이면 다음 패턴을 시도한다.
+	 * 달러 표기는 액면 그대로 돌려주고 원화 환산은 호출자(EmailFetcherService)가 환율로 처리한다
+	 * — 원화 청구액은 카드사 환율로 정해져 메일에 없기 때문이다.
+	 */
+	private ParsedAmount extractTotalAmount(String flatBody) {
 		for (Pattern pattern : IHERB_CONFIRM_AMOUNT_PATTERNS) {
 			Matcher matcher = pattern.matcher(flatBody);
 			if (!matcher.find()) {
-				continue;
-			}
-			// 달러 표기 주문은 원화 청구액이 카드사 환율로 정해져 메일에 없다.
-			// $48.00의 48을 원화로 넣으면 원가가 사실상 0이 되어 순수익이 폭증한다 → 주입하지 않는다.
-			if ("$".equals(matcher.group(1))) {
-				log.warn("iHerb 확인메일이 달러 표기($ {}) — 원화 실구매가 산출 불가, 자동 주입 스킵(수동 입력 필요)",
-					matcher.group(2));
 				continue;
 			}
 			String amountStr = matcher.group(2).replace(",", "");
@@ -168,16 +178,20 @@ public class OrderEmailParser {
 				log.warn("iHerb 금액 파싱 실패: {}", amountStr);
 				continue;
 			}
+			if ("$".equals(matcher.group(1))) {
+				return new ParsedAmount(candidate, USD);
+			}
+			// 원화 하한 검사는 달러에 적용하지 않는다($48.00은 정상 값이다).
 			if (candidate.compareTo(MIN_PLAUSIBLE_AMOUNT) < 0) {
 				// 원인 규명을 위해 매칭 주변만 남긴다(본문 전체는 개인정보라 로그로 내보내지 않는다).
 				log.warn("iHerb 금액 오파싱 의심 — 값={} 무시. 매칭 주변: '{}'",
 					candidate, contextAround(flatBody, matcher.start(), matcher.end()));
 				continue;
 			}
-			return candidate;
+			return new ParsedAmount(candidate, KRW);
 		}
 		log.debug("iHerb 확인 이메일에서 금액 패턴 미매칭 또는 전부 채택 불가");
-		return null;
+		return ParsedAmount.NONE;
 	}
 
 	/** 진단용: 매칭 구간 앞뒤 60자를 잘라낸다. */

@@ -50,25 +50,41 @@ class OrderEmailParserConfirmationTest {
 	}
 
 	@Test
-	@DisplayName("달러 표기 확인 메일은 원화 실구매가를 산출할 수 없으므로 금액을 비운다")
-	void rejectsUsdDenominatedTotal() {
+	@DisplayName("달러 표기 확인 메일은 액면 금액과 USD 통화를 함께 돌려준다")
+	void marksUsdDenominatedTotal() {
 		// 실제 운영 메일: "결제 수단: Master Card x2218 총 결제 금액: $48.00"
-		// 원화 청구액은 카드사 환율로 정해지므로 메일에 없다 — 48을 원화로 읽으면 안 된다.
 		String body = "결제 수단: Master Card x2218 총 결제 금액: $48.00 주문 확인 / 관리";
 
 		Optional<OrderEmailParser.IherbConfirmationData> result =
 			parser.parseIherbConfirmation(SUBJECT, body);
 
 		assertThat(result).isPresent();
-		assertThat(result.get().getTotalAmount()).isNull();
+		assertThat(result.get().getTotalAmount()).isEqualByComparingTo(new BigDecimal("48.00"));
+		assertThat(result.get().getCurrency()).isEqualTo(OrderEmailParser.USD);
 	}
 
 	@Test
-	@DisplayName("달러 금액이 1,000을 넘어도 원화로 오인하지 않는다")
-	void rejectsLargeUsdAmount() {
-		String body = "총 결제 금액: $1,480.00";
+	@DisplayName("달러는 원화 하한(1,000원) 검사를 적용받지 않는다")
+	void usdIsNotSubjectToKrwFloor() {
+		String body = "총 결제 금액: $30.61";
 
-		assertThat(parser.parseIherbConfirmation(SUBJECT, body).get().getTotalAmount()).isNull();
+		OrderEmailParser.IherbConfirmationData data =
+			parser.parseIherbConfirmation(SUBJECT, body).get();
+
+		assertThat(data.getTotalAmount()).isEqualByComparingTo(new BigDecimal("30.61"));
+		assertThat(data.getCurrency()).isEqualTo(OrderEmailParser.USD);
+	}
+
+	@Test
+	@DisplayName("원화 표기는 KRW 통화로 표시된다")
+	void marksKrwDenominatedTotal() {
+		String body = "총 결제 금액 &#8361;45,254";
+
+		OrderEmailParser.IherbConfirmationData data =
+			parser.parseIherbConfirmation(SUBJECT, body).get();
+
+		assertThat(data.getTotalAmount()).isEqualByComparingTo(new BigDecimal("45254"));
+		assertThat(data.getCurrency()).isEqualTo(OrderEmailParser.KRW);
 	}
 
 	@Test
