@@ -20,7 +20,7 @@ const MainLayout = () => {
       <header className="topbar">
         <div className="topbar-left">
           <div className="sidebar-logo">
-            <h2 style={{ fontSize: '18px', letterSpacing: '0.5px', margin: 0 }}>SBSHOP</h2>
+            <h2 style={{ fontSize: '15px', letterSpacing: '0.5px', margin: 0, whiteSpace: 'nowrap' }}>SBSHOP</h2>
           </div>
           <nav className="topbar-nav">
             {navItems.map((item) => {
@@ -32,7 +32,7 @@ const MainLayout = () => {
                   to={item.path}
                   className={`nav-item-top ${isActive ? 'active' : ''}`}
                 >
-                  <Icon size={18} />
+                  <Icon size={15} />
                   <span>{item.name}</span>
                 </Link>
               );

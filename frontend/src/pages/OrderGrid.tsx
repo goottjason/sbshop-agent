@@ -41,7 +41,9 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 type RowData = OrderGridDto & { isFirstLineItem?: boolean; lineItemCount?: number; totalRowCount?: number; rowType?: string; isSecondRow?: boolean; isThirdRow?: boolean };
 const columnHelper = createColumnHelper<RowData>();
 
-const inputStyle = { width: '100%', padding: '4px 6px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '4px', boxSizing: 'border-box' as const, outline: 'none', backgroundColor: '#fdfdfd' };
+// 인라인 편집 컨트롤 공통 스타일. 크기는 index.css의 밀도 토큰(--field-pad/--field-fs)을 따른다.
+// 이 값은 행 높이(--row-h)와 연동된다 — 구매정보 셀이 이 컨트롤 4개를 rowSpan=3 안에 쌓기 때문.
+const inputStyle = { width: '100%', padding: 'var(--field-pad)', fontSize: 'var(--field-fs)', border: '1px solid #d1d5db', borderRadius: '4px', boxSizing: 'border-box' as const, outline: 'none', backgroundColor: '#fdfdfd' };
 
 // 택배사 enum → 한글 표시명 (단일 출처). 매핑되지 않은 값(ETC, 빈값, null 등)은 '-'로 표시.
 const CARRIER_LABELS: Record<string, string> = {
@@ -70,6 +72,10 @@ const ACCOUNT_OPTIONS = [
   'dnglglzpzp@daum.net', 'younzara@nate.com',
 ];
 const VENDOR_OPTIONS = ['', 'IHB', 'AMZ', 'FTN', 'COK', 'OCD', 'TES', 'VTB'];
+
+// 상단 툴바 버튼 — 제목·동기화 상태와 한 줄을 공유하므로 컴팩트하게.
+const toolbarBtnBase = { padding: '4px 10px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' as const };
+const toolbarBtn = { ...toolbarBtnBase, backgroundColor: 'var(--primary-color)', color: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.06)' };
 
 // 구매계정 이메일을 도메인 축약 라벨로 표시(값은 원본 이메일 유지).
 //   @gmail.com→G · @skku.edu/@g.skku.edu→SKKU · @naver.com→NAVER · @daum.net→DAUM · @nate.com→NATE
@@ -261,7 +267,7 @@ function ShippingEditCell({ carrier, trackingNo, onSave }: {
 
   return (
     <div
-      style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}
+      style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}
       onFocus={() => { focusedInside.current = true; }}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) focusedInside.current = false; }}
     >
@@ -275,7 +281,7 @@ function ShippingEditCell({ carrier, trackingNo, onSave }: {
         onChange={(e) => setDraftTracking(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') send(); else if (e.key === 'Escape') { setDraftCarrier(carrier); setDraftTracking(trackingNo); } }} />
       <button type="button" onClick={send} disabled={!canSend}
-        style={{ fontSize: '11px', padding: '3px 6px', borderRadius: '4px', border: 'none', cursor: canSend ? 'pointer' : 'default',
+        style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '4px', border: 'none', cursor: canSend ? 'pointer' : 'default',
           backgroundColor: canSend ? '#3b82f6' : '#e5e7eb', color: canSend ? '#fff' : '#9ca3af' }}>
         {sending ? '전송중…' : '전송'}
       </button>
@@ -336,7 +342,7 @@ function SourcingEditCell({ sourcingAccount, sourcingVendor, sourcingOrderNo, di
 
   return (
     <div
-      style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}
+      style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}
       onFocus={() => { focusedInside.current = true; }}
       onBlur={(e) => { if (blurLeftToPage(e)) commit(); }}
     >
@@ -436,12 +442,12 @@ const OrderTableRow = React.memo(function OrderTableRow({ row, isOrderBoundary, 
                 // 폭은 table-layout:fixed가 헤더 기준으로 비율 확장 → 셀에는 최소폭만 두고 maxWidth 캡은 제거.
                 width: cell.column.getSize(),
                 minWidth: cell.column.getSize(),
-                height: '48px', // 행 높이를 48px로 고정
+                height: 'var(--row-h)', // 행 높이 — index.css 밀도 토큰
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'normal',
                 wordBreak: 'break-word',
-                padding: '6px 8px',
+                padding: 'var(--cell-pad)',
                 textAlign: ['shippingInfoPair', 'productNamePair'].includes(cell.column.id) ? 'left' : 'center',
                 position: isFrozen ? 'sticky' : undefined,
                 left: isFrozen ? (freezeLeft ?? 0) * colScale : undefined,
@@ -476,6 +482,9 @@ const ALL_STATUSES = ['UNKNOWN', 'NEW', 'PREPARING', 'DISPATCHED', 'SHIPPED', 'D
 // 통합 주문 관리 진입 시 기본 표시 상태(종결상태 제외). 유저가 필터에서 별도 체크해야 종결건이 보인다.
 const DEFAULT_VISIBLE_STATUSES = ALL_STATUSES.filter(s => !TERMINAL_STATUSES.includes(s));
 
+// 필터 패널 펼침 상태 기억 키
+const FILTER_OPEN_KEY = 'sbshop.orderFilter.open';
+
 // 상단 필터 패널 컴포넌트 (UI)
 function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: string[], statuses: string[], startDate: string, endDate: string, purchaseStatuses: string[], stockStatuses: string[], vendors: string[]) => void }) {
    const allMarkets = ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'];
@@ -502,8 +511,15 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
   const [endDate, setEndDate] = useState(fmt(today));
   const [activePeriod, setActivePeriod] = useState(2); // 기본: 1개월
 
+  // 필터 패널 펼침 상태 — 기본 접힘(화면당 주문 건수 확보), 사용자의 선택은 브라우저에 기억한다.
+  const [open, setOpen] = useState(() => localStorage.getItem(FILTER_OPEN_KEY) === '1');
+  useEffect(() => { localStorage.setItem(FILTER_OPEN_KEY, open ? '1' : '0'); }, [open]);
+
   const isAllMarketsSelected = selectedMarkets.length === allMarkets.length;
   const isAllStatusesSelected = selectedStatuses.length === allStatuses.length;
+  // 진입 기본값(종결상태 제외)과 동일한지 — 요약칩에서 '기본'으로 표시하고 강조하지 않는다.
+  const isDefaultStatuses = selectedStatuses.length === DEFAULT_VISIBLE_STATUSES.length
+    && DEFAULT_VISIBLE_STATUSES.every(s => selectedStatuses.includes(s));
   const isAllPurchaseSelected = selectedPurchaseStatuses.length === allPurchaseStatuses.length;
   const isAllStockSelected = selectedStockStatuses.length === allStockStatuses.length;
   const isAllVendorsSelected = selectedVendors.length === allVendors.length;
@@ -537,10 +553,64 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
   const toggleStock = (val: string) => setSelectedStockStatuses(prev => prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]);
   const toggleVendor = (val: string) => setSelectedVendors(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
 
+  // 접힘 상태의 요약칩 — 비기본값은 강조색으로, 필터가 걸린 걸 접힌 채로도 알 수 있게 한다.
+  const chips: { label: string; active: boolean }[] = [
+    { label: `${startDate.slice(5).replace('-', '.')} ~ ${endDate.slice(5).replace('-', '.')}`, active: activePeriod !== 2 },
+    { label: `마켓 ${isAllMarketsSelected ? '전체' : selectedMarkets.length}`, active: !isAllMarketsSelected },
+    {
+      label: `상태 ${isAllStatusesSelected ? '전체' : isDefaultStatuses ? '기본' : selectedStatuses.length}`,
+      active: !isAllStatusesSelected && !isDefaultStatuses,
+    },
+    { label: `구매 ${isAllPurchaseSelected ? '전체' : selectedPurchaseStatuses.length}`, active: !isAllPurchaseSelected },
+    { label: `재고 ${isAllStockSelected ? '전체' : selectedStockStatuses.length}`, active: !isAllStockSelected },
+    { label: `소싱 ${isAllVendorsSelected ? '전체' : selectedVendors.length}`, active: !isAllVendorsSelected },
+  ];
+
   return (
-    <div style={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderTop: '2px solid var(--primary-color)', borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', padding: '14px 20px', marginBottom: '14px', fontSize: '13px' }}>
+    <div style={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderTop: '2px solid var(--primary-color)', borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', padding: open ? '8px 14px 10px' : '5px 14px', marginBottom: '6px', fontSize: '13px' }}>
+      {/* 요약 바 — 접힘/펼침 공통. 접힌 상태에선 검색어·검색 버튼까지 여기 노출해 펼칠 필요를 없앤다. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minHeight: '26px', ...(open ? { borderBottom: '1px solid #eaeaea', paddingBottom: '6px', marginBottom: '6px' } : {}) }}>
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', fontSize: '12px', fontWeight: 700, color: 'var(--primary-color)', flexShrink: 0 }}
+          aria-expanded={open}
+        >
+          <span style={{ display: 'inline-block', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▸</span>
+          필터
+        </button>
+        {/* 펼친 상태에선 아래 컨트롤이 같은 정보를 보여주므로 요약칩은 접힘 전용. */}
+        <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap', minWidth: 0 }}>
+          {!open && chips.map(c => (
+            <span
+              key={c.label}
+              style={{
+                fontSize: '11px', padding: '2px 7px', borderRadius: '10px', whiteSpace: 'nowrap',
+                backgroundColor: c.active ? '#e0e7ff' : '#f3f4f6',
+                color: c.active ? '#3730a3' : '#6b7280',
+                fontWeight: c.active ? 600 : 400,
+              }}
+            >
+              {c.label}
+            </span>
+          ))}
+        </div>
+        {!open && (
+          <>
+            <input
+              type="text" placeholder="주문번호, 수취인명, 통관번호, 휴대폰, SB코드, 상품명, 송장번호…"
+              value={keyword} onChange={e => setKeyword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              style={{ flex: 1, minWidth: '160px', padding: '3px 9px', border: '1px solid #ccc', borderRadius: '4px', outline: 'none', fontSize: '12px' }}
+            />
+            <button onClick={handleSearch} style={{ backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', padding: '4px 18px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', borderRadius: '4px', flexShrink: 0 }}>검색</button>
+          </>
+        )}
+      </div>
+
+      {open && (
+      <>
       {/* Row 1: Period and Search */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #eaeaea', paddingBottom: '8px', marginBottom: '8px' }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid #eaeaea', paddingBottom: '6px', marginBottom: '6px' }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
           <span style={{ width: '120px', fontWeight: 600, color: '#555', flexShrink: 0 }}>조회기간 (주문일)</span>
           <div style={{ display: 'flex', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden', marginRight: '12px', flexShrink: 0 }}>
@@ -671,9 +741,11 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
-        <button onClick={handleSearch} style={{ backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', padding: '8px 32px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', borderRadius: '4px' }}>검색</button>
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: '8px' }}>
+        <button onClick={handleSearch} style={{ backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', padding: '5px 32px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', borderRadius: '4px' }}>검색</button>
       </div>
+      </>
+      )}
     </div>
   );
 }
@@ -1186,7 +1258,7 @@ const OrderGrid: React.FC = () => {
         };
         const style = marketColorMap[market] || { bg: '#f5f5f5', text: '#666' };
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', lineHeight: '1.2', fontSize: '12px', textAlign: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', lineHeight: '1.2', fontSize: '12px', textAlign: 'center' }}>
             <div>{dateStr}</div>
             <div><span style={{ backgroundColor: style.bg, color: style.text, padding: '2px 6px', borderRadius: '4px', fontWeight: 600, fontSize: '11px' }}>{getCommonLabel('marketType', market)}</span></div>
             <div style={{ fontSize: '11px', color: '#555' }}>{orderNo}</div>
@@ -1214,7 +1286,7 @@ const OrderGrid: React.FC = () => {
           'EXCHANGED':  { bg: '#e8eaf6', text: '#283593' }
         };
         const style = colorMap[val] || { bg: '#f5f5f5', text: '#666' };
-        return val ? <span style={{ backgroundColor: style.bg, color: style.text, padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>{getCommonLabel('shippingStatus', val)}</span> : '-';
+        return val ? <span style={{ backgroundColor: style.bg, color: style.text, padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>{getCommonLabel('shippingStatus', val)}</span> : '-';
       }
     }),
 
@@ -1281,7 +1353,7 @@ const OrderGrid: React.FC = () => {
             'PENDING': { bg: '#f5f5f5', text: '#666' },
           };
           const style = customsColorMap[val] || { bg: '#f5f5f5', text: '#666' };
-          return <span style={{ backgroundColor: style.bg, color: style.text, padding: '4px 8px', borderRadius: '4px', fontWeight: 600, fontSize: '12px', whiteSpace: 'pre-line', lineHeight: '1.3' }}>{getCommonLabel('customsStatus', val)}</span>;
+          return <span style={{ backgroundColor: style.bg, color: style.text, padding: '2px 6px', borderRadius: '4px', fontWeight: 600, fontSize: '12px', whiteSpace: 'pre-line', lineHeight: '1.3' }}>{getCommonLabel('customsStatus', val)}</span>;
         }
         if (row.original.rowType === 'fulfillment') return null;
         const val = row.original.order?.customsData?.customsClearanceNo || '';
@@ -1377,10 +1449,10 @@ const OrderGrid: React.FC = () => {
         if (row.original.rowType === 'fulfillment') return null;
         const info = stockCellInfo(row.original.product);
         let badge = <span style={{ color: '#999' }}>-</span>;
-        if (info.badge === 'IN_STOCK') badge = <span style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>있음</span>;
-        if (info.badge === 'OUT_OF_STOCK') badge = <span style={{ backgroundColor: '#ffebee', color: '#c62828', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>품절</span>;
+        if (info.badge === 'IN_STOCK') badge = <span style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>있음</span>;
+        if (info.badge === 'OUT_OF_STOCK') badge = <span style={{ backgroundColor: '#ffebee', color: '#c62828', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>품절</span>;
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
             <div>{badge}</div>
             {info.restockDate && (
               <div style={{ fontSize: '11px', color: '#666' }}>{`입고: ${info.restockDate}`}</div>
@@ -1576,33 +1648,35 @@ const OrderGrid: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '0', backgroundColor: '#f8fafc', borderRadius: '0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <h2 style={{ margin: 0, fontSize: '19px', fontWeight: 800, color: 'var(--primary-color)', letterSpacing: -0.2 }}>통합 주문 관리</h2>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button onClick={handleSyncSmartStore} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>N스토어 동기화</button>
-          <button onClick={handleSyncCoupang} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>쿠팡 동기화</button>
-          <button onClick={handleSyncElevenStreet} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>11번가 동기화</button>
-          <button onClick={handleSyncEsmplus} style={{ padding: '8px 16px', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>G마켓/옥션 동기화</button>
-          <button onClick={handleConfirmOrders} disabled={!canConfirmSelected} style={{ padding: '8px 16px', backgroundColor: canConfirmSelected ? '#e8f5e9' : '#f5f5f5', color: canConfirmSelected ? '#2e7d32' : '#999', border: `1px solid ${canConfirmSelected ? '#c8e6c9' : '#e0e0e0'}`, borderRadius: '8px', cursor: canConfirmSelected ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: canConfirmSelected ? 1 : 0.6 }}>선택 주문 확인</button>
-          <button onClick={handleCancelOrders} style={{ padding: '8px 16px', backgroundColor: '#ffebee', color: '#c62828', border: '1px solid #ffcdd2', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>선택 주문 거부</button>
-          <button onClick={handleShipSelected} style={{ padding: '8px 16px', backgroundColor: '#fff', color: '#333', border: '1px solid #ddd', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>선택 발송</button>
+      {/* 툴바 — 제목·동기화 상태·액션을 한 줄에 병합(이전 2줄 82px → 34px). */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '6px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+          <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--primary-color)', letterSpacing: -0.2, whiteSpace: 'nowrap' }}>통합 주문 관리</h2>
+          {syncStatuses && (
+            <div style={{ display: 'flex', gap: '9px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {Object.entries(marketLabels).map(([key, label]) => {
+                const s = syncStatuses[key];
+                return (
+                  <span key={key} style={{ fontSize: '11px', color: '#666', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: s ? syncDotColor(s.status) : '#9e9e9e', display: 'inline-block' }} />
+                    {label}
+                    <span style={{ color: '#aaa' }}>{s ? timeAgo(s.lastSyncAt) : '전'}</span>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          <button onClick={handleSyncSmartStore} style={toolbarBtn}>N스토어 동기화</button>
+          <button onClick={handleSyncCoupang} style={toolbarBtn}>쿠팡 동기화</button>
+          <button onClick={handleSyncElevenStreet} style={toolbarBtn}>11번가 동기화</button>
+          <button onClick={handleSyncEsmplus} style={toolbarBtn}>G마켓/옥션 동기화</button>
+          <button onClick={handleConfirmOrders} disabled={!canConfirmSelected} style={{ ...toolbarBtnBase, backgroundColor: canConfirmSelected ? '#e8f5e9' : '#f5f5f5', color: canConfirmSelected ? '#2e7d32' : '#999', border: `1px solid ${canConfirmSelected ? '#c8e6c9' : '#e0e0e0'}`, cursor: canConfirmSelected ? 'pointer' : 'not-allowed', fontWeight: 'bold', opacity: canConfirmSelected ? 1 : 0.6 }}>선택 주문 확인</button>
+          <button onClick={handleCancelOrders} style={{ ...toolbarBtnBase, backgroundColor: '#ffebee', color: '#c62828', border: '1px solid #ffcdd2', fontWeight: 'bold' }}>선택 주문 거부</button>
+          <button onClick={handleShipSelected} style={{ ...toolbarBtnBase, backgroundColor: '#fff', color: '#333', border: '1px solid #ddd' }}>선택 발송</button>
         </div>
       </div>
-      {syncStatuses && (
-        <div style={{ display: 'flex', gap: '14px', marginBottom: '12px', alignItems: 'center', flexWrap: 'wrap', paddingLeft: '2px' }}>
-          <span style={{ fontSize: '12px', fontWeight: 600, color: '#888' }}>동기화</span>
-          {Object.entries(marketLabels).map(([key, label]) => {
-            const s = syncStatuses[key];
-            return (
-              <span key={key} style={{ fontSize: '12px', color: '#666', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: s ? syncDotColor(s.status) : '#9e9e9e', display: 'inline-block' }} />
-                {label}
-                <span style={{ color: '#aaa' }}>{s ? timeAgo(s.lastSyncAt) : '전'}</span>
-              </span>
-            );
-          })}
-        </div>
-      )}
       <OrderFilterPanel onSearch={(keyword, markets, statuses, startDate, endDate, purchaseStatuses, stockStatuses, vendors) => { setQueryParams(prev => ({ keyword, markets, statuses, purchaseStatuses, startDate, endDate, stockStatuses, vendors, customsStatuses: prev.customsStatuses })); setSearchTrigger(c => c + 1); }} />
 
       <div style={{ flex: 1, backgroundColor: 'white', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>

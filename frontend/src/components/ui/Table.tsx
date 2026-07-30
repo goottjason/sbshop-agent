@@ -59,7 +59,7 @@ export const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttr
     <th
       ref={ref}
       {...props}
-      style={{ padding: '8px 12px', fontWeight: 400, color: '#374151', fontSize: '12px', borderBottom: '2px solid #d1d5db', whiteSpace: 'nowrap', textAlign: 'center', ...props.style }}
+      style={{ padding: 'var(--head-pad, 8px 12px)', fontWeight: 400, color: '#374151', fontSize: '12px', borderBottom: '2px solid #d1d5db', whiteSpace: 'nowrap', textAlign: 'center', ...props.style }}
     />
   )
 );
@@ -70,7 +70,7 @@ export const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttr
     <td
       ref={ref}
       {...props}
-      style={{ padding: '8px 12px', color: '#111827', fontSize: '12px', verticalAlign: 'middle', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap', textAlign: 'center', ...props.style }}
+      style={{ padding: 'var(--cell-pad, 8px 12px)', color: '#111827', fontSize: '12px', verticalAlign: 'middle', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap', textAlign: 'center', ...props.style }}
     />
   )
 );

@@ -13,6 +13,19 @@
   --success: #10b981;
   --error: #ef4444;
   --warning: #f59e0b;
+
+  /* ─── 밀도 토큰 ───
+   * 데이터 그리드(통합 주문 관리 등)의 정보 밀도를 여기 한 곳에서 조절한다.
+   * 이전에는 이 수치들이 인라인 스타일 수십 곳에 흩어져 있어 재조정이 불가능했다.
+   * --row-h 하한은 36px: 구매정보 컬럼이 rowSpan=3으로 컨트롤 4개를 쌓으므로
+   * (4 × 21px + gap 3 × 2px + 셀패딩 6px = 96px ≤ 3 × 36 = 108) 그 아래로 내리면 잘린다.
+   * --row-h를 줄일 땐 --field-pad/--field-fs도 함께 줄여야 한다. */
+  --topbar-h: 44px;
+  --row-h: 36px;
+  --cell-pad: 3px 6px;
+  --head-pad: 4px 8px;
+  --field-pad: 2px 5px;
+  --field-fs: 11px;
 }
 
 /* 상품 관리 전용 테마 스코프 — 전역 --primary-color(남색)를 건드리지 않고 포레스트 그린으로 격리 */
@@ -52,24 +65,29 @@ body {
 .topbar-left {
   display: flex;
   align-items: center;
-  gap: 32px;
+  gap: 18px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .topbar-nav {
   display: flex;
-  gap: 8px;
+  gap: 2px;
 }
 
 .nav-item-top {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  gap: 6px;
+  padding: 5px 9px;
   border-radius: 6px;
   text-decoration: none;
   color: var(--sidebar-text);
   transition: all 0.2s ease;
   font-weight: 500;
+  font-size: 12.5px;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 .nav-item-top:hover,
@@ -87,22 +105,35 @@ body {
 
 /* Topbar */
 .topbar {
-  height: 70px;
+  height: var(--topbar-h);
+  flex-shrink: 0;
   background-color: #fff;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 32px;
+  gap: 12px;
+  padding: 0 14px;
+}
+
+/* nav는 한 줄 유지(줄바꿈되면 탑바가 다시 두꺼워진다). 폭이 모자라면 가로 스크롤로 흡수. */
+.topbar-nav {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.topbar-nav::-webkit-scrollbar {
+  display: none;
 }
 
 .topbar-search input {
-  padding: 10px 16px;
+  padding: 5px 10px;
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  width: 300px;
+  width: 200px;
   outline: none;
-  font-size: 14px;
+  font-size: 13px;
   transition: border-color 0.2s;
 }
 
@@ -113,12 +144,14 @@ body {
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .user-profile {
-  width: 36px;
-  height: 36px;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
   border-radius: 50%;
   background-color: var(--primary-color);
   color: #fff;
@@ -126,7 +159,7 @@ body {
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 /* Buttons */
@@ -166,7 +199,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: auto;
-  padding: 16px 24px;
+  padding: 8px 12px;
 }
 
 /* Dashboard Cards */
