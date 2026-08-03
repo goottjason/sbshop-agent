@@ -236,9 +236,11 @@ public class CoupangOrderSyncService {
 		if (productId != null && !productId.equals(item.getProductId())) {
 			item.assignProductId(productId);
 		}
-		// 2. trackingSentToMarket 가드: false/null이면 trackingNo/carrier 보존
-		boolean canOverwriteTracking = item.getShippingData() != null
-			&& Boolean.TRUE.equals(item.getShippingData().getTrackingSentToMarket());
+		// 2. D-120: 종전 가드는 "우리가 마켓에 보낸 송장(trackingSentToMarket=true)"일 때만 마켓 값을 반영했다.
+		// 그러면 판매자가 쿠팡 윙에서 직접 입력한 송장은 영원히 유입되지 못한다 — 마켓이 진실 원본이라는
+		// 원칙에 어긋난다. 가드의 실제 목적은 "마켓의 빈 값이 우리 실값을 지우는 것"을 막는 것이므로,
+		// 전송 여부가 아니라 마켓 값의 유의미성으로 판정한다(D-107/108 PII 가드와 동형).
+		boolean canOverwriteTracking = ShippingData.isMeaningfulTracking(dto.getTrackingNo());
 		// 3. 배송 정보 갱신 (shippingStatus는 항상 갱신, trackingNo/carrier는 조건부)
 		ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
 			.trackingNo(canOverwriteTracking ? dto.getTrackingNo() : null)

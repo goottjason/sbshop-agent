@@ -117,9 +117,11 @@ public class SmartStoreOrderSyncService {
 		if (productId != null && !productId.equals(item.getProductId())) {
 			item.assignProductId(productId);
 		}
+		// D-120: 마켓 값이 실값일 때만 송장을 반영한다(빈 값/자리표시자로 기존 송장을 지우지 않음).
+		boolean canOverwriteTracking = ShippingData.isMeaningfulTracking(dto.getTrackingNo());
 		ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
-			.trackingNo(dto.getTrackingNo())
-			.shippingCarrier(dto.getCarrier())
+			.trackingNo(canOverwriteTracking ? dto.getTrackingNo() : null)
+			.shippingCarrier(canOverwriteTracking ? dto.getCarrier() : null)
 			.shippingStatus(dto.getStatus())
 			.build();
 		item.applyShippingData(cmd.toShippingData(item.getShippingData()));

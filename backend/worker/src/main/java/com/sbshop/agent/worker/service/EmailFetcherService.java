@@ -479,29 +479,32 @@ public class EmailFetcherService {
 				continue;
 			}
 
-			// PREPARING 상태이면 최초 배송 처리. iHerb 주문번호 존재(발송메일 매칭의 전제)가 곧 "구매함"의 신호이므로
-			// PurchaseStatus는 게이팅에 쓰지 않는다(구매상태는 유저 수동 관리 필드).
+			// D-121: 종전에는 PREPARING일 때만 송장을 기록하고 그 외 상태(NEW·DELIVERED 등)는 통째로 스킵했다.
+			// 그래서 발주확인 전(NEW)이나 이미 배송완료(DELIVERED)로 넘어간 뒤 발송메일이 도착하면 송장이
+			// 영원히 비어 있었다(옥션 실사례). 송장은 배송 사실의 기록이므로, 우리에게 실값이 없으면
+			// 상태와 무관하게 채운다 — 배송상태는 건드리지 않으므로 마켓 진실을 훼손하지 않는다.
+			ShippingCarrier carrier = mapCarrier(shipmentData.getCarrier());
+			ShippingData currentShipping = item.getShippingData() != null
+				? item.getShippingData() : ShippingData.builder().build();
+
+			// 송장번호·택배사만 기록 — 배송상태는 마켓 API 동기화로 반영
+			item.applyShippingData(currentShipping.toBuilder()
+				.trackingNo(shipmentData.getTrackingNo())
+				.shippingCarrier(carrier)
+				.build());
+			orderLineItemRepository.save(item);
+
+			log.info("iHerb 발송 처리 완료: itemId={}, status={}, tracking={}, carrier={}",
+				item.getId(), currentStatus, shipmentData.getTrackingNo(), carrier);
+
+			// 마켓 전송은 마켓이 받아주는 상태에서만 시도한다. PREPARING은 초기등록(shipOrder) 경로.
+			// NEW(발주확인 전)·DELIVERED(배송완료) 등은 마켓이 송장 등록을 거부하므로 전송하지 않고
+			// 로컬 기록만 남긴다 — 마켓 송장은 동기화가 가져온다.
 			if (currentStatus == ShippingStatus.PREPARING) {
-				ShippingCarrier carrier = mapCarrier(shipmentData.getCarrier());
-				ShippingData currentShipping = item.getShippingData();
-				if (currentShipping == null) {
-					currentShipping = ShippingData.builder().build();
-				}
-				// 송장번호·택배사만 기록 — 배송상태는 마켓 API 동기화로 반영
-				item.applyShippingData(currentShipping.toBuilder()
-					.trackingNo(shipmentData.getTrackingNo())
-					.shippingCarrier(carrier)
-					.build());
-				orderLineItemRepository.save(item);
-
-				log.info("iHerb 발송 처리 완료: itemId={}, tracking={}, carrier={}",
-					item.getId(), shipmentData.getTrackingNo(), carrier);
-
-				// 마켓에 아직 송장이 없음 → 초기등록(shipOrder) 경로. 실패해도 배송 저장은 보존, 성공 시에만 전송완료 마킹.
 				MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, false);
 				handleMarketResult(item, sendResult, shipmentData.getOrderNo(), "최초발송");
 			} else {
-				log.info("iHerb 주문 {} 상태({})가 배송 처리 조건 미충족 — 스킵",
+				log.info("iHerb 주문 {} 상태({}) — 송장은 기록하고 마켓 전송은 생략(마켓 동기화가 진실 원본)",
 					shipmentData.getOrderNo(), currentStatus);
 			}
 		}

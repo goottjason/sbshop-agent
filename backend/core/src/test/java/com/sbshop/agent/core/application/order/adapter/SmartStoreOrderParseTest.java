@@ -42,6 +42,13 @@ class SmartStoreOrderParseTest {
 	@InjectMocks
 	private SmartStoreOrderAdapter adapter;
 
+	@org.junit.jupiter.api.BeforeEach
+	void speedUpDelays() {
+		// D-118로 청크 간 지연이 생겼다 — 단위 테스트는 대기 없이 돌린다.
+		adapter.chunkDelayMillis = 0L;
+		adapter.retryBackoffMillis = 0L;
+	}
+
 	private MarketCredential credential() {
 		MarketCredential c = mock(MarketCredential.class);
 		when(c.getClientId()).thenReturn("clientId");

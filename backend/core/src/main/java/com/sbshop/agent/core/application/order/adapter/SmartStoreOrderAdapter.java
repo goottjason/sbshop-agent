@@ -38,6 +38,15 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 	private final SmartStoreOrderApiPort smartStoreOrderApiPort;
 	private final SmartStoreStatusMapper statusMapper;
 
+	// D-118: 네이버 API 호출 간격·재시도 파라미터.
+	// 30일 창을 1일 단위로 훑으므로 런당 31청크 — 간격 2초면 한 런이 약 60~90초다. 동기화는 30분 주기라
+	// 여유가 충분하고, 수집 누락 0이 속도보다 훨씬 중요하므로 넉넉하게 잡는다.
+	// (테스트에서 대기 없이 돌리려고 final이 아닌 package-private으로 둔다.)
+	long chunkDelayMillis = 2_000L;
+	long retryBackoffMillis = 5_000L;
+	/** 429 1건당 최대 재시도 횟수(백오프는 시도마다 2배). */
+	static final int MAX_RETRIES = 3;
+
 	@Override
 	public MarketType getMarketType() {
 		return MarketType.SMART_STORE;
@@ -71,7 +80,7 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 			String toStr = currentTo.format(formatter);
 
 			try {
-				JsonNode orders = smartStoreOrderApiPort.fetchOrders(clientId, secretKey, fromStr, toStr);
+				JsonNode orders = fetchChunkWithRetry(clientId, secretKey, fromStr, toStr);
 
 				if (orders != null && orders.isArray() && !orders.isEmpty()) {
 					for (JsonNode orderNode : orders) {
@@ -93,7 +102,6 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 					}
 				}
 
-				Thread.sleep(300);
 				successChunks++;
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
@@ -102,6 +110,12 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 				failedChunks++;
 				lastFailure = e;
 				log.error("스마트스토어 주문 조회 실패 (기간: {} ~ {}): {}", fromStr, toStr, e.getMessage());
+			}
+
+			// D-118: 지연을 성공 경로에만 두면 실패 시 즉시 다음 호출로 넘어가 429가 연쇄 폭주한다
+			// (31청크가 4초 만에 완주하던 원인). 성공·실패 무관하게 청크 사이를 항상 벌린다.
+			if (!sleepQuietly(chunkDelayMillis)) {
+				break;
 			}
 
 			currentFrom = currentTo;
@@ -118,6 +132,56 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 		}
 
 		return result;
+	}
+
+	/**
+	 * D-118: 429는 "잠시 후 다시"라는 뜻이므로 백오프 후 재시도해 청크를 회수한다.
+	 * 429가 아닌 오류(401 인증 실패 등)는 재시도해도 결과가 같고 호출만 늘리므로 즉시 전파한다.
+	 */
+	private JsonNode fetchChunkWithRetry(String clientId, String secretKey, String fromStr, String toStr)
+		throws InterruptedException {
+		RuntimeException lastError = null;
+		long backoff = retryBackoffMillis;
+
+		for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+			try {
+				return smartStoreOrderApiPort.fetchOrders(clientId, secretKey, fromStr, toStr);
+			} catch (RuntimeException e) {
+				if (!isRateLimited(e)) {
+					throw e;
+				}
+				lastError = e;
+				if (attempt == MAX_RETRIES) {
+					break;
+				}
+				log.warn("스마트스토어 429 — {}ms 후 재시도 ({}/{}, 기간: {} ~ {})",
+					backoff, attempt + 1, MAX_RETRIES, fromStr, toStr);
+				Thread.sleep(backoff);
+				backoff *= 2;
+			}
+		}
+		throw lastError;
+	}
+
+	/** 호출량 초과(429) 여부. 클라이언트가 상태코드를 메시지에 담아 전파한다. */
+	private boolean isRateLimited(Exception e) {
+		String message = e.getMessage();
+		return message != null
+			&& (message.contains("429") || message.contains("TOO_MANY_REQUESTS"));
+	}
+
+	/** 인터럽트되면 플래그를 복구하고 false를 반환해 호출부가 루프를 접게 한다. */
+	private boolean sleepQuietly(long millis) {
+		if (millis <= 0) {
+			return true;
+		}
+		try {
+			Thread.sleep(millis);
+			return true;
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			return false;
+		}
 	}
 
 	private MarketOrderDto parseOrderNode(JsonNode orderInfo, JsonNode productOrderInfo,

@@ -12,6 +12,7 @@ import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
@@ -198,24 +199,45 @@ public class Cafe24OrderSyncService {
 		refreshMarketSpecific(order, o);
 		orderRepository.save(order);
 
-		// 배송상태만 갱신(트래킹은 마켓 전송 가드가 있는 별도 경로에서 관리)
+		// D-119: 배송상태와 함께 송장도 갱신한다. 종전에는 상태만 갱신하고 트래킹은 "마켓 전송 가드가 있는
+		// 별도 경로"에 맡겼는데, 그 경로는 우리가 송장을 보낼 때만 동작한다. 마켓(G마켓/옥션) 화면에서
+		// 직접 입력된 송장은 어디로도 들어오지 못해, 배송완료인데 송장이 비어 있는 주문이 생겼다.
+		// 마켓이 진실 원본이므로 마켓 값이 실값일 때만 반영하고, 빈 값/자리표시자로는 덮지 않는다.
 		JsonNode itemsArr = o.path("items");
 		if (itemsArr.isArray() && itemsArr.size() == lineItems.size()) {
 			// 개수가 일치하면 아이템별로 매핑(create 경로와 일관)
 			for (int i = 0; i < lineItems.size(); i++) {
-				ShippingStatus st = mapStatus(text(itemsArr.get(i), "order_status"));
-				OrderLineItem li = lineItems.get(i);
-				li.applyShippingData(li.getShippingData().toBuilder().shippingStatus(st).build());
-				orderLineItemRepository.save(li);
+				applyItemShipping(lineItems.get(i), itemsArr.get(i));
 			}
 		} else {
 			// 개수 불일치 시 첫 아이템 상태를 전체에 적용(sbshop 라인아이템은 order_item_code 미보존, 방어적)
-			ShippingStatus st = mapStatus(text(firstOf(itemsArr), "order_status"));
+			JsonNode first = firstOf(itemsArr);
 			for (OrderLineItem li : lineItems) {
-				li.applyShippingData(li.getShippingData().toBuilder().shippingStatus(st).build());
-				orderLineItemRepository.save(li);
+				applyItemShipping(li, first);
 			}
 		}
+	}
+
+	/** Cafe24 아이템의 배송상태·송장을 라인아이템에 반영한다(송장은 실값일 때만). */
+	private void applyItemShipping(OrderLineItem li, JsonNode item) {
+		ShippingStatus st = mapStatus(text(item, "order_status"));
+		ShippingData existing = li.getShippingData() != null
+			? li.getShippingData() : ShippingData.builder().build();
+		ShippingData.ShippingDataBuilder builder = existing.toBuilder().shippingStatus(st);
+
+		String marketTracking = text(item, "tracking_no");
+		if (ShippingData.isMeaningfulTracking(marketTracking)) {
+			builder.trackingNo(marketTracking);
+			// 택배사는 매핑되는 경우에만 갱신(미매핑이면 null 반환 → 기존값 유지).
+			ShippingCarrier carrier = ShippingCarrier.fromMarketCode(
+				firstNonBlank(text(item, "shipping_company_code"), text(item, "shipping_company_name")));
+			if (carrier != null) {
+				builder.shippingCarrier(carrier);
+			}
+		}
+
+		li.applyShippingData(builder.build());
+		orderLineItemRepository.save(li);
 	}
 
 	private OrderLineItem buildLineItem(JsonNode item, Long orderId) {
@@ -231,7 +253,11 @@ public class Cafe24OrderSyncService {
 			.productId(productId)
 			.quantity(qty)
 			.shippingData(ShippingData.builder()
-				.trackingNo(text(item, "tracking_no"))
+				// D-119: 자리표시자('00000000' 등)가 실제 송장으로 저장되던 경로 — 실값일 때만 담는다.
+				.trackingNo(ShippingData.isMeaningfulTracking(text(item, "tracking_no"))
+					? text(item, "tracking_no") : null)
+				.shippingCarrier(ShippingCarrier.fromMarketCode(
+					firstNonBlank(text(item, "shipping_company_code"), text(item, "shipping_company_name"))))
 				.shippingStatus(mapStatus(text(item, "order_status")))
 				.build())
 			.settlementData(SettlementData.builder()

@@ -39,6 +39,22 @@ public class ShippingData {
 	@Column(name = "tracking_sent_to_market")
 	private Boolean trackingSentToMarket;
 
+	/**
+	 * D-119: 마켓이 준 송장번호가 우리 값을 덮어쓸 만한 "실값"인지 판정한다.
+	 * 마켓은 미발송 주문에 빈 문자열이나 전부 0인 자리표시자를 담아 주는 경우가 있고,
+	 * 그 값으로 실제 송장을 덮으면 배송정보가 유실된다(D-107/108의 PII 가드와 같은 취지).
+	 */
+	public static boolean isMeaningfulTracking(String trackingNo) {
+		if (trackingNo == null) {
+			return false;
+		}
+		String normalized = trackingNo.replaceAll("[\\s-]", "");
+		if (normalized.isEmpty()) {
+			return false;
+		}
+		return !normalized.chars().allMatch(ch -> ch == '0');
+	}
+
 	@Builder(toBuilder = true)
 	public ShippingData(String trackingNo, ShippingStatus shippingStatus,
 		ShippingCarrier shippingCarrier, Boolean trackingSentToMarket) {
