@@ -23,6 +23,16 @@ public interface Cafe24OrderApiPort {
 	/** 주문 상세 조회(embed=items) — 송장 등록에 필요한 order_item_code 획득용. GET /admin/orders/{id}. */
 	JsonNode fetchOrderDetail(String orderId);
 
+	/**
+	 * 주문의 배송건 목록. GET /admin/orders/{orderId}/shipments.
+	 *
+	 * D-124: 주문 목록의 items[].tracking_no는 배송건이 여러 개일 때 하나만 비칠 수 있다.
+	 * 마켓(G마켓/옥션)에서 송장이 바뀐 경우 실값이 별도 배송건에 있을 가능성이 있어 이쪽도 조회한다.
+	 *
+	 * @return 응답의 "shipments" 배열 JsonNode (없으면 빈 배열/미싱 노드)
+	 */
+	JsonNode fetchShipments(String orderId);
+
 	/** 몰에 등록된 택배사 목록. GET /admin/carriers. shipping_company_code 해석용. */
 	JsonNode fetchCarriers();
 

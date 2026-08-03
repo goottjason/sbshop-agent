@@ -49,6 +49,16 @@ public class Cafe24OrderApiClient implements Cafe24OrderApiPort {
 	}
 
 	@Override
+	public JsonNode fetchShipments(String orderId) {
+		String response = restClient.get("/admin/orders/" + orderId + "/shipments");
+		try {
+			return objectMapper.readTree(response).path("shipments");
+		} catch (Exception e) {
+			throw new RuntimeException("Cafe24 배송건 파싱 실패", e);
+		}
+	}
+
+	@Override
 	public JsonNode fetchCarriers() {
 		String response = restClient.get("/admin/carriers");
 		try {

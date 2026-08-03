@@ -55,6 +55,7 @@ public class Cafe24OrderSyncService {
 	private final SyncStatusService syncStatusService;
 	private final MarketFeeService marketFeeService;
 	private final TerminalSettlementService terminalSettlementService;
+	private final Cafe24ShipmentTrackingLookup shipmentTrackingLookup;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -207,19 +208,19 @@ public class Cafe24OrderSyncService {
 		if (itemsArr.isArray() && itemsArr.size() == lineItems.size()) {
 			// 개수가 일치하면 아이템별로 매핑(create 경로와 일관)
 			for (int i = 0; i < lineItems.size(); i++) {
-				applyItemShipping(lineItems.get(i), itemsArr.get(i));
+				applyItemShipping(lineItems.get(i), itemsArr.get(i), order.getCafe24OrderId());
 			}
 		} else {
 			// 개수 불일치 시 첫 아이템 상태를 전체에 적용(sbshop 라인아이템은 order_item_code 미보존, 방어적)
 			JsonNode first = firstOf(itemsArr);
 			for (OrderLineItem li : lineItems) {
-				applyItemShipping(li, first);
+				applyItemShipping(li, first, order.getCafe24OrderId());
 			}
 		}
 	}
 
 	/** Cafe24 아이템의 배송상태·송장을 라인아이템에 반영한다(송장은 실값일 때만). */
-	private void applyItemShipping(OrderLineItem li, JsonNode item) {
+	private void applyItemShipping(OrderLineItem li, JsonNode item, String cafe24OrderId) {
 		ShippingStatus st = mapStatus(text(item, "order_status"));
 		ShippingData existing = li.getShippingData() != null
 			? li.getShippingData() : ShippingData.builder().build();
@@ -234,10 +235,30 @@ public class Cafe24OrderSyncService {
 			if (carrier != null) {
 				builder.shippingCarrier(carrier);
 			}
+		} else if (needsTrackingLookup(existing, st)) {
+			// D-124: 주문 item에는 자체배송 자리표시자만 비칠 수 있다. 배송건 목록을 한 번 더 뒤진다.
+			// 이미 실송장을 갖고 있거나 배송 전 상태면 호출하지 않는다(불필요한 API 호출 억제).
+			Cafe24ShipmentTrackingLookup.Found found = shipmentTrackingLookup.findRealTracking(cafe24OrderId);
+			if (found != null) {
+				builder.trackingNo(found.trackingNo());
+				if (found.carrier() != null) {
+					builder.shippingCarrier(found.carrier());
+				}
+			}
 		}
 
 		li.applyShippingData(builder.build());
 		orderLineItemRepository.save(li);
+	}
+
+	/** 배송건 추가 조회가 필요한 상태인지 — 발송 이후인데 우리에게 실송장이 없을 때만. */
+	private boolean needsTrackingLookup(ShippingData existing, ShippingStatus status) {
+		boolean alreadyHasReal = existing != null
+			&& ShippingData.isMeaningfulTracking(existing.getTrackingNo());
+		boolean shipped = status == ShippingStatus.DISPATCHED
+			|| status == ShippingStatus.SHIPPED
+			|| status == ShippingStatus.DELIVERED;
+		return !alreadyHasReal && shipped;
 	}
 
 	private OrderLineItem buildLineItem(JsonNode item, Long orderId) {

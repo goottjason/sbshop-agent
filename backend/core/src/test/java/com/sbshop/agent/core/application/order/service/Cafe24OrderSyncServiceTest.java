@@ -60,7 +60,8 @@ class Cafe24OrderSyncServiceTest {
 	void setUp() {
 		service = new Cafe24OrderSyncService(cafe24OrderApiPort, orderRepository,
 			orderLineItemRepository, marketRegistrationRepository, eventPublisher, syncStatusService,
-			marketFeeService, org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class));
+			marketFeeService, org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
+			org.mockito.Mockito.mock(Cafe24ShipmentTrackingLookup.class));
 		lenient().when(marketRegistrationRepository.findByMarketTypeAndIdentifiersContaining(
 			org.mockito.ArgumentMatchers.any(), anyString())).thenReturn(List.of());
 	}
