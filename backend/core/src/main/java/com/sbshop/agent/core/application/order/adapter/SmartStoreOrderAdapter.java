@@ -151,7 +151,9 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 				ordererPhone = ordererPhone.replace("-", "");
 			}
 
-			String placeOrderStatus = productOrderInfo.path("placeOrderStatus").asText(null);
+			// D-117: placeOrderStatus는 응답에 없을 수 있다. asText(null)의 null이 Map.of에 들어가면
+			// NPE가 나고 아래 catch가 그걸 삼켜 주문이 통째로 드롭되므로 빈 문자열로 정규화한다.
+			String placeOrderStatus = productOrderInfo.path("placeOrderStatus").asText("");
 			Map<String, String> statusMap = Map.of("status", status, "placeOrderStatus", placeOrderStatus);
 			ShippingStatus shippingStatus = statusMapper.mapStatus(statusMap);
 

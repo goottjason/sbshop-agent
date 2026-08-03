@@ -1670,3 +1670,25 @@ D-110 백필 실행 결과, 자동 주입의 실제 상한이 드러났다. 194�
 `343280106` 31원 → **46,768원**($31.75) · `343628939` 35원 → **52,292원**($35.50).
 `sourcing_amount < 1000` 조건부 UPDATE로 트랜잭션 실행. 소액 오염 잔여 **0건** 확인.
 현재 커버리지: iHerb 194건 중 미주입 **126건**(충전 68건).
+
+### D-117: 스마트스토어 "발주확인 해제"를 주문취소로 오매핑 → 살아있는 발송대기 주문 소실 (2026-08-03)
+- 심각도: **P1** (기능 불능 — 실 매출 손실·발송기한 초과 발생) · 리스크 등급: 중대(마켓 상태 계약)
+- 신고: 사용자 — "2026072260087751 허경덕 네이버 주문이 누락됐다". 해당 번호는 **주문번호(orderId)**이고 상품주문번호는 `2026072251442781`(주문 id=203).
+- 증상: 네이버 판매자센터는 `주문상태=발송대기 / 주문세부상태=발주확인해제 / 발송기한 초과`인데, 우리 DB는 `shipping_status=CANCELED` + `settlement_amount=0.00`. 취소건으로 분류되어 발송 작업목록에서 사라졌다.
+- 근본원인: `SmartStoreStatusMapper.mapStatus`가 `PAYED`(결제완료=발송대기) 분기에서 `placeOrderStatus=CANCEL`을 `ShippingStatus.CANCELED`로 매핑. `placeOrderStatus`는 취소 여부가 아니라 **발주확인 여부**(OK 확인완료 / NOT_YET 확인전 / CANCEL 확인해제)를 나타내는 **별개의 축**이다. 실제 취소는 `productOrderStatus=CANCELED`/`CANCELED_BY_NOPAYMENT` 분기가 이미 담당하고 있었다.
+- 2차 피해: D-098 `TerminalSettlementService.zeroSettlementForRefunded(SMART_STORE)`가 이 오분류 건을 종결건으로 보고 정산액을 0으로 내려 **정산 데이터까지 오염**시켰다. 오분류가 정산 정규화로 증폭되는 경로 확인.
+- 진단 근거(로그 대조): 10시간/21런 로그에서 07-22 UTC 청크 성공 7회 ↔ `2026072251442781` 처리 7회로 1:1 대응 확인. 사용자가 제시한 번호는 21런 전체에서 0회 → productOrderId가 아님을 확정.
+- 수정: `PAYED`는 `OK`면 PREPARING, 그 외(NOT_YET·CANCEL·누락) 전부 **NEW(발송대기)**. 취소 판정은 productOrderStatus 단독.
+- 동반 수정(P2, 잠재 유실): `SmartStoreOrderAdapter.java:155` — `placeOrderStatus`가 응답에 없으면 `asText(null)`→`Map.of` **NPE**→`parseOrderNode` catch가 삼킴→**주문 통째 드롭**. `asText("")`로 정규화.
+- 검증: `SmartStoreStatusMapperTest` 9건 PASS(신규 6건 — CANCEL→NEW, OK→PREPARING, NOT_YET→NEW, null 안전, 실제취소/미결제취소 CANCELED 회귀). `SmartStoreOrderParseTest` 신규 1건 PASS(Red 재현 후 Green). 4개 모듈 전체 회귀 PASS.
+- 오염 교정: 배포 후 동기화가 203번을 NEW로 자동 복원(`applyShippingData`에 전이 가드 없음). 정산액은 동기화가 갱신하지 않으므로 **수동 복원 필요**.
+- 무관 확인: 06-14 취소 2건(이명동=미결제취소, 정가영=취소)은 사용자 확인 결과 **실제 취소** — 현재 CANCELED가 정상, 교정 대상 아님.
+- 상태: **수정완료** — 배포·라이브 검증 대기.
+
+### D-118: 스마트스토어 동기화가 매 런 429로 날짜 청크 12~17개 유실 (2026-08-03)
+- 심각도: **P1** (주문 수집 신뢰성 붕괴) · 리스크 등급: 표준
+- 발견: D-117 진단 중 로그 대조로 발견(사용자 미신고).
+- 증상: `스마트스토어 주문 부분 조회: 16 chunk 성공, 15 chunk 실패 (429 TOO_MANY_REQUESTS)`가 매 런 반복. 실패 청크가 런마다 무작위로 바뀌어 **특정 주문이 언제 보일지가 복불복**. 07-26 창은 21런 중 17런 실패.
+- 근본원인: (1) 30일 창을 30분마다 **전량 재조회** — 런당 최대 62 API 호출, (2) `SmartStoreOrderAdapter.java:96` `Thread.sleep(300)`이 **성공 경로에만** 있어 실패 시 즉시 다음 호출 → 429 연쇄 폭주(31청크가 4초 만에 완주), (3) 재시도·백오프 없음.
+- 은폐: 부분 실패가 WARN 1줄로만 남고 동기화는 `주문 동기화 완료`로 **성공 보고**된다. 사용자에게도 정상으로 보인다.
+- 상태: **발견** — 미수정. 권고: 실패 경로에도 지연 적용 + 429 지수 백오프 재시도 + 조회 창을 최근 N일로 축소(전량 재조회는 일 1회 등으로 분리).
