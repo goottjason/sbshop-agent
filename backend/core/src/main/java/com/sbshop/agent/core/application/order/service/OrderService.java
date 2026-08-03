@@ -348,7 +348,7 @@ public class OrderService {
 		// 마켓플레이스에 송장 전송/업데이트 — 반영 실패 시 자사 저장을 롤백해 DB/마켓 정합을 유지(@Transactional),
 		// 스킵(전송 대상 아님)은 로컬 편집 유지, 성공 시에만 전송완료 마킹.
 		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, invoiceAlreadyExists);
-		failIfNotSent(item, sendResult);
+		logIfNotSent(item, sendResult);
 		markSentIfSucceeded(item, sendResult, lineItemId);
 
 		if (isDispatchTransition) {
@@ -568,19 +568,28 @@ public class OrderService {
 	}
 
 	/**
-	 * 마켓 전송이 실패(전송 대상이었으나 반영 실패)면 예외를 던져 @Transactional 롤백으로 DB/마켓 정합을 유지한다.
-	 * terminal(마켓이 배송중/완료로 영구 잠금)과 일시 failed를 구분된 메시지로 표면화한다(F-H1).
+	 * D-125: 마켓 전송 실패를 기록해도 로컬 저장은 롤백하지 않는다.
+	 *
+	 * 종전 계약(D-069 후속)은 실패 시 예외를 던져 롤백함으로써 DB/마켓 정합을 유지하는 것이었고,
+	 * 그 근거는 "마켓 송장이 동기화로 반영된다"였다. 그러나 ESM+(G마켓·옥션)는 Cafe24에 자체배송
+	 * 자리표시자('00000000')만 등록될 뿐 마켓 실송장이 유입되지 않는다는 것이 라이브로 확증됐다.
+	 * 그 결과 동기화·이메일·수동 세 경로가 모두 막혀 송장을 기록할 방법 자체가 사라졌다.
+	 *
+	 * 송장은 마켓 API 호출의 성공 여부와 무관하게 실재하는 사실이므로 로컬 기록을 보존한다.
+	 * 전송 실패는 trackingSentToMarket을 올리지 않는 것으로 표현되어 재시도 대상으로 남고,
+	 * 화면에는 "저장됨 · 마켓 미반영"으로 구분돼 보인다(조용히 사라지는 것보다 낫다).
 	 */
-	private void failIfNotSent(OrderLineItem item, MarketShippingResult result) {
+	private void logIfNotSent(OrderLineItem item, MarketShippingResult result) {
 		if (!result.isFailed()) {
 			return;
 		}
 		if (result.isTerminal()) {
-			throw new IllegalStateException("마켓(" + marketTypeOf(item)
-				+ ")이 배송중/완료 상태라 송장 수정 불가 — 마켓 송장이 동기화로 반영됩니다: " + result.failureReason());
+			log.warn("라인아이템 {} 마켓({}) 영구 거부 — 로컬 송장은 보존, 마켓 반영 불가: {}",
+				item.getId(), marketTypeOf(item), result.failureReason());
+			return;
 		}
-		throw new IllegalStateException("마켓(" + marketTypeOf(item)
-			+ ") 송장 반영 실패로 저장을 롤백합니다: " + result.failureReason());
+		log.warn("라인아이템 {} 마켓({}) 송장 반영 실패 — 로컬 송장은 보존, 다음 재시도 대상: {}",
+			item.getId(), marketTypeOf(item), result.failureReason());
 	}
 
 	/**

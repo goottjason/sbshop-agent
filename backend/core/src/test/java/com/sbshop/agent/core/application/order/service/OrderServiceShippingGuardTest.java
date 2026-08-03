@@ -92,8 +92,11 @@ class OrderServiceShippingGuardTest {
 	}
 
 	@Test
-	@DisplayName("SHIPPED 송장수정 → 마켓 terminal → 전용 메시지로 롤백(failed와 구분)")
-	void marketTerminal_throwsWithDedicatedMessage() {
+	@DisplayName("D-125 계약 변경: SHIPPED 송장수정 → 마켓 terminal이어도 로컬 송장은 보존(롤백 없음)")
+	void marketTerminal_preservesLocalTracking() {
+		// 종전에는 terminal이면 전용 메시지로 롤백했다. 그 근거였던 "마켓 송장이 동기화로 반영된다"가
+		// ESM+에서 성립하지 않음이 확증돼(D-124), 송장을 기록할 경로가 전부 막히는 문제가 있었다.
+		// 이제 마켓이 거부해도 로컬 기록은 남기고, 미전송은 trackingSentToMarket으로 표현한다.
 		OrderLineItem item = itemWithStatus(ShippingStatus.SHIPPED);
 		when(orderLineItemRepository.findById(3L)).thenReturn(Optional.of(item));
 		lenient().when(orderRepository.findById(10L))
@@ -101,9 +104,15 @@ class OrderServiceShippingGuardTest {
 		when(marketplaceShippingService.sendTrackingToMarketplace(same(item), anyBoolean()))
 			.thenReturn(MarketShippingResult.ofTerminal("배송진행상태가 유효하지 않습니다"));
 
-		assertThatThrownBy(() -> service().updateShippingInfo(3L, command()))
-			.isInstanceOf(IllegalStateException.class)
-			.hasMessageContaining("동기화");
+		org.assertj.core.api.Assertions
+			.assertThatCode(() -> service().updateShippingInfo(3L, command()))
+			.doesNotThrowAnyException();
+
+		org.assertj.core.api.Assertions.assertThat(item.getShippingData().getTrackingNo())
+			.isEqualTo("123456789");
+		org.assertj.core.api.Assertions.assertThat(item.getShippingData().getTrackingSentToMarket())
+			.isNotEqualTo(Boolean.TRUE);
+		verify(orderLineItemRepository).save(same(item));
 	}
 
 	@Test

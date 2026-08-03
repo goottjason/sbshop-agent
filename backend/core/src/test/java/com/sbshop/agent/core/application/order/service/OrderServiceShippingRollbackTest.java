@@ -1,7 +1,6 @@
 package com.sbshop.agent.core.application.order.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
@@ -29,8 +28,13 @@ import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 
 /**
- * D-069 계약 반전: 마켓 송장 반영이 실패(isFailed)하면 updateShippingInfo가 예외를 던져
- * @Transactional 롤백으로 DB/마켓 정합을 유지한다. 스킵은 로컬 편집 보존, 성공은 전송완료 마킹.
+ * D-125 계약 재반전: 마켓 송장 반영이 실패해도 로컬 저장은 롤백하지 않는다.
+ *
+ * D-069 후속으로 "실패 시 롤백"을 택했던 근거는 "마켓 송장이 동기화로 반영된다"였다.
+ * ESM+(G마켓·옥션)에서는 Cafe24에 자체배송 자리표시자만 등록되고 마켓 실송장이 유입되지
+ * 않음이 확증돼(D-124), 롤백이 정합을 지키는 게 아니라 기록 자체를 막고 있었다.
+ * 이제 실패해도 로컬 송장은 보존하고, 미전송은 trackingSentToMarket으로 표현한다.
+ * 스킵은 종전대로 로컬 편집 보존, 성공은 전송완료 마킹.
  */
 @ExtendWith(MockitoExtension.class)
 class OrderServiceShippingRollbackTest {
@@ -61,8 +65,8 @@ class OrderServiceShippingRollbackTest {
 	}
 
 	@Test
-	@DisplayName("SHIPPED 송장수정 → 마켓 반영 실패(ofFailed) → 예외 발생(롤백 계약), 메시지에 사유 포함")
-	void marketFailed_throwsToRollback() {
+	@DisplayName("D-125: SHIPPED 송장수정 → 마켓 반영 실패(ofFailed) → 예외 없이 로컬 송장 보존")
+	void marketFailed_preservesLocalTracking() {
 		OrderLineItem item = shippedItem();
 		when(orderLineItemRepository.findById(1L)).thenReturn(Optional.of(item));
 		lenient().when(orderRepository.findById(10L))
@@ -70,12 +74,14 @@ class OrderServiceShippingRollbackTest {
 		when(marketplaceShippingService.sendTrackingToMarketplace(same(item), anyBoolean()))
 			.thenReturn(MarketShippingResult.ofFailed("쿠팡 거부: 유효하지 않은 송장번호"));
 
-		assertThatThrownBy(() -> service().updateShippingInfo(1L, command()))
-			.isInstanceOf(IllegalStateException.class)
-			.hasMessageContaining("쿠팡 거부: 유효하지 않은 송장번호");
+		org.assertj.core.api.Assertions
+			.assertThatCode(() -> service().updateShippingInfo(1L, command()))
+			.doesNotThrowAnyException();
 
-		// 실패 시 전송완료 마킹(markTrackingAsSent 저장)은 발생하지 않는다 — 롤백으로 처리.
+		assertThat(item.getShippingData().getTrackingNo()).isEqualTo("123456789");
+		// 전송은 실패했으므로 마킹하지 않는다 — 다음 사이클 재시도 대상으로 남는다.
 		assertThat(item.getShippingData().getTrackingSentToMarket()).isNotEqualTo(Boolean.TRUE);
+		verify(orderLineItemRepository).save(same(item));
 	}
 
 	@Test
