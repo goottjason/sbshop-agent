@@ -119,17 +119,32 @@ public class MarketplaceShippingService {
 	}
 
 	/**
-	 * 재시도 불가한 마켓 상태 잠금 오류인지 판별한다(D-E6).
-	 * 쿠팡은 주문이 배송중/배송완료로 넘어가면 송장 업로드·수정을 거부하며
-	 * "배송진행상태가 유효하지 않습니다" 메시지를 반환한다 — 이 경우 재시도해도 절대 성공하지 못한다.
+	 * 재시도 불가한 마켓 상태 잠금 오류인지 판별한다(D-E6, D-123).
+	 *
+	 * 마켓은 주문이 일정 상태를 넘어가면 송장 등록·수정을 영구 거부한다. 이때 미마킹으로 두면
+	 * 30분마다 같은 요청이 영원히 재전송된다 — 성공할 수 없는 호출이므로 종결시켜야 한다.
+	 *
+	 * D-123: 종전에는 쿠팡 문구만 알고 있어 11번가·Cafe24의 영구 거부가 "일시 실패"로 분류됐고,
+	 * 실제로 여러 주문이 매 사이클 재시도를 반복하고 있었다. 마켓별 문구를 함께 인식한다.
+	 * 판정은 문구 기반이므로 마켓이 메시지를 바꾸면 다시 무한 재시도로 돌아간다 — 재시도 반복이
+	 * 관측되면 이 목록부터 확인할 것.
 	 */
 	private boolean isNonRetryableMarketState(String message) {
 		if (message == null) {
 			return false;
 		}
-		return message.contains("배송진행상태가 유효하지 않습니다")
+		// 쿠팡: 배송중/배송완료로 넘어가면 송장 업로드·수정 거부
+		boolean coupangLocked = message.contains("배송진행상태가 유효하지 않습니다")
 			|| message.contains("이미 배송완료")
 			|| message.contains("배송완료된");
+
+		// 11번가: 해당 배송건 자체가 없다는 응답 — 같은 페이로드 재전송으로는 결코 생기지 않는다
+		boolean elevenstMissingDelivery = message.contains("존재하지 않는 배송번호");
+
+		// Cafe24(G마켓·옥션): 이미 shipping 등으로 넘어간 주문에 배송 등록 시 422
+		boolean cafe24StateLocked = message.contains("You cannot change to that order state");
+
+		return coupangLocked || elevenstMissingDelivery || cafe24StateLocked;
 	}
 
 	/** 마켓에 주문 취소 요청. Cafe24 기반(G마켓/옥션)은 마켓 자격증명이 아니라 Cafe24 토큰으로 인증하므로

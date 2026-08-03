@@ -79,4 +79,41 @@ class MarketplaceShippingTerminalTest {
 		assertThat(result.isFailed()).isTrue();
 		assertThat(result.isTerminal()).isFalse();
 	}
+
+	// ===== D-123: 쿠팡 외 마켓의 영구 거부도 terminal로 분류해야 재시도 루프가 끊긴다 =====
+
+	@Test
+	void 십일번가_존재하지_않는_배송번호는_terminal로_분류된다() {
+		// 11번가가 해당 배송건을 갖고 있지 않다는 뜻 — 같은 페이로드를 재전송해도 영원히 성공하지 못한다.
+		MarketplaceShippingService service = serviceWithPortThrowing(
+			new RuntimeException("11번가 발송처리 실패: 존재하지 않는 배송번호 입니다."));
+
+		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(), false);
+
+		assertThat(result.isTerminal()).isTrue();
+	}
+
+	@Test
+	void 카페24_주문상태_변경불가는_terminal로_분류된다() {
+		// Cafe24 422 — 이미 shipping 상태라 배송 등록을 거부한다. 재시도 불가.
+		MarketplaceShippingService service = serviceWithPortThrowing(
+			new RuntimeException("Cafe24 API POST 호출 실패: 422 Unprocessable Entity: "
+				+ "{\"error\":{\"code\":422,\"message\":\"You cannot change to that order state.\"}}"));
+
+		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(), false);
+
+		assertThat(result.isTerminal()).isTrue();
+	}
+
+	@Test
+	void 카페24_일시오류_5xx는_재시도가능으로_남는다() {
+		// 영구/일시 구분이 뭉개지면 안 된다 — 서버 오류는 재시도 대상.
+		MarketplaceShippingService service = serviceWithPortThrowing(
+			new RuntimeException("Cafe24 API POST 호출 실패: 503 Service Unavailable"));
+
+		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(), false);
+
+		assertThat(result.isFailed()).isTrue();
+		assertThat(result.isTerminal()).isFalse();
+	}
 }

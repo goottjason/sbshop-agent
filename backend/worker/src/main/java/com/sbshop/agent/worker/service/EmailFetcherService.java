@@ -517,6 +517,16 @@ public class EmailFetcherService {
 	 *   전송종결로 마킹하고(실송장은 이미 DB 기록됨), 실제 성공과 구분되도록 감사 로그(ActionLog)를 남긴다.
 	 * - failed(일시): 미마킹 → 다음 사이클 재시도.
 	 */
+	/** 감사 로그용 마켓 타입(조회 실패 시 UNKNOWN — 로깅 때문에 본 처리를 깨뜨리지 않는다). */
+	private String marketTypeOf(OrderLineItem item) {
+		if (item.getOrderId() == null) {
+			return "UNKNOWN";
+		}
+		return orderRepository.findById(item.getOrderId())
+			.map(o -> o.getMarketType() != null ? o.getMarketType().name() : "UNKNOWN")
+			.orElse("UNKNOWN");
+	}
+
 	private void handleMarketResult(OrderLineItem item, MarketShippingResult result,
 		String orderNo, String phase) {
 		if (result.sent()) {
@@ -529,11 +539,13 @@ public class EmailFetcherService {
 			item.markTrackingAsSent();
 			orderLineItemRepository.save(item);
 			String tracking = item.getShippingData() != null ? item.getShippingData().getTrackingNo() : null;
-			actionLogService.record(ActionLogConstants.SHIPPING_UPDATE, "COUPANG", ActionStatus.FAILED,
-				"쿠팡 배송상태 잠금으로 마켓 송장 전송 종결(재시도 중단, " + phase + "): iHerb주문 " + orderNo
+			// D-123: 종전에는 마켓을 "COUPANG"으로 하드코딩해 11번가·Cafe24 종결 건까지 쿠팡으로 기록됐다.
+			String market = marketTypeOf(item);
+			actionLogService.record(ActionLogConstants.SHIPPING_UPDATE, market, ActionStatus.FAILED,
+				"마켓(" + market + ") 상태 잠금으로 송장 전송 종결(재시도 중단, " + phase + "): iHerb주문 " + orderNo
 					+ " — 실송장(" + tracking + ")은 DB 기록됨, 마켓 반영 불가. 사유: " + result.failureReason());
-			log.warn("iHerb 주문 {} 마켓 배송상태 잠금 - 전송 종결({}): {}",
-				orderNo, phase, result.failureReason());
+			log.warn("iHerb 주문 {} 마켓({}) 상태 잠금 - 전송 종결({}): {}",
+				orderNo, market, phase, result.failureReason());
 			return;
 		}
 		// 일시 실패: 미마킹(다음 사이클 재시도)
