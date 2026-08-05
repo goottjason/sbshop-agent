@@ -9,6 +9,7 @@ import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -129,5 +130,31 @@ class MarketOrderNormalizerTest {
 		assertThat(result.getRecipientName()).isEqualTo("정나영");
 		assertThat(result.getAddress()).isEqualTo("서울특별시 양천구");
 		assertThat(result.getCustomsClearanceNo()).isEqualTo("P200032008307");
+	}
+
+	@Test
+	@DisplayName("marketSpecificData는 방어적으로 복사되어 원본과 독립적이다")
+	void defensivelyCopiesMarketSpecificData() {
+		Map<String, Object> mutableData = new HashMap<>();
+		mutableData.put("ordPrdSeq", "1");
+		mutableData.put("externalKey", "external-value");
+
+		MarketOrderDto flat = MarketOrderDto.builder()
+			.marketOrderNo("20260731088778989")
+			.marketSpecificData(mutableData)
+			.build();
+
+		MarketOrderDto result = MarketOrderNormalizer.normalize(flat);
+		MarketLineItemDto lineItem = result.getShipments().get(0).getLineItems().get(0);
+
+		// 반환된 라인아이템의 마켓 데이터를 수정
+		lineItem.getMarketSpecificData().put("newKey", "new-value");
+		lineItem.getMarketSpecificData().remove("externalKey");
+
+		// 원본은 수정되지 않아야 한다
+		assertThat(mutableData)
+			.containsEntry("ordPrdSeq", "1")
+			.containsEntry("externalKey", "external-value")
+			.doesNotContainKey("newKey");
 	}
 }

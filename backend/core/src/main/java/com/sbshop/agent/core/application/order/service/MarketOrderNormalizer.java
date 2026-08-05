@@ -39,7 +39,7 @@ public final class MarketOrderNormalizer {
 			.orderPrice(dto.getOrderPrice())
 			.totalAmount(dto.getTotalAmount())
 			.status(dto.getStatus())
-			.marketSpecificData(dto.getMarketSpecificData())
+			.marketSpecificData(copyMarketSpecificData(dto.getMarketSpecificData()))
 			.build();
 
 		MarketShipmentDto shipment = MarketShipmentDto.builder()
@@ -65,5 +65,20 @@ public final class MarketOrderNormalizer {
 			return boxId;
 		}
 		return dto.getMarketOrderNo();
+	}
+
+	/**
+	 * marketSpecificData를 방어적으로 복사한다.
+	 *
+	 * <p>원본 DTO와 정규화된 DTO의 마켓 데이터가 독립적이어야 한다.
+	 * 어댑터가 {@code new HashMap<>()}으로 생성하므로 null 값을 포함할 수 있어
+	 * {@link java.util.Map#copyOf(Map)}이 아닌 {@code new HashMap<>(Map)}을 사용한다.
+	 */
+	private static java.util.Map<String, Object> copyMarketSpecificData(
+		java.util.Map<String, Object> original) {
+		if (original == null) {
+			return null;
+		}
+		return new java.util.HashMap<>(original);
 	}
 }
