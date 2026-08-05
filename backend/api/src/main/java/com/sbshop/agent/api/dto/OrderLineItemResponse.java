@@ -39,6 +39,15 @@ public class OrderLineItemResponse {
 	private final Boolean isUnipassDone;
 	private final PurchaseStatus purchaseStatus;
 
+	/**
+	 * 묶음배송·다품목 주문 모델 1단계 신설 컬럼 미러(설계:
+	 * docs/superpowers/specs/2026-08-05-bundle-shipment-order-model-design.md).
+	 * 1단계에서는 배선 전이라 항상 null이며, 2단계 이후 배송 묶음 표시
+	 * (같은 shipmentId끼리 그리드에서 묶어 보여주기)에 쓰인다.
+	 */
+	private final String marketLineItemNo;
+	private final Long shipmentId;
+
 	// 엔티티의 파생 getter(isProgressed)도 현재 JSON에 포함되므로 미러
 	private final boolean progressed;
 
@@ -57,6 +66,8 @@ public class OrderLineItemResponse {
 			.shippingData(item.getShippingData())
 			.isUnipassDone(item.getIsUnipassDone())
 			.purchaseStatus(item.getPurchaseStatus())
+			.marketLineItemNo(item.getMarketLineItemNo())
+			.shipmentId(item.getShipmentId())
 			.progressed(item.isProgressed())
 			.build();
 	}

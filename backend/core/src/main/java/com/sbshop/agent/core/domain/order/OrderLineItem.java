@@ -56,10 +56,25 @@ public class OrderLineItem extends BaseEntity {
 	@jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
 	private PurchaseStatus purchaseStatus = PurchaseStatus.NOT_PURCHASED;
 
+	/**
+	 * 마켓 상품주문 식별자 (11번가 ordPrdSeq · N스토어 productOrderId ·
+	 * 쿠팡 orderItems 원소 · Cafe24 items 원소).
+	 *
+	 * <p>동기화의 매칭 키다. 배열 인덱스로 짝짓지 않는 이유는, 마켓이 순서를 바꾸면
+	 * 엉뚱한 상품에 송장·상태가 붙기 때문이다(Cafe24 현행 방식의 결함).
+	 * 레거시 행은 null이며, 그때는 product_id로 매칭한다.
+	 */
+	@Column(name = "market_line_item_no", length = 100)
+	private String marketLineItemNo;
+
+	/** 소속 배송 (sb_shipment 참조값). 배선 전이므로 당분간 null이다. */
+	@Column(name = "shipment_id")
+	private Long shipmentId;
+
 	@Builder
 	public OrderLineItem(Long orderId, Long productId, Integer quantity, SourcingData sourcingData,
 		SettlementData settlementData, ShippingData shippingData, Boolean isUnipassDone,
-		PurchaseStatus purchaseStatus) {
+		PurchaseStatus purchaseStatus, String marketLineItemNo, Long shipmentId) {
 		this.orderId = orderId;
 		this.productId = productId;
 		this.quantity = quantity;
@@ -68,6 +83,8 @@ public class OrderLineItem extends BaseEntity {
 		this.shippingData = shippingData != null ? shippingData : ShippingData.builder().build();
 		this.isUnipassDone = isUnipassDone;
 		this.purchaseStatus = purchaseStatus != null ? purchaseStatus : PurchaseStatus.NOT_PURCHASED;
+		this.marketLineItemNo = marketLineItemNo;
+		this.shipmentId = shipmentId;
 	}
 
 	// ======================== 상태 변경 ========================
@@ -142,6 +159,14 @@ public class OrderLineItem extends BaseEntity {
 
 	public void assignProductId(Long productId) {
 		this.productId = productId;
+	}
+
+	public void assignMarketLineItemNo(String marketLineItemNo) {
+		this.marketLineItemNo = marketLineItemNo;
+	}
+
+	public void assignShipmentId(Long shipmentId) {
+		this.shipmentId = shipmentId;
 	}
 
 	public void markSettlementVerified() {

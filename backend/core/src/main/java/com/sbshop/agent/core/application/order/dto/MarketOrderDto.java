@@ -16,7 +16,7 @@ import lombok.Setter;
  */
 @Getter
 @Setter
-@Builder
+@Builder(toBuilder = true)
 public class MarketOrderDto {
 	private MarketType marketType;
 	private String marketOrderNo;
@@ -53,4 +53,13 @@ public class MarketOrderDto {
 	private String shipmentBoxId;
 
 	private Map<String, Object> marketSpecificData;
+
+	/**
+	 * 3계층으로 정규화된 배송 목록 (묶음배송·다품목 주문의 표현).
+	 *
+	 * <p>{@code null}이면 아직 평면 DTO라는 뜻이다 — {@code MarketOrderNormalizer}가
+	 * 배송 1 : 상품주문 1로 감싼다. 어댑터가 마켓별로 순차 전환되는 동안 두 형태가
+	 * 공존하므로, 소비자는 정규화기를 거친 값만 본다.
+	 */
+	private java.util.List<MarketShipmentDto> shipments;
 }
