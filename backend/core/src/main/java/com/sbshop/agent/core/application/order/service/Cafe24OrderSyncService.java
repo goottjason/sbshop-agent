@@ -229,6 +229,8 @@ public class Cafe24OrderSyncService {
 		String marketTracking = text(item, "tracking_no");
 		if (ShippingData.isMeaningfulTracking(marketTracking)) {
 			builder.trackingNo(marketTracking);
+			// D-129: 마켓이 준 송장을 채택했다 = 마켓이 그 송장을 보유한다.
+			builder.trackingSentToMarket(Boolean.TRUE);
 			// 택배사는 매핑되는 경우에만 갱신(미매핑이면 null 반환 → 기존값 유지).
 			ShippingCarrier carrier = ShippingCarrier.fromMarketCode(
 				firstNonBlank(text(item, "shipping_company_code"), text(item, "shipping_company_name")));
@@ -241,6 +243,8 @@ public class Cafe24OrderSyncService {
 			Cafe24ShipmentTrackingLookup.Found found = shipmentTrackingLookup.findRealTracking(cafe24OrderId);
 			if (found != null) {
 				builder.trackingNo(found.trackingNo());
+				// 배송건 목록에서 찾은 것도 마켓(Cafe24)이 보유한 송장이다.
+				builder.trackingSentToMarket(Boolean.TRUE);
 				if (found.carrier() != null) {
 					builder.shippingCarrier(found.carrier());
 				}
@@ -277,6 +281,8 @@ public class Cafe24OrderSyncService {
 				// D-119: 자리표시자('00000000' 등)가 실제 송장으로 저장되던 경로 — 실값일 때만 담는다.
 				.trackingNo(ShippingData.isMeaningfulTracking(text(item, "tracking_no"))
 					? text(item, "tracking_no") : null)
+				// D-129: 마켓이 준 실송장이면 마켓 보유로 마킹(신규 주문 생성 경로).
+				.trackingSentToMarket(ShippingData.marketOwnsTracking(text(item, "tracking_no")))
 				.shippingCarrier(ShippingCarrier.fromMarketCode(
 					firstNonBlank(text(item, "shipping_company_code"), text(item, "shipping_company_name"))))
 				.shippingStatus(mapStatus(text(item, "order_status")))

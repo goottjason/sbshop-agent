@@ -22,6 +22,7 @@ import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import java.util.List;
@@ -337,5 +338,53 @@ class Cafe24OrderSyncServiceTest {
 			ord -> ord != existing));
 		// D-088: 라인아이템 상태가 N10 → NEW(발주확인 전/신규)로 갱신
 		assertThat(li.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.NEW);
+	}
+
+	/** D-129: 마켓이 실송장을 준 주문(배송중). 동기화가 채택하면 마켓 보유로 마킹돼야 한다. */
+	private JsonNode ordersWithMarketTracking(String trackingNo) throws Exception {
+		String json = """
+			{"orders":[
+			  {"order_id":"20260805-0000001","order_place_id":"gmarket","order_place_name":"지마켓",
+			   "order_date":"2026-08-05T12:00:00+09:00","market_order_no":"GM777",
+			   "buyer":{"name":"홍길동"},
+			   "receivers":[{"name":"김수취","address_full":"서울"}],
+			   "items":[{"product_no":"7034","quantity":1,"payment_amount":"5000",
+			      "order_status":"N30","tracking_no":"%s","shipping_company_code":"0006"}]}
+			]}
+			""".formatted(trackingNo);
+		return MAPPER.readTree(json).path("orders");
+	}
+
+	@Test
+	@DisplayName("[D-129] 마켓이 준 실송장을 채택하면 마켓 보유(trackingSentToMarket=true)로 마킹한다")
+	void marketSourcedTrackingIsMarkedAsOwnedByMarket() throws Exception {
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
+			.thenReturn(ordersWithMarketTracking("424410280092"));
+		when(orderRepository.findByMarketOrderNo("GM777")).thenReturn(Optional.empty());
+
+		service.fetchAndPersist(java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now());
+
+		ArgumentCaptor<OrderLineItem> itemCaptor = ArgumentCaptor.forClass(OrderLineItem.class);
+		verify(orderLineItemRepository).save(itemCaptor.capture());
+		ShippingData shipping = itemCaptor.getValue().getShippingData();
+		assertThat(shipping.getTrackingNo()).isEqualTo("424410280092");
+		// 마켓이 알려준 송장 = 마켓이 보유한 송장. 화면의 "마켓 미반영" 경고가 이 건에 뜨면 안 된다.
+		assertThat(shipping.getTrackingSentToMarket()).isTrue();
+	}
+
+	@Test
+	@DisplayName("[D-129] 자리표시자 송장은 채택도 마킹도 하지 않는다")
+	void placeholderTrackingIsNotMarked() throws Exception {
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
+			.thenReturn(ordersWithMarketTracking("00000000"));
+		when(orderRepository.findByMarketOrderNo("GM777")).thenReturn(Optional.empty());
+
+		service.fetchAndPersist(java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now());
+
+		ArgumentCaptor<OrderLineItem> itemCaptor = ArgumentCaptor.forClass(OrderLineItem.class);
+		verify(orderLineItemRepository).save(itemCaptor.capture());
+		ShippingData shipping = itemCaptor.getValue().getShippingData();
+		assertThat(shipping.getTrackingNo()).isNull();
+		assertThat(shipping.getTrackingSentToMarket()).isNull();
 	}
 }

@@ -124,6 +124,8 @@ public class ElevenstOrderSyncService {
 			.trackingNo(canOverwriteTracking ? dto.getTrackingNo() : null)
 			.shippingCarrier(canOverwriteTracking ? dto.getCarrier() : null)
 			.shippingStatus(dto.getStatus())
+			// D-129: 마켓이 준 송장을 채택했다면 마켓이 그 송장을 보유한다는 뜻이다.
+			.trackingSentToMarket(ShippingData.marketOwnsTracking(dto.getTrackingNo()))
 			.build();
 		item.applyShippingData(cmd.toShippingData(item.getShippingData()));
 	}
@@ -195,6 +197,8 @@ public class ElevenstOrderSyncService {
 				.trackingNo(dto.getTrackingNo())
 				.shippingStatus(dto.getStatus())
 				.shippingCarrier(dto.getCarrier())
+				// D-129: 마켓이 준 실송장이면 마켓 보유로 마킹(신규 주문 생성 경로).
+				.trackingSentToMarket(ShippingData.marketOwnsTracking(dto.getTrackingNo()))
 				.build())
 			.settlementData(SettlementData.builder()
 				.settlementAmount(marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.ELEVEN_STREET))
