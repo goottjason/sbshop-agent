@@ -157,4 +157,32 @@ class MarketOrderNormalizerTest {
 			.containsEntry("externalKey", "external-value")
 			.doesNotContainKey("newKey");
 	}
+
+	@Test
+	@DisplayName("반환된 주문 DTO의 marketSpecificData도 방어적으로 복사되어 원본과 독립적이다")
+	void defensivelyCopiesOrderLevelMarketSpecificData() {
+		// 라인아이템만 방어 복사하고 주문 계층은 toBuilder()의 얕은 복사로 원본과 참조를
+		// 공유하면, "정규화기는 방어 복사한다"는 믿음과 달리 2단계에서 어댑터가 채운
+		// dlvNo·ordPrdSeq를 소비자가 변형할 때 원본이 오염된다.
+		Map<String, Object> mutableData = new HashMap<>();
+		mutableData.put("dlvNo", "D1");
+		mutableData.put("externalKey", "external-value");
+
+		MarketOrderDto flat = MarketOrderDto.builder()
+			.marketOrderNo("20260731088778989")
+			.marketSpecificData(mutableData)
+			.build();
+
+		MarketOrderDto result = MarketOrderNormalizer.normalize(flat);
+
+		// 반환된 주문 DTO의 마켓 데이터를 수정
+		result.getMarketSpecificData().put("newKey", "new-value");
+		result.getMarketSpecificData().remove("externalKey");
+
+		// 원본은 수정되지 않아야 한다
+		assertThat(mutableData)
+			.containsEntry("dlvNo", "D1")
+			.containsEntry("externalKey", "external-value")
+			.doesNotContainKey("newKey");
+	}
 }

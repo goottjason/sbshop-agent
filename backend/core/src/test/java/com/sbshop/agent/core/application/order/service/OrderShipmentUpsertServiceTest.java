@@ -193,6 +193,89 @@ class OrderShipmentUpsertServiceTest {
 			.isEqualTo(com.sbshop.agent.core.domain.order.enums.ShippingStatus.NEW);
 	}
 
+	@Test
+	@DisplayName("배송이 아직 송장을 못 받았으면(null) 라인아이템의 기존 실송장을 지우지 않는다")
+	void linkPreservesExistingTrackingWhenShipmentHasNone() {
+		// 이메일 파이프라인이 라인아이템에 먼저 채워둔 실송장이 있는 상태에서, 마켓이
+		// 아직 송장을 안 준 배송으로 linkToShipment가 불려도 유실되면 안 된다(D-125 시나리오).
+		Shipment shipment = Shipment.builder()
+			.orderId(100L).marketShipmentNo("D1").build();
+		setId(shipment, 7L);
+		OrderLineItem item = OrderLineItem.builder()
+			.orderId(100L)
+			.quantity(1)
+			.shippingData(ShippingData.builder()
+				.trackingNo("424079080471")
+				.shippingCarrier(ShippingCarrier.CJ_LOGISTICS)
+				.trackingSentToMarket(true)
+				.build())
+			.build();
+		when(orderLineItemRepository.save(any(OrderLineItem.class)))
+			.thenAnswer(inv -> inv.getArgument(0));
+
+		service().linkToShipment(item, shipment);
+
+		ShippingData shipping = item.getShippingData();
+		assertThat(shipping.getTrackingNo()).isEqualTo("424079080471");
+		assertThat(shipping.getShippingCarrier()).isEqualTo(ShippingCarrier.CJ_LOGISTICS);
+		assertThat(shipping.getTrackingSentToMarket()).isTrue();
+		assertThat(item.getShipmentId()).isEqualTo(7L);
+	}
+
+	@Test
+	@DisplayName("배송의 각 필드는 독립적으로 반영된다 — 일부만 실값이어도 나머지 기존값은 유지된다")
+	void linkAppliesEachFieldIndependently() {
+		Shipment shipment = Shipment.builder()
+			.orderId(100L).marketShipmentNo("D1")
+			.trackingNo("999888777")
+			.build();
+		setId(shipment, 7L);
+		OrderLineItem item = OrderLineItem.builder()
+			.orderId(100L)
+			.quantity(1)
+			.shippingData(ShippingData.builder()
+				.trackingNo("424079080471")
+				.shippingCarrier(ShippingCarrier.CJ_LOGISTICS)
+				.trackingSentToMarket(true)
+				.build())
+			.build();
+		when(orderLineItemRepository.save(any(OrderLineItem.class)))
+			.thenAnswer(inv -> inv.getArgument(0));
+
+		service().linkToShipment(item, shipment);
+
+		ShippingData shipping = item.getShippingData();
+		assertThat(shipping.getTrackingNo()).isEqualTo("999888777");
+		// 배송에 택배사·마켓전송여부가 없으니(null) 기존 값이 유지된다.
+		assertThat(shipping.getShippingCarrier()).isEqualTo(ShippingCarrier.CJ_LOGISTICS);
+		assertThat(shipping.getTrackingSentToMarket()).isTrue();
+	}
+
+	@Test
+	@DisplayName("라인아이템의 shippingData가 null이어도(레거시 행) NPE 없이 연결된다")
+	void linkToleratesNullShippingData() {
+		// ShippingData는 @Embeddable이라 전 컬럼이 NULL인 기존 행에서 Hibernate가
+		// null을 넣을 수 있다 — 빌더의 null 가드는 리플렉션 로딩을 거치지 않는다.
+		Shipment shipment = Shipment.builder()
+			.orderId(100L).marketShipmentNo("D1")
+			.trackingNo("424079080471")
+			.shippingCarrier(ShippingCarrier.CJ_LOGISTICS)
+			.trackingSentToMarket(true)
+			.build();
+		setId(shipment, 7L);
+		OrderLineItem item = OrderLineItem.builder().orderId(100L).quantity(1).build();
+		setShippingDataNull(item);
+		when(orderLineItemRepository.save(any(OrderLineItem.class)))
+			.thenAnswer(inv -> inv.getArgument(0));
+
+		service().linkToShipment(item, shipment);
+
+		ShippingData shipping = item.getShippingData();
+		assertThat(shipping.getTrackingNo()).isEqualTo("424079080471");
+		assertThat(shipping.getShippingCarrier()).isEqualTo(ShippingCarrier.CJ_LOGISTICS);
+		assertThat(shipping.getTrackingSentToMarket()).isTrue();
+	}
+
 	/** BaseEntity.id는 생성자로 못 넣으므로 리플렉션으로 채운다(테스트 전용). */
 	private static void setId(Object entity, Long id) {
 		try {
@@ -200,6 +283,17 @@ class OrderShipmentUpsertServiceTest {
 				com.sbshop.agent.core.domain.common.BaseEntity.class.getDeclaredField("id");
 			field.setAccessible(true);
 			field.set(entity, id);
+		} catch (ReflectiveOperationException e) {
+			throw new IllegalStateException(e);
+		}
+	}
+
+	/** 레거시 행(전 컬럼 NULL)에서 Hibernate가 만드는 상태를 리플렉션으로 재현한다(테스트 전용). */
+	private static void setShippingDataNull(OrderLineItem item) {
+		try {
+			java.lang.reflect.Field field = OrderLineItem.class.getDeclaredField("shippingData");
+			field.setAccessible(true);
+			field.set(item, null);
 		} catch (ReflectiveOperationException e) {
 			throw new IllegalStateException(e);
 		}

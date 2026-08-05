@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.order.service;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
@@ -27,6 +28,7 @@ public class OrderShipmentUpsertService {
 	private final ShipmentRepository shipmentRepository;
 	private final OrderLineItemRepository orderLineItemRepository;
 
+	@Transactional
 	public Shipment upsertShipment(Long orderId, MarketShipmentDto dto) {
 		String shipmentNo = dto.getMarketShipmentNo();
 		if (shipmentNo == null || shipmentNo.isBlank()) {
@@ -62,14 +64,31 @@ public class OrderShipmentUpsertService {
 	 * <b>쓰기의 단일 원본은 배송이다</b> — 소비처를 모두 옮긴 뒤 미러 컬럼을 제거한다.
 	 *
 	 * <p>진행상태는 건드리지 않는다. 같은 배송이라도 상품주문마다 상태가 갈린다.
+	 *
+	 * <p>배송의 세 필드(송장·택배사·마켓전송여부)는 {@code Shipment.applyTracking}과 같은
+	 * "null = 판단 없음, 기존 값 유지" 규칙으로 미러링한다. 배송이 아직 송장을 못 받은
+	 * 상태(null)로 이 메서드가 불리면, 이메일 파이프라인 등이 라인아이템에 먼저 채워둔
+	 * 실송장을 지우지 않는다(D-125와 같은 시나리오). 단, 이 규칙은 배송 쪽이 송장을
+	 * "명시적으로 지우고 싶을 때" 표현할 방법이 없다는 트레이드오프가 있다 — 현재는 그런
+	 * 요구가 없어 문제 없지만, 필요해지면 별도 시그널(예: 지움 전용 커맨드)이 필요하다.
 	 */
+	@Transactional
 	public void linkToShipment(OrderLineItem item, Shipment shipment) {
 		item.assignShipmentId(shipment.getId());
-		item.applyShippingData(item.getShippingData().toBuilder()
-			.trackingNo(shipment.getTrackingNo())
-			.shippingCarrier(shipment.getShippingCarrier())
-			.trackingSentToMarket(shipment.getTrackingSentToMarket())
-			.build());
+		ShippingData current = item.getShippingData() != null
+			? item.getShippingData()
+			: ShippingData.builder().build();
+		ShippingData.ShippingDataBuilder mirrored = current.toBuilder();
+		if (shipment.getTrackingNo() != null) {
+			mirrored.trackingNo(shipment.getTrackingNo());
+		}
+		if (shipment.getShippingCarrier() != null) {
+			mirrored.shippingCarrier(shipment.getShippingCarrier());
+		}
+		if (shipment.getTrackingSentToMarket() != null) {
+			mirrored.trackingSentToMarket(shipment.getTrackingSentToMarket());
+		}
+		item.applyShippingData(mirrored.build());
 		orderLineItemRepository.save(item);
 	}
 }

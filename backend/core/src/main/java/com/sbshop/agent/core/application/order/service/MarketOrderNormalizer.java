@@ -50,7 +50,11 @@ public final class MarketOrderNormalizer {
 			.build();
 
 		// 원본을 건드리지 않는다 — 호출자가 평면 필드를 계속 쓰고 있을 수 있다.
+		// marketSpecificData도 라인아이템과 대칭으로 방어적 복사한다 — toBuilder()는 얕은
+		// 복사라 그대로 두면 이 계층만 원본과 참조를 공유해, 2단계에서 어댑터가 채운
+		// dlvNo·ordPrdSeq를 소비자가 변형할 때 원본이 오염될 수 있다.
 		return dto.toBuilder()
+			.marketSpecificData(copyMarketSpecificData(dto.getMarketSpecificData()))
 			.shipments(List.of(shipment))
 			.build();
 	}
