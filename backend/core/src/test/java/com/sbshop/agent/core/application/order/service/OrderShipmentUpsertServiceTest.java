@@ -93,6 +93,7 @@ class OrderShipmentUpsertServiceTest {
 			.marketShipmentNo("D1")
 			.trackingNo("424079080471")
 			.shippingCarrier(ShippingCarrier.CJ_LOGISTICS)
+			.trackingSentToMarket(true)
 			.build();
 		when(shipmentRepository.findByOrderIdAndMarketShipmentNo(100L, "D1"))
 			.thenReturn(Optional.of(existing));
@@ -107,6 +108,7 @@ class OrderShipmentUpsertServiceTest {
 
 		assertThat(result.getTrackingNo()).isEqualTo("424079080471");
 		assertThat(result.getShippingCarrier()).isEqualTo(ShippingCarrier.CJ_LOGISTICS);
+		assertThat(result.getTrackingSentToMarket()).isTrue();
 	}
 
 	@Test
