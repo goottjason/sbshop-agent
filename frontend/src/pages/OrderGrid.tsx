@@ -1164,6 +1164,37 @@ const OrderGrid: React.FC = () => {
     }
   };
 
+  // 선택한 주문을 엑셀로 내려받는다. 그리드는 주문상품 1건을 3행(order/product/fulfillment)에
+  // 나눠 그리므로, 어느 행을 골랐든 주문상품 단위로 접어서 중복 없이 1건 1행으로 내보낸다.
+  const handleExportExcel = async () => {
+    const selectedIndices = Object.keys(rowSelection).filter(k => rowSelection[k]);
+    if (selectedIndices.length === 0) {
+      toast.warn('엑셀로 내려받을 주문을 선택해주세요.');
+      return;
+    }
+
+    const seen = new Set<string>();
+    const rows: OrderGridDto[] = [];
+    // processedData 순서(=화면 정렬)를 유지해야 엑셀과 화면을 나란히 대조할 수 있다.
+    processedData.forEach((row, index) => {
+      if (!rowSelection[String(index)]) return;
+      const key = String(row.lineItem?.id ?? `${row.order?.id}-${index}`);
+      if (seen.has(key)) return;
+      seen.add(key);
+      rows.push(row);
+    });
+
+    if (rows.length === 0) return;
+
+    try {
+      const { exportOrdersToExcel } = await import('../utils/orderExcelExport');
+      await exportOrdersToExcel(rows, getCommonLabel);
+      toast.success(`${rows.length}건을 엑셀로 내려받았습니다.`);
+    } catch {
+      toast.error('엑셀 생성 중 오류가 발생했습니다.');
+    }
+  };
+
   // 주문 데이터를 그리드 행(주문/상품/발송 3행 × lineItem)으로 평탄화 + 병합정보 계산.
   // data가 바뀔 때만 재계산하고, 변경되지 않은 주문의 행 객체는 이전 참조를 재사용한다
   // → 낙관적 캐시 패치로 한 주문만 바뀌면 그 주문의 행만 새 참조가 되어, 메모된 행이
@@ -1675,6 +1706,7 @@ const OrderGrid: React.FC = () => {
           <button onClick={handleConfirmOrders} disabled={!canConfirmSelected} style={{ ...toolbarBtnBase, backgroundColor: canConfirmSelected ? '#e8f5e9' : '#f5f5f5', color: canConfirmSelected ? '#2e7d32' : '#999', border: `1px solid ${canConfirmSelected ? '#c8e6c9' : '#e0e0e0'}`, cursor: canConfirmSelected ? 'pointer' : 'not-allowed', fontWeight: 'bold', opacity: canConfirmSelected ? 1 : 0.6 }}>선택 주문 확인</button>
           <button onClick={handleCancelOrders} style={{ ...toolbarBtnBase, backgroundColor: '#ffebee', color: '#c62828', border: '1px solid #ffcdd2', fontWeight: 'bold' }}>선택 주문 거부</button>
           <button onClick={handleShipSelected} style={{ ...toolbarBtnBase, backgroundColor: '#fff', color: '#333', border: '1px solid #ddd' }}>선택 발송</button>
+          <button onClick={handleExportExcel} style={{ ...toolbarBtnBase, backgroundColor: '#fff', color: '#217346', border: '1px solid #c8e6c9' }}>엑셀 다운로드</button>
         </div>
       </div>
       <OrderFilterPanel onSearch={(keyword, markets, statuses, startDate, endDate, purchaseStatuses, stockStatuses, vendors) => { setQueryParams(prev => ({ keyword, markets, statuses, purchaseStatuses, startDate, endDate, stockStatuses, vendors, customsStatuses: prev.customsStatuses })); setSearchTrigger(c => c + 1); }} />
