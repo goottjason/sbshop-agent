@@ -16,6 +16,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -40,10 +42,26 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		return MarketType.ELEVEN_STREET;
 	}
 
+	/**
+	 * D-126: 11번가 목록별 <b>상태 신뢰 등급</b>. 값이 클수록 상태 판정에서 우선한다.
+	 *
+	 * <p>네 목록은 상호배타적이지 않다(2026-08-05 라이브 확증). 배송중 목록은 <b>송장이 등록된
+	 * 주문</b>을 돌려주며 진행상태가 결제완료여도 포함되므로, 그 목록에 있다는 사실만으로는
+	 * "배송중"의 근거가 되지 못한다. 반면 결제완료·배송준비중 목록은 11번가의 주문 진행상태를
+	 * 직접 뜻하므로 확정적이다. 따라서 진행상태 축이 배송 축을 이긴다.
+	 */
+	private static final int RANK_SHIPPING = 1;   // 배송중 — 송장 보유 사실만 뜻함
+	private static final int RANK_DELIVERED = 2;  // 배송완료 — 배송 축 안에서는 더 진행됨
+	private static final int RANK_PROGRESS = 3;   // 결제완료·배송준비중 — 진행상태 확정
+
 	@Override
 	public List<MarketOrderDto> fetchOrders(MarketCredential credential,
 		LocalDate fromDate, LocalDate toDate) {
-		List<MarketOrderDto> result = new ArrayList<>();
+		// D-126: 주문번호를 키로 병합한다. 같은 주문이 여러 목록·여러 주간 chunk에 나타나도
+		// 한 건으로 모으고, 상태는 등급이 높은 목록의 것을 채택한다. 과거엔 단순 concat이라
+		// "목록 순서상 마지막"이 이겨 결제완료 주문이 배송중으로 뒤집혔다.
+		Map<String, MarketOrderDto> merged = new LinkedHashMap<>();
+		Map<String, Integer> ranks = new HashMap<>();
 
 		String apiKey = credential.getAccessKey();
 
@@ -65,7 +83,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				for (Element orderElement : completedOrders) {
 					MarketOrderDto dto = parseOrderElement(orderElement, "complete");
 					if (dto != null) {
-						result.add(dto);
+						mergeInto(merged, ranks, dto, RANK_PROGRESS);
 					}
 				}
 				Thread.sleep(500);
@@ -75,7 +93,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				for (Element orderElement : packagingOrders) {
 					MarketOrderDto dto = parseOrderElement(orderElement, "packaging");
 					if (dto != null) {
-						result.add(dto);
+						mergeInto(merged, ranks, dto, RANK_PROGRESS);
 					}
 				}
 				Thread.sleep(500);
@@ -92,7 +110,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 							enrichRecipientFromDetail(apiKey, dto);
 							Thread.sleep(300);
 						}
-						result.add(dto);
+						mergeInto(merged, ranks, dto, RANK_SHIPPING);
 					}
 				}
 				Thread.sleep(500);
@@ -103,7 +121,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				for (Element orderElement : dlvCompletedOrders) {
 					MarketOrderDto dto = parseOrderElement(orderElement, "dlvcompleted");
 					if (dto != null) {
-						result.add(dto);
+						mergeInto(merged, ranks, dto, RANK_DELIVERED);
 					}
 				}
 				Thread.sleep(500);
@@ -130,7 +148,104 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				successChunks, failedChunks, lastFailure != null ? lastFailure.getMessage() : "-");
 		}
 
-		return result;
+		return new ArrayList<>(merged.values());
+	}
+
+	/**
+	 * D-126: 주문번호 기준으로 DTO를 병합한다.
+	 *
+	 * <p>상태는 등급이 높은 목록의 것을 채택하고, 나머지 필드는 <b>비어 있는 쪽을 채우는</b>
+	 * 방향으로만 합친다. 배송중 목록은 최소 정보(송장·수취인)만 주고 결제완료/배송완료 목록은
+	 * 전체 정보를 주므로, 어느 쪽이 이기든 상대가 가진 값을 잃지 않는다. 특히 결제완료가
+	 * 이길 때도 배송중 목록이 준 송장은 보존된다 — "결제완료인데 송장 있음"이 실제 상태다.
+	 */
+	private void mergeInto(Map<String, MarketOrderDto> merged, Map<String, Integer> ranks,
+		MarketOrderDto dto, int rank) {
+		String key = dto.getMarketOrderNo();
+		MarketOrderDto existing = merged.get(key);
+		if (existing == null) {
+			merged.put(key, dto);
+			ranks.put(key, rank);
+			return;
+		}
+
+		int existingRank = ranks.getOrDefault(key, 0);
+		if (rank > existingRank) {
+			// 새 DTO가 상태 판정의 주인이 된다. 기존이 가진 값으로 빈 칸만 메운다.
+			fillBlanks(dto, existing);
+			merged.put(key, dto);
+			ranks.put(key, rank);
+			log.debug("11번가 주문 {} 상태 재판정: 등급 {} → {} (status={})",
+				key, existingRank, rank, dto.getStatus());
+		} else {
+			// 기존이 상태의 주인. 새 DTO는 빈 칸을 메우는 데만 쓴다(상태는 덮지 않는다).
+			fillBlanks(existing, dto);
+		}
+	}
+
+	/** {@code target}의 비어 있는 필드만 {@code source}의 값으로 채운다. 상태(status)는 건드리지 않는다. */
+	private void fillBlanks(MarketOrderDto target, MarketOrderDto source) {
+		if (isBlank(target.getTrackingNo()) && !isBlank(source.getTrackingNo())) {
+			target.setTrackingNo(source.getTrackingNo());
+			target.setCarrier(source.getCarrier());
+		}
+		if (isBlank(target.getMarketProductCode())) {
+			target.setMarketProductCode(source.getMarketProductCode());
+		}
+		if (isBlank(target.getProductName())) {
+			target.setProductName(source.getProductName());
+		}
+		if (isBlank(target.getRecipientName())) {
+			target.setRecipientName(source.getRecipientName());
+		}
+		if (isBlank(target.getRecipientPhone())) {
+			target.setRecipientPhone(source.getRecipientPhone());
+		}
+		if (isBlank(target.getZipcode())) {
+			target.setZipcode(source.getZipcode());
+		}
+		if (isBlank(target.getAddress())) {
+			target.setAddress(source.getAddress());
+		}
+		if (isBlank(target.getMessage())) {
+			target.setMessage(source.getMessage());
+		}
+		if (isBlank(target.getOrdererName())) {
+			target.setOrdererName(source.getOrdererName());
+		}
+		if (isBlank(target.getOrdererPhone())) {
+			target.setOrdererPhone(source.getOrdererPhone());
+		}
+		if (isBlank(target.getCustomsClearanceNo())) {
+			target.setCustomsClearanceNo(source.getCustomsClearanceNo());
+		}
+		// 배송중 목록은 수량·금액을 주지 않아 0/ZERO로 남는다 — 실값이 있는 쪽을 취한다.
+		if (isEmptyQuantity(target.getQuantity()) && !isEmptyQuantity(source.getQuantity())) {
+			target.setQuantity(source.getQuantity());
+		}
+		if (isZero(target.getOrderPrice()) && !isZero(source.getOrderPrice())) {
+			target.setOrderPrice(source.getOrderPrice());
+		}
+		if (isZero(target.getTotalAmount()) && !isZero(source.getTotalAmount())) {
+			target.setTotalAmount(source.getTotalAmount());
+		}
+		// 발주확인·발송처리에 필요한 ordPrdSeq/dlvNo는 결제완료·배송완료 목록에만 있다.
+		if ((target.getMarketSpecificData() == null || target.getMarketSpecificData().isEmpty())
+			&& source.getMarketSpecificData() != null) {
+			target.setMarketSpecificData(source.getMarketSpecificData());
+		}
+	}
+
+	private boolean isBlank(String value) {
+		return value == null || value.isBlank();
+	}
+
+	private boolean isEmptyQuantity(Integer quantity) {
+		return quantity == null || quantity == 0;
+	}
+
+	private boolean isZero(BigDecimal value) {
+		return value == null || value.signum() == 0;
 	}
 
 	@Override
@@ -138,12 +253,32 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		Order order, OrderLineItem lineItem,
 		String trackingNo, ShippingCarrier carrier) {
 		String apiKey = credential.getAccessKey();
-		String dlvNo = order.getMarketOrderNo();
+		// D-127: reqdelivery의 마지막 경로변수는 배송번호(dlvNo)다. 과거엔 주문번호(ordNo)를 넘겨
+		// 라이브에서 항상 "존재하지 않는 배송번호 입니다."(code=-1)로 실패했다. 동기화가
+		// marketSpecificData에 저장해 둔 dlvNo를 쓴다 — 발주확인(acceptOrders)과 같은 출처다.
+		String dlvNo = resolveDeliveryNo(order);
 		String dlvMthdCd = "01"; // 택배
 		String dlvEtprsCd = mapCarrierCode(carrier);
 		String sendDt = formatDateTime(LocalDateTime.now(), "yyyyMMddHHmm");
 
 		elevenstOrderApiPort.shipOrder(apiKey, sendDt, dlvMthdCd, dlvEtprsCd, trackingNo, dlvNo);
+	}
+
+	/**
+	 * D-127: 발송처리에 쓸 11번가 배송번호(dlvNo)를 marketSpecificData에서 꺼낸다.
+	 *
+	 * <p>주문번호로 폴백하지 않는다 — 폴백은 "존재하지 않는 배송번호" 실패를 낳을 뿐이고,
+	 * 그 실패가 마켓 거부처럼 보여 원인 추적을 어렵게 만든다. 배송번호를 모르면 즉시 알린다.
+	 */
+	private String resolveDeliveryNo(Order order) {
+		Map<String, String> data = order.getMarketSpecificDataMap();
+		String dlvNo = data != null ? data.get("dlvNo") : null;
+		if (dlvNo == null || dlvNo.isBlank()) {
+			throw new IllegalArgumentException(
+				"11번가 발송처리 불가 — 배송번호(dlvNo) 없음: order=" + order.getMarketOrderNo()
+					+ " (주문 동기화로 배송번호를 먼저 확보해야 합니다)");
+		}
+		return dlvNo;
 	}
 
 	@Override
