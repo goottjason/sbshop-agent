@@ -41,6 +41,11 @@ export interface OrderLineItemDto {
     trackingNo?: string;
     shippingStatus?: string;
     shippingCarrier?: string;
+    /**
+     * 마켓이 이 송장을 갖고 있는가(D-129). 우리가 전송해 성공했거나, 마켓이 실송장을 알려준 경우 true.
+     * 송장은 있는데 이 값이 true가 아니면 "저장됨 · 마켓 미반영" 상태다 — {@link isMarketUnsynced} 참고.
+     */
+    trackingSentToMarket?: boolean | null;
   };
 }
 

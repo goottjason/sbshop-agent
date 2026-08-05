@@ -238,9 +238,34 @@ function FinancialEditCell({ sourcingAmount, logisticsCost, onSave }: {
 // 다른 자동저장 셀과 달리 마켓 API 실호출(실패 시 백엔드 롤백)이므로 blur 자동저장이 아니라
 // 사용자가 명시적으로 전송한다. 택배사·송장이 둘 다 있고 저장값과 다를 때만 버튼 활성.
 //   - dirty(앰버 보더): 변경됐지만 아직 미전송  ·  전송중: 스피너  ·  성공/실패: onSave가 토스트로 알림
-function ShippingEditCell({ carrier, trackingNo, onSave }: {
+// 종결 상태는 마켓 전송 자체가 불가하므로 미반영 경고 대상이 아니다.
+const NO_SEND_STATUSES = ['CANCELED', 'RETURNED', 'EXCHANGED'];
+// 마켓이 송장 보유를 확인해 준 상태 — D-129 이전에 동기화된 행은 플래그가 null이라 이걸로 보정한다.
+// 동기화가 다시 돌면 플래그가 채워지므로 이 폴백은 시간이 지나며 자연히 무의미해진다.
+const MARKET_CONFIRMED_STATUSES = ['SHIPPED', 'DELIVERED'];
+
+/**
+ * "저장됨 · 마켓 미반영" 판정 — 송장은 우리 DB에 있는데 마켓에는 반영되지 않은 상태(D-129).
+ *
+ * D-127(11번가 송장 전송이 항상 실패)이 오래 눈에 띄지 않았던 이유가 이 구분이 화면에 없었기
+ * 때문이다. D-125가 전송 실패에도 로컬 송장을 보존하도록 바꾼 뒤로는 화면상 송장이 멀쩡히
+ * 보여서, 마켓에 한 건도 안 들어가고 있다는 사실이 드러나지 않았다.
+ */
+const isMarketUnsynced = (lineItem?: OrderLineItemDto): boolean => {
+  const shipping = lineItem?.shippingData;
+  const tracking = (shipping?.trackingNo || '').trim();
+  if (!tracking) return false;                                   // 송장이 없으면 반영할 것도 없다
+  if (shipping?.trackingSentToMarket === true) return false;     // 마켓 보유 확인됨
+  const status = shipping?.shippingStatus || '';
+  if (NO_SEND_STATUSES.includes(status)) return false;
+  if (MARKET_CONFIRMED_STATUSES.includes(status)) return false;  // 레거시 행 보정
+  return true;
+};
+
+function ShippingEditCell({ carrier, trackingNo, marketUnsynced, onSave }: {
   carrier: string;
   trackingNo: string;
+  marketUnsynced: boolean;
   onSave: (v: { shippingCarrier: string; trackingNo: string }) => Promise<unknown>;
 }) {
   const [draftCarrier, setDraftCarrier] = useState(carrier);
@@ -280,6 +305,15 @@ function ShippingEditCell({ carrier, trackingNo, onSave }: {
         style={{ ...inputStyle, textAlign: 'center', borderColor: border, borderWidth: changed ? 2 : 1 }}
         onChange={(e) => setDraftTracking(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') send(); else if (e.key === 'Escape') { setDraftCarrier(carrier); setDraftTracking(trackingNo); } }} />
+      {marketUnsynced && (
+        <span
+          title="송장은 저장됐지만 마켓에는 아직 반영되지 않았습니다. 전송을 다시 시도하거나 마켓 판매자센터를 확인하세요."
+          style={{ fontSize: '10px', fontWeight: 700, color: '#b45309', backgroundColor: '#fef3c7',
+            border: '1px solid #fcd34d', borderRadius: '4px', padding: '1px 4px', whiteSpace: 'nowrap' }}
+        >
+          ⚠ 마켓 미반영
+        </span>
+      )}
       <button type="button" onClick={send} disabled={!canSend}
         style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '4px', border: 'none', cursor: canSend ? 'pointer' : 'default',
           backgroundColor: canSend ? '#3b82f6' : '#e5e7eb', color: canSend ? '#fff' : '#9ca3af' }}>
@@ -1536,6 +1570,7 @@ const OrderGrid: React.FC = () => {
             <ShippingEditCell
               carrier={carrier}
               trackingNo={trackingNo}
+              marketUnsynced={isMarketUnsynced(row.original.lineItem)}
               onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.shipping', v)}
             />
           </div>
