@@ -138,13 +138,15 @@ public class MarketplaceShippingService {
 			|| message.contains("이미 배송완료")
 			|| message.contains("배송완료된");
 
-		// 11번가: 해당 배송건 자체가 없다는 응답 — 같은 페이로드 재전송으로는 결코 생기지 않는다
-		boolean elevenstMissingDelivery = message.contains("존재하지 않는 배송번호");
-
 		// Cafe24(G마켓·옥션): 이미 shipping 등으로 넘어간 주문에 배송 등록 시 422
 		boolean cafe24StateLocked = message.contains("You cannot change to that order state");
 
-		return coupangLocked || elevenstMissingDelivery || cafe24StateLocked;
+		// D-128(D-123 정정): 11번가 "존재하지 않는 배송번호"는 여기서 제외한다.
+		// 마켓의 상태 잠금이 아니라 우리 요청이 잘못됐다는 응답이었고(D-127 — 배송번호 자리에 주문번호
+		// 전달), 그 오분류가 EmailFetcher의 종결 처리를 타 trackingSentToMarket을 거짓으로 true로
+		// 만들어 "마켓 미반영인데 반영됨"인 주문들을 남겼다. 페이로드 교정 후에는 재시도로 성공할 수
+		// 있으므로 일시 실패로 둔다. 재시도가 무한 반복되면 원인은 페이로드지 분류가 아니다.
+		return coupangLocked || cafe24StateLocked;
 	}
 
 	/** 마켓에 주문 취소 요청. Cafe24 기반(G마켓/옥션)은 마켓 자격증명이 아니라 Cafe24 토큰으로 인증하므로

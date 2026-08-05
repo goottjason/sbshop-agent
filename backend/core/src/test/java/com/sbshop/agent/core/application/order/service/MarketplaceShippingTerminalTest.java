@@ -83,14 +83,19 @@ class MarketplaceShippingTerminalTest {
 	// ===== D-123: 쿠팡 외 마켓의 영구 거부도 terminal로 분류해야 재시도 루프가 끊긴다 =====
 
 	@Test
-	void 십일번가_존재하지_않는_배송번호는_terminal로_분류된다() {
-		// 11번가가 해당 배송건을 갖고 있지 않다는 뜻 — 같은 페이로드를 재전송해도 영원히 성공하지 못한다.
+	void 십일번가_존재하지_않는_배송번호는_terminal이_아니라_재시도_대상이다() {
+		// D-128(D-123 정정): 이 문구는 마켓의 상태 잠금이 아니라 <b>우리 요청이 잘못됐다</b>는 응답이었다.
+		// 실제 원인은 D-127 — 발송처리에 배송번호(dlvNo) 자리로 주문번호를 보내고 있었다. 따라서
+		// "재전송해도 영원히 실패"라는 D-123의 전제가 거짓이었고, 이 오분류 때문에 EmailFetcher가
+		// 종결 처리하며 trackingSentToMarket을 true로 <b>거짓 마킹</b>해 왔다(마켓 미반영인데 반영됨으로 표시).
+		// 페이로드가 교정된 지금은 재시도로 성공할 수 있고, 발주확인 이후 배송건이 생기는 경우도 있다.
 		MarketplaceShippingService service = serviceWithPortThrowing(
 			new RuntimeException("11번가 발송처리 실패: 존재하지 않는 배송번호 입니다."));
 
 		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(), false);
 
-		assertThat(result.isTerminal()).isTrue();
+		assertThat(result.isTerminal()).isFalse();
+		assertThat(result.isFailed()).isTrue();
 	}
 
 	@Test
