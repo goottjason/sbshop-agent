@@ -14,6 +14,11 @@ public interface OrderLineItemRepository extends JpaRepository<OrderLineItem, Lo
 
 	List<OrderLineItem> findBySourcingData_SourcingOrderNo(String sourcingOrderNo);
 
+	/** 동기화 매칭 키 — 배열 순서가 아니라 마켓 상품주문번호로 찾는다. */
+	java.util.Optional<OrderLineItem> findByOrderIdAndMarketLineItemNo(Long orderId, String marketLineItemNo);
+
+	List<OrderLineItem> findByShipmentId(Long shipmentId);
+
 	/**
 	 * 최근 판매 실적을 브랜드별로 집계한다 — 신규 상품 추천의 "자사 이력" 신호.
 	 * 우리 고객이 이미 사는 브랜드는 새 상품도 팔릴 확률이 높다.
