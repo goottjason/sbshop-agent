@@ -16,7 +16,7 @@ import lombok.Setter;
  */
 @Getter
 @Setter
-@Builder
+@Builder(toBuilder = true)
 public class MarketOrderDto {
 	private MarketType marketType;
 	private String marketOrderNo;
