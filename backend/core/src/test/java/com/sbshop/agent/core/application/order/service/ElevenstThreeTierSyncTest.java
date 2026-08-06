@@ -330,4 +330,82 @@ class ElevenstThreeTierSyncTest {
 		assertThat(legacy.getMarketLineItemNo()).isNull();
 		assertThat(legacy.getShippingData().getTrackingNo()).isEqualTo("363082000865");
 	}
+	@Test
+	@DisplayName("상품을 식별할 수 없으면 분할을 미룬다 — 빈 껍데기 행과 고아 행을 만들지 않는다")
+	void defersSplitWhenProductUnidentifiable() {
+		// 2026-08-06 라이브에서 실제로 터진 형태다. 정나영 건은 전체 정보 목록의 날짜 창을 지나
+		// 배송중 목록에만 남아 있었고, 11번가는 orderlistall·orderlistalladdr 어느 쪽에도
+		// sellerPrdCd를 주지 않는다. 그래서 상품 신호가 없는데도 2행을 만들어, 상품·금액이 빈
+		// 행 두 개가 생기고 소싱정보가 붙은 옛 행이 고아가 됐다.
+		Order existing = Order.builder().marketType(MarketType.ELEVEN_STREET).marketOrderNo(ORD_NO).build();
+		ReflectionTestUtils.setField(existing, "id", 42L);
+		OrderLineItem legacy = OrderLineItem.builder()
+			.orderId(42L).quantity(1).productId(312L)
+			.purchaseStatus(PurchaseStatus.PURCHASED)
+			.sourcingData(SourcingData.builder().sourcingOrderNo("344142016").build())
+			.build();
+		ReflectionTestUtils.setField(legacy, "id", 459L);
+
+		when(orderRepository.findByMarketOrderNo(ORD_NO)).thenReturn(Optional.of(existing));
+		when(orderLineItemRepository.findByOrderId(42L)).thenReturn(new ArrayList<>(List.of(legacy)));
+
+		// 판매자상품코드가 없는 상품주문 2건 — 상품 매핑 불가.
+		MarketLineItemDto noCode1 = MarketLineItemDto.builder()
+			.marketLineItemNo("1").quantity(1)
+			.orderPrice(new BigDecimal("57700")).totalAmount(new BigDecimal("57700"))
+			.status(ShippingStatus.SHIPPED).build();
+		MarketLineItemDto noCode2 = MarketLineItemDto.builder()
+			.marketLineItemNo("2").quantity(1)
+			.orderPrice(new BigDecimal("52800")).totalAmount(new BigDecimal("52800"))
+			.status(ShippingStatus.SHIPPED).build();
+
+		runSync(orderDto(shipment("2716448228", "315399495342", noCode1, noCode2)));
+
+		// 아무 행도 만들지 않는다. 소싱정보는 옛 행에 그대로 있고 고아가 되지 않는다.
+		assertThat(savedLineItems).isEmpty();
+		assertThat(legacy.getSourcingData().getSourcingOrderNo()).isEqualTo("344142016");
+		assertThat(legacy.getPurchaseStatus()).isEqualTo(PurchaseStatus.PURCHASED);
+		// 기존 행에 상품주문번호를 사람이 지정해 주면 다음 동기화에서 정확히 갈린다(정확키 매칭).
+		assertThat(legacy.getMarketLineItemNo()).isNull();
+	}
+
+	@Test
+	@DisplayName("상품을 식별할 수 있으면 정상 분할한다 — 가드가 정상 경로를 막지 않는다")
+	void guardDoesNotBlockIdentifiableSplit() {
+		Order existing = Order.builder().marketType(MarketType.ELEVEN_STREET).marketOrderNo(ORD_NO).build();
+		ReflectionTestUtils.setField(existing, "id", 42L);
+		OrderLineItem legacy = OrderLineItem.builder().orderId(42L).quantity(1).productId(312L).build();
+		ReflectionTestUtils.setField(legacy, "id", 459L);
+
+		when(orderRepository.findByMarketOrderNo(ORD_NO)).thenReturn(Optional.of(existing));
+		when(orderLineItemRepository.findByOrderId(42L)).thenReturn(new ArrayList<>(List.of(legacy)));
+		stubProduct("210121IHB011", 312L);
+		stubProduct("210121IHB012", 999L);
+
+		runSync(orderDto(
+			shipment("2716448228", null, item("1", "210121IHB011", "칼마", "57700", ShippingStatus.NEW)),
+			shipment("2716448229", "424079080471",
+				item("2", "210121IHB012", "뉴트리언트", "52800", ShippingStatus.SHIPPED))));
+
+		assertThat(legacy.getMarketLineItemNo()).isEqualTo("1");
+		assertThat(saved("2")).isNotNull();
+	}
+
+	@Test
+	@DisplayName("마켓 실측 정산액이 있으면 요율 추정을 쓰지 않는다")
+	void prefersActualSettlementAmount() {
+		when(orderRepository.findByMarketOrderNo(ORD_NO)).thenReturn(Optional.empty());
+		stubProduct("210121IHB011", 312L);
+
+		MarketLineItemDto withActual = MarketLineItemDto.builder()
+			.marketLineItemNo("1").marketProductCode("210121IHB011").quantity(1)
+			.orderPrice(new BigDecimal("57700")).totalAmount(new BigDecimal("57700"))
+			.settlementAmount(new BigDecimal("49887"))
+			.status(ShippingStatus.SHIPPED).build();
+		runSync(orderDto(shipment("2716448228", "315399495342", withActual)));
+
+		// 요율 추정(57700 x 0.82 = 47314)이 아니라 마켓이 준 49887을 쓴다.
+		assertThat(saved("1").getSettlementData().getSettlementAmount()).isEqualByComparingTo("49887");
+	}
+
 }

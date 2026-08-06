@@ -342,27 +342,42 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 	/**
 	 * D-099: 주문 단건 상세조회(claimservice/orderlistalladdr)로 실제 클레임 상태를 판정한다.
 	 *
-	 * <p>11번가는 클레임 목록 조회 REST가 없어(라이브 확정) 진행상태 목록에서 사라진 주문을 detectCancellations가
-	 * 무조건 CANCELED로 뭉뚱그렸다. 상세 응답의 {@code ordPrdStatNm}(취소완료/반품완료/교환완료 등)을 읽어
-	 * 취소·반품·교환을 구분한다. 클레임이 아니면(구매확정·배송완료 등) {@code null} — 오취소를 막는다.
+	 * <p>11번가는 클레임 목록 조회 REST가 없어(라이브 확정) 4개 진행상태 목록만 조회하므로, 목록에서
+	 * 사라진 주문의 실제 상태는 단건 상세조회로만 알 수 있다. 클레임이 아니면(구매확정·배송완료 등)
+	 * 비어 있는 결과 — 오취소를 막는다.
 	 *
-	 * @return 클레임 상태(CANCELED/RETURNED/EXCHANGED) 또는 클레임 아님/조회실패 시 {@code null}
+	 * <p><b>2단계 정정</b>: 이 응답은 <b>상품주문마다 한 행</b>이다(2026-08-06 라이브 확인 —
+	 * 정나영 건이 순번 1·2 두 행으로 왔다). 종전에는 {@code details.get(0)}만 읽어 첫 상품주문의
+	 * 상태를 주문 전체에 적용했다 — D-130과 같은 키메라 오류다. 순번별로 돌려준다.
+	 *
+	 * @return {@code ordPrdSeq → 클레임 상태} 맵. 클레임인 행만 담긴다(정상 진행 행은 제외).
 	 */
-	public ShippingStatus resolveClaimStatus(String apiKey, String ordNo) {
+	public Map<String, ShippingStatus> resolveClaimStatuses(String apiKey, String ordNo) {
 		try {
 			List<Element> details = elevenstOrderApiPort.fetchOrderDetail(apiKey, ordNo);
 			if (details == null || details.isEmpty()) {
-				return null;
+				return Map.of();
 			}
-			Element el = details.get(0);
-			String ordPrdStat = ElevenstXmlUtils.getElementText(el, "ordPrdStat");
-			String ordPrdStatNm = ElevenstXmlUtils.getElementText(el, "ordPrdStatNm");
-			return statusMapper.mapClaimStatus(ordPrdStat, ordPrdStatNm);
+			Map<String, ShippingStatus> result = new LinkedHashMap<>();
+			for (Element el : details) {
+				String seq = emptyToNull(ElevenstXmlUtils.getElementText(el, "ordPrdSeq"));
+				ShippingStatus claim = statusMapper.mapClaimStatus(
+					ElevenstXmlUtils.getElementText(el, "ordPrdStat"),
+					ElevenstXmlUtils.getElementText(el, "ordPrdStatNm"));
+				if (claim != null) {
+					// 순번을 못 얻으면 "주문 전체" 키로 담는다 — 호출자가 폴백에 쓴다.
+					result.put(seq != null ? seq : CLAIM_ORDER_WIDE, claim);
+				}
+			}
+			return result;
 		} catch (Exception e) {
 			log.warn("11번가 클레임 상태 조회 실패: ordNo={}, error={}", ordNo, e.getMessage());
-			return null;
+			return Map.of();
 		}
 	}
+
+	/** 상품주문 순번을 얻지 못한 클레임 행의 키. 순번 미상 라인아이템에 적용한다. */
+	public static final String CLAIM_ORDER_WIDE = "*";
 
 	private static String mapCarrierCode(ShippingCarrier carrier) {
 		if (carrier == null) {
@@ -552,6 +567,8 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		private final Map<String, StatusRow> statusRows = new LinkedHashMap<>();
 		/** dlvNo → 송장·택배사. */
 		private final Map<String, TrackingInfo> trackingByDlvNo = new LinkedHashMap<>();
+		/** ordPrdSeq → 송장. 배송번호를 주지 않는 배송중 목록용. */
+		private final Map<String, TrackingInfo> trackingBySeq = new LinkedHashMap<>();
 		/** 배송번호를 알 수 없는 행이 준 송장 — 배송이 하나뿐일 때만 쓴다. */
 		private TrackingInfo trackingWithoutDlvNo;
 		/**
@@ -568,7 +585,13 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			BigDecimal orderPrice, BigDecimal totalAmount, ShippingStatus listStatus,
 			String dlvNo, String addPrdYn, String addPrdNo) {}
 
-		private record StatusRow(String statusName, String dlvNo, Integer quantity) {}
+		/**
+		 * orderlistall이 주는 상품주문별 사실. 2026-08-06 라이브 응답으로 확인한 필드다:
+		 * {@code stlPlnAmt}(정산예정금액) · {@code selFee}(판매수수료) · {@code tmallApplyDscAmt}(11번가 할인분담).
+		 * <b>{@code sellerPrdCd}는 주지 않는다</b> — 상품 매핑은 전체 정보 목록에서만 얻을 수 있다.
+		 */
+		private record StatusRow(String statusName, String dlvNo, Integer quantity,
+			BigDecimal settlementAmount, BigDecimal sellerFee, BigDecimal marketDiscount) {}
 
 		private record TrackingInfo(String trackingNo, ShippingCarrier carrier) {}
 
@@ -612,7 +635,19 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		 */
 		private void addShippingRow(Element row, ElevenstStatusMapper mapper) {
 			fillOrderCommon(row);
-			captureTracking(row, emptyToNull(ElevenstXmlUtils.getElementText(row, "dlvNo")));
+			String dlvNo = emptyToNull(ElevenstXmlUtils.getElementText(row, "dlvNo"));
+			captureTracking(row, dlvNo);
+			// 2026-08-06 라이브 확인: 이 목록은 최소 정보(ordNo·ordPrdSeq·invcNo·dlvEtprsCd·sndEndDt)지만
+			// ordPrdSeq는 준다. 종전 구현은 "안 준다"고 전제해 송장을 상품주문에 붙일 길을 스스로 막았다.
+			// 배송번호는 주지 않으므로, 상품주문 단위로 기록해 두고 조립 때 그 순번의 배송에 붙인다.
+			if (dlvNo == null) {
+				String seq = emptyToNull(ElevenstXmlUtils.getElementText(row, "ordPrdSeq"));
+				String invcNo = emptyToNull(ElevenstXmlUtils.getElementText(row, "invcNo"));
+				if (seq != null && invcNo != null) {
+					trackingBySeq.putIfAbsent(seq, new TrackingInfo(invcNo,
+						parseCarrierCode(ElevenstXmlUtils.getElementText(row, "dlvEtprsCd"))));
+				}
+			}
 			// 상품주문 식별자를 끝까지 못 얻는 경우에만 쓰이는 폴백이다. 주 경로는 orderlistall이다.
 			if (fallbackListStatus == null) {
 				fallbackListStatus = mapper.mapStatus(Map.of("source", "shipping"));
@@ -628,7 +663,12 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			statusRows.put(seq, new StatusRow(
 				emptyToNull(ElevenstXmlUtils.getElementText(row, "ordPrdStatNm")),
 				emptyToNull(ElevenstXmlUtils.getElementText(row, "dlvNo")),
-				parseIntValue(ElevenstXmlUtils.getElementText(row, "ordQty"))));
+				parseIntValue(ElevenstXmlUtils.getElementText(row, "ordQty")),
+				parseBigDecimal(ElevenstXmlUtils.getElementText(row, "stlPlnAmt")),
+				parseBigDecimal(ElevenstXmlUtils.getElementText(row, "selFee")),
+				parseBigDecimal(ElevenstXmlUtils.getElementText(row, "tmallApplyDscAmt"))));
+			// 이 행도 송장을 준다. 배송번호가 함께 오므로 배송에 정확히 붙는다.
+			captureTracking(row, emptyToNull(ElevenstXmlUtils.getElementText(row, "dlvNo")));
 		}
 
 		/** 두 목록이 같은 상품주문을 줬을 때 — 빈 칸만 채운다. 상태는 나중 값을 채택한다. */
@@ -677,8 +717,11 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			if (invcNo == null) {
 				return;
 			}
+			// 택배사 코드가 없으면 위조하지 않는다. parseCarrierCode는 null을 CJ로 기본값 처리하는데,
+			// orderlistall은 dlvEtprsCd를 주지 않으므로 그대로 두면 전 주문이 CJ로 찍힌다(D-131과 같은 부류).
+			String carrierCode = emptyToNull(ElevenstXmlUtils.getElementText(row, "dlvEtprsCd"));
 			TrackingInfo info = new TrackingInfo(invcNo,
-				parseCarrierCode(ElevenstXmlUtils.getElementText(row, "dlvEtprsCd")));
+				carrierCode != null ? parseCarrierCode(carrierCode) : null);
 			if (dlvNo != null) {
 				trackingByDlvNo.putIfAbsent(dlvNo, info);
 			} else if (trackingWithoutDlvNo == null) {
@@ -744,8 +787,9 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 					.marketProductCode(detail != null ? detail.sellerPrdCd() : null)
 					.productName(detail != null ? detail.productName() : null)
 					.quantity(resolveQuantity(status, detail))
-					.orderPrice(detail != null ? detail.orderPrice() : BigDecimal.ZERO)
-					.totalAmount(detail != null ? detail.totalAmount() : BigDecimal.ZERO)
+					.orderPrice(resolveAmount(status, detail != null ? detail.orderPrice() : null))
+					.totalAmount(resolveAmount(status, detail != null ? detail.totalAmount() : null))
+					.settlementAmount(status != null ? status.settlementAmount() : null)
 					.status(resolveStatus(status, detail, mapper))
 					.marketSpecificData(lineData)
 					.build());
@@ -754,6 +798,14 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			List<MarketShipmentDto> shipments = new ArrayList<>();
 			for (Map.Entry<String, List<MarketLineItemDto>> entry : byDlvNo.entrySet()) {
 				TrackingInfo tracking = trackingByDlvNo.get(entry.getKey());
+				if (tracking == null) {
+					// 배송중 목록은 배송번호를 주지 않고 ordPrdSeq만 준다. 이 배송에 속한 상품주문 중
+					// 하나라도 송장을 알려줬으면 그것이 이 배송의 송장이다(한 배송 = 한 송장).
+					tracking = entry.getValue().stream()
+						.map(li -> trackingBySeq.get(li.getMarketLineItemNo()))
+						.filter(java.util.Objects::nonNull)
+						.findFirst().orElse(null);
+				}
 				if (tracking == null && byDlvNo.size() == 1) {
 					// 배송이 하나뿐이면 배송번호를 못 밝힌 행의 송장도 이 배송의 것이 확실하다.
 					tracking = trackingWithoutDlvNo;
@@ -840,6 +892,27 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 					.lineItems(List.of(lineItem))
 					.build()))
 				.build();
+		}
+
+		/**
+		 * 주문금액을 정한다. 전체 정보 목록이 준 값이 있으면 그것을 쓰고, 없으면 orderlistall의
+		 * 실측값으로 <b>계산</b>한다: {@code 정산예정금액 + 판매수수료 + 11번가 할인분담}.
+		 *
+		 * <p>추측이 아니라 산술이다. 2026-08-06 라이브 응답으로 두 상품주문 모두 검증했다 —
+		 * 49887+6253+1560 = 57700, 45648+5712+1440 = 52800 (판매자센터 표시 금액과 일치).
+		 * 배송중 목록에만 있는 주문(전체 정보 목록의 날짜 창을 지난 주문)은 이 경로가 유일하다.
+		 */
+		private static BigDecimal resolveAmount(StatusRow status, BigDecimal fromDetail) {
+			if (fromDetail != null && fromDetail.signum() != 0) {
+				return fromDetail;
+			}
+			if (status == null || status.settlementAmount() == null
+				|| status.settlementAmount().signum() == 0) {
+				return BigDecimal.ZERO;
+			}
+			return status.settlementAmount()
+				.add(status.sellerFee() != null ? status.sellerFee() : BigDecimal.ZERO)
+				.add(status.marketDiscount() != null ? status.marketDiscount() : BigDecimal.ZERO);
 		}
 
 		private static Integer resolveQuantity(StatusRow status, DetailRow detail) {

@@ -172,6 +172,19 @@ public class ElevenstOrderSyncService {
 			orderShipmentUpsertService.linkToShipment(item, shipments.get(owner.get(adoption.dto())));
 		}
 
+		if (shouldDeferSplit(match, incoming)) {
+			// 상품을 식별할 수 없는 상품주문이 있는데 짝짓지 못한 기존 행이 남았다. 이때 새 행을
+			// 만들면 (a) 상품·금액이 빈 껍데기 행이 생기고 (b) 소싱처·구매상태가 붙은 옛 행이
+			// 고아가 된다. 라이브에서 정나영 건이 정확히 이렇게 됐다(2026-08-06).
+			// 분할을 미룬다 — 상품 신호를 얻으면(전체 정보 목록 유입·수동 키 부여) 그때 정확히 갈린다.
+			log.warn("[ELEVEN_STREET] ⚠ 분할 보류: orderNo={} 상품주문 {}건을 만들지 않았다 —"
+				+ " 상품을 식별할 수 없고(판매자상품코드 부재) 짝짓지 못한 기존 행이 있다(id={})."
+				+ " 기존 행에 상품주문번호를 직접 지정하면 다음 동기화에서 정확히 갈린다.",
+				dto.getMarketOrderNo(), match.toCreate().size(),
+				match.unclaimed().stream().map(OrderLineItem::getId).toList());
+			return;
+		}
+
 		for (MarketLineItemDto lineItemDto : match.toCreate()) {
 			OrderLineItem created = buildLineItemFromDto(lineItemDto, order.getId());
 			orderLineItemRepository.save(created);
@@ -281,11 +294,43 @@ public class ElevenstOrderSyncService {
 				.shippingStatus(dto.getStatus())
 				.build())
 			.settlementData(SettlementData.builder()
-				.settlementAmount(marketFeeService.settlementAmount(
-					dto.getTotalAmount(), MarketType.ELEVEN_STREET))
+				.settlementAmount(resolveSettlementAmount(dto))
 				.settlementVerified(false)
 				.build())
 			.build();
+	}
+
+	/**
+	 * 정산액은 <b>마켓이 알려준 실측값</b>({@code stlPlnAmt})을 쓰고, 없을 때만 요율로 추정한다.
+	 *
+	 * <p>추정은 D-122(스마트스토어 수수료율 가정 8% vs 실제 4.9%)에서 드러난 것처럼 괴리를 낳는다.
+	 * 상품주문별로 실측값이 오므로 다품목 주문의 분배 문제도 함께 사라진다(설계 9.1).
+	 */
+	/**
+	 * 분할을 미뤄야 하는가 — <b>빈 껍데기 행과 고아 행을 동시에 만드는 조합</b>을 막는다.
+	 *
+	 * <p>조건 세 개가 겹칠 때만 참이다: 새로 만들 상품주문이 있고 · 짝짓지 못한 기존 행이 있고 ·
+	 * 새로 만들 것 중 상품을 식별할 수 없는 것이 있다. 11번가는 {@code orderlistall}·
+	 * {@code orderlistalladdr} 어느 쪽도 {@code sellerPrdCd}를 주지 않으므로(2026-08-06 라이브 확인),
+	 * 전체 정보 목록의 날짜 창을 지난 주문은 상품 매핑 신호가 아예 없다.
+	 *
+	 * <p>새로 들어오는 주문은 결제완료 목록을 반드시 거치므로 이 상황이 생기지 않는다.
+	 * 즉 이 가드는 <b>기능이 켜지기 전에 이미 창을 지나 있던 주문</b>에만 걸린다.
+	 */
+	private boolean shouldDeferSplit(OrderLineItemMatcher.MatchResult match,
+		List<OrderLineItemMatcher.Incoming> incoming) {
+		if (match.toCreate().isEmpty() || match.unclaimed().isEmpty()) {
+			return false;
+		}
+		return match.toCreate().stream().anyMatch(create -> incoming.stream()
+			.anyMatch(in -> in.dto() == create && in.resolvedProductId() == null));
+	}
+
+	private java.math.BigDecimal resolveSettlementAmount(MarketLineItemDto dto) {
+		if (dto.getSettlementAmount() != null && dto.getSettlementAmount().signum() != 0) {
+			return dto.getSettlementAmount();
+		}
+		return marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.ELEVEN_STREET);
 	}
 
 	private Long resolveProductId(MarketLineItemDto dto) {
@@ -348,23 +393,37 @@ public class ElevenstOrderSyncService {
 				continue;
 			}
 
-			// 사라진 주문의 실제 상태를 단건 상세조회로 판정. 클레임이 아니면 null → 상태 변경 없음(오취소 방지).
-			ShippingStatus claimStatus = elevenstOrderAdapter.resolveClaimStatus(apiKey, order.getMarketOrderNo());
-			if (claimStatus == null) {
+			// 사라진 주문의 실제 상태를 단건 상세조회로 판정. 클레임이 아니면 빈 결과 → 상태 변경 없음(오취소 방지).
+			// 2단계 정정: 응답이 상품주문마다 한 행이므로 순번별로 적용한다. 종전에는 첫 행의 상태를
+			// 주문 전체에 씌워, 한 상품만 취소된 주문의 나머지 상품까지 취소로 만들 수 있었다.
+			java.util.Map<String, ShippingStatus> claims =
+				elevenstOrderAdapter.resolveClaimStatuses(apiKey, order.getMarketOrderNo());
+			if (claims.isEmpty()) {
 				continue;
 			}
 
+			int applied = 0;
 			for (OrderLineItem item : items) {
-				if (isNonTerminal(item)) {
-					ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
-						.shippingStatus(claimStatus)
-						.build();
-					item.applyShippingData(cmd.toShippingData(item.getShippingData()));
-					orderLineItemRepository.save(item);
+				if (!isNonTerminal(item)) {
+					continue;
 				}
+				ShippingStatus claimStatus = resolveClaimFor(item, claims);
+				if (claimStatus == null) {
+					continue;
+				}
+				ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
+					.shippingStatus(claimStatus)
+					.build();
+				item.applyShippingData(cmd.toShippingData(item.getShippingData()));
+				orderLineItemRepository.save(item);
+				applied++;
+			}
+			if (applied == 0) {
+				continue;
 			}
 			claimCount++;
-			log.info("[ELEVEN_STREET] 클레임 감지: ordNo={} → {}", order.getMarketOrderNo(), claimStatus);
+			log.info("[ELEVEN_STREET] 클레임 감지: ordNo={} → {}건 반영 {}",
+				order.getMarketOrderNo(), applied, claims);
 		}
 
 		if (claimCount > 0) {
@@ -376,6 +435,25 @@ public class ElevenstOrderSyncService {
 	 * terminal(종결) 상태가 아닌지 판정한다. fetchOrders가 조회하지 않는 종결 상태
 	 * (CANCELED·DELIVERED·RETURNED·EXCHANGED)는 API 응답에 없어도 취소로 오인해선 안 된다. (D-028)
 	 */
+	/**
+	 * 이 라인아이템에 적용할 클레임 상태를 고른다.
+	 *
+	 * <p>상품주문번호가 있으면 그 순번의 클레임만 적용한다 — 한 상품만 취소된 주문의 나머지 상품을
+	 * 함께 취소하지 않는다. 순번이 없는 레거시 행은 주문 전체 클레임(순번 미상)이나, 클레임이
+	 * 하나뿐일 때 그것을 적용한다(종전 동작 보존 — 그때는 라인아이템도 하나였다).
+	 */
+	private ShippingStatus resolveClaimFor(OrderLineItem item, java.util.Map<String, ShippingStatus> claims) {
+		String seq = item.getMarketLineItemNo();
+		if (seq != null) {
+			return claims.get(seq);
+		}
+		ShippingStatus orderWide = claims.get(ElevenstOrderAdapter.CLAIM_ORDER_WIDE);
+		if (orderWide != null) {
+			return orderWide;
+		}
+		return claims.size() == 1 ? claims.values().iterator().next() : null;
+	}
+
 	private boolean isNonTerminal(OrderLineItem item) {
 		if (item.getShippingData() == null) {
 			return true;

@@ -97,7 +97,10 @@ class ElevenstDetectCancellationsTest {
 		OrderLineItem li = item(ShippingStatus.NEW);
 		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(order("A-1")));
 		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(li));
-		when(elevenstOrderAdapter.resolveClaimStatus(any(), any())).thenReturn(ShippingStatus.CANCELED);
+		when(elevenstOrderAdapter.resolveClaimStatuses(any(), any()))
+			.thenReturn(java.util.Map.of(
+				com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter.CLAIM_ORDER_WIDE,
+				ShippingStatus.CANCELED));
 
 		service().syncElevenstOrders();
 
@@ -111,7 +114,10 @@ class ElevenstDetectCancellationsTest {
 		OrderLineItem li = item(ShippingStatus.SHIPPED);
 		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(order("RT-1")));
 		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(li));
-		when(elevenstOrderAdapter.resolveClaimStatus(any(), any())).thenReturn(ShippingStatus.RETURNED);
+		when(elevenstOrderAdapter.resolveClaimStatuses(any(), any()))
+			.thenReturn(java.util.Map.of(
+				com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter.CLAIM_ORDER_WIDE,
+				ShippingStatus.RETURNED));
 
 		service().syncElevenstOrders();
 
@@ -125,7 +131,10 @@ class ElevenstDetectCancellationsTest {
 		OrderLineItem li = item(ShippingStatus.SHIPPED);
 		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(order("EX-1")));
 		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(li));
-		when(elevenstOrderAdapter.resolveClaimStatus(any(), any())).thenReturn(ShippingStatus.EXCHANGED);
+		when(elevenstOrderAdapter.resolveClaimStatuses(any(), any()))
+			.thenReturn(java.util.Map.of(
+				com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter.CLAIM_ORDER_WIDE,
+				ShippingStatus.EXCHANGED));
 
 		service().syncElevenstOrders();
 
@@ -140,7 +149,8 @@ class ElevenstDetectCancellationsTest {
 		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(order("OK-1")));
 		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(li));
 		// 상세조회가 구매확정 등 정상 상태 → 클레임 아님(null)
-		when(elevenstOrderAdapter.resolveClaimStatus(any(), any())).thenReturn(null);
+		// 클레임이 아니면 빈 결과 — 상태를 바꾸지 않는다(오취소 방지).
+		when(elevenstOrderAdapter.resolveClaimStatuses(any(), any())).thenReturn(java.util.Map.of());
 
 		service().syncElevenstOrders();
 
