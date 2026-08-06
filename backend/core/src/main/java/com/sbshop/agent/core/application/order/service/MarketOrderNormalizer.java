@@ -13,8 +13,14 @@ import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
  * 여기서 흡수한다 — 평면 DTO는 <b>배송 1 : 상품주문 1</b>로 감싸고, 이미 3계층인 DTO는
  * 그대로 통과시킨다.
  *
- * <p>배송 식별자를 얻지 못하면 주문번호로 대체한다. 배송 계층이 항상 존재해야
- * 상위 로직("이 배송의 상품들")에 null 분기가 생기지 않는다.
+ * <p><b>배송</b> 식별자를 얻지 못하면 주문번호로 대체한다(설계 §3.3). 배송 계층이 항상 존재해야
+ * 상위 로직("이 배송의 상품들")에 null 분기가 생기지 않고, 전환 전 마켓은 주문당 배송 1건이므로
+ * {@code (order_id, market_shipment_no)} 유니크와 충돌하지 않는다.
+ *
+ * <p><b>상품주문</b> 식별자는 반대로 <b>비워 둔다</b>(D-131). 대체값을 넣으면 그 값이
+ * {@code uk_line_item_order_market_no}에 영속돼, 주문당 라인아이템이 2건이 되는 순간
+ * 동기화가 유니크 위반으로 통째로 실패한다. 모르는 값은 모른다고 두고, 레거시·미전환 행의
+ * 매칭은 {@link OrderLineItemMatcher}가 맡는다.
  */
 public final class MarketOrderNormalizer {
 
@@ -31,7 +37,9 @@ public final class MarketOrderNormalizer {
 		String shipmentNo = resolveShipmentNo(dto);
 
 		MarketLineItemDto lineItem = MarketLineItemDto.builder()
-			.marketLineItemNo(shipmentNo)
+			// D-131: 상품주문 식별자는 비운다. 전환 전 마켓의 평면 DTO는 그 값을 알려주지 않으며,
+			// 배송 식별자를 여기 전용하면 uk_line_item_order_market_no와 충돌한다(주문당 2건부터).
+			// null은 "아직 모름"이고, 그때의 매칭은 OrderLineItemMatcher가 담당한다.
 			.marketProductCode(dto.getMarketProductCode())
 			.sellerProductId(dto.getSellerProductId())
 			.productName(dto.getProductName())

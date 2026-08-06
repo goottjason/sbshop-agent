@@ -70,8 +70,23 @@ class MarketOrderNormalizerTest {
 
 		assertThat(result.getShipments().get(0).getMarketShipmentNo())
 			.isEqualTo("20260731088778989");
+	}
+
+	@Test
+	@DisplayName("상품주문 식별자는 위조하지 않는다 — 전환 전 마켓은 null(=아직 모름)")
+	void doesNotFabricateLineItemNo() {
+		// D-131: 종전에는 배송 식별자(=주문번호/shipmentBoxId)를 상품주문 식별자 자리에도 넣었다.
+		// market_line_item_no는 "마켓 상품주문번호"를 뜻하므로 주문번호를 넣는 것은 거짓이고,
+		// uk_line_item_order_market_no 하에서 주문당 라인아이템이 2건이 되는 순간 유니크 위반으로
+		// 동기화가 통째로 실패한다. PostgreSQL은 NULL끼리 충돌로 보지 않으므로 null이 안전하고 정직하다.
+		MarketOrderDto flat = MarketOrderDto.builder()
+			.marketOrderNo("20260731088778989")
+			.build();
+
+		MarketOrderDto result = MarketOrderNormalizer.normalize(flat);
+
 		assertThat(result.getShipments().get(0).getLineItems().get(0).getMarketLineItemNo())
-			.isEqualTo("20260731088778989");
+			.isNull();
 	}
 
 	@Test
@@ -86,6 +101,23 @@ class MarketOrderNormalizerTest {
 		MarketOrderDto result = MarketOrderNormalizer.normalize(flat);
 
 		assertThat(result.getShipments().get(0).getMarketShipmentNo()).isEqualTo("77001122");
+	}
+
+	@Test
+	@DisplayName("쿠팡처럼 shipmentBoxId가 있어도 상품주문 식별자로 전용하지 않는다")
+	void doesNotReuseShipmentBoxIdAsLineItemNo() {
+		// shipmentBoxId는 배송 식별자다. 한 배송에 orderItems가 여러 개 담기는 것이 쿠팡의
+		// 정상 형태이므로(3단계), 이 값을 라인아이템 키로 쓰면 그때 전부 충돌한다.
+		MarketOrderDto flat = MarketOrderDto.builder()
+			.marketType(MarketType.COUPANG)
+			.marketOrderNo("3000012345")
+			.shipmentBoxId("77001122")
+			.build();
+
+		MarketOrderDto result = MarketOrderNormalizer.normalize(flat);
+
+		assertThat(result.getShipments().get(0).getLineItems().get(0).getMarketLineItemNo())
+			.isNull();
 	}
 
 	@Test
