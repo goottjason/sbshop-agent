@@ -8,6 +8,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,6 +52,7 @@ class Cafe24OrderSyncServiceTest {
 	@Mock private MarketRegistrationRepository marketRegistrationRepository;
 	@Mock private ApplicationEventPublisher eventPublisher;
 	@Mock private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
+	@Mock private com.sbshop.agent.core.domain.order.repository.ShipmentRepository shipmentRepository;
 
 	// 코드 기본요율(빈 정책 폴백)로 정산액을 계산하도록 실제 인스턴스 사용
 	private final MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
@@ -62,7 +64,18 @@ class Cafe24OrderSyncServiceTest {
 		service = new Cafe24OrderSyncService(cafe24OrderApiPort, orderRepository,
 			orderLineItemRepository, marketRegistrationRepository, eventPublisher, syncStatusService,
 			marketFeeService, org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
-			org.mockito.Mockito.mock(Cafe24ShipmentTrackingLookup.class));
+			org.mockito.Mockito.mock(Cafe24ShipmentTrackingLookup.class),
+			// 4단계: 이 테스트들이 검증하는 것이 곧 골격이 하는 일이다 — 목으로 대체하면 라인아이템
+			// 반영이 사라져 검증이 통과해도 아무것도 증명하지 못한다. 진짜 골격을 끼운다.
+			new MarketLineItemSyncDispatcher(orderLineItemRepository,
+				new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository)));
+		lenient().when(shipmentRepository.findByOrderIdAndMarketShipmentNo(
+			org.mockito.ArgumentMatchers.any(), anyString())).thenReturn(java.util.Optional.empty());
+		lenient().when(shipmentRepository.save(org.mockito.ArgumentMatchers.any(
+			com.sbshop.agent.core.domain.order.Shipment.class)))
+			.thenAnswer(inv -> inv.getArgument(0));
+		lenient().when(orderLineItemRepository.findByShipmentId(
+			org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
 		lenient().when(marketRegistrationRepository.findByMarketTypeAndIdentifiersContaining(
 			org.mockito.ArgumentMatchers.any(), anyString())).thenReturn(List.of());
 	}
@@ -163,8 +176,9 @@ class Cafe24OrderSyncServiceTest {
 		assertThat(saved.getCustomsData().getCustomsClearanceNo()).isEqualTo("P012345678901"); // buyer PCCC 추출
 
 		ArgumentCaptor<OrderLineItem> itemCaptor = ArgumentCaptor.forClass(OrderLineItem.class);
-		verify(orderLineItemRepository, times(1)).save(itemCaptor.capture());
-		OrderLineItem item = itemCaptor.getValue();
+		// 골격은 라인아이템을 생성 시 한 번, 배송 미러에서 한 번 더 저장한다(같은 엔티티).
+		verify(orderLineItemRepository, atLeastOnce()).save(itemCaptor.capture());
+		OrderLineItem item = lastOf(itemCaptor);
 		assertThat(item.getQuantity()).isEqualTo(2);
 		// D-088: N10(상품준비중)=발주확인 전(신규주문) → NEW. 발주확인(acceptOrder)이 N20으로 올리므로 N10은 미확인.
 		assertThat(item.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.NEW);
@@ -268,8 +282,10 @@ class Cafe24OrderSyncServiceTest {
 		when(orderRepository.findByMarketOrderNo("GM555")).thenReturn(Optional.empty());
 		service.fetchAndPersist(java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now());
 		ArgumentCaptor<OrderLineItem> itemCaptor = ArgumentCaptor.forClass(OrderLineItem.class);
-		verify(orderLineItemRepository).save(itemCaptor.capture());
-		return itemCaptor.getValue().getShippingData().getShippingStatus();
+		// 골격은 라인아이템을 생성 시 한 번, 배송 미러에서 한 번 더 저장한다(같은 엔티티).
+		// 최종 상태를 보려면 마지막 캡처값을 쓴다.
+		verify(orderLineItemRepository, atLeastOnce()).save(itemCaptor.capture());
+		return lastOf(itemCaptor).getShippingData().getShippingStatus();
 	}
 
 	@Test
@@ -365,8 +381,10 @@ class Cafe24OrderSyncServiceTest {
 		service.fetchAndPersist(java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now());
 
 		ArgumentCaptor<OrderLineItem> itemCaptor = ArgumentCaptor.forClass(OrderLineItem.class);
-		verify(orderLineItemRepository).save(itemCaptor.capture());
-		ShippingData shipping = itemCaptor.getValue().getShippingData();
+		// 골격은 라인아이템을 생성 시 한 번, 배송 미러에서 한 번 더 저장한다(같은 엔티티).
+		// 최종 상태를 보려면 마지막 캡처값을 쓴다.
+		verify(orderLineItemRepository, atLeastOnce()).save(itemCaptor.capture());
+		ShippingData shipping = lastOf(itemCaptor).getShippingData();
 		assertThat(shipping.getTrackingNo()).isEqualTo("424410280092");
 		// 마켓이 알려준 송장 = 마켓이 보유한 송장. 화면의 "마켓 미반영" 경고가 이 건에 뜨면 안 된다.
 		assertThat(shipping.getTrackingSentToMarket()).isTrue();
@@ -382,9 +400,17 @@ class Cafe24OrderSyncServiceTest {
 		service.fetchAndPersist(java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now());
 
 		ArgumentCaptor<OrderLineItem> itemCaptor = ArgumentCaptor.forClass(OrderLineItem.class);
-		verify(orderLineItemRepository).save(itemCaptor.capture());
-		ShippingData shipping = itemCaptor.getValue().getShippingData();
+		// 골격은 라인아이템을 생성 시 한 번, 배송 미러에서 한 번 더 저장한다(같은 엔티티).
+		// 최종 상태를 보려면 마지막 캡처값을 쓴다.
+		verify(orderLineItemRepository, atLeastOnce()).save(itemCaptor.capture());
+		ShippingData shipping = lastOf(itemCaptor).getShippingData();
 		assertThat(shipping.getTrackingNo()).isNull();
 		assertThat(shipping.getTrackingSentToMarket()).isNull();
+	}
+
+	/** 골격이 같은 엔티티를 여러 번 저장하므로 최종 상태는 마지막 캡처값이다. */
+	private static OrderLineItem lastOf(ArgumentCaptor<OrderLineItem> captor) {
+		List<OrderLineItem> all = captor.getAllValues();
+		return all.get(all.size() - 1);
 	}
 }

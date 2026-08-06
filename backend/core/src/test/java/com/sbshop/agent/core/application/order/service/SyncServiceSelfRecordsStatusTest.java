@@ -51,7 +51,9 @@ class SyncServiceSelfRecordsStatusTest {
 		service = new Cafe24OrderSyncService(cafe24OrderApiPort, orderRepository,
 			orderLineItemRepository, marketRegistrationRepository, eventPublisher, syncStatusService,
 			marketFeeService, org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
-			org.mockito.Mockito.mock(Cafe24ShipmentTrackingLookup.class));
+			org.mockito.Mockito.mock(Cafe24ShipmentTrackingLookup.class),
+			// 4단계: 3계층 반영 골격. 이 테스트들은 라인아이템 반영을 검증하지 않으므로 목으로 둔다.
+			org.mockito.Mockito.mock(MarketLineItemSyncDispatcher.class));
 	}
 
 	@Test

@@ -2,6 +2,9 @@ package com.sbshop.agent.core.application.order.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
+import com.sbshop.agent.core.application.order.dto.MarketLineItemDto;
+import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
+import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
 import com.sbshop.agent.core.application.sync.SyncMarketKeys;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
@@ -25,6 +28,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
@@ -56,6 +60,8 @@ public class Cafe24OrderSyncService {
 	private final MarketFeeService marketFeeService;
 	private final TerminalSettlementService terminalSettlementService;
 	private final Cafe24ShipmentTrackingLookup shipmentTrackingLookup;
+	/** 4단계: 3계층 반영 공통 골격. 마켓별 차이는 {@code syncPolicy}가 흡수한다. */
+	private final MarketLineItemSyncDispatcher lineItemSyncDispatcher;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -167,10 +173,7 @@ public class Cafe24OrderSyncService {
 			.marketSpecificData(buildMarketSpecific(o))
 			.build();
 		orderRepository.save(order);
-
-		for (JsonNode item : o.path("items")) {
-			orderLineItemRepository.save(buildLineItem(item, order.getId()));
-		}
+		lineItemSyncDispatcher.sync(order, toNestedDto(o, order, marketType), List.of(), syncPolicy);
 		log.info("[CAFE24-ORDER] 신규 저장: market={}, orderId={}", marketType, order.getMarketOrderNo());
 	}
 
@@ -204,106 +207,116 @@ public class Cafe24OrderSyncService {
 		// 별도 경로"에 맡겼는데, 그 경로는 우리가 송장을 보낼 때만 동작한다. 마켓(G마켓/옥션) 화면에서
 		// 직접 입력된 송장은 어디로도 들어오지 못해, 배송완료인데 송장이 비어 있는 주문이 생겼다.
 		// 마켓이 진실 원본이므로 마켓 값이 실값일 때만 반영하고, 빈 값/자리표시자로는 덮지 않는다.
-		JsonNode itemsArr = o.path("items");
-		if (itemsArr.isArray() && itemsArr.size() == lineItems.size()) {
-			// 개수가 일치하면 아이템별로 매핑(create 경로와 일관)
-			for (int i = 0; i < lineItems.size(); i++) {
-				applyItemShipping(lineItems.get(i), itemsArr.get(i), order.getCafe24OrderId());
-			}
-		} else {
-			// 개수 불일치 시 첫 아이템 상태를 전체에 적용(sbshop 라인아이템은 order_item_code 미보존, 방어적)
-			JsonNode first = firstOf(itemsArr);
-			for (OrderLineItem li : lineItems) {
-				applyItemShipping(li, first, order.getCafe24OrderId());
-			}
-		}
+		// 4단계: 배열 인덱스 짝짓기를 걷어냈다. items[] 원소가 order_item_code(상품주문)와
+		// shipping_code(배송)를 직접 갖고 있어 식별자로 정확히 짝지을 수 있다(2026-08-06 라이브 확인).
+		// 종전에는 개수가 같을 때 인덱스로 짝짓고, 다르면 첫 아이템 상태를 전체에 씌웠다 —
+		// 마켓이 순서를 바꾸면 엉뚱한 상품에 송장·상태가 붙었다.
+		lineItemSyncDispatcher.sync(order, toNestedDto(o, order, marketType), lineItems, syncPolicy);
 	}
 
-	/** Cafe24 아이템의 배송상태·송장을 라인아이템에 반영한다(송장은 실값일 때만). */
-	private void applyItemShipping(OrderLineItem li, JsonNode item, String cafe24OrderId) {
-		ShippingStatus st = mapStatus(text(item, "order_status"));
-		ShippingData existing = li.getShippingData() != null
-			? li.getShippingData() : ShippingData.builder().build();
-		ShippingData.ShippingDataBuilder builder = existing.toBuilder().shippingStatus(st);
+	/**
+	 * 이 주문을 3계층 DTO로 조립한다. 주문 공통 필드는 이미 {@code order}에 반영됐으므로
+	 * 여기서는 <b>배송·상품주문 계층</b>만 담는다.
+	 */
+	private MarketOrderDto toNestedDto(JsonNode o, Order order, MarketType marketType) {
+		List<MarketShipmentDto> shipments =
+			Cafe24LineItemMapper.toShipments(o, order.getMarketOrderNo());
+		enrichTrackingFromShipmentList(shipments, order.getCafe24OrderId());
 
-		String marketTracking = text(item, "tracking_no");
-		if (ShippingData.isMeaningfulTracking(marketTracking)) {
-			builder.trackingNo(marketTracking);
-			// D-129: 마켓이 준 송장을 채택했다 = 마켓이 그 송장을 보유한다.
-			builder.trackingSentToMarket(Boolean.TRUE);
-			// 택배사는 매핑되는 경우에만 갱신(미매핑이면 null 반환 → 기존값 유지).
-			ShippingCarrier carrier = ShippingCarrier.fromMarketCode(
-				firstNonBlank(text(item, "shipping_company_code"), text(item, "shipping_company_name")));
-			if (carrier != null) {
-				builder.shippingCarrier(carrier);
-			}
-		} else if (needsTrackingLookup(existing, st)) {
-			// D-124: 주문 item에는 자체배송 자리표시자만 비칠 수 있다. 배송건 목록을 한 번 더 뒤진다.
-			// 이미 실송장을 갖고 있거나 배송 전 상태면 호출하지 않는다(불필요한 API 호출 억제).
-			Cafe24ShipmentTrackingLookup.Found found = shipmentTrackingLookup.findRealTracking(cafe24OrderId);
-			if (found != null) {
-				builder.trackingNo(found.trackingNo());
-				// 배송건 목록에서 찾은 것도 마켓(Cafe24)이 보유한 송장이다.
-				builder.trackingSentToMarket(Boolean.TRUE);
-				if (found.carrier() != null) {
-					builder.shippingCarrier(found.carrier());
-				}
-			}
-		}
-
-		li.applyShippingData(builder.build());
-		orderLineItemRepository.save(li);
-	}
-
-	/** 배송건 추가 조회가 필요한 상태인지 — 발송 이후인데 우리에게 실송장이 없을 때만. */
-	private boolean needsTrackingLookup(ShippingData existing, ShippingStatus status) {
-		boolean alreadyHasReal = existing != null
-			&& ShippingData.isMeaningfulTracking(existing.getTrackingNo());
-		boolean shipped = status == ShippingStatus.DISPATCHED
-			|| status == ShippingStatus.SHIPPED
-			|| status == ShippingStatus.DELIVERED;
-		return !alreadyHasReal && shipped;
-	}
-
-	private OrderLineItem buildLineItem(JsonNode item, Long orderId) {
-		Long productId = resolveProductId(item);
-		BigDecimal itemAmount = decimal(firstNonBlank(text(item, "payment_amount"), text(item, "product_price")));
-		int qty = item.path("quantity").asInt(1);
-		BigDecimal total = itemAmount != null ? itemAmount.multiply(BigDecimal.valueOf(qty)) : null;
-		// Cafe24는 G마켓/옥션 주문의 동기화 매개체 — 요율은 세 마켓 동일(18%)이라 CAFE24 기준으로 1회 적용.
-		BigDecimal settlement = marketFeeService.settlementAmount(total, MarketType.CAFE24);
-
-		return OrderLineItem.builder()
-			.orderId(orderId)
-			.productId(productId)
-			.quantity(qty)
-			.shippingData(ShippingData.builder()
-				// D-119: 자리표시자('00000000' 등)가 실제 송장으로 저장되던 경로 — 실값일 때만 담는다.
-				.trackingNo(ShippingData.isMeaningfulTracking(text(item, "tracking_no"))
-					? text(item, "tracking_no") : null)
-				// D-129: 마켓이 준 실송장이면 마켓 보유로 마킹(신규 주문 생성 경로).
-				.trackingSentToMarket(ShippingData.marketOwnsTracking(text(item, "tracking_no")))
-				.shippingCarrier(ShippingCarrier.fromMarketCode(
-					firstNonBlank(text(item, "shipping_company_code"), text(item, "shipping_company_name"))))
-				.shippingStatus(mapStatus(text(item, "order_status")))
-				.build())
-			.settlementData(SettlementData.builder()
-				.settlementAmount(settlement)
-				.settlementVerified(false)
-				.build())
+		return MarketOrderDto.builder()
+			.marketType(marketType)
+			.marketOrderNo(order.getMarketOrderNo())
+			.shipments(shipments)
 			.build();
 	}
 
+	/**
+	 * D-124: 주문 item에 자리표시자만 비칠 때 배송건 목록에서 실송장을 찾아 채운다.
+	 *
+	 * <p>ESM+ 자체배송은 Cafe24에 {@code '00000000'} 더미만 등록된다(라이브 확증). 배송이
+	 * <b>하나뿐일 때만</b> 적용한다 — 여러 배송 중 아무 곳에나 붙이면 엉뚱한 송장이 들어간다.
+	 * 발송 전 상태거나 이미 실송장을 갖고 있으면 호출하지 않는다(불필요한 API 호출 억제).
+	 */
+	private void enrichTrackingFromShipmentList(List<MarketShipmentDto> shipments, String cafe24OrderId) {
+		if (shipments.size() != 1) {
+			return;
+		}
+		MarketShipmentDto only = shipments.get(0);
+		if (ShippingData.isMeaningfulTracking(only.getTrackingNo()) || !hasShippedItem(only)) {
+			return;
+		}
+		Cafe24ShipmentTrackingLookup.Found found = shipmentTrackingLookup.findRealTracking(cafe24OrderId);
+		if (found == null) {
+			return;
+		}
+		only.setTrackingNo(found.trackingNo());
+		if (found.carrier() != null) {
+			only.setCarrier(found.carrier());
+		}
+	}
+
+	/** 발송 이후 상태의 상품주문이 하나라도 있는지. */
+	private boolean hasShippedItem(MarketShipmentDto shipment) {
+		if (shipment.getLineItems() == null) {
+			return false;
+		}
+		return shipment.getLineItems().stream().anyMatch(li -> {
+			ShippingStatus s = li.getStatus();
+			return s == ShippingStatus.DISPATCHED || s == ShippingStatus.SHIPPED
+				|| s == ShippingStatus.DELIVERED;
+		});
+	}
+
+	/**
+	 * 이 마켓의 3계층 동기화 정책. 골격이 갖지 않는 세 가지만 구현한다 —
+	 * 로그 태그·상품 해석·라인아이템 생성(정산액 산출).
+	 */
+	private final MarketLineItemSyncPolicy syncPolicy = new MarketLineItemSyncPolicy() {
+		@Override
+		public String logTag() {
+			return "CAFE24-ORDER";
+		}
+
+		@Override
+		public Long resolveProductId(MarketLineItemDto dto) {
+			return cafe24ResolveProductId(dto);
+		}
+
+		@Override
+		public OrderLineItem createLineItem(MarketLineItemDto dto, Long orderId, Long productId) {
+			// Cafe24는 G마켓/옥션 주문의 동기화 매개체 — 요율은 세 마켓 동일(18%)이라 CAFE24 기준 1회 적용.
+			BigDecimal settlement =
+				marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.CAFE24);
+			return OrderLineItem.builder()
+				.orderId(orderId)
+				.productId(productId)
+				.quantity(dto.getQuantity() != null ? dto.getQuantity() : 1)
+				.marketLineItemNo(dto.getMarketLineItemNo())
+				// 송장은 넣지 않는다 — 배송이 단일 원본이고 미러가 내려쓴다(D-133).
+				.shippingData(ShippingData.builder()
+					.shippingStatus(dto.getStatus())
+					.build())
+				.settlementData(SettlementData.builder()
+					.settlementAmount(settlement)
+					.settlementVerified(false)
+					.build())
+				.build();
+		}
+	};
+
 	/** Cafe24 상품(product_no/product_code)로 sb 상품 매핑(카페24 마켓등록에 저장돼 있음). */
-	private Long resolveProductId(JsonNode item) {
-		String productNo = text(item, "product_no");
-		String productCode = text(item, "product_code");
-		for (String key : new String[] {productNo, productCode}) {
-			if (key == null || key.isBlank()) {
+	private Long cafe24ResolveProductId(MarketLineItemDto dto) {
+		Map<String, Object> data = dto.getMarketSpecificData();
+		if (data == null) {
+			return null;
+		}
+		for (String key : new String[] {"product_no", "product_code"}) {
+			Object raw = data.get(key);
+			if (raw == null || String.valueOf(raw).isBlank()) {
 				continue;
 			}
 			List<MarketRegistration> regs = marketRegistrationRepository
-				.findByMarketTypeAndIdentifiersContaining(MarketType.CAFE24, key);
+				.findByMarketTypeAndIdentifiersContaining(MarketType.CAFE24, String.valueOf(raw));
 			if (!regs.isEmpty()) {
 				return regs.get(0).getSbProductId();
 			}
@@ -360,34 +373,6 @@ public class Cafe24OrderSyncService {
 			case "gmarket" -> MarketType.GMARKET;
 			case "auction" -> MarketType.AUCTION;
 			default -> null;
-		};
-	}
-
-	/** Cafe24 order_status(N/C/R/E 코드) → 도메인 ShippingStatus. */
-	private ShippingStatus mapStatus(String code) {
-		if (code == null || code.isBlank()) {
-			return ShippingStatus.NEW;
-		}
-		String c = code.toUpperCase();
-		if (c.startsWith("C")) {
-			return ShippingStatus.CANCELED;
-		}
-		if (c.startsWith("R")) {
-			return ShippingStatus.RETURNED;
-		}
-		if (c.startsWith("E")) {
-			return ShippingStatus.EXCHANGED;
-		}
-		return switch (c) {
-			// D-088: N10(상품준비중)=발주확인 전(신규주문). 발주확인(acceptOrder)이 N20으로 올리므로 N10은 미확인 상태.
-			case "N00", "N02", "N10" -> ShippingStatus.NEW;       // 입금전/주문접수중/상품준비중(발주확인 전) = 신규
-			case "N20", "N21", "N22" -> ShippingStatus.PREPARING; // 배송준비중/배송대기/배송보류(발주확인 후) = 구매준비
-			case "N30" -> ShippingStatus.SHIPPED;                 // 배송중
-			case "N40", "N50" -> ShippingStatus.DELIVERED;        // 배송완료/구매확정
-			default -> {
-				log.warn("[CAFE24-ORDER] 미매핑 order_status 코드={} → NEW 폴백(매핑표 확인 필요)", code);
-				yield ShippingStatus.NEW;
-			}
 		};
 	}
 
