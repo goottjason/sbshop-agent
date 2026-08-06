@@ -2240,3 +2240,48 @@ compose working_dir은 `docker inspect <container> --format '{{json .Config.Labe
   그것이 행위 불변의 증거다. 신규는 골격 계약 테스트 9건뿐이다.
 - 앞으로: 마켓별 테스트는 **정책만** 검증하면 된다. 공통 규율의 정본은
   `MarketLineItemSyncDispatcherTest`다 — 4·5단계에서 같은 규율을 다시 테스트하지 않는다.
+
+### 4단계(Cafe24) 착수 전 실물 확인 (2026-08-06) — 설계 §12-2 확정 + 오판 정정 1건
+
+**Cafe24 주문 API를 읽기 전용으로 조회해 확인했다** (`younzara.cafe24api.com/api/v2`,
+저장된 access_token 사용 — refresh를 유발하지 않도록 GET만).
+
+**설계 §12-2 확정 — 배송↔상품 매핑이 응답에 명시돼 있다**
+
+주문 `items[]` 원소가 **배송 식별자를 직접 갖는다**:
+```
+order_item_code  = 20260805-0000011-01        ← 상품주문 식별자
+shipping_code    = D-20260805-0000011-00      ← 배송 식별자 (item에 들어 있다!)
+order_status     = N20                        ← 상품별 진행상태
+status_code/text = N1 / 배송준비중
+tracking_no · shipping_company_code           ← 상품별 송장·택배사
+custom_product_code = 220622IHB002            ← sbCode
+quantity · product_price · payment_amount · claim_quantity · cancel_date
+```
+`shipments` 리소스도 매핑을 명시한다:
+```
+shipping_code = D-20260805-0000011-00
+items = [{"status":"shipready","order_item_code":"20260805-0000011-01"}]
+tracking_no · shipping_company_code · tracking_no_updated_date
+```
+
+- **Cafe24가 네 마켓 중 가장 깔끔하다.** 배열 인덱스 짝짓기(`applyItemShipping`)는
+  **원래 필요가 없었다** — `order_item_code`가 처음부터 응답에 있었고 우리가 저장하지 않았을 뿐이다
+  (기존 코드 주석도 *"sbshop 라인아이템은 order_item_code 미보존"*이라 인정하고 있었다).
+- 매핑: 배송 = `shipping_code` · 상품주문 = `order_item_code`. 그룹핑에 `shipments` API 호출이
+  필요하지 않다(item이 `shipping_code`를 갖는다). `Cafe24ShipmentTrackingLookup`은 D-124의
+  실송장 탐색 용도로 계속 필요하다.
+- 상태가 **상품 레벨**이다(11번가와 같은 형태, 쿠팡과 다름).
+
+**오판 정정 — `Cafe24Gmarket/AuctionOrderAdapter`는 죽은 코드가 아니다**
+
+D-137 결과서에 *"소비처 없는 죽은 코드"*라고 적었는데 **틀렸다.**
+`MarketplaceShippingService`가 `List<MarketOrderPort>`를 주입받아 `getMarketType()`으로 찾으므로
+Spring이 **타입으로** 해석한다 — 클래스명 직접 참조가 없어 grep에 걸리지 않았을 뿐이다.
+실제로는 **G마켓·옥션의 발주확인·취소·송장 전송을 담당하는 살아 있는 쓰기 경로**다
+(`acceptOrder`/`cancelOrder`/`Cafe24ShipmentService.ship`). 지우면 그 세 기능이 죽는다.
+
+**교훈**: DI 컨테이너가 타입으로 해석하는 빈은 **클래스명 grep으로 사용처를 판정할 수 없다.**
+인터페이스 구현체는 `implements <Port>` + 그 포트의 주입 지점을 함께 봐야 한다.
+D-136에서 "죽은 코드가 기능 상실을 가린다"고 적었는데, 이번엔 반대 방향으로 틀렸다 —
+**살아 있는 코드를 죽었다고 판정**했다. 지웠다면 기능 세 개를 잃었을 것이다.
