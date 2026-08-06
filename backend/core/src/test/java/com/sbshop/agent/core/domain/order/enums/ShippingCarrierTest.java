@@ -37,4 +37,27 @@ class ShippingCarrierTest {
 		assertThat(ShippingCarrier.fromMarketCode("SOME_UNKNOWN_XYZ")).isNull();
 		assertThat(ShippingCarrier.fromMarketCode("DHL")).isNull();
 	}
+	@Test
+	@DisplayName("코드가 미매핑이면 이름으로 폴백한다 — 부분 신호가 더 나은 신호를 가리지 않는다")
+	void unmappedCodeFallsBackToName() {
+		// 2026-08-06 라이브: Cafe24가 shipping_company_code='0006', shipping_company_name='CJ대한통운'을
+		// 함께 준다. 종전 호출부는 firstNonBlank(code, name)로 코드만 넘겨, 미매핑 코드가 매핑 가능한
+		// 이름을 가려 택배사가 유실됐다(G마켓/옥션 주문의 택배사가 화면에 안 뜸).
+		assertThat(ShippingCarrier.resolve("0006", "CJ대한통운")).isEqualTo(ShippingCarrier.CJ_LOGISTICS);
+	}
+
+	@Test
+	@DisplayName("코드가 매핑되면 코드를 쓴다 — 코드가 더 권위 있다")
+	void prefersCodeWhenMapped() {
+		assertThat(ShippingCarrier.resolve("CJGLS", "롯데택배")).isEqualTo(ShippingCarrier.CJ_LOGISTICS);
+	}
+
+	@Test
+	@DisplayName("둘 다 미매핑이면 null이다 — ETC로 위조하지 않는다")
+	void bothUnmappedIsNull() {
+		assertThat(ShippingCarrier.resolve("9999", "듣보잡택배")).isNull();
+		assertThat(ShippingCarrier.resolve(null, null)).isNull();
+		assertThat(ShippingCarrier.resolve("  ", "")).isNull();
+	}
+
 }

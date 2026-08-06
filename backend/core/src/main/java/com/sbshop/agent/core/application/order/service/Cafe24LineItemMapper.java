@@ -67,8 +67,10 @@ final class Cafe24LineItemMapper {
 				String tracking = text(item, "tracking_no");
 				if (ShippingData.isMeaningfulTracking(tracking)) {
 					trackingByCode.putIfAbsent(shippingCode, tracking);
-					ShippingCarrier carrier = ShippingCarrier.fromMarketCode(firstNonBlank(
-						text(item, "shipping_company_code"), text(item, "shipping_company_name")));
+					// 코드가 미매핑이면 이름으로 폴백한다 — Cafe24는 code='0006', name='CJ대한통운'처럼
+					// 둘을 함께 주고, 종전엔 미매핑 코드가 매핑 가능한 이름을 가렸다(2026-08-06 라이브).
+					ShippingCarrier carrier = ShippingCarrier.resolve(
+						text(item, "shipping_company_code"), text(item, "shipping_company_name"));
 					if (carrier != null) {
 						carrierByCode.putIfAbsent(shippingCode, carrier);
 					}

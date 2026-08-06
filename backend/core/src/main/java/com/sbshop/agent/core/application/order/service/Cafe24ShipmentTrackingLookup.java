@@ -56,8 +56,9 @@ public class Cafe24ShipmentTrackingLookup {
 			if (!ShippingData.isMeaningfulTracking(trackingNo)) {
 				continue;
 			}
-			ShippingCarrier carrier = ShippingCarrier.fromMarketCode(
-				firstNonBlank(text(shipment, "shipping_company_code"), text(shipment, "shipping_company_name")));
+			// 코드 미매핑 시 이름으로 폴백(2026-08-06 라이브: Cafe24 '0006' = CJ대한통운).
+			ShippingCarrier carrier = ShippingCarrier.resolve(
+				text(shipment, "shipping_company_code"), text(shipment, "shipping_company_name"));
 			log.info("[Cafe24 배송건] 실송장 발견 orderId={}, tracking={}, carrier={}",
 				cafe24OrderId, trackingNo, carrier);
 			return new Found(trackingNo, carrier);

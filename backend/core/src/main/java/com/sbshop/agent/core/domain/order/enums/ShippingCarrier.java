@@ -24,6 +24,22 @@ public enum ShippingCarrier implements EnumMapperType {
 		return name();
 	}
 
+	/**
+	 * 택배사 코드와 이름을 함께 받아 해석한다. <b>코드가 미매핑이면 이름으로 폴백한다.</b>
+	 *
+	 * <p>마켓은 코드와 이름을 함께 주는데, 종전 호출부는 {@code firstNonBlank(code, name)}로 코드만
+	 * 넘겼다. 그래서 <b>미매핑 코드가 매핑 가능한 이름을 가려</b> 택배사가 유실됐다 —
+	 * 2026-08-06 라이브: Cafe24가 {@code code='0006'}, {@code name='CJ대한통운'}을 주는데 코드가
+	 * 매핑표에 없어 null이 됐고, G마켓/옥션 주문의 택배사가 화면에 뜨지 않았다.
+	 *
+	 * <p>코드를 우선하는 이유는 코드가 더 권위 있기 때문이다(이름은 표기가 흔들린다).
+	 * 둘 다 미매핑이면 {@code null} — {@code ETC}로 위조하지 않는다.
+	 */
+	public static ShippingCarrier resolve(String code, String name) {
+		ShippingCarrier byCode = fromMarketCode(code);
+		return byCode != null ? byCode : fromMarketCode(name);
+	}
+
 	public static ShippingCarrier fromMarketCode(String code) {
 		// 미배송 주문은 마켓이 택배사를 빈 문자열/공백으로 주는 경우가 있다.
 		// 이때 default 분기로 가 ETC("기타")가 저장되면 화면에 "ETC"로 떠 오해를 부른다(미입력=빈칸이어야 함).
