@@ -36,7 +36,7 @@ class CoupangOrderAdapterCarrierCodeTest {
 		when(reg.extractVendorItemId()).thenReturn("999");
 		when(regRepo.findByProductIdAndMarketType(any(), any())).thenReturn(Optional.of(reg));
 
-		CoupangOrderAdapter adapter = new CoupangOrderAdapter(apiPort, null, null, null, regRepo);
+		CoupangOrderAdapter adapter = new CoupangOrderAdapter(apiPort, null, null, null, regRepo, null);
 
 		MarketCredential cred = MarketCredential.builder()
 			.marketType(MarketType.COUPANG).clientId("vendorX").build();

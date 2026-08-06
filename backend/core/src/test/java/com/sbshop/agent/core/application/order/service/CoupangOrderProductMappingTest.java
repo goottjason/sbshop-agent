@@ -2,9 +2,13 @@ package com.sbshop.agent.core.application.order.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -28,6 +32,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +42,9 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
+import com.sbshop.agent.core.domain.order.Shipment;
+import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 
 /**
  * D-046 (사이클 10 Batch B): 쿠팡 발행 시 marketIdentifiers에 sellerProductId만 저장되고,
@@ -67,8 +75,41 @@ class CoupangOrderProductMappingTest {
 	// 코드 기본요율(빈 정책 폴백)로 정산액을 계산하도록 실제 인스턴스를 @Spy로 주입
 	@Spy
 	private MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
-	@InjectMocks
 	private CoupangOrderSyncService service;
+
+	@Mock
+	private TerminalSettlementService terminalSettlementService;
+	@Mock
+	private com.sbshop.agent.core.application.actionlog.ActionLogService actionLogService;
+	@Mock
+	private ShipmentRepository shipmentRepository;
+
+	/**
+	 * 서비스를 <b>명시적으로 조립</b>한다. {@code @InjectMocks}는 목이 없는 의존성을 조용히 null로
+	 * 남기고(이 테스트에서 terminalSettlementService가 그랬다) 무엇이 실제로 주입됐는지 감춘다.
+	 *
+	 * <p>배송 upsert 통로는 진짜 객체를 끼운다 — 목이면 배송 생성이 사라져 라인아이템 저장까지
+	 * 도달하지 못하고, 검증이 통과해도 아무것도 증명하지 못한다(D-133에서 세운 규율).
+	 */
+	@BeforeEach
+	void assembleService() {
+		lenient().when(shipmentRepository.findByOrderIdAndMarketShipmentNo(any(), anyString()))
+			.thenReturn(Optional.empty());
+		lenient().when(shipmentRepository.save(any(Shipment.class))).thenAnswer(inv -> {
+			Shipment sh = inv.getArgument(0);
+			if (sh.getId() == null) {
+				ReflectionTestUtils.setField(sh, "id", 91L);
+			}
+			return sh;
+		});
+		lenient().when(orderLineItemRepository.findByShipmentId(any())).thenReturn(List.of());
+
+		service = new CoupangOrderSyncService(credentialRepository, orderRepository,
+			orderLineItemRepository, productRepository, marketRegistrationRepository, eventPublisher,
+			coupangOrderAdapter, statusMapper, syncStatusService, marketFeeService,
+			terminalSettlementService, actionLogService,
+			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
+	}
 
 	private static final String VENDOR_ITEM_ID = "VI456";
 	private static final String SELLER_PRODUCT_ID = "SP123";
@@ -122,7 +163,7 @@ class CoupangOrderProductMappingTest {
 
 		// 1) OrderLineItem이 매칭된 productId로 저장됨 (결함 시 null)
 		ArgumentCaptor<OrderLineItem> captor = ArgumentCaptor.forClass(OrderLineItem.class);
-		verify(orderLineItemRepository).save(captor.capture());
+		verify(orderLineItemRepository, atLeastOnce()).save(captor.capture());
 		assertThat(captor.getValue().getProductId()).isEqualTo(99L);
 
 		// 2) vendorItemId가 레지스트레이션에 실제로 보강되어 이후 동기화부터 직접 매칭 가능
@@ -148,7 +189,7 @@ class CoupangOrderProductMappingTest {
 		service.syncCoupangOrders();
 
 		ArgumentCaptor<OrderLineItem> captor = ArgumentCaptor.forClass(OrderLineItem.class);
-		verify(orderLineItemRepository).save(captor.capture());
+		verify(orderLineItemRepository, atLeastOnce()).save(captor.capture());
 		assertThat(captor.getValue().getProductId()).isEqualTo(77L);
 
 		// 직접 매칭 성공 시 sellerProductId 역조회·save 보강을 하지 않는다

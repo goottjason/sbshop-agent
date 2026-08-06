@@ -142,6 +142,10 @@ public class ElevenstOrderSyncService {
 		// 상품주문 → 소속 배송 역참조. 매칭 결과에서 배송을 되찾으려면 필요하다.
 		java.util.IdentityHashMap<MarketLineItemDto, MarketShipmentDto> owner =
 			new java.util.IdentityHashMap<>();
+		// 상품 해석은 상품주문당 <b>한 번만</b> 한다. 두 번 부르면 쿠팡의 vendorItemId 보강처럼
+		// 부수효과가 있는 경로가 중복 실행된다(라이브 저장이 두 번 일어났다).
+		java.util.IdentityHashMap<MarketLineItemDto, Long> resolvedProducts =
+			new java.util.IdentityHashMap<>();
 		List<OrderLineItemMatcher.Incoming> incoming = new java.util.ArrayList<>();
 		for (MarketShipmentDto shipmentDto : shipmentDtos) {
 			if (shipmentDto.getLineItems() == null) {
@@ -149,7 +153,9 @@ public class ElevenstOrderSyncService {
 			}
 			for (MarketLineItemDto lineItemDto : shipmentDto.getLineItems()) {
 				owner.put(lineItemDto, shipmentDto);
-				incoming.add(new OrderLineItemMatcher.Incoming(lineItemDto, resolveProductId(lineItemDto)));
+				Long productId = resolveProductId(lineItemDto);
+				resolvedProducts.put(lineItemDto, productId);
+				incoming.add(new OrderLineItemMatcher.Incoming(lineItemDto, productId));
 			}
 		}
 
@@ -167,7 +173,7 @@ public class ElevenstOrderSyncService {
 
 		for (OrderLineItemMatcher.Adoption adoption : match.matched()) {
 			OrderLineItem item = adoption.lineItem();
-			updateLineItemFromDto(item, adoption.dto());
+			updateLineItemFromDto(item, adoption.dto(), resolvedProducts.get(adoption.dto()));
 			orderLineItemRepository.save(item);
 			orderShipmentUpsertService.linkToShipment(item, shipments.get(owner.get(adoption.dto())));
 		}
@@ -186,7 +192,8 @@ public class ElevenstOrderSyncService {
 		}
 
 		for (MarketLineItemDto lineItemDto : match.toCreate()) {
-			OrderLineItem created = buildLineItemFromDto(lineItemDto, order.getId());
+			OrderLineItem created = buildLineItemFromDto(lineItemDto, order.getId(),
+				resolvedProducts.get(lineItemDto));
 			orderLineItemRepository.save(created);
 			orderShipmentUpsertService.linkToShipment(created, shipments.get(owner.get(lineItemDto)));
 			log.info("[ELEVEN_STREET] 상품주문 신규 라인아이템 생성: orderNo={}, ordPrdSeq={}",
@@ -216,8 +223,7 @@ public class ElevenstOrderSyncService {
 	 * 상태가 {@code UNKNOWN}이면 덮지 않는다. 새 상태명이 등장했을 때 배송중 주문이 신규로
 	 * 되돌아가는 것이 가장 나쁜 실패다.
 	 */
-	private void updateLineItemFromDto(OrderLineItem item, MarketLineItemDto dto) {
-		Long productId = resolveProductId(dto);
+	private void updateLineItemFromDto(OrderLineItem item, MarketLineItemDto dto, Long productId) {
 		if (productId != null && !productId.equals(item.getProductId())) {
 			item.assignProductId(productId);
 		}
@@ -284,10 +290,10 @@ public class ElevenstOrderSyncService {
 	 * <p>송장은 넣지 않는다 — 배송이 단일 원본이고 미러가 내려쓴다(D-133). 정산액은 이 상품주문의
 	 * 금액으로 계산한다. 종전엔 주문 전체가 한 행이라 순번1 금액만 반영됐다.
 	 */
-	private OrderLineItem buildLineItemFromDto(MarketLineItemDto dto, Long orderId) {
+	private OrderLineItem buildLineItemFromDto(MarketLineItemDto dto, Long orderId, Long productId) {
 		return OrderLineItem.builder()
 			.orderId(orderId)
-			.productId(resolveProductId(dto))
+			.productId(productId)
 			.quantity(dto.getQuantity() != null ? dto.getQuantity() : 0)
 			.marketLineItemNo(dto.getMarketLineItemNo())
 			.shippingData(ShippingData.builder()

@@ -1964,7 +1964,7 @@ Cafe24 몰에 **롯데택배가 등록돼 있지 않아** 매칭에 실패한다
 - 리뷰 루프가 잡은 실제 결함 3건: ① `OrderLineItemResponse` 미러 파손(엔티티 필드 추가로 JSON 계약 깨짐 — 계약 테스트가 잡음) ② `linkToShipment`가 배송의 null 송장으로 로컬 실송장 소거(**D-125 재발 부류**) ③ 정규화기가 "원본 불변"을 표방하며 가변 Map 공유.
 - **2단계 착수 전 필수 3건 → 2026-08-06 전부 해소**: 레거시 행 백필 경로 부재 → **D-132** ·
   `uk_line_item_order_market_no`와 정규화기 대체값 충돌 → **D-131** · 미러 쓰기 단일 원본 미확립 → **D-133**.
-- 상태: **1단계 + 선행조건 + 2단계(11번가) 완료** → D-134. 다음은 3단계(쿠팡 `orderItems[]` 전량 파싱)
+- 상태: **1단계 + 선행조건 + 2단계(11번가) + 3단계(쿠팡) 완료** → D-134·D-136·D-137. 다음은 4단계(Cafe24)
 
 ### D-131: 정규화기가 상품주문 식별자를 위조 — 유니크 제약과 충돌 예정 (2026-08-06)
 - 심각도: P1 (동기화 전면 실패 유발) · 리스크 등급: 표준 · 상태: **검증통과**
@@ -2133,3 +2133,51 @@ Cafe24 몰에 **롯데택배가 등록돼 있지 않아** 매칭에 실패한다
 잘못 판단했다(실제로는 이미 배포됨). 대조군 심볼로 검사 자체를 검증하지 않은 탓이다.
 **배포 확인은 서버 저장소의 커밋(`git -C <compose working_dir> log`)으로 하는 것이 확실하다** —
 compose working_dir은 `docker inspect <container> --format '{{json .Config.Labels}}'`로 찾는다.
+
+### D-137: 쿠팡 다품목·분할배송 3단계 — 어댑터·동기화 3계층 전환 (2026-08-06)
+- 심각도: **P1**(다품목 주문의 2번째 상품부터 완전 유실) · 리스크 등급: **중대**(마켓 API 계약·동기화 매칭·다도메인) · 상태: **검증통과**
+- **실물 확인부터 했다** — 2단계에서 전제를 검증 없이 물려받아 두 번 데었기 때문이다(D-136).
+  쿠팡 HMAC 서명을 파이썬으로 재현해 `ordersheets`를 8개월 6개 상태로 훑었다(407행).
+
+**라이브로 확정한 응답 구조**
+- **행 하나 = 배송박스 하나.** 행 레벨: `orderId`·`shipmentBoxId`·`status`·`invoiceNumber`·
+  `deliveryCompanyName`·`splitShipping`·`ableSplitShipping`·`receiver`·`orderer`·`overseaShippingInfoDto`.
+- **상품 레벨(`orderItems[]`)**: `vendorItemId`·`sellerProductId`·`externalVendorSkuCode`·
+  `vendorItemName`·`shippingCount`·`orderPrice`·`salesPrice`·`canceled`·`cancelCount`.
+- **11번가와 결정적 차이 — 진행상태가 배송 레벨이다.** 11번가는 상품주문마다 상태가 갈리지만
+  쿠팡은 박스 하나에 `status` 하나다. 대신 상품별 `canceled` 플래그로 **부분취소가 상품 단위**로 표현된다.
+- **설계 §12-1은 실측으로 확정하지 못했다**: 407행 전부가 주문당 1행·1상품이었다 —
+  **우리 상점에 다품목·분할배송 쿠팡 주문 사례가 8개월간 없다.** 그래서 단정하지 않고
+  <b>두 해석 모두에서 옳게</b> 동작하도록 만들었다(같은 `orderId`의 행이 여럿이면 배송 여럿,
+  한 행에 상품이 여럿이면 라인아이템 여럿).
+- 수정:
+  - `orderItems[]` **전량 파싱**. 종전 `orderItems.get(0)`은 2번째부터 완전 유실이었다(D-130 실측 근거).
+  - `orderId`로 DTO **집계**. 행마다 DTO를 내보내면 `MarketOrderUpsertDispatcher`가 같은 주문을
+    여러 번 찾아 `onExisting`을 반복 호출하고 서로 덮어쓴다 — 11번가에서 겪은 함정을 미리 막았다.
+  - 상품주문 식별자를 **`배송박스:vendorItemId`**로 만들었다. 분할배송은 한 상품의 수량을 여러 박스로
+    쪼갤 수 있고, 그러면 `vendorItemId`만으로는 한 주문 안에서 중복돼 `uk_line_item_order_market_no`를
+    위반한다(D-131과 같은 부류의 전면 실패). 쿠팡의 실제 상품주문 단위는 (배송박스, 상품)이다.
+  - `canceled` 상품만 CANCELED로. 형제 상품은 그대로 둔다.
+  - 쓰기 경로 3곳이 **라인아이템이 속한 배송**에서 `shipmentBoxId`를 얻는다(`resolveShipmentBoxId`).
+    `sb_order.shipment_box_id`는 주문당 하나라 분할배송을 표현하지 못한다.
+  - **발주확인이 주문의 모든 배송박스**를 확인한다. 종전엔 주문 컬럼 하나만 넘겨, 분할배송이면
+    나머지 박스가 미확인으로 남는다 — 11번가 D-134와 같은 형태의 결함이다.
+  - `fixCarriers`가 평면 필드 대신 **배송**에서 읽는다. 라인아이템의 배송식별자로 짝짓고, 배송이
+    아직 없는 레거시 행은 배송이 하나뿐일 때만 적용한다(여러 박스 중 아무거나 붙이면 오염된다).
+- **구현 중 자체 발견해 고친 결함 1건**: `resolveProductId`를 상품주문당 **두 번** 호출하고 있었다
+  (`Incoming` 생성 시 + 라인아이템 빌드 시). 쿠팡의 `vendorItemId` 보강은 `marketRegistrationRepository.save`
+  **부수효과가 있는 경로**여서 저장이 두 번 일어났다(기존 테스트가 잡았다). 해석 결과를 한 번만 구해
+  재사용하도록 고치고 11번가에도 같이 적용했다.
+- **설계에서 의도적으로 벗어난 것**: 설계 §4.3/§8은 3단계에서 `sb_order.shipment_box_id`를 제거하라고
+  했으나 **유지했다.** 지금 지워도 얻는 것이 없고(값을 계속 쓰는 폴백 경로가 남아 있다) 파괴적
+  스키마 변경이라, 다른 미러 컬럼과 함께 6단계(정리)에서 지운다.
+- 검증: 신규 테스트 16건(라이브 응답 구조를 픽스처로), 전체 **906 테스트 실패 0**
+  (core 590 · api 152 · worker 60 · infrastructure 104). 스키마·프론트 변경 없음.
+- 라이브 검증 한계(정직하게): 우리 데이터에 다품목·분할배송 사례가 없어 **그 경로는 실물로 확인할 수
+  없다.** 단일 상품 경로(407행 전부의 형태)만 실측 확인 가능하다.
+
+**진단 방법 기록 — 쿠팡 API 직접 조회**
+`CoupangHmacUtil`과 동형의 서명을 파이썬으로 재현해 서버에서 호출했다:
+`message = yyMMdd'T'HHmmss'Z' + METHOD + path + query`, HMAC-SHA256(secretKey), 헤더
+`Authorization: CEA algorithm=HmacSHA256, access-key=…, signed-date=…, signature=…` + `X-Requested-By: vendorId`.
+`ordersheets`는 `searchType=timeframe`으로 31일 이내만 조회되며 `maxPerPage=50`·`nextToken` 페이징이다.

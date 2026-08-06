@@ -101,7 +101,9 @@ class OrderSyncEventEmissionTest {
 			marketRegistrationRepository, eventPublisher, coupangOrderAdapter, coupangStatusMapper,
 			syncStatusService, marketFeeService,
 			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.actionlog.ActionLogService.class));
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.actionlog.ActionLogService.class),
+			// 3단계: 배송 계층 upsert. 이 테스트들은 배송을 검증하지 않으므로 목으로 둔다.
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.OrderShipmentUpsertService.class));
 
 		service.syncCoupangOrders();
 

@@ -6,10 +6,14 @@ import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.domain.order.Shipment;
 import com.sbshop.agent.core.application.fee.MarketFeeService;
+import com.sbshop.agent.core.application.order.dto.MarketLineItemDto;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
+import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.application.order.adapter.CoupangOrderAdapter;
@@ -22,6 +26,7 @@ import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,6 +57,9 @@ public class CoupangOrderSyncService {
 	// D-087: 정산(S5)은 SyncCompletedEvent 미발행 → ActionLogSyncListener가 완료를 못 남긴다.
 	// 이 서비스가 완료/실패를 COUPANG_SETTLEMENT_SYNC 로 직접 기록해 운영자가 실패를 인지하게 한다.
 	private final com.sbshop.agent.core.application.actionlog.ActionLogService actionLogService;
+
+	/** 3단계: 배송 계층 upsert + 라인아이템 미러(설계 4.4). 생성자 인자 순서상 마지막이다. */
+	private final OrderShipmentUpsertService orderShipmentUpsertService;
 
 	// -- 상태 --
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
@@ -208,6 +216,9 @@ public class CoupangOrderSyncService {
 
 	/* ----- 주문 목록 저장/업데이트 ----- */
 	private void processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential) {
+		// 3단계: 어댑터가 3계층으로 내주지만 정규화기를 경계에 둔다 — 평면 DTO가 들어와도
+		// 배송 1 : 상품주문 1로 감싸진다(설계 5.1).
+		marketOrders = marketOrders.stream().map(MarketOrderNormalizer::normalize).toList();
 		// F-SYNC-5: 기존/신규 판정·분기 골격만 공통 헬퍼에 위임. 갱신/생성의 쿠팡 고유 로직
 		// (trackingSentToMarket 보존 가드, 정산액 ×0.89, sellerProductId 역조회 보강 등)은 아래 콜백에 그대로 남는다.
 		MarketOrderUpsertDispatcher.dispatch(
@@ -216,38 +227,122 @@ public class CoupangOrderSyncService {
 
 	/* ----- 기존 주문 업데이트 ----- */
 	private void updateExistingOrder(Order order, MarketOrderDto dto) {
-		// 1. lineItem 조회
 		List<OrderLineItem> lineItems = orderLineItemRepository.findByOrderId(order.getId());
-		// 2. lineItem별 업데이트 (productId, trackingNo, carrier, status)
-		for (OrderLineItem item : lineItems) {
-			updateLineItemFromDto(item, dto);
-		}
-		// 3. 주문 정보 업데이트 (받는이, 주소, 메시지 등)
 		updateOrderInfoFromDto(order, dto, lineItems);
-		// 4. 저장
 		orderRepository.save(order);
-		lineItems.forEach(orderLineItemRepository::save);
+		syncShipmentsAndLineItems(order, dto, lineItems);
 	}
 
-	/* ----- LineItem 업데이트 ----- */
-	private void updateLineItemFromDto(OrderLineItem item, MarketOrderDto dto) {
-		// 1. productId 매칭
-		Long productId = resolveProductId(dto);
+	/* ----- 신규 주문 생성 ----- */
+	private void createNewOrder(MarketOrderDto dto) {
+		Order order = buildOrderFromDto(dto);
+		orderRepository.save(order);
+		log.info("[COUPANG] 신규 주문 저장 완료: id={}, orderNo={}", order.getId(), order.getMarketOrderNo());
+		syncShipmentsAndLineItems(order, dto, List.of());
+	}
+
+	/**
+	 * 3단계 핵심: 배송박스를 배송으로 upsert하고 상품주문마다 라인아이템을 맞춰 넣는다.
+	 *
+	 * <p>매칭은 <b>주문 전체에서 한 번</b> 한다. 배송별로 나눠 매칭하면 상품주문이 다른 박스로
+	 * 옮겨갔을 때 같은 기존 행을 두 배송이 각각 채택해 중복이 생긴다.
+	 *
+	 * <p>송장은 여기서 직접 쓰지 않는다 — 배송이 단일 원본이고 {@code linkToShipment}가 내려쓴다
+	 * (설계 4.4, D-133). 진행상태·상품·정산액만 라인아이템에 반영한다.
+	 */
+	private void syncShipmentsAndLineItems(Order order, MarketOrderDto dto, List<OrderLineItem> existing) {
+		List<MarketShipmentDto> shipmentDtos = dto.getShipments();
+		if (shipmentDtos == null || shipmentDtos.isEmpty()) {
+			log.warn("[COUPANG] 배송 계층이 없는 DTO — 건너뜀: orderNo={}", dto.getMarketOrderNo());
+			return;
+		}
+
+		java.util.IdentityHashMap<MarketLineItemDto, MarketShipmentDto> owner = new java.util.IdentityHashMap<>();
+		// 상품 해석은 상품주문당 <b>한 번만</b> 한다. 두 번 부르면 쿠팡의 vendorItemId 보강처럼
+		// 부수효과가 있는 경로가 중복 실행된다(라이브 저장이 두 번 일어났다).
+		java.util.IdentityHashMap<MarketLineItemDto, Long> resolvedProducts = new java.util.IdentityHashMap<>();
+		List<OrderLineItemMatcher.Incoming> incoming = new ArrayList<>();
+		for (MarketShipmentDto shipmentDto : shipmentDtos) {
+			if (shipmentDto.getLineItems() == null) {
+				continue;
+			}
+			for (MarketLineItemDto lineItemDto : shipmentDto.getLineItems()) {
+				owner.put(lineItemDto, shipmentDto);
+				Long productId = resolveProductId(lineItemDto);
+				resolvedProducts.put(lineItemDto, productId);
+				incoming.add(new OrderLineItemMatcher.Incoming(lineItemDto, productId));
+			}
+		}
+
+		OrderLineItemMatcher.MatchResult match = OrderLineItemMatcher.matchAndAdopt(existing, incoming);
+		for (String warning : match.warnings()) {
+			log.warn("[COUPANG] orderNo={} {}", dto.getMarketOrderNo(), warning);
+		}
+
+		java.util.IdentityHashMap<MarketShipmentDto, Shipment> shipments = new java.util.IdentityHashMap<>();
+		for (MarketShipmentDto shipmentDto : shipmentDtos) {
+			shipments.put(shipmentDto, orderShipmentUpsertService.upsertShipment(order.getId(), shipmentDto));
+		}
+
+		for (OrderLineItemMatcher.Adoption adoption : match.matched()) {
+			OrderLineItem item = adoption.lineItem();
+			updateLineItemFromDto(item, adoption.dto(), resolvedProducts.get(adoption.dto()));
+			orderLineItemRepository.save(item);
+			orderShipmentUpsertService.linkToShipment(item, shipments.get(owner.get(adoption.dto())));
+		}
+
+		if (shouldDeferSplit(match, incoming)) {
+			// 상품을 식별할 수 없는 상품주문이 있는데 짝짓지 못한 기존 행이 남았다. 새 행을 만들면
+			// 빈 껍데기 행과 고아 행이 동시에 생긴다(D-136에서 11번가가 실제로 그렇게 됐다).
+			log.warn("[COUPANG] ⚠ 분할 보류: orderNo={} 상품주문 {}건을 만들지 않았다 —"
+				+ " 상품을 식별할 수 없고 짝짓지 못한 기존 행이 있다(id={})",
+				dto.getMarketOrderNo(), match.toCreate().size(),
+				match.unclaimed().stream().map(OrderLineItem::getId).toList());
+			return;
+		}
+
+		for (MarketLineItemDto lineItemDto : match.toCreate()) {
+			OrderLineItem created = buildLineItemFromDto(lineItemDto, order.getId(),
+				resolvedProducts.get(lineItemDto));
+			orderLineItemRepository.save(created);
+			orderShipmentUpsertService.linkToShipment(created, shipments.get(owner.get(lineItemDto)));
+			log.info("[COUPANG] 상품주문 신규 라인아이템 생성: orderNo={}, key={}",
+				dto.getMarketOrderNo(), lineItemDto.getMarketLineItemNo());
+		}
+
+		if (!match.unclaimed().isEmpty()) {
+			log.warn("[COUPANG] orderNo={} 마켓이 더는 보내지 않는 라인아이템 {}건 — 지우지 않고 남긴다",
+				dto.getMarketOrderNo(), match.unclaimed().size());
+		}
+	}
+
+	/** D-136과 같은 정책 — 빈 껍데기 행과 고아 행을 동시에 만드는 조합을 막는다. */
+	private boolean shouldDeferSplit(OrderLineItemMatcher.MatchResult match,
+		List<OrderLineItemMatcher.Incoming> incoming) {
+		if (match.toCreate().isEmpty() || match.unclaimed().isEmpty()) {
+			return false;
+		}
+		return match.toCreate().stream().anyMatch(create -> incoming.stream()
+			.anyMatch(in -> in.dto() == create && in.resolvedProductId() == null));
+	}
+
+	/**
+	 * 상품주문 값을 라인아이템에 반영한다.
+	 *
+	 * <p>송장·택배사는 <b>건드리지 않는다</b> — 배송이 단일 원본이고 미러가 내려쓴다(D-133).
+	 * 상태가 {@code UNKNOWN}이면 덮지 않는다 — 새 상태값이 등장했을 때 배송중 주문이 신규로
+	 * 되돌아가는 것이 가장 나쁜 실패다.
+	 */
+	private void updateLineItemFromDto(OrderLineItem item, MarketLineItemDto dto, Long productId) {
 		if (productId != null && !productId.equals(item.getProductId())) {
 			item.assignProductId(productId);
 		}
-		// 2. D-120: 종전 가드는 "우리가 마켓에 보낸 송장(trackingSentToMarket=true)"일 때만 마켓 값을 반영했다.
-		// 그러면 판매자가 쿠팡 윙에서 직접 입력한 송장은 영원히 유입되지 못한다 — 마켓이 진실 원본이라는
-		// 원칙에 어긋난다. 가드의 실제 목적은 "마켓의 빈 값이 우리 실값을 지우는 것"을 막는 것이므로,
-		// 전송 여부가 아니라 마켓 값의 유의미성으로 판정한다(D-107/108 PII 가드와 동형).
-		boolean canOverwriteTracking = ShippingData.isMeaningfulTracking(dto.getTrackingNo());
-		// 3. 배송 정보 갱신 (shippingStatus는 항상 갱신, trackingNo/carrier는 조건부)
+		ShippingStatus status = dto.getStatus();
+		if (status == null || status == ShippingStatus.UNKNOWN) {
+			return;
+		}
 		ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
-			.trackingNo(canOverwriteTracking ? dto.getTrackingNo() : null)
-			.shippingCarrier(canOverwriteTracking ? dto.getCarrier() : null)
-			.shippingStatus(dto.getStatus())
-			// D-129: 마켓이 준 송장을 채택했다면 마켓이 그 송장을 보유한다는 뜻이다.
-			.trackingSentToMarket(ShippingData.marketOwnsTracking(dto.getTrackingNo()))
+			.shippingStatus(status)
 			.build();
 		item.applyShippingData(cmd.toShippingData(item.getShippingData()));
 	}
@@ -266,21 +361,9 @@ public class CoupangOrderSyncService {
 			dto.getOrdererPhone(),
 			dto.getShipmentBoxId(),
 			dto.getMarketType());
-		// 4. 통관번호 갱신
 		if (dto.getCustomsClearanceNo() != null) {
 			order.updateCustomsClearanceNo(dto.getCustomsClearanceNo());
 		}
-	}
-
-	/* ----- 신규 주문 생성 ----- */
-	private void createNewOrder(MarketOrderDto dto) {
-		// 1. Order 엔티티 생성 및 저장
-		Order order = buildOrderFromDto(dto);
-		orderRepository.save(order);
-		log.info("[COUPANG] 신규 주문 저장 완료: id={}, orderNo={}", order.getId(), order.getMarketOrderNo());
-		// 2. OrderLineItem 생성 및 저장
-		OrderLineItem lineItem = buildLineItemFromDto(dto, order.getId());
-		orderLineItemRepository.save(lineItem);
 	}
 
 	/* ----- DTO → Order 변환 ----- */
@@ -301,24 +384,25 @@ public class CoupangOrderSyncService {
 			.build();
 	}
 
-	/* ----- DTO → OrderLineItem 변환 ----- */
-	private OrderLineItem buildLineItemFromDto(MarketOrderDto dto, Long orderId) {
-		// 1. productId 매칭 (market_registration)
-		Long productId = resolveProductId(dto);
-		// 2. 정산액 초기값 = 총액 × (1 - 쿠팡 수수료율/100). 마켓별 요율(FeePolicy)을 sync에서 1회만 적용.
-		//    (실제 정산 API 값이 오면 위 콜백에서 applySettlement로 덮어씀.)
-		BigDecimal settlementAmount = marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.COUPANG);
+	/**
+	 * 상품주문 1건의 라인아이템을 만든다.
+	 *
+	 * <p>송장은 넣지 않는다 — 배송이 단일 원본이고 미러가 내려쓴다(D-133). 정산액은 이 상품주문의
+	 * 금액으로 계산한다. 종전엔 주문 전체가 한 행이라 첫 상품 금액만 반영됐다.
+	 */
+	private OrderLineItem buildLineItemFromDto(MarketLineItemDto dto, Long orderId, Long productId) {
+		BigDecimal settlementAmount = dto.getSettlementAmount() != null
+			&& dto.getSettlementAmount().signum() != 0
+				? dto.getSettlementAmount()
+				: marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.COUPANG);
 
 		return OrderLineItem.builder()
 			.orderId(orderId)
 			.productId(productId)
-			.quantity(dto.getQuantity())
+			.quantity(dto.getQuantity() != null ? dto.getQuantity() : 0)
+			.marketLineItemNo(dto.getMarketLineItemNo())
 			.shippingData(ShippingData.builder()
-				.trackingNo(dto.getTrackingNo())
 				.shippingStatus(dto.getStatus())
-				.shippingCarrier(dto.getCarrier())
-				// D-129: 마켓이 준 실송장이면 마켓 보유로 마킹(신규 주문 생성 경로).
-				.trackingSentToMarket(ShippingData.marketOwnsTracking(dto.getTrackingNo()))
 				.build())
 			.settlementData(SettlementData.builder()
 				.settlementAmount(settlementAmount)
@@ -328,7 +412,7 @@ public class CoupangOrderSyncService {
 	}
 
 	/* ----- MarketRegistration → sb_productId 조회 ----- */
-	private Long resolveProductId(MarketOrderDto dto) {
+	private Long resolveProductId(MarketLineItemDto dto) {
 		if (dto.getMarketProductCode() != null) {
 			// 1. vendorItemId로 market_registration 검색 (2회차 이후 동기화는 여기서 직접 매칭)
 			List<MarketRegistration> regs = marketRegistrationRepository
