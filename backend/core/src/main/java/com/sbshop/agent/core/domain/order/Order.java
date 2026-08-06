@@ -113,6 +113,22 @@ public class Order extends BaseEntity {
 		this.marketSpecificData = marketSpecificData;
 	}
 
+	/**
+	 * 마켓 주문번호를 갈아 끼운다 — <b>마켓의 주문 식별 단위가 바뀔 때만</b> 쓴다.
+	 *
+	 * <p>N스토어 5단계에서 주문 키가 상품주문번호({@code productOrderId})에서 주문번호
+	 * ({@code orderId})로 바뀌었다. 옛 키로 저장된 행을 새 키로 찾지 못한다고 새로 만들면 같은
+	 * 주문이 두 행이 되고, 소싱처·실구매가·구매상태가 붙은 옛 행이 고아가 된다.
+	 *
+	 * <p>{@code market_order_no}는 전역 유니크다 — 호출자는 새 키가 비어 있는지 먼저 확인해야 한다.
+	 */
+	public void rekeyMarketOrderNo(String marketOrderNo) {
+		if (marketOrderNo == null || marketOrderNo.isBlank()) {
+			throw new IllegalArgumentException("빈 주문번호로 갈아 끼울 수 없습니다: id=" + getId());
+		}
+		this.marketOrderNo = marketOrderNo;
+	}
+
 	/** 배송지 주소 변경 */
 	public void updateAddress(String address) {
 		this.address = address;

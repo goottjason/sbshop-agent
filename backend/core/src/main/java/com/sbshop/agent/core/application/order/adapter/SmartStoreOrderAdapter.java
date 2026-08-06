@@ -6,7 +6,9 @@ import com.sbshop.agent.core.application.order.port.SmartStoreOrderApiPort;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.application.order.dto.MarketLineItemDto;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
+import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
@@ -20,6 +22,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -55,7 +59,12 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 	@Override
 	public List<MarketOrderDto> fetchOrders(MarketCredential credential,
 		LocalDate fromDate, LocalDate toDate) {
-		List<MarketOrderDto> result = new ArrayList<>();
+		// 5단계: 응답 원소는 <b>상품주문</b> 하나다. 주문(orderId)으로 묶어 3계층으로 낸다.
+		// 청크 경계를 넘어 누적해야 한다 — 같은 주문의 상품주문이 서로 다른 날 바뀌면 다른 청크에 온다.
+		// 안쪽 맵의 키가 상품주문번호이므로, 창 안에서 상태가 두 번 바뀌어 두 청크에 나온 상품주문은
+		// 나중 것이 앞의 것을 덮는다(최신이 진실). 그대로 두면 라인아이템 키가 중복돼
+		// uk_line_item_order_market_no 위반으로 동기화가 통째로 실패한다.
+		LinkedHashMap<String, LinkedHashMap<String, ProductOrderRow>> grouped = new LinkedHashMap<>();
 
 		String clientId = credential.getClientId();
 		String secretKey = credential.getSecretKey();
@@ -88,16 +97,16 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 						JsonNode productOrderInfo = orderNode.path("productOrder");
 						JsonNode deliveryInfo = orderNode.path("delivery");
 
-						String productOrderId = productOrderInfo.path("productOrderId").asText();
 						String status = productOrderInfo.path("productOrderStatus").asText();
 
 						if ("PAYMENT_WAITING".equalsIgnoreCase(status)) {
 							continue;
 						}
 
-						MarketOrderDto dto = parseOrderNode(orderInfo, productOrderInfo, deliveryInfo, status);
-						if (dto != null) {
-							result.add(dto);
+						ProductOrderRow row = parseProductOrder(orderInfo, productOrderInfo, deliveryInfo, status);
+						if (row != null) {
+							grouped.computeIfAbsent(row.orderKey(), k -> new LinkedHashMap<>())
+								.put(row.productOrderId(), row);
 						}
 					}
 				}
@@ -131,6 +140,10 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 				successChunks, failedChunks, lastFailure != null ? lastFailure.getMessage() : "-");
 		}
 
+		List<MarketOrderDto> result = new ArrayList<>();
+		for (LinkedHashMap<String, ProductOrderRow> productOrders : grouped.values()) {
+			result.add(toOrderDto(productOrders));
+		}
 		return result;
 	}
 
@@ -184,10 +197,114 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 		}
 	}
 
-	private MarketOrderDto parseOrderNode(JsonNode orderInfo, JsonNode productOrderInfo,
+	/**
+	 * 응답 원소 하나(= 상품주문 1건)를 중간 표현으로 파싱한다.
+	 *
+	 * <p>주문 계층 필드({@code recipient*}·주소·구매자)가 상품주문마다 실려 오지만 같은 주문이면
+	 * 같은 값이다. 묶을 때 대표값 하나만 쓴다.
+	 */
+	private record ProductOrderRow(
+		String orderKey, String productOrderId, String packageNumber,
+		LocalDateTime orderDate, String recipientName, String recipientPhone,
+		String zipcode, String address, String message,
+		String ordererName, String ordererPhone, String customsClearanceNo,
+		String productName, String sellerProductCode, int quantity,
+		BigDecimal unitPrice, BigDecimal totalAmount, BigDecimal settlementAmount,
+		ShippingStatus status, String trackingNo, ShippingCarrier carrier, String deliveryStatus) {
+
+		/** 이 상품주문이 속한 배송의 식별자. 묶음배송번호가 없으면 상품주문번호로 대체한다(설계 §3.3). */
+		String shipmentKey() {
+			return (packageNumber != null && !packageNumber.isBlank()) ? packageNumber : productOrderId;
+		}
+	}
+
+	/**
+	 * 한 주문의 상품주문들을 3계층 DTO로 조립한다.
+	 *
+	 * <p>배송은 {@code packageNumber}로 가른다 — 묶음배송이면 상품주문 여러 건이 한 배송에 들어가고,
+	 * 분리배송이면 배송이 갈린다. 송장은 <b>배송에 붙인다</b>(한 배송 = 한 송장).
+	 */
+	private MarketOrderDto toOrderDto(LinkedHashMap<String, ProductOrderRow> productOrders) {
+		// 대표값은 마지막(가장 최근에 바뀐) 상품주문에서 취한다 — 주문 계층 값은 어차피 같다.
+		ProductOrderRow representative = null;
+		LinkedHashMap<String, List<ProductOrderRow>> byShipment = new LinkedHashMap<>();
+		for (ProductOrderRow row : productOrders.values()) {
+			representative = row;
+			byShipment.computeIfAbsent(row.shipmentKey(), k -> new ArrayList<>()).add(row);
+		}
+
+		List<MarketShipmentDto> shipments = new ArrayList<>();
+		for (Map.Entry<String, List<ProductOrderRow>> entry : byShipment.entrySet()) {
+			// 한 배송 = 한 송장. 이 배송의 상품주문 중 송장을 알려준 것이 있으면 그것이 배송의 송장이다.
+			ProductOrderRow withTracking = entry.getValue().stream()
+				.filter(r -> r.trackingNo() != null && !r.trackingNo().isBlank())
+				.findFirst().orElse(null);
+			List<MarketLineItemDto> lineItems = new ArrayList<>();
+			for (ProductOrderRow row : entry.getValue()) {
+				Map<String, Object> lineData = new HashMap<>();
+				lineData.put("productOrderId", row.productOrderId());
+				if (row.packageNumber() != null) {
+					lineData.put("packageNumber", row.packageNumber());
+				}
+				lineItems.add(MarketLineItemDto.builder()
+					.marketLineItemNo(row.productOrderId())
+					.marketProductCode(row.sellerProductCode())
+					.productName(row.productName())
+					.quantity(row.quantity())
+					.orderPrice(row.unitPrice())
+					.totalAmount(row.totalAmount())
+					.settlementAmount(row.settlementAmount())
+					.status(row.status())
+					.marketSpecificData(lineData)
+					.build());
+			}
+			shipments.add(MarketShipmentDto.builder()
+				.marketShipmentNo(entry.getKey())
+				.trackingNo(withTracking != null ? withTracking.trackingNo() : null)
+				.carrier(withTracking != null ? withTracking.carrier() : null)
+				.deliveryStatus(withTracking != null ? withTracking.deliveryStatus() : null)
+				.lineItems(lineItems)
+				.build());
+		}
+
+		// 주문 계층 마켓 데이터 — 발주확인·주문취소가 읽는다(둘 다 상품주문 단위 API다).
+		// 구분자가 콤마가 아닌 이유: Order.marketSpecificData는 자체 구현 유사 JSON이고 읽을 때
+		// ','로 split한다 — 콤마를 쓰면 값이 조용히 잘린다(D-135).
+		Map<String, Object> orderData = new HashMap<>();
+		orderData.put("productOrderIds", String.join("|", productOrders.keySet()));
+
+		return MarketOrderDto.builder()
+			.marketType(getMarketType())
+			.marketOrderNo(representative.orderKey())
+			.marketProductCode(representative.sellerProductCode())
+			.productName(representative.productName())
+			.quantity(representative.quantity())
+			.orderPrice(representative.unitPrice())
+			.totalAmount(representative.totalAmount())
+			.recipientName(representative.recipientName())
+			.recipientPhone(representative.recipientPhone())
+			.zipcode(representative.zipcode())
+			.address(representative.address())
+			.message(representative.message())
+			.ordererName(representative.ordererName())
+			.ordererPhone(representative.ordererPhone())
+			.customsClearanceNo(representative.customsClearanceNo())
+			.status(representative.status())
+			.orderDate(representative.orderDate())
+			.marketSpecificData(orderData)
+			.shipments(shipments)
+			.build();
+	}
+
+	private ProductOrderRow parseProductOrder(JsonNode orderInfo, JsonNode productOrderInfo,
 		JsonNode deliveryInfo, String status) {
 		try {
 			String productOrderId = productOrderInfo.path("productOrderId").asText();
+			// 5단계: 주문 키는 orderId다. 실측상 22/22 존재하지만, 없으면 상품주문번호로 폴백한다 —
+			// 식별자를 못 얻었다고 주문을 드롭하면 그 주문이 통째로 사라진다(D-131/D-136에서 배운 것).
+			String orderId = orderInfo.path("orderId").asText(null);
+			String orderKey = (orderId != null && !orderId.isBlank()) ? orderId : productOrderId;
+			String packageNumber = productOrderInfo.path("packageNumber").asText(null);
 
 			String orderDateStr = orderInfo.path("orderDate").asText();
 			LocalDateTime orderDate = ZonedDateTime.parse(orderDateStr).toLocalDateTime();
@@ -232,28 +349,27 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 			String trackingNo = deliveryInfo.path("trackingNumber").asText(null);
 			String deliveryCompanyCode = deliveryInfo.path("deliveryCompany").asText(null);
 			ShippingCarrier carrier = ShippingCarrier.fromMarketCode(deliveryCompanyCode);
+			String deliveryStatus = deliveryInfo.path("deliveryStatus").asText(null);
 
-			return MarketOrderDto.builder()
-				.marketType(getMarketType())
-				.marketOrderNo(productOrderId)
-				.marketProductCode(sellerProductCode)
-				.productName(productName)
-				.quantity(quantity)
-				.orderPrice(unitPrice)
-				.totalAmount(totalPaymentAmount)
-				.recipientName(receiverName.isEmpty() ? recipientName : receiverName)
-				.recipientPhone(receiverPhone.isEmpty() ? recipientPhone : receiverPhone)
-				.zipcode(zipCode)
-				.address(address)
-				.message(message)
-				.ordererName(ordererName)
-				.ordererPhone(ordererPhone)
-				.customsClearanceNo(customsClearanceNo)
-				.trackingNo(trackingNo)
-				.carrier(carrier)
-				.status(shippingStatus)
-				.orderDate(orderDate)
-				.build();
+			// 마켓이 알려준 정산예정금액. 실측상 22/22 존재한다 — 요율 추정보다 항상 정확하다(설계 §9.1).
+			BigDecimal settlementAmount = null;
+			String settlementRaw = productOrderInfo.path("expectedSettlementAmount").asText(null);
+			if (settlementRaw != null && !settlementRaw.isBlank()) {
+				try {
+					settlementAmount = new BigDecimal(settlementRaw);
+				} catch (NumberFormatException ignore) {
+					log.warn("스마트스토어 정산예정금액 파싱 실패: productOrderId={}, value={}",
+						productOrderId, settlementRaw);
+				}
+			}
+
+			return new ProductOrderRow(
+				orderKey, productOrderId, packageNumber, orderDate,
+				receiverName.isEmpty() ? recipientName : receiverName,
+				receiverPhone.isEmpty() ? recipientPhone : receiverPhone,
+				zipCode, address, message, ordererName, ordererPhone, customsClearanceNo,
+				productName, sellerProductCode, quantity, unitPrice, totalPaymentAmount,
+				settlementAmount, shippingStatus, trackingNo, carrier, deliveryStatus);
 
 		} catch (Exception e) {
 			log.error("스마트스토어 주문 파싱 실패: {}", e.getMessage());
@@ -275,6 +391,33 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 		};
 	}
 
+	/**
+	 * 발송처리·발주확인·취소는 전부 <b>상품주문 단위</b>다 — 주문번호(orderId)를 넘기면 안 된다.
+	 *
+	 * <p>5단계 전에는 주문번호가 곧 상품주문번호였다. 전환 후 주문은 {@code productOrderIds}를
+	 * 반드시 갖고, 갖지 않은 행은 전환 전에 저장된 것이므로 그때의 의미대로 주문번호를 쓴다.
+	 */
+	private List<String> resolveProductOrderIds(Order order) {
+		Map<String, String> data = order.getMarketSpecificDataMap();
+		String joined = data != null ? data.get("productOrderIds") : null;
+		if (joined != null && !joined.isBlank()) {
+			List<String> ids = new ArrayList<>();
+			// '|'가 정본 구분자다(D-135). 콤마도 받아 준다 — 상품주문번호는 숫자라 오인될 여지가 없다.
+			for (String part : joined.split("[|,]")) {
+				String id = part.trim();
+				if (!id.isEmpty()) {
+					ids.add(id);
+				}
+			}
+			if (!ids.isEmpty()) {
+				return ids;
+			}
+		}
+		// 전환 전 저장분: marketOrderNo가 곧 productOrderId였다.
+		String legacy = order.getMarketOrderNo();
+		return (legacy != null && !legacy.isBlank()) ? List.of(legacy) : List.of();
+	}
+
 	@Override
 	public void shipOrder(MarketCredential credential,
 		Order order, OrderLineItem lineItem,
@@ -283,17 +426,42 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 		smartStoreOrderApiPort.shipOrder(
 			credential.getClientId(),
 			credential.getSecretKey(),
-			order.getMarketOrderNo(),
+			resolveDispatchTarget(order, lineItem),
 			trackingNo,
 			deliveryCompanyCode);
 	}
 
+	/**
+	 * 이 발송이 대상으로 하는 상품주문 하나를 정한다.
+	 *
+	 * <p>라인아이템의 키가 정답이다. 없을 때 주문의 상품주문이 하나뿐이면 그것으로 확정할 수 있지만,
+	 * 여럿이면 <b>추측하지 않고 즉시 알린다</b> — 엉뚱한 상품이 발송 처리되면 되돌릴 수 없고,
+	 * 잘못된 식별자로 인한 마켓 거부는 마켓의 상태 잠금처럼 보여 원인 추적을 어렵게 만든다(D-127).
+	 */
+	private String resolveDispatchTarget(Order order, OrderLineItem lineItem) {
+		String key = lineItem != null ? lineItem.getMarketLineItemNo() : null;
+		if (key != null && !key.isBlank()) {
+			return key;
+		}
+		List<String> ids = resolveProductOrderIds(order);
+		if (ids.size() == 1) {
+			return ids.get(0);
+		}
+		throw new IllegalArgumentException(
+			"스마트스토어 발송처리 불가 — 상품주문번호를 특정할 수 없습니다: order=" + order.getMarketOrderNo()
+				+ ", 후보=" + ids + " (주문 동기화로 라인아이템 상품주문번호를 먼저 확보해야 합니다)");
+	}
+
+	/**
+	 * 발주확인은 주문의 <b>모든</b> 상품주문에 해야 한다. 하나라도 남으면 네이버는 그 주문을
+	 * 신규주문 목록에 계속 둔다(11번가에서 같은 현상을 겪었다).
+	 */
 	@Override
 	public void acceptOrders(MarketCredential credential, Order order) {
 		smartStoreOrderApiPort.confirmOrders(
 			credential.getClientId(),
 			credential.getSecretKey(),
-			List.of(order.getMarketOrderNo()));
+			resolveProductOrderIds(order));
 	}
 
 	@Override
@@ -301,6 +469,6 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 		smartStoreOrderApiPort.cancelOrders(
 			credential.getClientId(),
 			credential.getSecretKey(),
-			List.of(order.getMarketOrderNo()));
+			resolveProductOrderIds(order));
 	}
 }
