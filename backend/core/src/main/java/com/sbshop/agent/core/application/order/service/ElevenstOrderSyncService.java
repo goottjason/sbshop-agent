@@ -4,7 +4,10 @@ import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.domain.order.Shipment;
+import com.sbshop.agent.core.application.order.dto.MarketLineItemDto;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
+import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -43,6 +46,8 @@ public class ElevenstOrderSyncService {
 	private final com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 	private final MarketFeeService marketFeeService;
 	private final TerminalSettlementService terminalSettlementService;
+	/** 2단계: 배송 계층 upsert + 라인아이템 미러(설계 4.4). */
+	private final OrderShipmentUpsertService orderShipmentUpsertService;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -94,6 +99,9 @@ public class ElevenstOrderSyncService {
 	}
 
 	private void processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential) {
+		// 2단계: 어댑터가 3계층으로 내주지만, 정규화기를 경계에 둬서 평면 DTO가 들어와도
+		// 배송 1 : 상품주문 1로 감싸진다(설계 5.1). 이 서비스가 정규화기의 첫 소비자다.
+		marketOrders = marketOrders.stream().map(MarketOrderNormalizer::normalize).toList();
 		// F-SYNC-5: 기존/신규 판정·분기 골격만 공통 헬퍼에 위임. 갱신/생성의 11번가 고유 로직
 		// (findBySbCode 매핑, marketSpecificData 반영, marketType 조건부 갱신 등)은 아래 콜백에 그대로 남는다.
 		// 취소 감지(detectCancellations)는 postSyncProcess 경로에 그대로 유지된다.
@@ -103,29 +111,109 @@ public class ElevenstOrderSyncService {
 
 	private void updateExistingOrder(Order order, MarketOrderDto dto) {
 		List<OrderLineItem> lineItems = orderLineItemRepository.findByOrderId(order.getId());
-
-		for (OrderLineItem item : lineItems) {
-			updateLineItemFromDto(item, dto);
-		}
-
 		updateOrderInfoFromDto(order, dto, lineItems);
 		orderRepository.save(order);
-		lineItems.forEach(orderLineItemRepository::save);
+		syncShipmentsAndLineItems(order, dto, lineItems);
 	}
 
-	private void updateLineItemFromDto(OrderLineItem item, MarketOrderDto dto) {
+	private void createNewOrder(MarketOrderDto dto) {
+		Order order = buildOrderFromDto(dto);
+		orderRepository.save(order);
+		log.info("[ELEVEN_STREET] 신규 주문 저장 완료: id={}, orderNo={}", order.getId(), order.getMarketOrderNo());
+		syncShipmentsAndLineItems(order, dto, List.of());
+	}
+
+	/**
+	 * 2단계 핵심: 배송을 upsert하고 상품주문마다 라인아이템을 맞춰 넣는다.
+	 *
+	 * <p>매칭은 <b>주문 전체에서 한 번</b> 한다. 배송별로 나눠 매칭하면, 상품주문이 다른 배송으로
+	 * 옮겨갔을 때(묶음 → 개별 분리) 같은 기존 행을 두 배송이 각각 채택해 중복이 생긴다.
+	 *
+	 * <p>송장은 여기서 직접 쓰지 않는다 — 배송이 단일 원본이고 {@code linkToShipment}가 내려쓴다
+	 * (설계 4.4, D-133). 진행상태·상품·정산액만 라인아이템에 반영한다.
+	 */
+	private void syncShipmentsAndLineItems(Order order, MarketOrderDto dto, List<OrderLineItem> existing) {
+		List<MarketShipmentDto> shipmentDtos = dto.getShipments();
+		if (shipmentDtos == null || shipmentDtos.isEmpty()) {
+			log.warn("[ELEVEN_STREET] 배송 계층이 없는 DTO — 건너뜀: orderNo={}", dto.getMarketOrderNo());
+			return;
+		}
+
+		// 상품주문 → 소속 배송 역참조. 매칭 결과에서 배송을 되찾으려면 필요하다.
+		java.util.IdentityHashMap<MarketLineItemDto, MarketShipmentDto> owner =
+			new java.util.IdentityHashMap<>();
+		List<OrderLineItemMatcher.Incoming> incoming = new java.util.ArrayList<>();
+		for (MarketShipmentDto shipmentDto : shipmentDtos) {
+			if (shipmentDto.getLineItems() == null) {
+				continue;
+			}
+			for (MarketLineItemDto lineItemDto : shipmentDto.getLineItems()) {
+				owner.put(lineItemDto, shipmentDto);
+				incoming.add(new OrderLineItemMatcher.Incoming(lineItemDto, resolveProductId(lineItemDto)));
+			}
+		}
+
+		OrderLineItemMatcher.MatchResult match =
+			OrderLineItemMatcher.matchAndAdopt(existing, incoming);
+		for (String warning : match.warnings()) {
+			log.warn("[ELEVEN_STREET] orderNo={} {}", dto.getMarketOrderNo(), warning);
+		}
+
+		// 배송 upsert는 배송식별자당 한 번만. 여러 상품주문이 같은 배송을 가리킨다.
+		java.util.IdentityHashMap<MarketShipmentDto, Shipment> shipments = new java.util.IdentityHashMap<>();
+		for (MarketShipmentDto shipmentDto : shipmentDtos) {
+			shipments.put(shipmentDto, orderShipmentUpsertService.upsertShipment(order.getId(), shipmentDto));
+		}
+
+		for (OrderLineItemMatcher.Adoption adoption : match.matched()) {
+			OrderLineItem item = adoption.lineItem();
+			updateLineItemFromDto(item, adoption.dto());
+			orderLineItemRepository.save(item);
+			orderShipmentUpsertService.linkToShipment(item, shipments.get(owner.get(adoption.dto())));
+		}
+
+		for (MarketLineItemDto lineItemDto : match.toCreate()) {
+			OrderLineItem created = buildLineItemFromDto(lineItemDto, order.getId());
+			orderLineItemRepository.save(created);
+			orderShipmentUpsertService.linkToShipment(created, shipments.get(owner.get(lineItemDto)));
+			log.info("[ELEVEN_STREET] 상품주문 신규 라인아이템 생성: orderNo={}, ordPrdSeq={}",
+				dto.getMarketOrderNo(), lineItemDto.getMarketLineItemNo());
+		}
+
+		if (!match.unclaimed().isEmpty()) {
+			if (!match.toCreate().isEmpty()) {
+				// 이 조합이 사람의 확인을 요구한다: 새 행을 만들면서 옛 행을 짝짓지 못했다는 뜻이므로,
+				// 소싱처·실구매가·구매상태가 붙은 행이 고아로 남았을 수 있다. 상품 정보가 양쪽에 없어
+				// (예: 배송중 목록에만 있는 다품목 주문) 자동 판정이 불가능한 경우다.
+				log.warn("[ELEVEN_STREET] ⚠ 확인 필요: orderNo={} 신규 {}건을 만들면서 기존 {}건을 짝짓지 못했다"
+					+ " — 구매정보가 옛 행에 남아 있을 수 있다(라인아이템 id={})",
+					dto.getMarketOrderNo(), match.toCreate().size(), match.unclaimed().size(),
+					match.unclaimed().stream().map(OrderLineItem::getId).toList());
+			} else {
+				log.warn("[ELEVEN_STREET] orderNo={} 마켓이 더는 보내지 않는 라인아이템 {}건 — 지우지 않고 남긴다",
+					dto.getMarketOrderNo(), match.unclaimed().size());
+			}
+		}
+	}
+
+	/**
+	 * 상품주문 값을 라인아이템에 반영한다.
+	 *
+	 * <p>송장·택배사는 <b>건드리지 않는다</b> — 배송이 단일 원본이고 미러가 내려쓴다(D-133).
+	 * 상태가 {@code UNKNOWN}이면 덮지 않는다. 새 상태명이 등장했을 때 배송중 주문이 신규로
+	 * 되돌아가는 것이 가장 나쁜 실패다.
+	 */
+	private void updateLineItemFromDto(OrderLineItem item, MarketLineItemDto dto) {
 		Long productId = resolveProductId(dto);
 		if (productId != null && !productId.equals(item.getProductId())) {
 			item.assignProductId(productId);
 		}
-		// D-120: 마켓 값이 실값일 때만 송장을 반영한다(빈 값/자리표시자로 기존 송장을 지우지 않음).
-		boolean canOverwriteTracking = ShippingData.isMeaningfulTracking(dto.getTrackingNo());
+		ShippingStatus status = dto.getStatus();
+		if (status == null || status == ShippingStatus.UNKNOWN) {
+			return;
+		}
 		ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
-			.trackingNo(canOverwriteTracking ? dto.getTrackingNo() : null)
-			.shippingCarrier(canOverwriteTracking ? dto.getCarrier() : null)
-			.shippingStatus(dto.getStatus())
-			// D-129: 마켓이 준 송장을 채택했다면 마켓이 그 송장을 보유한다는 뜻이다.
-			.trackingSentToMarket(ShippingData.marketOwnsTracking(dto.getTrackingNo()))
+			.shippingStatus(status)
 			.build();
 		item.applyShippingData(cmd.toShippingData(item.getShippingData()));
 	}
@@ -148,15 +236,6 @@ public class ElevenstOrderSyncService {
 			}
 			order.setMarketSpecificDataFromMap(stringMap);
 		}
-	}
-
-	private void createNewOrder(MarketOrderDto dto) {
-		Order order = buildOrderFromDto(dto);
-		orderRepository.save(order);
-		log.info("[ELEVEN_STREET] 신규 주문 저장 완료: id={}, orderNo={}", order.getId(), order.getMarketOrderNo());
-
-		OrderLineItem lineItem = buildLineItemFromDto(dto, order.getId());
-		orderLineItemRepository.save(lineItem);
 	}
 
 	private Order buildOrderFromDto(MarketOrderDto dto) {
@@ -186,28 +265,30 @@ public class ElevenstOrderSyncService {
 		return order;
 	}
 
-	private OrderLineItem buildLineItemFromDto(MarketOrderDto dto, Long orderId) {
-		Long productId = resolveProductId(dto);
-
+	/**
+	 * 상품주문 1건의 라인아이템을 만든다.
+	 *
+	 * <p>송장은 넣지 않는다 — 배송이 단일 원본이고 미러가 내려쓴다(D-133). 정산액은 이 상품주문의
+	 * 금액으로 계산한다. 종전엔 주문 전체가 한 행이라 순번1 금액만 반영됐다.
+	 */
+	private OrderLineItem buildLineItemFromDto(MarketLineItemDto dto, Long orderId) {
 		return OrderLineItem.builder()
 			.orderId(orderId)
-			.productId(productId)
-			.quantity(dto.getQuantity())
+			.productId(resolveProductId(dto))
+			.quantity(dto.getQuantity() != null ? dto.getQuantity() : 0)
+			.marketLineItemNo(dto.getMarketLineItemNo())
 			.shippingData(ShippingData.builder()
-				.trackingNo(dto.getTrackingNo())
 				.shippingStatus(dto.getStatus())
-				.shippingCarrier(dto.getCarrier())
-				// D-129: 마켓이 준 실송장이면 마켓 보유로 마킹(신규 주문 생성 경로).
-				.trackingSentToMarket(ShippingData.marketOwnsTracking(dto.getTrackingNo()))
 				.build())
 			.settlementData(SettlementData.builder()
-				.settlementAmount(marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.ELEVEN_STREET))
+				.settlementAmount(marketFeeService.settlementAmount(
+					dto.getTotalAmount(), MarketType.ELEVEN_STREET))
 				.settlementVerified(false)
 				.build())
 			.build();
 	}
 
-	private Long resolveProductId(MarketOrderDto dto) {
+	private Long resolveProductId(MarketLineItemDto dto) {
 		if (dto.getMarketProductCode() != null) {
 			Product product = productRepository.findBySbCode(dto.getMarketProductCode()).orElse(null);
 			return product != null ? product.getId() : null;

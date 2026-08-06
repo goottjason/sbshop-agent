@@ -6,7 +6,9 @@ import com.sbshop.agent.core.application.order.util.ElevenstXmlUtils;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.application.order.dto.MarketLineItemDto;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
+import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
@@ -42,27 +44,24 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		return MarketType.ELEVEN_STREET;
 	}
 
-	/**
-	 * D-126: 11번가 목록별 <b>상태 신뢰 등급</b>. 값이 클수록 상태 판정에서 우선한다.
-	 *
-	 * <p>네 목록은 상호배타적이지 않다(2026-08-05 라이브 확증). 배송중 목록은 <b>송장이 등록된
-	 * 주문</b>을 돌려주며 진행상태가 결제완료여도 포함되므로, 그 목록에 있다는 사실만으로는
-	 * "배송중"의 근거가 되지 못한다. 반면 결제완료·배송준비중 목록은 11번가의 주문 진행상태를
-	 * 직접 뜻하므로 확정적이다. 따라서 진행상태 축이 배송 축을 이긴다.
-	 */
-	private static final int RANK_SHIPPING = 1;   // 배송중 — 송장 보유 사실만 뜻함
-	private static final int RANK_DELIVERED = 2;  // 배송완료 — 배송 축 안에서는 더 진행됨
-	private static final int RANK_PROGRESS = 3;   // 결제완료·배송준비중 — 진행상태 확정
+	/** 11번가 문서상 orderlistall의 주문번호 상한. */
+	private static final int STATUS_LOOKUP_CHUNK = 100;
 
+	/**
+	 * 2단계: 4개 목록에서 <b>상품주문 행</b>을 모으고, 상태는 {@code orderlistall}이 직접 알려주는
+	 * 것을 쓴다. 결과는 (주문 / 배송 / 상품주문) 3계층이다.
+	 *
+	 * <p>종전에는 주문번호로만 키잉해 한 주문의 여러 상품주문이 서로 덮어썼다(D-130 — 정나영 건에서
+	 * 순번2가 시스템에 아예 없었다). D-126이 도입한 "목록 신뢰 등급"은 그 증상을 덮은 것이었고,
+	 * 전제(4개 목록이 서로 다른 축을 본다)가 거짓으로 확정돼 <b>제거한다</b>. 목록 행은 상품주문
+	 * 단위이므로 같은 상품주문이 두 목록에 동시에 나오지 않는다 — 두 목록이 준 것은 서로 다른 상품주문이었다.
+	 *
+	 * <p>목록의 역할은 <b>주문 발견과 상세 정보 수집</b>으로 좁아진다. 상태 판정은 orderlistall이 한다.
+	 */
 	@Override
 	public List<MarketOrderDto> fetchOrders(MarketCredential credential,
 		LocalDate fromDate, LocalDate toDate) {
-		// D-126: 주문번호를 키로 병합한다. 같은 주문이 여러 목록·여러 주간 chunk에 나타나도
-		// 한 건으로 모으고, 상태는 등급이 높은 목록의 것을 채택한다. 과거엔 단순 concat이라
-		// "목록 순서상 마지막"이 이겨 결제완료 주문이 배송중으로 뒤집혔다.
-		Map<String, MarketOrderDto> merged = new LinkedHashMap<>();
-		Map<String, Integer> ranks = new HashMap<>();
-
+		Map<String, OrderAccumulator> orders = new LinkedHashMap<>();
 		String apiKey = credential.getAccessKey();
 
 		// D-043: chunk별 성공/실패 집계. 전량 실패 시 예외 전파 → 서비스 catch → SYNC_FAILED → 액션로그 FAILED.
@@ -78,52 +77,14 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			String endTime = formatDateTime(chunkEnd, "2359");
 
 			try {
-				// 1. 결제완료 주문 조회 (신규 주문 - 전체 데이터 포함)
-				List<Element> completedOrders = elevenstOrderApiPort.fetchCompletedOrders(apiKey, startTime, endTime);
-				for (Element orderElement : completedOrders) {
-					MarketOrderDto dto = parseOrderElement(orderElement, "complete");
-					if (dto != null) {
-						mergeInto(merged, ranks, dto, RANK_PROGRESS);
-					}
-				}
+				collectRows(orders, elevenstOrderApiPort.fetchCompletedOrders(apiKey, startTime, endTime), "complete");
 				Thread.sleep(500);
-
-				// 2. 배송준비중 주문 조회 (발주확인 - 전체 데이터 포함)
-				List<Element> packagingOrders = elevenstOrderApiPort.fetchPackagingOrders(apiKey, startTime, endTime);
-				for (Element orderElement : packagingOrders) {
-					MarketOrderDto dto = parseOrderElement(orderElement, "packaging");
-					if (dto != null) {
-						mergeInto(merged, ranks, dto, RANK_PROGRESS);
-					}
-				}
+				collectRows(orders, elevenstOrderApiPort.fetchPackagingOrders(apiKey, startTime, endTime), "packaging");
 				Thread.sleep(500);
-
-				// 3. 배송중 주문 조회 (최소 정보 - 개별 조회로 폴백)
-				List<Element> shippingOrders = elevenstOrderApiPort.fetchShippingOrders(apiKey, startTime, endTime);
-				for (Element orderElement : shippingOrders) {
-					MarketOrderDto dto = parseShippingElement(orderElement);
-					if (dto != null) {
-						// D-107: 배송중 목록은 수취인 이름을 주지 않는다(최소 정보). 이름이 비면 단건 상세조회
-						// (claimservice/orderlistalladdr, rcvrNm 포함)로 수취인 정보를 복원한다. 원 설계 주석의
-						// "개별 조회로 폴백"이 미구현이었던 부분 — 이름이 ""로 유실돼 그리드에 "-"로 남던 결함 해소.
-						if (dto.getRecipientName() == null) {
-							enrichRecipientFromDetail(apiKey, dto);
-							Thread.sleep(300);
-						}
-						mergeInto(merged, ranks, dto, RANK_SHIPPING);
-					}
-				}
+				collectShippingRows(orders, elevenstOrderApiPort.fetchShippingOrders(apiKey, startTime, endTime));
 				Thread.sleep(500);
-
-				// 4. 배송완료 주문 조회 (전체 데이터 포함 - 신규 주문 생성 가능)
-				List<Element> dlvCompletedOrders = elevenstOrderApiPort.fetchCompletedDeliveryOrders(apiKey, startTime,
-					endTime);
-				for (Element orderElement : dlvCompletedOrders) {
-					MarketOrderDto dto = parseOrderElement(orderElement, "dlvcompleted");
-					if (dto != null) {
-						mergeInto(merged, ranks, dto, RANK_DELIVERED);
-					}
-				}
+				collectRows(orders, elevenstOrderApiPort.fetchCompletedDeliveryOrders(apiKey, startTime, endTime),
+					"dlvcompleted");
 				Thread.sleep(500);
 				successChunks++;
 			} catch (InterruptedException e) {
@@ -148,104 +109,119 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				successChunks, failedChunks, lastFailure != null ? lastFailure.getMessage() : "-");
 		}
 
-		return new ArrayList<>(merged.values());
+		applyProductOrderStatuses(apiKey, orders);
+		enrichMissingRecipients(apiKey, orders);
+
+		List<MarketOrderDto> result = new ArrayList<>();
+		for (OrderAccumulator accum : orders.values()) {
+			MarketOrderDto dto = accum.toNestedDto(getMarketType(), statusMapper);
+			if (dto != null) {
+				result.add(dto);
+			}
+		}
+		return result;
+	}
+
+	/** 전체 정보 목록(결제완료·배송준비중·배송완료)의 행을 상품주문 단위로 모은다. */
+	private void collectRows(Map<String, OrderAccumulator> orders, List<Element> rows, String source) {
+		if (rows == null) {
+			return;
+		}
+		for (Element row : rows) {
+			String ordNo = ElevenstXmlUtils.getElementText(row, "ordNo");
+			if (ordNo == null || ordNo.isEmpty()) {
+				continue;
+			}
+			OrderAccumulator accum = orders.computeIfAbsent(ordNo, OrderAccumulator::new);
+			try {
+				accum.addDetailRow(row, source, statusMapper);
+			} catch (Exception e) {
+				log.error("11번가 주문 파싱 실패: ordNo={}, error={}", ordNo, e.getMessage());
+			}
+		}
 	}
 
 	/**
-	 * D-126: 주문번호 기준으로 DTO를 병합한다.
+	 * 배송중 목록의 행을 모은다. 이 목록은 최소 정보(송장·배송번호·수취인)만 준다.
 	 *
-	 * <p>상태는 등급이 높은 목록의 것을 채택하고, 나머지 필드는 <b>비어 있는 쪽을 채우는</b>
-	 * 방향으로만 합친다. 배송중 목록은 최소 정보(송장·수취인)만 주고 결제완료/배송완료 목록은
-	 * 전체 정보를 주므로, 어느 쪽이 이기든 상대가 가진 값을 잃지 않는다. 특히 결제완료가
-	 * 이길 때도 배송중 목록이 준 송장은 보존된다 — "결제완료인데 송장 있음"이 실제 상태다.
+	 * <p>송장은 <b>배송번호(dlvNo)에</b> 붙인다 — 송장은 상품주문의 것이 아니라 배송의 것이다.
+	 * 이렇게 하면 이 목록이 {@code ordPrdSeq}를 주지 않아도 정보를 잃지 않는다.
 	 */
-	private void mergeInto(Map<String, MarketOrderDto> merged, Map<String, Integer> ranks,
-		MarketOrderDto dto, int rank) {
-		String key = dto.getMarketOrderNo();
-		MarketOrderDto existing = merged.get(key);
-		if (existing == null) {
-			merged.put(key, dto);
-			ranks.put(key, rank);
+	private void collectShippingRows(Map<String, OrderAccumulator> orders, List<Element> rows) {
+		if (rows == null) {
 			return;
 		}
-
-		int existingRank = ranks.getOrDefault(key, 0);
-		if (rank > existingRank) {
-			// 새 DTO가 상태 판정의 주인이 된다. 기존이 가진 값으로 빈 칸만 메운다.
-			fillBlanks(dto, existing);
-			merged.put(key, dto);
-			ranks.put(key, rank);
-			log.debug("11번가 주문 {} 상태 재판정: 등급 {} → {} (status={})",
-				key, existingRank, rank, dto.getStatus());
-		} else {
-			// 기존이 상태의 주인. 새 DTO는 빈 칸을 메우는 데만 쓴다(상태는 덮지 않는다).
-			fillBlanks(existing, dto);
+		for (Element row : rows) {
+			String ordNo = ElevenstXmlUtils.getElementText(row, "ordNo");
+			if (ordNo == null || ordNo.isEmpty()) {
+				continue;
+			}
+			OrderAccumulator accum = orders.computeIfAbsent(ordNo, OrderAccumulator::new);
+			try {
+				accum.addShippingRow(row, statusMapper);
+			} catch (Exception e) {
+				log.error("11번가 배송중 주문 파싱 실패: ordNo={}, error={}", ordNo, e.getMessage());
+			}
 		}
 	}
 
-	/** {@code target}의 비어 있는 필드만 {@code source}의 값으로 채운다. 상태(status)는 건드리지 않는다. */
-	private void fillBlanks(MarketOrderDto target, MarketOrderDto source) {
-		if (isBlank(target.getTrackingNo()) && !isBlank(source.getTrackingNo())) {
-			target.setTrackingNo(source.getTrackingNo());
-			target.setCarrier(source.getCarrier());
-		}
-		if (isBlank(target.getMarketProductCode())) {
-			target.setMarketProductCode(source.getMarketProductCode());
-		}
-		if (isBlank(target.getProductName())) {
-			target.setProductName(source.getProductName());
-		}
-		if (isBlank(target.getRecipientName())) {
-			target.setRecipientName(source.getRecipientName());
-		}
-		if (isBlank(target.getRecipientPhone())) {
-			target.setRecipientPhone(source.getRecipientPhone());
-		}
-		if (isBlank(target.getZipcode())) {
-			target.setZipcode(source.getZipcode());
-		}
-		if (isBlank(target.getAddress())) {
-			target.setAddress(source.getAddress());
-		}
-		if (isBlank(target.getMessage())) {
-			target.setMessage(source.getMessage());
-		}
-		if (isBlank(target.getOrdererName())) {
-			target.setOrdererName(source.getOrdererName());
-		}
-		if (isBlank(target.getOrdererPhone())) {
-			target.setOrdererPhone(source.getOrdererPhone());
-		}
-		if (isBlank(target.getCustomsClearanceNo())) {
-			target.setCustomsClearanceNo(source.getCustomsClearanceNo());
-		}
-		// 배송중 목록은 수량·금액을 주지 않아 0/ZERO로 남는다 — 실값이 있는 쪽을 취한다.
-		if (isEmptyQuantity(target.getQuantity()) && !isEmptyQuantity(source.getQuantity())) {
-			target.setQuantity(source.getQuantity());
-		}
-		if (isZero(target.getOrderPrice()) && !isZero(source.getOrderPrice())) {
-			target.setOrderPrice(source.getOrderPrice());
-		}
-		if (isZero(target.getTotalAmount()) && !isZero(source.getTotalAmount())) {
-			target.setTotalAmount(source.getTotalAmount());
-		}
-		// 발주확인·발송처리에 필요한 ordPrdSeq/dlvNo는 결제완료·배송완료 목록에만 있다.
-		if ((target.getMarketSpecificData() == null || target.getMarketSpecificData().isEmpty())
-			&& source.getMarketSpecificData() != null) {
-			target.setMarketSpecificData(source.getMarketSpecificData());
+	/**
+	 * {@code claimservice/orderlistall}로 상품주문별 상태·배송번호를 확정한다.
+	 *
+	 * <p>실패하거나 빈 응답이면 <b>목록 소속 상태로 폴백</b>한다. 새 API 하나가 11번가 동기화
+	 * 전체를 무력화하게 두지 않는다 — 상태 판정이 덜 정확해질 뿐 주문은 사라지지 않는다.
+	 */
+	private void applyProductOrderStatuses(String apiKey, Map<String, OrderAccumulator> orders) {
+		List<String> ordNos = new ArrayList<>(orders.keySet());
+		for (int i = 0; i < ordNos.size(); i += STATUS_LOOKUP_CHUNK) {
+			List<String> chunk = ordNos.subList(i, Math.min(i + STATUS_LOOKUP_CHUNK, ordNos.size()));
+			String joined = String.join(",", chunk);
+			try {
+				List<Element> rows = elevenstOrderApiPort.fetchProductOrderStatuses(apiKey, joined);
+				if (rows == null || rows.isEmpty()) {
+					log.warn("11번가 상품주문상태 응답 없음: {}건 요청 — 목록 소속 상태로 폴백", chunk.size());
+					continue;
+				}
+				for (Element row : rows) {
+					String ordNo = ElevenstXmlUtils.getElementText(row, "ordNo");
+					OrderAccumulator accum = orders.get(ordNo);
+					if (accum != null) {
+						accum.addStatusRow(row);
+					}
+				}
+			} catch (Exception e) {
+				log.warn("11번가 상품주문상태 조회 실패({}건) — 목록 소속 상태로 폴백: {}",
+					chunk.size(), e.getMessage());
+			}
 		}
 	}
 
-	private boolean isBlank(String value) {
-		return value == null || value.isBlank();
-	}
-
-	private boolean isEmptyQuantity(Integer quantity) {
-		return quantity == null || quantity == 0;
-	}
-
-	private boolean isZero(BigDecimal value) {
-		return value == null || value.signum() == 0;
+	/**
+	 * D-107: 수취인 이름을 어느 목록에서도 얻지 못한 주문만 단건 상세조회로 복원한다.
+	 *
+	 * <p>배송중 목록은 최소 정보만 주므로 그 목록에만 있는 주문은 이름이 빈다. 과거 이 경로가
+	 * 미구현이라 그리드에 "-"로 남았다(사용자 신고 2026-07-25). 실패하면 조용히 지나간다 —
+	 * null이면 동기화의 null-guard가 DB의 기존 값을 보존한다.
+	 */
+	private void enrichMissingRecipients(String apiKey, Map<String, OrderAccumulator> orders) {
+		for (OrderAccumulator accum : orders.values()) {
+			if (accum.recipientName != null) {
+				continue;
+			}
+			try {
+				List<Element> details = elevenstOrderApiPort.fetchOrderDetail(apiKey, accum.ordNo);
+				if (details == null || details.isEmpty()) {
+					continue;
+				}
+				accum.fillOrderCommon(details.get(0));
+				Thread.sleep(300);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				return;
+			} catch (Exception e) {
+				log.warn("11번가 수취인 상세 복원 실패: ordNo={}, error={}", accum.ordNo, e.getMessage());
+			}
+		}
 	}
 
 	@Override
@@ -261,6 +237,16 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		String dlvEtprsCd = mapCarrierCode(carrier);
 		String sendDt = formatDateTime(LocalDateTime.now(), "yyyyMMddHHmm");
 
+		// 2단계: 상품주문 식별자를 알면 부분발송으로 그 상품주문만 보낸다. 전체 발송처리는
+		// 묶음배송번호가 같은 주문번호를 모두 발송 처리하므로(-3308 설명), 다품목·묶음배송
+		// 주문에서 아직 준비되지 않은 상품까지 발송된 것으로 마켓에 기록될 수 있다.
+		String ordPrdSeq = lineItem != null ? lineItem.getMarketLineItemNo() : null;
+		if (ordPrdSeq != null && !ordPrdSeq.isBlank()) {
+			elevenstOrderApiPort.shipOrderPartial(apiKey, sendDt, dlvMthdCd, dlvEtprsCd,
+				trackingNo, dlvNo, order.getMarketOrderNo(), ordPrdSeq);
+			return;
+		}
+		// 레거시 라인아이템(식별자 미채택)은 종전 경로를 쓴다 — 주문당 상품주문 1건이라 결과가 같다.
 		elevenstOrderApiPort.shipOrder(apiKey, sendDt, dlvMthdCd, dlvEtprsCd, trackingNo, dlvNo);
 	}
 
@@ -281,20 +267,55 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		return dlvNo;
 	}
 
+	/**
+	 * 발주확인은 <b>상품주문 단위</b>다 — 주문의 모든 {@code ordPrdSeq}를 확인해야 한다.
+	 *
+	 * <p>종전에는 {@code marketSpecificData}에 담긴 대표 순번 하나만 호출했다. 다품목 주문에서
+	 * 순번 2가 남으면 11번가는 그 주문을 <b>결제완료 목록에 계속 둔다</b> — 이것이
+	 * "API는 성공(result_code=0)인데 배송준비중 목록은 매 사이클 0건"이던 현상의 유력한 원인이다.
+	 *
+	 * <p>{@code ordPrdSeqs}(전체 순번 콤마)는 2단계부터 채워진다. 이미 저장된 주문에는 없으므로
+	 * 대표 순번 하나로 폴백한다.
+	 */
 	@Override
 	public void acceptOrders(MarketCredential credential, Order order) {
 		Map<String, String> data = order.getMarketSpecificDataMap();
-		if (data == null || !data.containsKey("ordPrdSeq")) {
+		List<String> seqs = resolveProductOrderSeqs(data);
+		if (seqs.isEmpty()) {
 			throw new IllegalArgumentException(
 				"11번가 발주확인 정보 부족: order=" + order.getMarketOrderNo());
 		}
-		elevenstOrderApiPort.confirmOrder(
-			credential.getAccessKey(),
-			order.getMarketOrderNo(),
-			data.get("ordPrdSeq"),
-			data.getOrDefault("addPrdYn", "N"),
-			data.getOrDefault("addPrdNo", "0"),
-			data.getOrDefault("dlvNo", order.getMarketOrderNo()));
+		String addPrdYn = data.getOrDefault("addPrdYn", "N");
+		String addPrdNo = data.getOrDefault("addPrdNo", "0");
+		String dlvNo = data.getOrDefault("dlvNo", order.getMarketOrderNo());
+
+		for (String seq : seqs) {
+			elevenstOrderApiPort.confirmOrder(credential.getAccessKey(),
+				order.getMarketOrderNo(), seq, addPrdYn, addPrdNo, dlvNo);
+		}
+	}
+
+	/** 발주확인 대상 상품주문 순번 목록. {@code ordPrdSeqs} 우선, 없으면 대표 순번 하나. */
+	private List<String> resolveProductOrderSeqs(Map<String, String> data) {
+		if (data == null) {
+			return List.of();
+		}
+		String all = data.get("ordPrdSeqs");
+		if (all != null && !all.isBlank()) {
+			List<String> seqs = new ArrayList<>();
+			// '|'가 정본 구분자다. 콤마도 받아 준다 — 순번은 숫자라 오인될 여지가 없다.
+			for (String part : all.split("[|,]")) {
+				String seq = part.trim();
+				if (!seq.isEmpty()) {
+					seqs.add(seq);
+				}
+			}
+			if (!seqs.isEmpty()) {
+				return seqs;
+			}
+		}
+		String single = data.get("ordPrdSeq");
+		return (single != null && !single.isBlank()) ? List.of(single) : List.of();
 	}
 
 	@Override
@@ -343,7 +364,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		}
 	}
 
-	private String mapCarrierCode(ShippingCarrier carrier) {
+	private static String mapCarrierCode(ShippingCarrier carrier) {
 		if (carrier == null) {
 			throw new IllegalArgumentException("배송사 정보가 없습니다.");
 		}
@@ -360,7 +381,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 	/**
 	 * 11번가 택배사 코드를 ShippingCarrier enum으로 변환
 	 */
-	private ShippingCarrier parseCarrierCode(String dlvEtprsCd) {
+	private static ShippingCarrier parseCarrierCode(String dlvEtprsCd) {
 		if (dlvEtprsCd == null || dlvEtprsCd.isEmpty()) {
 			return ShippingCarrier.CJ_LOGISTICS;
 		}
@@ -378,7 +399,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 	 * 주문번호에서 주문일 추출 (YYYYMMDD + 9자리 시퀀스)
 	 * 예: 20260612076034242 → 2026-06-12
 	 */
-	private LocalDateTime extractOrderDate(String ordNo) {
+	private static LocalDateTime extractOrderDate(String ordNo) {
 		if (ordNo != null && ordNo.length() >= 8) {
 			try {
 				String dateStr = ordNo.substring(0, 8);
@@ -464,218 +485,15 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		}
 	}
 
-	/**
-	 * XML 엘리먼트를 MarketOrderDto로 변환
-	 */
-	private MarketOrderDto parseOrderElement(Element element, String source) {
-		try {
-			String ordNo = ElevenstXmlUtils.getElementText(element, "ordNo");
-			String prdNm = ElevenstXmlUtils.getElementText(element, "prdNm");
-			String sellerPrdCd = ElevenstXmlUtils.getElementText(element, "sellerPrdCd");
-			String selPrc = ElevenstXmlUtils.getElementText(element, "selPrc");
-			String ordQty = ElevenstXmlUtils.getElementText(element, "ordQty");
-			String ordAmt = ElevenstXmlUtils.getElementText(element, "ordAmt");
-
-			// 수령자 정보
-			String rcvrNm = ElevenstXmlUtils.getElementText(element, "rcvrNm");
-			String rcvrPrtblNo = ElevenstXmlUtils.getElementText(element, "rcvrPrtblNo");
-			String rcvrMailNo = ElevenstXmlUtils.getElementText(element, "rcvrMailNo");
-			String rcvrBaseAddr = ElevenstXmlUtils.getElementText(element, "rcvrBaseAddr");
-			String rcvrDtlsAddr = ElevenstXmlUtils.getElementText(element, "rcvrDtlsAddr");
-			String ordDlvReqCont = ElevenstXmlUtils.getElementText(element, "ordDlvReqCont");
-
-			// 구매자 정보
-			String ordNm = ElevenstXmlUtils.getElementText(element, "ordNm");
-			String ordPrtblTel = ElevenstXmlUtils.getElementText(element, "ordPrtblTel");
-
-			// 통관번호
-			String psnCscUniqNo = ElevenstXmlUtils.getElementText(element, "psnCscUniqNo");
-
-			// 배송 정보
-			String invcNo = ElevenstXmlUtils.getElementText(element, "invcNo");
-			String dlvEtprsCd = ElevenstXmlUtils.getElementText(element, "dlvEtprsCd");
-			ShippingCarrier carrier = parseCarrierCode(dlvEtprsCd);
-
-			// 발주확인용 필드
-			String ordPrdSeq = ElevenstXmlUtils.getElementText(element, "ordPrdSeq");
-			String addPrdYn = ElevenstXmlUtils.getElementText(element, "addPrdYn");
-			String addPrdNo = ElevenstXmlUtils.getElementText(element, "addPrdNo");
-			String dlvNo = ElevenstXmlUtils.getElementText(element, "dlvNo");
-
-			// 주문번호에서 주문일 추출
-			LocalDateTime orderDate = extractOrderDate(ordNo);
-
-			// 배송 상태 매핑
-			Map<String, String> statusMap = Map.of("source", source);
-			ShippingStatus status = statusMapper.mapStatus(statusMap);
-
-			// 가격 파싱
-			BigDecimal price = parseBigDecimal(selPrc);
-			int qty = parseIntValue(ordQty);
-			BigDecimal totalAmount = parseBigDecimal(ordAmt);
-
-			// 마켓별 상세 데이터
-			Map<String, Object> marketData = new java.util.HashMap<>();
-			if (ordPrdSeq != null && !ordPrdSeq.isEmpty())
-				marketData.put("ordPrdSeq", ordPrdSeq);
-			if (addPrdYn != null && !addPrdYn.isEmpty())
-				marketData.put("addPrdYn", addPrdYn);
-			if (addPrdNo != null && !addPrdNo.isEmpty())
-				marketData.put("addPrdNo", addPrdNo);
-			if (dlvNo != null && !dlvNo.isEmpty())
-				marketData.put("dlvNo", dlvNo);
-
-			return MarketOrderDto.builder()
-				.marketType(getMarketType())
-				.marketOrderNo(ordNo)
-				.marketProductCode(sellerPrdCd)
-				.productName(prdNm)
-				.quantity(qty)
-				.orderPrice(price)
-				.totalAmount(totalAmount)
-				.recipientName(rcvrNm)
-				.recipientPhone(rcvrPrtblNo)
-				.zipcode(rcvrMailNo)
-				.address(rcvrBaseAddr + " " + rcvrDtlsAddr)
-				.message(ordDlvReqCont)
-				.ordererName(ordNm)
-				.ordererPhone(ordPrtblTel)
-				.customsClearanceNo(psnCscUniqNo)
-				.trackingNo(invcNo)
-				.carrier(carrier)
-				.status(status)
-				.orderDate(orderDate)
-				.marketSpecificData(marketData)
-				.build();
-		} catch (Exception e) {
-			log.error("11번가 주문 파싱 실패: {}", e.getMessage());
-			return null;
-		}
-	}
-
-	/**
-	 * 배송중 API 응답 파싱 (최소 정보 - 상태/운송장 업데이트용)
-	 */
-	private MarketOrderDto parseShippingElement(Element element) {
-		try {
-			String ordNo = ElevenstXmlUtils.getElementText(element, "ordNo");
-			String invcNo = ElevenstXmlUtils.getElementText(element, "invcNo");
-			String dlvEtprsCd = ElevenstXmlUtils.getElementText(element, "dlvEtprsCd");
-			// D-066: 배송중 경로에도 통관번호 파싱 추가.
-			// getElementText는 태그 부재 시 ""를 반환하므로 null로 정규화 — SyncService null-guard가
-			// 빈 값으로 기존 통관번호를 덮어쓰지 않게 한다(기존 주문 회귀 방지).
-			String psnCscUniqNo = emptyToNull(ElevenstXmlUtils.getElementText(element, "psnCscUniqNo"));
-
-			if (ordNo == null || ordNo.isEmpty()) {
-				return null;
-			}
-
-			// D-107: 배송중 목록도 수취인/구매자 정보를 담고 있으므로 파싱해 복원한다. 과거엔 이 경로가
-			// 이름·주소를 ""로 하드코딩해 내보냈고, Order.update가 recipientName을 !=null 로만 보호해
-			// ""가 기존 실이름을 덮어써 그리드에 "-"로 표시됐다(사용자 신고). 태그 부재 시 ""를 null로
-			// 정규화 — null-guard가 기존 값을 보존하도록 한다(통관번호와 동일 정책).
-			String rcvrNm = emptyToNull(ElevenstXmlUtils.getElementText(element, "rcvrNm"));
-			String rcvrPrtblNo = emptyToNull(ElevenstXmlUtils.getElementText(element, "rcvrPrtblNo"));
-			String rcvrMailNo = emptyToNull(ElevenstXmlUtils.getElementText(element, "rcvrMailNo"));
-			String rcvrBaseAddr = ElevenstXmlUtils.getElementText(element, "rcvrBaseAddr");
-			String rcvrDtlsAddr = ElevenstXmlUtils.getElementText(element, "rcvrDtlsAddr");
-			String address = emptyToNull((rcvrBaseAddr + " " + rcvrDtlsAddr).trim());
-			String ordDlvReqCont = emptyToNull(ElevenstXmlUtils.getElementText(element, "ordDlvReqCont"));
-			String ordNm = emptyToNull(ElevenstXmlUtils.getElementText(element, "ordNm"));
-			String ordPrtblTel = emptyToNull(ElevenstXmlUtils.getElementText(element, "ordPrtblTel"));
-
-			ShippingStatus status = ShippingStatus.SHIPPED;
-			ShippingCarrier carrier = parseCarrierCode(dlvEtprsCd);
-
-			return MarketOrderDto.builder()
-				.marketType(getMarketType())
-				.marketOrderNo(ordNo)
-				.marketProductCode(null)
-				.productName(null)
-				.quantity(0)
-				.orderPrice(BigDecimal.ZERO)
-				.totalAmount(BigDecimal.ZERO)
-				.recipientName(rcvrNm)
-				.recipientPhone(rcvrPrtblNo)
-				.zipcode(rcvrMailNo)
-				.address(address)
-				.message(ordDlvReqCont)
-				.ordererName(ordNm)
-				.ordererPhone(ordPrtblTel)
-				.customsClearanceNo(psnCscUniqNo)
-				.status(status)
-				.trackingNo(invcNo)
-				.carrier(carrier)
-				.orderDate(extractOrderDate(ordNo))
-				.build();
-		} catch (Exception e) {
-			log.error("11번가 배송중 주문 파싱 실패: {}", e.getMessage());
-			return null;
-		}
-	}
-
-	/**
-	 * D-107: 배송중 목록이 수취인 이름을 주지 않을 때 단건 상세조회로 수취인/구매자 정보를 복원한다.
-	 * 배송 상태·송장은 배송중 값을 유지하고, 비어 있는 수취인 필드만 상세조회 값으로 채운다.
-	 * 상세조회 실패·값 부재 시 조용히 지나가 기존 값(null)을 유지한다(SyncService null-guard가 DB 보존).
-	 */
-	private void enrichRecipientFromDetail(String apiKey, MarketOrderDto dto) {
-		try {
-			List<Element> details = elevenstOrderApiPort.fetchOrderDetail(apiKey, dto.getMarketOrderNo());
-			if (details == null || details.isEmpty()) {
-				return;
-			}
-			MarketOrderDto detail = parseOrderDetailElement(details.get(0));
-			if (detail == null) {
-				return;
-			}
-			if (dto.getRecipientName() == null) {
-				dto.setRecipientName(blankToNull(detail.getRecipientName()));
-			}
-			if (dto.getRecipientPhone() == null) {
-				dto.setRecipientPhone(blankToNull(detail.getRecipientPhone()));
-			}
-			if (dto.getZipcode() == null) {
-				dto.setZipcode(blankToNull(detail.getZipcode()));
-			}
-			if (dto.getAddress() == null) {
-				dto.setAddress(blankToNull(detail.getAddress()));
-			}
-			if (dto.getOrdererName() == null) {
-				dto.setOrdererName(blankToNull(detail.getOrdererName()));
-			}
-			if (dto.getOrdererPhone() == null) {
-				dto.setOrdererPhone(blankToNull(detail.getOrdererPhone()));
-			}
-		} catch (Exception e) {
-			log.warn("11번가 배송중 수취인 상세 복원 실패: ordNo={}, error={}", dto.getMarketOrderNo(), e.getMessage());
-		}
-	}
-
-	private String blankToNull(String value) {
-		return (value == null || value.isBlank()) ? null : value;
-	}
-
-	private String formatDateTime(LocalDate date, String time) {
+	private static String formatDateTime(LocalDate date, String time) {
 		return date.format(DateTimeFormatter.ofPattern("yyyyMMdd")) + time;
 	}
 
-	private String formatDateTime(LocalDateTime dateTime, String pattern) {
+	private static String formatDateTime(LocalDateTime dateTime, String pattern) {
 		return dateTime.format(DateTimeFormatter.ofPattern(pattern));
 	}
 
-	private LocalDateTime parseDateTime(String dateTimeStr) {
-		if (dateTimeStr == null || dateTimeStr.isEmpty()) {
-			return LocalDateTime.now();
-		}
-		try {
-			return LocalDateTime.parse(dateTimeStr, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-		} catch (Exception e) {
-			return LocalDateTime.now();
-		}
-	}
-
-	private BigDecimal parseBigDecimal(String value) {
+	private static BigDecimal parseBigDecimal(String value) {
 		if (value == null || value.isEmpty()) {
 			return BigDecimal.ZERO;
 		}
@@ -686,11 +504,11 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		}
 	}
 
-	private String emptyToNull(String value) {
+	private static String emptyToNull(String value) {
 		return (value == null || value.isEmpty()) ? null : value;
 	}
 
-	private int parseIntValue(String value) {
+	private static int parseIntValue(String value) {
 		if (value == null || value.isEmpty()) {
 			return 0;
 		}
@@ -698,6 +516,355 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			return Integer.parseInt(value);
 		} catch (NumberFormatException e) {
 			return 0;
+		}
+	}
+
+	/**
+	 * 한 주문번호에 대해 여러 목록·여러 API의 조각을 모아 3계층 DTO로 조립한다.
+	 *
+	 * <p>계층마다 <b>출처가 다르다</b>는 것이 이 클래스의 존재 이유다:
+	 * <ul>
+	 * <li><b>주문 공통</b>(수취인·주소·통관번호·주문자) — 아무 목록 행에서나. 빈 칸 채우기로만 병합한다.
+	 * <li><b>상품주문 로스터·상태</b> — {@code orderlistall}이 권위. 없으면 목록 행으로 폴백한다.
+	 * <li><b>상품·금액·판매자상품코드</b> — 전체 정보 목록에서 {@code ordPrdSeq}로 짝지어.
+	 *     배송중 목록은 이 값들을 주지 않는다.
+	 * <li><b>송장·택배사</b> — <b>배송번호(dlvNo)에</b> 붙인다. 송장은 상품주문의 것이 아니라 배송의 것이다.
+	 * </ul>
+	 */
+	private static final class OrderAccumulator {
+
+		private final String ordNo;
+
+		// 주문 공통 — 빈 칸만 채운다.
+		private String recipientName;
+		private String recipientPhone;
+		private String zipcode;
+		private String address;
+		private String message;
+		private String ordererName;
+		private String ordererPhone;
+		private String customsClearanceNo;
+		private LocalDateTime orderDate;
+
+		/** ordPrdSeq → 전체 정보 목록이 준 상품주문 조각. */
+		private final Map<String, DetailRow> detailRows = new LinkedHashMap<>();
+		/** ordPrdSeq → orderlistall이 준 상태·배송번호. 권위 있는 로스터. */
+		private final Map<String, StatusRow> statusRows = new LinkedHashMap<>();
+		/** dlvNo → 송장·택배사. */
+		private final Map<String, TrackingInfo> trackingByDlvNo = new LinkedHashMap<>();
+		/** 배송번호를 알 수 없는 행이 준 송장 — 배송이 하나뿐일 때만 쓴다. */
+		private TrackingInfo trackingWithoutDlvNo;
+		/**
+		 * 상품주문 식별자를 하나도 못 얻었을 때 쓸 상태. 배송중 목록처럼 {@code ordPrdSeq}를 주지
+		 * 않는 목록에만 나타나는 주문이 있고, 그런 주문을 드롭하면 데이터가 조용히 사라진다.
+		 */
+		private ShippingStatus fallbackListStatus;
+
+		private OrderAccumulator(String ordNo) {
+			this.ordNo = ordNo;
+		}
+
+		private record DetailRow(String sellerPrdCd, String productName, Integer quantity,
+			BigDecimal orderPrice, BigDecimal totalAmount, ShippingStatus listStatus,
+			String dlvNo, String addPrdYn, String addPrdNo) {}
+
+		private record StatusRow(String statusName, String dlvNo, Integer quantity) {}
+
+		private record TrackingInfo(String trackingNo, ShippingCarrier carrier) {}
+
+		/** 전체 정보 목록(결제완료·배송준비중·배송완료) 행. */
+		private void addDetailRow(Element row, String source, ElevenstStatusMapper mapper) {
+			fillOrderCommon(row);
+
+			String seq = emptyToNull(ElevenstXmlUtils.getElementText(row, "ordPrdSeq"));
+			String dlvNo = emptyToNull(ElevenstXmlUtils.getElementText(row, "dlvNo"));
+			captureTracking(row, dlvNo);
+
+			ShippingStatus listStatus = mapper.mapStatus(Map.of("source", source));
+			if (seq == null) {
+				// 상품주문 식별자가 없으면 로스터에 담을 수 없다. 주문 공통 정보·송장은 이미 챘고,
+				// 상태는 폴백으로 남겨 이 주문이 드롭되지 않게 한다.
+				log.warn("11번가 {} 목록 행에 ordPrdSeq가 없다: ordNo={} — 상품주문 로스터에서 제외", source, ordNo);
+				if (fallbackListStatus == null) {
+					fallbackListStatus = listStatus;
+				}
+				return;
+			}
+
+			DetailRow parsed = new DetailRow(
+				emptyToNull(ElevenstXmlUtils.getElementText(row, "sellerPrdCd")),
+				emptyToNull(ElevenstXmlUtils.getElementText(row, "prdNm")),
+				parseIntValue(ElevenstXmlUtils.getElementText(row, "ordQty")),
+				parseBigDecimal(ElevenstXmlUtils.getElementText(row, "selPrc")),
+				parseBigDecimal(ElevenstXmlUtils.getElementText(row, "ordAmt")),
+				listStatus,
+				dlvNo,
+				emptyToNull(ElevenstXmlUtils.getElementText(row, "addPrdYn")),
+				emptyToNull(ElevenstXmlUtils.getElementText(row, "addPrdNo")));
+
+			DetailRow existing = detailRows.get(seq);
+			detailRows.put(seq, existing == null ? parsed : mergeDetail(existing, parsed));
+		}
+
+		/**
+		 * 배송중 목록 행 — 최소 정보. 송장을 배송번호에 붙이고 수취인 빈 칸을 채운다.
+		 * 상태는 여기서 정하지 않는다(목록 소속으로 상태를 추론하는 것이 D-126의 원인이었다).
+		 */
+		private void addShippingRow(Element row, ElevenstStatusMapper mapper) {
+			fillOrderCommon(row);
+			captureTracking(row, emptyToNull(ElevenstXmlUtils.getElementText(row, "dlvNo")));
+			// 상품주문 식별자를 끝까지 못 얻는 경우에만 쓰이는 폴백이다. 주 경로는 orderlistall이다.
+			if (fallbackListStatus == null) {
+				fallbackListStatus = mapper.mapStatus(Map.of("source", "shipping"));
+			}
+		}
+
+		/** orderlistall 행 — 상품주문별 상태·배송번호. */
+		private void addStatusRow(Element row) {
+			String seq = emptyToNull(ElevenstXmlUtils.getElementText(row, "ordPrdSeq"));
+			if (seq == null) {
+				return;
+			}
+			statusRows.put(seq, new StatusRow(
+				emptyToNull(ElevenstXmlUtils.getElementText(row, "ordPrdStatNm")),
+				emptyToNull(ElevenstXmlUtils.getElementText(row, "dlvNo")),
+				parseIntValue(ElevenstXmlUtils.getElementText(row, "ordQty"))));
+		}
+
+		/** 두 목록이 같은 상품주문을 줬을 때 — 빈 칸만 채운다. 상태는 나중 값을 채택한다. */
+		private static DetailRow mergeDetail(DetailRow a, DetailRow b) {
+			return new DetailRow(
+				a.sellerPrdCd() != null ? a.sellerPrdCd() : b.sellerPrdCd(),
+				a.productName() != null ? a.productName() : b.productName(),
+				(a.quantity() != null && a.quantity() != 0) ? a.quantity() : b.quantity(),
+				isPositive(a.orderPrice()) ? a.orderPrice() : b.orderPrice(),
+				isPositive(a.totalAmount()) ? a.totalAmount() : b.totalAmount(),
+				b.listStatus() != null ? b.listStatus() : a.listStatus(),
+				a.dlvNo() != null ? a.dlvNo() : b.dlvNo(),
+				a.addPrdYn() != null ? a.addPrdYn() : b.addPrdYn(),
+				a.addPrdNo() != null ? a.addPrdNo() : b.addPrdNo());
+		}
+
+		private static boolean isPositive(BigDecimal value) {
+			return value != null && value.signum() != 0;
+		}
+
+		/**
+		 * D-107/D-119: 태그 부재 시 {@code ""}가 실값을 덮지 않도록 null로 정규화하고, 빈 칸만 채운다.
+		 * 과거 배송중 경로가 이름·주소를 {@code ""}로 내보내 그리드에 "-"로 남은 이력이 있다.
+		 */
+		private void fillOrderCommon(Element row) {
+			recipientName = firstNonNull(recipientName, text(row, "rcvrNm"));
+			recipientPhone = firstNonNull(recipientPhone, text(row, "rcvrPrtblNo"));
+			zipcode = firstNonNull(zipcode, text(row, "rcvrMailNo"));
+			if (address == null) {
+				String base = ElevenstXmlUtils.getElementText(row, "rcvrBaseAddr");
+				String detail = ElevenstXmlUtils.getElementText(row, "rcvrDtlsAddr");
+				address = emptyToNull(((base == null ? "" : base) + " " + (detail == null ? "" : detail)).trim());
+			}
+			message = firstNonNull(message, text(row, "ordDlvReqCont"));
+			ordererName = firstNonNull(ordererName, text(row, "ordNm"));
+			ordererPhone = firstNonNull(ordererPhone, text(row, "ordPrtblTel"));
+			customsClearanceNo = firstNonNull(customsClearanceNo, text(row, "psnCscUniqNo"));
+			if (orderDate == null) {
+				orderDate = extractOrderDate(ordNo);
+			}
+		}
+
+		/** 송장은 배송의 것이다 — 배송번호를 알면 그 배송에, 모르면 따로 둔다. */
+		private void captureTracking(Element row, String dlvNo) {
+			String invcNo = emptyToNull(ElevenstXmlUtils.getElementText(row, "invcNo"));
+			if (invcNo == null) {
+				return;
+			}
+			TrackingInfo info = new TrackingInfo(invcNo,
+				parseCarrierCode(ElevenstXmlUtils.getElementText(row, "dlvEtprsCd")));
+			if (dlvNo != null) {
+				trackingByDlvNo.putIfAbsent(dlvNo, info);
+			} else if (trackingWithoutDlvNo == null) {
+				trackingWithoutDlvNo = info;
+			}
+		}
+
+		private static String text(Element row, String tag) {
+			return emptyToNull(ElevenstXmlUtils.getElementText(row, tag));
+		}
+
+		private static String firstNonNull(String current, String candidate) {
+			return current != null ? current : candidate;
+		}
+
+		/**
+		 * 3계층 DTO로 조립한다.
+		 *
+		 * <p><b>라인아이템 레벨 평면 필드는 채우지 않는다.</b> 거기에 "첫 상품주문"을 담으면 종전의
+		 * 키메라 행(순번1의 상품 + 순번2의 송장)이 그대로 되살아난다. 주문 공통 필드는 계속 채운다.
+		 */
+		private MarketOrderDto toNestedDto(MarketType marketType, ElevenstStatusMapper mapper) {
+			// 로스터는 orderlistall이 권위. 비어 있으면(조회 실패·빈 응답) 목록 행으로 폴백한다.
+			List<String> roster = new ArrayList<>(statusRows.isEmpty() ? detailRows.keySet() : statusRows.keySet());
+			if (roster.isEmpty()) {
+				// 상품주문 식별자를 끝까지 못 얻었다(배송중 목록에만 있고 orderlistall도 답이 없는 주문).
+				// 드롭하면 주문이 조용히 사라진다 — 식별자 없는 라인아이템 1건으로 낸다. 키를 위조하지
+				// 않으므로(D-131) 매칭은 카디널리티로 이뤄지고(D-132), 기존 동작과 같아진다.
+				log.warn("11번가 주문 {} 의 상품주문 식별자를 얻지 못했다 — 식별자 없는 라인아이템 1건으로 처리", ordNo);
+				return unidentifiedSingleLineItemDto(marketType);
+			}
+
+			// 배송번호로 묶는다 — 같은 dlvNo는 물리적으로 같은 택배 한 상자다(-3308 문서).
+			Map<String, List<MarketLineItemDto>> byDlvNo = new LinkedHashMap<>();
+			String representativeDlvNo = null;
+
+			for (String seq : roster) {
+				StatusRow status = statusRows.get(seq);
+				DetailRow detail = detailRows.get(seq);
+
+				String dlvNo = firstNonNull(status != null ? status.dlvNo() : null,
+					detail != null ? detail.dlvNo() : null);
+				if (dlvNo == null) {
+					// 설계 3.3: 배송 식별자를 못 얻으면 주문번호로 대체한다. 배송 없는 주문은 만들지 않는다.
+					dlvNo = ordNo;
+				}
+				if (representativeDlvNo == null) {
+					representativeDlvNo = dlvNo;
+				}
+
+				Map<String, Object> lineData = new java.util.HashMap<>();
+				lineData.put("ordPrdSeq", seq);
+				if (detail != null && detail.addPrdYn() != null) {
+					lineData.put("addPrdYn", detail.addPrdYn());
+				}
+				if (detail != null && detail.addPrdNo() != null) {
+					lineData.put("addPrdNo", detail.addPrdNo());
+				}
+				lineData.put("dlvNo", dlvNo);
+
+				byDlvNo.computeIfAbsent(dlvNo, k -> new ArrayList<>()).add(MarketLineItemDto.builder()
+					.marketLineItemNo(seq)
+					.marketProductCode(detail != null ? detail.sellerPrdCd() : null)
+					.productName(detail != null ? detail.productName() : null)
+					.quantity(resolveQuantity(status, detail))
+					.orderPrice(detail != null ? detail.orderPrice() : BigDecimal.ZERO)
+					.totalAmount(detail != null ? detail.totalAmount() : BigDecimal.ZERO)
+					.status(resolveStatus(status, detail, mapper))
+					.marketSpecificData(lineData)
+					.build());
+			}
+
+			List<MarketShipmentDto> shipments = new ArrayList<>();
+			for (Map.Entry<String, List<MarketLineItemDto>> entry : byDlvNo.entrySet()) {
+				TrackingInfo tracking = trackingByDlvNo.get(entry.getKey());
+				if (tracking == null && byDlvNo.size() == 1) {
+					// 배송이 하나뿐이면 배송번호를 못 밝힌 행의 송장도 이 배송의 것이 확실하다.
+					tracking = trackingWithoutDlvNo;
+				}
+				shipments.add(MarketShipmentDto.builder()
+					.marketShipmentNo(entry.getKey())
+					.trackingNo(tracking != null ? tracking.trackingNo() : null)
+					.carrier(tracking != null ? tracking.carrier() : null)
+					.lineItems(entry.getValue())
+					.build());
+			}
+
+			// 주문 계층 마켓 데이터 — 발주확인·발송처리가 읽는다. ordPrdSeqs는 다품목 발주확인용(전체 순번).
+			Map<String, Object> orderData = new java.util.HashMap<>();
+			if (representativeDlvNo != null) {
+				orderData.put("dlvNo", representativeDlvNo);
+			}
+			orderData.put("ordPrdSeq", roster.get(0));
+			// 구분자가 콤마가 아닌 이유: Order.marketSpecificData는 자체 구현 유사 JSON이고
+			// 읽을 때 ','로 split한다 — 값에 콤마가 들어가면 그 값이 조용히 잘린다(백로그 등재).
+			orderData.put("ordPrdSeqs", String.join("|", roster));
+			DetailRow first = detailRows.get(roster.get(0));
+			if (first != null && first.addPrdYn() != null) {
+				orderData.put("addPrdYn", first.addPrdYn());
+			}
+			if (first != null && first.addPrdNo() != null) {
+				orderData.put("addPrdNo", first.addPrdNo());
+			}
+
+			return MarketOrderDto.builder()
+				.marketType(marketType)
+				.marketOrderNo(ordNo)
+				.recipientName(recipientName)
+				.recipientPhone(recipientPhone)
+				.zipcode(zipcode)
+				.address(address)
+				.message(message)
+				.ordererName(ordererName)
+				.ordererPhone(ordererPhone)
+				.customsClearanceNo(customsClearanceNo)
+				.orderDate(orderDate)
+				.marketSpecificData(orderData)
+				.shipments(shipments)
+				.build();
+		}
+
+		/**
+		 * 상품주문 식별자를 못 얻은 주문을 배송 1 : 상품주문 1로 낸다.
+		 * 종전(주문번호로만 키잉)과 같은 형태이므로 기존 주문에 그대로 반영된다.
+		 */
+		private MarketOrderDto unidentifiedSingleLineItemDto(MarketType marketType) {
+			String dlvNo = trackingByDlvNo.keySet().stream().findFirst().orElse(ordNo);
+			TrackingInfo tracking = trackingByDlvNo.getOrDefault(dlvNo, trackingWithoutDlvNo);
+
+			MarketLineItemDto lineItem = MarketLineItemDto.builder()
+				.marketLineItemNo(null)
+				.quantity(0)
+				.orderPrice(BigDecimal.ZERO)
+				.totalAmount(BigDecimal.ZERO)
+				.status(fallbackListStatus != null ? fallbackListStatus : ShippingStatus.UNKNOWN)
+				.marketSpecificData(new java.util.HashMap<>(Map.of("dlvNo", dlvNo)))
+				.build();
+
+			Map<String, Object> orderData = new java.util.HashMap<>();
+			orderData.put("dlvNo", dlvNo);
+
+			return MarketOrderDto.builder()
+				.marketType(marketType)
+				.marketOrderNo(ordNo)
+				.recipientName(recipientName)
+				.recipientPhone(recipientPhone)
+				.zipcode(zipcode)
+				.address(address)
+				.message(message)
+				.ordererName(ordererName)
+				.ordererPhone(ordererPhone)
+				.customsClearanceNo(customsClearanceNo)
+				.orderDate(orderDate)
+				.marketSpecificData(orderData)
+				.shipments(List.of(MarketShipmentDto.builder()
+					.marketShipmentNo(dlvNo)
+					.trackingNo(tracking != null ? tracking.trackingNo() : null)
+					.carrier(tracking != null ? tracking.carrier() : null)
+					.lineItems(List.of(lineItem))
+					.build()))
+				.build();
+		}
+
+		private static Integer resolveQuantity(StatusRow status, DetailRow detail) {
+			if (detail != null && detail.quantity() != null && detail.quantity() != 0) {
+				return detail.quantity();
+			}
+			if (status != null && status.quantity() != null && status.quantity() != 0) {
+				return status.quantity();
+			}
+			return 0;
+		}
+
+		/**
+		 * 상태는 {@code ordPrdStatNm}이 권위다. 없거나 매핑 불가면 목록 소속으로 폴백한다 —
+		 * 새 API 하나가 동기화 전체를 무력화하게 두지 않는다.
+		 */
+		private static ShippingStatus resolveStatus(StatusRow status, DetailRow detail,
+			ElevenstStatusMapper mapper) {
+			if (status != null) {
+				ShippingStatus mapped = mapper.mapProductOrderStatus(status.statusName());
+				if (mapped != null && mapped != ShippingStatus.UNKNOWN) {
+					return mapped;
+				}
+			}
+			return detail != null ? detail.listStatus() : ShippingStatus.UNKNOWN;
 		}
 	}
 }

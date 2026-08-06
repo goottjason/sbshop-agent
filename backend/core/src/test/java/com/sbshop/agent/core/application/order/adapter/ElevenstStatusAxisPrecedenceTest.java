@@ -5,17 +5,13 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
-import com.sbshop.agent.core.application.order.mapper.ElevenstStatusMapper;
-import com.sbshop.agent.core.application.order.port.ElevenstOrderApiPort;
-import com.sbshop.agent.core.domain.market.MarketCredential;
-import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
+
 import javax.xml.parsers.DocumentBuilderFactory;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,19 +19,27 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.w3c.dom.Element;
 
+import com.sbshop.agent.core.application.order.dto.MarketLineItemDto;
+import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
+import com.sbshop.agent.core.application.order.mapper.ElevenstStatusMapper;
+import com.sbshop.agent.core.application.order.port.ElevenstOrderApiPort;
+import com.sbshop.agent.core.domain.market.MarketCredential;
+import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+
 /**
- * D-126: 11번가의 4개 주문 목록은 상호배타적이지 않다(2026-08-05 라이브 확증).
+ * <b>D-126의 "목록 신뢰 등급"은 2단계에서 제거됐다.</b> 이 파일은 그 자리에 남는 계약을 지킨다.
  *
- * <p>{@code /rest/ordservices/shipping}(배송중) 목록은 <b>송장이 등록된 주문</b>을 돌려주며,
- * 진행상태가 여전히 결제완료여도 포함된다. 실제 사례: 주문 20260731088778989(정나영)은
- * 11번가 판매자센터에서 <b>결제완료</b>인데 송장만 등록돼 있어, 결제완료 목록과 배송중 목록에
- * <b>동시에</b> 나타났다. 어댑터는 네 목록을 단순 concat 했고 배송중이 뒤에 처리돼
- * (마지막 승) 결제완료 주문이 그리드에서 "배송중"으로 보였다.
+ * <p>D-126은 "진행상태 축이 배송 축을 이긴다"는 등급 규칙으로 증상을 덮었다. 그 전제는
+ * <i>네 목록이 같은 주문의 서로 다른 축을 본다</i>였는데, D-130에서 거짓으로 확정됐다 —
+ * 목록 행은 <b>상품주문 단위</b>이고, 결제완료 목록과 배송중 목록은 같은 주문의 <b>서로 다른
+ * 상품주문</b>을 돌려주고 있었다. 이길 필요가 없는 싸움을 심판하고 있었던 것이다.
  *
- * <p>정정된 규칙 — <b>진행상태 축이 배송 축을 이긴다</b>:
- * 결제완료·배송준비중 목록은 11번가의 주문 진행상태를 직접 뜻하므로 확정적이고,
- * 배송중 목록은 송장 보유 사실만 뜻하므로 상태 근거가 되지 못한다. 따라서 충돌 시
- * 진행상태를 채택하되, <b>송장·택배사는 배송 목록에서 병합</b>해 정보를 잃지 않는다.
+ * <p>지금은 상태를 {@code claimservice/orderlistall}의 {@code ordPrdStatNm}으로 상품주문마다
+ * 직접 판정하므로 등급이 사라졌다. 3계층 변환 계약은 {@link ElevenstThreeTierFetchTest}가 지킨다.
+ *
+ * <p>여기 남는 것은 <b>등급과 무관하게 여전히 유효한 두 가지</b>다:
+ * 서로 다른 주문이 섞이지 않는 것, 그리고 같은 주문이 여러 주간 chunk에 걸쳐 나와도 한 건이 되는 것.
+ * 후자는 배송중 목록의 날짜 축이 주문일이 아니라서 실제로 일어난다.
  */
 @ExtendWith(MockitoExtension.class)
 class ElevenstStatusAxisPrecedenceTest {
@@ -46,8 +50,7 @@ class ElevenstStatusAxisPrecedenceTest {
 	private final ElevenstStatusMapper statusMapper = new ElevenstStatusMapper();
 
 	private Element element(String xml) throws Exception {
-		return DocumentBuilderFactory.newInstance()
-			.newDocumentBuilder()
+		return DocumentBuilderFactory.newInstance().newDocumentBuilder()
 			.parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)))
 			.getDocumentElement();
 	}
@@ -60,7 +63,8 @@ class ElevenstStatusAxisPrecedenceTest {
 
 	private Element shippingOrder(String ordNo, String invcNo) throws Exception {
 		return element("<order><ordNo>" + ordNo + "</ordNo><invcNo>" + invcNo + "</invcNo>"
-			+ "<dlvEtprsCd>00034</dlvEtprsCd><rcvrNm>정나영</rcvrNm></order>");
+			+ "<dlvEtprsCd>00034</dlvEtprsCd><rcvrNm>정나영</rcvrNm>"
+			+ "<dlvNo>2716448228</dlvNo></order>");
 	}
 
 	private MarketCredential credential() {
@@ -69,7 +73,6 @@ class ElevenstStatusAxisPrecedenceTest {
 		return credential;
 	}
 
-	/** 배송중 목록만 값을 주고 나머지는 빈 목록으로 두는 기본 스텁. */
 	private void stubEmptyExcept(List<Element> complete, List<Element> shipping) {
 		when(elevenstOrderApiPort.fetchCompletedOrders(anyString(), anyString(), anyString()))
 			.thenReturn(complete);
@@ -81,105 +84,41 @@ class ElevenstStatusAxisPrecedenceTest {
 			.thenReturn(List.of());
 	}
 
-	@Test
-	@DisplayName("[D-126] 결제완료·배송중 목록에 동시에 나오면 결제완료(NEW)가 이기고 송장은 보존된다")
-	void completeListWinsOverShippingList_butKeepsTracking() throws Exception {
-		String ordNo = "20260731088778989";
-		stubEmptyExcept(List.of(completeOrder(ordNo)), List.of(shippingOrder(ordNo, "424079080471")));
+	private List<MarketOrderDto> fetch() {
+		return new ElevenstOrderAdapter(elevenstOrderApiPort, statusMapper)
+			.fetchOrders(credential(), LocalDate.now().minusDays(3), LocalDate.now());
+	}
 
-		ElevenstOrderAdapter adapter = new ElevenstOrderAdapter(elevenstOrderApiPort, statusMapper);
-		List<MarketOrderDto> result = adapter.fetchOrders(
-			credential(), LocalDate.now().minusDays(3), LocalDate.now());
+	private static ShippingStatus soleStatus(MarketOrderDto dto) {
+		List<MarketLineItemDto> items = dto.getShipments().stream()
+			.flatMap(s -> s.getLineItems().stream()).toList();
+		assertThat(items).hasSize(1);
+		return items.get(0).getStatus();
+	}
 
-		// 주문번호당 한 건으로 병합돼야 한다 (과거엔 NEW·SHIPPED 두 건이 나와 뒤가 이겼다).
-		assertThat(result).hasSize(1);
-		MarketOrderDto dto = result.get(0);
-		assertThat(dto.getMarketOrderNo()).isEqualTo(ordNo);
-		assertThat(dto.getStatus()).isEqualTo(ShippingStatus.NEW);
-		// 상태는 진행상태 축을 따르되, 배송 목록이 준 송장 정보는 잃지 않는다.
-		assertThat(dto.getTrackingNo()).isEqualTo("424079080471");
-		// 결제완료 목록이 준 전체 데이터(상품명·수량)도 유지된다 — 배송중 목록은 최소 정보뿐이다.
-		assertThat(dto.getProductName()).isEqualTo("비타민");
-		assertThat(dto.getQuantity()).isEqualTo(1);
+	private static String soleTracking(MarketOrderDto dto) {
+		assertThat(dto.getShipments()).hasSize(1);
+		return dto.getShipments().get(0).getTrackingNo();
 	}
 
 	@Test
-	@DisplayName("[D-126] 배송중 목록에만 있으면 종전대로 SHIPPED로 매핑된다")
-	void shippingOnlyStaysShipped() throws Exception {
-		String ordNo = "20260801088977098";
-		stubEmptyExcept(List.of(), List.of(shippingOrder(ordNo, "363082000865")));
-
-		ElevenstOrderAdapter adapter = new ElevenstOrderAdapter(elevenstOrderApiPort, statusMapper);
-		List<MarketOrderDto> result = adapter.fetchOrders(
-			credential(), LocalDate.now().minusDays(3), LocalDate.now());
-
-		assertThat(result).hasSize(1);
-		assertThat(result.get(0).getStatus()).isEqualTo(ShippingStatus.SHIPPED);
-		assertThat(result.get(0).getTrackingNo()).isEqualTo("363082000865");
-	}
-
-	@Test
-	@DisplayName("[D-126] 배송완료 목록은 배송중 목록을 이긴다 (배송 축 안에서는 더 진행된 쪽)")
-	void deliveredWinsOverShipping() throws Exception {
-		String ordNo = "20260726087776259";
-		when(elevenstOrderApiPort.fetchCompletedOrders(anyString(), anyString(), anyString()))
-			.thenReturn(List.of());
-		when(elevenstOrderApiPort.fetchPackagingOrders(anyString(), anyString(), anyString()))
-			.thenReturn(List.of());
-		when(elevenstOrderApiPort.fetchShippingOrders(anyString(), anyString(), anyString()))
-			.thenReturn(List.of(shippingOrder(ordNo, "424410280092")));
-		when(elevenstOrderApiPort.fetchCompletedDeliveryOrders(anyString(), anyString(), anyString()))
-			.thenReturn(List.of(completeOrder(ordNo)));
-
-		ElevenstOrderAdapter adapter = new ElevenstOrderAdapter(elevenstOrderApiPort, statusMapper);
-		List<MarketOrderDto> result = adapter.fetchOrders(
-			credential(), LocalDate.now().minusDays(3), LocalDate.now());
-
-		assertThat(result).hasSize(1);
-		assertThat(result.get(0).getStatus()).isEqualTo(ShippingStatus.DELIVERED);
-		assertThat(result.get(0).getTrackingNo()).isEqualTo("424410280092");
-	}
-
-	@Test
-	@DisplayName("[D-126] 서로 다른 주문은 병합되지 않는다")
+	@DisplayName("서로 다른 주문은 섞이지 않는다")
 	void distinctOrdersAreNotMerged() throws Exception {
 		stubEmptyExcept(
 			List.of(completeOrder("20260731088778989")),
 			List.of(shippingOrder("20260801088977098", "363082000865")));
+		when(elevenstOrderApiPort.fetchProductOrderStatuses(anyString(), anyString()))
+			.thenReturn(List.of());
 
-		ElevenstOrderAdapter adapter = new ElevenstOrderAdapter(elevenstOrderApiPort, statusMapper);
-		List<MarketOrderDto> result = adapter.fetchOrders(
-			credential(), LocalDate.now().minusDays(3), LocalDate.now());
+		List<MarketOrderDto> result = fetch();
 
 		assertThat(result).hasSize(2);
-		assertThat(result).extracting(MarketOrderDto::getStatus)
-			.containsExactlyInAnyOrder(ShippingStatus.NEW, ShippingStatus.SHIPPED);
+		assertThat(result).extracting(MarketOrderDto::getMarketOrderNo)
+			.containsExactlyInAnyOrder("20260731088778989", "20260801088977098");
 	}
 
 	@Test
-	@DisplayName("[D-126] 배송준비중(발주확인 완료)도 배송중 목록을 이긴다")
-	void packagingWinsOverShipping() throws Exception {
-		String ordNo = "20260730088728533";
-		when(elevenstOrderApiPort.fetchCompletedOrders(anyString(), anyString(), anyString()))
-			.thenReturn(List.of());
-		when(elevenstOrderApiPort.fetchPackagingOrders(anyString(), anyString(), anyString()))
-			.thenReturn(List.of(completeOrder(ordNo)));
-		when(elevenstOrderApiPort.fetchShippingOrders(anyString(), anyString(), anyString()))
-			.thenReturn(List.of(shippingOrder(ordNo, "6063465794604")));
-		when(elevenstOrderApiPort.fetchCompletedDeliveryOrders(anyString(), anyString(), anyString()))
-			.thenReturn(List.of());
-
-		ElevenstOrderAdapter adapter = new ElevenstOrderAdapter(elevenstOrderApiPort, statusMapper);
-		List<MarketOrderDto> result = adapter.fetchOrders(
-			credential(), LocalDate.now().minusDays(3), LocalDate.now());
-
-		assertThat(result).hasSize(1);
-		assertThat(result.get(0).getStatus()).isEqualTo(ShippingStatus.PREPARING);
-		assertThat(result.get(0).getTrackingNo()).isEqualTo("6063465794604");
-	}
-
-	@Test
-	@DisplayName("[D-126] 여러 주간 chunk에 걸쳐 같은 주문이 나와도 한 건으로 병합된다")
+	@DisplayName("여러 주간 chunk에 걸쳐 같은 주문이 나와도 한 건으로 모인다")
 	void mergesAcrossWeeklyChunks() throws Exception {
 		String ordNo = "20260731088778989";
 		// 30일 조회는 7일 단위 5 chunk로 분할된다. 결제완료는 첫 chunk에서만, 배송중은 마지막 chunk에서
@@ -192,27 +131,52 @@ class ElevenstStatusAxisPrecedenceTest {
 			.thenReturn(List.of(), List.of(), List.of(), List.of(), List.of(shippingOrder(ordNo, "424079080471")));
 		when(elevenstOrderApiPort.fetchCompletedDeliveryOrders(anyString(), anyString(), anyString()))
 			.thenReturn(List.of());
+		when(elevenstOrderApiPort.fetchProductOrderStatuses(anyString(), anyString()))
+			.thenReturn(List.of());
 
-		ElevenstOrderAdapter adapter = new ElevenstOrderAdapter(elevenstOrderApiPort, statusMapper);
-		List<MarketOrderDto> result = adapter.fetchOrders(
-			credential(), LocalDate.now().minusDays(30), LocalDate.now());
+		List<MarketOrderDto> result = new ElevenstOrderAdapter(elevenstOrderApiPort, statusMapper)
+			.fetchOrders(credential(), LocalDate.now().minusDays(29), LocalDate.now());
 
 		assertThat(result).hasSize(1);
-		assertThat(result.get(0).getStatus()).isEqualTo(ShippingStatus.NEW);
-		assertThat(result.get(0).getTrackingNo()).isEqualTo("424079080471");
+		// 같은 배송번호이므로 배송 하나에 상품주문 하나 — 결제완료가 준 상품주문에 배송중이 준 송장이 붙는다.
+		assertThat(soleTracking(result.get(0))).isEqualTo("424079080471");
 	}
 
 	@Test
-	@DisplayName("[D-126] 병합해도 marketSpecificData(발주확인·배송번호)는 보존된다")
-	void mergeKeepsMarketSpecificData() throws Exception {
+	@DisplayName("결제완료·배송중 목록이 같은 상품주문을 줘도 상태는 orderlistall이 정한다")
+	void statusComesFromStatusApiNotListMembership() throws Exception {
+		// 종전에는 여기서 목록 등급이 싸웠다. 지금은 심판이 필요 없다 — 상태의 출처가 하나다.
 		String ordNo = "20260731088778989";
 		stubEmptyExcept(List.of(completeOrder(ordNo)), List.of(shippingOrder(ordNo, "424079080471")));
+		when(elevenstOrderApiPort.fetchProductOrderStatuses(anyString(), anyString()))
+			.thenReturn(List.of(element("<order><ordNo>" + ordNo + "</ordNo>"
+				+ "<ordPrdSeq>1</ordPrdSeq><dlvNo>2716448228</dlvNo>"
+				+ "<ordPrdStatNm>결제완료</ordPrdStatNm><ordQty>1</ordQty></order>")));
 
-		ElevenstOrderAdapter adapter = new ElevenstOrderAdapter(elevenstOrderApiPort, statusMapper);
-		List<MarketOrderDto> result = adapter.fetchOrders(
-			credential(), LocalDate.now().minusDays(3), LocalDate.now());
+		List<MarketOrderDto> result = fetch();
 
-		Map<String, Object> marketData = result.get(0).getMarketSpecificData();
-		assertThat(marketData).containsEntry("ordPrdSeq", "1").containsEntry("dlvNo", "2716448228");
+		assertThat(result).hasSize(1);
+		assertThat(soleStatus(result.get(0))).isEqualTo(ShippingStatus.NEW);
+		// 상태를 바로잡느라 사실을 지우지 않는다 — "결제완료인데 송장 있음"이 이 주문의 실제 상태다.
+		assertThat(soleTracking(result.get(0))).isEqualTo("424079080471");
+	}
+
+	@Test
+	@DisplayName("배송중 목록에만 있고 상태조회도 답이 없으면 목록 소속으로 폴백한다")
+	void shippingOnlyFallsBackToShipped() throws Exception {
+		String ordNo = "20260801088977098";
+		stubEmptyExcept(List.of(), List.of(shippingOrder(ordNo, "363082000865")));
+		when(elevenstOrderApiPort.fetchProductOrderStatuses(anyString(), anyString()))
+			.thenReturn(List.of());
+
+		List<MarketOrderDto> result = fetch();
+
+		// 이 목록은 ordPrdSeq를 주지 않는다. 드롭하면 주문이 조용히 사라지므로 식별자 없는
+		// 라인아이템 1건으로 낸다 — 종전(주문번호로만 키잉)과 같은 형태다.
+		assertThat(result).hasSize(1);
+		assertThat(soleStatus(result.get(0))).isEqualTo(ShippingStatus.SHIPPED);
+		assertThat(soleTracking(result.get(0))).isEqualTo("363082000865");
+		assertThat(result.get(0).getShipments().get(0).getLineItems().get(0).getMarketLineItemNo())
+			.isNull();
 	}
 }

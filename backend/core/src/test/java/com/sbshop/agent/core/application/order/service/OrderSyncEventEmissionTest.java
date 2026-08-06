@@ -116,7 +116,10 @@ class OrderSyncEventEmissionTest {
 		when(credentialRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(Optional.empty());
 		ElevenstOrderSyncService service = new ElevenstOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService, org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class));
+			eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
+			// 2단계: 배송 계층 upsert. 이 테스트들은 배송을 검증하지 않으므로 목으로 둔다.
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.OrderShipmentUpsertService.class));
 
 		service.syncElevenstOrders();
 

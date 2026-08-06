@@ -31,8 +31,8 @@ class ElevenstShippingRecipientPreservationTest {
 
 	@Mock
 	private ElevenstOrderApiPort elevenstOrderApiPort;
-	@Mock
-	private ElevenstStatusMapper statusMapper;
+	/** 상태 폴백이 매퍼를 거치므로 실물을 쓴다 — 목이면 폴백 상태가 null이 된다. */
+	private final ElevenstStatusMapper statusMapper = new ElevenstStatusMapper();
 
 	private Element shippingElement(String ordNo, String rcvrNm, String rcvrBaseAddr) throws Exception {
 		StringBuilder xml = new StringBuilder("<order><ordNo>").append(ordNo).append("</ordNo>");
@@ -113,8 +113,10 @@ class ElevenstShippingRecipientPreservationTest {
 
 		assertThat(shipped.getRecipientName()).isEqualTo("김수취");
 		assertThat(shipped.getAddress()).contains("부산시 해운대구");
-		// 배송 상태는 배송중 값 유지(상세조회로 덮지 않음)
-		assertThat(shipped.getStatus()).isEqualTo(com.sbshop.agent.core.domain.order.enums.ShippingStatus.SHIPPED);
+		// 배송 상태는 배송중 값 유지(상세조회로 덮지 않음). 2단계부터 상태는 라인아이템에 있다 —
+		// 평면 필드에 담으면 다품목 주문에서 "첫 상품주문"이 주문 전체의 상태처럼 보인다.
+		assertThat(shipped.getShipments().get(0).getLineItems().get(0).getStatus())
+			.isEqualTo(com.sbshop.agent.core.domain.order.enums.ShippingStatus.SHIPPED);
 	}
 
 	@Test

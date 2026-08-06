@@ -71,6 +71,28 @@ public class ElevenstOrderApiClient implements ElevenstOrderApiPort {
 	}
 
 	@Override
+	public void shipOrderPartial(String apiKey, String sendDt, String dlvMthdCd, String dlvEtprsCd,
+		String invcNo, String dlvNo, String ordNo, String ordPrdSeq) {
+		String path = "/rest/ordservices/reqdelivery/"
+			+ sendDt + "/" + dlvMthdCd + "/" + dlvEtprsCd + "/" + invcNo + "/" + dlvNo
+			+ "/Y/" + ordNo + "/" + ordPrdSeq;
+
+		Document doc = restClient.get(path, apiKey);
+		Element root = doc.getDocumentElement();
+		String resultCode = ElevenstXmlUtils.getElementText(root, "result_code");
+		String resultText = ElevenstXmlUtils.getElementText(root, "result_text");
+
+		if (!"0".equals(resultCode)) {
+			log.error("11번가 부분발송처리 실패: dlvNo={}, ordNo={}, seq={}, code={}, text={}",
+				dlvNo, ordNo, ordPrdSeq, resultCode, resultText);
+			throw new RuntimeException("11번가 발송처리 실패: " + resultText);
+		}
+
+		log.info("11번가 부분발송처리 성공: dlvNo={}, ordNo={}, seq={}, text={}",
+			dlvNo, ordNo, ordPrdSeq, resultText);
+	}
+
+	@Override
 	public List<Element> fetchShippingOrders(String apiKey, String startTime, String endTime) {
 		String path = "/rest/ordservices/shipping/" + startTime + "/" + endTime;
 		return fetchOrderList(path, apiKey, "배송중");
@@ -86,6 +108,13 @@ public class ElevenstOrderApiClient implements ElevenstOrderApiPort {
 	public List<Element> fetchOrderDetail(String apiKey, String ordNo) {
 		String path = "/rest/claimservice/orderlistalladdr/" + ordNo;
 		return fetchOrderList(path, apiKey, "주문상세");
+	}
+
+	@Override
+	public List<Element> fetchProductOrderStatuses(String apiKey, String ordNos) {
+		// orderlistalladdr(주소 포함 상세)와 다른 API다. 응답이 ordPrdSeq별 행으로 온다.
+		String path = "/rest/claimservice/orderlistall/" + ordNos;
+		return fetchOrderList(path, apiKey, "상품주문상태");
 	}
 
 	/**

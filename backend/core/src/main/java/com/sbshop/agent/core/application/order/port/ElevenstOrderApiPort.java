@@ -55,6 +55,20 @@ public interface ElevenstOrderApiPort {
 		String dlvEtprsCd, String invcNo, String dlvNo);
 
 	/**
+	 * 부분발송처리 — 배송 안의 <b>지정한 상품주문만</b> 발송 처리한다.
+	 *
+	 * <p>{@link #shipOrder}(전체)는 <b>묶음배송번호가 같은 주문번호를 모두</b> 발송 처리한다
+	 * (에러코드 -3308 설명). 다품목·묶음배송 주문에서 한 상품주문만 보내려는데 묶음 전체가
+	 * 나가면, 아직 준비되지 않은 상품이 발송된 것으로 마켓에 기록된다.
+	 *
+	 * <p>배송주체가 "업체배송"인 주문만 사용 가능하며 추가구성상품만 부분발송은 불가하다.
+	 *
+	 * @param ordPrdSeq 대상 상품주문 순번. 문서상 복수 지정 가능({@code "1,2"})
+	 */
+	void shipOrderPartial(String apiKey, String sendDt, String dlvMthdCd, String dlvEtprsCd,
+		String invcNo, String dlvNo, String ordNo, String ordPrdSeq);
+
+	/**
 	 * 배송중 주문 목록 조회
 	 *
 	 * @param apiKey 11번가 API 키
@@ -82,4 +96,19 @@ public interface ElevenstOrderApiPort {
 	 * @return 주문 상세 XML 엘리먼트
 	 */
 	List<Element> fetchOrderDetail(String apiKey, String ordNo);
+
+	/**
+	 * 상품주문별 상태 조회 ({@code claimservice/orderlistall}).
+	 *
+	 * <p>2단계에서 도입. 응답이 <b>{@code ordPrdSeq}별 행</b>으로 오고 행마다
+	 * {@code ordPrdStatNm}·{@code dlvNo}·{@code prdNm}·{@code ordQty}를 준다. 즉 상품주문 상태를
+	 * 직접 알려주므로, 종전처럼 "어느 목록에서 왔는가"로 상태를 추론할 필요가 없다(D-126의 구조적 원인).
+	 *
+	 * <p>{@code orderlistalladdr}(주소 포함 상세)와는 <b>다른 API</b>다.
+	 *
+	 * @param apiKey  11번가 API 키
+	 * @param ordNos  주문번호 콤마 구분 문자열. <b>최대 100건</b> — 호출자가 나눠 넣는다
+	 * @return 상품주문 행 XML 엘리먼트
+	 */
+	List<Element> fetchProductOrderStatuses(String apiKey, String ordNos);
 }
