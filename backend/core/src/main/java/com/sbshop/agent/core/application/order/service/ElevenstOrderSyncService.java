@@ -46,8 +46,8 @@ public class ElevenstOrderSyncService {
 	private final com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 	private final MarketFeeService marketFeeService;
 	private final TerminalSettlementService terminalSettlementService;
-	/** 2단계: 배송 계층 upsert + 라인아이템 미러(설계 4.4). */
-	private final OrderShipmentUpsertService orderShipmentUpsertService;
+	/** 3계층 반영 공통 골격. 마켓별 차이는 {@code syncPolicy}가 흡수한다. */
+	private final MarketLineItemSyncDispatcher lineItemSyncDispatcher;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -113,14 +113,14 @@ public class ElevenstOrderSyncService {
 		List<OrderLineItem> lineItems = orderLineItemRepository.findByOrderId(order.getId());
 		updateOrderInfoFromDto(order, dto, lineItems);
 		orderRepository.save(order);
-		syncShipmentsAndLineItems(order, dto, lineItems);
+		lineItemSyncDispatcher.sync(order, dto, lineItems, syncPolicy);
 	}
 
 	private void createNewOrder(MarketOrderDto dto) {
 		Order order = buildOrderFromDto(dto);
 		orderRepository.save(order);
 		log.info("[ELEVEN_STREET] 신규 주문 저장 완료: id={}, orderNo={}", order.getId(), order.getMarketOrderNo());
-		syncShipmentsAndLineItems(order, dto, List.of());
+		lineItemSyncDispatcher.sync(order, dto, List.of(), syncPolicy);
 	}
 
 	/**
@@ -132,111 +132,6 @@ public class ElevenstOrderSyncService {
 	 * <p>송장은 여기서 직접 쓰지 않는다 — 배송이 단일 원본이고 {@code linkToShipment}가 내려쓴다
 	 * (설계 4.4, D-133). 진행상태·상품·정산액만 라인아이템에 반영한다.
 	 */
-	private void syncShipmentsAndLineItems(Order order, MarketOrderDto dto, List<OrderLineItem> existing) {
-		List<MarketShipmentDto> shipmentDtos = dto.getShipments();
-		if (shipmentDtos == null || shipmentDtos.isEmpty()) {
-			log.warn("[ELEVEN_STREET] 배송 계층이 없는 DTO — 건너뜀: orderNo={}", dto.getMarketOrderNo());
-			return;
-		}
-
-		// 상품주문 → 소속 배송 역참조. 매칭 결과에서 배송을 되찾으려면 필요하다.
-		java.util.IdentityHashMap<MarketLineItemDto, MarketShipmentDto> owner =
-			new java.util.IdentityHashMap<>();
-		// 상품 해석은 상품주문당 <b>한 번만</b> 한다. 두 번 부르면 쿠팡의 vendorItemId 보강처럼
-		// 부수효과가 있는 경로가 중복 실행된다(라이브 저장이 두 번 일어났다).
-		java.util.IdentityHashMap<MarketLineItemDto, Long> resolvedProducts =
-			new java.util.IdentityHashMap<>();
-		List<OrderLineItemMatcher.Incoming> incoming = new java.util.ArrayList<>();
-		for (MarketShipmentDto shipmentDto : shipmentDtos) {
-			if (shipmentDto.getLineItems() == null) {
-				continue;
-			}
-			for (MarketLineItemDto lineItemDto : shipmentDto.getLineItems()) {
-				owner.put(lineItemDto, shipmentDto);
-				Long productId = resolveProductId(lineItemDto);
-				resolvedProducts.put(lineItemDto, productId);
-				incoming.add(new OrderLineItemMatcher.Incoming(lineItemDto, productId));
-			}
-		}
-
-		OrderLineItemMatcher.MatchResult match =
-			OrderLineItemMatcher.matchAndAdopt(existing, incoming);
-		for (String warning : match.warnings()) {
-			log.warn("[ELEVEN_STREET] orderNo={} {}", dto.getMarketOrderNo(), warning);
-		}
-
-		// 배송 upsert는 배송식별자당 한 번만. 여러 상품주문이 같은 배송을 가리킨다.
-		java.util.IdentityHashMap<MarketShipmentDto, Shipment> shipments = new java.util.IdentityHashMap<>();
-		for (MarketShipmentDto shipmentDto : shipmentDtos) {
-			shipments.put(shipmentDto, orderShipmentUpsertService.upsertShipment(order.getId(), shipmentDto));
-		}
-
-		for (OrderLineItemMatcher.Adoption adoption : match.matched()) {
-			OrderLineItem item = adoption.lineItem();
-			updateLineItemFromDto(item, adoption.dto(), resolvedProducts.get(adoption.dto()));
-			orderLineItemRepository.save(item);
-			orderShipmentUpsertService.linkToShipment(item, shipments.get(owner.get(adoption.dto())));
-		}
-
-		if (shouldDeferSplit(match, incoming)) {
-			// 상품을 식별할 수 없는 상품주문이 있는데 짝짓지 못한 기존 행이 남았다. 이때 새 행을
-			// 만들면 (a) 상품·금액이 빈 껍데기 행이 생기고 (b) 소싱처·구매상태가 붙은 옛 행이
-			// 고아가 된다. 라이브에서 정나영 건이 정확히 이렇게 됐다(2026-08-06).
-			// 분할을 미룬다 — 상품 신호를 얻으면(전체 정보 목록 유입·수동 키 부여) 그때 정확히 갈린다.
-			log.warn("[ELEVEN_STREET] ⚠ 분할 보류: orderNo={} 상품주문 {}건을 만들지 않았다 —"
-				+ " 상품을 식별할 수 없고(판매자상품코드 부재) 짝짓지 못한 기존 행이 있다(id={})."
-				+ " 기존 행에 상품주문번호를 직접 지정하면 다음 동기화에서 정확히 갈린다.",
-				dto.getMarketOrderNo(), match.toCreate().size(),
-				match.unclaimed().stream().map(OrderLineItem::getId).toList());
-			return;
-		}
-
-		for (MarketLineItemDto lineItemDto : match.toCreate()) {
-			OrderLineItem created = buildLineItemFromDto(lineItemDto, order.getId(),
-				resolvedProducts.get(lineItemDto));
-			orderLineItemRepository.save(created);
-			orderShipmentUpsertService.linkToShipment(created, shipments.get(owner.get(lineItemDto)));
-			log.info("[ELEVEN_STREET] 상품주문 신규 라인아이템 생성: orderNo={}, ordPrdSeq={}",
-				dto.getMarketOrderNo(), lineItemDto.getMarketLineItemNo());
-		}
-
-		if (!match.unclaimed().isEmpty()) {
-			if (!match.toCreate().isEmpty()) {
-				// 이 조합이 사람의 확인을 요구한다: 새 행을 만들면서 옛 행을 짝짓지 못했다는 뜻이므로,
-				// 소싱처·실구매가·구매상태가 붙은 행이 고아로 남았을 수 있다. 상품 정보가 양쪽에 없어
-				// (예: 배송중 목록에만 있는 다품목 주문) 자동 판정이 불가능한 경우다.
-				log.warn("[ELEVEN_STREET] ⚠ 확인 필요: orderNo={} 신규 {}건을 만들면서 기존 {}건을 짝짓지 못했다"
-					+ " — 구매정보가 옛 행에 남아 있을 수 있다(라인아이템 id={})",
-					dto.getMarketOrderNo(), match.toCreate().size(), match.unclaimed().size(),
-					match.unclaimed().stream().map(OrderLineItem::getId).toList());
-			} else {
-				log.warn("[ELEVEN_STREET] orderNo={} 마켓이 더는 보내지 않는 라인아이템 {}건 — 지우지 않고 남긴다",
-					dto.getMarketOrderNo(), match.unclaimed().size());
-			}
-		}
-	}
-
-	/**
-	 * 상품주문 값을 라인아이템에 반영한다.
-	 *
-	 * <p>송장·택배사는 <b>건드리지 않는다</b> — 배송이 단일 원본이고 미러가 내려쓴다(D-133).
-	 * 상태가 {@code UNKNOWN}이면 덮지 않는다. 새 상태명이 등장했을 때 배송중 주문이 신규로
-	 * 되돌아가는 것이 가장 나쁜 실패다.
-	 */
-	private void updateLineItemFromDto(OrderLineItem item, MarketLineItemDto dto, Long productId) {
-		if (productId != null && !productId.equals(item.getProductId())) {
-			item.assignProductId(productId);
-		}
-		ShippingStatus status = dto.getStatus();
-		if (status == null || status == ShippingStatus.UNKNOWN) {
-			return;
-		}
-		ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
-			.shippingStatus(status)
-			.build();
-		item.applyShippingData(cmd.toShippingData(item.getShippingData()));
-	}
-
 	private void updateOrderInfoFromDto(Order order, MarketOrderDto dto, List<OrderLineItem> lineItems) {
 		// D-074: 진행(PREPARING 이상) lineItem 존재 시 주소·우편번호를 API 값으로 덮지 않음(수기 보정 보호, 세트).
 		boolean protectAddress = lineItems.stream().anyMatch(OrderLineItem::isProgressed);
@@ -285,6 +180,27 @@ public class ElevenstOrderSyncService {
 	}
 
 	/**
+	 * 이 마켓의 3계층 동기화 정책. 골격이 갖지 않는 세 가지만 구현한다 —
+	 * 로그 태그·상품 해석·라인아이템 생성(정산액 산출).
+	 */
+	private final MarketLineItemSyncPolicy syncPolicy = new MarketLineItemSyncPolicy() {
+		@Override
+		public String logTag() {
+			return "ELEVEN_STREET";
+		}
+
+		@Override
+		public Long resolveProductId(MarketLineItemDto dto) {
+			return elevenstResolveProductId(dto);
+		}
+
+		@Override
+		public OrderLineItem createLineItem(MarketLineItemDto dto, Long orderId, Long productId) {
+			return buildLineItemFromDto(dto, orderId, productId);
+		}
+	};
+
+	/**
 	 * 상품주문 1건의 라인아이템을 만든다.
 	 *
 	 * <p>송장은 넣지 않는다 — 배송이 단일 원본이고 미러가 내려쓴다(D-133). 정산액은 이 상품주문의
@@ -312,26 +228,6 @@ public class ElevenstOrderSyncService {
 	 * <p>추정은 D-122(스마트스토어 수수료율 가정 8% vs 실제 4.9%)에서 드러난 것처럼 괴리를 낳는다.
 	 * 상품주문별로 실측값이 오므로 다품목 주문의 분배 문제도 함께 사라진다(설계 9.1).
 	 */
-	/**
-	 * 분할을 미뤄야 하는가 — <b>빈 껍데기 행과 고아 행을 동시에 만드는 조합</b>을 막는다.
-	 *
-	 * <p>조건 세 개가 겹칠 때만 참이다: 새로 만들 상품주문이 있고 · 짝짓지 못한 기존 행이 있고 ·
-	 * 새로 만들 것 중 상품을 식별할 수 없는 것이 있다. 11번가는 {@code orderlistall}·
-	 * {@code orderlistalladdr} 어느 쪽도 {@code sellerPrdCd}를 주지 않으므로(2026-08-06 라이브 확인),
-	 * 전체 정보 목록의 날짜 창을 지난 주문은 상품 매핑 신호가 아예 없다.
-	 *
-	 * <p>새로 들어오는 주문은 결제완료 목록을 반드시 거치므로 이 상황이 생기지 않는다.
-	 * 즉 이 가드는 <b>기능이 켜지기 전에 이미 창을 지나 있던 주문</b>에만 걸린다.
-	 */
-	private boolean shouldDeferSplit(OrderLineItemMatcher.MatchResult match,
-		List<OrderLineItemMatcher.Incoming> incoming) {
-		if (match.toCreate().isEmpty() || match.unclaimed().isEmpty()) {
-			return false;
-		}
-		return match.toCreate().stream().anyMatch(create -> incoming.stream()
-			.anyMatch(in -> in.dto() == create && in.resolvedProductId() == null));
-	}
-
 	private java.math.BigDecimal resolveSettlementAmount(MarketLineItemDto dto) {
 		if (dto.getSettlementAmount() != null && dto.getSettlementAmount().signum() != 0) {
 			return dto.getSettlementAmount();
@@ -339,7 +235,7 @@ public class ElevenstOrderSyncService {
 		return marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.ELEVEN_STREET);
 	}
 
-	private Long resolveProductId(MarketLineItemDto dto) {
+	private Long elevenstResolveProductId(MarketLineItemDto dto) {
 		if (dto.getMarketProductCode() != null) {
 			Product product = productRepository.findBySbCode(dto.getMarketProductCode()).orElse(null);
 			return product != null ? product.getId() : null;

@@ -108,7 +108,8 @@ class CoupangOrderProductMappingTest {
 			orderLineItemRepository, productRepository, marketRegistrationRepository, eventPublisher,
 			coupangOrderAdapter, statusMapper, syncStatusService, marketFeeService,
 			terminalSettlementService, actionLogService,
-			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
+			new MarketLineItemSyncDispatcher(orderLineItemRepository,
+				new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository)));
 	}
 
 	private static final String VENDOR_ITEM_ID = "VI456";

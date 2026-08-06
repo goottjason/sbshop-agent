@@ -84,12 +84,13 @@ class CoupangThreeTierSyncTest {
 
 	@BeforeEach
 	void setUp() {
-		OrderShipmentUpsertService shipmentUpsert =
-			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository);
+		// 골격은 진짜 객체를 끼운다 — 목이면 반영이 사라져 검증이 통과해도 아무것도 증명하지 못한다.
+		MarketLineItemSyncDispatcher syncDispatcher = new MarketLineItemSyncDispatcher(orderLineItemRepository,
+				new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
 		service = new CoupangOrderSyncService(credentialRepository, orderRepository,
 			orderLineItemRepository, productRepository, marketRegistrationRepository, eventPublisher,
 			adapter, new CoupangStatusMapper(), syncStatusService, marketFeeService,
-			terminalSettlementService, actionLogService, shipmentUpsert);
+			terminalSettlementService, actionLogService, syncDispatcher);
 
 		MarketCredential credential = mock(MarketCredential.class);
 		when(credential.getClientId()).thenReturn("A001");

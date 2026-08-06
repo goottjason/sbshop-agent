@@ -83,11 +83,12 @@ class ElevenstThreeTierSyncTest {
 
 	@BeforeEach
 	void setUp() {
-		OrderShipmentUpsertService shipmentUpsert =
-			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository);
+		// 골격은 진짜 객체를 끼운다 — 목이면 반영이 사라져 검증이 통과해도 아무것도 증명하지 못한다.
+		MarketLineItemSyncDispatcher syncDispatcher = new MarketLineItemSyncDispatcher(orderLineItemRepository,
+				new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
 		service = new ElevenstOrderSyncService(credentialRepository, orderRepository,
 			orderLineItemRepository, productRepository, eventPublisher, adapter,
-			syncStatusService, marketFeeService, terminalSettlementService, shipmentUpsert);
+			syncStatusService, marketFeeService, terminalSettlementService, syncDispatcher);
 
 		MarketCredential credential = mock(MarketCredential.class);
 		when(credential.getAccessKey()).thenReturn("api-key");
