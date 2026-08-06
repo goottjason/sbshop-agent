@@ -44,6 +44,8 @@ public class OrderService {
 	private final OrderLineItemRepository orderLineItemRepository;
 	private final MarketCredentialRepository credentialRepository;
 	private final MarketplaceShippingService marketplaceShippingService;
+	/** D-133: 송장 쓰기는 이 통로만 쓴다 — 배송이 붙어 있으면 배송이 단일 원본이다. */
+	private final LineItemShippingWriter shippingWriter;
 
 	// ======================== 조회 ========================
 
@@ -339,11 +341,13 @@ public class OrderService {
 		}
 
 		// 공통: 송장데이터 반영 → (PREPARING → DISPATCHED 전이 시에만 마킹) → 저장
-		item.applyShippingData(command.toShippingData(item.getShippingData()));
+		// D-133: 저장은 통로가 한다. 진행상태는 라인아이템에만 남는다(설계 3.2) — 전이를
+		// 통로에 넘기기 전에 합성해, 저장이 두 번 일어나지 않게 한다.
+		ShippingData next = command.toShippingData(item.getShippingData());
 		if (isDispatchTransition) {
-			item.markAsDispatched();
+			next = next.toBuilder().shippingStatus(ShippingStatus.DISPATCHED).build();
 		}
-		orderLineItemRepository.save(item);
+		shippingWriter.applyShipping(item, next);
 
 		// 마켓플레이스에 송장 전송/업데이트 — 반영 실패 시 자사 저장을 롤백해 DB/마켓 정합을 유지(@Transactional),
 		// 스킵(전송 대상 아님)은 로컬 편집 유지, 성공 시에만 전송완료 마킹.
@@ -484,12 +488,11 @@ public class OrderService {
 		// 배송 데이터 적용 및 DISPATCHED로 변경
 		ShippingData currentShipping = item.getShippingData() != null
 			? item.getShippingData() : ShippingData.builder().build();
-		item.applyShippingData(currentShipping.toBuilder()
+		shippingWriter.applyShipping(item, currentShipping.toBuilder()
 			.trackingNo(trackingNo)
 			.shippingCarrier(carrier)
 			.shippingStatus(ShippingStatus.DISPATCHED)
 			.build());
-		orderLineItemRepository.save(item);
 
 		// 마켓플레이스에 송장 전송 — 실패해도 위의 배송정보 저장은 보존, 성공 시에만 전송완료 마킹
 		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, invoiceAlreadyExists);
@@ -519,11 +522,10 @@ public class OrderService {
 		if (currentShipping == null) {
 			currentShipping = ShippingData.builder().build();
 		}
-		item.applyShippingData(currentShipping.toBuilder()
+		shippingWriter.applyShipping(item, currentShipping.toBuilder()
 			.trackingNo(trackingNo)
 			.shippingCarrier(carrier)
 			.build());
-		orderLineItemRepository.save(item);
 
 		// 마켓플레이스에 송장 업데이트 — 실패해도 위의 배송정보 저장은 보존, 성공 시에만 전송완료 마킹.
 		// 이 메서드는 SHIPPED 상태에서만 진입하므로(위 가드) 마켓에 송장이 이미 존재 → 항상 수정(updateTracking).
@@ -600,8 +602,8 @@ public class OrderService {
 	 */
 	private void markSentIfSucceeded(OrderLineItem item, MarketShippingResult result, Long lineItemId) {
 		if (result.sent()) {
-			item.markTrackingAsSent();
-			orderLineItemRepository.save(item);
+			// D-133: 마켓 보유 플래그도 배송에 함께 남긴다 — 배지가 배송을 보게 되므로(설계 7).
+			shippingWriter.markTrackingAsSent(item);
 		} else if (result.isFailed()) {
 			// 도달 불가(호출부가 isFailed에서 이미 throw). 방어적 로깅만 유지.
 			log.warn("라인아이템 {} 마켓 송장 전송 실패 — 롤백 예정: {}", lineItemId, result.failureReason());

@@ -37,6 +37,8 @@ public class OrderShipProcessor {
 	private final MarketCredentialRepository credentialRepository;
 	private final OrderLineItemRepository orderLineItemRepository;
 	private final MarketplaceShippingService marketplaceShippingService;
+	/** D-133: 송장 쓰기는 이 통로만 쓴다 — 배송이 붙어 있으면 배송이 단일 원본이다. */
+	private final LineItemShippingWriter shippingWriter;
 
 	/**
 	 * 주문 1건의 발송을 처리하고 결과를 반환한다. 이 메서드 호출 하나가 독립된 트랜잭션이며,
@@ -93,10 +95,11 @@ public class OrderShipProcessor {
 					.trackingNo(trackingNo)
 					.shippingStatus(ShippingStatus.DISPATCHED)
 					.build();
-				item.applyShippingData(cmd.toShippingData(item.getShippingData()));
 				// 정산액은 주문 수집(sync) 시점에 마켓별 요율로 1회 계산·저장된다.
 				// 종전엔 여기서 다시 ×0.89를 곱해 이중 차감되던 버그가 있어 제거했다(F-SYNC-4/F-ORD-32 후속).
-				orderLineItemRepository.save(item);
+				// D-133: 저장은 통로가 한다. 배송이 붙어 있으면 배송에도 송장이 함께 기록된다
+				// (2단계에서 발송처리 호출 단위가 배송으로 바뀐다 — 설계 §6.1).
+				shippingWriter.applyShipping(item, cmd.toShippingData(item.getShippingData()));
 				orderShipped = true;
 			} catch (Exception e) {
 				// 마켓 shipOrder 실패를 삼키지 않고 표면화한다(F-ORD-30). 로그만 남기던 종전 동작을 교체.

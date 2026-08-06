@@ -11,6 +11,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.test.util.ReflectionTestUtils;
+import com.sbshop.agent.core.application.order.service.LineItemShippingWriter;
+import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -42,6 +46,21 @@ class EmailFetcherBodyExtractionTest {
 
 	@InjectMocks
 	EmailFetcherService service;
+
+	@Mock
+	ShipmentRepository shipmentRepository;
+
+	/**
+	 * D-133: 송장 쓰기 통로는 <b>진짜 객체</b>를 끼운다. {@code @InjectMocks}가 목을 넣거나 null로
+	 * 남기면 라인아이템 쓰기 자체가 사라져, 검증이 통과해도 아무것도 증명하지 못한다.
+	 * 이 테스트들의 라인아이템은 {@code shipment_id}가 null이므로 통로는 배송을 건드리지 않는다 —
+	 * 종전과 동작이 같다는 사실이 곧 회귀 증거다.
+	 */
+	@BeforeEach
+	void injectRealShippingWriter() {
+		ReflectionTestUtils.setField(service, "shippingWriter",
+			new LineItemShippingWriter(shipmentRepository, orderLineItemRepository));
+	}
 
 	@Test
 	@DisplayName("HTML 단독 메일의 본문을 읽는다")

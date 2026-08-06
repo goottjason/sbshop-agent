@@ -13,6 +13,7 @@ import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
+import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import java.util.List;
@@ -33,6 +34,16 @@ class OrderServiceBulkOperateTest {
 
 	private OrderRepository orderRepository;
 	private OrderLineItemRepository orderLineItemRepository;
+	private ShipmentRepository shipmentRepository;
+
+	/**
+	 * D-133: 송장 쓰기 통로는 <b>진짜 객체</b>를 끼운다. 목으로 대체하면 라인아이템 쓰기 자체가
+	 * 사라져 기존 검증이 통과해도 아무것도 증명하지 못한다. {@code shipment_id}가 null인 이
+	 * 테스트들에서는 통로가 배송을 건드리지 않으므로 종전과 동작이 같다 — 그 사실이 회귀 증거다.
+	 */
+	private LineItemShippingWriter shippingWriter() {
+		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
+	}
 	private MarketCredentialRepository credentialRepository;
 	private MarketplaceShippingService marketplaceShippingService;
 	private OrderService service;
@@ -41,10 +52,11 @@ class OrderServiceBulkOperateTest {
 	void setUp() {
 		orderRepository = mock(OrderRepository.class);
 		orderLineItemRepository = mock(OrderLineItemRepository.class);
+		shipmentRepository = mock(ShipmentRepository.class);
 		credentialRepository = mock(MarketCredentialRepository.class);
 		marketplaceShippingService = mock(MarketplaceShippingService.class);
 		service = new OrderService(orderRepository, orderLineItemRepository,
-			credentialRepository, marketplaceShippingService);
+			credentialRepository, marketplaceShippingService, shippingWriter());
 	}
 
 	/** confirmOrder가 성공하도록 유효한 NEW 주문 픽스처를 세팅한다. */

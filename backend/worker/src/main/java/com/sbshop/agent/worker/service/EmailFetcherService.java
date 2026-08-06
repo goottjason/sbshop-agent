@@ -44,6 +44,8 @@ public class EmailFetcherService {
 	private final OrderRepository orderRepository;
 	private final MarketplaceShippingService marketplaceShippingService;
 	private final ActionLogService actionLogService;
+	/** D-133: 송장 쓰기는 이 통로만 쓴다 — 배송이 붙어 있으면 배송이 단일 원본이다. */
+	private final com.sbshop.agent.core.application.order.service.LineItemShippingWriter shippingWriter;
 
 	// F-MISC-18: 재진입/동시실행 가드.
 	// EmailFetchController(수동 /internal/email/fetch)와 OrderSyncScheduler(cron 0/30)가
@@ -467,11 +469,12 @@ public class EmailFetcherService {
 				// 이메일 택배사가 없거나 미지원(ETC)로 매핑되면 기존 택배사 유지
 				ShippingCarrier finalCarrier = (carrier != null && carrier != ShippingCarrier.ETC)
 					? carrier : currentShipping.getShippingCarrier();
-				item.applyShippingData(currentShipping.toBuilder()
+				// D-133: 저장은 통로가 한다. 배송이 붙어 있으면 배송에도 송장이 기록돼야 한다 —
+				// 2단계에서 발송처리 단위가 배송이 되면 배송이 모르는 송장은 마켓에 나가지 않는다.
+				shippingWriter.applyShipping(item, currentShipping.toBuilder()
 					.trackingNo(shipmentData.getTrackingNo())
 					.shippingCarrier(finalCarrier)
 					.build()); // 배송상태(DISPATCHED/SHIPPED)는 유지 — 마켓 동기화로 반영
-				orderLineItemRepository.save(item);
 				log.info("iHerb 주문 {} 송장 변경 감지(기존={} → 신규={}, 상태={}) - 마켓 수정 반영",
 					shipmentData.getOrderNo(), existingTracking, shipmentData.getTrackingNo(), currentStatus);
 				MarketShippingResult updResult = marketplaceShippingService.sendTrackingToMarketplace(item, true);
@@ -488,11 +491,10 @@ public class EmailFetcherService {
 				? item.getShippingData() : ShippingData.builder().build();
 
 			// 송장번호·택배사만 기록 — 배송상태는 마켓 API 동기화로 반영
-			item.applyShippingData(currentShipping.toBuilder()
+			shippingWriter.applyShipping(item, currentShipping.toBuilder()
 				.trackingNo(shipmentData.getTrackingNo())
 				.shippingCarrier(carrier)
 				.build());
-			orderLineItemRepository.save(item);
 
 			log.info("iHerb 발송 처리 완료: itemId={}, status={}, tracking={}, carrier={}",
 				item.getId(), currentStatus, shipmentData.getTrackingNo(), carrier);
@@ -530,14 +532,12 @@ public class EmailFetcherService {
 	private void handleMarketResult(OrderLineItem item, MarketShippingResult result,
 		String orderNo, String phase) {
 		if (result.sent()) {
-			item.markTrackingAsSent();
-			orderLineItemRepository.save(item);
+			shippingWriter.markTrackingAsSent(item);
 			return;
 		}
 		if (result.isTerminal()) {
 			// 재시도해도 성공 불가 → 종결 마킹으로 30분 재시도 루프 중단. 실송장은 DB에 보존됨.
-			item.markTrackingAsSent();
-			orderLineItemRepository.save(item);
+			shippingWriter.markTrackingAsSent(item);
 			String tracking = item.getShippingData() != null ? item.getShippingData().getTrackingNo() : null;
 			// D-123: 종전에는 마켓을 "COUPANG"으로 하드코딩해 11번가·Cafe24 종결 건까지 쿠팡으로 기록됐다.
 			String market = marketTypeOf(item);
