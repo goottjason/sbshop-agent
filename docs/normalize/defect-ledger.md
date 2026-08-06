@@ -2181,3 +2181,41 @@ compose working_dir은 `docker inspect <container> --format '{{json .Config.Labe
 `message = yyMMdd'T'HHmmss'Z' + METHOD + path + query`, HMAC-SHA256(secretKey), 헤더
 `Authorization: CEA algorithm=HmacSHA256, access-key=…, signed-date=…, signature=…` + `X-Requested-By: vendorId`.
 `ordersheets`는 `searchType=timeframe`으로 31일 이내만 조회되며 `maxPerPage=50`·`nextToken` 페이징이다.
+
+### 라이브 검증 완료 (2026-08-06 04:36) — D-137 쿠팡 3단계 회귀 없음
+
+배포(컨테이너 04:35:17, 커밋 `60c8ef2`보다 나중) → 쿠팡 동기화 1회 → 실측:
+
+```
+  market_type  | orders | items | keyed | linked        shipments = 92
+ COUPANG       |    192 |   192 |    83 |     83        (11번가 9 + 쿠팡 83)
+ ELEVEN_STREET |     14 |    15 |    10 |     10
+ (라인아이템이 2건인 주문은 228 하나 — 11번가 정나영 건)
+
+ id  |     market_line_item_no     | shipment_id | product_id | tracking_no  | status
+ 232 | 706831525380148:72408791123 |          22 |         75 | 424087182013 | DELIVERED
+ 233 | 706843097448465:87712479648 |          23 |       2617 | 424436769455 | DELIVERED
+```
+
+확인된 것:
+- **회귀 없음 — 쿠팡 192주문 : 192라인아이템 그대로다.** 3계층 전환이 단일 상품 주문
+  (8개월 407행 전부의 형태)에서 동작 불변임이 실측 확인됐다.
+- 상품주문 식별자가 **`배송박스:vendorItemId`** 형태로 채워졌다. 30일 창 안의 83건이
+  채택되고 배송에 연결됐다(D-132 채택 경로 동작). 나머지 109건은 창 밖이라 NULL로 남는다 — 의도된 동작.
+- `product_id`가 정상 매핑됐다(75·2617·277) — `resolveProductId` 단일 호출로 바꾼 뒤에도 매칭이 유지된다.
+- 송장·배송상태가 배송에서 라인아이템으로 미러됐다.
+- **경고 로그가 하나도 없다**: `⚠ 분할 보류` 0 · `orderItems가 비어 있다` 0 · `⚠ 확인 필요` 0.
+  즉 쿠팡 상품 매핑이 온전하고, 어느 행도 상품주문 식별자를 잃지 않았다.
+
+**진단 방법 기록 — 배포 확인을 두 번 틀렸다**
+1. `docker exec ... unzip`으로 jar 심볼 검사 → **컨테이너에 `unzip`이 없어 전부 거짓 0**(D-136에 기록).
+2. `docker ps --format '{{.Status}}' | grep -E 'Up (Less than a minute|[0-9]+ (second|minute))'`
+   → **"Up 33 minutes"에도 매칭**돼 옛 컨테이너를 새 배포로 오판했다.
+
+확실한 방법: **서버 저장소 커밋 + 컨테이너 생성 시각이 커밋 시각보다 나중인지**를 함께 본다.
+```
+git -C /home/ubuntu/projects/sbshop-agent rev-parse --short HEAD          # = push한 커밋인가
+date -d "$(docker inspect projects-sbshop-api-1 --format '{{.Created}}')" +%s   # > 커밋 epoch 인가
+```
+compose working_dir은 `docker inspect <container> --format '{{json .Config.Labels}}'`로 찾는다.
+**대조군 없는 검사는 신뢰하지 않는다** — 검사가 항상 실패하는 것과 조건이 거짓인 것을 구분할 수 없다.
