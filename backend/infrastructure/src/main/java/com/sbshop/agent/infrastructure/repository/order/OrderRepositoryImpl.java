@@ -37,6 +37,8 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 
 	private final JPAQueryFactory queryFactory;
 	private final ProductRepository productRepository;
+	/** D-148: 화면이 "마켓이 아는 송장"과 실제 송장의 불일치를 판정하려면 배송 계층이 필요하다. */
+	private final com.sbshop.agent.core.domain.order.repository.ShipmentRepository shipmentRepository;
 
 	@Override
 	public Page<OrderDetailDto> searchOrderGrid(OrderSearchCondition condition,
@@ -95,6 +97,19 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 		Map<Long, List<OrderLineItem>> itemsByOrderId = lineItems.stream()
 			.collect(Collectors.groupingBy(OrderLineItem::getOrderId));
 
+		// D-148: 화면이 "마켓이 아는 송장"과 실제 송장의 불일치를 판정하려면 배송이 필요하다.
+		// 라인아이템마다 조회하면 N+1이므로 shipmentId를 모아 한 번에 읽는다.
+		List<Long> shipmentIds = lineItems.stream()
+			.map(OrderLineItem::getShipmentId)
+			.filter(id -> id != null)
+			.distinct()
+			.toList();
+
+		Map<Long, com.sbshop.agent.core.domain.order.Shipment> shipmentMap = shipmentIds.isEmpty() ? Map.of()
+			: shipmentRepository.findAllById(shipmentIds).stream()
+				.collect(Collectors.toMap(
+					com.sbshop.agent.core.domain.order.Shipment::getId, sh -> sh));
+
 		List<OrderDetailDto> dtoList = orders.stream().map(o -> {
 			List<OrderLineItem> orderItems = itemsByOrderId.getOrDefault(o.getId(), List.of());
 
@@ -112,6 +127,7 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 					.lineItem(li)
 					.product(p)
 					.marketRegistration(reg)
+					.shipment(li.getShipmentId() != null ? shipmentMap.get(li.getShipmentId()) : null)
 					.build();
 			}).toList();
 

@@ -81,10 +81,29 @@ export const fetchCommonCodes = async () => {
   return response.data;
 };
 
+/**
+ * 이 상품주문이 속한 배송(D-148).
+ *
+ * 송장의 진실은 발송처(iHerb 발송메일)이고, `marketTrackingNo`는 "마켓이 알고 있는 값"일 뿐이다.
+ * 두 값의 불일치가 곧 "마켓 미반영"이며, 화면은 이 비교로 배지를 판정한다.
+ */
+export interface ShipmentDto {
+  id?: number;
+  marketShipmentNo?: string;
+  trackingNo?: string;
+  /** 마켓이 알고 있는 송장. 우리 송장과 다르면 마켓 미반영이다. */
+  marketTrackingNo?: string | null;
+  /** 마켓이 영구 거부해 사람이 판매자센터에서 직접 고쳐야 하는 상태. */
+  manualFixRequired?: boolean | null;
+  shippingCarrier?: string;
+  deliveryStatus?: string | null;
+}
+
 export interface OrderLineItemDetailDto {
   lineItem: OrderLineItemDto;
   product: ProductDto;
   marketRegistration?: unknown;
+  shipment?: ShipmentDto | null;
 }
 
 export interface OrderGridDto {
@@ -92,6 +111,7 @@ export interface OrderGridDto {
   lineItem?: OrderLineItemDto;
   product?: ProductDto;
   marketRegistration?: unknown;
+  shipment?: ShipmentDto | null;
 }
 
 export interface OrderDetailResponseDto {

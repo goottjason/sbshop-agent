@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
  */
 class OrderRepositoryImplDateFilterTest {
 
-	private final OrderRepositoryImpl repo = new OrderRepositoryImpl(null, null);
+	private final OrderRepositoryImpl repo = new OrderRepositoryImpl(null, null, null);
 
 	@Test
 	@DisplayName("start·end 둘 다 없으면 필터 없음(null)")

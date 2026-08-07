@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchOrders, updateOrder, updateOrderLineItem, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, syncProductStock, fetchSyncStatus, updatePurchaseStatus } from '../api/orderApi';
-import type { OrderGridDto, ProductDto, OrderDto, OrderLineItemDto, OrderDetailResponseDto, PageResponse } from '../api/orderApi';
+import type { OrderGridDto, ProductDto, OrderDto, OrderLineItemDto, OrderDetailResponseDto, PageResponse, ShipmentDto } from '../api/orderApi';
 import { formatPhone } from '../utils/phone';
 import { toKstDate } from '../utils/datetime';
 
@@ -245,27 +245,60 @@ const NO_SEND_STATUSES = ['CANCELED', 'RETURNED', 'EXCHANGED'];
 const MARKET_CONFIRMED_STATUSES = ['SHIPPED', 'DELIVERED'];
 
 /**
- * "저장됨 · 마켓 미반영" 판정 — 송장은 우리 DB에 있는데 마켓에는 반영되지 않은 상태(D-129).
+ * 마켓 반영 상태 — 세 가지다(D-148).
  *
  * D-127(11번가 송장 전송이 항상 실패)이 오래 눈에 띄지 않았던 이유가 이 구분이 화면에 없었기
- * 때문이다. D-125가 전송 실패에도 로컬 송장을 보존하도록 바꾼 뒤로는 화면상 송장이 멀쩡히
- * 보여서, 마켓에 한 건도 안 들어가고 있다는 사실이 드러나지 않았다.
+ * 때문이다. 2026-08-07에는 한 걸음 더 나아갔다: "기다리면 되는 건"과 "사람이 마켓에 가서 직접
+ * 고쳐야 하는 건"이 같은 배지로 보여, 영원히 반영되지 않는 주문이 조용히 쌓였다.
+ *
+ * - `synced`  : 마켓이 아는 송장 = 실제 송장. 할 일 없음
+ * - `waiting` : 아직 못 보냈고 다음 사이클에 자동 재시도. 기다리면 됨
+ * - `manual`  : 마켓이 영구 거부(배송중 송장 수정 등). **사람이 판매자센터에서 직접 고쳐야 함**
+ *
+ * 판정 근거는 `trackingSentToMarket` 플래그가 아니라 <b>두 송장 값의 비교</b>다. 그 플래그는
+ * 전송이 실패해도 참으로 남을 수 있어 미반영을 가린다(D-147).
  */
-const isMarketUnsynced = (lineItem?: OrderLineItemDto): boolean => {
+type MarketSyncState = 'none' | 'synced' | 'waiting' | 'manual';
+
+const marketSyncState = (lineItem?: OrderLineItemDto, shipment?: ShipmentDto | null): MarketSyncState => {
   const shipping = lineItem?.shippingData;
   const tracking = (shipping?.trackingNo || '').trim();
-  if (!tracking) return false;                                   // 송장이 없으면 반영할 것도 없다
-  if (shipping?.trackingSentToMarket === true) return false;     // 마켓 보유 확인됨
+  if (!tracking) return 'none';                                  // 송장이 없으면 반영할 것도 없다
   const status = shipping?.shippingStatus || '';
-  if (NO_SEND_STATUSES.includes(status)) return false;
-  if (MARKET_CONFIRMED_STATUSES.includes(status)) return false;  // 레거시 행 보정
-  return true;
+  if (NO_SEND_STATUSES.includes(status)) return 'none';          // 취소·반품·교환은 전송 대상이 아니다
+
+  const marketTracking = (shipment?.marketTrackingNo || '').trim();
+  if (marketTracking) return marketTracking === tracking ? 'synced' : (shipment?.manualFixRequired ? 'manual' : 'waiting');
+
+  // 배송 계층이 아직 없는 레거시 행 — 종전(D-129) 판정으로 폴백한다.
+  if (shipping?.trackingSentToMarket === true) return 'synced';
+  if (MARKET_CONFIRMED_STATUSES.includes(status)) return 'synced';
+  return 'waiting';
 };
 
-function ShippingEditCell({ carrier, trackingNo, marketUnsynced, onSave }: {
+const SYNC_BADGE: Record<'synced' | 'waiting' | 'manual', { text: string; title: string; fg: string; bg: string; line: string }> = {
+  manual: {
+    text: '🔒 마켓 수동수정',
+    title: '마켓이 송장 수정을 거부했습니다(배송중 등). 재시도로는 해결되지 않으니 마켓 판매자센터에서 직접 수정하세요. 고치면 다음 동기화에서 이 표시가 사라집니다.',
+    fg: '#a52432', bg: '#fdeef0', line: '#f0aab3',
+  },
+  waiting: {
+    text: '⚠ 마켓 전송 대기',
+    title: '송장은 저장됐지만 마켓에는 아직 반영되지 않았습니다. 다음 사이클에 자동으로 다시 시도합니다.',
+    fg: '#92600c', bg: '#fdf4e0', line: '#eccb8a',
+  },
+  synced: {
+    text: '✓ 마켓 반영됨',
+    title: '마켓도 같은 송장을 갖고 있습니다.',
+    fg: '#1a6b4f', bg: '#e8f5ef', line: '#a8d8c3',
+  },
+};
+
+function ShippingEditCell({ carrier, trackingNo, syncState, marketTrackingNo, onSave }: {
   carrier: string;
   trackingNo: string;
-  marketUnsynced: boolean;
+  syncState: MarketSyncState;
+  marketTrackingNo?: string;
   onSave: (v: { shippingCarrier: string; trackingNo: string }) => Promise<unknown>;
 }) {
   const [draftCarrier, setDraftCarrier] = useState(carrier);
@@ -305,20 +338,32 @@ function ShippingEditCell({ carrier, trackingNo, marketUnsynced, onSave }: {
         style={{ ...inputStyle, textAlign: 'center', borderColor: border, borderWidth: changed ? 2 : 1 }}
         onChange={(e) => setDraftTracking(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') send(); else if (e.key === 'Escape') { setDraftCarrier(carrier); setDraftTracking(trackingNo); } }} />
-      {marketUnsynced && (
-        <span
-          title="송장은 저장됐지만 마켓에는 아직 반영되지 않았습니다. 전송을 다시 시도하거나 마켓 판매자센터를 확인하세요."
-          style={{ fontSize: '10px', fontWeight: 700, color: '#b45309', backgroundColor: '#fef3c7',
-            border: '1px solid #fcd34d', borderRadius: '4px', padding: '1px 4px', whiteSpace: 'nowrap' }}
-        >
-          ⚠ 마켓 미반영
-        </span>
+      {/* 배지와 전송 버튼은 한 줄에 둔다 — 셀 높이를 늘리지 않기 위해서다(2026-08-07 사용자 판정). */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        {syncState !== 'none' && (
+          <span
+            title={SYNC_BADGE[syncState].title}
+            style={{ fontSize: '10px', fontWeight: 700, color: SYNC_BADGE[syncState].fg,
+              backgroundColor: SYNC_BADGE[syncState].bg, border: `1px solid ${SYNC_BADGE[syncState].line}`,
+              borderRadius: '4px', padding: '1px 4px', whiteSpace: 'nowrap' }}
+          >
+            {SYNC_BADGE[syncState].text}
+          </span>
+        )}
+        <button type="button" onClick={send} disabled={!canSend}
+          style={{ marginLeft: 'auto', fontSize: '11px', padding: '1px 6px', borderRadius: '4px', border: 'none',
+            cursor: canSend ? 'pointer' : 'default',
+            backgroundColor: canSend ? '#3b82f6' : '#e5e7eb', color: canSend ? '#fff' : '#9ca3af' }}>
+          {sending ? '전송중…' : '전송'}
+        </button>
+      </div>
+      {/* 무엇을 무엇으로 바꿔야 하는지 — 입력칸이 "바꿀 값", 이 줄이 "지금 마켓에 잘못 들어가 있는 값". */}
+      {syncState === 'manual' && marketTrackingNo && (
+        <div style={{ fontSize: '10.5px', color: '#9ca3af', display: 'flex', gap: '5px', alignItems: 'baseline' }}>
+          <span style={{ color: '#a52432', fontWeight: 600 }}>마켓</span>
+          <span style={{ textDecoration: 'line-through' }}>{marketTrackingNo}</span>
+        </div>
       )}
-      <button type="button" onClick={send} disabled={!canSend}
-        style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '4px', border: 'none', cursor: canSend ? 'pointer' : 'default',
-          backgroundColor: canSend ? '#3b82f6' : '#e5e7eb', color: canSend ? '#fff' : '#9ca3af' }}>
-        {sending ? '전송중…' : '전송'}
-      </button>
     </div>
   );
 }
@@ -1257,6 +1302,7 @@ const OrderGrid: React.FC = () => {
             && cached.lineItem === li.lineItem
             && cached.product === li.product
             && cached.marketRegistration === li.marketRegistration
+            && cached.shipment === li.shipment
             && cached.isFirstLineItem === isFirst
             && cached.lineItemCount === lineItemCount
             && cached.totalRowCount === totalRowCount;
@@ -1265,6 +1311,7 @@ const OrderGrid: React.FC = () => {
             lineItem: li.lineItem,
             product: li.product,
             marketRegistration: li.marketRegistration,
+            shipment: li.shipment,
             rowType,
             isFirstLineItem: isFirst,
             isSecondRow: rowType === 'product',
@@ -1280,6 +1327,34 @@ const OrderGrid: React.FC = () => {
     rowCacheRef.current = next;
     return result;
   }, [data]);
+
+  // D-148: "마켓 수동수정 필요"는 이 화면에서 유일하게 사람의 행동을 요구하는 신호다.
+  // 190건 사이에 섞인 5건은 배지만으로는 놓치므로, 칩으로 걸러 볼 수 있게 한다.
+  const [syncFilter, setSyncFilter] = useState<'manual' | 'waiting' | null>(null);
+
+  const syncCounts = useMemo(() => {
+    let manual = 0;
+    let waiting = 0;
+    processedData.forEach((row) => {
+      if (row.rowType !== 'order') return;   // 라인아이템당 3행이므로 한 번만 센다
+      const state = marketSyncState(row.lineItem, row.shipment);
+      if (state === 'manual') manual += 1;
+      else if (state === 'waiting') waiting += 1;
+    });
+    return { manual, waiting };
+  }, [processedData]);
+
+  const visibleData = useMemo(() => {
+    if (!syncFilter) return processedData;
+    // 행 3개(주문/상품/발송)가 한 라인아이템을 이루므로 라인아이템 단위로 걸러야 표가 깨지지 않는다.
+    const keep = new Set<number>();
+    processedData.forEach((row) => {
+      if (marketSyncState(row.lineItem, row.shipment) === syncFilter && row.lineItem?.id) {
+        keep.add(row.lineItem.id);
+      }
+    });
+    return processedData.filter((row) => row.lineItem?.id && keep.has(row.lineItem.id));
+  }, [processedData, syncFilter]);
 
   const canConfirmSelected = useMemo(() => {
     const selectedIndices = Object.keys(rowSelection).filter(k => rowSelection[k]);
@@ -1570,7 +1645,8 @@ const OrderGrid: React.FC = () => {
             <ShippingEditCell
               carrier={carrier}
               trackingNo={trackingNo}
-              marketUnsynced={isMarketUnsynced(row.original.lineItem)}
+              syncState={marketSyncState(row.original.lineItem, row.original.shipment)}
+              marketTrackingNo={row.original.shipment?.marketTrackingNo || undefined}
               onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.shipping', v)}
             />
           </div>
@@ -1657,7 +1733,7 @@ const OrderGrid: React.FC = () => {
   ], [handleUpdate, commonCodes, getCommonLabel]);
 
   const table = useReactTable({
-    data: processedData,
+    data: visibleData,
     columns,
     state: { rowSelection },
     enableRowSelection: true,
@@ -1785,6 +1861,40 @@ const OrderGrid: React.FC = () => {
               background-color: #f8fafc;
             }
           `}</style>
+          {(syncCounts.manual > 0 || syncCounts.waiting > 0 || syncFilter) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 4px', flexWrap: 'wrap' }}>
+              {[
+                { key: 'manual' as const, label: '마켓 수동수정 필요', count: syncCounts.manual, fg: '#a52432', bg: '#fdeef0', line: '#f0aab3' },
+                { key: 'waiting' as const, label: '마켓 전송 대기', count: syncCounts.waiting, fg: '#92600c', bg: '#fdf4e0', line: '#eccb8a' },
+              ].map(chip => {
+                const on = syncFilter === chip.key;
+                return (
+                  <button key={chip.key} type="button"
+                    onClick={() => setSyncFilter(on ? null : chip.key)}
+                    title={chip.key === 'manual'
+                      ? '마켓이 송장 수정을 거부한 건입니다. 마켓 판매자센터에서 직접 수정해야 합니다.'
+                      : '아직 마켓에 반영되지 않았지만 다음 사이클에 자동으로 다시 시도합니다.'}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
+                      fontSize: '12px', fontWeight: 600, padding: '4px 10px', borderRadius: '999px',
+                      border: `1px solid ${on ? chip.line : '#d1d5db'}`,
+                      backgroundColor: on ? chip.bg : 'transparent',
+                      color: on ? chip.fg : '#6b7280',
+                    }}>
+                    {chip.label}
+                    <span style={{ backgroundColor: on ? chip.fg : '#d1d5db', color: on ? chip.bg : '#fff',
+                      borderRadius: '999px', padding: '0 6px', fontSize: '11px' }}>{chip.count}</span>
+                  </button>
+                );
+              })}
+              {syncFilter && (
+                <button type="button" onClick={() => setSyncFilter(null)}
+                  style={{ fontSize: '11px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                  필터 해제
+                </button>
+              )}
+            </div>
+          )}
           <Table fluid minTableWidth={totalColWidth} style={{ tableLayout: 'fixed', width: '100%' }}>
               <TableHeader>
                 {table.getHeaderGroups().map(headerGroup => (
