@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 import com.sbshop.agent.core.application.order.port.MarketOrderPort;
+import com.sbshop.agent.core.domain.common.RootCauseExtractor;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import com.sbshop.agent.core.domain.order.Order;
@@ -108,7 +109,10 @@ public class MarketplaceShippingService {
 			log.error("마켓 배송 전송 실패: order={}, market={}, reason={}",
 				order.getMarketOrderNo(), order.getMarketType(), e.getMessage(), e);
 			// 마켓 상태 잠금(배송중/배송완료 등)으로 인한 영구 거부는 재시도해도 성공 불가 → 종결(D-E6).
-			if (isNonRetryableMarketState(e.getMessage())) {
+			// D-150: 어댑터·클라이언트가 예외를 래핑하면 최상위 메시지에서 사유가 사라진다. 사유를 놓치면
+			// 영구 거부가 일시 실패로 분류돼 30분마다 같은 거부를 받아내고, 수동수정 표시도 서지 않는다.
+			if (isNonRetryableMarketState(e.getMessage())
+				|| isNonRetryableMarketState(RootCauseExtractor.rootMessage(e))) {
 				return MarketShippingResult.ofTerminal(e.getMessage());
 			}
 			return MarketShippingResult.ofFailed(e.getMessage());

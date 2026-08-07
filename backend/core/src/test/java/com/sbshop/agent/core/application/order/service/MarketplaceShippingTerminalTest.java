@@ -126,6 +126,20 @@ class MarketplaceShippingTerminalTest {
 	}
 
 	@Test
+	void 사유가_원인_체인에만_있어도_terminal로_분류된다() {
+		// D-150: 어댑터·클라이언트가 예외를 래핑하면 최상위 메시지에서 사유가 사라진다.
+		// 2026-08-08 라이브: 네이버 9999 거부가 "스마트스토어 주문 발송(shipOrder) 실패"로 덮여
+		// 영구 거부 분류가 무력화됐고, 수동수정 표시가 세워지지 않았다.
+		MarketplaceShippingService service = serviceWithPortThrowing(
+			new RuntimeException("스마트스토어 주문 발송(shipOrder) 실패",
+				new RuntimeException("스마트스토어 발송 실패(9999): 주문상태 및 클레임상태를 확인하세요")));
+
+		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(), true);
+
+		assertThat(result.isTerminal()).isTrue();
+	}
+
+	@Test
 	void 스토어_택배사코드_오류는_terminal이_아니라_재시도_대상이다() {
 		// 104119는 마켓의 상태 잠금이 아니라 우리 요청이 잘못됐다는 응답이다(D-128과 같은 구분).
 		// 코드를 고치면 재시도로 성공하므로 종결시키지 않는다.

@@ -170,8 +170,9 @@ public class SmartStoreOrderApiClient implements SmartStoreOrderApiPort {
 		} catch (Exception e) {
 			// 발송 처리 실패 에러 로그 출력
 			log.error("스마트스토어 주문 발송 실패: {}", e.getMessage(), e);
-			// 발송 실패 런타임 예외 래핑 및 발생
-			throw new RuntimeException("스마트스토어 주문 발송(shipOrder) 실패", e);
+			// D-150: 사유를 메시지에 남긴다. 래핑하며 버리면 상위의 영구 거부 분류가 문구를 찾지 못해
+			// 마켓의 영구 거부가 일시 실패로 분류된다(30분마다 같은 거부를 받아내고 수동수정 표시도 안 선다).
+			throw new RuntimeException("스마트스토어 주문 발송(shipOrder) 실패: " + e.getMessage(), e);
 		}
 	}
 
