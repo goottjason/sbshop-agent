@@ -19,6 +19,9 @@ public interface OrderLineItemRepository extends JpaRepository<OrderLineItem, Lo
 
 	List<OrderLineItem> findByShipmentId(Long shipmentId);
 
+	/** 배송에 속하지 않은 라인아이템 — 3계층 전환 이전에 저장된 옛 행이다(6단계 백필 대상). */
+	List<OrderLineItem> findByShipmentIdIsNull();
+
 	/**
 	 * 최근 판매 실적을 브랜드별로 집계한다 — 신규 상품 추천의 "자사 이력" 신호.
 	 * 우리 고객이 이미 사는 브랜드는 새 상품도 팔릴 확률이 높다.
