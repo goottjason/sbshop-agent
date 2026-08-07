@@ -51,7 +51,7 @@ class OrderResponseContractTest {
 				.build())
 			.ordererName("김주문")
 			.ordererPhone("010-3333-4444")
-			.shipmentBoxId("BOX-99")
+			// 6단계: shipmentBoxId는 주문에서 사라졌다 — 배송박스번호는 배송(sb_shipment)이 갖는다.
 			.marketSpecificData("{\"cafe24_order_id\":\"CF-77\",\"ordPrdSeq\":\"1\"}")
 			.build();
 	}

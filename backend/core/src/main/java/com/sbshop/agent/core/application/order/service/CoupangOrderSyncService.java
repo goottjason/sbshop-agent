@@ -262,7 +262,6 @@ public class CoupangOrderSyncService {
 			dto.getMessage(),
 			dto.getOrdererName(),
 			dto.getOrdererPhone(),
-			dto.getShipmentBoxId(),
 			dto.getMarketType());
 		if (dto.getCustomsClearanceNo() != null) {
 			order.updateCustomsClearanceNo(dto.getCustomsClearanceNo());
@@ -283,7 +282,6 @@ public class CoupangOrderSyncService {
 			.customsData(buildCustomsData(dto))
 			.ordererName(dto.getOrdererName())
 			.ordererPhone(dto.getOrdererPhone())
-			.shipmentBoxId(dto.getShipmentBoxId())
 			.build();
 	}
 

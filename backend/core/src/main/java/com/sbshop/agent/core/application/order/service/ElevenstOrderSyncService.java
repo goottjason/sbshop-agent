@@ -138,7 +138,7 @@ public class ElevenstOrderSyncService {
 		order.update(
 			dto.getRecipientName(), dto.getRecipientPhone(),
 			protectAddress ? null : dto.getZipcode(), protectAddress ? null : dto.getAddress(), dto.getMessage(),
-			dto.getOrdererName(), dto.getOrdererPhone(), dto.getShipmentBoxId(),
+			dto.getOrdererName(), dto.getOrdererPhone(),
 			dto.getMarketType() != null && dto.getMarketType() != order.getMarketType() ? dto.getMarketType() : null);
 		if (dto.getCustomsClearanceNo() != null) {
 			order.updateCustomsClearanceNo(dto.getCustomsClearanceNo());
@@ -165,7 +165,6 @@ public class ElevenstOrderSyncService {
 			.customsData(buildCustomsData(dto))
 			.ordererName(dto.getOrdererName())
 			.ordererPhone(dto.getOrdererPhone())
-			.shipmentBoxId(dto.getShipmentBoxId())
 			.build();
 
 		if (dto.getMarketSpecificData() != null && !dto.getMarketSpecificData().isEmpty()) {

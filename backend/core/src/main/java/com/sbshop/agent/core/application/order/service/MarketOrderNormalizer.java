@@ -68,14 +68,14 @@ public final class MarketOrderNormalizer {
 	}
 
 	/**
-	 * 배송 식별자를 고른다. 쿠팡은 {@code shipmentBoxId}가 이미 평면 DTO에 있고,
-	 * 나머지 마켓은 전환 전이라 주문번호로 대체한다(배송 1 : 상품주문 1).
+	 * 배송 식별자를 고른다. 평면 DTO에는 배송 식별자가 없으므로 주문번호로 대체한다
+	 * (배송 1 : 상품주문 1). 배송 식별자를 아는 마켓은 이미 3계층으로 내주므로 여기 오지 않는다.
+	 *
+	 * <p>6단계 이전에는 쿠팡의 {@code shipmentBoxId}를 평면 DTO에서 받아 썼다. 쿠팡이 3계층으로
+	 * 전환된 뒤(D-137) 그 경로는 쓰이지 않게 됐고, 같은 값을 두 곳에서 나르는 것이 오히려
+	 * 원본을 흐렸다 — 배송이 배송 식별자를 갖는다.
 	 */
 	private static String resolveShipmentNo(MarketOrderDto dto) {
-		String boxId = dto.getShipmentBoxId();
-		if (boxId != null && !boxId.isBlank()) {
-			return boxId;
-		}
 		return dto.getMarketOrderNo();
 	}
 

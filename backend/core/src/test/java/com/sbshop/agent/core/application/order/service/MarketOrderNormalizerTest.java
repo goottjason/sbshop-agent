@@ -90,32 +90,19 @@ class MarketOrderNormalizerTest {
 	}
 
 	@Test
-	@DisplayName("쿠팡처럼 shipmentBoxId가 있으면 그것을 배송 식별자로 쓴다")
-	void usesShipmentBoxIdWhenPresent() {
+	@DisplayName("6단계: 평면 DTO의 배송 식별자는 주문번호다 — 배송박스번호를 주문 계층으로 나르지 않는다")
+	void flatDtoUsesMarketOrderNoAsShipmentNo() {
+		// 종전에는 쿠팡의 shipmentBoxId를 평면 DTO에서 받아 배송 식별자로 썼다. 쿠팡이 3계층으로
+		// 전환된 뒤(D-137) 그 경로는 쓰이지 않게 됐고, 같은 값을 두 곳에서 나르는 것이 원본을 흐렸다.
 		MarketOrderDto flat = MarketOrderDto.builder()
 			.marketType(MarketType.COUPANG)
 			.marketOrderNo("3000012345")
-			.shipmentBoxId("77001122")
 			.build();
 
 		MarketOrderDto result = MarketOrderNormalizer.normalize(flat);
 
-		assertThat(result.getShipments().get(0).getMarketShipmentNo()).isEqualTo("77001122");
-	}
-
-	@Test
-	@DisplayName("쿠팡처럼 shipmentBoxId가 있어도 상품주문 식별자로 전용하지 않는다")
-	void doesNotReuseShipmentBoxIdAsLineItemNo() {
-		// shipmentBoxId는 배송 식별자다. 한 배송에 orderItems가 여러 개 담기는 것이 쿠팡의
-		// 정상 형태이므로(3단계), 이 값을 라인아이템 키로 쓰면 그때 전부 충돌한다.
-		MarketOrderDto flat = MarketOrderDto.builder()
-			.marketType(MarketType.COUPANG)
-			.marketOrderNo("3000012345")
-			.shipmentBoxId("77001122")
-			.build();
-
-		MarketOrderDto result = MarketOrderNormalizer.normalize(flat);
-
+		assertThat(result.getShipments().get(0).getMarketShipmentNo()).isEqualTo("3000012345");
+		// 배송 식별자를 상품주문 식별자 자리에 전용하지 않는다(D-131) — 주문당 2건이 되는 순간 충돌한다.
 		assertThat(result.getShipments().get(0).getLineItems().get(0).getMarketLineItemNo())
 			.isNull();
 	}

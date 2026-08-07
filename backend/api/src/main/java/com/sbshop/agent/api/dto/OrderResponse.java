@@ -41,7 +41,6 @@ public class OrderResponse {
 	private final CustomsData customsData;
 	private final String ordererName;
 	private final String ordererPhone;
-	private final String shipmentBoxId;
 	private final String marketSpecificData;
 
 	// 엔티티의 파생 getter(getMarketSpecificDataMap/getCafe24OrderId)도 현재 JSON에 포함되므로 미러
@@ -66,7 +65,6 @@ public class OrderResponse {
 			.customsData(order.getCustomsData())
 			.ordererName(order.getOrdererName())
 			.ordererPhone(order.getOrdererPhone())
-			.shipmentBoxId(order.getShipmentBoxId())
 			.marketSpecificData(order.getMarketSpecificData())
 			.marketSpecificDataMap(order.getMarketSpecificDataMap())
 			.cafe24OrderId(order.getCafe24OrderId())

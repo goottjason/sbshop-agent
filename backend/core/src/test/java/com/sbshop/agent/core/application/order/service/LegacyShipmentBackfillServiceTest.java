@@ -76,9 +76,9 @@ class LegacyShipmentBackfillServiceTest {
 		when(lineItemRepository.save(any(OrderLineItem.class))).thenAnswer(inv -> inv.getArgument(0));
 	}
 
-	private Order order(Long id, MarketType market, String marketOrderNo, String shipmentBoxId) {
+	private Order order(Long id, MarketType market, String marketOrderNo) {
 		Order order = Order.builder()
-			.marketType(market).marketOrderNo(marketOrderNo).shipmentBoxId(shipmentBoxId).build();
+			.marketType(market).marketOrderNo(marketOrderNo).build();
 		ReflectionTestUtils.setField(order, "id", id);
 		when(orderRepository.findById(id)).thenReturn(Optional.of(order));
 		return order;
@@ -98,19 +98,32 @@ class LegacyShipmentBackfillServiceTest {
 	}
 
 	@Test
-	@DisplayName("쿠팡 레거시: shipment_box_id를 배송 식별자로 삼아 배송을 만들고 연결한다")
-	void backfillsCoupangShipmentFromBoxId() {
-		order(10L, MarketType.COUPANG, "700000012345", "BOX-1");
+	@DisplayName("쿠팡은 배송 식별자를 지어내지 않고 건너뛴다 — 주문번호를 박스번호 자리에 넣으면 마켓이 거부한다")
+	void skipsCoupangRatherThanFabricatingBoxId() {
+		// 쿠팡의 배송 식별자(배송박스번호)는 송장 등록·수정 API가 요구하는 실제 값이다.
+		// 주문번호로 대체하면 마켓 거부가 마켓의 상태 잠금처럼 보인다(D-127에서 겪은 것).
+		// 기존 109건은 2026-08-07 백필 때 sb_order.shipment_box_id에서 정확한 값을 받아 이미 연결됐다.
+		order(10L, MarketType.COUPANG, "700000012345");
 		OrderLineItem item = unlinkedItem(500L, 10L, "123456789012", ShippingCarrier.CJ_LOGISTICS, true);
 		when(lineItemRepository.findByShipmentIdIsNull()).thenReturn(List.of(item));
 
 		Map<String, Object> result = service.backfill();
 
-		assertThat(savedShipments).hasSize(1);
+		assertThat(savedShipments).isEmpty();
+		assertThat(item.getShipmentId()).isNull();
+		assertThat(result).containsEntry("skipped", 1).containsEntry("linked", 0);
+	}
+
+	@Test
+	@DisplayName("라인아이템의 송장·택배사·마켓보유플래그를 배송으로 승격한다")
+	void promotesLineItemTrackingToShipment() {
+		order(15L, MarketType.ELEVEN_STREET, "20260731088778990");
+		OrderLineItem item = unlinkedItem(506L, 15L, "123456789012", ShippingCarrier.CJ_LOGISTICS, true);
+		when(lineItemRepository.findByShipmentIdIsNull()).thenReturn(List.of(item));
+
+		Map<String, Object> result = service.backfill();
+
 		Shipment shipment = savedShipments.get(0);
-		assertThat(shipment.getMarketShipmentNo()).isEqualTo("BOX-1");
-		assertThat(shipment.getOrderId()).isEqualTo(10L);
-		// 라인아이템의 송장이 배송으로 승격된다 — 배송이 앞으로 단일 원본이므로.
 		assertThat(shipment.getTrackingNo()).isEqualTo("123456789012");
 		assertThat(shipment.getShippingCarrier()).isEqualTo(ShippingCarrier.CJ_LOGISTICS);
 		assertThat(shipment.getTrackingSentToMarket()).isTrue();
@@ -121,7 +134,7 @@ class LegacyShipmentBackfillServiceTest {
 	@Test
 	@DisplayName("배송 식별자를 모르면 주문번호로 대체한다(설계 §3.3) — 배송 없는 라인아이템을 남기지 않는다")
 	void fallsBackToMarketOrderNo() {
-		order(11L, MarketType.ELEVEN_STREET, "20260731088778989", null);
+		order(11L, MarketType.ELEVEN_STREET, "20260731088778989");
 		OrderLineItem item = unlinkedItem(501L, 11L, null, null, null);
 		when(lineItemRepository.findByShipmentIdIsNull()).thenReturn(List.of(item));
 
@@ -135,7 +148,7 @@ class LegacyShipmentBackfillServiceTest {
 	@Test
 	@DisplayName("송장이 없는 레거시 행도 배송을 갖는다 — 값이 없을 뿐 배송은 존재한다")
 	void createsShipmentEvenWithoutTracking() {
-		order(12L, MarketType.SMART_STORE, "2026052188084271", null);
+		order(12L, MarketType.SMART_STORE, "2026052188084271");
 		OrderLineItem item = unlinkedItem(502L, 12L, null, null, null);
 		when(lineItemRepository.findByShipmentIdIsNull()).thenReturn(List.of(item));
 
@@ -148,10 +161,10 @@ class LegacyShipmentBackfillServiceTest {
 	@Test
 	@DisplayName("같은 주문에 이미 그 식별자의 배송이 있으면 재사용한다 — 두 번 돌려도 늘지 않는다(멱등)")
 	void reusesExistingShipment() {
-		order(13L, MarketType.COUPANG, "700000099999", "BOX-9");
-		Shipment existing = Shipment.builder().orderId(13L).marketShipmentNo("BOX-9").build();
+		order(13L, MarketType.GMARKET, "20260730-0000016");
+		Shipment existing = Shipment.builder().orderId(13L).marketShipmentNo("20260730-0000016").build();
 		ReflectionTestUtils.setField(existing, "id", 777L);
-		when(shipmentRepository.findByOrderIdAndMarketShipmentNo(13L, "BOX-9"))
+		when(shipmentRepository.findByOrderIdAndMarketShipmentNo(13L, "20260730-0000016"))
 			.thenReturn(Optional.of(existing));
 		OrderLineItem item = unlinkedItem(503L, 13L, "999999999999", ShippingCarrier.HANJIN, false);
 		when(lineItemRepository.findByShipmentIdIsNull()).thenReturn(List.of(item));
@@ -167,7 +180,7 @@ class LegacyShipmentBackfillServiceTest {
 	void skipsOrphanLineItems() {
 		when(orderRepository.findById(99L)).thenReturn(Optional.empty());
 		OrderLineItem orphan = unlinkedItem(504L, 99L, null, null, null);
-		order(14L, MarketType.GMARKET, "20260805-0000011", null);
+		order(14L, MarketType.GMARKET, "20260805-0000011");
 		OrderLineItem good = unlinkedItem(505L, 14L, null, null, null);
 		when(lineItemRepository.findByShipmentIdIsNull()).thenReturn(List.of(orphan, good));
 

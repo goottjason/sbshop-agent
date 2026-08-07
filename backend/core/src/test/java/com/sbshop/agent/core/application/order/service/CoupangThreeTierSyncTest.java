@@ -161,7 +161,6 @@ class CoupangThreeTierSyncTest {
 			.zipcode("07997")
 			.address("서울 양천구 101동")
 			.orderDate(LocalDateTime.of(2026, 7, 30, 2, 10))
-			.shipmentBoxId(shipments.length > 0 ? shipments[0].getMarketShipmentNo() : null)
 			.shipments(List.of(shipments))
 			.build();
 	}

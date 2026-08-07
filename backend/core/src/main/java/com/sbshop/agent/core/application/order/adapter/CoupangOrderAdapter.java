@@ -319,7 +319,6 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 
 		private final String marketOrderNo;
 		private final List<MarketShipmentDto> shipments = new ArrayList<>();
-		private String representativeBoxId;
 
 		private String recipientName;
 		private String recipientPhone;
@@ -372,9 +371,6 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 
 		private void addShipment(String boxId, String invoiceNo, ShippingCarrier carrier,
 			List<MarketLineItemDto> lineItems) {
-			if (representativeBoxId == null) {
-				representativeBoxId = boxId;
-			}
 			shipments.add(MarketShipmentDto.builder()
 				.marketShipmentNo(boxId)
 				.trackingNo(invoiceNo)
@@ -385,8 +381,9 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 
 		/**
 		 * <p>라인아이템 레벨 평면 필드는 채우지 않는다 — "첫 상품주문"을 담으면 종전의 키메라 행이
-		 * 되살아난다. {@code shipmentBoxId}는 예외로 유지한다: 기존 쓰기 경로와 {@code sb_order}
-		 * 컬럼이 아직 이 값을 읽는다(미러 제거는 6단계).
+		 * 되살아난다. 6단계에서 {@code shipmentBoxId}도 뺐다: 배송박스번호는 <b>배송이 갖는다</b>
+		 * ({@code MarketShipmentDto.marketShipmentNo}). 같은 값을 주문 계층으로도 나르면 원본이
+		 * 둘이 되고, 분할배송에서 "대표 박스"가 나머지 박스를 가린다.
 		 */
 		private MarketOrderDto toNestedDto(MarketType marketType) {
 			return MarketOrderDto.builder()
@@ -401,7 +398,6 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 				.ordererPhone(ordererPhone)
 				.customsClearanceNo(customsClearanceNo)
 				.orderDate(orderDate)
-				.shipmentBoxId(representativeBoxId)
 				.shipments(shipments)
 				.build();
 		}
@@ -428,12 +424,9 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 				return fromShipment;
 			}
 		}
-		String fromOrder = order.getShipmentBoxId();
-		if (fromOrder == null || fromOrder.isEmpty()) {
-			throw new IllegalArgumentException(
-				"쿠팡 " + action + " 실패: shipmentBoxId가 없습니다. order=" + order.getMarketOrderNo());
-		}
-		return fromOrder;
+		throw new IllegalArgumentException(
+			"쿠팡 " + action + " 실패: 이 상품주문이 속한 배송을 찾을 수 없습니다. order="
+				+ order.getMarketOrderNo() + " (주문 동기화로 배송을 먼저 확보해야 합니다)");
 	}
 
 	@Override
@@ -538,12 +531,9 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 			}
 		}
 		if (boxIds.isEmpty()) {
-			// 배송 계층이 아직 없는 레거시 주문 — 주문 컬럼으로 폴백한다(미러 제거는 6단계).
-			if (order.getShipmentBoxId() == null || order.getShipmentBoxId().isEmpty()) {
-				throw new IllegalStateException(
-					"쿠팡 발주확인 실패: shipmentBoxId가 없습니다. order=" + order.getMarketOrderNo());
-			}
-			boxIds.add(order.getShipmentBoxId());
+			throw new IllegalStateException(
+				"쿠팡 발주확인 실패: 이 주문의 배송을 찾을 수 없습니다. order=" + order.getMarketOrderNo()
+					+ " (주문 동기화로 배송을 먼저 확보해야 합니다)");
 		}
 
 		coupangOrderApiPort.acceptOrders(credential, boxIds);

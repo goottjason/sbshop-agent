@@ -36,16 +36,24 @@ class CoupangOrderAdapterCarrierCodeTest {
 		when(reg.extractVendorItemId()).thenReturn("999");
 		when(regRepo.findByProductIdAndMarketType(any(), any())).thenReturn(Optional.of(reg));
 
-		CoupangOrderAdapter adapter = new CoupangOrderAdapter(apiPort, null, null, null, regRepo, null);
+		// 6단계: 배송박스번호는 배송에서만 온다(주문 컬럼 폴백 제거) — 라인아이템이 속한 배송을 끼운다.
+		com.sbshop.agent.core.domain.order.repository.ShipmentRepository shipmentRepo =
+			mock(com.sbshop.agent.core.domain.order.repository.ShipmentRepository.class);
+		when(shipmentRepo.findById(900L)).thenReturn(Optional.of(
+			com.sbshop.agent.core.domain.order.Shipment.builder()
+				.orderId(1L).marketShipmentNo("708248067784723").build()));
+
+		CoupangOrderAdapter adapter =
+			new CoupangOrderAdapter(apiPort, null, null, null, regRepo, shipmentRepo);
 
 		MarketCredential cred = MarketCredential.builder()
 			.marketType(MarketType.COUPANG).clientId("vendorX").build();
 		Order order = Order.builder()
 			.marketType(MarketType.COUPANG)
 			.marketOrderNo("14101552820428")
-			.shipmentBoxId("708248067784723")
 			.build();
 		OrderLineItem item = OrderLineItem.builder().productId(2500L).build();
+		item.assignShipmentId(900L);
 
 		// when
 		adapter.updateTracking(cred, order, item, "315398790560", ShippingCarrier.LOTTE_LOGISTICS);

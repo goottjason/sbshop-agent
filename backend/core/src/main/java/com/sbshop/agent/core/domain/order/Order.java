@@ -75,10 +75,6 @@ public class Order extends BaseEntity {
 	@Column(name = "orderer_phone", length = 50)
 	private String ordererPhone;
 
-	/** 쿠팡 묶음배송번호 (발주확인에 사용) */
-	@Column(name = "shipment_box_id", length = 50)
-	private String shipmentBoxId;
-
 	/** 마켓별 상세 데이터 (JSON) — 11번가 ordPrdSeq, addPrdYn 등 저장 */
 	@Column(name = "market_specific_data", columnDefinition = "TEXT")
 	private String marketSpecificData;
@@ -96,7 +92,6 @@ public class Order extends BaseEntity {
 		CustomsData customsData,
 		String ordererName,
 		String ordererPhone,
-		String shipmentBoxId,
 		String marketSpecificData) {
 		this.marketType = marketType;
 		this.marketOrderNo = marketOrderNo;
@@ -109,7 +104,6 @@ public class Order extends BaseEntity {
 		this.customsData = customsData != null ? customsData : CustomsData.builder().build();
 		this.ordererName = ordererName;
 		this.ordererPhone = ordererPhone;
-		this.shipmentBoxId = shipmentBoxId;
 		this.marketSpecificData = marketSpecificData;
 	}
 
@@ -164,7 +158,7 @@ public class Order extends BaseEntity {
 	 */
 	public void update(
 		String recipientName, String recipientPhone, String zipcode, String address, String message,
-		String ordererName, String ordererPhone, String shipmentBoxId, MarketType marketType) {
+		String ordererName, String ordererPhone, MarketType marketType) {
 		if (isMeaningfulPii(recipientName))
 			this.recipientName = recipientName;
 		if (isUsablePhone(recipientPhone))
@@ -180,8 +174,6 @@ public class Order extends BaseEntity {
 			this.ordererName = ordererName;
 		if (isUsablePhone(ordererPhone))
 			this.ordererPhone = ordererPhone;
-		if (shipmentBoxId != null)
-			this.shipmentBoxId = shipmentBoxId;
 		if (marketType != null)
 			this.marketType = marketType;
 	}

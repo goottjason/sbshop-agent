@@ -291,8 +291,9 @@ class CoupangThreeTierFetchTest {
 		assertThat(dto.getStatus()).isNull();
 		assertThat(dto.getTrackingNo()).isNull();
 		assertThat(dto.getMarketProductCode()).isNull();
-		// shipmentBoxId는 6단계까지 미러로 유지한다 — 기존 쓰기 경로가 읽는다.
-		assertThat(dto.getShipmentBoxId()).isEqualTo("77001122");
+		// 6단계: 배송박스번호는 배송이 갖는다. 주문 계층으로도 나르면 원본이 둘이 되고,
+		// 분할배송에서 "대표 박스"가 나머지 박스를 가린다.
+		assertThat(dto.getShipments().get(0).getMarketShipmentNo()).isEqualTo("77001122");
 	}
 
 	@Test

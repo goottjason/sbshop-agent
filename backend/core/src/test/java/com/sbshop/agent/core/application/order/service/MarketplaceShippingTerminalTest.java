@@ -48,7 +48,6 @@ class MarketplaceShippingTerminalTest {
 		Order order = Order.builder()
 			.marketType(MarketType.COUPANG)
 			.marketOrderNo("14101552820428")
-			.shipmentBoxId("708248067784723")
 			.build();
 		when(orderRepo.findById(1L)).thenReturn(Optional.of(order));
 		when(credRepo.findByMarketType(any())).thenReturn(Optional.empty());

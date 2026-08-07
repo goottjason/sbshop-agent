@@ -38,7 +38,7 @@ class OrderSyncMergeGuardTest {
 	@DisplayName("빈 문자열 이름/주소/우편/구매자명/메시지는 기존 실값을 덮지 않는다")
 	void blankValues_doNotOverwrite() {
 		Order order = existingOrder();
-		order.update("", "", "", "", "", "", "", null, null);
+		order.update("", "", "", "", "", "", "", null);
 		assertThat(order.getRecipientName()).isEqualTo("정채영");
 		assertThat(order.getAddress()).isEqualTo("서울시 강남구 테헤란로 1");
 		assertThat(order.getZipcode()).isEqualTo("06134");
@@ -51,7 +51,7 @@ class OrderSyncMergeGuardTest {
 	void maskedValues_doNotOverwrite() {
 		Order order = existingOrder();
 		order.update("정*영", "010-1234-5678", "0****", "서울시 강남구 ***", "메시지",
-			"김*문", "010-9876-5432", null, null);
+			"김*문", "010-9876-5432", null);
 		assertThat(order.getRecipientName()).isEqualTo("정채영");
 		assertThat(order.getZipcode()).isEqualTo("06134");
 		assertThat(order.getAddress()).isEqualTo("서울시 강남구 테헤란로 1");
@@ -63,7 +63,7 @@ class OrderSyncMergeGuardTest {
 	void realValues_overwrite() {
 		Order order = existingOrder();
 		order.update("이선", "010-1234-5678", "48058", "부산시 해운대구 2", "메시지 변경",
-			"이주문", "010-9876-5432", null, null);
+			"이주문", "010-9876-5432", null);
 		assertThat(order.getRecipientName()).isEqualTo("이선");
 		assertThat(order.getZipcode()).isEqualTo("48058");
 		assertThat(order.getAddress()).isEqualTo("부산시 해운대구 2");
@@ -75,7 +75,7 @@ class OrderSyncMergeGuardTest {
 	@DisplayName("null(미전송)은 기존 값을 유지한다")
 	void nullValues_keepExisting() {
 		Order order = existingOrder();
-		order.update(null, null, null, null, null, null, null, null, null);
+		order.update(null, null, null, null, null, null, null, null);
 		assertThat(order.getRecipientName()).isEqualTo("정채영");
 		assertThat(order.getAddress()).isEqualTo("서울시 강남구 테헤란로 1");
 		assertThat(order.getMessage()).isEqualTo("문앞에 놓아주세요");

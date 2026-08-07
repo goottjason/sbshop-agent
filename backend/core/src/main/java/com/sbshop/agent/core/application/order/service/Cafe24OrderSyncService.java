@@ -192,7 +192,6 @@ public class Cafe24OrderSyncService {
 			text(receiver, "shipping_message"),
 			firstNonBlank(text(buyer, "name"), text(o, "order_place_name")),
 			firstNonBlank(text(buyer, "cellphone"), text(buyer, "phone")),
-			null,
 			marketType);
 		// 통관번호는 non-blank일 때만 반영(기존값 보존). blank면 갱신하지 않음.
 		String pccc = extractPccc(buyer, receiver, o);

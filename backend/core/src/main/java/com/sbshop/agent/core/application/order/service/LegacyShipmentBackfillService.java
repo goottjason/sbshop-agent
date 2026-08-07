@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.Shipment;
+import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
@@ -60,7 +61,8 @@ public class LegacyShipmentBackfillService {
 			}
 			String shipmentNo = resolveShipmentNo(order);
 			if (shipmentNo == null || shipmentNo.isBlank()) {
-				log.warn("[배송백필] 배송 식별자를 만들 수 없어 건너뜀: orderId={}", order.getId());
+				log.warn("[배송백필] 배송 식별자를 지어낼 수 없어 건너뜀: orderId={}, market={}"
+					+ " — 동기화가 배송을 만들 때까지 남긴다", order.getId(), order.getMarketType());
 				skipped++;
 				continue;
 			}
@@ -100,14 +102,19 @@ public class LegacyShipmentBackfillService {
 	}
 
 	/**
-	 * 이 주문의 배송 식별자. 쿠팡은 {@code shipment_box_id}가 곧 배송 식별자다(송장 수정 API가
-	 * 이 값을 요구한다). 나머지 마켓은 레거시 행에 배송 식별자가 남아 있지 않으므로 주문번호로
-	 * 대체한다 — 정규화기와 같은 규칙이다(설계 §3.3). 주문당 배송 1건이므로 유니크와 충돌하지 않는다.
+	 * 이 주문의 배송 식별자. 배송 식별자가 남아 있지 않은 레거시 행이므로 주문번호로 대체한다 —
+	 * 정규화기와 같은 규칙이다(설계 §3.3). 주문당 배송 1건이라 유니크와 충돌하지 않는다.
+	 *
+	 * <p><b>쿠팡은 예외로 건너뛴다.</b> 쿠팡의 배송 식별자(배송박스번호)는 송장 등록·수정 API가
+	 * 요구하는 실제 값이라 <b>지어내면 안 된다</b> — 주문번호를 넣으면 마켓이 거부하고, 그 거부가
+	 * 마켓의 상태 잠금처럼 보인다(D-127에서 겪은 것). 2026-08-07 백필로 기존 109건은 당시
+	 * `sb_order.shipment_box_id`에서 정확한 값을 받아 이미 연결됐고, 이후 새로 생기는 쿠팡 주문은
+	 * 동기화가 배송을 만든다. 즉 이 분기에 걸리는 것은 "동기화가 아직 만나지 못한 쿠팡 주문"뿐이며,
+	 * 그때는 <b>기다리는 것이 옳다.</b>
 	 */
 	private String resolveShipmentNo(Order order) {
-		String boxId = order.getShipmentBoxId();
-		if (boxId != null && !boxId.isBlank()) {
-			return boxId;
+		if (order.getMarketType() == MarketType.COUPANG) {
+			return null;
 		}
 		return order.getMarketOrderNo();
 	}
