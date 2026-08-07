@@ -67,6 +67,41 @@ public class LineItemShippingWriter {
 	}
 
 	/**
+	 * 마켓이 <b>이 송장을 정말 갖고 있는가</b> — {@code trackingSentToMarket} 플래그가 아니라
+	 * 배송에 기록된 <b>마켓 보유 송장</b>으로 판정한다(D-147).
+	 *
+	 * <p>그 플래그는 전송이 실패해도 참으로 남을 수 있다. 2026-08-07 라이브에서 거짓 성공(D-145)이
+	 * 플래그를 참으로 찍어 놓았고, 이메일 파이프라인이 그것을 믿고 <b>전송을 아예 시도하지 않았다.</b>
+	 * 시도하지 않으니 마켓의 영구 거부를 만나지 못하고, 화면은 "곧 자동 반영됨"이라고 잘못 안내했다.
+	 *
+	 * <p>마켓 보유값을 아직 모르면(동기화 전) 종전 플래그로 폴백한다 — 방금 보낸 송장을 매 사이클
+	 * 다시 보내지 않기 위해서다.
+	 */
+	@Transactional(readOnly = true)
+	public boolean marketHasTracking(OrderLineItem item, String trackingNo) {
+		Shipment shipment = item.getShipmentId() != null
+			? shipmentRepository.findById(item.getShipmentId()).orElse(null)
+			: null;
+		String marketTracking = shipment != null ? shipment.getMarketTrackingNo() : null;
+		if (marketTracking == null || marketTracking.isBlank()) {
+			ShippingData shipping = item.getShippingData();
+			return shipping != null && Boolean.TRUE.equals(shipping.getTrackingSentToMarket());
+		}
+		return marketTracking.equals(trackingNo);
+	}
+
+	/** 사람이 판매자센터에서 고쳐 주기를 기다리는 중인가 — 그동안 재전송은 무의미하다. */
+	@Transactional(readOnly = true)
+	public boolean isAwaitingManualFix(OrderLineItem item) {
+		if (item.getShipmentId() == null) {
+			return false;
+		}
+		return shipmentRepository.findById(item.getShipmentId())
+			.map(Shipment::isManualFixRequired)
+			.orElse(false);
+	}
+
+	/**
 	 * 마켓이 <b>영구 거부</b>해 사람이 판매자센터에서 직접 고쳐야 함을 배송에 표시한다.
 	 *
 	 * <p>재시도로는 해결되지 않는 거부(네이버 배송중 송장 수정 등)에서만 부른다. 사람이 고쳐

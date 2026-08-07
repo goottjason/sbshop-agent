@@ -446,11 +446,18 @@ public class EmailFetcherService {
 			if (marketHasInvoice) {
 				boolean sameTracking = shipmentData.getTrackingNo().equals(existingTracking);
 				if (sameTracking) {
-					// 동일 송장: 우리 시스템이 마켓 전송을 확정(trackingSentToMarket)했으면 스킵, 아니면 재시도(수정 경로).
-					boolean synced = item.getShippingData() != null
-						&& Boolean.TRUE.equals(item.getShippingData().getTrackingSentToMarket());
+					// D-147: "이미 동기화됨"을 trackingSentToMarket 플래그로 판정하면 안 된다. 그 플래그는
+					// 전송이 실패해도 참으로 남는다(거짓 성공, D-145). 진실은 배송에 기록된 마켓 보유 송장이다.
+					boolean synced = shippingWriter.marketHasTracking(item, shipmentData.getTrackingNo());
 					if (synced) {
 						log.info("iHerb 주문 {} 이미 배송 처리 및 마켓 동기화 완료 (tracking={}) - 스킵",
+							shipmentData.getOrderNo(), shipmentData.getTrackingNo());
+						continue;
+					}
+					// 마켓이 영구 거부해 사람이 고치기를 기다리는 중이면 재전송은 무의미하다 —
+					// 30분마다 같은 거부를 받아낼 뿐이다. 사람이 고치면 동기화가 표시를 스스로 끈다(D-148).
+					if (shippingWriter.isAwaitingManualFix(item)) {
+						log.info("iHerb 주문 {} 마켓 수동수정 대기 중 (tracking={}) - 재전송 생략",
 							shipmentData.getOrderNo(), shipmentData.getTrackingNo());
 						continue;
 					}
