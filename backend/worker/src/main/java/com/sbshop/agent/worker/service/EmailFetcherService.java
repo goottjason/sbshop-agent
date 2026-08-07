@@ -538,6 +538,9 @@ public class EmailFetcherService {
 		if (result.isTerminal()) {
 			// 재시도해도 성공 불가 → 종결 마킹으로 30분 재시도 루프 중단. 실송장은 DB에 보존됨.
 			shippingWriter.markTrackingAsSent(item);
+			// 사람이 판매자센터에서 직접 고쳐야 한다 — 화면이 그 사실을 보여줄 수 있게 배송에 남긴다.
+			// (마켓 값이 우리 송장을 따라오면 이 표시는 동기화가 스스로 끈다.)
+			shippingWriter.markManualFixRequired(item);
 			String tracking = item.getShippingData() != null ? item.getShippingData().getTrackingNo() : null;
 			// D-123: 종전에는 마켓을 "COUPANG"으로 하드코딩해 11번가·Cafe24 종결 건까지 쿠팡으로 기록됐다.
 			String market = marketTypeOf(item);

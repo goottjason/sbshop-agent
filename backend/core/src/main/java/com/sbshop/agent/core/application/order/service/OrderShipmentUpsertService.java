@@ -49,7 +49,17 @@ public class OrderShipmentUpsertService {
 				.marketShipmentNo(shipmentNo)
 				.build());
 
-		shipment.applyTracking(trackingNo, meaningful ? dto.getCarrier() : null, ownedByMarket);
+		// 마켓이 알고 있는 값은 언제나 기록한다 — 이 값과 실제 송장의 차이가 곧 "마켓 미반영"이다.
+		shipment.applyMarketTracking(trackingNo);
+
+		// <b>실제 송장은 마켓 값이 덮지 않는다.</b> 우리가 이미 아는 송장(이메일·수동 입력)이 있으면
+		// 그것이 진실이고, 마켓 값은 "마켓이 아직 모른다"는 표시일 뿐이다. 2026-08-07 실측:
+		// 이메일 교정 11:34 → 동기화 원복 11:38. 되돌아가면 배지도 꺼져 고칠 일이 있다는 사실이
+		// 화면에서 사라지고, 화면·엑셀·고객 응대가 가송장을 진짜처럼 안내한다.
+		// 우리가 송장을 모를 때만 마켓 값을 채택한다(마켓이 유일한 출처인 정상 경로).
+		if (!shipment.hasOwnTracking()) {
+			shipment.applyTracking(trackingNo, meaningful ? dto.getCarrier() : null, ownedByMarket);
+		}
 		shipment.applyDeliveryStatus(dto.getDeliveryStatus());
 		shipment.applyShippedAt(dto.getShippedAt());
 

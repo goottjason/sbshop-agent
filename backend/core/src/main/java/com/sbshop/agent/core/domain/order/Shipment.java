@@ -69,10 +69,30 @@ public class Shipment extends BaseEntity {
 	@Column(name = "shipped_at")
 	private LocalDateTime shippedAt;
 
+	/**
+	 * <b>마켓이 알고 있는 송장.</b> 동기화가 매번 갱신한다 — {@link #trackingNo}(실제 송장)와 다른
+	 * 값일 수 있고, 그 <b>불일치가 곧 "마켓 미반영"</b>이다.
+	 *
+	 * <p>2026-08-07 이전에는 이 구분이 없어 마켓의 가송장이 이메일이 준 진짜 송장을 덮었다.
+	 * 되돌아가면 두 값이 같아져 미반영 배지도 꺼지고, 화면·엑셀·고객 응대가 가송장을 진짜처럼 안내했다.
+	 */
+	@Column(name = "market_tracking_no", length = 100)
+	private String marketTrackingNo;
+
+	/**
+	 * 마켓이 송장 반영을 <b>영구 거부</b>해 사람이 판매자센터에서 직접 고쳐야 하는 상태.
+	 *
+	 * <p>네이버는 발송된 주문의 송장 수정 API를 제공하지 않는다(커머스API 공식 답변 2건 + 라이브 시험).
+	 * 재시도로는 해결되지 않으므로 사람에게 넘긴다. 사람이 고쳐 두 값이 같아지면 스스로 꺼진다.
+	 */
+	@Column(name = "manual_fix_required")
+	private Boolean manualFixRequired;
+
 	@Builder
 	public Shipment(Long orderId, String marketShipmentNo, String trackingNo,
 		ShippingCarrier shippingCarrier, String deliveryStatus,
-		Boolean trackingSentToMarket, LocalDateTime shippedAt) {
+		Boolean trackingSentToMarket, LocalDateTime shippedAt, String marketTrackingNo) {
+		this.marketTrackingNo = marketTrackingNo;
 		this.orderId = orderId;
 		this.marketShipmentNo = marketShipmentNo;
 		this.trackingNo = trackingNo;
@@ -112,5 +132,41 @@ public class Shipment extends BaseEntity {
 		if (shippedAt != null) {
 			this.shippedAt = shippedAt;
 		}
+	}
+
+	/**
+	 * 마켓이 알고 있는 송장을 기록한다. {@code null}은 "이번 응답이 알려주지 않았다"이므로 무시한다.
+	 *
+	 * <p>기록된 값이 우리가 아는 실제 송장과 같아지면 <b>수동수정 표시를 스스로 끈다</b> —
+	 * 사람이 판매자센터에서 고쳤다는 뜻이다. 완료 체크 버튼을 두지 않는 이유이기도 하다:
+	 * 사람이 "했다"고 누르는 대신 마켓이 실제로 그렇게 됐는지를 보고 끈다.
+	 */
+	public void applyMarketTracking(String marketTrackingNo) {
+		if (marketTrackingNo == null) {
+			return;
+		}
+		this.marketTrackingNo = marketTrackingNo;
+		if (marketTrackingNo.equals(this.trackingNo)) {
+			this.manualFixRequired = Boolean.FALSE;
+		}
+	}
+
+	/** 마켓이 영구 거부했다 — 사람이 판매자센터에서 직접 고쳐야 한다. */
+	public void markManualFixRequired() {
+		this.manualFixRequired = Boolean.TRUE;
+	}
+
+	/** 우리가 아는 실제 송장이 이미 있는가 — 있으면 마켓 값이 이를 덮지 않는다. */
+	public boolean hasOwnTracking() {
+		return trackingNo != null && !trackingNo.isBlank();
+	}
+
+	public boolean isManualFixRequired() {
+		return Boolean.TRUE.equals(manualFixRequired);
+	}
+
+	/** 마켓이 아는 값과 실제 송장이 다른가 = 마켓 미반영. */
+	public boolean isMarketOutOfSync() {
+		return hasOwnTracking() && !trackingNo.equals(marketTrackingNo);
 	}
 }

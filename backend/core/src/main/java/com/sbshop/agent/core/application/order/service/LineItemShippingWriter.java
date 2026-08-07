@@ -66,6 +66,23 @@ public class LineItemShippingWriter {
 			data.getTrackingSentToMarket());
 	}
 
+	/**
+	 * 마켓이 <b>영구 거부</b>해 사람이 판매자센터에서 직접 고쳐야 함을 배송에 표시한다.
+	 *
+	 * <p>재시도로는 해결되지 않는 거부(네이버 배송중 송장 수정 등)에서만 부른다. 사람이 고쳐
+	 * 마켓 값이 우리 송장과 같아지면 {@code applyMarketTracking}이 이 표시를 스스로 끈다.
+	 */
+	@Transactional
+	public void markManualFixRequired(OrderLineItem item) {
+		if (item.getShipmentId() == null) {
+			return;
+		}
+		shipmentRepository.findById(item.getShipmentId()).ifPresent(shipment -> {
+			shipment.markManualFixRequired();
+			shipmentRepository.save(shipment);
+		});
+	}
+
 	/** 마켓 전송 완료를 마킹하고 배송에도 반영한다. */
 	@Transactional
 	public void markTrackingAsSent(OrderLineItem item) {
