@@ -377,6 +377,17 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 		}
 	}
 
+	/**
+	 * 우리 택배사 → 네이버 택배사 코드.
+	 *
+	 * <p>D-145: <b>롯데는 {@code HYUNDAI}다.</b> {@code LOTTE}를 보내면 `104119 택배사코드 확인`으로
+	 * 거부된다. 근거는 실측이다 — 네이버가 우리 주문에 돌려주는 {@code deliveryCompany} 분포가
+	 * CJGLS 14 · EPOST 4 · HYUNDAI 2이고, 그 HYUNDAI 두 건이 롯데 송장이었다. 쿠팡과 같은 관례(D-E5).
+	 *
+	 * <p>매핑할 수 없으면 <b>즉시 실패한다.</b> 종전 {@code default -> "CJGLS"}는 모르는 택배사를
+	 * 전부 CJ로 위조해 보냈다 — 마켓에 엉뚱한 택배사가 등록되고 고객은 조회되지 않는 송장을 받는다.
+	 * 부분 신호가 더 나은 신호를 가리지 않게 한다(D-140과 같은 부류).
+	 */
 	private String mapCarrierCode(ShippingCarrier carrier) {
 		if (carrier == null) {
 			throw new IllegalArgumentException("배송사 정보가 없습니다.");
@@ -385,9 +396,10 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 			case CJ_LOGISTICS -> "CJGLS";
 			case HANJIN -> "HANJIN";
 			case KOREA_POST -> "EPOST";
-			case LOTTE_LOGISTICS -> "LOTTE";
+			case LOTTE_LOGISTICS, HYUNDAI_LOGISTICS -> "HYUNDAI";
 			case ROCKET -> "COUPANG";
-			default -> "CJGLS";
+			default -> throw new IllegalArgumentException(
+				"스마트스토어에 보낼 택배사 코드를 알 수 없습니다: " + carrier);
 		};
 	}
 

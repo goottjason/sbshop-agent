@@ -163,11 +163,9 @@ public class SmartStoreOrderApiClient implements SmartStoreOrderApiPort {
 
 			// 6. 응답 JSON 문자열 파싱
 			JsonNode rootNode = objectMapper.readTree(response);
-			// 7. API 내부 실패 코드 반환 여부 검증
-			if (rootNode.has("code") && !rootNode.path("code").asText().isEmpty()) {
-				log.error("스마트스토어 발송 API 실패 응답: {}", rootNode.toPrettyString());
-				throw new RuntimeException("스마트스토어 발송 실패: " + rootNode.path("message").asText());
-			}
+			// 7. D-145: 이 마켓은 HTTP 200 본문 안에 실패를 담아 준다(data.failProductOrderInfos).
+			//    최상위 code만 보면 거짓 성공이 되고, 그 거짓이 마켓 미반영을 반영됨으로 기록한다.
+			SmartStoreDispatchResult.verifyAccepted(rootNode, productOrderId);
 
 		} catch (Exception e) {
 			// 발송 처리 실패 에러 로그 출력

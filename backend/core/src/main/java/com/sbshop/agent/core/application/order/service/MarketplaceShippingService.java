@@ -141,12 +141,18 @@ public class MarketplaceShippingService {
 		// Cafe24(G마켓·옥션): 이미 shipping 등으로 넘어간 주문에 배송 등록 시 422
 		boolean cafe24StateLocked = message.contains("You cannot change to that order state");
 
+		// D-145: 네이버는 배송중 주문의 송장 수정을 영구 거부한다 — 수정 API 자체가 없다(커머스API 공식
+		// 답변 2건 + 2026-08-07 라이브 시험: 올바른 택배사 코드로 재호출해도 같은 9999, 마켓 값 불변).
+		// 재시도로는 절대 성공하지 못하므로 종결시키고 사람의 수동 수정(스토어센터)으로 넘긴다.
+		// 택배사 코드 오류(104119)는 여기 넣지 않는다 — 그건 우리 요청 오류라 고치면 재시도로 성공한다(D-128).
+		boolean smartStoreStateLocked = message.contains("주문상태 및 클레임상태를 확인하세요");
+
 		// D-128(D-123 정정): 11번가 "존재하지 않는 배송번호"는 여기서 제외한다.
 		// 마켓의 상태 잠금이 아니라 우리 요청이 잘못됐다는 응답이었고(D-127 — 배송번호 자리에 주문번호
 		// 전달), 그 오분류가 EmailFetcher의 종결 처리를 타 trackingSentToMarket을 거짓으로 true로
 		// 만들어 "마켓 미반영인데 반영됨"인 주문들을 남겼다. 페이로드 교정 후에는 재시도로 성공할 수
 		// 있으므로 일시 실패로 둔다. 재시도가 무한 반복되면 원인은 페이로드지 분류가 아니다.
-		return coupangLocked || cafe24StateLocked;
+		return coupangLocked || cafe24StateLocked || smartStoreStateLocked;
 	}
 
 	/** 마켓에 주문 취소 요청. Cafe24 기반(G마켓/옥션)은 마켓 자격증명이 아니라 Cafe24 토큰으로 인증하므로
