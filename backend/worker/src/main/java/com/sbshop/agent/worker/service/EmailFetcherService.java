@@ -8,6 +8,7 @@ import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+import com.sbshop.agent.core.domain.order.enums.TrackingSource;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.SourcingData;
@@ -481,7 +482,7 @@ public class EmailFetcherService {
 				shippingWriter.applyShipping(item, currentShipping.toBuilder()
 					.trackingNo(shipmentData.getTrackingNo())
 					.shippingCarrier(finalCarrier)
-					.build()); // 배송상태(DISPATCHED/SHIPPED)는 유지 — 마켓 동기화로 반영
+					.build(), TrackingSource.EMAIL); // 배송상태(DISPATCHED/SHIPPED)는 유지 — 마켓 동기화로 반영
 				log.info("iHerb 주문 {} 송장 변경 감지(기존={} → 신규={}, 상태={}) - 마켓 수정 반영",
 					shipmentData.getOrderNo(), existingTracking, shipmentData.getTrackingNo(), currentStatus);
 				MarketShippingResult updResult = marketplaceShippingService.sendTrackingToMarketplace(item, true);
@@ -501,7 +502,7 @@ public class EmailFetcherService {
 			shippingWriter.applyShipping(item, currentShipping.toBuilder()
 				.trackingNo(shipmentData.getTrackingNo())
 				.shippingCarrier(carrier)
-				.build());
+				.build(), TrackingSource.EMAIL);
 
 			log.info("iHerb 발송 처리 완료: itemId={}, status={}, tracking={}, carrier={}",
 				item.getId(), currentStatus, shipmentData.getTrackingNo(), carrier);

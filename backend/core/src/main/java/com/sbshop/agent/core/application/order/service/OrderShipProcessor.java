@@ -8,6 +8,7 @@ import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+import com.sbshop.agent.core.domain.order.enums.TrackingSource;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import java.util.List;
@@ -99,7 +100,7 @@ public class OrderShipProcessor {
 				// 종전엔 여기서 다시 ×0.89를 곱해 이중 차감되던 버그가 있어 제거했다(F-SYNC-4/F-ORD-32 후속).
 				// D-133: 저장은 통로가 한다. 배송이 붙어 있으면 배송에도 송장이 함께 기록된다
 				// (2단계에서 발송처리 호출 단위가 배송으로 바뀐다 — 설계 §6.1).
-				shippingWriter.applyShipping(item, cmd.toShippingData(item.getShippingData()));
+				shippingWriter.applyShipping(item, cmd.toShippingData(item.getShippingData()), TrackingSource.MANUAL);
 				orderShipped = true;
 			} catch (Exception e) {
 				// 마켓 shipOrder 실패를 삼키지 않고 표면화한다(F-ORD-30). 로그만 남기던 종전 동작을 교체.

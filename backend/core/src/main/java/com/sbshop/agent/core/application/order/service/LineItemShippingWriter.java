@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.Shipment;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
+import com.sbshop.agent.core.domain.order.enums.TrackingSource;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
@@ -60,10 +61,19 @@ public class LineItemShippingWriter {
 	 */
 	@Transactional
 	public void applyShipping(OrderLineItem item, ShippingData data) {
+		applyShipping(item, data, null);
+	}
+
+	/**
+	 * @param source 이 쓰기가 확인한 출처. {@code null}이면 출처를 건드리지 않는다
+	 *               (출처를 판단할 수 없는 호출자를 위한 경로).
+	 */
+	@Transactional
+	public void applyShipping(OrderLineItem item, ShippingData data, TrackingSource source) {
 		item.applyShippingData(data);
 		orderLineItemRepository.save(item);
 		writeThrough(item, data.getTrackingNo(), data.getShippingCarrier(),
-			data.getTrackingSentToMarket());
+			data.getTrackingSentToMarket(), source);
 	}
 
 	/**
@@ -123,7 +133,7 @@ public class LineItemShippingWriter {
 	public void markTrackingAsSent(OrderLineItem item) {
 		item.markTrackingAsSent();
 		orderLineItemRepository.save(item);
-		writeThrough(item, null, null, Boolean.TRUE);
+		writeThrough(item, null, null, Boolean.TRUE, null);
 	}
 
 	/**
@@ -133,7 +143,7 @@ public class LineItemShippingWriter {
 	 * 실재하는 사실이므로, 미러 실패가 라인아이템 기록을 되돌릴 근거가 되지 못한다(D-125).
 	 */
 	private void writeThrough(OrderLineItem item, String trackingNo,
-		ShippingCarrier carrier, Boolean sentToMarket) {
+		ShippingCarrier carrier, Boolean sentToMarket, TrackingSource source) {
 		Long shipmentId = item.getShipmentId();
 		if (shipmentId == null) {
 			return;
@@ -147,6 +157,7 @@ public class LineItemShippingWriter {
 		}
 
 		shipment.applyTracking(trackingNo, carrier, sentToMarket);
+		shipment.applyTrackingSource(source);
 		shipmentRepository.save(shipment);
 
 		mirrorToSiblings(item, shipmentId, shipment);

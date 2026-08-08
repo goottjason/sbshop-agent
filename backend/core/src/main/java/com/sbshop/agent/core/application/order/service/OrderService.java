@@ -26,6 +26,7 @@ import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.PurchaseStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+import com.sbshop.agent.core.domain.order.enums.TrackingSource;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
@@ -347,7 +348,7 @@ public class OrderService {
 		if (isDispatchTransition) {
 			next = next.toBuilder().shippingStatus(ShippingStatus.DISPATCHED).build();
 		}
-		shippingWriter.applyShipping(item, next);
+		shippingWriter.applyShipping(item, next, TrackingSource.MANUAL);
 
 		// 마켓플레이스에 송장 전송/업데이트 — 반영 실패 시 자사 저장을 롤백해 DB/마켓 정합을 유지(@Transactional),
 		// 스킵(전송 대상 아님)은 로컬 편집 유지, 성공 시에만 전송완료 마킹.
@@ -492,7 +493,7 @@ public class OrderService {
 			.trackingNo(trackingNo)
 			.shippingCarrier(carrier)
 			.shippingStatus(ShippingStatus.DISPATCHED)
-			.build());
+			.build(), TrackingSource.MANUAL);
 
 		// 마켓플레이스에 송장 전송 — 실패해도 위의 배송정보 저장은 보존, 성공 시에만 전송완료 마킹
 		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, invoiceAlreadyExists);
@@ -525,7 +526,7 @@ public class OrderService {
 		shippingWriter.applyShipping(item, currentShipping.toBuilder()
 			.trackingNo(trackingNo)
 			.shippingCarrier(carrier)
-			.build());
+			.build(), TrackingSource.MANUAL);
 
 		// 마켓플레이스에 송장 업데이트 — 실패해도 위의 배송정보 저장은 보존, 성공 시에만 전송완료 마킹.
 		// 이 메서드는 SHIPPED 상태에서만 진입하므로(위 가드) 마켓에 송장이 이미 존재 → 항상 수정(updateTracking).

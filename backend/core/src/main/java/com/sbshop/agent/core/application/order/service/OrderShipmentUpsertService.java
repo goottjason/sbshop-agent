@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.Shipment;
+import com.sbshop.agent.core.domain.order.enums.TrackingSource;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
@@ -59,6 +60,10 @@ public class OrderShipmentUpsertService {
 		// 우리가 송장을 모를 때만 마켓 값을 채택한다(마켓이 유일한 출처인 정상 경로).
 		if (!shipment.hasOwnTracking()) {
 			shipment.applyTracking(trackingNo, meaningful ? dto.getCarrier() : null, ownedByMarket);
+			// 마켓 값을 채택한 경우에만 출처가 마켓이다. 우리 송장이 있으면 채택하지 않으므로 출처도 그대로다.
+			if (meaningful) {
+				shipment.applyTrackingSource(TrackingSource.MARKET);
+			}
 		}
 		shipment.applyDeliveryStatus(dto.getDeliveryStatus());
 		shipment.applyShippedAt(dto.getShippedAt());
