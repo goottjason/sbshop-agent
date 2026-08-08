@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
+import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -81,16 +82,27 @@ public class Cafe24ShipmentService {
 		if (shipments == null || !shipments.isArray() || shipments.isEmpty()) {
 			return null;
 		}
-		if (shipments.size() > 1) {
-			List<String> codes = new ArrayList<>();
-			for (JsonNode s : shipments) {
-				codes.add(text(s, "shipping_code"));
+		// 배송건의 "존재"가 아니라 <b>마켓이 실송장을 들고 있는지</b>가 수정/등록을 가른다.
+		// Cafe24는 발송 전에도 배송건 D-...-00을 미리 만들어 둔다(2026-08-08 라이브 확인:
+		// 아직 우리가 송장을 보내지 않은 20260807-0000011에도 배송건이 있었다). 존재만 보고
+		// 수정으로 보내면 최초 전송이 전부 수정 경로로 새고, 마켓플레이스 주문은 수정이
+		// 거부되므로(D-154) 송장이 영영 마켓에 못 들어간다.
+		List<String> editable = new ArrayList<>();
+		for (JsonNode s : shipments) {
+			String code = text(s, "shipping_code");
+			if (code != null && !code.isBlank()
+				&& ShippingData.isMeaningfulTracking(text(s, "tracking_no"))) {
+				editable.add(code);
 			}
-			throw new IllegalStateException("Cafe24 배송건이 여러 개라 어느 것을 수정할지 알 수 없습니다: "
-				+ "orderId=" + orderId + ", shipping_codes=" + codes);
 		}
-		String code = text(shipments.get(0), "shipping_code");
-		return code == null || code.isBlank() ? null : code;
+		if (editable.isEmpty()) {
+			return null;
+		}
+		if (editable.size() > 1) {
+			throw new IllegalStateException("Cafe24 배송건이 여러 개라 어느 것을 수정할지 알 수 없습니다: "
+				+ "orderId=" + orderId + ", shipping_codes=" + editable);
+		}
+		return editable.get(0);
 	}
 
 	private List<String> extractItemCodes(JsonNode orderDetail) {

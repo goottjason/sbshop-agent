@@ -67,8 +67,9 @@ class Cafe24ShipmentUpdateTest {
 	@Test
 	@DisplayName("배송건이 이미 있으면 신규 등록(POST) 대신 그 배송건을 수정(PUT)한다")
 	void updatesExistingShipmentInsteadOfCreating() throws Exception {
+		// 마켓이 "실제 송장"을 들고 있는 배송건 — 이때만 수정(PUT)이다.
 		when(port.fetchShipments("20260630-0000017")).thenReturn(MAPPER.readTree(
-			"[{\"shipping_code\":\"D-20260630-0000017-00\",\"tracking_no\":\"00000000\","
+			"[{\"shipping_code\":\"D-20260630-0000017-00\",\"tracking_no\":\"6079990378097\","
 				+ "\"shipping_company_code\":\"0006\"}]"));
 
 		service.ship(gmarketOrder(), "424438293101", ShippingCarrier.CJ_LOGISTICS);
@@ -85,6 +86,35 @@ class Cafe24ShipmentUpdateTest {
 	}
 
 	@Test
+	@DisplayName("배송건이 있어도 실송장이 없으면 신규 등록(POST)한다 — Cafe24는 발송 전에도 배송건을 미리 만든다")
+	void registersWhenExistingShipmentHasNoRealTracking() throws Exception {
+		// 2026-08-08 라이브 확인: 아직 우리가 송장을 보내지 않은 주문(20260807-0000011)에도
+		// 배송건 D-...-00이 tracking 없이 미리 존재한다. "배송건이 있으면 PUT"으로만 판단하면
+		// 최초 전송까지 수정 경로로 새고, 마켓플레이스 주문은 PUT이 거부되므로(D-154)
+		// 송장이 영영 마켓에 못 들어간다. 실송장을 가진 배송건일 때만 수정이다.
+		when(port.fetchShipments("20260630-0000017")).thenReturn(MAPPER.readTree(
+			"[{\"shipping_code\":\"D-20260630-0000017-00\",\"tracking_no\":null}]"));
+
+		service.ship(gmarketOrder(), "424438293101", ShippingCarrier.CJ_LOGISTICS);
+
+		verify(port).registerShipment(eq("20260630-0000017"), any());
+		verify(port, never()).updateShipment(any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("배송건의 송장이 자리표시자(00000000)면 수정이 아니라 신규 등록으로 간다")
+	void registersWhenExistingTrackingIsPlaceholder() throws Exception {
+		// D-124: ESM+ 자체배송은 Cafe24에 00000000 더미만 남긴다 — 마켓이 실송장을 가진 게 아니다.
+		when(port.fetchShipments("20260630-0000017")).thenReturn(MAPPER.readTree(
+			"[{\"shipping_code\":\"D-20260630-0000017-00\",\"tracking_no\":\"00000000\"}]"));
+
+		service.ship(gmarketOrder(), "424438293101", ShippingCarrier.CJ_LOGISTICS);
+
+		verify(port).registerShipment(eq("20260630-0000017"), any());
+		verify(port, never()).updateShipment(any(), any(), any());
+	}
+
+	@Test
 	@DisplayName("배송건이 없으면 종전대로 신규 등록(POST)한다")
 	void registersWhenNoShipmentExists() throws Exception {
 		when(port.fetchShipments("20260630-0000017")).thenReturn(MAPPER.readTree("[]"));
@@ -96,11 +126,13 @@ class Cafe24ShipmentUpdateTest {
 	}
 
 	@Test
-	@DisplayName("배송건이 여럿이면 추측하지 않고 실패한다 — 엉뚱한 배송건을 고치면 되돌리기 어렵다")
-	void failsLoudlyWhenMultipleShipments() throws Exception {
+	@DisplayName("실송장을 가진 배송건이 여럿이면 추측하지 않고 실패한다 — 엉뚱한 배송건을 고치면 되돌리기 어렵다")
+	void failsLoudlyWhenMultipleShipmentsCarryRealTracking() throws Exception {
+		// 모호한 것은 "수정 대상"이 여럿일 때뿐이다. 실송장이 없는 배송건이 여러 개인 경우는
+		// 최초 전송이므로 종전 등록 경로로 가야 한다(다건 주문의 첫 전송을 깨뜨리지 않는다).
 		when(port.fetchShipments("20260630-0000017")).thenReturn(MAPPER.readTree(
-			"[{\"shipping_code\":\"D-20260630-0000017-00\"},"
-				+ "{\"shipping_code\":\"D-20260630-0000017-01\"}]"));
+			"[{\"shipping_code\":\"D-20260630-0000017-00\",\"tracking_no\":\"6079990378097\"},"
+				+ "{\"shipping_code\":\"D-20260630-0000017-01\",\"tracking_no\":\"6063465794604\"}]"));
 
 		assertThatThrownBy(() ->
 			service.ship(gmarketOrder(), "424438293101", ShippingCarrier.CJ_LOGISTICS))
@@ -109,6 +141,19 @@ class Cafe24ShipmentUpdateTest {
 
 		verify(port, never()).updateShipment(any(), any(), any());
 		verify(port, never()).registerShipment(any(), any());
+	}
+
+	@Test
+	@DisplayName("실송장 없는 배송건이 여럿이면 등록으로 간다 — 최초 전송을 막지 않는다")
+	void registersWhenMultipleShipmentsHaveNoRealTracking() throws Exception {
+		when(port.fetchShipments("20260630-0000017")).thenReturn(MAPPER.readTree(
+			"[{\"shipping_code\":\"D-20260630-0000017-00\",\"tracking_no\":\"00000000\"},"
+				+ "{\"shipping_code\":\"D-20260630-0000017-01\"}]"));
+
+		service.ship(gmarketOrder(), "424438293101", ShippingCarrier.CJ_LOGISTICS);
+
+		verify(port).registerShipment(eq("20260630-0000017"), any());
+		verify(port, never()).updateShipment(any(), any(), any());
 	}
 
 	@SuppressWarnings("unchecked")

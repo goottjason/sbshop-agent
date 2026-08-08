@@ -143,7 +143,12 @@ public class MarketplaceShippingService {
 			|| message.contains("배송완료된");
 
 		// Cafe24(G마켓·옥션): 이미 shipping 등으로 넘어간 주문에 배송 등록 시 422
-		boolean cafe24StateLocked = message.contains("You cannot change to that order state");
+		// D-154: 동사를 바꾸면 거부 문구도 바뀐다. D-151로 POST→PUT이 되자 Cafe24는 다른 사유를 돌려줬다 —
+		// "cannot be edited for marketplace orders"(마켓 연동 주문은 송장 수정 자체가 불가).
+		// 그 문구가 목록에 없어 영구 거부가 재시도 대상으로 샜다. 두 문구를 함께 인식한다.
+		// 사람의 조치 경로는 Cafe24 관리자가 아니라 G마켓·옥션 판매자센터(ESM+)다.
+		boolean cafe24StateLocked = message.contains("You cannot change to that order state")
+			|| message.contains("cannot be edited for marketplace orders");
 
 		// D-145: 네이버는 배송중 주문의 송장 수정을 영구 거부한다 — 수정 API 자체가 없다(커머스API 공식
 		// 답변 2건 + 2026-08-07 라이브 시험: 올바른 택배사 코드로 재호출해도 같은 9999, 마켓 값 불변).

@@ -2627,7 +2627,14 @@ javadoc·주석 경계에서 어긋난다. 지운 뒤에는 **핵심 메서드 �
   `status`는 싣지 않는다(이미 배송중인 주문에 상태 재전송은 같은 422를 부른다).
   포트에 `updateShipment(orderId, shippingCode, body)` 신설 — 어댑터는 무변경
   (`updateTracking` 기본 폴백이 `ship()`을 타므로 전송·교정 두 경로가 함께 고쳐진다).
-- 테스트: `Cafe24ShipmentUpdateTest` 3건(기존 배송건→PUT · 배송건 없음→POST · 여러 건→실패).
+- **배포 직후 교정(같은 날)**: "배송건이 있으면 수정"은 너무 넓었다 — Cafe24는 **발송 전에도 배송건
+  `D-...-00`을 미리 만들어 둔다**(라이브 확인: 아직 우리가 송장을 보내지 않은 20260807-0000011에도 존재).
+  그대로 두면 **최초 전송까지 수정 경로로 새고**, 마켓플레이스 주문은 수정이 거부되므로(D-154)
+  송장이 영영 마켓에 못 들어갔을 것이다. 판정 기준을 "배송건 존재"에서
+  **"마켓이 실송장을 들고 있는가"(`ShippingData.isMeaningfulTracking`)**로 좁혔다.
+  모호 실패도 *수정 대상이 여럿일 때*로 한정했다(다건 주문의 첫 전송을 막지 않기 위해).
+- 테스트: `Cafe24ShipmentUpdateTest` 6건(실송장 보유→PUT · 실송장 없음/자리표시자/배송건 없음→POST ·
+  실송장 배송건 여럿→실패 · 실송장 없는 배송건 여럿→POST).
 - 위치: `Cafe24ShipmentService.ship` → `Cafe24OrderApiClient.registerShipment`
   (`POST /admin/orders/{id}/shipments`). `MarketOrderPort.updateTracking` 기본 구현이 `shipOrder`로
   폴백해 **수정 경로가 신규 등록을 다시 호출**한다.
@@ -2662,3 +2669,17 @@ javadoc·주석 경계에서 어긋난다. 지운 뒤에는 **핵심 메서드 �
   마켓이 실송장을 갖지 않은 상태이므로 `market_tracking_no`가 비는 것이 정상이고,
   D-149 배지도 그 전제 위에서 "미반영"으로 바르게 표시된다. 고칠 것이 없다.
 - 교훈: 마켓 값이 비어 보이면 "수집 누락"부터 의심하기 전에 **자리표시자 판정 규칙**을 먼저 확인할 것.
+
+### D-154: Cafe24 마켓플레이스 주문은 송장 수정 자체가 불가 — 새 거부 문구가 재시도 루프로 샌다 (2026-08-08)
+- 심각도: P1 · 리스크 등급: 경량 · 상태: **발견**
+- 실체(D-151 배포 직후 라이브): PUT 경로는 정상 동작했으나 Cafe24가 다른 사유로 거부한다 —
+  `422 Shipping information (tracking number, shipping carrier code) cannot be edited for marketplace orders.`
+  **G마켓·옥션처럼 마켓플레이스에서 연동된 주문은 Cafe24 API로 송장을 고칠 수 없다**(자체몰 주문과 다름).
+- 부작용: 문구가 바뀌면서 `isNonRetryableMarketState`의 Cafe24 조건
+  (`"You cannot change to that order state"`)에 더는 걸리지 않아 **영구 거부가 재시도 대상으로 샜다.**
+  D-151이 의도치 않게 만든 구멍이다 — 동사를 바꾸면 거부 문구도 바뀐다는 걸 놓쳤다.
+- 수정 방향: `"cannot be edited for marketplace orders"`를 영구 거부 문구에 추가.
+- 사람의 조치 경로: Cafe24 관리자가 아니라 **G마켓·옥션 판매자센터(ESM+)** 에서 고쳐야 한다
+  (Cafe24는 마켓 원본을 미러링할 뿐이라 송장의 진실이 그쪽에 있다).
+- D-151 평가: 폐기하지 않는다. PUT은 배송건이 있을 때 올바른 동사이고, 무엇보다 **거부 사유가
+  "상태 잠금"이 아니라 "마켓플레이스 주문은 수정 불가"라는 진짜 이유로 드러났다**(D-152와 함께).

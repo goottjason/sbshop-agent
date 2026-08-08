@@ -197,6 +197,23 @@ class MarketplaceShippingTerminalTest {
 	}
 
 	@Test
+	void 카페24_마켓플레이스_주문_수정불가는_terminal로_분류된다() {
+		// D-154: D-151로 호출 동사를 POST→PUT으로 바꾸자 거부 문구도 바뀌었다. 라이브 2026-08-08:
+		// "Shipping information (tracking number, shipping carrier code) cannot be edited for
+		//  marketplace orders." — G마켓·옥션처럼 마켓에서 연동된 주문은 Cafe24 API로 송장을 고칠 수 없다.
+		// 종전 Cafe24 문구("You cannot change to that order state")에 걸리지 않아 영구 거부가
+		// 재시도 대상으로 샜다. 동사를 바꾸면 거부 문구도 바뀐다 — 분류 목록을 함께 갱신해야 한다.
+		MarketplaceShippingService service = serviceWithPortThrowing(
+			new RuntimeException("Cafe24 API PUT 호출 실패(422): {\"error\":{\"code\":422,\"message\":"
+				+ "\"Shipping information (tracking number, shipping carrier code) cannot be edited "
+				+ "for marketplace orders.\"}}"));
+
+		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(), true);
+
+		assertThat(result.isTerminal()).isTrue();
+	}
+
+	@Test
 	void 카페24_일시오류_5xx는_재시도가능으로_남는다() {
 		// 영구/일시 구분이 뭉개지면 안 된다 — 서버 오류는 재시도 대상.
 		MarketplaceShippingService service = serviceWithPortThrowing(
