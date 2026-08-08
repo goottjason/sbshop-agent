@@ -100,6 +100,21 @@ public class LineItemShippingWriter {
 		return marketTracking.equals(trackingNo);
 	}
 
+	/**
+	 * 값은 그대로 두고 <b>출처만</b> 이메일로 올린다. 이메일이 같은 값으로 확인해 준 경우다.
+	 */
+	@Transactional
+	public void promoteTrackingSourceToEmail(OrderLineItem item) {
+		Long shipmentId = item.getShipmentId();
+		if (shipmentId == null) {
+			return;
+		}
+		shipmentRepository.findById(shipmentId).ifPresent(shipment -> {
+			shipment.applyTrackingSource(TrackingSource.EMAIL);
+			shipmentRepository.save(shipment);
+		});
+	}
+
 	/** 사람이 판매자센터에서 고쳐 주기를 기다리는 중인가 — 그동안 재전송은 무의미하다. */
 	@Transactional(readOnly = true)
 	public boolean isAwaitingManualFix(OrderLineItem item) {

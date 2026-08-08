@@ -447,6 +447,10 @@ public class EmailFetcherService {
 			if (marketHasInvoice) {
 				boolean sameTracking = shipmentData.getTrackingNo().equals(existingTracking);
 				if (sameTracking) {
+					// 출처는 "무엇이 이 값을 확인했나"다. 값이 같아 쓰지 않고 지나가더라도,
+					// 이메일이 이 송장을 진짜라고 확인해 준 사실은 남긴다 — 그러지 않으면
+					// 마켓이 먼저 알려준 진짜 송장이 영영 ✍(진위 불명)로 표시된다.
+					shippingWriter.promoteTrackingSourceToEmail(item);
 					// D-147: "이미 동기화됨"을 trackingSentToMarket 플래그로 판정하면 안 된다. 그 플래그는
 					// 전송이 실패해도 참으로 남는다(거짓 성공, D-145). 진실은 배송에 기록된 마켓 보유 송장이다.
 					boolean synced = shippingWriter.marketHasTracking(item, shipmentData.getTrackingNo());
