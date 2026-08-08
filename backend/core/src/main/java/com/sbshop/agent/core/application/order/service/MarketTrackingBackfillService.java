@@ -60,15 +60,18 @@ public class MarketTrackingBackfillService {
 		LocalDate start = today.minusDays(days);
 		log.info("[백필] 마켓 보유 송장 백필 시작: {} ~ {} ({}일)", start, today, days);
 
+		// 갱신 전용(createMissing=false) — 백필의 목적은 이미 가진 주문의 마켓 값을 채우는 것이다.
+		// 과거 구간을 넓게 조회하면 우리가 다룬 적 없는 옛 주문까지 딸려 들어온다
+		// (2026-08-08 실측: 쿠팡 272·스토어 16건 유입 → 사용자가 관리하기 어렵다고 해 수동 정리).
 		Map<String, Integer> done = new LinkedHashMap<>();
 		done.put("COUPANG", walk("쿠팡", start, today, COUPANG_WINDOW,
-			coupangOrderSyncService::syncCoupangOrders));
+			(from, to) -> coupangOrderSyncService.syncCoupangOrders(from, to, false)));
 		done.put("SMART_STORE", walk("스마트스토어", start, today, SMARTSTORE_WINDOW,
-			smartStoreOrderSyncService::syncSmartStoreOrders));
+			(from, to) -> smartStoreOrderSyncService.syncSmartStoreOrders(from, to, false)));
 		done.put("ELEVEN_STREET", walk("11번가", start, today, ELEVENST_WINDOW,
-			elevenstOrderSyncService::syncElevenstOrders));
+			(from, to) -> elevenstOrderSyncService.syncElevenstOrders(from, to, false)));
 		done.put("GMARKET_AUCTION", walk("G마켓·옥션", start, today, CAFE24_WINDOW,
-			cafe24OrderSyncService::syncCafe24Orders));
+			(from, to) -> cafe24OrderSyncService.syncCafe24Orders(from, to, false)));
 
 		log.info("[백필] 마켓 보유 송장 백필 완료: 구간 성공 수 {}", done);
 	}

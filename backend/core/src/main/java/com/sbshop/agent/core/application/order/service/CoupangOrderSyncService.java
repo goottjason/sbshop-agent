@@ -85,8 +85,16 @@ public class CoupangOrderSyncService {
 
 	/** 조회 구간을 직접 지정한 동기화. 백필이 마켓 API 제약(범위 상한·레이트리밋)에 맞춰
 	 *  구간을 나눠 걸을 때 쓴다. */
-	@Transactional
 	public void syncCoupangOrders(LocalDate fromDate, LocalDate toDate) {
+		syncCoupangOrders(fromDate, toDate, true);
+	}
+
+	/**
+	 * @param createMissing 없는 주문을 새로 만들 것인가. 백필은 {@code false} — 과거 구간을 넓게 조회하면
+	 *                      우리가 다룬 적 없는 옛 주문까지 들어와 주문 목록이 불어난다.
+	 */
+	@Transactional
+	public void syncCoupangOrders(LocalDate fromDate, LocalDate toDate, boolean createMissing) {
 		// 1. 중복 실행 방지
 		if (!isSyncing.compareAndSet(false, true)) {
 			log.warn("[COUPANG] 동기화 중복 실행 방지");
@@ -103,7 +111,7 @@ public class CoupangOrderSyncService {
 			List<MarketOrderDto> orders = coupangOrderAdapter.fetchOrders(
 				credential, fromDate, toDate);
 			// 4. 주문 저장/업데이트
-			processOrders(orders, credential);
+			processOrders(orders, credential, createMissing);
 			// 5. 사후 처리 (취소감지, 반품완료 반영, 택배사 보정)
 			postSyncProcess(orders, credential);
 
@@ -234,14 +242,16 @@ public class CoupangOrderSyncService {
 	}
 
 	/* ----- 주문 목록 저장/업데이트 ----- */
-	private void processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential) {
+	private void processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential,
+		boolean createMissing) {
 		// 3단계: 어댑터가 3계층으로 내주지만 정규화기를 경계에 둔다 — 평면 DTO가 들어와도
 		// 배송 1 : 상품주문 1로 감싸진다(설계 5.1).
 		marketOrders = marketOrders.stream().map(MarketOrderNormalizer::normalize).toList();
 		// F-SYNC-5: 기존/신규 판정·분기 골격만 공통 헬퍼에 위임. 갱신/생성의 쿠팡 고유 로직
 		// (trackingSentToMarket 보존 가드, 정산액 ×0.89, sellerProductId 역조회 보강 등)은 아래 콜백에 그대로 남는다.
 		MarketOrderUpsertDispatcher.dispatch(
-			marketOrders, orderRepository, "COUPANG", this::updateExistingOrder, this::createNewOrder);
+			marketOrders, orderRepository, "COUPANG", this::updateExistingOrder, this::createNewOrder,
+			createMissing);
 	}
 
 	/* ----- 기존 주문 업데이트 ----- */

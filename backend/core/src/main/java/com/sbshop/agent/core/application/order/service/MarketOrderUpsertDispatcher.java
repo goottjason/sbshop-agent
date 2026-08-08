@@ -36,6 +36,22 @@ final class MarketOrderUpsertDispatcher {
 		String logTag,
 		BiConsumer<Order, MarketOrderDto> onExisting,
 		Consumer<MarketOrderDto> onNew) {
+		dispatch(orders, orderRepository, logTag, onExisting, onNew, true);
+	}
+
+	/**
+	 * @param createMissing 없는 주문을 새로 만들 것인가. <b>백필은 {@code false}로 부른다</b> —
+	 *                      과거 구간을 넓게 조회하면 우리가 다룬 적 없는 옛 주문까지 딸려 들어와
+	 *                      주문 목록이 불어난다(2026-08-08: 쿠팡 272·스토어 16건 유입 후 수동 정리).
+	 *                      백필의 목적은 <b>이미 가진 주문의 마켓 값 갱신</b>이지 과거 주문 수집이 아니다.
+	 */
+	static void dispatch(
+		List<MarketOrderDto> orders,
+		OrderRepository orderRepository,
+		String logTag,
+		BiConsumer<Order, MarketOrderDto> onExisting,
+		Consumer<MarketOrderDto> onNew,
+		boolean createMissing) {
 		for (MarketOrderDto dto : orders) {
 			log.info("[{}] 처리 중: orderNo={}, status={}", logTag, dto.getMarketOrderNo(), dto.getStatus());
 			Optional<Order> existingOrder = orderRepository.findByMarketOrderNo(dto.getMarketOrderNo());
@@ -44,9 +60,12 @@ final class MarketOrderUpsertDispatcher {
 				log.info("[{}] 기존 주문 발견: id={}, orderNo={}",
 					logTag, existingOrder.get().getId(), dto.getMarketOrderNo());
 				onExisting.accept(existingOrder.get(), dto);
-			} else {
+			} else if (createMissing) {
 				log.info("[{}] 신규 주문 생성 시도: orderNo={}", logTag, dto.getMarketOrderNo());
 				onNew.accept(dto);
+			} else {
+				log.debug("[{}] 갱신 전용 모드 — 없는 주문은 만들지 않는다: orderNo={}",
+					logTag, dto.getMarketOrderNo());
 			}
 		}
 	}

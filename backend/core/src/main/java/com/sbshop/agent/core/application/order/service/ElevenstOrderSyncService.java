@@ -73,8 +73,16 @@ public class ElevenstOrderSyncService {
 
 	/** 조회 구간을 직접 지정한 동기화. 백필이 마켓 API 제약(범위 상한·레이트리밋)에 맞춰
 	 *  구간을 나눠 걸을 때 쓴다. */
-	@Transactional
 	public void syncElevenstOrders(LocalDate fromDate, LocalDate toDate) {
+		syncElevenstOrders(fromDate, toDate, true);
+	}
+
+	/**
+	 * @param createMissing 없는 주문을 새로 만들 것인가. 백필은 {@code false} — 과거 구간을 넓게 조회하면
+	 *                      우리가 다룬 적 없는 옛 주문까지 들어와 주문 목록이 불어난다.
+	 */
+	@Transactional
+	public void syncElevenstOrders(LocalDate fromDate, LocalDate toDate, boolean createMissing) {
 		if (!isSyncing.compareAndSet(false, true)) {
 			log.warn("[ELEVEN_STREET] 동기화 중복 실행 방지");
 			return;
@@ -88,7 +96,7 @@ public class ElevenstOrderSyncService {
 			List<MarketOrderDto> orders = elevenstOrderAdapter.fetchOrders(
 				credential, fromDate, toDate);
 
-			processOrders(orders, credential);
+			processOrders(orders, credential, createMissing);
 			postSyncProcess(orders, credential);
 
 			log.info("[ELEVEN_STREET] 주문 동기화 완료: {}건 처리", orders.size());
@@ -119,7 +127,8 @@ public class ElevenstOrderSyncService {
 		return credential;
 	}
 
-	private void processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential) {
+	private void processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential,
+		boolean createMissing) {
 		// 2단계: 어댑터가 3계층으로 내주지만, 정규화기를 경계에 둬서 평면 DTO가 들어와도
 		// 배송 1 : 상품주문 1로 감싸진다(설계 5.1). 이 서비스가 정규화기의 첫 소비자다.
 		marketOrders = marketOrders.stream().map(MarketOrderNormalizer::normalize).toList();
@@ -127,7 +136,8 @@ public class ElevenstOrderSyncService {
 		// (findBySbCode 매핑, marketSpecificData 반영, marketType 조건부 갱신 등)은 아래 콜백에 그대로 남는다.
 		// 취소 감지(detectCancellations)는 postSyncProcess 경로에 그대로 유지된다.
 		MarketOrderUpsertDispatcher.dispatch(
-			marketOrders, orderRepository, "ELEVEN_STREET", this::updateExistingOrder, this::createNewOrder);
+			marketOrders, orderRepository, "ELEVEN_STREET", this::updateExistingOrder, this::createNewOrder,
+			createMissing);
 	}
 
 	private void updateExistingOrder(Order order, MarketOrderDto dto) {

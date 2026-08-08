@@ -84,8 +84,16 @@ public class Cafe24OrderSyncService {
 	}
 
 	/** 조회 구간을 직접 지정한 동기화. Cafe24는 조회 범위 3개월 상한이 있어 백필이 나눠 부른다. */
-	@Transactional
 	public void syncCafe24Orders(LocalDate fromDate, LocalDate toDate) {
+		syncCafe24Orders(fromDate, toDate, true);
+	}
+
+	/**
+	 * @param createMissing 없는 주문을 새로 만들 것인가. 백필은 {@code false} — 과거 구간을 넓게 조회하면
+	 *                      우리가 다룬 적 없는 옛 주문까지 들어와 주문 목록이 불어난다.
+	 */
+	@Transactional
+	public void syncCafe24Orders(LocalDate fromDate, LocalDate toDate, boolean createMissing) {
 		if (!isSyncing.compareAndSet(false, true)) {
 			log.warn("[CAFE24-ORDER] 동기화 중복 실행 방지");
 			return;
@@ -94,7 +102,7 @@ public class Cafe24OrderSyncService {
 		syncStatusService.markRunning(SyncMarketKeys.GMARKET);
 		boolean success = false;
 		try {
-			int count = fetchAndPersist(fromDate, toDate);
+			int count = fetchAndPersist(fromDate, toDate, createMissing);
 			// D-098: 취소·반품 종결 lineItem 정산0 정규화(멱등). Cafe24 경로는 G마켓·옥션 두 마켓을 담으므로 둘 다.
 			terminalSettlementService.zeroSettlementForRefunded(MarketType.GMARKET);
 			terminalSettlementService.zeroSettlementForRefunded(MarketType.AUCTION);
@@ -130,6 +138,11 @@ public class Cafe24OrderSyncService {
 	/** 페이지네이션으로 전 주문을 순회하며 저장. G마켓/옥션(order_place_id)만 처리한다. */
 	@Transactional
 	public int fetchAndPersist(LocalDate from, LocalDate to) {
+		return fetchAndPersist(from, to, true);
+	}
+
+	/** @param createMissing 없는 주문을 새로 만들 것인가(백필은 false — 옛 주문 유입 방지). */
+	public int fetchAndPersist(LocalDate from, LocalDate to, boolean createMissing) {
 		String start = from.format(CAFE24_DT);
 		String end = to.format(CAFE24_DT);
 		int offset = 0;
@@ -140,7 +153,7 @@ public class Cafe24OrderSyncService {
 				break;
 			}
 			for (JsonNode o : orders) {
-				if (persistOrder(o)) {
+				if (persistOrder(o, createMissing)) {
 					processed++;
 				}
 			}
@@ -153,7 +166,7 @@ public class Cafe24OrderSyncService {
 	}
 
 	/** @return G마켓/옥션 주문으로 실제 저장/갱신했으면 true, 스킵했으면 false. */
-	private boolean persistOrder(JsonNode o) {
+	private boolean persistOrder(JsonNode o, boolean createMissing) {
 		MarketType marketType = mapMarket(o.path("order_place_id").asText(""));
 		if (marketType == null) {
 			return false; // Cafe24에 연동된 오픈마켓(G마켓/옥션) 외 주문은 스킵(직접몰·타마켓 중복 방지)
@@ -165,8 +178,12 @@ public class Cafe24OrderSyncService {
 		Optional<Order> existing = orderRepository.findByMarketOrderNo(marketOrderNo);
 		if (existing.isPresent()) {
 			updateOrder(existing.get(), o, marketType);
-		} else {
+		} else if (createMissing) {
 			createOrder(o, marketType);
+		} else {
+			// 백필(갱신 전용): 없는 주문은 만들지 않는다 — 과거 구간 조회로 옛 주문이 딸려 들어오는 것을 막는다.
+			log.debug("[CAFE24-ORDER] 갱신 전용 모드 — 없는 주문은 만들지 않는다: orderNo={}", marketOrderNo);
+			return false;
 		}
 		return true;
 	}

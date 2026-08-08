@@ -67,8 +67,16 @@ public class SmartStoreOrderSyncService {
 
 	/** 조회 구간을 직접 지정한 동기화. 백필이 마켓 API 제약(범위 상한·레이트리밋)에 맞춰
 	 *  구간을 나눠 걸을 때 쓴다. */
-	@Transactional
 	public void syncSmartStoreOrders(LocalDate fromDate, LocalDate toDate) {
+		syncSmartStoreOrders(fromDate, toDate, true);
+	}
+
+	/**
+	 * @param createMissing 없는 주문을 새로 만들 것인가. 백필은 {@code false} — 과거 구간을 넓게 조회하면
+	 *                      우리가 다룬 적 없는 옛 주문까지 들어와 주문 목록이 불어난다.
+	 */
+	@Transactional
+	public void syncSmartStoreOrders(LocalDate fromDate, LocalDate toDate, boolean createMissing) {
 		if (!isSyncing.compareAndSet(false, true)) {
 			log.warn("[SMART_STORE] 동기화 중복 실행 방지");
 			return;
@@ -82,7 +90,7 @@ public class SmartStoreOrderSyncService {
 			List<MarketOrderDto> orders = smartStoreOrderAdapter.fetchOrders(
 				credential, fromDate, toDate);
 
-			processOrders(orders, credential);
+			processOrders(orders, credential, createMissing);
 			postSyncProcess(orders);
 
 			log.info("[SMART_STORE] 주문 동기화 완료: {}건 처리", orders.size());
@@ -114,7 +122,8 @@ public class SmartStoreOrderSyncService {
 		return credential;
 	}
 
-	private void processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential) {
+	private void processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential,
+		boolean createMissing) {
 		// 5단계: 어댑터가 3계층으로 내주지만, 정규화기를 경계에 둬서 평면 DTO가 들어와도
 		// 배송 1 : 상품주문 1로 감싸진다(설계 5.1).
 		marketOrders = marketOrders.stream().map(MarketOrderNormalizer::normalize).toList();
@@ -126,9 +135,13 @@ public class SmartStoreOrderSyncService {
 			if (existing != null) {
 				log.info("[SMART_STORE] 기존 주문 발견: id={}, orderNo={}", existing.getId(), dto.getMarketOrderNo());
 				updateExistingOrder(existing, dto);
-			} else {
+			} else if (createMissing) {
 				log.info("[SMART_STORE] 신규 주문 생성 시도: orderNo={}", dto.getMarketOrderNo());
 				createNewOrder(dto);
+			} else {
+				// 백필(갱신 전용): 없는 주문은 만들지 않는다 — 과거 구간 조회로 옛 주문이 딸려 들어오는 것을 막는다.
+				log.debug("[SMART_STORE] 갱신 전용 모드 — 없는 주문은 만들지 않는다: orderNo={}",
+					dto.getMarketOrderNo());
 			}
 		}
 	}
