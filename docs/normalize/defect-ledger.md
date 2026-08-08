@@ -2618,3 +2618,47 @@ javadoc·주석 경계에서 어긋난다. 지운 뒤에는 **핵심 메서드 �
 - 교훈: D-139에서 같은 형태를 겪었다(Cafe24 동기화 실패 사유 은폐 → `failureReason`으로 결합).
   **예외를 래핑할 때 원인 메시지를 버리지 말 것** — 상위에서 문구로 판정하는 코드가 있으면 조용히 무력화된다.
 - 검증: 신규 테스트 1건, 전체 **979 테스트 실패 0**.
+
+### D-151: G마켓/옥션 송장 역전송이 항상 신규 등록(POST)이라 이미 배송중인 주문에서 422 (2026-08-08)
+- 심각도: P1 · 리스크 등급: **중대**(마켓 API 계약 변경 — 호출 동사가 POST→PUT으로 바뀐다)
+  · 상태: **수정완료(검증대기)**
+- 수정: `Cafe24ShipmentService.ship`이 먼저 `fetchShipments`로 기존 배송건을 확인해
+  있으면 `updateShipment`(PUT), 없으면 종전 `registerShipment`(POST). 여러 건이면 추측 없이 실패.
+  `status`는 싣지 않는다(이미 배송중인 주문에 상태 재전송은 같은 422를 부른다).
+  포트에 `updateShipment(orderId, shippingCode, body)` 신설 — 어댑터는 무변경
+  (`updateTracking` 기본 폴백이 `ship()`을 타므로 전송·교정 두 경로가 함께 고쳐진다).
+- 테스트: `Cafe24ShipmentUpdateTest` 3건(기존 배송건→PUT · 배송건 없음→POST · 여러 건→실패).
+- 위치: `Cafe24ShipmentService.ship` → `Cafe24OrderApiClient.registerShipment`
+  (`POST /admin/orders/{id}/shipments`). `MarketOrderPort.updateTracking` 기본 구현이 `shipOrder`로
+  폴백해 **수정 경로가 신규 등록을 다시 호출**한다.
+- 실체(2026-08-08 라이브 재현): `422 You cannot change to that order state`
+  `more_info={status: shipping, order_id: 20260630-0000017, tracking_no: 424438293101, ...}`
+- 원인: 두 주문 모두 Cafe24에서 **이미 배송중(status_code N1)**이고 배송건이 하나 등록돼 있다
+  (`shipping_code=D-...-00`, `tracking_no=00000000` — 가송장). 배송중 주문에 배송건을 **새로** 만들 수 없다.
+- **11번가·네이버와 정반대다 — Cafe24에는 수정 API가 있는데 우리가 안 쓰고 있었다.**
+  `PUT /admin/orders/{order_no}/shipments/{shipping_code}` 라우트 존재를 라이브로 확인
+  (없는 shipping_code로 PUT → `404 Input value in [Shipping code] is invalid (parameter.shipping_code)`,
+  대조군인 없는 경로는 `404 No API found.`). 실주문 미변경.
+- 수정 방향: Cafe24 어댑터에 `updateTracking` 구현 — 배송건 조회로 `shipping_code`를 얻어 PUT.
+  `sb_shipment.market_shipment_no`에 이미 `D-20260730-0000016-00` 형태로 보관 중(구주문은 주문번호라 폴백 필요).
+- 대상: li 402(주문 4462952064) · li 454(주문 4473983719). 현재 `manual_fix_required=t`로 종결돼 있어
+  수정 후 플래그 해제 경로도 함께 봐야 한다.
+
+### D-152: Cafe24 클라이언트의 POST/PUT/DELETE가 응답 본문을 버려 원인 추적이 막힌다 (2026-08-08)
+- 심각도: P2(진단 차단) · 리스크 등급: 경량 · 상태: **수정완료(검증대기)**
+- 수정: `enrich()`를 post/put/delete에도 적용(get과 동일 규율).
+- 테스트: `Cafe24RestClientErrorMessageTest` 4건 — JDK 내장 HTTP 서버로 실제 422를 왕복시켜
+  네 동사 모두 상태코드·본문이 최상위 메시지에 실리는지 검증(모킹이 아니라 실제 경로).
+- 위치: `Cafe24RestClient` — `get()`만 `enrich()`로 상태코드·본문을 메시지에 싣고,
+  `post()`·`put()`·`delete()`는 `"Cafe24 API POST 호출 실패"`만 던진다.
+- 증상: 원장(`sb_action_log`)에 사유가 `Cafe24 API POST 호출 실패`로만 남아 **D-151의 실제 원인(422 상태 잠금)이
+  한 달간 불명이었다.** 스택트레이스의 원인 체인에는 남지만 액션로그·화면에는 도달하지 못한다.
+- 수정 방향: `enrich()`를 post/put/delete에도 적용(get과 동일 규율).
+
+### D-153: (오등재 — 무효) Cafe24 동기화가 마켓 가송장을 안 읽는다 (2026-08-08)
+- 상태: **무효(오등재)** — 등재 당일 코드 확인으로 철회.
+- 철회 사유: `00000000`은 **D-124에서 이미 "ESM+ 자체배송이 Cafe24에 남기는 더미"로 판정**해
+  `ShippingData.isMeaningfulTracking`이 의도적으로 배제하는 값이다(전부 0이면 자리표시자).
+  마켓이 실송장을 갖지 않은 상태이므로 `market_tracking_no`가 비는 것이 정상이고,
+  D-149 배지도 그 전제 위에서 "미반영"으로 바르게 표시된다. 고칠 것이 없다.
+- 교훈: 마켓 값이 비어 보이면 "수집 누락"부터 의심하기 전에 **자리표시자 판정 규칙**을 먼저 확인할 것.

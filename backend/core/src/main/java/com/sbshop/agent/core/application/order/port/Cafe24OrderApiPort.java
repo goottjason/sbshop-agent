@@ -39,6 +39,15 @@ public interface Cafe24OrderApiPort {
 	/** 송장 등록. POST /admin/orders/{orderId}/shipments. requestBody는 {"request":{...}} 형태. */
 	String registerShipment(String orderId, Object requestBody);
 
+	/**
+	 * 배송건 수정. PUT /admin/orders/{orderId}/shipments/{shippingCode}.
+	 *
+	 * <p>D-151: 이미 배송중인 주문에는 배송건을 <b>새로 만들 수 없다</b>
+	 * ({@code 422 You cannot change to that order state}). 11번가·네이버와 달리 Cafe24는
+	 * 수정 경로가 있으므로, 배송건이 있으면 등록이 아니라 이 API로 송장을 고친다.
+	 */
+	void updateShipment(String orderId, String shippingCode, Object requestBody);
+
 	/** 발주확인 — 주문 상태를 배송준비 상태로 변경. PUT /admin/orders/{id}. */
 	void acceptOrder(String cafe24OrderId);
 

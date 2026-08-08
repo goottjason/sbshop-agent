@@ -73,6 +73,13 @@ public class Cafe24OrderApiClient implements Cafe24OrderApiPort {
 		return restClient.post("/admin/orders/" + orderId + "/shipments", requestBody);
 	}
 
+	// D-151: 이미 배송건이 있는 주문은 신규 등록(POST)이 422로 거부된다 — 그 배송건을 수정한다.
+	@Override
+	public void updateShipment(String orderId, String shippingCode, Object requestBody) {
+		restClient.put("/admin/orders/" + orderId + "/shipments/" + shippingCode, requestBody);
+		log.info("[Cafe24 송장] 배송건 수정: orderId={}, shippingCode={}", orderId, shippingCode);
+	}
+
 	// Cafe24 배송상태 처리 API(PUT /admin/orders): 쓰기는 process_status 문자열을 쓴다(읽기 order_status N코드와 별개).
 	// prepare=배송준비중(발주확인), prepareproduct=상품준비중, hold=배송보류, unhold=배송보류해제.
 	private static final String ACCEPT_PROCESS_STATUS = "prepare"; // 배송준비중(=발주확인)

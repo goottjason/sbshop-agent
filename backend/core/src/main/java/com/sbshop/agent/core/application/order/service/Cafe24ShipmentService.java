@@ -37,6 +37,24 @@ public class Cafe24ShipmentService {
 			throw new IllegalStateException("송장번호가 없어 Cafe24 배송 등록 불가");
 		}
 		String companyCode = resolveCarrierCode(carrier);
+
+		// D-151: 이미 배송건이 있는 주문에는 새 배송건을 만들 수 없다
+		// (라이브 2026-08-08: 422 "You cannot change to that order state" — 주문이 배송중 N1이고
+		// 배송건 D-...-00이 더미 송장 00000000으로 이미 등록돼 있었다). 11번가·네이버와 달리
+		// Cafe24에는 수정 경로가 있으므로 그 배송건의 송장을 고친다.
+		String existingCode = resolveExistingShipmentCode(orderId);
+		if (existingCode != null) {
+			Map<String, Object> patch = new LinkedHashMap<>();
+			patch.put("tracking_no", trackingNo);
+			patch.put("shipping_company_code", companyCode);
+			// status는 싣지 않는다 — 이미 배송중인 주문에 상태를 다시 보내면 같은 422를 부른다.
+			cafe24OrderApiPort.updateShipment(orderId, existingCode,
+				Map.of("shop_no", 1, "request", patch));
+			log.info("[Cafe24 송장] 배송건 수정 완료: orderId={}, shippingCode={}, tracking={}, carrierCode={}",
+				orderId, existingCode, trackingNo, companyCode);
+			return;
+		}
+
 		List<String> itemCodes = extractItemCodes(cafe24OrderApiPort.fetchOrderDetail(orderId));
 
 		Map<String, Object> req = new LinkedHashMap<>();
@@ -50,6 +68,29 @@ public class Cafe24ShipmentService {
 		cafe24OrderApiPort.registerShipment(orderId, Map.of("request", req));
 		log.info("[Cafe24 송장] 등록 완료: orderId={}, tracking={}, carrierCode={}, items={}",
 			orderId, trackingNo, companyCode, itemCodes.size());
+	}
+
+	/**
+	 * 이미 등록된 배송건의 {@code shipping_code}. 없으면 {@code null}(신규 등록 경로로 간다).
+	 *
+	 * <p>여러 개면 <b>추측하지 않고 실패</b>한다 — 엉뚱한 배송건의 송장을 고치면 되돌리기 어렵고,
+	 * 어느 배송건이 이 상품주문의 것인지 판단할 근거가 여기에는 없다(D-127과 같은 규율).
+	 */
+	private String resolveExistingShipmentCode(String orderId) {
+		JsonNode shipments = cafe24OrderApiPort.fetchShipments(orderId);
+		if (shipments == null || !shipments.isArray() || shipments.isEmpty()) {
+			return null;
+		}
+		if (shipments.size() > 1) {
+			List<String> codes = new ArrayList<>();
+			for (JsonNode s : shipments) {
+				codes.add(text(s, "shipping_code"));
+			}
+			throw new IllegalStateException("Cafe24 배송건이 여러 개라 어느 것을 수정할지 알 수 없습니다: "
+				+ "orderId=" + orderId + ", shipping_codes=" + codes);
+		}
+		String code = text(shipments.get(0), "shipping_code");
+		return code == null || code.isBlank() ? null : code;
 	}
 
 	private List<String> extractItemCodes(JsonNode orderDetail) {
