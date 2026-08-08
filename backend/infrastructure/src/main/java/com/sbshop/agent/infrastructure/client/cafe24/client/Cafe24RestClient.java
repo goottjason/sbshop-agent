@@ -38,6 +38,10 @@ public class Cafe24RestClient {
 
 	/**
 	 * 원 예외의 의미를 메시지에 포함해 root cause 은폐를 방지한다.
+	 *
+	 * <p>D-152: 종전에는 GET에만 적용돼 POST/PUT/DELETE 실패는 "Cafe24 API POST 호출 실패"로만 남았다.
+	 * 그 탓에 G마켓 2건의 실제 사유(422 You cannot change to that order state)가 한 달간 불명이었다
+	 * — 액션로그·화면은 최상위 메시지만 보기 때문이다. 네 동사 모두 같은 규율을 따른다.
 	 * HTTP 오류면 상태코드와 응답 본문 앞부분을, 그 외 예외는 원 메시지를 붙인다.
 	 * 토큰 등 시크릿은 본문에 담기지 않는 전제이나, 만약을 대비해 길이를 제한한다.
 	 */
@@ -62,7 +66,7 @@ public class Cafe24RestClient {
 				.body(String.class);
 		} catch (Exception e) {
 			log.error("[Cafe24 PUT Error] path: {}, msg: {}", path, e.getMessage());
-			throw new RuntimeException("Cafe24 API PUT 호출 실패", e);
+			throw new RuntimeException(enrich("Cafe24 API PUT 호출 실패", e), e);
 		}
 	}
 
@@ -77,7 +81,7 @@ public class Cafe24RestClient {
 				.body(String.class);
 		} catch (Exception e) {
 			log.error("[Cafe24 POST Error] path: {}, msg: {}", path, e.getMessage());
-			throw new RuntimeException("Cafe24 API POST 호출 실패", e);
+			throw new RuntimeException(enrich("Cafe24 API POST 호출 실패", e), e);
 		}
 	}
 
@@ -90,7 +94,7 @@ public class Cafe24RestClient {
 				.toBodilessEntity();
 		} catch (Exception e) {
 			log.error("[Cafe24 DELETE Error] path: {}, msg: {}", path, e.getMessage());
-			throw new RuntimeException("Cafe24 API DELETE 호출 실패", e);
+			throw new RuntimeException(enrich("Cafe24 API DELETE 호출 실패", e), e);
 		}
 	}
 
