@@ -358,11 +358,15 @@ function ShippingEditCell({ carrier, trackingNo, syncState, marketTrackingNo, tr
       onFocus={() => { focusedInside.current = true; }}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) focusedInside.current = false; }}
     >
-      <select value={draftCarrier} style={{ ...inputStyle, textAlign: 'center', borderColor: border, borderWidth: changed ? 2 : 1 }}
-        onChange={(e) => setDraftCarrier(e.target.value)}>
-        <option value="" disabled hidden>택배사 선택</option>
-        {CARRIER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
+      {/* 아이콘 슬롯 폭(14px)+gap(3px)만큼 빈 스페이서를 둬서 아래 송장 입력칸과 좌측 시작점을 맞춘다. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+        <span style={{ width: '14px', flexShrink: 0 }} />
+        <select value={draftCarrier} style={{ ...inputStyle, flex: 1, textAlign: 'center', borderColor: border, borderWidth: changed ? 2 : 1 }}
+          onChange={(e) => setDraftCarrier(e.target.value)}>
+          <option value="" disabled hidden>택배사 선택</option>
+          {CARRIER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
       {/* 출처 아이콘은 고정폭 슬롯이다 — 아이콘이 없어도 입력칸 시작 위치가 흔들리면 안 된다. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
         <span
