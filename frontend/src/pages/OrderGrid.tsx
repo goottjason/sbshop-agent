@@ -312,11 +312,22 @@ const SYNC_BADGE: Record<'synced' | 'waiting' | 'manual' | 'unknown', { text: st
   },
 };
 
-function ShippingEditCell({ carrier, trackingNo, syncState, marketTrackingNo, onSave }: {
+/**
+ * 송장 출처 — 마켓 반영 여부(SYNC_BADGE)와는 <b>다른 축</b>이다.
+ * 저장은 EMAIL/MANUAL/MARKET 3종이지만 화면은 "이메일이 확인했나"만 물으므로 둘로 접는다.
+ */
+const SOURCE_ICON: Record<'EMAIL' | 'MANUAL' | 'MARKET', { icon: string; title: string }> = {
+  EMAIL: { icon: '📧', title: 'iHerb 발송메일이 확인해 준 진짜 송장입니다.' },
+  MANUAL: { icon: '✍', title: '관리자가 직접 입력한 값입니다. 진짜인지 가송장인지 알 수 없습니다 — iHerb 메일이 도착하면 자동으로 진짜 송장으로 바뀝니다.' },
+  MARKET: { icon: '✍', title: '마켓이 알려준 값을 채택했습니다. 진짜인지 알 수 없습니다 — iHerb 메일이 도착하면 자동으로 확인됩니다.' },
+};
+
+function ShippingEditCell({ carrier, trackingNo, syncState, marketTrackingNo, trackingSource, onSave }: {
   carrier: string;
   trackingNo: string;
   syncState: MarketSyncState;
   marketTrackingNo?: string;
+  trackingSource?: 'EMAIL' | 'MANUAL' | 'MARKET' | null;
   onSave: (v: { shippingCarrier: string; trackingNo: string }) => Promise<unknown>;
 }) {
   const [draftCarrier, setDraftCarrier] = useState(carrier);
@@ -352,10 +363,19 @@ function ShippingEditCell({ carrier, trackingNo, syncState, marketTrackingNo, on
         <option value="" disabled hidden>택배사 선택</option>
         {CARRIER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
-      <input type="text" value={draftTracking} placeholder="송장번호"
-        style={{ ...inputStyle, textAlign: 'center', borderColor: border, borderWidth: changed ? 2 : 1 }}
-        onChange={(e) => setDraftTracking(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') send(); else if (e.key === 'Escape') { setDraftCarrier(carrier); setDraftTracking(trackingNo); } }} />
+      {/* 출처 아이콘은 고정폭 슬롯이다 — 아이콘이 없어도 입력칸 시작 위치가 흔들리면 안 된다. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+        <span
+          title={trackingSource ? SOURCE_ICON[trackingSource].title : ''}
+          style={{ width: '14px', flexShrink: 0, fontSize: '11px', textAlign: 'center', lineHeight: 1 }}
+        >
+          {trackingSource ? SOURCE_ICON[trackingSource].icon : ''}
+        </span>
+        <input type="text" value={draftTracking} placeholder="송장번호"
+          style={{ ...inputStyle, flex: 1, textAlign: 'center', borderColor: border, borderWidth: changed ? 2 : 1 }}
+          onChange={(e) => setDraftTracking(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') send(); else if (e.key === 'Escape') { setDraftCarrier(carrier); setDraftTracking(trackingNo); } }} />
+      </div>
       {/* 배지와 전송 버튼은 한 줄에 둔다 — 셀 높이를 늘리지 않기 위해서다(2026-08-07 사용자 판정). */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
         {syncState !== 'none' && (
@@ -1667,6 +1687,7 @@ const OrderGrid: React.FC = () => {
               trackingNo={trackingNo}
               syncState={marketSyncState(row.original.lineItem, row.original.shipment)}
               marketTrackingNo={row.original.shipment?.marketTrackingNo || undefined}
+              trackingSource={row.original.shipment?.trackingSource ?? null}
               onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.shipping', v)}
             />
           </div>

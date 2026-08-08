@@ -97,6 +97,11 @@ export interface ShipmentDto {
   manualFixRequired?: boolean | null;
   shippingCarrier?: string;
   deliveryStatus?: string | null;
+  /**
+   * 이 송장을 무엇이 확인했는가. 'EMAIL'은 iHerb 메일이 확인한 진짜 송장,
+   * 'MANUAL'·'MARKET'은 사람·마켓이 넣은 진위 불명 값이다. null은 이 기능 이전의 과거 데이터.
+   */
+  trackingSource?: 'EMAIL' | 'MANUAL' | 'MARKET' | null;
 }
 
 export interface OrderLineItemDetailDto {
