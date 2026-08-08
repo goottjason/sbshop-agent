@@ -7,6 +7,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 
 import com.sbshop.agent.core.domain.common.BaseEntity;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
+import com.sbshop.agent.core.domain.order.enums.TrackingSource;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -88,6 +89,15 @@ public class Shipment extends BaseEntity {
 	@Column(name = "manual_fix_required")
 	private Boolean manualFixRequired;
 
+	/**
+	 * 이 송장을 <b>무엇이 확인했는가</b>(📧 이메일 / ✍ 사람·마켓). {@code null}은 출처 미기록 —
+	 * 이 기능 이전에 쌓인 과거 데이터다. 소급 판정하지 않고 화면에서 아이콘을 띄우지 않는다.
+	 */
+	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(Types.VARCHAR)
+	@Column(name = "tracking_source", length = 20)
+	private TrackingSource trackingSource;
+
 	@Builder
 	public Shipment(Long orderId, String marketShipmentNo, String trackingNo,
 		ShippingCarrier shippingCarrier, String deliveryStatus,
@@ -149,6 +159,19 @@ public class Shipment extends BaseEntity {
 		if (marketTrackingNo.equals(this.trackingNo)) {
 			this.manualFixRequired = Boolean.FALSE;
 		}
+	}
+
+	/**
+	 * 송장 출처를 기록한다. {@code null}은 "이번 쓰기는 출처를 판단하지 않음"이라 기존 값을 지키지 않는다.
+	 *
+	 * <p>승격도 강등도 모두 허용한다 — 이메일이 확인하면 {@code EMAIL}로 올라가고, 사람이 덮어쓰면
+	 * {@code MANUAL}로 내려간다. 진짜가 가송장으로 바뀐 사실을 화면이 숨기면 안 된다.
+	 */
+	public void applyTrackingSource(TrackingSource source) {
+		if (source == null) {
+			return;
+		}
+		this.trackingSource = source;
 	}
 
 	/** 마켓이 영구 거부했다 — 사람이 판매자센터에서 직접 고쳐야 한다. */
