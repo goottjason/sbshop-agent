@@ -186,9 +186,9 @@ public class SmartStoreOrderSyncService {
 			protectAddress ? null : dto.getZipcode(), protectAddress ? null : dto.getAddress(), dto.getMessage(),
 			dto.getOrdererName(), dto.getOrdererPhone(),
 			dto.getMarketType() != null && dto.getMarketType() != order.getMarketType() ? dto.getMarketType() : null);
-		if (dto.getCustomsClearanceNo() != null) {
-			order.updateCustomsClearanceNo(dto.getCustomsClearanceNo());
-		}
+		// 통관번호는 실값일 때만 반영한다 — 마켓은 배송중·배송완료에서 이 필드를 빼거나 마스킹해 주고,
+		// 한 번 지워지면 마켓에서 되받을 수 없어 복구가 불가능하다(도메인 가드가 정본).
+		order.applyCustomsClearanceNoFromMarket(dto.getCustomsClearanceNo());
 		applyMarketSpecificData(order, dto);
 	}
 

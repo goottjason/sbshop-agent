@@ -193,11 +193,9 @@ public class Cafe24OrderSyncService {
 			firstNonBlank(text(buyer, "name"), text(o, "order_place_name")),
 			firstNonBlank(text(buyer, "cellphone"), text(buyer, "phone")),
 			marketType);
-		// 통관번호는 non-blank일 때만 반영(기존값 보존). blank면 갱신하지 않음.
-		String pccc = extractPccc(buyer, receiver, o);
-		if (pccc != null) {
-			order.updateCustomsClearanceNo(pccc);
-		}
+		// 통관번호는 실값일 때만 반영한다 — 마켓은 배송중·배송완료에서 이 필드를 빼거나 마스킹해 주고,
+		// 한 번 지워지면 마켓에서 되받을 수 없어 복구가 불가능하다(도메인 가드가 정본).
+		order.applyCustomsClearanceNoFromMarket(extractPccc(buyer, receiver, o));
 		// 기존 행에도 cafe24_order_id를 채워 발주확인·취소가 Cafe24 order_id로 타깃하게 한다(마켓번호 전환 대응)
 		refreshMarketSpecific(order, o);
 		orderRepository.save(order);

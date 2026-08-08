@@ -143,6 +143,24 @@ public class Order extends BaseEntity {
 	}
 
 	/**
+	 * 동기화가 내려준 통관번호를 반영한다 — <b>실값일 때만</b>.
+	 *
+	 * <p>마켓은 주문이 배송중·배송완료로 넘어가면 개인정보 보호차원에서 필드를 빼거나 마스킹해 준다
+	 * (11번가 배송중 목록엔 {@code psnCscUniqNo} 태그 자체가 없다 — 2026-08-08 라이브 확인).
+	 * 그런 비실값으로 덮으면 통관번호가 유실되는데, <b>통관번호는 마켓에서 다시 받아올 수 없어
+	 * 복구가 불가능하다</b>. 어댑터들이 empty→null로 정규화하고 있지만 어댑터 하나만 바뀌어도
+	 * 뚫리므로, 이름·주소가 그렇게 사라졌던 D-107의 반복을 막기 위해 도메인에 정본 가드를 둔다.
+	 *
+	 * <p>수동 편집의 클리어 시맨틱(F-ORD-23)은 {@link #updateCustomsClearanceNo} 별도 경로다.
+	 */
+	public void applyCustomsClearanceNoFromMarket(String customsClearanceNo) {
+		if (!isMeaningfulPii(customsClearanceNo)) {
+			return;
+		}
+		updateCustomsClearanceNo(customsClearanceNo);
+	}
+
+	/**
 	 * 주문 정보 전체 업데이트 (마켓 동기화 전용).
 	 *
 	 * <p>모든 마켓(쿠팡·스마트스토어·11번가·Cafe24)의 sync 서비스가 이 단일 메서드를 거치므로
