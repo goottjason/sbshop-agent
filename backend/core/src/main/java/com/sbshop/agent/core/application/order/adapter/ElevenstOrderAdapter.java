@@ -352,27 +352,63 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 	 *
 	 * @return {@code ordPrdSeq → 클레임 상태} 맵. 클레임인 행만 담긴다(정상 진행 행은 제외).
 	 */
-	public Map<String, ShippingStatus> resolveClaimStatuses(String apiKey, String ordNo) {
+	public MissingOrderState resolveMissingOrderState(String apiKey, String ordNo) {
 		try {
 			List<Element> details = elevenstOrderApiPort.fetchOrderDetail(apiKey, ordNo);
 			if (details == null || details.isEmpty()) {
-				return Map.of();
+				return MissingOrderState.empty();
 			}
-			Map<String, ShippingStatus> result = new LinkedHashMap<>();
+			Map<String, ShippingStatus> statuses = new LinkedHashMap<>();
+			Map<String, String> trackingNos = new LinkedHashMap<>();
 			for (Element el : details) {
 				String seq = emptyToNull(ElevenstXmlUtils.getElementText(el, "ordPrdSeq"));
-				ShippingStatus claim = statusMapper.mapClaimStatus(
-					ElevenstXmlUtils.getElementText(el, "ordPrdStat"),
-					ElevenstXmlUtils.getElementText(el, "ordPrdStatNm"));
-				if (claim != null) {
-					// 순번을 못 얻으면 "주문 전체" 키로 담는다 — 호출자가 폴백에 쓴다.
-					result.put(seq != null ? seq : CLAIM_ORDER_WIDE, claim);
+				String key = seq != null ? seq : CLAIM_ORDER_WIDE;
+				String statNm = ElevenstXmlUtils.getElementText(el, "ordPrdStatNm");
+
+				// D-157: 클레임뿐 아니라 정상 종결(구매확정·배송완료)도 반영한다. 종전에는 클레임만 보고
+				// 나머지를 버려, 구매확정으로 목록을 벗어난 주문이 SHIPPED로 영구히 굳었다
+				// (라이브 2026-08-08: 20260720086485068은 마켓에서 구매확정인데 시스템은 배송중).
+				// 종결이 아닌 상태(결제완료·배송준비중 등)와 미매핑(UNKNOWN)은 담지 않는다 —
+				// 목록을 벗어난 주문에 진행 상태를 되씌우면 상태가 거꾸로 갈 수 있다(D-028/D-099 규율).
+				ShippingStatus status = statusMapper.mapProductOrderStatus(statNm);
+				if (isTerminalStatus(status)) {
+					statuses.put(key, status);
+				}
+
+				// D-158: 같은 응답이 마켓 보유 송장을 준다. "마켓이 아는 값"으로만 기록한다(우리 송장은 덮지 않음).
+				String invcNo = emptyToNull(ElevenstXmlUtils.getElementText(el, "invcNo"));
+				if (invcNo != null) {
+					trackingNos.put(key, invcNo);
 				}
 			}
-			return result;
+			return new MissingOrderState(statuses, trackingNos);
 		} catch (Exception e) {
-			log.warn("11번가 클레임 상태 조회 실패: ordNo={}, error={}", ordNo, e.getMessage());
-			return Map.of();
+			log.warn("11번가 사라진 주문 상태 조회 실패: ordNo={}, error={}", ordNo, e.getMessage());
+			return MissingOrderState.empty();
+		}
+	}
+
+	/** 목록을 벗어난 주문에 반영해도 되는 종결 상태인가. 진행 상태는 되씌우지 않는다. */
+	private static boolean isTerminalStatus(ShippingStatus status) {
+		return status == ShippingStatus.DELIVERED
+			|| status == ShippingStatus.CANCELED
+			|| status == ShippingStatus.RETURNED
+			|| status == ShippingStatus.EXCHANGED;
+	}
+
+	/**
+	 * 진행상태 목록에서 사라진 주문을 단건 조회해 얻은 사실.
+	 *
+	 * @param statuses    상품주문 순번 → 종결 상태(클레임 또는 구매확정·배송완료). 종결이 아니면 담기지 않는다.
+	 * @param trackingNos 상품주문 순번 → 마켓이 보유한 송장번호
+	 */
+	public record MissingOrderState(Map<String, ShippingStatus> statuses, Map<String, String> trackingNos) {
+		public static MissingOrderState empty() {
+			return new MissingOrderState(Map.of(), Map.of());
+		}
+
+		public boolean isEmpty() {
+			return statuses.isEmpty() && trackingNos.isEmpty();
 		}
 	}
 

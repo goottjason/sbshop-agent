@@ -197,20 +197,37 @@ class ElevenstLiveFindingsTest {
 			element("<order><ordNo>" + ORD_NO + "</ordNo><ordPrdSeq>2</ordPrdSeq>"
 				+ "<ordPrdStat>801</ordPrdStat><ordPrdStatNm>반품완료</ordPrdStatNm></order>")));
 
-		Map<String, ShippingStatus> claims = adapter().resolveClaimStatuses("api-key", ORD_NO);
+		Map<String, ShippingStatus> claims =
+			adapter().resolveMissingOrderState("api-key", ORD_NO).statuses();
 
-		// 순번1은 정상 진행이므로 담기지 않는다 — 오취소 방지.
+		// 순번1은 진행 중(배송중)이라 담기지 않는다 — 사라진 주문에 진행 상태를 되씌우지 않는다.
 		assertThat(claims).containsExactly(Map.entry("2", ShippingStatus.RETURNED));
 	}
 
 	@Test
-	@DisplayName("클레임이 없으면 빈 결과 — 상태를 바꾸지 않는다")
-	void returnsEmptyWhenNoClaim() throws Exception {
+	@DisplayName("D-157: 구매확정도 종결로 반영한다 — 클레임만 보던 종전엔 배송중으로 굳었다")
+	void purchaseConfirmedIsTerminal() throws Exception {
+		// 신고(2026-08-08): 20260720086485068이 마켓에선 구매확정인데 시스템은 SHIPPED였다.
+		// 목록을 벗어난 주문의 정상 종결을 버리면 상태가 영원히 갱신되지 않는다.
 		when(api.fetchOrderDetail(anyString(), anyString())).thenReturn(List.of(
 			element("<order><ordNo>" + ORD_NO + "</ordNo><ordPrdSeq>1</ordPrdSeq>"
-				+ "<ordPrdStatNm>구매확정</ordPrdStatNm></order>")));
+				+ "<ordPrdStatNm>구매확정</ordPrdStatNm><invcNo>6079990333504</invcNo></order>")));
 
-		assertThat(adapter().resolveClaimStatuses("api-key", ORD_NO)).isEmpty();
+		var state = adapter().resolveMissingOrderState("api-key", ORD_NO);
+
+		assertThat(state.statuses()).containsExactly(Map.entry("1", ShippingStatus.DELIVERED));
+		// D-158: 같은 응답의 마켓 보유 송장도 함께 거둔다.
+		assertThat(state.trackingNos()).containsExactly(Map.entry("1", "6079990333504"));
+	}
+
+	@Test
+	@DisplayName("진행 중 상태만 있으면 빈 결과 — 사라진 주문에 진행 상태를 되씌우지 않는다")
+	void returnsEmptyStatusesWhenOnlyInProgress() throws Exception {
+		when(api.fetchOrderDetail(anyString(), anyString())).thenReturn(List.of(
+			element("<order><ordNo>" + ORD_NO + "</ordNo><ordPrdSeq>1</ordPrdSeq>"
+				+ "<ordPrdStatNm>배송준비중</ordPrdStatNm></order>")));
+
+		assertThat(adapter().resolveMissingOrderState("api-key", ORD_NO).statuses()).isEmpty();
 	}
 
 	@Test
@@ -219,7 +236,7 @@ class ElevenstLiveFindingsTest {
 		when(api.fetchOrderDetail(anyString(), anyString()))
 			.thenThrow(new RuntimeException("timeout"));
 
-		assertThat(adapter().resolveClaimStatuses("api-key", ORD_NO)).isEmpty();
+		assertThat(adapter().resolveMissingOrderState("api-key", ORD_NO).isEmpty()).isTrue();
 	}
 
 	@Test

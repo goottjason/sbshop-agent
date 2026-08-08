@@ -52,6 +52,8 @@ class ElevenstDetectCancellationsTest {
 	private ElevenstOrderAdapter elevenstOrderAdapter;
 	@Mock
 	private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
+	@Mock
+	private com.sbshop.agent.core.domain.order.repository.ShipmentRepository shipmentRepository;
 
 	// 코드 기본요율(빈 정책 폴백)로 정산액을 계산하도록 실제 인스턴스 사용
 	private final MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
@@ -62,7 +64,8 @@ class ElevenstDetectCancellationsTest {
 			productRepository, eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService,
 			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
 			// 3계층 반영 골격. 이 테스트들은 라인아이템 반영을 검증하지 않으므로 목으로 둔다.
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.MarketLineItemSyncDispatcher.class));
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.MarketLineItemSyncDispatcher.class),
+			shipmentRepository);
 	}
 
 	private void stubCredentialAndEmptyApi() {
@@ -82,6 +85,15 @@ class ElevenstDetectCancellationsTest {
 			.build();
 	}
 
+	/** 주문 전체 키로 상태 하나만 담은 응답(순번 미상 라인아이템에 적용된다). */
+	private com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter.MissingOrderState
+		missingState(ShippingStatus status) {
+		return new com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter.MissingOrderState(
+			java.util.Map.of(
+				com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter.CLAIM_ORDER_WIDE, status),
+			java.util.Map.of());
+	}
+
 	private OrderLineItem item(ShippingStatus status) {
 		return OrderLineItem.builder()
 			.orderId(1L)
@@ -97,10 +109,8 @@ class ElevenstDetectCancellationsTest {
 		OrderLineItem li = item(ShippingStatus.NEW);
 		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(order("A-1")));
 		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(li));
-		when(elevenstOrderAdapter.resolveClaimStatuses(any(), any()))
-			.thenReturn(java.util.Map.of(
-				com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter.CLAIM_ORDER_WIDE,
-				ShippingStatus.CANCELED));
+		when(elevenstOrderAdapter.resolveMissingOrderState(any(), any()))
+			.thenReturn(missingState(ShippingStatus.CANCELED));
 
 		service().syncElevenstOrders();
 
@@ -114,10 +124,8 @@ class ElevenstDetectCancellationsTest {
 		OrderLineItem li = item(ShippingStatus.SHIPPED);
 		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(order("RT-1")));
 		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(li));
-		when(elevenstOrderAdapter.resolveClaimStatuses(any(), any()))
-			.thenReturn(java.util.Map.of(
-				com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter.CLAIM_ORDER_WIDE,
-				ShippingStatus.RETURNED));
+		when(elevenstOrderAdapter.resolveMissingOrderState(any(), any()))
+			.thenReturn(missingState(ShippingStatus.RETURNED));
 
 		service().syncElevenstOrders();
 
@@ -131,10 +139,8 @@ class ElevenstDetectCancellationsTest {
 		OrderLineItem li = item(ShippingStatus.SHIPPED);
 		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(order("EX-1")));
 		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(li));
-		when(elevenstOrderAdapter.resolveClaimStatuses(any(), any()))
-			.thenReturn(java.util.Map.of(
-				com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter.CLAIM_ORDER_WIDE,
-				ShippingStatus.EXCHANGED));
+		when(elevenstOrderAdapter.resolveMissingOrderState(any(), any()))
+			.thenReturn(missingState(ShippingStatus.EXCHANGED));
 
 		service().syncElevenstOrders();
 
@@ -150,7 +156,8 @@ class ElevenstDetectCancellationsTest {
 		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(li));
 		// 상세조회가 구매확정 등 정상 상태 → 클레임 아님(null)
 		// 클레임이 아니면 빈 결과 — 상태를 바꾸지 않는다(오취소 방지).
-		when(elevenstOrderAdapter.resolveClaimStatuses(any(), any())).thenReturn(java.util.Map.of());
+		when(elevenstOrderAdapter.resolveMissingOrderState(any(), any()))
+			.thenReturn(com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter.MissingOrderState.empty());
 
 		service().syncElevenstOrders();
 

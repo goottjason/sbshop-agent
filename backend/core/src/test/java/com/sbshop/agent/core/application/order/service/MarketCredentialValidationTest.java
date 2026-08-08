@@ -99,7 +99,8 @@ class MarketCredentialValidationTest {
 			eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService,
 			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
 			// 3계층 반영 골격. 이 테스트들은 라인아이템 반영을 검증하지 않으므로 목으로 둔다.
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.MarketLineItemSyncDispatcher.class));
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.MarketLineItemSyncDispatcher.class),
+			org.mockito.Mockito.mock(com.sbshop.agent.core.domain.order.repository.ShipmentRepository.class));
 		service.syncElevenstOrders();
 
 		assertIncompleteCredentialFailure(capturedEvents());

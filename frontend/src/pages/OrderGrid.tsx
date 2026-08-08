@@ -240,9 +240,8 @@ function FinancialEditCell({ sourcingAmount, logisticsCost, onSave }: {
 //   - dirty(앰버 보더): 변경됐지만 아직 미전송  ·  전송중: 스피너  ·  성공/실패: onSave가 토스트로 알림
 // 종결 상태는 마켓 전송 자체가 불가하므로 미반영 경고 대상이 아니다.
 const NO_SEND_STATUSES = ['CANCELED', 'RETURNED', 'EXCHANGED'];
-// 마켓이 송장 보유를 확인해 준 상태 — D-129 이전에 동기화된 행은 플래그가 null이라 이걸로 보정한다.
-// 동기화가 다시 돌면 플래그가 채워지므로 이 폴백은 시간이 지나며 자연히 무의미해진다.
-const MARKET_CONFIRMED_STATUSES = ['SHIPPED', 'DELIVERED'];
+// (D-156에서 제거) 배송상태로 "마켓이 송장을 갖고 있다"고 추정하던 폴백은 근거가 아니었다 —
+// 상태가 SHIPPED라는 건 우리가 그렇게 기록했다는 뜻일 뿐, 마켓이 어떤 송장을 갖고 있는지와 무관하다.
 
 /**
  * 마켓 반영 상태 — 세 가지다(D-148).
@@ -258,8 +257,17 @@ const MARKET_CONFIRMED_STATUSES = ['SHIPPED', 'DELIVERED'];
  * 판정 근거는 `trackingSentToMarket` 플래그가 아니라 <b>두 송장 값의 비교</b>다. 그 플래그는
  * 전송이 실패해도 참으로 남을 수 있어 미반영을 가린다(D-147).
  */
-type MarketSyncState = 'none' | 'synced' | 'waiting' | 'manual';
+type MarketSyncState = 'none' | 'synced' | 'waiting' | 'manual' | 'unknown';
 
+/**
+ * D-156: 마켓 송장을 모르면 <b>모른다고 말한다</b>. 종전에는 `trackingSentToMarket`으로 폴백해
+ * `synced`(반영됨)라고 단정했는데, 영구 거부 종결 처리가 바로 그 플래그를 true로 세운다
+ * (D-146/D-154의 markTrackingAsSent). 그래서 <b>사람이 고쳐야 할 건일수록 "반영됨"으로 보였다</b> —
+ * 신고 2026-08-08: 우리는 CJ, 마켓은 우체국인데 화면은 `✓ 마켓 반영됨`.
+ *
+ * `waiting`으로 뭉뚱그리지도 않는다. 그건 "기다리면 자동으로 된다"는 또 다른 거짓이다
+ * (이미 전송을 끝냈거나 종결된 건은 재시도하지 않는다). 모르는 것은 `unknown`으로 드러낸다.
+ */
 const marketSyncState = (lineItem?: OrderLineItemDto, shipment?: ShipmentDto | null): MarketSyncState => {
   const shipping = lineItem?.shippingData;
   const tracking = (shipping?.trackingNo || '').trim();
@@ -270,13 +278,15 @@ const marketSyncState = (lineItem?: OrderLineItemDto, shipment?: ShipmentDto | n
   const marketTracking = (shipment?.marketTrackingNo || '').trim();
   if (marketTracking) return marketTracking === tracking ? 'synced' : (shipment?.manualFixRequired ? 'manual' : 'waiting');
 
-  // 배송 계층이 아직 없는 레거시 행 — 종전(D-129) 판정으로 폴백한다.
-  if (shipping?.trackingSentToMarket === true) return 'synced';
-  if (MARKET_CONFIRMED_STATUSES.includes(status)) return 'synced';
-  return 'waiting';
+  // 여기부터는 마켓 값을 모른다. 사람의 조치가 필요하다고 이미 판정된 건은 그대로 드러낸다.
+  if (shipment?.manualFixRequired) return 'manual';
+  // 아직 보내지 않았다면 자동 재시도 대상이 맞다.
+  if (shipping?.trackingSentToMarket !== true) return 'waiting';
+  // 보냈다고 기록돼 있지만 마켓 값을 확인하지 못했다 — 반영됐다고 단정하지 않는다.
+  return 'unknown';
 };
 
-const SYNC_BADGE: Record<'synced' | 'waiting' | 'manual', { text: string; title: string; fg: string; bg: string; line: string }> = {
+const SYNC_BADGE: Record<'synced' | 'waiting' | 'manual' | 'unknown', { text: string; title: string; fg: string; bg: string; line: string }> = {
   manual: {
     text: '🔒 마켓 수동수정',
     title: '마켓이 송장 수정을 거부했습니다(배송중 등). 재시도로는 해결되지 않으니 마켓 판매자센터에서 직접 수정하세요. 고치면 다음 동기화에서 이 표시가 사라집니다.',
@@ -291,6 +301,12 @@ const SYNC_BADGE: Record<'synced' | 'waiting' | 'manual', { text: string; title:
     text: '✓ 마켓 반영됨',
     title: '마켓도 같은 송장을 갖고 있습니다.',
     fg: '#1a6b4f', bg: '#e8f5ef', line: '#a8d8c3',
+  },
+  unknown: {
+    text: '· 마켓 값 미확인',
+    title: '마켓에 전송한 기록은 있지만, 마켓이 어떤 송장을 갖고 있는지 아직 확인하지 못했습니다. '
+      + '반영 여부를 단정할 수 없어 그대로 표시합니다(구매확정 등으로 조회 목록에서 벗어난 주문이 여기 해당합니다).',
+    fg: '#5a6270', bg: '#f2f3f5', line: '#d3d7dd',
   },
 };
 
@@ -1330,18 +1346,20 @@ const OrderGrid: React.FC = () => {
 
   // D-148: "마켓 수동수정 필요"는 이 화면에서 유일하게 사람의 행동을 요구하는 신호다.
   // 190건 사이에 섞인 5건은 배지만으로는 놓치므로, 칩으로 걸러 볼 수 있게 한다.
-  const [syncFilter, setSyncFilter] = useState<'manual' | 'waiting' | null>(null);
+  const [syncFilter, setSyncFilter] = useState<'manual' | 'waiting' | 'unknown' | null>(null);
 
   const syncCounts = useMemo(() => {
     let manual = 0;
     let waiting = 0;
+    let unknown = 0;
     processedData.forEach((row) => {
       if (row.rowType !== 'order') return;   // 라인아이템당 3행이므로 한 번만 센다
       const state = marketSyncState(row.lineItem, row.shipment);
       if (state === 'manual') manual += 1;
       else if (state === 'waiting') waiting += 1;
+      else if (state === 'unknown') unknown += 1;
     });
-    return { manual, waiting };
+    return { manual, waiting, unknown };
   }, [processedData]);
 
   const visibleData = useMemo(() => {
@@ -1861,11 +1879,12 @@ const OrderGrid: React.FC = () => {
               background-color: #f8fafc;
             }
           `}</style>
-          {(syncCounts.manual > 0 || syncCounts.waiting > 0 || syncFilter) && (
+          {(syncCounts.manual > 0 || syncCounts.waiting > 0 || syncCounts.unknown > 0 || syncFilter) && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 4px', flexWrap: 'wrap' }}>
               {[
                 { key: 'manual' as const, label: '마켓 수동수정 필요', count: syncCounts.manual, fg: '#a52432', bg: '#fdeef0', line: '#f0aab3' },
                 { key: 'waiting' as const, label: '마켓 전송 대기', count: syncCounts.waiting, fg: '#92600c', bg: '#fdf4e0', line: '#eccb8a' },
+                { key: 'unknown' as const, label: '마켓 값 미확인', count: syncCounts.unknown, fg: '#5a6270', bg: '#f2f3f5', line: '#d3d7dd' },
               ].map(chip => {
                 const on = syncFilter === chip.key;
                 return (

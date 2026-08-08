@@ -88,7 +88,8 @@ class ElevenstThreeTierSyncTest {
 				new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
 		service = new ElevenstOrderSyncService(credentialRepository, orderRepository,
 			orderLineItemRepository, productRepository, eventPublisher, adapter,
-			syncStatusService, marketFeeService, terminalSettlementService, syncDispatcher);
+			syncStatusService, marketFeeService, terminalSettlementService, syncDispatcher,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.domain.order.repository.ShipmentRepository.class));
 
 		MarketCredential credential = mock(MarketCredential.class);
 		when(credential.getAccessKey()).thenReturn("api-key");

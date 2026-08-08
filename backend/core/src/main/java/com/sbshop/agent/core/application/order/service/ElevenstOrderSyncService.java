@@ -48,6 +48,8 @@ public class ElevenstOrderSyncService {
 	private final TerminalSettlementService terminalSettlementService;
 	/** 3계층 반영 공통 골격. 마켓별 차이는 {@code syncPolicy}가 흡수한다. */
 	private final MarketLineItemSyncDispatcher lineItemSyncDispatcher;
+	/** D-158: 사라진 주문의 마켓 보유 송장을 배송 계층에 기록하기 위해 필요하다. */
+	private final com.sbshop.agent.core.domain.order.repository.ShipmentRepository shipmentRepository;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -294,11 +296,17 @@ public class ElevenstOrderSyncService {
 				continue;
 			}
 
-			// 사라진 주문의 실제 상태를 단건 상세조회로 판정. 클레임이 아니면 빈 결과 → 상태 변경 없음(오취소 방지).
+			// 사라진 주문의 실제 상태를 단건 상세조회로 판정. 종결 상태가 아니면 빈 결과 → 상태 변경 없음(오취소 방지).
 			// 2단계 정정: 응답이 상품주문마다 한 행이므로 순번별로 적용한다. 종전에는 첫 행의 상태를
 			// 주문 전체에 씌워, 한 상품만 취소된 주문의 나머지 상품까지 취소로 만들 수 있었다.
-			java.util.Map<String, ShippingStatus> claims =
-				elevenstOrderAdapter.resolveClaimStatuses(apiKey, order.getMarketOrderNo());
+			// D-157/D-158: 클레임만 보던 것을 "종결 상태 + 마켓 보유 송장"으로 넓혔다.
+			ElevenstOrderAdapter.MissingOrderState state =
+				elevenstOrderAdapter.resolveMissingOrderState(apiKey, order.getMarketOrderNo());
+			if (state.isEmpty()) {
+				continue;
+			}
+			applyMarketTrackingFromMissingOrder(order, state);
+			java.util.Map<String, ShippingStatus> claims = state.statuses();
 			if (claims.isEmpty()) {
 				continue;
 			}
@@ -343,6 +351,30 @@ public class ElevenstOrderSyncService {
 	 * 함께 취소하지 않는다. 순번이 없는 레거시 행은 주문 전체 클레임(순번 미상)이나, 클레임이
 	 * 하나뿐일 때 그것을 적용한다(종전 동작 보존 — 그때는 라인아이템도 하나였다).
 	 */
+	/**
+	 * D-158: 사라진 주문의 응답에 담긴 <b>마켓 보유 송장</b>을 배송 계층에 기록한다.
+	 *
+	 * <p>우리 송장은 덮지 않는다 — 마켓 값은 "마켓이 아는 값"으로만 보관한다(D-148 규율).
+	 * 이 값이 있어야 화면이 두 송장을 비교해 반영 여부를 정직하게 표시할 수 있고(D-149),
+	 * 값이 우리 송장과 같아지면 수동수정 표시가 스스로 꺼진다(사람이 판매자센터에서 고친 경우).
+	 */
+	private void applyMarketTrackingFromMissingOrder(Order order,
+		ElevenstOrderAdapter.MissingOrderState state) {
+		if (state.trackingNos().isEmpty()) {
+			return;
+		}
+		// 순번별 값이 여럿이면 주문 단위 배송에 붙일 근거가 없다 — 값이 하나로 모일 때만 기록한다.
+		java.util.Set<String> distinct = new java.util.HashSet<>(state.trackingNos().values());
+		if (distinct.size() != 1) {
+			return;
+		}
+		String marketTracking = distinct.iterator().next();
+		for (Shipment shipment : shipmentRepository.findByOrderId(order.getId())) {
+			shipment.applyMarketTracking(marketTracking);
+			shipmentRepository.save(shipment);
+		}
+	}
+
 	private ShippingStatus resolveClaimFor(OrderLineItem item, java.util.Map<String, ShippingStatus> claims) {
 		String seq = item.getMarketLineItemNo();
 		if (seq != null) {

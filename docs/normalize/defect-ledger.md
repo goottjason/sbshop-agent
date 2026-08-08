@@ -2704,3 +2704,53 @@ javadoc·주석 경계에서 어긋난다. 지운 뒤에는 **핵심 메서드 �
 - 미결(사용자 판단 대기): 그리드 인라인 통관번호 셀의 **빈 값 커밋이 즉시 삭제**되는 UX가 이번 유실의
   실제 원인이다. ㉮ 그대로 ㉯ 확인 후 삭제 ㉰ 인라인 삭제 금지 중 선택 필요.
 - 참고: 해당 주문의 통관번호는 **복구 불가**(액션로그·백업에 값 없음, 11번가도 미제공).
+
+### D-156: 마켓 송장을 모를 때 배지가 "✓ 마켓 반영됨"으로 거짓 표시 (2026-08-08)
+- 심각도: **P1**(사람이 조치해야 할 건을 정상으로 오인) · 리스크 등급: 경량 · 상태: **수정완료(검증대기)**
+- 신고: 11번가 `20260720086485068`(엄수현) — 우리는 CJ `424438293101`, 마켓은 우체국 `6079990333504`인데
+  화면은 `✓ 마켓 반영됨`.
+- 위치: `OrderGrid.tsx` `marketSyncState` 폴백 분기.
+  ```
+  if (marketTracking) return marketTracking === tracking ? 'synced' : (manualFixRequired ? 'manual' : 'waiting');
+  if (shipping?.trackingSentToMarket === true) return 'synced';   // ← manualFixRequired를 보지 않는다
+  ```
+- 원인: 마켓 송장을 모르면(=`marketTrackingNo` 비어 있음) `trackingSentToMarket` 폴백으로 내려가는데,
+  **영구 거부 종결 처리가 바로 그 플래그를 true로 세운다**(D-146/D-154의 `markTrackingAsSent`).
+  즉 **영구 거부 건일수록 "반영됨"으로 보인다** — D-147이 경고한 바로 그 함정을 폴백이 되살렸다.
+- 수정: **폴백을 없앴다**(사용자 결정 — "폴백은 위험하다, 정직한 게 좋다"). `trackingSentToMarket`으로
+  반영됨을 단정하던 줄과 배송상태로 추정하던 `MARKET_CONFIRMED_STATUSES`를 함께 제거했다.
+  마켓 값을 모르면 `manualFixRequired`면 `manual`, 미전송이면 `waiting`, 전송했지만 확인 못 했으면
+  **신규 상태 `unknown`(`· 마켓 값 미확인`)**으로 드러낸다. `waiting`으로 뭉뚱그리지 않은 이유는
+  그것이 "기다리면 자동으로 된다"는 또 다른 거짓이기 때문이다(종결·전송완료 건은 재시도하지 않는다).
+  필터 칩에도 추가. 값 비교가 가능한 경우의 판정은 그대로 둔다(사람이 고치면 배지가 스스로 꺼지는 성질 유지).
+
+### D-157: 구매확정·배송완료로 목록에서 사라진 11번가 주문의 상태가 갱신되지 않는다 (2026-08-08)
+- 심각도: P2 · 리스크 등급: 표준 · 상태: **수정완료(검증대기)**
+- 신고: 위 주문은 마켓에서 **구매확정(`ordPrdStat=901`, `ordPrdStatNm=구매확정`)**인데 시스템은 `SHIPPED`.
+- 원인: `ElevenstOrderAdapter.applyProductOrderStatuses`는 **4개 목록에서 수집된 주문만** 대상이라
+  목록을 벗어난 주문에 닿지 못한다. 이를 보완하는 `ElevenstOrderSyncService.detectClaims`는
+  사라진 주문을 조회하긴 하지만 **클레임(취소·반품·교환)만 반영**하고, 구매확정 같은 정상 종결은
+  `mapClaimStatus`가 `null`을 돌려줘 버려진다(오취소 방지 규율의 부작용).
+- 근거: `mapProductOrderStatus`는 이미 `구매확정 → DELIVERED`를 안다 — 매핑이 없는 게 아니라 **경로가 없다.**
+- 수정 방향: `detectClaims`를 "사라진 주문의 실제 상태 재확인"으로 일반화 —
+  클레임이면 클레임 상태, 정상 종결(구매확정·배송완료)이면 `DELIVERED`를 반영한다.
+  **오취소 방지 규율은 유지**: 모르는 상태명은 여전히 상태를 바꾸지 않는다(UNKNOWN이면 무변경).
+
+### D-158: 사라진 주문의 마켓 보유 송장을 수집하지 않아 배지 판정 근거가 없다 (2026-08-08)
+- 심각도: P2 · 리스크 등급: 경량 · 상태: **수정완료(검증대기)**
+- 증상: 위 주문의 마켓 송장(`invcNo=6079990333504`, `dlvEtprsCd=00007` 우체국)은
+  `claimservice/orderlistall`·`orderlistalladdr` 응답에 **이미 들어 있는데** 수집하지 않아
+  `sb_shipment.market_tracking_no`가 비어 있다. 그 결과 D-149 배지가 값 비교를 못 하고
+  D-156의 거짓 폴백으로 떨어진다 — **두 결함이 맞물려 "반영됨" 오표시를 만든다.**
+- 수정 방향: D-157과 같은 경로에서 `invcNo`를 함께 읽어 `market_tracking_no`에 반영(D-148 규율 —
+  우리 송장은 덮지 않고 "마켓이 아는 값"으로만 보관).
+
+**D-156~158 공통 수정 요약 (2026-08-08)**
+- `ElevenstOrderAdapter.resolveClaimStatuses` → `resolveMissingOrderState`로 일반화.
+  반환은 `MissingOrderState(statuses, trackingNos)` — 종결 상태(클레임 + 구매확정·배송완료)와 마켓 보유 송장.
+  종결이 아닌 상태·미매핑은 담지 않는다 → **오취소·상태 역주행 방지 규율 유지**.
+- `ElevenstOrderSyncService`에 `ShipmentRepository` 주입, 사라진 주문의 마켓 송장을 `applyMarketTracking`으로 기록.
+  순번별 값이 엇갈리면 기록하지 않는다(어느 배송의 것인지 근거가 없다).
+- 테스트: `ElevenstMissingOrderStateTest` 5건 신규 + 기존 7곳 계약 이관
+  (그중 `"클레임이 없으면 빈 결과"`는 **구매확정 → DELIVERED 검증**으로 의미가 바뀌었다 — 그것이 이번 수정 자체다).
+- 회귀 1006건 실패 0 · 프론트 `tsc -p tsconfig.app.json` + `npm run build` 통과.
