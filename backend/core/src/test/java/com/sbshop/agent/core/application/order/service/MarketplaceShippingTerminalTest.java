@@ -152,6 +152,50 @@ class MarketplaceShippingTerminalTest {
 		assertThat(result.isFailed()).isTrue();
 	}
 
+	// ===== D-146: 11번가 상태 잠금 — 송장 수정 경로 자체가 없다(2026-08-08 확정) =====
+
+	@Test
+	void 십일번가_주문상태_이미_변경은_terminal로_분류된다() {
+		// D-146: 11번가는 발송된 주문의 송장 수정 API가 없다. 2026-08-08 3중 확증 —
+		// ① 게이트웨이 전수 조회(등록 경로는 -100, 미등록은 -997): 12개 서비스 그룹 × 1,150여 경로에
+		//    수정 계열 0건 ② 외부 연동 5개 저장소가 쓰는 11번가 경로 25개에도 없음
+		// ③ 라이브: 발송처리 재호출은 5·8-파라미터 모두 -3313. reqdelivery의 미지 9-파라미터 변형은
+		//    "추가 송장번호"(분할발송)용이지 수정이 아니다.
+		// 재시도해도 성공할 수 없으므로 종결시키고 사람의 수동 수정(셀러오피스)으로 넘긴다.
+		MarketplaceShippingService service = serviceWithPortThrowing(
+			new RuntimeException("11번가 발송처리 실패: 해당 배송번호의 주문상태가 이미 변경 되었습니다."
+				+ " 변경된 상태 : 배송중"));
+
+		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(), true);
+
+		assertThat(result.isTerminal()).isTrue();
+	}
+
+	@Test
+	void 십일번가_구매확정_상태잠금도_terminal로_분류된다() {
+		// 같은 문구의 다른 상태 값(구매확정)도 동일하게 영구 거부다 — 상태 값에 의존하지 않아야 한다.
+		MarketplaceShippingService service = serviceWithPortThrowing(
+			new RuntimeException("11번가 발송처리 실패: 해당 배송번호의 주문상태가 이미 변경 되었습니다."
+				+ " 변경된 상태 : 구매확정"));
+
+		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(), true);
+
+		assertThat(result.isTerminal()).isTrue();
+	}
+
+	@Test
+	void 십일번가_상태잠금이_원인_체인에만_있어도_terminal로_분류된다() {
+		// D-150과 같은 규율 — 어댑터가 예외를 래핑해도 사유를 놓치지 않아야 한다.
+		MarketplaceShippingService service = serviceWithPortThrowing(
+			new RuntimeException("11번가 API 요청 실패: /rest/ordservices/reqdelivery/...",
+				new RuntimeException("11번가 발송처리 실패: 해당 배송번호의 주문상태가 이미 변경 되었습니다."
+					+ " 변경된 상태 : 배송중")));
+
+		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(), true);
+
+		assertThat(result.isTerminal()).isTrue();
+	}
+
 	@Test
 	void 카페24_일시오류_5xx는_재시도가능으로_남는다() {
 		// 영구/일시 구분이 뭉개지면 안 된다 — 서버 오류는 재시도 대상.

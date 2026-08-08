@@ -151,12 +151,22 @@ public class MarketplaceShippingService {
 		// 택배사 코드 오류(104119)는 여기 넣지 않는다 — 그건 우리 요청 오류라 고치면 재시도로 성공한다(D-128).
 		boolean smartStoreStateLocked = message.contains("주문상태 및 클레임상태를 확인하세요");
 
+		// D-146: 11번가도 발송된 주문의 송장 수정 API가 없다(2026-08-08 확정). 3중 확증 —
+		// ① 게이트웨이가 키 없이 등록 경로를 알려주는 성질(-100 등록 / -997 미등록)로 12개 서비스 그룹 ×
+		//    1,150여 경로 패턴을 전수 조회했으나 수정 계열 0건
+		// ② 외부 연동 5개 저장소(PHP·Ruby·Python·Laravel)가 쓰는 11번가 경로 25개에도 없음
+		// ③ 라이브: 발송처리 재호출은 5·8-파라미터 모두 -3313. reqdelivery에 미지의 9-파라미터 변형이
+		//    등록돼 있으나 6번 자리가 "추가 송장번호"(분할발송용)라 대체가 아닌 덧붙이기다.
+		// 따라서 재시도로는 절대 성공하지 못한다 → 종결시키고 셀러오피스 수동 수정으로 넘긴다.
+		// 상태 값(배송중·구매확정 등)에 의존하지 않도록 앞부분 문구만 본다.
+		boolean elevenstStateLocked = message.contains("주문상태가 이미 변경 되었습니다");
+
 		// D-128(D-123 정정): 11번가 "존재하지 않는 배송번호"는 여기서 제외한다.
 		// 마켓의 상태 잠금이 아니라 우리 요청이 잘못됐다는 응답이었고(D-127 — 배송번호 자리에 주문번호
 		// 전달), 그 오분류가 EmailFetcher의 종결 처리를 타 trackingSentToMarket을 거짓으로 true로
 		// 만들어 "마켓 미반영인데 반영됨"인 주문들을 남겼다. 페이로드 교정 후에는 재시도로 성공할 수
 		// 있으므로 일시 실패로 둔다. 재시도가 무한 반복되면 원인은 페이로드지 분류가 아니다.
-		return coupangLocked || cafe24StateLocked || smartStoreStateLocked;
+		return coupangLocked || cafe24StateLocked || smartStoreStateLocked || elevenstStateLocked;
 	}
 
 	/** 마켓에 주문 취소 요청. Cafe24 기반(G마켓/옥션)은 마켓 자격증명이 아니라 Cafe24 토큰으로 인증하므로
