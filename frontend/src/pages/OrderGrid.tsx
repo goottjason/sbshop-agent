@@ -280,9 +280,11 @@ const marketSyncState = (lineItem?: OrderLineItemDto, shipment?: ShipmentDto | n
 
   // 여기부터는 마켓 값을 모른다. 사람의 조치가 필요하다고 이미 판정된 건은 그대로 드러낸다.
   if (shipment?.manualFixRequired) return 'manual';
-  // 아직 보내지 않았다면 자동 재시도 대상이 맞다.
-  if (shipping?.trackingSentToMarket !== true) return 'waiting';
-  // 보냈다고 기록돼 있지만 마켓 값을 확인하지 못했다 — 반영됐다고 단정하지 않는다.
+  // `waiting`은 "기다리면 자동으로 반영된다"는 약속이다. 그 약속이 참인 경우에만 쓴다 —
+  // 재시도 큐는 **종결 전 주문만** 담고(D-144), 배송완료 주문은 마켓도 송장 수정을 거부한다.
+  // 그래서 배송완료인데 미전송인 건(2026-08-08 라이브: 쿠팡 81건, 6~7월 주문)은 대기가 아니라 미확인이다.
+  if (shipping?.trackingSentToMarket !== true && status !== 'DELIVERED') return 'waiting';
+  // 마켓 값을 확인하지 못했다 — 반영됐다고도, 곧 반영된다고도 단정하지 않는다.
   return 'unknown';
 };
 
