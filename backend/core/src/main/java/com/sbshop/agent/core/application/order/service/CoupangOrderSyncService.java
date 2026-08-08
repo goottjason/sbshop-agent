@@ -68,6 +68,19 @@ public class CoupangOrderSyncService {
 	@Async("syncTaskExecutor")
 	@Transactional
 	public void syncCoupangOrders() {
+		syncCoupangOrders(30);
+	}
+
+	/**
+	 * 조회 기간(일)을 지정한 동기화. 기본 경로는 30일이고, <b>과거 구간 백필</b>에만 넓게 쓴다.
+	 *
+	 * <p>배경(2026-08-08): `market_tracking_no`(마켓 보유 송장)는 D-148에서 신설됐다. 그전에 30일 창을
+	 * 벗어난 주문들은 이 값을 가질 기회가 없었고, 그래서 화면이 반영 여부를 판정하지 못했다
+	 * (창 안 주문은 전 마켓 100% 수집되고 있었다 — 진행 중 동작은 이미 일관됐다).
+	 * 새 경로를 만들지 않고 <b>검증된 동기화 경로를 넓은 기간으로 한 번 더 돌리는</b> 방식을 쓴다.
+	 */
+	@Transactional
+	public void syncCoupangOrders(int lookbackDays) {
 		// 1. 중복 실행 방지
 		if (!isSyncing.compareAndSet(false, true)) {
 			log.warn("[COUPANG] 동기화 중복 실행 방지");
@@ -82,7 +95,7 @@ public class CoupangOrderSyncService {
 			MarketCredential credential = loadAndValidateCredential();
 			// 3. API 호출 → 주문 목록 획득 (최근 30일)
 			List<MarketOrderDto> orders = coupangOrderAdapter.fetchOrders(
-				credential, LocalDate.now().minusDays(30), LocalDate.now());
+				credential, LocalDate.now().minusDays(lookbackDays), LocalDate.now());
 			// 4. 주문 저장/업데이트
 			processOrders(orders, credential);
 			// 5. 사후 처리 (취소감지, 반품완료 반영, 택배사 보정)

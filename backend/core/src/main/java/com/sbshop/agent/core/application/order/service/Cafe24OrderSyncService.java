@@ -68,6 +68,19 @@ public class Cafe24OrderSyncService {
 	@Async("syncTaskExecutor")
 	@Transactional
 	public void syncCafe24Orders() {
+		syncCafe24Orders(30);
+	}
+
+	/**
+	 * 조회 기간(일)을 지정한 동기화. 기본 경로는 30일이고, <b>과거 구간 백필</b>에만 넓게 쓴다.
+	 *
+	 * <p>배경(2026-08-08): `market_tracking_no`(마켓 보유 송장)는 D-148에서 신설됐다. 그전에 30일 창을
+	 * 벗어난 주문들은 이 값을 가질 기회가 없었고, 그래서 화면이 반영 여부를 판정하지 못했다
+	 * (창 안 주문은 전 마켓 100% 수집되고 있었다 — 진행 중 동작은 이미 일관됐다).
+	 * 새 경로를 만들지 않고 <b>검증된 동기화 경로를 넓은 기간으로 한 번 더 돌리는</b> 방식을 쓴다.
+	 */
+	@Transactional
+	public void syncCafe24Orders(int lookbackDays) {
 		if (!isSyncing.compareAndSet(false, true)) {
 			log.warn("[CAFE24-ORDER] 동기화 중복 실행 방지");
 			return;
@@ -76,7 +89,7 @@ public class Cafe24OrderSyncService {
 		syncStatusService.markRunning(SyncMarketKeys.GMARKET);
 		boolean success = false;
 		try {
-			int count = fetchAndPersist(LocalDate.now().minusDays(30), LocalDate.now());
+			int count = fetchAndPersist(LocalDate.now().minusDays(lookbackDays), LocalDate.now());
 			// D-098: 취소·반품 종결 lineItem 정산0 정규화(멱등). Cafe24 경로는 G마켓·옥션 두 마켓을 담으므로 둘 다.
 			terminalSettlementService.zeroSettlementForRefunded(MarketType.GMARKET);
 			terminalSettlementService.zeroSettlementForRefunded(MarketType.AUCTION);
