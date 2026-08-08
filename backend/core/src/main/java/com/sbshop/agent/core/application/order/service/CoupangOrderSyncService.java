@@ -79,8 +79,14 @@ public class CoupangOrderSyncService {
 	 * (창 안 주문은 전 마켓 100% 수집되고 있었다 — 진행 중 동작은 이미 일관됐다).
 	 * 새 경로를 만들지 않고 <b>검증된 동기화 경로를 넓은 기간으로 한 번 더 돌리는</b> 방식을 쓴다.
 	 */
-	@Transactional
 	public void syncCoupangOrders(int lookbackDays) {
+		syncCoupangOrders(LocalDate.now().minusDays(lookbackDays), LocalDate.now());
+	}
+
+	/** 조회 구간을 직접 지정한 동기화. 백필이 마켓 API 제약(범위 상한·레이트리밋)에 맞춰
+	 *  구간을 나눠 걸을 때 쓴다. */
+	@Transactional
+	public void syncCoupangOrders(LocalDate fromDate, LocalDate toDate) {
 		// 1. 중복 실행 방지
 		if (!isSyncing.compareAndSet(false, true)) {
 			log.warn("[COUPANG] 동기화 중복 실행 방지");
@@ -95,7 +101,7 @@ public class CoupangOrderSyncService {
 			MarketCredential credential = loadAndValidateCredential();
 			// 3. API 호출 → 주문 목록 획득 (최근 30일)
 			List<MarketOrderDto> orders = coupangOrderAdapter.fetchOrders(
-				credential, LocalDate.now().minusDays(lookbackDays), LocalDate.now());
+				credential, fromDate, toDate);
 			// 4. 주문 저장/업데이트
 			processOrders(orders, credential);
 			// 5. 사후 처리 (취소감지, 반품완료 반영, 택배사 보정)

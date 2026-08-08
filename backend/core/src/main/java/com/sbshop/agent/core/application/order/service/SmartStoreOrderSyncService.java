@@ -61,8 +61,14 @@ public class SmartStoreOrderSyncService {
 	 * (창 안 주문은 전 마켓 100% 수집되고 있었다 — 진행 중 동작은 이미 일관됐다).
 	 * 새 경로를 만들지 않고 <b>검증된 동기화 경로를 넓은 기간으로 한 번 더 돌리는</b> 방식을 쓴다.
 	 */
-	@Transactional
 	public void syncSmartStoreOrders(int lookbackDays) {
+		syncSmartStoreOrders(LocalDate.now().minusDays(lookbackDays), LocalDate.now());
+	}
+
+	/** 조회 구간을 직접 지정한 동기화. 백필이 마켓 API 제약(범위 상한·레이트리밋)에 맞춰
+	 *  구간을 나눠 걸을 때 쓴다. */
+	@Transactional
+	public void syncSmartStoreOrders(LocalDate fromDate, LocalDate toDate) {
 		if (!isSyncing.compareAndSet(false, true)) {
 			log.warn("[SMART_STORE] 동기화 중복 실행 방지");
 			return;
@@ -74,7 +80,7 @@ public class SmartStoreOrderSyncService {
 		try {
 			MarketCredential credential = loadAndValidateCredential();
 			List<MarketOrderDto> orders = smartStoreOrderAdapter.fetchOrders(
-				credential, LocalDate.now().minusDays(lookbackDays), LocalDate.now());
+				credential, fromDate, toDate);
 
 			processOrders(orders, credential);
 			postSyncProcess(orders);
