@@ -314,39 +314,48 @@ const SYNC_BADGE: Record<'synced' | 'waiting' | 'manual' | 'unknown', { text: st
 
 /**
  * 송장 출처 — 마켓 반영 여부(SYNC_BADGE)와는 <b>다른 축</b>이다.
- * 저장은 EMAIL/MANUAL/MARKET 3종이고, 화면도 셋을 각각 다른 아이콘으로 보여준다.
- * 색은 부모에서 상속(currentColor)하고 크기만 고정한다 — 배지 옆에서 튀지 않게.
+ *
+ * <p>저장은 EMAIL/MANUAL/MARKET 3종이지만 화면이 묻는 것은 "이메일이 확인했나" 하나다.
+ * 그래서 MANUAL과 MARKET은 같은 아이콘으로 묶는다 — 둘 다 "우리가 진위를 보증할 수 없는 값"이다.
+ * 출처가 없는 과거 데이터는 빈칸이 어색해 별도 아이콘으로 채운다(사용자 판정 2026-08-09).
  */
-const SOURCE_ICON: Record<'EMAIL' | 'MANUAL' | 'MARKET', { path: string; title: string }> = {
+const SOURCE_ICON = {
   EMAIL: {
     // mark_email_read — 메일이 확인해 준 값
     path: 'M638-80 468-250l56-56 114 114 226-226 56 56L638-80ZM480-520l320-200H160l320 200Zm0 80L160-640v400h206l80 80H160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v174l-80 80v-174L480-440Zm0 0Zm0-80Zm0 80Z',
     title: 'iHerb 발송메일이 확인해 준 진짜 송장입니다.',
+    color: '#1a6b4f',
   },
   MANUAL: {
-    // manage_accounts — 사람이 직접 넣은 값
+    // manage_accounts — 사람·마켓이 넣은 값
     path: 'M480-240Zm-320 80v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q37 0 73 4.5t72 14.5l-67 68q-20-3-39-5t-39-2q-56 0-111 13.5T260-306q-9 5-14.5 14t-5.5 20v32h240v80H160Zm400 40v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-340L683-120H560Zm300-263-37-37 37 37ZM620-180h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19ZM367-527q-47-47-47-113t47-113q47-47 113-47t113 47q47 47 47 113t-47 113q-47 47-113 47t-113-47Zm169.5-56.5Q560-607 560-640t-23.5-56.5Q513-720 480-720t-56.5 23.5Q400-673 400-640t23.5 56.5Q447-560 480-560t56.5-23.5ZM480-640Z',
-    title: '관리자가 직접 입력한 값입니다. 진짜인지 가송장인지 알 수 없습니다 — iHerb 메일이 도착하면 자동으로 진짜 송장으로 바뀝니다.',
+    title: '사람이나 마켓이 넣은 값입니다. 진짜인지 가송장인지 알 수 없습니다 — iHerb 메일이 도착하면 자동으로 진짜 송장으로 바뀝니다.',
+    color: '#92600c',
   },
-  MARKET: {
-    // check_circle — 마켓이 알려준 값을 채택
+  LEGACY: {
+    // check_circle — 출처를 기록하기 전의 과거 주문
     path: 'm424-296 282-282-56-56-226 226-114-114-56 56 170 170Zm56 216q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z',
-    title: '마켓이 알려준 값을 채택했습니다. 진짜인지 알 수 없습니다 — iHerb 메일이 도착하면 자동으로 확인됩니다.',
+    title: '이 기능이 생기기 전에 처리된 주문이라 출처가 기록돼 있지 않습니다(대부분 배송이 끝난 건입니다).',
+    color: '#c4c8ce',
   },
-};
+} as const;
 
-/** 출처 아이콘 한 개. 출처가 없으면(과거 데이터) 아무것도 그리지 않는다. */
+/**
+ * 출처 아이콘 한 개. 출처가 없으면 과거 데이터로 보고 LEGACY 아이콘을 그린다 —
+ * 빈칸으로 두면 배지 줄이 들쭉날쭉해 보인다.
+ */
 function SourceIcon({ source }: { source?: 'EMAIL' | 'MANUAL' | 'MARKET' | null }) {
-  if (!source) return null;
-  const { path, title } = SOURCE_ICON[source];
+  const key = source === 'EMAIL' ? 'EMAIL' : source ? 'MANUAL' : 'LEGACY';
+  const { path, title, color } = SOURCE_ICON[key];
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" width="14" height="14"
-      fill="currentColor" style={{ flexShrink: 0, color: '#6b7280' }} aria-label={title}>
+      fill="currentColor" style={{ flexShrink: 0, color }} aria-label={title}>
       <title>{title}</title>
       <path d={path} />
     </svg>
   );
 }
+
 function ShippingEditCell({ carrier, trackingNo, syncState, marketTrackingNo, trackingSource, onSave }: {
   carrier: string;
   trackingNo: string;
