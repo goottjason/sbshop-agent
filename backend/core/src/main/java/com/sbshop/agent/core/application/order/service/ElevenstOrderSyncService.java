@@ -50,6 +50,8 @@ public class ElevenstOrderSyncService {
 	private final MarketLineItemSyncDispatcher lineItemSyncDispatcher;
 	/** D-158: 사라진 주문의 마켓 보유 송장을 배송 계층에 기록하기 위해 필요하다. */
 	private final com.sbshop.agent.core.domain.order.repository.ShipmentRepository shipmentRepository;
+	/** D-161: {@code prdNo}(11번가 상품번호) → SB 상품 폴백. 등록 시 저장해 둔 식별자를 되읽는다. */
+	private final com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository marketRegistrationRepository;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -265,12 +267,43 @@ public class ElevenstOrderSyncService {
 		return marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.ELEVEN_STREET);
 	}
 
+	/**
+	 * 상품 해석 — 우리 코드({@code sellerPrdCd})가 먼저, 없으면 마켓 상품번호({@code prdNo}).
+	 *
+	 * <p>D-161: {@code sellerPrdCd}는 전체 정보 목록에서만 온다. 이미 배송중인 주문은 그 목록에 없어
+	 * 상품주문이 상품 없이 만들어졌다(정나영 순번2 — 화면에 상품번호·상품명이 비었다). 그런데
+	 * {@code orderlistall}이 주는 {@code prdNo}를 {@code sb_market_registration}이 이미 보관한다.
+	 * 손에 쥔 단서를 버리고 있었을 뿐이므로, 쿠팡의 {@code vendorItemId} 경로와 같은 폴백을 둔다.
+	 *
+	 * <p>순서를 뒤집지 않는다 — {@code sellerPrdCd}는 우리가 발급한 코드라 더 권위 있고,
+	 * 등록 식별자는 마켓에서 상품을 갈아끼우면 낡을 수 있다.
+	 */
 	private Long elevenstResolveProductId(MarketLineItemDto dto) {
 		if (dto.getMarketProductCode() != null) {
 			Product product = productRepository.findBySbCode(dto.getMarketProductCode()).orElse(null);
-			return product != null ? product.getId() : null;
+			if (product != null) {
+				return product.getId();
+			}
+			log.warn("[ELEVEN_STREET] sellerPrdCd로 상품을 찾지 못했다: {} — prdNo 폴백 시도",
+				dto.getMarketProductCode());
 		}
-		return null;
+		return resolveProductIdByMarketProductNo(dto.getSellerProductId());
+	}
+
+	/** {@code prdNo} → {@code sb_market_registration} → SB 상품 ID. 못 찾으면 null. */
+	private Long resolveProductIdByMarketProductNo(String prdNo) {
+		if (prdNo == null || prdNo.isBlank()) {
+			return null;
+		}
+		List<com.sbshop.agent.core.domain.market.MarketRegistration> regs = marketRegistrationRepository
+			.findByMarketTypeAndIdentifiersContaining(MarketType.ELEVEN_STREET, prdNo);
+		if (regs.isEmpty()) {
+			log.warn("[ELEVEN_STREET] prdNo로도 상품을 찾지 못했다: prdNo={}", prdNo);
+			return null;
+		}
+		Long sbProductId = regs.get(0).getSbProductId();
+		log.info("[ELEVEN_STREET] prdNo 폴백으로 productId 해석: prdNo={}, sbProductId={}", prdNo, sbProductId);
+		return sbProductId;
 	}
 
 	private CustomsData buildCustomsData(MarketOrderDto dto) {

@@ -73,6 +73,7 @@ class ElevenstThreeTierSyncTest {
 	@Mock private SyncStatusService syncStatusService;
 	@Mock private MarketFeeService marketFeeService;
 	@Mock private TerminalSettlementService terminalSettlementService;
+	@Mock private com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository marketRegistrationRepository;
 
 	private ElevenstOrderSyncService service;
 
@@ -89,7 +90,8 @@ class ElevenstThreeTierSyncTest {
 		service = new ElevenstOrderSyncService(credentialRepository, orderRepository,
 			orderLineItemRepository, productRepository, eventPublisher, adapter,
 			syncStatusService, marketFeeService, terminalSettlementService, syncDispatcher,
-			org.mockito.Mockito.mock(com.sbshop.agent.core.domain.order.repository.ShipmentRepository.class));
+			org.mockito.Mockito.mock(com.sbshop.agent.core.domain.order.repository.ShipmentRepository.class),
+			marketRegistrationRepository);
 
 		MarketCredential credential = mock(MarketCredential.class);
 		when(credential.getAccessKey()).thenReturn("api-key");
@@ -408,6 +410,71 @@ class ElevenstThreeTierSyncTest {
 
 		// 요율 추정(57700 x 0.82 = 47314)이 아니라 마켓이 준 49887을 쓴다.
 		assertThat(saved("1").getSettlementData().getSettlementAmount()).isEqualByComparingTo("49887");
+	}
+
+	/** D-161: prdNo → sb_market_registration → sb_product_id 폴백을 위한 등록 스텁. */
+	private void stubRegistration(String prdNo, Long productId) {
+		com.sbshop.agent.core.domain.market.MarketRegistration reg =
+			mock(com.sbshop.agent.core.domain.market.MarketRegistration.class);
+		when(reg.getSbProductId()).thenReturn(productId);
+		when(marketRegistrationRepository.findByMarketTypeAndIdentifiersContaining(
+			MarketType.ELEVEN_STREET, prdNo)).thenReturn(List.of(reg));
+	}
+
+	@Test
+	@DisplayName("D-161: sellerPrdCd가 없어도 prdNo로 상품을 해석한다 — 정나영 순번2가 빈 채로 남지 않는다")
+	void resolvesProductByMarketProductNumber() {
+		when(orderRepository.findByMarketOrderNo(ORD_NO)).thenReturn(Optional.empty());
+		stubRegistration("6124097725", 2500L);
+
+		MarketLineItemDto seq2 = MarketLineItemDto.builder()
+			.marketLineItemNo("2").sellerProductId("6124097725")
+			.productName("쏜리서치 베이직 뉴트리언트 투퍼데이 60캡슐")
+			.quantity(1).totalAmount(new BigDecimal("52800"))
+			.settlementAmount(new BigDecimal("45648"))
+			.status(ShippingStatus.SHIPPED).build();
+		runSync(orderDto(shipment("2716448228", "315399495342", seq2)));
+
+		assertThat(saved("2").getProductId()).isEqualTo(2500L);
+	}
+
+	@Test
+	@DisplayName("D-161: sellerPrdCd가 있으면 그것이 우선이다 — prdNo는 폴백일 뿐")
+	void sellerProductCodeWinsOverMarketProductNumber() {
+		when(orderRepository.findByMarketOrderNo(ORD_NO)).thenReturn(Optional.empty());
+		stubProduct("210121IHB011", 312L);
+
+		MarketLineItemDto seq1 = MarketLineItemDto.builder()
+			.marketLineItemNo("1").marketProductCode("210121IHB011").sellerProductId("6124097725")
+			.quantity(1).totalAmount(new BigDecimal("57700"))
+			.status(ShippingStatus.SHIPPED).build();
+		runSync(orderDto(shipment("2716448228", "315399495342", seq1)));
+
+		assertThat(saved("1").getProductId()).isEqualTo(312L);
+		org.mockito.Mockito.verify(marketRegistrationRepository, org.mockito.Mockito.never())
+			.findByMarketTypeAndIdentifiersContaining(any(), anyString());
+	}
+
+	@Test
+	@DisplayName("D-161: 기존 행도 다음 동기화에서 prdNo로 상품이 채워진다 — 수동 교정이 필요 없다")
+	void backfillsProductIdOnExistingLineItem() {
+		Order existing = Order.builder().marketType(MarketType.ELEVEN_STREET).marketOrderNo(ORD_NO).build();
+		ReflectionTestUtils.setField(existing, "id", 42L);
+		OrderLineItem orphanSeq2 = OrderLineItem.builder().orderId(42L).quantity(1)
+			.marketLineItemNo("2").build();
+		ReflectionTestUtils.setField(orphanSeq2, "id", 474L);
+
+		when(orderRepository.findByMarketOrderNo(ORD_NO)).thenReturn(Optional.of(existing));
+		when(orderLineItemRepository.findByOrderId(42L)).thenReturn(new ArrayList<>(List.of(orphanSeq2)));
+		stubRegistration("6124097725", 2500L);
+
+		MarketLineItemDto seq2 = MarketLineItemDto.builder()
+			.marketLineItemNo("2").sellerProductId("6124097725")
+			.quantity(1).totalAmount(new BigDecimal("52800"))
+			.status(ShippingStatus.SHIPPED).build();
+		runSync(orderDto(shipment("2716448228", "315399495342", seq2)));
+
+		assertThat(orphanSeq2.getProductId()).isEqualTo(2500L);
 	}
 
 }

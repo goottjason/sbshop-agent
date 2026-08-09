@@ -117,6 +117,44 @@ class ElevenstLiveFindingsTest {
 	}
 
 	@Test
+	@DisplayName("D-161: orderlistall이 준 prdNo·prdNm을 상품주문에 싣는다 — 상품 매핑의 유일한 단서다")
+	void carriesMarketProductNumberAndName() throws Exception {
+		// 배송중 단계의 주문은 전체 정보 목록에 없어 sellerPrdCd를 얻을 수 없다. 그러나 orderlistall이
+		// prdNo(11번가 상품번호)를 주고 sb_market_registration이 그 값을 이미 보관한다 — 버릴 이유가 없다.
+		stubLists(List.of(liveShippingRow("1", "315399495342")));
+		when(api.fetchProductOrderStatuses(anyString(), anyString()))
+			.thenReturn(List.of(liveStatusRow1(), liveStatusRow2()));
+
+		MarketOrderDto dto = fetch();
+
+		assertThat(lineItem(dto, "1").getSellerProductId()).isEqualTo("3282191193");
+		assertThat(lineItem(dto, "2").getSellerProductId()).isEqualTo("6124097725");
+		// 상품명도 준다 — 매핑에 실패해도 화면이 비지 않는다.
+		assertThat(lineItem(dto, "2").getProductName())
+			.isEqualTo("쏜리서치 베이직 뉴트리언트 투퍼데이 60캡슐");
+	}
+
+	@Test
+	@DisplayName("D-161: 전체 정보 목록이 sellerPrdCd를 주면 그 값이 상품코드로 남는다 — prdNo가 덮지 않는다")
+	void detailListStillOwnsSellerProductCode() throws Exception {
+		when(api.fetchCompletedOrders(anyString(), anyString(), anyString())).thenReturn(List.of(
+			element("<order><ordNo>" + ORD_NO + "</ordNo><ordPrdSeq>2</ordPrdSeq>"
+				+ "<sellerPrdCd>230806IHB154</sellerPrdCd><prdNm>목록이 준 이름</prdNm>"
+				+ "<ordQty>1</ordQty><selPrc>52800</selPrc><ordAmt>52800</ordAmt></order>")));
+		when(api.fetchPackagingOrders(anyString(), anyString(), anyString())).thenReturn(List.of());
+		when(api.fetchShippingOrders(anyString(), anyString(), anyString())).thenReturn(List.of());
+		when(api.fetchCompletedDeliveryOrders(anyString(), anyString(), anyString())).thenReturn(List.of());
+		when(api.fetchProductOrderStatuses(anyString(), anyString()))
+			.thenReturn(List.of(liveStatusRow2()));
+
+		MarketOrderDto dto = fetch();
+
+		assertThat(lineItem(dto, "2").getMarketProductCode()).isEqualTo("230806IHB154");
+		assertThat(lineItem(dto, "2").getProductName()).isEqualTo("목록이 준 이름");
+		assertThat(lineItem(dto, "2").getSellerProductId()).isEqualTo("6124097725");
+	}
+
+	@Test
 	@DisplayName("정산액은 마켓 실측값(stlPlnAmt)을 그대로 싣는다 — 요율 추정이 필요 없다")
 	void carriesActualSettlementAmount() throws Exception {
 		// 주문 발견은 목록이 한다 — 라이브에서도 배송중 목록이 이 주문을 발견했다.

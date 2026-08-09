@@ -63,7 +63,7 @@ class ElevenstMissingOrderStateTest {
 			credentialRepository, orderRepository, orderLineItemRepository,
 			productRepository, eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService,
 			mock(TerminalSettlementService.class), mock(MarketLineItemSyncDispatcher.class),
-			shipmentRepository);
+			shipmentRepository, org.mockito.Mockito.mock(com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository.class));
 	}
 
 	private void stubCredentialAndEmptyApi() {

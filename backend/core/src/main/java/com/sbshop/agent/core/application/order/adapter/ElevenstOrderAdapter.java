@@ -624,10 +624,13 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		/**
 		 * orderlistall이 주는 상품주문별 사실. 2026-08-06 라이브 응답으로 확인한 필드다:
 		 * {@code stlPlnAmt}(정산예정금액) · {@code selFee}(판매수수료) · {@code tmallApplyDscAmt}(11번가 할인분담).
-		 * <b>{@code sellerPrdCd}는 주지 않는다</b> — 상품 매핑은 전체 정보 목록에서만 얻을 수 있다.
+		 * <b>{@code sellerPrdCd}는 주지 않는다.</b> 대신 {@code prdNo}(11번가 상품번호)와 {@code prdNm}을
+		 * 준다 — D-161 전까지 이 둘을 읽지 않아, 배송중 단계에서 처음 발견된 상품주문의 상품이 비었다.
+		 * {@code sb_market_registration}이 {@code prdNo}를 보관하므로 이것이 유효한 매핑 단서다.
 		 */
 		private record StatusRow(String statusName, String dlvNo, Integer quantity,
-			BigDecimal settlementAmount, BigDecimal sellerFee, BigDecimal marketDiscount) {}
+			BigDecimal settlementAmount, BigDecimal sellerFee, BigDecimal marketDiscount,
+			String prdNo, String productName) {}
 
 		private record TrackingInfo(String trackingNo, ShippingCarrier carrier) {}
 
@@ -702,7 +705,9 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				parseIntValue(ElevenstXmlUtils.getElementText(row, "ordQty")),
 				parseBigDecimal(ElevenstXmlUtils.getElementText(row, "stlPlnAmt")),
 				parseBigDecimal(ElevenstXmlUtils.getElementText(row, "selFee")),
-				parseBigDecimal(ElevenstXmlUtils.getElementText(row, "tmallApplyDscAmt"))));
+				parseBigDecimal(ElevenstXmlUtils.getElementText(row, "tmallApplyDscAmt")),
+				emptyToNull(ElevenstXmlUtils.getElementText(row, "prdNo")),
+				emptyToNull(ElevenstXmlUtils.getElementText(row, "prdNm"))));
 			// 이 행도 송장을 준다. 배송번호가 함께 오므로 배송에 정확히 붙는다.
 			captureTracking(row, emptyToNull(ElevenstXmlUtils.getElementText(row, "dlvNo")));
 		}
@@ -821,7 +826,11 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				byDlvNo.computeIfAbsent(dlvNo, k -> new ArrayList<>()).add(MarketLineItemDto.builder()
 					.marketLineItemNo(seq)
 					.marketProductCode(detail != null ? detail.sellerPrdCd() : null)
-					.productName(detail != null ? detail.productName() : null)
+					// D-161: 전체 정보 목록이 없을 때 상품을 해석할 유일한 단서다. 상품코드를 대신하지
+					// 않고 폴백으로만 쓰인다 — 동기화가 sellerPrdCd를 먼저 시도한다.
+					.sellerProductId(status != null ? status.prdNo() : null)
+					.productName(firstNonNull(detail != null ? detail.productName() : null,
+						status != null ? status.productName() : null))
 					.quantity(resolveQuantity(status, detail))
 					.orderPrice(resolveAmount(status, detail != null ? detail.orderPrice() : null))
 					.totalAmount(resolveAmount(status, detail != null ? detail.totalAmount() : null))

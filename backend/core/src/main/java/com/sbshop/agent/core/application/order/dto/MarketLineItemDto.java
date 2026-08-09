@@ -25,7 +25,18 @@ public class MarketLineItemDto {
 	private String marketLineItemNo;
 
 	private String marketProductCode;
+
+	/**
+	 * 마켓이 발급한 상품 번호 — 우리 코드({@code marketProductCode})가 아니라 마켓 쪽 식별자다.
+	 * 쿠팡 {@code sellerProductId} · <b>11번가 {@code prdNo}</b>.
+	 *
+	 * <p>11번가에서 이 값이 중요한 이유(D-161): {@code sellerPrdCd}는 전체 정보 목록
+	 * (결제완료·배송준비중·배송완료)에서만 온다. 이미 배송중인 주문은 그 목록에 없어 상품을 해석할
+	 * 단서가 사라지는데, {@code claimservice/orderlistall}은 {@code prdNo}를 준다.
+	 * {@code sb_market_registration}이 그 값을 이미 보관하므로 폴백 경로가 성립한다.
+	 */
 	private String sellerProductId;
+
 	private String productName;
 	private Integer quantity;
 	private BigDecimal orderPrice;
