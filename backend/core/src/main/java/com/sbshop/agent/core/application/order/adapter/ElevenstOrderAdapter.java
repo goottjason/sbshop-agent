@@ -6,6 +6,7 @@ import com.sbshop.agent.core.application.order.util.ElevenstXmlUtils;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.application.order.dto.MarketFetchOutcome;
 import com.sbshop.agent.core.application.order.dto.MarketLineItemDto;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
@@ -60,6 +61,22 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 	 */
 	@Override
 	public List<MarketOrderDto> fetchOrders(MarketCredential credential,
+		LocalDate fromDate, LocalDate toDate) {
+		return doFetchOrders(credential, fromDate, toDate).orders();
+	}
+
+	/**
+	 * {@link #fetchOrders}와 같은 조회. <b>부분 실패 여부</b>를 함께 알려준다 (D-160).
+	 *
+	 * <p>7일 chunk 중 일부가 실패하면 그 기간의 주문이 응답에서 통째로 빠진다. 호출자가 그것을
+	 * 모르면 "응답에 없다 = 마켓에서 사라졌다"로 읽는다 — 쿠팡에서 실제 피해가 났던 경로다.
+	 */
+	public MarketFetchOutcome fetchOrdersWithOutcome(MarketCredential credential,
+		LocalDate fromDate, LocalDate toDate) {
+		return doFetchOrders(credential, fromDate, toDate);
+	}
+
+	private MarketFetchOutcome doFetchOrders(MarketCredential credential,
 		LocalDate fromDate, LocalDate toDate) {
 		Map<String, OrderAccumulator> orders = new LinkedHashMap<>();
 		String apiKey = credential.getAccessKey();
@@ -119,7 +136,9 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				result.add(dto);
 			}
 		}
-		return result;
+		return failedChunks == 0
+			? MarketFetchOutcome.complete(result)
+			: MarketFetchOutcome.partial(result);
 	}
 
 	/** 전체 정보 목록(결제완료·배송준비중·배송완료)의 행을 상품주문 단위로 모은다. */

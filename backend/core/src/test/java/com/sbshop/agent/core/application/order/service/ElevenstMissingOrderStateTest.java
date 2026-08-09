@@ -71,7 +71,8 @@ class ElevenstMissingOrderStateTest {
 		when(credential.getAccessKey()).thenReturn("api-key");
 		when(credentialRepository.findByMarketType(MarketType.ELEVEN_STREET))
 			.thenReturn(java.util.Optional.of(credential));
-		when(elevenstOrderAdapter.fetchOrders(any(), any(), any())).thenReturn(List.of());
+		when(elevenstOrderAdapter.fetchOrdersWithOutcome(any(), any(), any()))
+			.thenReturn(com.sbshop.agent.core.application.order.dto.MarketFetchOutcome.complete(List.of()));
 	}
 
 	private Order order() {

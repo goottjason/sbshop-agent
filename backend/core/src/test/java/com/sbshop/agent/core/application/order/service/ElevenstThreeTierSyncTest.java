@@ -169,7 +169,8 @@ class ElevenstThreeTierSyncTest {
 	}
 
 	private void runSync(MarketOrderDto dto) {
-		when(adapter.fetchOrders(any(), any(), any())).thenReturn(List.of(dto));
+		when(adapter.fetchOrdersWithOutcome(any(), any(), any()))
+			.thenReturn(com.sbshop.agent.core.application.order.dto.MarketFetchOutcome.complete(List.of(dto)));
 		service.syncElevenstOrders();
 	}
 

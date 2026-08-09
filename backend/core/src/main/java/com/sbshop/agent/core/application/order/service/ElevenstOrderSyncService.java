@@ -95,11 +95,13 @@ public class ElevenstOrderSyncService {
 		boolean success = false;
 		try {
 			MarketCredential credential = loadAndValidateCredential();
-			List<MarketOrderDto> orders = elevenstOrderAdapter.fetchOrders(
-				credential, fromDate, toDate);
+			// D-160: 부분 실패 여부를 함께 받는다 — 못 본 것을 사라진 것으로 읽지 않기 위해서다.
+			com.sbshop.agent.core.application.order.dto.MarketFetchOutcome outcome =
+				elevenstOrderAdapter.fetchOrdersWithOutcome(credential, fromDate, toDate);
+			List<MarketOrderDto> orders = outcome.orders();
 
 			processOrders(orders, credential, createMissing);
-			postSyncProcess(orders, credential);
+			postSyncProcess(orders, credential, fromDate, toDate, createMissing, outcome.complete());
 
 			log.info("[ELEVEN_STREET] 주문 동기화 완료: {}건 처리", orders.size());
 			success = true;
@@ -318,15 +320,30 @@ public class ElevenstOrderSyncService {
 	}
 
 	/**
-	 * 사후 처리: API 응답에 없는 기존 주문 중 non-terminal 상태를 CANCELED로 감지한다.
+	 * 사후 처리: API 응답에 없는 기존 주문 중 non-terminal 상태를 클레임으로 감지한다.
 	 * 쿠팡 detectCancellations 정본 패턴을 이식 — 11번가는 취소/반품/교환 조회 API가 없어
 	 * 이 감지가 없으면 취소된 주문이 이전 상태(NEW/PREPARING)로 영구 잔류한다. (D-028)
+	 *
+	 * <p>D-160: 종전에는 조회 구간을 무시하고 <b>언제나 최근 30일</b>을 판정 대상으로 삼았다.
+	 * 쿠팡에서 실제 피해를 낸 구조와 같다. 11번가는 {@link #detectClaims}가 단건 상세조회로
+	 * <b>확증</b>하므로 거짓 취소로 번지지는 않았지만, 백필이 과거 구간을 걸을 때마다 그 응답에 없는
+	 * 최근 주문 전부에 상세조회를 때린다 — 레이트리밋 때문에 구간 사이에 쉬어야 하는 마켓에서
+	 * 확증 단계가 그 비용을 대신 치르고 있었다. <b>애초에 판정 범위가 아니다.</b>
+	 *
+	 * @param fetchComplete 조회가 온전했는가. 부분 실패면 못 본 주문이 있을 수 있다
+	 * @param createMissing {@code false}면 백필 — 값을 채우러 가는 것이지 상태를 판정하러 가지 않는다
 	 */
-	private void postSyncProcess(List<MarketOrderDto> orders, MarketCredential credential) {
-		LocalDate fromDate = LocalDate.now().minusDays(30);
-		LocalDate toDate = LocalDate.now();
-		detectClaims(orders, fromDate, toDate, credential.getAccessKey());
-		// D-098: 취소·반품 종결 lineItem 정산0 정규화(멱등).
+	private void postSyncProcess(List<MarketOrderDto> orders, MarketCredential credential,
+		LocalDate fromDate, LocalDate toDate, boolean createMissing, boolean fetchComplete) {
+		if (!createMissing) {
+			log.info("[ELEVEN_STREET] 갱신 전용 동기화 — 클레임 감지를 건너뛴다 ({}~{})", fromDate, toDate);
+		} else if (!fetchComplete) {
+			log.warn("[ELEVEN_STREET] 부분 조회로 클레임 감지를 건너뛴다 ({}~{}) — 못 본 주문을 사라진 것으로 읽지 않는다",
+				fromDate, toDate);
+		} else {
+			detectClaims(orders, fromDate, toDate, credential.getAccessKey());
+		}
+		// D-098: 취소·반품 종결 lineItem 정산0 정규화(멱등). DB 파생 판정이라 조회 상태와 무관.
 		terminalSettlementService.zeroSettlementForRefunded(MarketType.ELEVEN_STREET);
 	}
 

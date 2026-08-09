@@ -73,8 +73,9 @@ class ElevenstDetectCancellationsTest {
 		when(credential.getAccessKey()).thenReturn("api-key");
 		when(credentialRepository.findByMarketType(MarketType.ELEVEN_STREET))
 			.thenReturn(java.util.Optional.of(credential));
-		// API 응답 비어 있음 → 모든 DB 주문이 조회 대상에 없는 상황
-		when(elevenstOrderAdapter.fetchOrders(any(), any(), any())).thenReturn(List.of());
+		// API 응답 비어 있음 → 모든 DB 주문이 조회 대상에 없는 상황. 조회 자체는 온전했다(부분 실패 아님).
+		when(elevenstOrderAdapter.fetchOrdersWithOutcome(any(), any(), any()))
+			.thenReturn(com.sbshop.agent.core.application.order.dto.MarketFetchOutcome.complete(List.of()));
 	}
 
 	private Order order(String orderNo) {
