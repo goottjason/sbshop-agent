@@ -290,22 +290,22 @@ const marketSyncState = (lineItem?: OrderLineItemDto, shipment?: ShipmentDto | n
 
 const SYNC_BADGE: Record<'synced' | 'waiting' | 'manual' | 'unknown', { text: string; title: string; fg: string; bg: string; line: string }> = {
   manual: {
-    text: '🔒 마켓 수동수정',
+    text: '수정요망',
     title: '마켓이 송장 수정을 거부했습니다(배송중 등). 재시도로는 해결되지 않으니 마켓 판매자센터에서 직접 수정하세요. 고치면 다음 동기화에서 이 표시가 사라집니다.',
     fg: '#a52432', bg: '#fdeef0', line: '#f0aab3',
   },
   waiting: {
-    text: '⚠ 마켓 전송 대기',
+    text: '대기중',
     title: '송장은 저장됐지만 마켓에는 아직 반영되지 않았습니다. 다음 사이클에 자동으로 다시 시도합니다.',
     fg: '#92600c', bg: '#fdf4e0', line: '#eccb8a',
   },
   synced: {
-    text: '✓ 마켓 반영됨',
+    text: '반영됨',
     title: '마켓도 같은 송장을 갖고 있습니다.',
     fg: '#1a6b4f', bg: '#e8f5ef', line: '#a8d8c3',
   },
   unknown: {
-    text: '· 마켓 값 미확인',
+    text: '미확인',
     title: '마켓에 전송한 기록은 있지만, 마켓이 어떤 송장을 갖고 있는지 아직 확인하지 못했습니다. '
       + '반영 여부를 단정할 수 없어 그대로 표시합니다(구매확정 등으로 조회 목록에서 벗어난 주문이 여기 해당합니다).',
     fg: '#5a6270', bg: '#f2f3f5', line: '#d3d7dd',
@@ -314,14 +314,39 @@ const SYNC_BADGE: Record<'synced' | 'waiting' | 'manual' | 'unknown', { text: st
 
 /**
  * 송장 출처 — 마켓 반영 여부(SYNC_BADGE)와는 <b>다른 축</b>이다.
- * 저장은 EMAIL/MANUAL/MARKET 3종이지만 화면은 "이메일이 확인했나"만 물으므로 둘로 접는다.
+ * 저장은 EMAIL/MANUAL/MARKET 3종이고, 화면도 셋을 각각 다른 아이콘으로 보여준다.
+ * 색은 부모에서 상속(currentColor)하고 크기만 고정한다 — 배지 옆에서 튀지 않게.
  */
-const SOURCE_ICON: Record<'EMAIL' | 'MANUAL' | 'MARKET', { icon: string; title: string }> = {
-  EMAIL: { icon: '📧', title: 'iHerb 발송메일이 확인해 준 진짜 송장입니다.' },
-  MANUAL: { icon: '✍', title: '관리자가 직접 입력한 값입니다. 진짜인지 가송장인지 알 수 없습니다 — iHerb 메일이 도착하면 자동으로 진짜 송장으로 바뀝니다.' },
-  MARKET: { icon: '✍', title: '마켓이 알려준 값을 채택했습니다. 진짜인지 알 수 없습니다 — iHerb 메일이 도착하면 자동으로 확인됩니다.' },
+const SOURCE_ICON: Record<'EMAIL' | 'MANUAL' | 'MARKET', { path: string; title: string }> = {
+  EMAIL: {
+    // mark_email_read — 메일이 확인해 준 값
+    path: 'M638-80 468-250l56-56 114 114 226-226 56 56L638-80ZM480-520l320-200H160l320 200Zm0 80L160-640v400h206l80 80H160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v174l-80 80v-174L480-440Zm0 0Zm0-80Zm0 80Z',
+    title: 'iHerb 발송메일이 확인해 준 진짜 송장입니다.',
+  },
+  MANUAL: {
+    // manage_accounts — 사람이 직접 넣은 값
+    path: 'M480-240Zm-320 80v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q37 0 73 4.5t72 14.5l-67 68q-20-3-39-5t-39-2q-56 0-111 13.5T260-306q-9 5-14.5 14t-5.5 20v32h240v80H160Zm400 40v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q8 9 12.5 20t4.5 22q0 11-4 22.5T903-340L683-120H560Zm300-263-37-37 37 37ZM620-180h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19ZM367-527q-47-47-47-113t47-113q47-47 113-47t113 47q47 47 47 113t-47 113q-47 47-113 47t-113-47Zm169.5-56.5Q560-607 560-640t-23.5-56.5Q513-720 480-720t-56.5 23.5Q400-673 400-640t23.5 56.5Q447-560 480-560t56.5-23.5ZM480-640Z',
+    title: '관리자가 직접 입력한 값입니다. 진짜인지 가송장인지 알 수 없습니다 — iHerb 메일이 도착하면 자동으로 진짜 송장으로 바뀝니다.',
+  },
+  MARKET: {
+    // check_circle — 마켓이 알려준 값을 채택
+    path: 'm424-296 282-282-56-56-226 226-114-114-56 56 170 170Zm56 216q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z',
+    title: '마켓이 알려준 값을 채택했습니다. 진짜인지 알 수 없습니다 — iHerb 메일이 도착하면 자동으로 확인됩니다.',
+  },
 };
 
+/** 출처 아이콘 한 개. 출처가 없으면(과거 데이터) 아무것도 그리지 않는다. */
+function SourceIcon({ source }: { source?: 'EMAIL' | 'MANUAL' | 'MARKET' | null }) {
+  if (!source) return null;
+  const { path, title } = SOURCE_ICON[source];
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" width="14" height="14"
+      fill="currentColor" style={{ flexShrink: 0, color: '#6b7280' }} aria-label={title}>
+      <title>{title}</title>
+      <path d={path} />
+    </svg>
+  );
+}
 function ShippingEditCell({ carrier, trackingNo, syncState, marketTrackingNo, trackingSource, onSave }: {
   carrier: string;
   trackingNo: string;
@@ -358,28 +383,15 @@ function ShippingEditCell({ carrier, trackingNo, syncState, marketTrackingNo, tr
       onFocus={() => { focusedInside.current = true; }}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) focusedInside.current = false; }}
     >
-      {/* 아이콘 슬롯 폭(14px)+gap(3px)만큼 빈 스페이서를 둬서 아래 송장 입력칸과 좌측 시작점을 맞춘다. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-        <span style={{ width: '14px', flexShrink: 0 }} />
-        <select value={draftCarrier} style={{ ...inputStyle, flex: 1, textAlign: 'center', borderColor: border, borderWidth: changed ? 2 : 1 }}
-          onChange={(e) => setDraftCarrier(e.target.value)}>
-          <option value="" disabled hidden>택배사 선택</option>
-          {CARRIER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      </div>
-      {/* 출처 아이콘은 고정폭 슬롯이다 — 아이콘이 없어도 입력칸 시작 위치가 흔들리면 안 된다. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-        <span
-          title={trackingSource ? SOURCE_ICON[trackingSource].title : ''}
-          style={{ width: '14px', flexShrink: 0, fontSize: '11px', textAlign: 'center', lineHeight: 1 }}
-        >
-          {trackingSource ? SOURCE_ICON[trackingSource].icon : ''}
-        </span>
-        <input type="text" value={draftTracking} placeholder="송장번호"
-          style={{ ...inputStyle, flex: 1, textAlign: 'center', borderColor: border, borderWidth: changed ? 2 : 1 }}
-          onChange={(e) => setDraftTracking(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') send(); else if (e.key === 'Escape') { setDraftCarrier(carrier); setDraftTracking(trackingNo); } }} />
-      </div>
+      <select value={draftCarrier} style={{ ...inputStyle, textAlign: 'center', borderColor: border, borderWidth: changed ? 2 : 1 }}
+        onChange={(e) => setDraftCarrier(e.target.value)}>
+        <option value="" disabled hidden>택배사 선택</option>
+        {CARRIER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <input type="text" value={draftTracking} placeholder="송장번호"
+        style={{ ...inputStyle, textAlign: 'center', borderColor: border, borderWidth: changed ? 2 : 1 }}
+        onChange={(e) => setDraftTracking(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') send(); else if (e.key === 'Escape') { setDraftCarrier(carrier); setDraftTracking(trackingNo); } }} />
       {/* 배지와 전송 버튼은 한 줄에 둔다 — 셀 높이를 늘리지 않기 위해서다(2026-08-07 사용자 판정). */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
         {syncState !== 'none' && (
@@ -392,6 +404,8 @@ function ShippingEditCell({ carrier, trackingNo, syncState, marketTrackingNo, tr
             {SYNC_BADGE[syncState].text}
           </span>
         )}
+        {/* 출처 아이콘은 배지와 전송 버튼 사이에 둔다 — 마켓 반영 여부와 다른 축이므로 배지에 섞지 않는다. */}
+        <SourceIcon source={trackingSource} />
         <button type="button" onClick={send} disabled={!canSend}
           style={{ marginLeft: 'auto', fontSize: '11px', padding: '1px 6px', borderRadius: '4px', border: 'none',
             cursor: canSend ? 'pointer' : 'default',
