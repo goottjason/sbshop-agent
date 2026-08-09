@@ -2820,3 +2820,112 @@ javadoc·주석 경계에서 어긋난다. 지운 뒤에는 **핵심 메서드 �
 - 부수 관측: 같은 시점 11번가 수동수정이 8 → 1로 줄었다. 사용자가 셀러오피스에서 7건을 고쳤고
   **동기화가 두 송장 값의 일치를 확인해 표시를 스스로 껐다**(D-148 설계대로 — 완료 체크 버튼 없이
   마켓 실제 상태로 판정). 남은 1건(197 엄수현)은 구매확정이라 마켓이 수정을 거부하는 건이다.
+
+### D-160: 백필이 최근 주문을 거짓 취소 → 정산액 0으로 굳는다 (2026-08-09, 사용자 신고 "홍경희·김유동 정산 0")
+
+- 심각도: **P1**(손익 수치 왜곡 — 화면·대시보드·엑셀 전부) · 리스크 등급: 표준 · 상태: **수정완료(라이브검증 대기)** — `8e8147b`
+- 신고: 홍경희·김유동 건의 정산금액이 0으로 표시된다.
+
+**실측 (운영 DB)**
+
+```
+ id  | 수취인 | 정산액 | verified | 배송상태  | updated_at
+ 467 | 홍경희 |   0.00 |    t     | SHIPPED   | 2026-08-08 13:32:06
+ 468 | 이재근 |   0.00 |    t     | NEW       | 2026-08-08 13:32:06
+ 469 | Cross… |   0.00 |    t     | NEW       | 2026-08-08 13:32:06
+ 475 | 김성욱 |   0.00 |    t     | PREPARING | 2026-08-08 13:32:06
+ 471 | 김유동 |   0.00 |    t     | DELIVERED | 2026-08-09 02:05:52
+ 767 | 조규전 | 48772  |    f     | PREPARING | 2026-08-09 01:06:23   ← 사건 이후 생성, 정상
+```
+
+신고된 2건만의 문제가 아니다. **사건 시점에 종결 전이던 쿠팡 라인아이템 5건 전부**가 0이고,
+전부 `settlement_verified=t`다. 반면 그 창의 다른 쿠팡 주문(약 40건)은 전부 `DELIVERED`(종결)라
+멀쩡하다 — 즉 **"종결 전"이 정확한 피해 조건**이다.
+
+**인과 사슬**
+
+1. `MarketTrackingBackfillService`가 D-159 백필을 **30일 구간으로 나눠 오래된 쪽부터** 걷고,
+   구간마다 `syncCoupangOrders(from, to, false)`를 부른다.
+2. 그런데 `CoupangOrderSyncService.postSyncProcess`는 **조회 구간을 무시하고 항상 `now-30d ~ now`**로
+   취소 감지를 돌린다:
+   ```java
+   private void postSyncProcess(List<MarketOrderDto> orders, MarketCredential credential) {
+       LocalDate fromDate = LocalDate.now().minusDays(30);   // ← 인자 fromDate/toDate와 무관
+       coupangOrderAdapter.detectCancellations(orders, fromDate, toDate);
+   ```
+3. 그래서 과거 구간(예: 4월)을 조회한 `orders`에 최근 주문이 없는 것을 **"마켓에서 사라졌다"**로 읽고
+   최근 30일의 **종결 전 주문을 전부 `CANCELED`**로 바꾼다. `detectCancellations`는 11번가 `detectClaims`와
+   달리 **단건 상세조회로 확증하지 않는다** — 부재(absence)만으로 단정한다.
+4. 바로 뒤 `terminalSettlementService.zeroSettlementForRefunded(COUPANG)`가 그 `CANCELED` 건들의
+   정산액을 **0 + verified**로 내린다(D-098 설계대로 — 입력이 거짓이었을 뿐).
+5. 마지막 구간(최근 30일)이 같은 주문을 다시 만나 **배송상태는 원래대로 복원**된다.
+   그러나 **정산액을 되돌리는 경로가 없다** — `MarketLineItemSyncDispatcher.applyLineItem`은
+   상품·상태만 반영하고 정산액은 **생성 시점에만** 계산된다. 그래서 0이 영구히 남는다.
+
+**증거**: `sb_action_log`의 2026-08-08 13:30:32 / 13:31:06 / 13:31:45 / 13:32:07 `COUPANG_SYNC` 4연속
+(이어서 스토어 4 · 11번가 4 · G마켓 2)은 원장의 *"D-159 라이브 검증 — 구간 전 마켓 성공
+(쿠팡4·스토어4·11번가4·G마켓2)"* 기록과 정확히 일치한다. 피해 행의 `updated_at`(13:32:06)은
+**상태를 복원한 마지막 구간**의 커밋 시각이다. `COUPANG_SETTLEMENT_SYNC`는 08-08 17:05에 `0건 업데이트`라
+정산 동기화는 무관하다.
+
+**핵심 비대칭**: 배송상태는 매 동기화가 되살리지만 **정산액은 되살리는 주체가 없다.**
+거짓 취소가 한 번만 스쳐도 손익 수치가 영구 손상된다.
+
+- 수정 방향 (셋 다 필요):
+  1. `postSyncProcess`가 **실제 조회 구간**을 받아 그 구간에만 취소 감지를 적용한다
+     (구간 밖 주문은 판단 대상이 아니다). 백필(`createMissing=false`)에서는 아예 끄는 것도 후보 —
+     백필은 "갱신 전용"이 취지이므로 상태 판정 권한이 없어야 한다.
+  2. `detectCancellations`를 11번가 `detectClaims`(D-099) 수준으로 올린다 — 부재만으로 단정하지 않고
+     단건 조회로 확증. 부분 조회 실패(`failureCount > 0`)일 때도 취소 감지를 건너뛴다.
+  3. 갱신 경로가 정산액을 복구할 수 있게 한다 — 마켓 실측/총액이 있고 현재 값이 0인데 상태가 종결이
+     아니면 재계산. (D-136 잔여 #1 "갱신 경로가 정산액을 재계산하지 않는다"와 같은 뿌리다.)
+- 데이터 교정: 위 5건. `settlement_amount = 주문총액 × 0.89`로 되돌려야 하나 **주문총액을 DB에 보관하지
+  않는다** — 쿠팡 재조회가 필요하다. 3의 수정 후 해당 구간을 재동기화하는 것이 정공법.
+
+### D-161: 11번가가 준 `prdNo`를 버려서 순번2의 상품이 비어 있다 (2026-08-09, 사용자 신고 "정나영 첫번째 상품번호")
+
+- 심각도: P2(상품명·상품번호 공백 → 소싱·구매 대상에서 사람이 놓친다) · 리스크 등급: 경량 · 상태: **수정완료(라이브검증 대기)** — `e914ef4`
+- 신고: 정나영 건(11번가 `20260731088778989`)이 2행으로 갈린 것은 맞는데 위 행의 상품번호가 비었다.
+  실제로는 `230806IHB154`여야 한다.
+- 실측: `sb_order_line_item` 474(순번2) `product_id = NULL`. 459(순번1)는 312(`210121IHB011`) 정상.
+- **D-136 잔여 #2로 이미 등재돼 있던 건이다**(2026-08-06). 당시 결론은
+  *"어느 API도 `sellerPrdCd`를 주지 않으므로 자동 매핑 경로가 없다"* 였다. 그 문장은 맞지만
+  **한 걸음 못 갔다.**
+
+**실제 원인**: `claimservice/orderlistall` 응답에 **`prdNo`(11번가 상품번호)가 들어 있고**,
+`sb_market_registration`(11번가 2,286건)이 **이미 `prdNo`를 보관한다.** 우리가 읽지 않을 뿐이다.
+
+- 라이브 픽스처(`ElevenstLiveFindingsTest`, 2026-08-06 실물 응답) 순번2:
+  `<prdNm>쏜리서치 베이직 뉴트리언트 투퍼데이 60캡슐</prdNm><prdNo>6124097725</prdNo>`
+- 운영 DB: `sb_market_registration` id 9439 → `{"sellerPrdCd":"230806IHB154","prdNo":"6124097725"}`
+  → `sb_product_id = 2500`. **사용자가 말한 값과 정확히 일치한다.**
+- 그런데 `ElevenstOrderAdapter.OrderAccumulator.StatusRow`는 `prdNo`도 `prdNm`도 읽지 않는다:
+  ```java
+  private record StatusRow(String statusName, String dlvNo, Integer quantity,
+      BigDecimal settlementAmount, BigDecimal sellerFee, BigDecimal marketDiscount) {}
+  ```
+  그리고 `ElevenstOrderSyncService.elevenstResolveProductId`는 `sellerPrdCd → findBySbCode` 한 경로뿐이다.
+
+**왜 순번1은 멀쩡한가**: 459는 07-31(결제완료·배송준비중 단계)에 만들어졌다. 그때는 **전체 정보 목록**이
+`sellerPrdCd`를 줬다. 순번2는 3계층 전환(08-06) 시점에 처음 로스터에 올랐는데 그 주문은 이미 **배송중**이라
+전체 정보 목록에 없었다 — 배송중 목록도 `orderlistall`도 `sellerPrdCd`를 주지 않는다.
+즉 **"기능 배포 전에 이미 조회 창을 지나 있던 주문"의 신규 순번**이 정확한 발생 조건이다.
+
+- 수정 방향: `StatusRow`에 `prdNo`·`prdNm`을 싣고, `elevenstResolveProductId`에
+  **`prdNo → sb_market_registration → sb_product_id` 폴백**을 추가한다(쿠팡의 `vendorItemId` 경로와 동형).
+  `prdNm`은 상품 미매핑 시에도 화면에 이름이 뜨게 해 준다.
+- 부수 효과: 이 폴백이 있으면 `MarketLineItemSyncDispatcher.applyLineItem`이 다음 동기화에서
+  474의 `product_id`를 **스스로 채운다** — 수동 DB 교정이 필요 없다.
+
+**D-160·D-161 수정 완료 (2026-08-09)**
+- `e914ef4` D-161 — `StatusRow`가 `prdNo`·`prdNm`을 싣고, `elevenstResolveProductId`에
+  `prdNo → sb_market_registration` 폴백. 테스트 5건(어댑터 2 · 동기화 3).
+- `8e8147b` D-160 — 취소 감지 사정거리(실제 조회 구간) · 갱신 전용 호출은 상태 판정 금지 ·
+  부분 조회 시 감지 스킵(`FetchOutcome`) · 종결 전 정산0 복구(`recoverSettlement`). 테스트 9건.
+  정산액 산출을 `MarketLineItemSyncPolicy.settlementAmount`로 분리(네 마켓) — D-136 잔여 #1과 같은 뿌리.
+- 회귀 **1040건 실패 0**(착수 전 1026 → 신규 14). 프론트 변경 없음(내부 DTO·서비스만).
+- **데이터 교정은 배포 후 동기화 1회로 자동**이다 — 손상 5건은 쿠팡 동기화가, 정나영 474는
+  11번가 동기화가 스스로 채운다. 라이브 실측으로 확인할 것.
+- **미해결(같은 구조, 피해 없음)**: `ElevenstOrderSyncService.postSyncProcess`도 `lookbackDays`를
+  무시하고 `now-30d`를 쓴다. 다만 `detectClaims`는 단건 상세조회로 확증하므로 거짓 취소로 이어지지
+  않는다. 같은 가드를 넓히는 것이 다음 후보.
