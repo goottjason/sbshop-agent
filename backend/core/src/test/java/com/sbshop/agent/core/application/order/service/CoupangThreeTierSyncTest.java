@@ -176,7 +176,7 @@ class CoupangThreeTierSyncTest {
 
 	private void runSync(MarketOrderDto dto) {
 		when(adapter.fetchOrdersWithOutcome(any(), any(), any())).thenReturn(
-			new com.sbshop.agent.core.application.order.adapter.CoupangOrderAdapter.FetchOutcome(List.of(dto), true));
+			new com.sbshop.agent.core.application.order.dto.MarketFetchOutcome(List.of(dto), true));
 		service.syncCoupangOrders();
 	}
 

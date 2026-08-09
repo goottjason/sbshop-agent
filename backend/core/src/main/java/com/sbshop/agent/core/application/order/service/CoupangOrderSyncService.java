@@ -9,6 +9,7 @@ import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.Shipment;
 import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.order.dto.MarketLineItemDto;
+import com.sbshop.agent.core.application.order.dto.MarketFetchOutcome;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
@@ -108,7 +109,7 @@ public class CoupangOrderSyncService {
 			// 2. 크레덴셜 로드
 			MarketCredential credential = loadAndValidateCredential();
 			// 3. API 호출 → 주문 목록 획득. 부분 실패 여부를 함께 받는다(D-160).
-			CoupangOrderAdapter.FetchOutcome outcome = coupangOrderAdapter.fetchOrdersWithOutcome(
+			MarketFetchOutcome outcome = coupangOrderAdapter.fetchOrdersWithOutcome(
 				credential, fromDate, toDate);
 			List<MarketOrderDto> orders = outcome.orders();
 			// 4. 주문 저장/업데이트

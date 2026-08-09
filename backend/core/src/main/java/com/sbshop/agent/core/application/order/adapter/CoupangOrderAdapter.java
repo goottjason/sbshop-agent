@@ -12,6 +12,7 @@ import com.sbshop.agent.core.domain.market.repository.MarketRegistrationReposito
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.application.order.dto.MarketLineItemDto;
+import com.sbshop.agent.core.application.order.dto.MarketFetchOutcome;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
@@ -66,25 +67,17 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 	}
 
 	/**
-	 * 조회 결과와 <b>그 조회가 온전했는지</b>를 함께 돌려준다 (D-160).
-	 *
-	 * <p>{@code complete=false}는 일부 상태 목록이 실패해 <b>주문이 응답에서 빠졌을 수 있다</b>는 뜻이다.
-	 * 부재로 상태를 단정하는 판정(취소 감지)은 그때 근거를 잃는다.
-	 */
-	public record FetchOutcome(List<MarketOrderDto> orders, boolean complete) {}
-
-	/**
-	 * {@link #fetchOrders}와 같은 조회. 부분 실패 여부를 함께 알려준다.
+	 * {@link #fetchOrders}와 같은 조회. 부분 실패 여부를 함께 알려준다 (D-160).
 	 *
 	 * <p>종전엔 부분 실패를 경고 로그로만 남기고 조용히 반환했다. 호출자가 그것을 알 수 없으면
 	 * "응답에 없다 = 마켓에서 사라졌다"로 읽어 멀쩡한 주문을 취소로 만든다(2026-08-08 라이브 사고).
 	 */
-	public FetchOutcome fetchOrdersWithOutcome(MarketCredential credential,
+	public MarketFetchOutcome fetchOrdersWithOutcome(MarketCredential credential,
 		LocalDate fromDate, LocalDate toDate) {
 		return doFetchOrders(credential, fromDate, toDate);
 	}
 
-	private FetchOutcome doFetchOrders(MarketCredential credential,
+	private MarketFetchOutcome doFetchOrders(MarketCredential credential,
 		LocalDate fromDate, LocalDate toDate) {
 		// 3단계: 주문번호로 모은다. 응답 행 하나가 배송박스 하나이므로, 한 주문이 여러 행으로
 		// 올 수 있다(분할배송). DTO를 행마다 내보내면 MarketOrderUpsertDispatcher가 같은 주문을
@@ -154,7 +147,9 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		for (OrderAccumulator accum : accumulators.values()) {
 			result.add(accum.toNestedDto(getMarketType()));
 		}
-		return new FetchOutcome(result, failureCount == 0);
+		return failureCount == 0
+			? MarketFetchOutcome.complete(result)
+			: MarketFetchOutcome.partial(result);
 	}
 
 	/**

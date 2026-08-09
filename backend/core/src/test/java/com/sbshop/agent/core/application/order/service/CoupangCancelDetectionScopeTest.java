@@ -80,7 +80,7 @@ class CoupangCancelDetectionScopeTest {
 			.thenReturn(Optional.of(credential));
 		when(orderRepository.findByMarketType(MarketType.COUPANG)).thenReturn(List.of());
 		when(adapter.fetchOrdersWithOutcome(any(), any(), any()))
-			.thenReturn(new CoupangOrderAdapter.FetchOutcome(List.of(), true));
+			.thenReturn(new com.sbshop.agent.core.application.order.dto.MarketFetchOutcome(List.of(), true));
 	}
 
 	@Test
@@ -109,7 +109,7 @@ class CoupangCancelDetectionScopeTest {
 	@DisplayName("[D-160] 부분 조회 실패면 취소 감지를 건너뛴다 — 못 본 것을 사라진 것으로 읽지 않는다")
 	void skipsCancellationDetectionOnPartialFetch() {
 		when(adapter.fetchOrdersWithOutcome(any(), any(), any()))
-			.thenReturn(new CoupangOrderAdapter.FetchOutcome(List.of(), false));
+			.thenReturn(new com.sbshop.agent.core.application.order.dto.MarketFetchOutcome(List.of(), false));
 
 		service.syncCoupangOrders(LocalDate.now().minusDays(30), LocalDate.now());
 
@@ -128,7 +128,7 @@ class CoupangCancelDetectionScopeTest {
 	@DisplayName("[D-160] 조회가 온전하지 않아도 정산0 정규화는 계속 돈다 — DB에서 파생되는 판정이다")
 	void terminalSettlementRunsRegardlessOfFetchCompleteness() {
 		when(adapter.fetchOrdersWithOutcome(any(), any(), any()))
-			.thenReturn(new CoupangOrderAdapter.FetchOutcome(List.of(), false));
+			.thenReturn(new com.sbshop.agent.core.application.order.dto.MarketFetchOutcome(List.of(), false));
 
 		service.syncCoupangOrders(LocalDate.now().minusDays(30), LocalDate.now());
 
