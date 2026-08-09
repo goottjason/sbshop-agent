@@ -107,13 +107,14 @@ public class CoupangOrderSyncService {
 		try {
 			// 2. 크레덴셜 로드
 			MarketCredential credential = loadAndValidateCredential();
-			// 3. API 호출 → 주문 목록 획득 (최근 30일)
-			List<MarketOrderDto> orders = coupangOrderAdapter.fetchOrders(
+			// 3. API 호출 → 주문 목록 획득. 부분 실패 여부를 함께 받는다(D-160).
+			CoupangOrderAdapter.FetchOutcome outcome = coupangOrderAdapter.fetchOrdersWithOutcome(
 				credential, fromDate, toDate);
+			List<MarketOrderDto> orders = outcome.orders();
 			// 4. 주문 저장/업데이트
 			processOrders(orders, credential, createMissing);
 			// 5. 사후 처리 (취소감지, 반품완료 반영, 택배사 보정)
-			postSyncProcess(orders, credential);
+			postSyncProcess(orders, credential, fromDate, toDate, createMissing, outcome.complete());
 
 			log.info("[COUPANG] 주문 동기화 완료: {}건 처리", orders.size());
 			success = true;
@@ -333,6 +334,11 @@ public class CoupangOrderSyncService {
 		public OrderLineItem createLineItem(MarketLineItemDto dto, Long orderId, Long productId) {
 			return buildLineItemFromDto(dto, orderId, productId);
 		}
+
+		@Override
+		public BigDecimal settlementAmount(MarketLineItemDto dto) {
+			return resolveSettlementAmount(dto);
+		}
 	};
 
 	/**
@@ -342,10 +348,7 @@ public class CoupangOrderSyncService {
 	 * 금액으로 계산한다. 종전엔 주문 전체가 한 행이라 첫 상품 금액만 반영됐다.
 	 */
 	private OrderLineItem buildLineItemFromDto(MarketLineItemDto dto, Long orderId, Long productId) {
-		BigDecimal settlementAmount = dto.getSettlementAmount() != null
-			&& dto.getSettlementAmount().signum() != 0
-				? dto.getSettlementAmount()
-				: marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.COUPANG);
+		BigDecimal settlementAmount = resolveSettlementAmount(dto);
 
 		return OrderLineItem.builder()
 			.orderId(orderId)
@@ -360,6 +363,19 @@ public class CoupangOrderSyncService {
 				.settlementVerified(false)
 				.build())
 			.build();
+	}
+
+	/**
+	 * 정산액은 마켓 실측값을 쓰고, 없을 때만 요율로 추정한다.
+	 *
+	 * <p>D-160에서 메서드로 뺐다 — 골격이 <b>거짓으로 0이 된 정산액을 되살릴 때</b>도 같은 산출을
+	 * 써야 하는데, 종전엔 생성 경로 안에 파묻혀 있어 부를 수가 없었다.
+	 */
+	private BigDecimal resolveSettlementAmount(MarketLineItemDto dto) {
+		if (dto.getSettlementAmount() != null && dto.getSettlementAmount().signum() != 0) {
+			return dto.getSettlementAmount();
+		}
+		return marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.COUPANG);
 	}
 
 	/* ----- MarketRegistration → sb_productId 조회 ----- */
@@ -408,15 +424,34 @@ public class CoupangOrderSyncService {
 			.build();
 	}
 
-	/* ----- 사후 처리 ----- */
-	private void postSyncProcess(List<MarketOrderDto> orders, MarketCredential credential) {
-		LocalDate fromDate = LocalDate.now().minusDays(30);
-		LocalDate toDate = LocalDate.now();
-		// 1. API에 없는 주문 → CANCELED 처리
-		coupangOrderAdapter.detectCancellations(orders, fromDate, toDate);
-		// 2. (D-097) 반품완료 전방 감지 → DELIVERED건을 RETURNED+정산0으로 전환
-		coupangOrderAdapter.detectReturns(credential, fromDate, toDate);
-		// 3. (D-098) 취소 종결 lineItem 정산0 정규화(반품은 detectReturns가 이미 처리, 여기선 CANCELED 커버·멱등).
+	/**
+	 * 사후 처리.
+	 *
+	 * <p>D-160: 종전에는 조회 구간을 무시하고 <b>언제나 최근 30일</b>을 취소 판정 대상으로 삼았다.
+	 * 백필이 과거 구간을 걸을 때마다 그 응답에 없는 최근 주문을 "사라졌다"로 읽어 거짓 취소를 만들었고,
+	 * 뒤이어 정산액이 0으로 내려갔다(2026-08-08 라이브 사고, 쿠팡 종결 전 5건 손상).
+	 *
+	 * <p>부재로 상태를 단정하는 판정은 근거가 성립할 때만 한다 — <b>실제 조회한 구간</b> 안이고,
+	 * <b>조회가 온전</b>했고, <b>상태 판정 권한이 있는 호출</b>(정기 동기화)일 때.
+	 * 갱신 전용(백필)은 마켓 값을 채우러 가는 것이지 상태를 판정하러 가는 것이 아니다.
+	 *
+	 * @param fetchComplete 조회가 온전했는가. 부분 실패면 못 본 주문이 있을 수 있다
+	 * @param createMissing {@code false}면 백필 — 상태 판정 권한이 없다
+	 */
+	private void postSyncProcess(List<MarketOrderDto> orders, MarketCredential credential,
+		LocalDate fromDate, LocalDate toDate, boolean createMissing, boolean fetchComplete) {
+		if (!createMissing) {
+			log.info("[COUPANG] 갱신 전용 동기화 — 취소·반품 감지를 건너뛴다 ({}~{})", fromDate, toDate);
+		} else if (!fetchComplete) {
+			log.warn("[COUPANG] 부분 조회로 취소·반품 감지를 건너뛴다 ({}~{}) — 못 본 주문을 사라진 것으로 읽지 않는다",
+				fromDate, toDate);
+		} else {
+			// 1. 조회한 구간 안에서, API에 없는 주문 → CANCELED 처리
+			coupangOrderAdapter.detectCancellations(orders, fromDate, toDate);
+			// 2. (D-097) 반품완료 전방 감지 → DELIVERED건을 RETURNED+정산0으로 전환
+			coupangOrderAdapter.detectReturns(credential, fromDate, toDate);
+		}
+		// 3. (D-098) 취소 종결 lineItem 정산0 정규화. DB에서 파생되는 판정이라 조회 상태와 무관하게 멱등.
 		terminalSettlementService.zeroSettlementForRefunded(MarketType.COUPANG);
 		// 4. 택배사 ETC → 실제 택배사로 보정
 		coupangOrderAdapter.fixCarriers(orders);

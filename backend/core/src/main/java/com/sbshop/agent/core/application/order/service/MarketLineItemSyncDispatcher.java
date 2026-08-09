@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.service;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -93,6 +94,7 @@ public class MarketLineItemSyncDispatcher {
 		for (OrderLineItemMatcher.Adoption adoption : match.matched()) {
 			OrderLineItem item = adoption.lineItem();
 			applyLineItem(item, adoption.dto(), resolvedProducts.get(adoption.dto()));
+			recoverSettlementIfZeroed(tag, dto, item, adoption.dto(), policy);
 			orderLineItemRepository.save(item);
 			orderShipmentUpsertService.linkToShipment(item, shipments.get(owner.get(adoption.dto())));
 		}
@@ -140,6 +142,38 @@ public class MarketLineItemSyncDispatcher {
 			.shippingStatus(status)
 			.build();
 		item.applyShippingData(cmd.toShippingData(item.getShippingData()));
+	}
+
+	/**
+	 * 정산액이 <b>거짓으로 0이 된 행</b>을 마켓 값으로 되살린다 (D-160).
+	 *
+	 * <p>2026-08-08 라이브 사고: 백필이 최근 주문을 거짓 취소했고(조회 구간 밖을 판정했다),
+	 * 뒤이어 D-098 정규화가 정산액을 0+검증됨으로 내렸다. 다음 동기화가 <b>배송상태는 복원했지만</b>
+	 * 정산액을 되돌리는 주체가 없어 0이 영구히 남았다 — 종결 전 쿠팡 주문 5건이 그렇게 손상됐다.
+	 *
+	 * <p>규율은 한 문장이다: <b>정산 0은 환불일 때만 정당하다.</b> 환불성 종결이 아닌데 0이면
+	 * 그건 사실이 아니라 손상이므로 되살린다. 이미 값이 있는 행은 건드리지 않는다(멱등) —
+	 * 이미 대조·정산한 과거 수치를 동기화가 흔들면 안 된다. 마켓이 금액을 주지 않으면 그대로 둔다.
+	 */
+	private void recoverSettlementIfZeroed(String tag, MarketOrderDto orderDto, OrderLineItem item,
+		MarketLineItemDto lineItemDto, MarketLineItemSyncPolicy policy) {
+		ShippingStatus status = item.getShippingData() != null
+			? item.getShippingData().getShippingStatus() : null;
+		if (status == null || status.isRefundTerminal()) {
+			return;
+		}
+		BigDecimal current = item.getSettlementData() != null
+			? item.getSettlementData().getSettlementAmount() : null;
+		if (current != null && current.signum() != 0) {
+			return;
+		}
+		BigDecimal recovered = policy.settlementAmount(lineItemDto);
+		if (recovered == null || recovered.signum() == 0) {
+			return;
+		}
+		item.recoverSettlement(recovered);
+		log.info("[{}] 정산액 복구: orderNo={}, key={}, {} → {} (종결 전인데 0이었다)",
+			tag, orderDto.getMarketOrderNo(), item.getMarketLineItemNo(), current, recovered);
 	}
 
 	/**

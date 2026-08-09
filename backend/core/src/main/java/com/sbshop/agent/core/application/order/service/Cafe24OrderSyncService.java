@@ -334,6 +334,12 @@ public class Cafe24OrderSyncService {
 					.build())
 				.build();
 		}
+
+		@Override
+		public BigDecimal settlementAmount(MarketLineItemDto dto) {
+			// G마켓/옥션도 요율은 동일(18%)이라 CAFE24 기준 1회 적용 — 생성 경로와 같은 산출이다.
+			return marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.CAFE24);
+		}
 	};
 
 	/** Cafe24 상품(product_no/product_code)로 sb 상품 매핑(카페24 마켓등록에 저장돼 있음). */

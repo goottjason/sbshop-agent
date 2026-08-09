@@ -230,6 +230,11 @@ public class ElevenstOrderSyncService {
 		public OrderLineItem createLineItem(MarketLineItemDto dto, Long orderId, Long productId) {
 			return buildLineItemFromDto(dto, orderId, productId);
 		}
+
+		@Override
+		public java.math.BigDecimal settlementAmount(MarketLineItemDto dto) {
+			return resolveSettlementAmount(dto);
+		}
 	};
 
 	/**

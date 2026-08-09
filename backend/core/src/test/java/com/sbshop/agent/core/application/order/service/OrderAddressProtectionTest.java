@@ -152,11 +152,11 @@ class OrderAddressProtectionTest {
 		MarketCredential cred = MarketCredential.builder()
 			.clientId("cid").accessKey("akey").secretKey("sec").build();
 		when(credentialRepository.findByMarketType(MarketType.COUPANG)).thenReturn(Optional.of(cred));
-		when(coupangOrderAdapter.fetchOrders(any(), any(LocalDate.class), any(LocalDate.class)))
-			.thenReturn(List.of(MarketOrderDto.builder()
+		when(coupangOrderAdapter.fetchOrdersWithOutcome(any(), any(LocalDate.class), any(LocalDate.class)))
+			.thenReturn(new com.sbshop.agent.core.application.order.adapter.CoupangOrderAdapter.FetchOutcome(List.of(MarketOrderDto.builder()
 				.marketOrderNo("CP-1").marketType(MarketType.COUPANG)
 				.zipcode(MARKET_ZIP).address(MARKET_ADDRESS)
-				.status(ShippingStatus.PREPARING).build()));
+				.status(ShippingStatus.PREPARING).build()), true));
 		when(orderRepository.findByMarketOrderNo("CP-1")).thenReturn(Optional.of(order));
 		when(orderLineItemRepository.findByOrderId(any()))
 			.thenReturn(List.of(lineItem(ShippingStatus.PREPARING)));

@@ -111,6 +111,11 @@ class MarketLineItemSyncDispatcherTest {
 				.shippingData(ShippingData.builder().shippingStatus(dto.getStatus()).build())
 				.build();
 		}
+
+		@Override
+		public BigDecimal settlementAmount(MarketLineItemDto dto) {
+			return dto.getSettlementAmount();
+		}
 	};
 
 	private Order order() {
@@ -169,6 +174,11 @@ class MarketLineItemSyncDispatcherTest {
 			public Long resolveProductId(MarketLineItemDto dto) {
 				calls.add(dto.getMarketLineItemNo());
 				return 7L;
+			}
+
+			@Override
+			public BigDecimal settlementAmount(MarketLineItemDto d) {
+				return d.getSettlementAmount();
 			}
 
 			@Override
@@ -296,4 +306,85 @@ class MarketLineItemSyncDispatcherTest {
 			.save(any(Shipment.class));
 		assertThat(saved).hasSize(2);
 	}
+
+	/** D-160: 정산액을 가진 상품주문. */
+	private MarketLineItemDto itemWithSettlement(String seq, ShippingStatus status, String settlement) {
+		return MarketLineItemDto.builder()
+			.marketLineItemNo(seq).quantity(1)
+			.orderPrice(BigDecimal.TEN).totalAmount(BigDecimal.TEN)
+			.settlementAmount(settlement == null ? null : new BigDecimal(settlement))
+			.status(status).build();
+	}
+
+	/** D-160: 기존 라인아이템 — 정산액·검증플래그를 지정해 손상 상태를 재현한다. */
+	private OrderLineItem existing(String seq, ShippingStatus status, String settlement,
+		boolean verified) {
+		OrderLineItem li = OrderLineItem.builder().orderId(55L).quantity(1).productId(7L)
+			.marketLineItemNo(seq)
+			.shippingData(ShippingData.builder().shippingStatus(status).build())
+			.settlementData(com.sbshop.agent.core.domain.order.vo.SettlementData.builder()
+				.settlementAmount(settlement == null ? null : new BigDecimal(settlement))
+				.settlementVerified(verified).build())
+			.build();
+		ReflectionTestUtils.setField(li, "id", 467L);
+		return li;
+	}
+
+	@Test
+	@DisplayName("[D-160] 종결 전인데 정산액이 0이면 마켓 값으로 되살린다 — 거짓 취소가 남긴 손상을 스스로 복구한다")
+	void recoversZeroedSettlementOnLiveLineItem() {
+		// 2026-08-08 사고 재현: 거짓 취소로 0+verified가 됐고, 다음 동기화가 상태만 복원했다.
+		// 정산 0은 환불일 때만 정당하다 — 종결 전 주문의 0은 사실이 아니라 손상이다.
+		OrderLineItem damaged = existing("1", ShippingStatus.CANCELED, "0", true);
+		productBySeq.put("1", 7L);
+
+		dispatcher.sync(order(), dto(shipment("B1", null,
+			itemWithSettlement("1", ShippingStatus.SHIPPED, "25098"))),
+			new ArrayList<>(List.of(damaged)), policy);
+
+		assertThat(damaged.getSettlementData().getSettlementAmount()).isEqualByComparingTo("25098");
+		// 마켓 실측이 아니라 되살린 값이므로 "검증됨"을 주장하지 않는다.
+		assertThat(damaged.getSettlementData().getSettlementVerified()).isFalse();
+	}
+
+	@Test
+	@DisplayName("[D-160] 정상 정산액은 건드리지 않는다 — 이미 대조한 과거 수치를 동기화가 흔들면 안 된다")
+	void leavesHealthySettlementAlone() {
+		OrderLineItem healthy = existing("1", ShippingStatus.SHIPPED, "47314", true);
+		productBySeq.put("1", 7L);
+
+		dispatcher.sync(order(), dto(shipment("B1", null,
+			itemWithSettlement("1", ShippingStatus.SHIPPED, "49887"))),
+			new ArrayList<>(List.of(healthy)), policy);
+
+		assertThat(healthy.getSettlementData().getSettlementAmount()).isEqualByComparingTo("47314");
+		assertThat(healthy.getSettlementData().getSettlementVerified()).isTrue();
+	}
+
+	@Test
+	@DisplayName("[D-160] 환불성 종결의 정산0은 되살리지 않는다 — 그 0은 사실이다 (D-098)")
+	void doesNotResurrectSettlementForRefundedLineItem() {
+		OrderLineItem refunded = existing("1", ShippingStatus.RETURNED, "0", true);
+		productBySeq.put("1", 7L);
+
+		dispatcher.sync(order(), dto(shipment("B1", null,
+			itemWithSettlement("1", ShippingStatus.RETURNED, "25098"))),
+			new ArrayList<>(List.of(refunded)), policy);
+
+		assertThat(refunded.getSettlementData().getSettlementAmount()).isEqualByComparingTo("0");
+	}
+
+	@Test
+	@DisplayName("[D-160] 마켓이 금액을 주지 않으면 0을 유지한다 — 근거 없는 값을 지어내지 않는다")
+	void keepsZeroWhenMarketGivesNoAmount() {
+		OrderLineItem damaged = existing("1", ShippingStatus.SHIPPED, "0", true);
+		productBySeq.put("1", 7L);
+
+		dispatcher.sync(order(), dto(shipment("B1", null,
+			itemWithSettlement("1", ShippingStatus.SHIPPED, null))),
+			new ArrayList<>(List.of(damaged)), policy);
+
+		assertThat(damaged.getSettlementData().getSettlementAmount()).isEqualByComparingTo("0");
+	}
+
 }

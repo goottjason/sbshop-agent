@@ -39,4 +39,15 @@ public interface MarketLineItemSyncPolicy {
 	 * @param productId 골격이 이미 해석해 둔 값 — 구현은 다시 해석하지 않는다
 	 */
 	OrderLineItem createLineItem(MarketLineItemDto dto, Long orderId, Long productId);
+
+	/**
+	 * 이 상품주문의 정산액. 산출 근거가 없으면 {@code null}.
+	 *
+	 * <p>D-160에서 분리했다. 종전에는 {@link #createLineItem} 안에만 있어서 <b>생성 시점에 한 번</b>만
+	 * 계산됐고, 그래서 거짓 취소가 정산액을 0으로 내린 뒤에는 되돌릴 방법이 없었다(2026-08-08 라이브 사고).
+	 * 골격이 복구 규율을 소유하려면 금액 산출을 따로 부를 수 있어야 한다.
+	 *
+	 * <p>{@code null}을 돌려주는 것은 정직한 답이다 — 근거가 없으면 값을 지어내지 않는다.
+	 */
+	java.math.BigDecimal settlementAmount(MarketLineItemDto dto);
 }

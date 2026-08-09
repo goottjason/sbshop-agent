@@ -129,6 +129,19 @@ public class OrderLineItem extends BaseEntity {
 			.build();
 	}
 
+	/**
+	 * 정산액을 <b>되살린다</b>(D-160) — 값을 넣으면서 "검증됨"을 함께 내린다.
+	 *
+	 * <p>{@link #applySettlement}와 나누는 이유: 되살린 값은 마켓 실측이 아니라 재산출이다.
+	 * 거짓 취소가 0+검증됨을 남기고 갔으므로, 값만 바꾸고 플래그를 두면 추정치가 실측인 척한다.
+	 */
+	public void recoverSettlement(BigDecimal settlementAmount) {
+		this.settlementData = (this.settlementData != null ? this.settlementData.toBuilder() : SettlementData.builder())
+			.settlementAmount(settlementAmount)
+			.settlementVerified(false)
+			.build();
+	}
+
 	/** 유니패스 신고 완료 여부 변경 */
 	public void updateUnipassDone(Boolean isUnipassDone) {
 		this.isUnipassDone = isUnipassDone;

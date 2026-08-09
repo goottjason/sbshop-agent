@@ -136,8 +136,8 @@ class CoupangOrderProductMappingTest {
 			.build();
 		when(credentialRepository.findByMarketType(MarketType.COUPANG))
 			.thenReturn(Optional.of(credential));
-		when(coupangOrderAdapter.fetchOrders(any(), any(LocalDate.class), any(LocalDate.class)))
-			.thenReturn(List.of(dto));
+		when(coupangOrderAdapter.fetchOrdersWithOutcome(any(), any(LocalDate.class), any(LocalDate.class)))
+			.thenReturn(new com.sbshop.agent.core.application.order.adapter.CoupangOrderAdapter.FetchOutcome(List.of(dto), true));
 		when(orderRepository.findByMarketOrderNo("ORD-1")).thenReturn(Optional.empty());
 	}
 
