@@ -3009,3 +3009,10 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 
 **주문 교정**: `sb_order_line_item` id 771 → `product_id=186`. `applyLineItem`이 `productId != null`
 일 때만 덮으므로 재동기화에 살아남는다.
+
+**매핑 별칭 등록**: 미연동 리스팅의 주문은 `product_code`에 **G마켓 상품번호**를 싣는다(실측).
+그래서 크랜베리 등록(`sb_market_registration` 1842)에 `gmarket_goodsNo=2484492709` ·
+`gmarket_masterNo=5711573815`를 넣었다 — 카페24 연동 여부와 **무관하게** 우리 쪽 매핑이 선다.
+충돌 0(전 마켓), `extractMarketCode`는 `product_no`/`product_code`만 읽어 가격·재고 경로 무영향,
+`enrichIdentifier`가 병합이라 백필이 지우지 않는다. 덤으로 상품 그리드 G마켓 배지 링크가 살아난다.
+**나머지 12건은 별칭을 넣지 않았다** — 판매중지라 새 주문이 나지 않고 곧 삭제 대상이다.
