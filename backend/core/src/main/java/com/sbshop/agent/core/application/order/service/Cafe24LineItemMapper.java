@@ -115,6 +115,10 @@ final class Cafe24LineItemMapper {
 		putIfPresent(marketData, "product_code", text(item, "product_code"));
 		putIfPresent(marketData, "custom_product_code", text(item, "custom_product_code"));
 		putIfPresent(marketData, "order_item_code", text(item, "order_item_code"));
+		// 카페24 몰 상품과 연동이 끊긴 마켓 리스팅은 product_no=-99999, custom_product_code=null로
+		// 온다(2026-08-12 라이브, 주문 4478251768). 그때 범인을 지목할 수 있는 유일한 단서가
+		// 마켓 쪽 판매자 관리코드다 — 매핑에는 못 써도 미매핑 경고에는 실려야 한다.
+		putIfPresent(marketData, "market_custom_variant_code", text(item, "market_custom_variant_code"));
 
 		return MarketLineItemDto.builder()
 			.marketLineItemNo(text(item, "order_item_code"))

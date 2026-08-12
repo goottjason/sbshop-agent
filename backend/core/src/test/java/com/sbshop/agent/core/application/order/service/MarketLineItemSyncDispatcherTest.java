@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import com.sbshop.agent.core.application.order.dto.MarketLineItemDto;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
@@ -61,9 +67,13 @@ class MarketLineItemSyncDispatcherTest {
 	/** 정책이 해석해 줄 상품 ID — key는 상품주문 식별자. 없으면 매핑 불가를 뜻한다. */
 	private final Map<String, Long> productBySeq = new LinkedHashMap<>();
 	private int createCalls;
+	/** 경고가 실제로 나가는지 본다 — 조용한 실패가 이 결함의 본체였다(2026-08-12 유령 리스팅). */
+	private final ListAppender<ILoggingEvent> logs = new ListAppender<>();
 
 	@BeforeEach
 	void setUp() {
+		logs.start();
+		((Logger) org.slf4j.LoggerFactory.getLogger(MarketLineItemSyncDispatcher.class)).addAppender(logs);
 		dispatcher = new MarketLineItemSyncDispatcher(orderLineItemRepository,
 			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
 
@@ -87,6 +97,19 @@ class MarketLineItemSyncDispatcherTest {
 		when(shipmentRepository.findByOrderIdAndMarketShipmentNo(any(), anyString()))
 			.thenReturn(Optional.empty());
 		when(orderLineItemRepository.findByShipmentId(any())).thenReturn(List.of());
+	}
+
+	@AfterEach
+	void tearDown() {
+		((Logger) org.slf4j.LoggerFactory.getLogger(MarketLineItemSyncDispatcher.class))
+			.detachAppender(logs);
+	}
+
+	private List<String> warnings() {
+		return logs.list.stream()
+			.filter(e -> e.getLevel() == Level.WARN)
+			.map(ILoggingEvent::getFormattedMessage)
+			.toList();
 	}
 
 	/** 마켓 정책 대역 — 상품 해석과 생성만 담당한다(골격이 갖지 않는 것). */
@@ -387,4 +410,51 @@ class MarketLineItemSyncDispatcherTest {
 		assertThat(damaged.getSettlementData().getSettlementAmount()).isEqualByComparingTo("0");
 	}
 
+
+	@Test
+	@DisplayName("상품을 못 붙인 라인아이템은 경고로 드러낸다 — 마켓 식별자를 실어서")
+	void warnsWhenLineItemEndsWithoutProduct() {
+		// 2026-08-12 라이브: G마켓 유령 리스팅 주문(product_no=-99999)이 조용히 product_id=NULL로
+		// 남았다. 경고가 없어 사람이 알아챌 방법이 주문 화면의 '-' 뿐이었다.
+		MarketLineItemDto orphan = MarketLineItemDto.builder()
+			.marketLineItemNo("1").quantity(2)
+			.orderPrice(BigDecimal.TEN).totalAmount(BigDecimal.TEN)
+			.productName("Pure Indian Foods 오리지널 기버터")
+			.status(ShippingStatus.PREPARING)
+			.marketSpecificData(Map.of("product_no", "-99999", "product_code", "2005125893"))
+			.build();
+
+		dispatcher.sync(order(), dto(shipment("D1", null, orphan)), new ArrayList<>(), policy);
+
+		assertThat(warnings()).anySatisfy(msg -> assertThat(msg)
+			.contains("상품 미매핑")
+			.contains("ORD-1")
+			.contains("1")
+			.contains("Pure Indian Foods 오리지널 기버터")
+			.contains("2005125893"));
+	}
+
+	@Test
+	@DisplayName("상품이 붙으면 미매핑 경고를 내지 않는다")
+	void doesNotWarnWhenProductResolved() {
+		productBySeq.put("1", 7L);
+
+		dispatcher.sync(order(), dto(shipment("D1", "T1", item("1", ShippingStatus.SHIPPED))),
+			new ArrayList<>(), policy);
+
+		assertThat(warnings()).noneMatch(msg -> msg.contains("상품 미매핑"));
+	}
+
+	@Test
+	@DisplayName("정책이 상품을 못 줘도 채택한 기존 행이 이미 알고 있으면 경고하지 않는다")
+	void doesNotWarnWhenAdoptedRowAlreadyKnowsProduct() {
+		// 이 경우 값은 멀쩡하다 — 경고를 내면 사람이 무시하는 법을 배운다.
+		OrderLineItem existing = legacy(7L);
+
+		dispatcher.sync(order(), dto(shipment("D1", "T1", item("1", ShippingStatus.SHIPPED))),
+			new ArrayList<>(List.of(existing)), policy);
+
+		assertThat(existing.getProductId()).isEqualTo(7L);
+		assertThat(warnings()).noneMatch(msg -> msg.contains("상품 미매핑"));
+	}
 }

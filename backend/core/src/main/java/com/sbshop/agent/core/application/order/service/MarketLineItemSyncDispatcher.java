@@ -97,6 +97,7 @@ public class MarketLineItemSyncDispatcher {
 			recoverSettlementIfZeroed(tag, dto, item, adoption.dto(), policy);
 			orderLineItemRepository.save(item);
 			orderShipmentUpsertService.linkToShipment(item, shipments.get(owner.get(adoption.dto())));
+			warnUnmapped(tag, dto, item, adoption.dto());
 		}
 
 		if (shouldDeferSplit(match, incoming)) {
@@ -119,6 +120,7 @@ public class MarketLineItemSyncDispatcher {
 			orderShipmentUpsertService.linkToShipment(created, shipments.get(owner.get(lineItemDto)));
 			log.info("[{}] 상품주문 신규 라인아이템 생성: orderNo={}, key={}",
 				tag, dto.getMarketOrderNo(), lineItemDto.getMarketLineItemNo());
+			warnUnmapped(tag, dto, created, lineItemDto);
 		}
 
 		warnUnclaimed(tag, dto, match);
@@ -192,6 +194,31 @@ public class MarketLineItemSyncDispatcher {
 		}
 		return match.toCreate().stream().anyMatch(create -> incoming.stream()
 			.anyMatch(in -> in.dto() == create && in.resolvedProductId() == null));
+	}
+
+	/**
+	 * 상품을 끝내 못 붙인 라인아이템을 <b>드러낸다</b>.
+	 *
+	 * <p>2026-08-12 라이브: G마켓 유령 리스팅(카페24 몰 상품 미연동, {@code product_no=-99999})에서
+	 * 난 주문이 {@code product_id=NULL}로 조용히 앉았다. 매핑 실패는 값이 비는 것으로 끝나지 않는다 —
+	 * 재고·정산·소싱이 전부 상품에 매달려 있어서 <b>그 주문은 파이프라인 전체에서 빠진다.</b>
+	 * 그런데 신호가 주문 화면의 '-' 하나뿐이라 사람이 알아챌 방법이 없었다.
+	 *
+	 * <p><b>마켓 식별자를 함께 싣는다.</b> 경고만으로는 조치할 수 없다 — 어느 리스팅이 범인인지
+	 * 알아야 마켓 쪽을 고칠 수 있고, 그 값은 여기 말고 어디에도 남지 않는다.
+	 *
+	 * <p>값이 멀쩡한 경우엔 침묵한다. 정책이 상품을 못 줘도 채택한 기존 행이 이미 알고 있으면
+	 * 경고하지 않는다 — 무의미한 경고는 사람에게 경고를 무시하는 법을 가르친다.
+	 */
+	private void warnUnmapped(String tag, MarketOrderDto orderDto, OrderLineItem item,
+		MarketLineItemDto lineItemDto) {
+		if (item.getProductId() != null) {
+			return;
+		}
+		log.warn("[{}] ⚠ 상품 미매핑: orderNo={}, key={}, 상품명={}, 마켓식별자={}"
+			+ " — 라인아이템(id={})에 상품이 비어 있다. 재고·정산·소싱이 이 주문을 건너뛴다.",
+			tag, orderDto.getMarketOrderNo(), lineItemDto.getMarketLineItemNo(),
+			lineItemDto.getProductName(), lineItemDto.getMarketSpecificData(), item.getId());
 	}
 
 	private void warnUnclaimed(String tag, MarketOrderDto dto, OrderLineItemMatcher.MatchResult match) {

@@ -1596,7 +1596,19 @@ const OrderGrid: React.FC = () => {
       header: '상품코드',
       size: 110,
       cell: ({ row }) => {
-        const val = row.original.product?.sbCode || '-';
+        const val = row.original.product?.sbCode;
+        // 미매핑은 '-'로 감추지 않는다 — 그 라인아이템은 재고·정산·소싱에서 통째로 빠지므로
+        // 사람이 손을 대야 한다(2026-08-12 G마켓 유령 리스팅 주문 4478251768).
+        if (!val) {
+          return (
+            <div
+              title="마켓 상품을 우리 상품에 연결하지 못했습니다. 재고·정산·소싱이 이 건을 건너뜁니다."
+              style={{ textAlign: 'center', fontWeight: 700, fontSize: '11px', color: '#c62828', background: '#ffebee', border: '1px solid #ef9a9a', borderRadius: '4px', padding: '1px 4px' }}
+            >
+              미매핑
+            </div>
+          );
+        }
         return <div style={{ textAlign: 'center', fontWeight: 600, fontSize: '12px' }}>{val}</div>;
       }
     }),

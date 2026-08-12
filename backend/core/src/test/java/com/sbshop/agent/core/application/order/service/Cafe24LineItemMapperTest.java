@@ -228,4 +228,26 @@ class Cafe24LineItemMapperTest {
 		assertThat(Cafe24LineItemMapper.mapStatus(null)).isEqualTo(ShippingStatus.UNKNOWN);
 		assertThat(Cafe24LineItemMapper.mapStatus("  ")).isEqualTo(ShippingStatus.UNKNOWN);
 	}
+
+	@Test
+	@DisplayName("미연동 마켓상품은 마켓 쪽 판매자코드까지 담는다 — 이 값 말고는 범인을 지목할 단서가 없다")
+	void carriesMarketSellerCodeForUnlinkedListing() {
+		// 2026-08-12 라이브(주문 4478251768): G마켓 유령 리스팅은 카페24 몰 상품과 연동이 없어
+		// product_no=-99999, custom_product_code=null로 온다. 남는 단서는 market_custom_variant_code
+		// (G마켓 판매자 관리코드)와 product_code(G마켓 상품번호)뿐이다.
+		JsonNode o = order("{\"items\":[{"
+			+ "\"order_item_code\":\"20260811-0000015-01\",\"shipping_code\":\"D-A\""
+			+ ",\"order_status\":\"N20\",\"product_no\":-99999"
+			+ ",\"product_code\":\"2005125893\",\"custom_product_code\":null"
+			+ ",\"market_custom_variant_code\":\"5ffd2a8e27776\""
+			+ ",\"product_name\":\"Pure Indian Foods 오리지널 기버터\""
+			+ ",\"payment_amount\":\"64400\",\"quantity\":2}]}");
+
+		MarketLineItemDto li = allItems(Cafe24LineItemMapper.toShipments(o, "ORD")).get(0);
+
+		assertThat(li.getMarketSpecificData())
+			.containsEntry("market_custom_variant_code", "5ffd2a8e27776")
+			.containsEntry("product_code", "2005125893")
+			.doesNotContainKey("custom_product_code");
+	}
 }
