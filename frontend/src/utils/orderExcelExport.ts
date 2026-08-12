@@ -88,6 +88,9 @@ const COLUMNS: ColumnSpec[] = [
   { header: 'SB코드', width: 14, text: true, value: r => r.product?.sbCode || '' },
   { header: '상품명', width: 40, value: r => r.product?.productName || '' },
   { header: '원문상품명', width: 40, value: r => r.product?.originalName || '' },
+  // 소싱처에서 실제로 주문을 넣을 때 바로 눌러야 하는 값이라 상품 정보 옆에 둔다.
+  // text 서식 고정 — URL을 엑셀이 하이퍼링크로 자동 변환하며 값을 건드리는 것을 막는다.
+  { header: '상품URL', width: 50, text: true, value: r => r.product?.sourcingInfo?.sourceUrl || '' },
   { header: '카테고리', width: 14, value: r => r.product?.category || '' },
   { header: '공급처', width: 12, value: r => r.product?.vendor || '' },
   { header: '재고상태', width: 10, value: r => STOCK_STATUS_LABELS[r.product?.stockStatus || ''] || r.product?.stockStatus || '' },
