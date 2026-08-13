@@ -24,7 +24,7 @@ public record ProductListResponse(
 	List<String> hostedImages,
 	String sourcingUrl,
 	String memo,
-	Map<String, String> marketRegistrations) {
+	Map<String, MarketBadgeState> marketRegistrations) {
 
 	public static ProductListResponse from(Product p) {
 		return new ProductListResponse(
@@ -46,7 +46,7 @@ public record ProductListResponse(
 			null);
 	}
 
-	public static ProductListResponse from(Product p, Map<String, String> marketRegistrations) {
+	public static ProductListResponse from(Product p, Map<String, MarketBadgeState> marketRegistrations) {
 		return new ProductListResponse(
 			p.getId(),
 			p.getSbCode(),
