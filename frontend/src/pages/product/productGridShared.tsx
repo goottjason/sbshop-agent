@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import type { ProductList } from '../../api/productApi';
 
 // ─── 인라인 편집 공통 저장상태 ───
 export type SaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
@@ -37,43 +38,33 @@ export const STOCK_STATUS_OPTIONS: { id: 'IN_STOCK' | 'OUT_OF_STOCK'; label: str
 
 // ─── 마켓 등록 배지 ───
 // 통합 주문 관리 배지와 동일한 파스텔 팔레트(연배경 + 채도 낮춘 글자색)를 채용한다.
-const MARKET_BADGES: { key: string; label: string; bg: string; text: string }[] = [
+// 순서는 화면 표시 순서 그대로다. 카페24가 G마켓·옥션의 선행조건이라 그 앞에 둔다.
+export const MARKET_BADGES: { key: string; label: string; bg: string; text: string }[] = [
   { key: 'COUPANG', label: '쿠팡', bg: '#fce4ec', text: '#c2185b' },
   { key: 'SMART_STORE', label: 'N스토어', bg: '#f1f8e9', text: '#689f38' },
+  { key: 'CAFE24', label: '카페24', bg: '#ede7f6', text: '#5e35b1' },
   { key: 'GMARKET', label: 'G마켓', bg: '#c8e6c9', text: '#1b5e20' },
   { key: 'AUCTION', label: '옥션', bg: '#fff3e0', text: '#e65100' },
   { key: 'ELEVEN_STREET', label: '11번가', bg: '#e3f2fd', text: '#1565c0' },
 ];
 
-export function renderMarketBadges(links?: Record<string, string>) {
-  if (!links) return <span style={{ color: '#ccc' }}>-</span>;
-  const badges = MARKET_BADGES.filter((m) => links[m.key] !== undefined);
-  if (badges.length === 0) return <span style={{ color: '#ccc' }}>-</span>;
-  return (
-    // nowrap: 5개 마켓이 한 줄에 모두 보이도록(줄바꿈 방지). 컬럼 폭은 ProductGrid에서 확보.
-    <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 3, alignItems: 'center', justifyContent: 'center' }}>
-      {badges.map((m) => {
-        const url = links[m.key];
-        const base: CSSProperties = {
-          fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, lineHeight: 1.5,
-          whiteSpace: 'nowrap',
-        };
-        if (url) {
-          return (
-            <a key={m.key} href={url} target="_blank" rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()} title={`${m.label} 상품 페이지 열기`}
-              style={{ ...base, color: m.text, background: m.bg, textDecoration: 'none', cursor: 'pointer' }}>
-              {m.label}
-            </a>
-          );
-        }
-        return (
-          <span key={m.key} title={`${m.label} 등록됨 · 링크 식별자 미확보`}
-            style={{ ...base, color: m.text, background: '#fff', border: `1px solid ${m.text}`, opacity: 0.5 }}>
-            {m.label}
-          </span>
-        );
-      })}
-    </div>
-  );
+// ESM 계열(G마켓·옥션)은 Cafe24 등록행을 경유해야 전송할 수 있다.
+export const ESM_MARKET_KEYS = ['GMARKET', 'AUCTION'];
+
+// 배지 1칸이 가질 수 있는 화면 상태.
+//  registered  등록 완료 + 상품페이지 링크 확보 → 채색 배지, 클릭 시 새 탭
+//  linkless    등록됐으나 링크 식별자 미확보 → 채색 테두리 반투명, 클릭 없음
+//  missing     미등록 → 점선 배지, 클릭 시 등록
+//  blocked     미등록 + 선행조건 미충족(카페24 미등록 상태의 G마켓·옥션) → 흐린 점선, 클릭 불가
+export type BadgeVisual = 'registered' | 'linkless' | 'missing' | 'blocked';
+
+// MarketBadgeCell.tsx에 두면 react-refresh/only-export-components에 걸린다(컴포넌트 파일은
+// 컴포넌트만 export해야 HMR이 안전). 상수/헬퍼 전용인 이 파일로 옮겨 둔다.
+export function badgeVisual(product: ProductList, marketKey: string): BadgeVisual {
+  const regs = product.marketRegistrations ?? {};
+  const state = regs[marketKey];
+  if (state) return state.url ? 'registered' : 'linkless';
+  // 카페24 등록행이 없으면 G마켓·옥션은 마켓플러스로 보낼 수 없다.
+  if (ESM_MARKET_KEYS.includes(marketKey) && !regs['CAFE24']) return 'blocked';
+  return 'missing';
 }
