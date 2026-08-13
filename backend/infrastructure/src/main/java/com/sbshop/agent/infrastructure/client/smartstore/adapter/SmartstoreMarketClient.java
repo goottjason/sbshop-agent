@@ -63,6 +63,23 @@ public class SmartstoreMarketClient implements MarketClient {
 			List.of(), Map.of(), extra);
 	}
 
+	/** 검수 컨텍스트가 이긴다. 비어 있는 칸만 autoContext 값으로 채운다. */
+	private MarketPublishContext mergeWithAuto(Product product, MarketPublishContext context) {
+		if (context.hasCategory() && !context.extraFields().isEmpty()) {
+			return context;
+		}
+		MarketPublishContext auto = autoContext(product);
+		Map<String, Object> extra = new HashMap<>(auto.extraFields());
+		extra.putAll(context.extraFields());
+		return new MarketPublishContext(
+			context.hasCategory() ? context.categoryId() : auto.categoryId(),
+			context.categoryPath() != null ? context.categoryPath() : auto.categoryPath(),
+			context.salePrice() != null ? context.salePrice() : auto.salePrice(),
+			context.keywords().isEmpty() ? auto.keywords() : context.keywords(),
+			context.noticeFields().isEmpty() ? auto.noticeFields() : context.noticeFields(),
+			extra);
+	}
+
 	/**
 	 * 커머스API {@code POST /v2/products} 등록.
 	 *
@@ -72,6 +89,9 @@ public class SmartstoreMarketClient implements MarketClient {
 	 */
 	@Override
 	public Map<String, String> publish(Product product, MarketPublishContext context) {
+		// 부분 컨텍스트(예: 판매가만 담긴 등록 경로)로 들어오면 빈 칸을 autoContext로 채운다.
+		// 채우지 않으면 카테고리·주소록·A/S 같은 커머스API 필수필드가 비어 등록이 거절된다.
+		context = mergeWithAuto(product, context);
 		log.info("[Smartstore] 상품 등록 시작: {}", product.getSbCode());
 		try {
 			Map<String, Object> requestBody = payloadBuilder.build(product, context);
