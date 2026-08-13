@@ -24,6 +24,14 @@ export interface BulkProductCreateResponse {
   failed: { index: number; baseName: string; reason: string }[];
 }
 
+// F-PSRC-9: 마켓 등록 응답 — 등록 상태·상품 URL·마켓별 식별자.
+export interface MarketPublishResponse {
+  market: string;
+  status: 'SYNCED' | 'PENDING';
+  url: string | null;
+  identifiers: Record<string, string>;
+}
+
 export const sourcingApi = {
   sourceFromIherb: (urls: string[]) =>
     apiClient.post('/api/v1/sourcing/iherb', urls),
@@ -33,5 +41,5 @@ export const sourcingApi = {
     apiClient.post('/api/v1/products/bulk', products),
 
   publishToMarket: (productId: number, marketType: string) =>
-    apiClient.post(`/api/v1/products/${productId}/markets/${marketType}`),
+    apiClient.post<MarketPublishResponse>(`/api/v1/products/${productId}/markets/${marketType}`),
 };

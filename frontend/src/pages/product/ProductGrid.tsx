@@ -139,9 +139,9 @@ export default function ProductGrid() {
     }),
     columnHelper.display({
       id: 'markets', header: '마켓', size: 340,
-      cell: ({ row }) => <MarketBadgeCell product={row.original} />,
+      cell: ({ row }) => <MarketBadgeCell product={row.original} onPublished={refetch} />,
     }),
-  ], []);
+  ], [refetch]);
 
   const table = useReactTable({
     data: pageRows,
@@ -202,6 +202,7 @@ export default function ProductGrid() {
         }
         .pg-size:hover { border-color: #cbd5e1; }
         .pg-size:focus { outline: none; border-color: var(--product-primary); box-shadow: 0 0 0 3px rgba(22,101,52,0.12); }
+        @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
       `}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
