@@ -1447,7 +1447,7 @@ class MarketPlusPublisherTest {
 		var outcome = publisher().publish(product, MarketType.GMARKET);
 
 		assertThat(outcome.synced()).isFalse();
-		verify(cafe24Registration).enrichIdentifier("gmarket_sentAt", anyString());
+		verify(cafe24Registration).enrichIdentifier(eq("gmarket_sentAt"), anyString());
 	}
 
 	@Test
@@ -1467,7 +1467,7 @@ class MarketPlusPublisherTest {
 }
 ```
 
-`any()`·`anyString()` static import를 추가한다(`org.mockito.ArgumentMatchers`).
+`any()`·`anyString()`·`eq()` static import를 추가한다(`org.mockito.ArgumentMatchers`). **한 verify 안에서 raw 값과 matcher를 섞으면 Mockito가 `InvalidUseOfMatchersException`을 던진다** — 그래서 `eq("gmarket_sentAt")`로 감쌌다.
 
 - [ ] **Step 2: 실패 확인**
 
