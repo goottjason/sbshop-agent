@@ -10,8 +10,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
+import marketplus
 from models import (
     CandidateCard, DiscoverFailure, DiscoverRequest, DiscoverResult,
     ProductDetail, ScrapeRequest, ScrapeResult,
@@ -120,3 +121,16 @@ def scrape_product_detail(req: ScrapeRequest) -> ProductDetail:
             scrapedAt=datetime.now(timezone.utc).isoformat(),
         )
     return iherb_mod.fetch_detail(req.url)
+
+
+@app.post("/cafe24/mp/probe")
+def cafe24_mp_probe() -> dict:
+    """스파이크 전용 — 마켓플러스 로그인과 일괄보내기 목록 진입이 되는지만 확인한다.
+
+    자격증명이 없으면 503으로 거절한다. 조용히 빈 결과를 돌려주면 G마켓·옥션 배지가
+    거짓으로 켜지므로, 미설정은 반드시 실패로 드러내야 한다.
+    """
+    try:
+        return marketplus.probe()
+    except marketplus.CredentialsMissing as e:
+        raise HTTPException(status_code=503, detail="credentials_missing") from e
