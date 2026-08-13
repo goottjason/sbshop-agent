@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.product;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sbshop.agent.core.application.product.dto.MarketPublishOutcome;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
@@ -42,7 +43,7 @@ public class ProductPublishUseCase {
 	private final ProductSanitizer productSanitizer;
 	private final ProductValidator productValidator;
 
-	public void publishToMarket(Long productId, MarketType marketType) {
+	public MarketPublishOutcome publishToMarket(Long productId, MarketType marketType) {
 		Product product = productReader.findById(productId)
 			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
 
@@ -75,6 +76,7 @@ public class ProductPublishUseCase {
 		}
 
 		log.info("상품 마켓 등록 완료: productId={}, market={}, identifiers={}", productId, marketType, identifiers);
+		return new MarketPublishOutcome(marketType, identifiers, true);
 	}
 
 	private String toJson(Map<String, String> identifiers) {

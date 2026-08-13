@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sbshop.agent.core.application.product.dto.MarketPublishOutcome;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
@@ -125,5 +126,20 @@ class ProductPublishOrphanPreventionTest {
 
 		verify(registrationTxService, never()).savePending(any(), any(), anyString());
 		verify(client, never()).publish(any());
+	}
+
+	@Test
+	@DisplayName("게시 성공 시 마켓 identifiers를 담은 결과를 반환한다 — 프론트가 재조회 없이 배지를 링크로 바꿔야 한다")
+	void publishToMarket_returnsOutcomeWithIdentifiers() {
+		MarketRegistration pending = MarketRegistration.builder()
+			.productId(PRODUCT_ID).marketType(MARKET).marketDetailedInfo("{}").build();
+		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품")).thenReturn(pending);
+		when(client.publish(product)).thenReturn(Map.of("vendorItemId", "V123"));
+
+		MarketPublishOutcome outcome = useCase.publishToMarket(PRODUCT_ID, MARKET);
+
+		assertThat(outcome.marketType()).isEqualTo(MARKET);
+		assertThat(outcome.synced()).isTrue();
+		assertThat(outcome.identifiers()).isNotEmpty();
 	}
 }

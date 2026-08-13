@@ -17,6 +17,7 @@ import com.sbshop.agent.core.application.product.ProductPublishUseCase;
 import com.sbshop.agent.core.application.product.dto.BulkProductCreateResult;
 import com.sbshop.agent.core.application.sourcing.ProductSourcingUseCase;
 import com.sbshop.agent.core.application.sourcing.dto.SourcingCrawlResult;
+import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.product.Product;
 import java.math.BigDecimal;
 import java.util.List;
@@ -43,13 +44,16 @@ class ProductSourcingBulkTest {
     @Mock
     private ProductPublishUseCase productPublishUseCase;
     @Mock
+    private MarketRegistrationRepository marketRegistrationRepository;
+    @Mock
     private ActionLogService actionLogService;
     @Captor
     private ArgumentCaptor<List<String>> urlsCaptor;
 
     private ProductSourcingController controller() {
         return new ProductSourcingController(
-            productSourcingUseCase, productCreateUseCase, productPublishUseCase, actionLogService);
+            productSourcingUseCase, productCreateUseCase, productPublishUseCase,
+            marketRegistrationRepository, actionLogService);
     }
 
     @Test
