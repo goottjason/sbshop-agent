@@ -40,7 +40,8 @@ class ProductMarketSyncServiceTest {
 	void setUp() {
 		// 단일 가격 경로 검증이라 MarginCalculator/MarketFeeService는 실제로 호출되지 않는다.
 		service = new ProductMarketSyncService(marketRegistrationRepository, marketClientRouter,
-			new com.sbshop.agent.core.domain.product.service.MarginCalculator(), marketFeeService,
+			new MarketSalePriceResolver(new com.sbshop.agent.core.domain.product.service.MarginCalculator(),
+				marketFeeService),
 			org.mockito.Mockito.mock(com.sbshop.agent.core.domain.product.component.ProductReader.class));
 	}
 
