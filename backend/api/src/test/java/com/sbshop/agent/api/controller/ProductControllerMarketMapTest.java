@@ -139,8 +139,8 @@ class ProductControllerMarketMapTest {
 	}
 
 	@Test
-	@DisplayName("등록행의 isSynced가 false면 status=PENDING으로 내려간다 — 등록중/미완료를 미등록과 구분해야 한다")
-	void getProducts_pendingStatusWhenNotSynced() {
+	@DisplayName("식별자가 비어 있으면 status=PENDING — savePending이 게시 전에 만든 미완료 행이 이 모양이다")
+	void getProducts_pendingStatusWhenNoIdentifiers() {
 		when(product1.getId()).thenReturn(1L);
 		Page<Product> page = new PageImpl<>(List.of(product1), PageRequest.of(0, 50), 1);
 		when(productSearchUseCase.searchProducts(any(), any())).thenReturn(page);
@@ -153,5 +153,25 @@ class ProductControllerMarketMapTest {
 		MarketBadgeState state = res.getBody().getContent().get(0).marketRegistrations().get("COUPANG");
 		assertThat(state.status()).isEqualTo("PENDING");
 		assertThat(state.url()).isNull();
+	}
+
+	@Test
+	@DisplayName("식별자가 있으면 isSynced가 false여도 SYNCED — 레거시 임포트 행을 거짓 미완료로 경고하지 않는다")
+	void getProducts_syncedWhenIdentifiersPresentDespiteUnsyncedFlag() {
+		// 운영 실측(2026-08-14): is_synced=false인 등록행 2,594건이 전부 식별자를 갖고 있었다.
+		// is_synced로 판정하면 정상 등록된 상품 절반이 미완료 경고를 달게 된다.
+		when(product1.getId()).thenReturn(1L);
+		Page<Product> page = new PageImpl<>(List.of(product1), PageRequest.of(0, 50), 1);
+		when(productSearchUseCase.searchProducts(any(), any())).thenReturn(page);
+		when(marketRegistrationRepository.findByProductIdIn(List.of(1L)))
+			.thenReturn(List.of(reg(1L, MarketType.COUPANG,
+				"{\"productId\":\"123\",\"vendorItemId\":\"456\"}")));
+
+		ResponseEntity<Page<ProductListResponse>> res =
+			controller().getProducts(null, null, PageRequest.of(0, 50));
+
+		MarketBadgeState state = res.getBody().getContent().get(0).marketRegistrations().get("COUPANG");
+		assertThat(state.status()).isEqualTo("SYNCED");
+		assertThat(state.url()).isEqualTo("https://www.coupang.com/vp/products/123?vendorItemId=456");
 	}
 }

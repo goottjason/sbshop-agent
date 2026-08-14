@@ -428,7 +428,11 @@ public class ProductController {
 		}
 		Map<String, MarketBadgeState> marketMap = new HashMap<>();
 		for (MarketRegistration reg : registrations) {
-			boolean synced = Boolean.TRUE.equals(reg.getIsSynced());
+			// 등록 완료 판정은 is_synced가 아니라 "마켓이 돌려준 식별자를 가졌는가"로 한다.
+			// 레거시 임포트 행은 실제로 정상 등록돼 있어도 is_synced=false라, 그걸 쓰면
+			// 배지 절반이 거짓 미완료 경고로 뜬다(운영 실측 2026-08-14).
+			// 자세한 근거는 MarketRegistration.hasIdentifiers() 주석 참조.
+			boolean synced = reg.hasIdentifiers();
 			switch (reg.getMarketType()) {
 				case COUPANG:
 				case SMART_STORE:

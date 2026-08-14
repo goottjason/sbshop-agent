@@ -208,6 +208,29 @@ public class MarketRegistration extends BaseEntity {
 		this.marketIdentifiers = marketIdentifiers;
 	}
 
+	/**
+	 * 마켓이 돌려준 식별자를 하나라도 갖고 있는가 — 즉 외부 게시가 실제로 성공했는가.
+	 *
+	 * <p>{@code is_synced}는 이 판정에 쓸 수 없다. 레거시 임포트로 들어온 행 다수가
+	 * 실제로는 마켓에 정상 등록돼 있는데도 {@code is_synced=false}로 남아 있다
+	 * (운영 실측 2026-08-14: PENDING 2,594건 전부가 식별자 보유, 식별자 없는 PENDING은 0건).
+	 *
+	 * <p>반면 {@code MarketRegistrationTxService.savePending}이 외부 게시 <b>전에</b> 만드는
+	 * 미완료 행은 identifiers가 정확히 {@code "{}"}다. 그래서 "식별자 없음"이
+	 * "게시를 시작했으나 끝내지 못함"의 정확한 신호가 된다.
+	 */
+	public boolean hasIdentifiers() {
+		if (marketIdentifiers == null || marketIdentifiers.isBlank()) {
+			return false;
+		}
+		try {
+			JsonNode node = MAPPER.readTree(marketIdentifiers);
+			return node.isObject() && node.fieldNames().hasNext();
+		} catch (Exception e) {
+			return false;
+		}
+	}
+
 	/** marketIdentifiers JSON에서 단일 키 값을 읽는다(없으면 null). */
 	public String identifier(String key) {
 		if (marketIdentifiers == null || marketIdentifiers.isEmpty()) {
