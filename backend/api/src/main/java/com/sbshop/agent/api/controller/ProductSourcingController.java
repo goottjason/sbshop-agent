@@ -2,6 +2,7 @@ package com.sbshop.agent.api.controller;
 
 import com.sbshop.agent.api.dto.product.BulkProductCreateResponse;
 import com.sbshop.agent.api.dto.product.IherbSourcingResponse;
+import com.sbshop.agent.api.dto.product.MarketPublishPriceRequest;
 import com.sbshop.agent.api.dto.product.MarketPublishResponse;
 import com.sbshop.agent.api.dto.product.ProductSaveRequest;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
@@ -143,11 +144,15 @@ public class ProductSourcingController {
 		@PathVariable
 		Long id,
 		@PathVariable
-		String marketType) {
+		String marketType,
+		// 결함 B: 등록가 산정 파라미터(마진율·쿠폰율·최소마진) — 선택적 바디. 없으면 종전 동작과 같다.
+		@RequestBody(required = false)
+		MarketPublishPriceRequest priceRequest) {
 		MarketType type = MarketType.valueOf(marketType.toUpperCase());
 		// D-076: 마켓 등록(게시) — 결과만 기록(marketType은 경로변수에서).
 		try {
-			MarketPublishOutcome outcome = productPublishUseCase.publishToMarket(id, type);
+			MarketPublishOutcome outcome = productPublishUseCase.publishToMarket(
+				id, type, priceRequest == null ? null : priceRequest.toOverrides());
 			// 등록 직후 링크 식별자가 확보됐으면 URL까지 내려 배지를 바로 링크로 바꾼다.
 			String url = marketRegistrationRepository.findByProductIdAndMarketType(id, type)
 				.map(MarketRegistration::buildMarketUrl)

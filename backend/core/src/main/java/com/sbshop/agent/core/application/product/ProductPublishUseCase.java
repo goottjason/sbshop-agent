@@ -2,6 +2,7 @@ package com.sbshop.agent.core.application.product;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.product.dto.MarketPublishOutcome;
+import com.sbshop.agent.core.application.product.dto.MarketSalePriceOverrides;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
@@ -48,6 +49,15 @@ public class ProductPublishUseCase {
 	private final MarketSalePriceResolver marketSalePriceResolver;
 
 	public MarketPublishOutcome publishToMarket(Long productId, MarketType marketType) {
+		return publishToMarket(productId, marketType, null);
+	}
+
+	/**
+	 * 결함 B(등록가 20%대 고평가) 수정: 호출자가 마진율·쿠폰율·최소마진을 직접 넘겨 등록가 산정에
+	 * 반영할 수 있게 한다. {@code pricingOverrides}가 null이면 기존 동작(오버라이드 없음)과 같다.
+	 */
+	public MarketPublishOutcome publishToMarket(Long productId, MarketType marketType,
+		MarketSalePriceOverrides pricingOverrides) {
 		Product product = productReader.findById(productId)
 			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
 
@@ -73,7 +83,9 @@ public class ProductPublishUseCase {
 		// 2) 되돌릴 수 없는 외부 게시 — 트랜잭션 밖에서 호출.
 		//    D-094: 등록 순간부터 그 마켓의 실수수료 반영가로 올린다. 기준가(쿠팡 기준)로 올리면
 		//    다음 재가격 배치까지 수수료가 다른 마켓은 목표 마진을 벗어난 가격으로 팔린다.
-		BigDecimal salePrice = marketSalePriceResolver.resolveForProduct(product, marketType);
+		BigDecimal salePrice = pricingOverrides == null
+			? marketSalePriceResolver.resolveForProduct(product, marketType)
+			: marketSalePriceResolver.resolveForProduct(product, marketType, pricingOverrides);
 		MarketPublishContext context = new MarketPublishContext(
 			null, null, salePrice, List.of(), Map.of(), Map.of());
 		Map<String, String> identifiers = client.publish(product, context);
