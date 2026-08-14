@@ -107,6 +107,15 @@ export interface PriceStockSyncResult {
   failed: Record<string, string>;
 }
 
+// G마켓·옥션은 상품등록 API가 없어 사람이 마켓플러스에서 전송한다.
+// 서버는 "어느 상품코드로 찾으면 되는지"까지만 알려준다.
+export interface MarketPlusHandoff {
+  market: string;
+  cafe24ProductCode: string;
+  marketplusUrl: string;
+  guide: string;
+}
+
 export const productApi = {
   fetchProducts: (page: number, size: number, keyword?: string) =>
     apiClient.get('/api/v1/products', { params: { page, size, keyword } }),
@@ -146,4 +155,7 @@ export const productApi = {
 
   syncMarketLive: (id: number, marketType: string) =>
     apiClient.post(`/api/v1/products/${id}/markets/${marketType}/sync`),
+
+  getMarketPlusHandoff: (id: number, marketType: string) =>
+    apiClient.get<MarketPlusHandoff>(`/api/v1/products/${id}/markets/${marketType}/handoff`),
 };
