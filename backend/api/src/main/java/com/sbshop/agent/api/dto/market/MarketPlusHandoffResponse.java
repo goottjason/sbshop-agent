@@ -22,7 +22,7 @@ public record MarketPlusHandoffResponse(String market, String cafe24ProductCode,
 			handoff.cafe24ProductCode(),
 			MARKETPLUS_NO_SALE_URL,
 			"마켓플러스에서 검색조건을 '상품코드'로 바꾸고 " + handoff.cafe24ProductCode()
-				+ " 를 붙여넣어 검색한 뒤, " + marketLabel + " 를 선택해 일괄 보내기 하세요. "
+				+ "을 붙여넣어 검색한 뒤, " + marketLabel + "을 선택해 일괄 보내기 하세요. "
 				+ "카테고리는 전송 팝업에서 상품마다 선택해야 합니다.");
 	}
 }
