@@ -1262,122 +1262,29 @@ git commit -m "feat(scraper): 마켓플러스 자격증명 배선과 로그인 �
 
 ---
 
-## Task 8: 사이드카 전송 구현
+## Task 8: G마켓·옥션 딥링크 핸드오프 (백엔드)
+
+**설계 변경 근거 (Task 7 스파이크 실측 결과):** 마켓플러스 일괄보내기는 상품마다 마켓 카테고리 4단계를
+사람이 골라야 하고(템플릿은 계정별 자동), 전송 팝업에 reCAPTCHA가 로드되며, 목록 검색은 sbCode가 아닌
+Cafe24 `product_code` 완전일치로만 된다. 사용자는 **반자동(딥링크 핸드오프)** 을 선택했다 — 헤드리스
+사이드카가 연 팝업은 사람이 이어받을 수 없으므로, 서버가 상품코드를 찾아주고 사람이 자기 브라우저에서
+마켓플러스를 열어 전송을 끝낸다. 따라서 **Playwright 전송 자동화는 만들지 않는다.**
 
 **Files:**
-- Modify: `scraper/marketplus.py`
-- Modify: `scraper/app.py`
-
-**Interfaces:**
-- Consumes: Task 7 스파이크에서 확정한 셀렉터
-- Produces: `POST /cafe24/mp/send` — 요청 `{"sbCode": "231211FM017", "targetMarket": "GMARKET"}`, 응답 `{"ok": true, "marketProductNo": "1234567890"}` 또는 `{"ok": false, "reason": "product_not_found"}`. 실패 사유 어휘: `product_not_found` / `login_failed` / `send_rejected`.
-
-- [ ] **Step 1: `send_to_market`을 구현한다**
-
-`marketplus.py`에 추가한다(셀렉터는 스파이크 결과로 치환):
-
-```python
-MARKET_LABEL = {"GMARKET": "G마켓", "AUCTION": "옥션"}
-
-
-def send_to_market(sb_code: str, target_market: str) -> dict:
-    """미판매 목록에서 sb_code 상품을 찾아 지정 마켓으로 일괄 보내기 한다."""
-    user, password = _credentials()
-    label = MARKET_LABEL.get(target_market)
-    if label is None:
-        return {"ok": False, "reason": "unsupported_market", "marketProductNo": None}
-
-    result: dict = {"ok": False, "reason": "send_rejected", "marketProductNo": None}
-
-    def action(page):
-        _login(page, user, password)
-        # 1) 자체상품코드로 검색
-        page.fill("input[name='search_keyword']", sb_code)
-        page.click("button.btn_search")
-        page.wait_for_load_state("networkidle")
-        rows = page.query_selector_all("table.list tbody tr")
-        if not rows:
-            result["reason"] = "product_not_found"
-            return page
-        # 2) 첫 행 체크 → 일괄 보내기 → 마켓 선택 → 전송
-        rows[0].query_selector("input[type='checkbox']").check()
-        page.click("button.btn_send_all")
-        page.wait_for_selector("div.layer_send")
-        page.click(f"label:has-text('{label}')")
-        page.click("div.layer_send button.btn_confirm")
-        page.wait_for_load_state("networkidle")
-        result["ok"] = True
-        result["reason"] = None
-        return page
-
-    DynamicFetcher.fetch(LOGIN_URL, headless=True, network_idle=True, page_action=action)
-    return result
-```
-
-실패 시 진단이 가능하도록 예외 경로에서 스크린샷을 남긴다:
-
-```python
-    except Exception as e:  # noqa: BLE001 — 어떤 실패든 진단 자료를 남긴다
-        try:
-            page.screenshot(path=f"/tmp/mp-fail-{sb_code}-{target_market}.png")
-        except Exception:
-            pass
-        result["reason"] = f"exception:{type(e).__name__}"
-```
-
-- [ ] **Step 2: 라우트를 붙인다**
-
-`app.py`:
-
-```python
-class MpSendRequest(BaseModel):
-    sbCode: str
-    targetMarket: str
-
-
-@app.post("/cafe24/mp/send")
-def cafe24_mp_send(req: MpSendRequest) -> dict:
-    try:
-        return marketplus.send_to_market(req.sbCode, req.targetMarket)
-    except marketplus.CredentialsMissing as e:
-        raise HTTPException(status_code=503, detail="credentials_missing") from e
-```
-
-- [ ] **Step 3: 실제 상품 하나로 검증한다**
-
-Cafe24에 등록돼 있고 G마켓에 아직 없는 상품 하나를 골라 실행한다:
-
-```bash
-curl -s -X POST localhost:8099/cafe24/mp/send \
-  -H 'Content-Type: application/json' \
-  -d '{"sbCode":"<실제_SB코드>","targetMarket":"GMARKET"}'
-```
-
-Expected: `{"ok": true, ...}` 그리고 **마켓플러스 화면에서 실제로 전송됐는지 눈으로 확인한다.** 전송되지 않았는데 `ok: true`가 나오면 그것이 가장 나쁜 실패다 — 성공 판정 조건을 "버튼을 눌렀다"가 아니라 "전송 완료 표시가 나타났다"로 바꾼다.
-
-- [ ] **Step 4: 커밋**
-
-```bash
-git add scraper/marketplus.py scraper/app.py
-git commit -m "feat(scraper): 마켓플러스 일괄 보내기로 G마켓·옥션에 상품을 전송한다"
-```
-
----
-
-## Task 9: G마켓·옥션 등록 경로를 백엔드에 연결
-
-**Files:**
-- Create: `backend/core/src/main/java/com/sbshop/agent/core/application/product/port/MarketPlusSendPort.java`
-- Create: `backend/core/src/main/java/com/sbshop/agent/core/application/product/MarketPlusPublisher.java`
-- Create: `backend/infrastructure/src/main/java/com/sbshop/agent/infrastructure/client/marketplus/MarketPlusSendClient.java`
+- Create: `backend/core/src/main/java/com/sbshop/agent/core/application/product/MarketPlusHandoffService.java`
+- Create: `backend/core/src/main/java/com/sbshop/agent/core/application/product/dto/MarketPlusHandoff.java`
+- Create: `backend/api/src/main/java/com/sbshop/agent/api/dto/market/MarketPlusHandoffResponse.java`
+- Modify: `backend/api/src/main/java/com/sbshop/agent/api/controller/MarketRegistrationController.java`
 - Modify: `backend/core/src/main/java/com/sbshop/agent/core/application/product/ProductPublishUseCase.java`
-- Test: `backend/core/src/test/java/com/sbshop/agent/core/application/product/MarketPlusPublisherTest.java` (신규)
+- Delete: `scraper/marketplus.py`, `scraper/app.py`의 `/cafe24/mp/probe` 라우트, `docker-compose.yml`의 `sbshop-scraper` 자격증명 블록, `.env.example`의 두 키, `sync-env.sh`의 두 키
+- Test: `backend/core/src/test/java/com/sbshop/agent/core/application/product/MarketPlusHandoffServiceTest.java` (신규)
 
 **Interfaces:**
-- Consumes: Task 8의 `POST /cafe24/mp/send`, Task 2의 `MarketPublishOutcome`, `MarketRegistrationRepository.findByProductIdAndMarketType`, `MarketRegistration.enrichIdentifier(String,String)`
+- Consumes: `MarketRegistrationRepository.findByProductIdAndMarketType(Long, MarketType)`, `MarketRegistration.identifier(String)` (public), `Cafe24MarketClient`가 등록 시 저장하는 identifiers 키 `product_code`
 - Produces:
-  - `interface MarketPlusSendPort { MarketPlusSendResult send(String sbCode, MarketType target); }`, `record MarketPlusSendResult(boolean ok, String reason, String marketProductNo)`
-  - `MarketPlusPublisher.publish(Product, MarketType) -> MarketPublishOutcome`
+  - `record MarketPlusHandoff(MarketType marketType, String cafe24ProductCode)`
+  - `MarketPlusHandoffService.resolve(Long productId, MarketType marketType) -> MarketPlusHandoff`
+  - `GET /api/v1/products/{productId}/markets/{marketType}/handoff` → `record MarketPlusHandoffResponse(String market, String cafe24ProductCode, String marketplusUrl, String guide)`
 
 - [ ] **Step 1: 실패하는 테스트를 쓴다**
 
@@ -1386,16 +1293,11 @@ package com.sbshop.agent.core.application.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.sbshop.agent.core.application.product.port.MarketPlusSendPort;
-import com.sbshop.agent.core.application.product.port.MarketPlusSendPort.MarketPlusSendResult;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
-import com.sbshop.agent.core.domain.product.Product;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -1404,251 +1306,346 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * G마켓·옥션은 Cafe24 마켓플러스를 경유해야만 등록된다.
- * 선행조건(Cafe24 등록행)이 없으면 사이드카를 부르지도 않고 거절해야 한다 —
- * 헛호출은 브라우저 세션만 태우고 사용자에게는 원인 모를 실패로 보인다.
+ * G마켓·옥션은 상품등록 API가 없어 Cafe24 마켓플러스에서 사람이 전송한다.
+ * 서버가 할 수 있는 일은 "어느 상품코드로 찾아야 하는지"를 정확히 알려주는 것까지다.
+ * 마켓플러스 미판매 목록은 Cafe24 product_code 완전일치로만 검색되므로(스파이크 실측),
+ * 그 코드가 없으면 사용자를 헛걸음시키지 말고 이유를 말해줘야 한다.
  */
 @ExtendWith(MockitoExtension.class)
-class MarketPlusPublisherTest {
+class MarketPlusHandoffServiceTest {
 
-	@Mock private MarketRegistrationRepository marketRegistrationRepository;
-	@Mock private MarketPlusSendPort marketPlusSendPort;
-	@Mock private Product product;
-	@Mock private MarketRegistration cafe24Registration;
+	private static final Long PRODUCT_ID = 1L;
 
-	private MarketPlusPublisher publisher() {
-		return new MarketPlusPublisher(marketRegistrationRepository, marketPlusSendPort);
+	@Mock
+	private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private MarketRegistration cafe24Registration;
+
+	private MarketPlusHandoffService service() {
+		return new MarketPlusHandoffService(marketRegistrationRepository);
 	}
 
 	@Test
-	@DisplayName("Cafe24 등록행이 없으면 전송하지 않고 거절한다")
-	void publish_rejectsWithoutCafe24() {
-		when(product.getId()).thenReturn(1L);
-		when(marketRegistrationRepository.findByProductIdAndMarketType(1L, MarketType.CAFE24))
+	@DisplayName("Cafe24 등록행의 product_code를 핸드오프 대상 코드로 돌려준다")
+	void resolve_returnsCafe24ProductCode() {
+		when(marketRegistrationRepository.findByProductIdAndMarketType(PRODUCT_ID, MarketType.CAFE24))
+			.thenReturn(Optional.of(cafe24Registration));
+		when(cafe24Registration.identifier("product_code")).thenReturn("P000BGOU");
+
+		MarketPlusHandoff handoff = service().resolve(PRODUCT_ID, MarketType.GMARKET);
+
+		assertThat(handoff.marketType()).isEqualTo(MarketType.GMARKET);
+		assertThat(handoff.cafe24ProductCode()).isEqualTo("P000BGOU");
+	}
+
+	@Test
+	@DisplayName("Cafe24 등록행이 없으면 거절한다 — 마켓플러스 목록에 뜨지도 않는다")
+	void resolve_rejectsWithoutCafe24() {
+		when(marketRegistrationRepository.findByProductIdAndMarketType(PRODUCT_ID, MarketType.CAFE24))
 			.thenReturn(Optional.empty());
 
-		assertThatThrownBy(() -> publisher().publish(product, MarketType.GMARKET))
+		assertThatThrownBy(() -> service().resolve(PRODUCT_ID, MarketType.GMARKET))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("카페24");
-
-		verify(marketPlusSendPort, never()).send(any(), any());
 	}
 
 	@Test
-	@DisplayName("전송 성공 시 상품번호가 없으면 synced=false로 남긴다 — ESM 반영 지연을 등록완료로 위장하지 않는다")
-	void publish_pendingWhenNoProductNo() {
-		when(product.getId()).thenReturn(1L);
-		when(product.getSbCode()).thenReturn("231211FM017");
-		when(marketRegistrationRepository.findByProductIdAndMarketType(1L, MarketType.CAFE24))
+	@DisplayName("Cafe24 등록행에 product_code가 없으면 거절한다 — 코드 없이는 목록에서 찾을 수 없다")
+	void resolve_rejectsWithoutProductCode() {
+		when(marketRegistrationRepository.findByProductIdAndMarketType(PRODUCT_ID, MarketType.CAFE24))
 			.thenReturn(Optional.of(cafe24Registration));
-		when(marketPlusSendPort.send("231211FM017", MarketType.GMARKET))
-			.thenReturn(new MarketPlusSendResult(true, null, null));
+		when(cafe24Registration.identifier("product_code")).thenReturn(null);
 
-		var outcome = publisher().publish(product, MarketType.GMARKET);
-
-		assertThat(outcome.synced()).isFalse();
-		verify(cafe24Registration).enrichIdentifier(eq("gmarket_sentAt"), anyString());
-	}
-
-	@Test
-	@DisplayName("사이드카가 실패를 보고하면 예외로 표면화한다")
-	void publish_surfacesFailure() {
-		when(product.getId()).thenReturn(1L);
-		when(product.getSbCode()).thenReturn("231211FM017");
-		when(marketRegistrationRepository.findByProductIdAndMarketType(1L, MarketType.CAFE24))
-			.thenReturn(Optional.of(cafe24Registration));
-		when(marketPlusSendPort.send("231211FM017", MarketType.GMARKET))
-			.thenReturn(new MarketPlusSendResult(false, "product_not_found", null));
-
-		assertThatThrownBy(() -> publisher().publish(product, MarketType.GMARKET))
+		assertThatThrownBy(() -> service().resolve(PRODUCT_ID, MarketType.AUCTION))
 			.isInstanceOf(IllegalStateException.class)
-			.hasMessageContaining("product_not_found");
+			.hasMessageContaining("상품코드");
+	}
+
+	@Test
+	@DisplayName("G마켓·옥션이 아닌 마켓은 이 경로를 쓰지 않는다")
+	void resolve_rejectsNonEsmMarket() {
+		assertThatThrownBy(() -> service().resolve(PRODUCT_ID, MarketType.COUPANG))
+			.isInstanceOf(IllegalArgumentException.class);
 	}
 }
 ```
 
-`any()`·`anyString()`·`eq()` static import를 추가한다(`org.mockito.ArgumentMatchers`). **한 verify 안에서 raw 값과 matcher를 섞으면 Mockito가 `InvalidUseOfMatchersException`을 던진다** — 그래서 `eq("gmarket_sentAt")`로 감쌌다.
-
 - [ ] **Step 2: 실패 확인**
 
-Run: `cd backend && ./gradlew :core:test --tests 'com.sbshop.agent.core.application.product.MarketPlusPublisherTest'`
-Expected: 컴파일 실패 — 포트·퍼블리셔 없음.
+Run: `cd backend && ./gradlew :core:test --tests 'com.sbshop.agent.core.application.product.MarketPlusHandoffServiceTest'`
+Expected: 컴파일 실패 — `MarketPlusHandoffService` 없음.
 
-- [ ] **Step 3: 포트와 퍼블리셔를 만든다**
+- [ ] **Step 3: 최소 구현**
 
 ```java
-package com.sbshop.agent.core.application.product.port;
+package com.sbshop.agent.core.application.product.dto;
 
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 
-/** Cafe24 마켓플러스 전송 사이드카 포트. core는 HTTP를 모른다. */
-public interface MarketPlusSendPort {
-
-	/**
-	 * @param sbCode 자체상품코드(Cafe24 custom_product_code로 등록돼 있어야 검색된다)
-	 * @param target GMARKET 또는 AUCTION
-	 */
-	MarketPlusSendResult send(String sbCode, MarketType target);
-
-	/**
-	 * @param ok              마켓플러스 화면에서 전송 완료가 확인됐는지
-	 * @param reason          실패 사유(product_not_found / login_failed / send_rejected 등). 성공이면 null
-	 * @param marketProductNo 전송 직후 확보된 마켓 상품번호. 확보 못 했으면 null(ESM 반영 지연)
-	 */
-	record MarketPlusSendResult(boolean ok, String reason, String marketProductNo) {}
+/**
+ * G마켓·옥션 전송을 사람에게 넘기기 위한 정보.
+ *
+ * @param marketType        GMARKET 또는 AUCTION
+ * @param cafe24ProductCode 마켓플러스 미판매 목록에서 이 상품을 찾는 유일한 검색키.
+ *                          자체상품코드(sbCode)로는 검색되지 않는다(스파이크 실측).
+ */
+public record MarketPlusHandoff(MarketType marketType, String cafe24ProductCode) {
 }
 ```
 
 ```java
 package com.sbshop.agent.core.application.product;
 
-import com.sbshop.agent.core.application.product.dto.MarketPublishOutcome;
-import com.sbshop.agent.core.application.product.port.MarketPlusSendPort;
-import com.sbshop.agent.core.application.product.port.MarketPlusSendPort.MarketPlusSendResult;
+import com.sbshop.agent.core.application.product.dto.MarketPlusHandoff;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
-import com.sbshop.agent.core.domain.product.Product;
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * G마켓·옥션 등록. 두 마켓에는 상품등록 API가 없어 Cafe24 마켓플러스의 '일괄 보내기'를 경유한다.
+ * G마켓·옥션 등록을 사람에게 넘긴다.
  *
- * <p>선행조건은 <b>Cafe24 등록행</b>이다. 마켓플러스 미판매 목록은 Cafe24에 등록된 상품만 보여주므로,
- * Cafe24 등록 없이 전송을 시도하면 브라우저 세션만 태우고 "상품 없음"으로 끝난다.
+ * <p>두 마켓에는 상품등록 API가 없다. 유일한 경로는 Cafe24에 등록된 상품을 마켓플러스
+ * 미판매 목록에서 골라 '일괄 보내기'로 내보내는 것인데, 그 과정에 <b>상품마다 마켓 카테고리
+ * 4단계를 사람이 골라야 하고</b> 전송 팝업에 reCAPTCHA가 걸린다. 그래서 자동 전송 대신
+ * "어느 상품코드로 찾으면 되는지"까지만 서버가 책임지고 나머지는 사람이 한다.
+ *
+ * <p>마켓플러스 목록은 Cafe24 {@code product_code} <b>완전일치</b>로만 검색된다 —
+ * 자체상품코드(sbCode)는 그 화면에 노출조차 되지 않는다(스파이크 실측).
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
-public class MarketPlusPublisher {
+public class MarketPlusHandoffService {
 
 	private final MarketRegistrationRepository marketRegistrationRepository;
-	private final MarketPlusSendPort marketPlusSendPort;
 
-	public MarketPublishOutcome publish(Product product, MarketType marketType) {
+	public MarketPlusHandoff resolve(Long productId, MarketType marketType) {
+		if (marketType != MarketType.GMARKET && marketType != MarketType.AUCTION) {
+			throw new IllegalArgumentException("마켓플러스 경유 대상이 아닙니다: " + marketType);
+		}
 		MarketRegistration cafe24 = marketRegistrationRepository
-			.findByProductIdAndMarketType(product.getId(), MarketType.CAFE24)
+			.findByProductIdAndMarketType(productId, MarketType.CAFE24)
 			.orElseThrow(() -> new IllegalStateException(
 				"카페24 등록이 먼저 필요합니다 — G마켓·옥션은 마켓플러스를 경유합니다"));
 
-		MarketPlusSendResult result = marketPlusSendPort.send(product.getSbCode(), marketType);
-		if (!result.ok()) {
-			throw new IllegalStateException("마켓플러스 전송 실패: " + result.reason());
+		String productCode = cafe24.identifier("product_code");
+		if (productCode == null || productCode.isBlank()) {
+			throw new IllegalStateException(
+				"카페24 상품코드가 없어 마켓플러스에서 상품을 찾을 수 없습니다 — 카페24 재등록이 필요합니다");
 		}
-
-		String prefix = marketType == MarketType.GMARKET ? "gmarket" : "auction";
-		cafe24.enrichIdentifier(prefix + "_sentAt", LocalDateTime.now().toString());
-
-		Map<String, String> identifiers = new HashMap<>();
-		if (result.marketProductNo() != null) {
-			// 상품번호를 즉시 확보했으면 링크 파생 키에 바로 넣는다(buildGmarketUrl/buildAuctionUrl가 읽는 키).
-			cafe24.enrichIdentifier(prefix + "_goodsNo", result.marketProductNo());
-			identifiers.put(prefix + "_goodsNo", result.marketProductNo());
-		}
-		marketRegistrationRepository.save(cafe24);
-
-		// 상품번호가 없으면 "전송 접수"까지만 참이다. ESM 반영 후 기존 백필 경로가 goodsNo를 채운다.
-		boolean synced = result.marketProductNo() != null;
-		log.info("[마켓플러스] 전송 완료: sbCode={}, market={}, goodsNo={}",
-			product.getSbCode(), marketType, result.marketProductNo());
-		return new MarketPublishOutcome(marketType, identifiers, synced);
+		return new MarketPlusHandoff(marketType, productCode);
 	}
 }
 ```
 
-`ProductPublishUseCase.publishToMarket` 진입부에 분기를 넣는다(`hasClient` 검사보다 **앞에** 둔다 — G마켓·옥션은 어댑터가 없으므로 검사에 걸린다):
-
 ```java
-		// G마켓·옥션에는 상품등록 API가 없다. Cafe24 마켓플러스 경유로 위임한다.
-		if (marketType == MarketType.GMARKET || marketType == MarketType.AUCTION) {
-			return marketPlusPublisher.publish(product, marketType);
-		}
+package com.sbshop.agent.api.dto.market;
+
+import com.sbshop.agent.core.application.product.dto.MarketPlusHandoff;
+
+/**
+ * 프론트가 이것만으로 사용자를 마켓플러스로 데려갈 수 있어야 한다.
+ *
+ * @param market            MarketType.name()
+ * @param cafe24ProductCode 마켓플러스 목록 검색에 쓸 코드(상품코드 검색, 완전일치)
+ * @param marketplusUrl     미판매 상품 목록 URL
+ * @param guide             사용자에게 그대로 보여줄 안내 문구
+ */
+public record MarketPlusHandoffResponse(String market, String cafe24ProductCode,
+	String marketplusUrl, String guide) {
+
+	private static final String MARKETPLUS_NO_SALE_URL =
+		"https://mp.cafe24.com/mp/product/front/noSaleAll";
+
+	public static MarketPlusHandoffResponse from(MarketPlusHandoff handoff, String marketLabel) {
+		return new MarketPlusHandoffResponse(
+			handoff.marketType().name(),
+			handoff.cafe24ProductCode(),
+			MARKETPLUS_NO_SALE_URL,
+			"마켓플러스에서 검색조건을 '상품코드'로 바꾸고 " + handoff.cafe24ProductCode()
+				+ " 를 붙여넣어 검색한 뒤, " + marketLabel + " 를 선택해 일괄 보내기 하세요. "
+				+ "카테고리는 전송 팝업에서 상품마다 선택해야 합니다.");
+	}
+}
 ```
 
-필드를 추가한다:
+`MarketRegistrationController`에 엔드포인트를 추가한다(기존 클래스 매핑이 `/api/v1/products/{productId}/markets`이다):
 
 ```java
-	private final MarketPlusPublisher marketPlusPublisher;
+	/**
+	 * G마켓·옥션은 상품등록 API가 없어 자동 등록할 수 없다. 사용자가 마켓플러스에서 직접 전송하도록
+	 * 필요한 정보(상품코드·URL·안내)를 돌려준다. 여기서 아무것도 저장하지 않는다 —
+	 * 사용자가 실제로 전송했는지 서버는 알 수 없고, 모르는 것을 등록됨으로 기록하면 배지가 거짓말을 한다.
+	 */
+	@GetMapping("/{marketType}/handoff")
+	public ResponseEntity<MarketPlusHandoffResponse> getMarketPlusHandoff(
+		@PathVariable
+		Long productId,
+		@PathVariable
+		String marketType) {
+		MarketType type = MarketType.valueOf(marketType.toUpperCase());
+		return ResponseEntity.ok(MarketPlusHandoffResponse.from(
+			marketPlusHandoffService.resolve(productId, type), type.getDescription()));
+	}
 ```
 
-- [ ] **Step 4: 인프라 어댑터를 만든다**
+필드와 import를 추가한다:
 
 ```java
-package com.sbshop.agent.infrastructure.client.marketplus;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.sbshop.agent.core.application.product.port.MarketPlusSendPort;
+	private final MarketPlusHandoffService marketPlusHandoffService;
+```
+```java
+import com.sbshop.agent.api.dto.market.MarketPlusHandoffResponse;
+import com.sbshop.agent.core.application.product.MarketPlusHandoffService;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
-import java.util.Map;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-
-/** Playwright 사이드카(sbshop-scraper)의 /cafe24/mp/send 호출. */
-@Slf4j
-@Component
-public class MarketPlusSendClient implements MarketPlusSendPort {
-
-	private final RestClient restClient;
-
-	public MarketPlusSendClient(@Value("${scraper.base-url:http://sbshop-scraper:8099}") String baseUrl) {
-		this.restClient = RestClient.builder().baseUrl(baseUrl).build();
-	}
-
-	@Override
-	public MarketPlusSendResult send(String sbCode, MarketType target) {
-		try {
-			JsonNode body = restClient.post()
-				.uri("/cafe24/mp/send")
-				.body(Map.of("sbCode", sbCode, "targetMarket", target.name()))
-				.retrieve()
-				.onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
-					// 503 = 자격증명 미설정. 조용히 실패로 뭉개지 않고 사유를 그대로 올린다.
-					throw new IllegalStateException("마켓플러스 사이드카 오류: " + res.getStatusCode());
-				})
-				.body(JsonNode.class);
-			if (body == null) {
-				return new MarketPlusSendResult(false, "empty_response", null);
-			}
-			String no = body.path("marketProductNo").asText(null);
-			return new MarketPlusSendResult(body.path("ok").asBoolean(false),
-				body.path("reason").asText(null), (no == null || no.isBlank()) ? null : no);
-		} catch (IllegalStateException e) {
-			throw e;
-		} catch (Exception e) {
-			log.error("[마켓플러스] 사이드카 호출 실패: sbCode={}, market={}", sbCode, target, e);
-			throw new IllegalStateException("마켓플러스 사이드카 호출 실패: " + e.getMessage(), e);
-		}
-	}
-}
 ```
 
-`scraper.base-url` 프로퍼티가 이미 있는지 확인하고(`grep -rn "SCRAPER_BASE_URL\|scraper" backend/api/src/main/resources/application*.yml`), 없으면 `ScraplingSourcingClient`가 쓰는 프로퍼티 키와 동일하게 맞춘다.
+`MarketType.getDescription()`의 실제 게터 이름을 확인하고 다르면 맞춘다(`MarketType`은 `GMARKET("G마켓")` 형태의 한글 라벨을 갖고 있다).
+
+`ProductPublishUseCase.publishToMarket` 진입부에 명시적 거절을 넣는다 — 프론트는 이 경로를 부르지 않지만 서버도 독립적으로 막아야 한다:
+
+```java
+		// G마켓·옥션에는 상품등록 API가 없다(ESM은 Cafe24 마켓플러스 경유). 조용히 실패하는 대신 이유를 말한다.
+		if (marketType == MarketType.GMARKET || marketType == MarketType.AUCTION) {
+			throw new IllegalStateException(
+				"G마켓·옥션은 API 등록을 지원하지 않습니다 — 마켓플러스에서 전송해야 합니다");
+		}
+```
+
+- [ ] **Step 4: Task 7이 남긴 미사용 사이드카 코드를 제거한다**
+
+딥링크 핸드오프에는 Playwright 자동화가 필요 없다. 실제 자격증명이 배선된 채 아무도 호출하지 않는
+엔드포인트를 남겨두는 것은 부채다. 다음을 되돌린다:
+
+- `scraper/marketplus.py` 파일 삭제
+- `scraper/app.py`에서 `/cafe24/mp/probe` 라우트와 `marketplus` import 제거
+- `docker-compose.yml`의 `sbshop-scraper` `environment` 블록 제거(다른 항목이 없다면 블록째)
+- `.env.example`의 `CAFE24_MP_USERNAME`/`CAFE24_MP_PASSWORD` 두 줄 제거
+- `sync-env.sh`의 `SYNC_KEYS`에서 두 키 제거
+
+`docs/normalize/working_history/20260813_marketplus_스파이크.md`는 **지우지 마라** — 실측 기록이
+이 설계 결정의 근거이고, 나중에 완전 자동화를 재검토할 때 필요한 유일한 자료다.
 
 - [ ] **Step 5: 통과 확인 + 전 모듈 회귀**
 
-Run: `cd backend && ./gradlew :core:test --tests 'com.sbshop.agent.core.application.product.MarketPlusPublisherTest'`
+Run: `cd backend && ./gradlew :core:test --tests 'com.sbshop.agent.core.application.product.MarketPlusHandoffServiceTest'`
 Expected: PASS
 
 Run: `cd backend && ./gradlew :core:test :infrastructure:test :api:test`
-Expected: PASS (`ProductPublishUseCase` 생성자 인자가 또 하나 늘었으니 기존 테스트들을 함께 고친다)
+Expected: PASS. `MarketRegistrationController` 생성자 인자가 늘었으니 직접 생성하는 테스트가 있으면 함께 고친다.
 
 - [ ] **Step 6: 커밋**
 
 ```bash
-git add backend/core/src/main/java/com/sbshop/agent/core/application/product/port/MarketPlusSendPort.java \
-        backend/core/src/main/java/com/sbshop/agent/core/application/product/MarketPlusPublisher.java \
-        backend/infrastructure/src/main/java/com/sbshop/agent/infrastructure/client/marketplus/MarketPlusSendClient.java \
-        backend/core/src/main/java/com/sbshop/agent/core/application/product/ProductPublishUseCase.java \
-        backend/core/src/test/java/com/sbshop/agent/core/application/product/MarketPlusPublisherTest.java
-git commit -m "feat(product): G마켓·옥션 등록을 Cafe24 마켓플러스 경유로 연결한다"
+git add backend/core/src/main/java/com/sbshop/agent/core/application/product/MarketPlusHandoffService.java         backend/core/src/main/java/com/sbshop/agent/core/application/product/dto/MarketPlusHandoff.java         backend/api/src/main/java/com/sbshop/agent/api/dto/market/MarketPlusHandoffResponse.java         backend/api/src/main/java/com/sbshop/agent/api/controller/MarketRegistrationController.java         backend/core/src/main/java/com/sbshop/agent/core/application/product/ProductPublishUseCase.java         backend/core/src/test/java/com/sbshop/agent/core/application/product/MarketPlusHandoffServiceTest.java         scraper/ docker-compose.yml .env.example sync-env.sh
+git commit -m "feat(product): G마켓·옥션은 마켓플러스 딥링크 핸드오프로 넘긴다"
+```
+
+---
+
+## Task 9: G마켓·옥션 배지 핸드오프 (프론트)
+
+**Files:**
+- Modify: `frontend/src/api/productApi.ts`
+- Modify: `frontend/src/pages/product/MarketBadgeCell.tsx`
+
+**Interfaces:**
+- Consumes: Task 8의 `GET /api/v1/products/{id}/markets/{marketType}/handoff` → `{ market, cafe24ProductCode, marketplusUrl, guide }`
+- Produces: 없음(프론트 종단)
+
+- [ ] **Step 1: API 함수와 타입을 추가한다**
+
+`frontend/src/api/productApi.ts`에 추가한다:
+
+```ts
+// G마켓·옥션은 상품등록 API가 없어 사람이 마켓플러스에서 전송한다.
+// 서버는 "어느 상품코드로 찾으면 되는지"까지만 알려준다.
+export interface MarketPlusHandoff {
+  market: string;
+  cafe24ProductCode: string;
+  marketplusUrl: string;
+  guide: string;
+}
+```
+
+`productApi` 객체에 추가한다:
+
+```ts
+  getMarketPlusHandoff: (id: number, marketType: string) =>
+    apiClient.get<MarketPlusHandoff>(`/api/v1/products/${id}/markets/${marketType}/handoff`),
+```
+
+- [ ] **Step 2: 배지 클릭을 마켓별로 분기한다**
+
+`MarketBadgeCell.tsx`에서 ESM 마켓(GMARKET/AUCTION)은 등록이 아니라 핸드오프로 간다.
+**팝업 차단을 피하려면 `window.open`이 사용자 제스처 안에서 동기적으로 실행되어야 한다** —
+그래서 서버 조회를 먼저 하고, 다이얼로그의 `onOk`(버튼 클릭 = 제스처) 안에서 열기만 한다.
+
+`import { productApi } from '../../api/productApi';`와 `ESM_MARKET_KEYS` import를 추가하고,
+아래 함수를 컴포넌트 안에 넣는다:
+
+```tsx
+  // G마켓·옥션: 자동 등록이 불가능하므로 사람을 마켓플러스로 데려간다.
+  // 조회를 먼저 끝내고 다이얼로그 확인(사용자 제스처) 안에서 새 탭을 연다 — 조회 후에 열면 팝업이 차단된다.
+  const handoff = async (marketKey: string, label: string) => {
+    setPublishing(marketKey);
+    setFailed((f) => { const next = { ...f }; delete next[marketKey]; return next; });
+    try {
+      const { data } = await productApi.getMarketPlusHandoff(product.id, marketKey);
+      AntModal.confirm({
+        title: `${label} 전송 (마켓플러스)`,
+        content: `${label}는 상품등록 API가 없어 마켓플러스에서 직접 보내야 합니다. ${data.guide}`,
+        okText: '마켓플러스 열기', cancelText: '취소',
+        onOk: () => {
+          navigator.clipboard?.writeText(data.cafe24ProductCode);
+          window.open(data.marketplusUrl, '_blank', 'noopener');
+          toast.info(`상품코드 ${data.cafe24ProductCode} 를 복사했습니다.`);
+        },
+      });
+    } catch (e) {
+      const msg = extractError(e);
+      setFailed((f) => ({ ...f, [marketKey]: msg }));
+      toast.error(`${label} 전송 준비 실패 — ${msg}`);
+    } finally {
+      setPublishing(null);
+    }
+  };
+```
+
+`missing`과 `failed` 분기의 `onClick`이 마켓에 따라 갈라지게 한다. 두 분기 모두에서
+`publish(m.key, m.label)` 호출을 아래로 바꾼다:
+
+```tsx
+              onClick={(e) => {
+                e.stopPropagation();
+                if (ESM_MARKET_KEYS.includes(m.key)) handoff(m.key, m.label);
+                else publish(m.key, m.label);
+              }}
+```
+
+`missing` 배지의 `title`도 마켓에 따라 갈라지게 한다:
+
+```tsx
+            title={ESM_MARKET_KEYS.includes(m.key)
+              ? `${m.label} 미등록 — 클릭하면 마켓플러스로 이동합니다`
+              : `${m.label} 미등록 — 클릭하면 등록합니다`}
+```
+
+**핸드오프 후에도 배지는 미등록 그대로다.** 사용자가 실제로 전송했는지 서버는 알 수 없으므로
+아무것도 저장하지 않고, 상품번호는 기존 ESM 엑셀 백필 경로가 채운다. 모르는 것을 등록됨으로
+표시하면 배지가 거짓말을 한다.
+
+- [ ] **Step 3: 게이트 통과 확인**
+
+Run: `cd frontend && npx tsc -p tsconfig.app.json && npx eslint src/pages/product src/api`
+Expected: 신규 오류 0건(기존 2건은 브랜치 이전부터 있던 것).
+
+- [ ] **Step 4: 커밋**
+
+```bash
+git add frontend/src/api/productApi.ts frontend/src/pages/product/MarketBadgeCell.tsx
+git commit -m "feat(product): G마켓·옥션 배지는 마켓플러스로 사용자를 데려간다"
 ```
 
 ---
@@ -1657,7 +1654,7 @@ git commit -m "feat(product): G마켓·옥션 등록을 Cafe24 마켓플러스 �
 
 **Files:**
 - Modify: `docs/normalize/defect-ledger.md` (신규 기능이 드러낸 결함이 있으면 기록)
-- Create: `docs/normalize/working_history/20260813_1600_결과서.md`
+- Create: `docs/normalize/working_history/20260814_결과서.md`
 
 - [ ] **Step 1: 전 모듈 게이트를 통과시킨다**
 
@@ -1667,20 +1664,17 @@ cd ../frontend && npx tsc -p tsconfig.app.json && npx eslint . && npm run build
 ```
 Expected: 모두 성공. **하나라도 실패하면 배포하지 않는다.**
 
-- [ ] **Step 2: 배포한다**
+- [ ] **Step 2: main에 병합하고 배포한다**
 
 ```bash
-git push origin main
+git checkout main && git merge --no-ff feat/market-badge-publish && git push origin main
 ```
 
-**주의:** push는 곧 운영 API 재시작이다. 진행 중인 배치가 있으면 끝난 뒤에 push한다(`/batch/status/{id}/summary`로 확인).
+**주의:** push는 곧 운영 API 재시작이다. 진행 중인 배치가 있으면 끝난 뒤에 push한다.
 
 - [ ] **Step 3: 배포를 확인한다**
 
-```bash
-ssh -i ssh-key-2026-06-25.key <운영서버> "cd /root/Projects && git log --oneline -1 && docker ps --format '{{.Names}}\t{{.CreatedAt}}' | grep -E 'sbshop-(api|scraper)'"
-```
-Expected: 서버 저장소 최신 커밋 = 방금 push한 커밋이고, 컨테이너 생성시각이 그 커밋 시각보다 **뒤**여야 한다.
+서버 저장소 최신 커밋 = 방금 push한 커밋이고, 컨테이너 생성시각이 그 커밋 시각보다 **뒤**여야 한다.
 
 - [ ] **Step 4: 라이브 검증**
 
@@ -1691,16 +1685,16 @@ Expected: 서버 저장소 최신 커밋 = 방금 push한 커밋이고, 컨테�
 3. 점선 쿠팡 배지 클릭 → 확인 다이얼로그 → 등록 → 배지가 채색 링크로 바뀌는지
 4. 쿠팡 판매자센터에서 **실제 등록가가 그 마켓 수수료 반영가인지**(기준가와 다를 수 있다 — 그게 정상이다)
 5. 카페24 미등록 상품의 G마켓 배지가 흐리고 클릭 불가인지
-6. 카페24 등록 상품의 G마켓 배지 클릭 → 마켓플러스에 실제로 전송됐는지
+6. 카페24 등록 상품의 G마켓 배지 클릭 → 상품코드 안내 다이얼로그 → 마켓플러스가 새 탭으로 열리고 그 코드로 검색하면 상품이 나오는지
+7. Task 4에서 브라우저로 확인하지 못한 4항목(점선 배지·다이얼로그 문구·취소 시 무요청·blocked 클릭 불가)
 
 - [ ] **Step 5: 결과서를 쓰고 커밋한다**
 
-`docs/normalize/working_history/20260813_1600_결과서.md`에 검증 결과·미해결 항목·다음 단계 참조를 기록한다. 4번에서 가격이 기준가 그대로였다면 그것은 미해결 결함이므로 `defect-ledger.md`에 등재한다.
+`docs/normalize/working_history/20260814_결과서.md`에 검증 결과·미해결 항목·다음 단계 참조를 기록한다.
+4번에서 가격이 기준가 그대로였다면 그것은 미해결 결함이므로 `defect-ledger.md`에 등재한다.
 
 ```bash
-git add docs/normalize/
-git commit -m "docs(normalize): 마켓 배지 클릭 등록 라이브 검증 결과"
-git push origin main
+git add docs/normalize/ && git commit -m "docs(normalize): 마켓 배지 클릭 등록 라이브 검증 결과" && git push origin main
 ```
 
 ---
