@@ -1652,17 +1652,16 @@ git commit -m "feat(product): G마켓·옥션 배지는 마켓플러스로 사�
 
 ## Task 10: 배포와 라이브 검증
 
-**Files:**
-- Modify: `docs/normalize/defect-ledger.md` (신규 기능이 드러낸 결함이 있으면 기록)
-- Create: `docs/normalize/working_history/20260814_결과서.md`
-
 - [ ] **Step 1: 전 모듈 게이트를 통과시킨다**
 
 ```bash
 cd backend && ./gradlew :core:test :infrastructure:test :api:test
-cd ../frontend && npx tsc -p tsconfig.app.json && npx eslint . && npm run build
+cd ../frontend && npx tsc -p tsconfig.app.json && npx eslint src/pages/product src/api && npm run build
 ```
-Expected: 모두 성공. **하나라도 실패하면 배포하지 않는다.**
+
+린트는 `npx eslint .`가 아니라 **변경 디렉터리만** 돌린다 — 저장소 전역에는 이 브랜치 이전부터 있던
+위반이 10건 있어 `.` 전체는 원래부터 통과하지 못한다. 기준은 "신규 위반 0건"이다
+(`ProductGrid.tsx`의 react-refresh error와 react-hooks warning 2건은 기존 항목).
 
 - [ ] **Step 2: main에 병합하고 배포한다**
 
@@ -1678,20 +1677,31 @@ git checkout main && git merge --no-ff feat/market-badge-publish && git push ori
 
 - [ ] **Step 4: 라이브 검증**
 
-상품 관리 화면에서 순서대로 확인한다:
+상품 관리 화면에서 확인한다. **기대치를 먼저 정확히 알고 봐야 한다** — 아래 주의를 읽지 않으면
+정상 동작을 버그로 오인한다.
 
 1. `231211FM017`(N스토어만 등록)의 배지가 N스토어만 채색이고 나머지 5개가 점선인지
 2. `220915IHB015`(전 마켓 등록)의 배지가 모두 채색인지
-3. 점선 쿠팡 배지 클릭 → 확인 다이얼로그 → 등록 → 배지가 채색 링크로 바뀌는지
-4. 쿠팡 판매자센터에서 **실제 등록가가 그 마켓 수수료 반영가인지**(기준가와 다를 수 있다 — 그게 정상이다)
-5. 카페24 미등록 상품의 G마켓 배지가 흐리고 클릭 불가인지
-6. 카페24 등록 상품의 G마켓 배지 클릭 → 상품코드 안내 다이얼로그 → 마켓플러스가 새 탭으로 열리고 그 코드로 검색하면 상품이 나오는지
-7. Task 4에서 브라우저로 확인하지 못한 4항목(점선 배지·다이얼로그 문구·취소 시 무요청·blocked 클릭 불가)
+3. 점선 쿠팡 배지 클릭 → 마진율·쿠폰율·최소마진 입력 다이얼로그 → 등록 성공
+   **주의: 등록 직후 쿠팡 배지는 채색 "링크"가 되지 않는다.** `buildMarketUrl`은 쿠팡 `productId`를
+   요구하는데 publish가 돌려주는 건 `sellerProductId`다. 링크는 `MarketLinkIdentifierBackfillService`가
+   나중에 채운다. 등록 직후의 올바른 기대는 **링크 없는 등록 상태**다. 11번가는 그 백필 SPEC 자체가
+   없어 링크가 끝내 생기지 않는다(알려진 한계).
+4. 쿠팡 판매자센터에서 **실제 등록가가 다이얼로그에 입력한 정책대로 산정됐는지**
+   (기준가와 다를 수 있다 — 마켓별 수수료를 반영하므로 그게 정상이다)
+5. 카페24 미등록 상품의 G마켓·옥션 배지가 흐리고 클릭 불가인지
+6. 카페24 등록 상품의 G마켓 배지 클릭 → 상품코드 안내 다이얼로그 → 마켓플러스가 새 탭으로 열리고
+   그 코드로 검색하면 상품이 나오는지
+7. **11번가·카페24 배지 클릭이 카테고리를 못 구하면 거부되는지** — 조용히 등록되지 않고
+   사유가 배지 툴팁·토스트에 뜨는지. 카페24는 저신뢰 자동매칭도 거부 대상이라 실제로 자주 거부될 수 있다.
+8. 등록이 실패한 상품을 **새로고침한 뒤** 그 마켓 배지가 주황색 미완료(PENDING) 상태로 남는지
+9. Task 4에서 브라우저로 확인하지 못한 4항목(점선 배지·다이얼로그 문구·취소 시 무요청·blocked 클릭 불가)
 
 - [ ] **Step 5: 결과서를 쓰고 커밋한다**
 
 `docs/normalize/working_history/20260814_결과서.md`에 검증 결과·미해결 항목·다음 단계 참조를 기록한다.
-4번에서 가격이 기준가 그대로였다면 그것은 미해결 결함이므로 `defect-ledger.md`에 등재한다.
+알려진 한계(11번가 링크 미생성, 쿠팡 링크 지연, 카페24 카테고리 거부 빈도)는 결함이 아니라 기록 대상이다.
+4번에서 가격이 입력 정책과 무관하게 나왔다면 그건 미해결 결함이므로 `defect-ledger.md`에 등재한다.
 
 ```bash
 git add docs/normalize/ && git commit -m "docs(normalize): 마켓 배지 클릭 등록 라이브 검증 결과" && git push origin main
