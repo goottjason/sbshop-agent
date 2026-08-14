@@ -33,7 +33,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
  *
  * <p>종전 구현은 진열 분류가 없으면 {@code log.warn}만 남기고 그대로 등록해, 어느 진열에도
  * 걸리지 않는 유령 상품이 조용히 생겼다. 이제는 (1) {@link Cafe24CategoryResolver}로 자동 해석을
- * 먼저 시도하고, (2) 그래도 못 구하면(분류 목록 자체가 없음) 등록을 거부해야 한다.
+ * 먼저 시도하고, (2) 그래도 못 구하면 등록을 거부해야 한다.
+ *
+ * <p>수정 라운드 1(리뷰 Important): "못 구했다"는 분류 목록 자체가 없는 경우뿐 아니라, 이름 매칭이
+ * 안 돼 리졸버가 최저번호 분류로 <b>저신뢰 폴백</b>한 경우({@code confident()==false})도 포함한다.
+ * 저신뢰 폴백을 성공으로 인정하면 "카테고리를 구할 수 없으면 거부한다"는 사용자 결정이 짐작으로
+ * 아무 곳에나 거는 것으로 무력화되므로, 고신뢰({@code confident()==true}) 결과만 통과시킨다.
  */
 @ExtendWith(MockitoExtension.class)
 class Cafe24MarketClientCategoryTest {
@@ -66,8 +71,8 @@ class Cafe24MarketClientCategoryTest {
 	}
 
 	@Test
-	@DisplayName("컨텍스트에 카테고리가 없으면 자동 해석을 시도해 등록에 반영한다")
-	void noCategoryInContext_resolvesAutomatically() {
+	@DisplayName("컨텍스트에 카테고리가 없어도 고신뢰(confident=true) 자동 해석이면 등록에 반영한다")
+	void noCategoryInContext_confidentResolution_resolvesAutomatically() {
 		when(categoryResolver.resolve(any(), any(), any()))
 			.thenReturn(new MarketCategory("55", "건강기능식품 > 비타민", true));
 		when(cafe24RestClient.post(eq("/admin/products"), any())).thenReturn(OK_RESPONSE);
@@ -87,6 +92,22 @@ class Cafe24MarketClientCategoryTest {
 		assertThatThrownBy(() -> client.publish(product(), MarketPublishContext.empty()))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("진열 분류");
+
+		verify(cafe24RestClient, never()).post(eq("/admin/products"), any());
+	}
+
+	@Test
+	@DisplayName("수정 라운드 1: 저신뢰(confident=false) 폴백은 '구했다'로 치지 않고 거부한다")
+	void resolverLowConfidenceFallback_rejectsPublish() {
+		// Cafe24CategoryResolver는 이름 매칭 실패 시 가장 낮은 번호의 분류로 폴백하며
+		// isResolved()==true, confident()==false를 함께 돌려준다 — 이 신호를 성공으로 치면
+		// 상품이 짐작으로 포괄적인 루트 분류("전체상품" 등)에 걸릴 수 있다.
+		when(categoryResolver.resolve(any(), any(), any()))
+			.thenReturn(new MarketCategory("1", "전체상품 (자동 폴백)", false));
+
+		assertThatThrownBy(() -> client.publish(product(), MarketPublishContext.empty()))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("확신");
 
 		verify(cafe24RestClient, never()).post(eq("/admin/products"), any());
 	}
