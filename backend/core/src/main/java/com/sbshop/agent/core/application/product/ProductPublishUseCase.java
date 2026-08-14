@@ -51,6 +51,12 @@ public class ProductPublishUseCase {
 		Product product = productReader.findById(productId)
 			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
 
+		// G마켓·옥션에는 상품등록 API가 없다(ESM은 Cafe24 마켓플러스 경유). 조용히 실패하는 대신 이유를 말한다.
+		if (marketType == MarketType.GMARKET || marketType == MarketType.AUCTION) {
+			throw new IllegalStateException(
+				"G마켓·옥션은 API 등록을 지원하지 않습니다 — 마켓플러스에서 전송해야 합니다");
+		}
+
 		if (!marketClientRouter.hasClient(marketType)) {
 			throw new IllegalArgumentException("지원하지 않는 마켓입니다: " + marketType);
 		}

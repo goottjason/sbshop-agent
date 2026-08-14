@@ -70,11 +70,6 @@ services:
       dockerfile: Dockerfile.scraper
     container_name: projects-sbshop-scraper-1
     shm_size: "2g"
-    environment:
-      # Cafe24 마켓플러스 로그인 계정. 비어 있으면 /cafe24/mp/* 가 503으로 거절한다
-      # (조용히 성공한 척하지 않는다 — G마켓·옥션 배지가 거짓으로 켜지면 안 된다).
-      CAFE24_MP_USERNAME: ${CAFE24_MP_USERNAME:-}
-      CAFE24_MP_PASSWORD: ${CAFE24_MP_PASSWORD:-}
     networks:
       - shared-net
     restart: unless-stopped
