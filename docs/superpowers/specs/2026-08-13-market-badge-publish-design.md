@@ -2,7 +2,9 @@
 
 - 날짜: 2026-08-13
 - 대상: 상품 관리 그리드(마켓 컬럼), 마켓 등록 경로, Cafe24 마켓플러스 자동화
-- 상태: 승인됨(사용자 확인 2026-08-13)
+- 상태: 승인됨(사용자 확인 2026-08-13) · **§5.2·§5.3·§6·§8은 2026-08-14 실측 결과로 개정됨**
+  (Phase 0 스파이크에서 자동 전송이 성립하지 않는다고 확인되어 딥링크 핸드오프로 설계 변경 —
+  실측 근거는 `docs/normalize/working_history/20260813_marketplus_스파이크.md` 참조)
 
 ## 1. 문제
 
@@ -90,35 +92,49 @@ PENDING·FAILED를 표현할 수 없으므로 값을 객체로 승격한다.
 - 산정된 가격을 `MarketPublishContext.salePrice`에 실어 `client.publish(product, context)`로 넘긴다.
   네 어댑터 모두 이미 컨텍스트 판매가를 원시값보다 우선하도록 짜여 있어 **어댑터 수정은 불필요하다.**
 
-### 5.2 G마켓 · 옥션 (Cafe24 마켓플러스 경유)
+### 5.2 G마켓 · 옥션 — 딥링크 핸드오프 (2026-08-14 개정)
 
-`ProductPublishUseCase`에서 GMARKET/AUCTION을 분기해 새 `MarketPlusPublisher`로 위임한다.
+**Phase 0 스파이크(`docs/normalize/working_history/20260813_marketplus_스파이크.md`) 실측 결과,
+당초 계획한 Playwright 자동 전송은 만들지 않기로 했다.** 이유:
 
-1. 해당 상품의 CAFE24 등록행 존재를 확인한다. 없으면 409 + "카페24 등록이 필요합니다"로 거부한다
-   (프론트는 애초에 배지를 비활성화하지만, 서버도 독립적으로 막는다).
-2. 사이드카 `POST /cafe24/mp/send` 호출: `{ sbCode, targetMarket: "GMARKET"|"AUCTION" }`.
-3. 사이드카(Playwright, 헤드리스)가 수행:
-   - `mp.cafe24.com` 로그인
-   - `https://mp.cafe24.com/mp/product/front/noSaleAll` 진입
-   - `sbCode`(Cafe24 `custom_product_code`)로 검색 → 해당 행 체크
-   - 일괄 보내기 다이얼로그에서 대상 마켓 지정 → 전송
-   - 결과(성공/실패, 가능하면 마켓 상품번호)를 반환
-4. 성공 시 Cafe24 등록행 `market_identifiers`에 전송 마커(`gmarket_sentAt` / `auction_sentAt`)를 남긴다.
+- 마켓플러스 전송 팝업(`/mp/product/front/registerall`)은 상품마다 **마켓 카테고리 4단계를
+  사람이 골라야** 한다(템플릿은 계정 단위 자동 선택이지만 카테고리는 매번 미선택 상태).
+- 그 팝업에 **reCAPTCHA**(`recaptcha/api.js`, `#grecaptcha_v2_dialog`)가 로드된다.
+- 헤드리스 사이드카가 연 팝업(`context.expect_page()`로 받는 새 창)은 사람이 이어받아
+  카테고리를 고르고 캡차를 풀 수 없다 — 자동화와 사람 개입이 같은 세션에서 만날 수 없는 구조다.
 
-**상품번호 매칭에 관한 정직한 한계:** 마켓플러스 "보내기" 직후 ESM 상품번호가 즉시 나오지 않을 가능성이 크다
-(ESM 반영 지연). 따라서 전송 성공은 "접수됨"으로 취급하고 배지는 PENDING(채색 테두리·링크 없음)으로 두며,
-실제 `gmarket_goodsNo`/`auction_goodsNo`는 기존 ESM 엑셀 백필 경로가 채운다.
-Phase 0 스파이크에서 전송 화면이 상품번호를 즉시 노출한다는 사실이 확인되면, 그 값을 바로 저장하도록 바꾼다.
+대신 서버는 **어디서 무엇을 찾으면 되는지**까지만 책임지고, 나머지는 사람이 자기 브라우저로 한다.
+
+1. 프론트가 배지를 클릭하면 `GET /api/v1/products/{id}/markets/{marketType}/handoff`
+   (`MarketPlusHandoffService.resolve`, `ProductController`)를 호출한다.
+2. 서버는 해당 상품의 CAFE24 등록행 존재를 확인한다. 없으면 `IllegalStateException` →
+   `GlobalExceptionHandler`가 400으로 변환해 "카페24 등록이 먼저 필요합니다"로 거부한다
+   (프론트는 애초에 배지를 비활성화하지만, 서버도 독립적으로 막는다). API 4마켓 publish 경로도
+   `ProductPublishUseCase`가 GMARKET/AUCTION을 같은 방식으로 독립 거부한다(등록 경로가
+   조용히 실패하지 않도록).
+3. 서버는 Cafe24 등록행의 `product_code`(마켓플러스 검색에 쓰이는 Cafe24 자체 상품코드,
+   sbCode와는 다르다)와 마켓플러스 URL, 안내 문구를 담은 `MarketPlusHandoff`를 반환한다.
+   **서버는 이 시점에 아무것도 저장하지 않는다** — 사용자가 실제로 마켓플러스에서
+   전송했는지, 심지어 그 화면을 열었는지조차 서버는 알 방법이 없다.
+4. 프론트는 확인 다이얼로그에서 `product_code`를 클립보드에 복사하고 마켓플러스
+   `noSaleAll`(일괄보내기 미판매 목록)을 새 탭으로 연다. 사람이 그 코드로 검색해 행을
+   찾고, 대상 마켓을 체크하고, 카테고리를 고르고, 직접 전송 버튼을 누른다.
+5. **미판매 목록 검색은 Cafe24 `product_code` 완전일치로만 매칭된다**(실측: `P000BGOU`
+   완전일치 1건, 앞자리 부분일치 `P000BGO` 0건). **sbCode(자체상품코드)로는 검색되지
+   않고 그 화면 어디에도 노출조차 되지 않는다** — 그래서 핸드오프 응답은 sbCode가 아니라
+   Cafe24 `product_code`를 넘긴다.
+6. 실제 전송 여부·성공 여부·마켓 상품번호는 서버가 즉시 알 수 없다(전송은 마켓플러스
+   내부 큐로 처리되고 완료까지 지연이 있음, 스파이크 §5 참조). 기존 ESM 엑셀 백필
+   경로가 `gmarket_goodsNo`/`auction_goodsNo`를 채우면 그때 배지가 링크 상태로 바뀐다.
 
 ### 5.3 자격증명
 
-마켓플러스 계정은 사이드카에만 필요하다. 공간을 미리 만들어 둔다:
-
-- `.env.example`: `CAFE24_MP_USERNAME=`, `CAFE24_MP_PASSWORD=`
-- `docker-compose.yml`의 `sbshop-scraper` 서비스에 `environment` 블록 신설 후 두 키 전달
-- `sync-env.sh`의 `SYNC_KEYS`에 두 키 추가
-- 값이 비어 있으면 `/cafe24/mp/send`는 `503 credentials_missing`을 반환하고,
-  API는 이를 "마켓플러스 계정 미설정"으로 사용자에게 표면화한다(조용한 실패 금지).
+**쓰지 않는다.** 마켓플러스 로그인은 사람이 자기 브라우저·자기 세션으로 한다(딥링크 핸드오프는
+로그인을 대행하지 않는다). 당초 계획했던 사이드카용 `CAFE24_MP_USERNAME`/`CAFE24_MP_PASSWORD`
+환경변수, `.env.example`/`sync-env.sh` 반영, `503 credentials_missing` 응답은 전부 폐기됐다 —
+스파이크 중 만들었던 사이드카 코드(`scraper/marketplus.py`, `/cafe24/mp/probe` 엔드포인트,
+`docker-compose.yml`/`.env.example`/`sync-env.sh`의 자격증명 배선)는 딥링크 핸드오프에는
+필요 없어 되돌렸다(커밋 `feat(product): G마켓·옥션은 마켓플러스 딥링크 핸드오프로 넘긴다`).
 
 ## 6. 실패 처리
 
@@ -126,30 +142,33 @@ Phase 0 스파이크에서 전송 화면이 상품번호를 즉시 노출한다�
 |---|---|---|
 | 어댑터 없는 마켓 | 400 | 애초에 클릭 불가 |
 | 마켓 API 등록 거부 | 502 + 마켓 사유 | 빨간 점선 + 사유 툴팁 |
-| 카페24 선행조건 미충족 | 409 | 비활성(툴팁 안내) |
-| 마켓플러스 로그인 실패 | 502 `mp_login_failed` | 빨간 점선 |
-| 마켓플러스에서 상품 미발견 | 404 `mp_product_not_found` | 빨간 점선 |
-| 자격증명 미설정 | 503 `credentials_missing` | 빨간 점선 + "계정 미설정" |
+| 카페24 선행조건 미충족(핸드오프 요청 시) | 400 (`IllegalStateException`) | 비활성(툴팁 안내) |
+| 카페24 선행조건 미충족(API publish 직접 시도 시) | 400 (`IllegalStateException`, `ProductPublishUseCase`가 독립 거부) | 프론트는 이 경로를 안 타므로 해당 없음 |
+| 카페24 상품코드 미확보(핸드오프 요청 시) | 400 (`IllegalStateException`) | 빨간 점선 + "카페24 재등록이 필요합니다" |
 
 모든 등록 시도는 기존 `ActionLogService`(`PRODUCT_PUBLISH`)에 성공/실패가 기록된다(이미 구현됨).
-사이드카 실패 시에는 스크린샷을 컨테이너 내부에 남겨 DOM 변경 진단을 가능하게 한다.
+핸드오프는 아무것도 저장하지 않으므로(§5.2) 실제 마켓플러스 전송 성공/실패는 서버가 알 수 없다 —
+그 실패는 사람이 마켓플러스 화면에서 직접 마주한다(스파이크 §C: G마켓 계정 상품 수 초과 등).
 
 ## 7. 테스트
 
 - **Core**: 마켓별 산정가가 `MarketPublishContext.salePrice`에 실리는지 / 동기화·등록이 같은 resolver를 쓰는지 /
-  Cafe24 등록행 없이 GMARKET publish 시 거부하는지 / 사이드카 실패가 조용히 성공으로 처리되지 않는지.
-- **API**: `marketRegistrations` 응답 계약(객체 승격, CAFE24 키 포함) / publish 응답 DTO 계약.
-- **사이드카**: DOM 셀렉터는 자동 검증 불가 — 셀렉터를 상수로 모으고 실패 시 스크린샷을 남긴다.
+  Cafe24 등록행 없이 GMARKET publish 시 거부하는지 / 핸드오프가 CAFE24 등록행·`product_code` 없이는
+  거부하고 있으면 그 코드를 그대로 반환하는지(`MarketPlusHandoffServiceTest`, 구현됨).
+- **API**: `marketRegistrations` 응답 계약(객체 승격, CAFE24 키 포함) / publish 응답 DTO 계약 /
+  `GET .../markets/{marketType}/handoff` 응답 계약.
 - **프론트**: `npx tsc -p tsconfig.app.json` 통과.
 
 ## 8. 단계
 
 - **Phase 0 — 스파이크(마켓플러스 실측).** 로그인 흐름, `noSaleAll` 목록의 검색 키(sbCode가 자체상품코드로
   검색되는지), 일괄 보내기 다이얼로그가 G마켓/옥션 개별 선택을 지원하는지, 전송 후 상품번호 노출 여부.
-  **마켓플러스 자격증명이 있어야 진행 가능.**
+  **완료(2026-08-13) — 결과는 자동 전송 폐기(§5.2 참조).**
 - **Phase 1 — 배지 UI + API 4마켓 클릭 등록.** 6슬롯 배지, 응답 계약 확장, publish 응답 DTO.
-  이 단계만으로 쿠팡·N스토어·11번가·카페24가 동작한다.
-- **Phase 2 — 마켓별 판매가 산정을 publish 경로에 연결.**
-- **Phase 3 — 마켓플러스 사이드카 + G마켓·옥션 배지 활성화.**
+  이 단계만으로 쿠팡·N스토어·11번가·카페24가 동작한다. **완료.**
+- **Phase 2 — 마켓별 판매가 산정을 publish 경로에 연결.** **완료.**
+- **Phase 3 — G마켓·옥션 딥링크 핸드오프 배지 활성화.** 당초 "마켓플러스 사이드카"였던 계획을
+  Phase 0 결과에 따라 딥링크 핸드오프로 대체해 완료. **완료.**
 
-Phase 1·2는 Phase 0과 무관하게 진행할 수 있다. Phase 3만 스파이크 결과에 의존한다.
+Phase 1·2는 Phase 0과 무관하게 진행할 수 있었다. Phase 3만 스파이크 결과에 의존했고,
+그 의존이 자동 전송에서 딥링크 핸드오프로 설계를 바꾸는 근거가 됐다.

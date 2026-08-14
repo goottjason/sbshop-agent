@@ -2,12 +2,15 @@ package com.sbshop.agent.infrastructure.client.cafe24.adapter;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sbshop.agent.core.application.sourcing.dto.MarketCategory;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
+import com.sbshop.agent.core.domain.product.enums.ProductCategory;
 import com.sbshop.agent.infrastructure.client.cafe24.client.Cafe24RestClient;
+import com.sbshop.agent.infrastructure.client.cafe24.component.Cafe24CategoryResolver;
 import com.sbshop.agent.infrastructure.client.common.util.HtmlImageExtractor;
 import java.util.Base64;
 import java.util.HashMap;
@@ -25,6 +28,7 @@ public class Cafe24MarketClient implements MarketClient {
 	private final ObjectMapper objectMapper;
 	private final Cafe24RestClient cafe24RestClient;
 	private final HtmlImageExtractor imageExtractor;
+	private final Cafe24CategoryResolver categoryResolver;
 
 	@Override
 	public MarketType getSupportedMarket() {
@@ -39,8 +43,16 @@ public class Cafe24MarketClient implements MarketClient {
 	/**
 	 * Cafe24 자사몰 등록.
 	 *
-	 * <p>기존 구현은 진열 분류를 지정하지 않아 등록은 되지만 <b>어느 진열에도 노출되지 않았다</b>.
-	 * 검수된 분류번호({@code categoryId})를 {@code add_category_no}로 넣고 전시·판매 플래그를 켠다.
+	 * <p>기존 구현은 진열 분류가 없으면 {@code log.warn}만 남기고 그대로 등록했다 — 결과적으로
+	 * <b>어느 진열에도 걸리지 않아 고객이 볼 수 없는 상품</b>이 조용히 만들어졌는데, 호출자에게는
+	 * 등록 성공으로 보고됐다. 이제는 컨텍스트에 분류가 없으면 {@link Cafe24CategoryResolver}로
+	 * 쇼핑몰 분류 목록에서 자동 매칭을 먼저 시도하고, 그래도 못 구하면 등록을 <b>거부</b>한다 —
+	 * 유령 상품을 만드는 대신 실패를 표면화한다. "못 구했다"는 (1) 쇼핑몰 분류 목록 자체가 없거나
+	 * API 조회가 실패한 경우, (2) 이름 매칭이 안 돼 최저번호 분류로 <b>저신뢰 폴백</b>한 경우
+	 * ({@code confident()==false}) 둘 다를 포함한다 — 저신뢰 폴백을 성공으로 치면 "카테고리를
+	 * 구할 수 없으면 거부한다"는 사용자 결정이 짐작으로 아무 곳에나 거는 것으로 무력화된다.
+	 *
+	 * <p>검수된 분류번호({@code categoryId})를 {@code add_category_no}로 넣고 전시·판매 플래그를 켠다.
 	 *
 	 * <p>Cafe24는 미지원 필드를 보내면 422로 거절하므로, 확신이 있는 필드만 채운다.
 	 */
@@ -72,17 +84,13 @@ public class Cafe24MarketClient implements MarketClient {
 			if (origin != null && !origin.isBlank())
 				productData.put("origin_place_value", origin);
 
-			// 진열 분류 — 없으면 넣지 않는다(빈 값을 보내면 422).
-			if (context.hasCategory()) {
-				Map<String, Object> category = new HashMap<>();
-				category.put("category_no", parseCategoryNo(context.categoryId()));
-				category.put("recommend", "F");
-				category.put("new", "T");
-				productData.put("add_category_no", List.of(category));
-			} else {
-				log.warn("[카페24] 진열 분류가 지정되지 않아 상품이 쇼핑몰에 노출되지 않습니다: {}",
-					product.getSbCode());
-			}
+			// 진열 분류 — 컨텍스트에 없으면 자동 해석을 먼저 시도하고, 그래도 못 구하면 등록을 거부한다.
+			String categoryNo = context.hasCategory() ? context.categoryId() : resolveCategoryOrThrow(product);
+			Map<String, Object> category = new HashMap<>();
+			category.put("category_no", parseCategoryNo(categoryNo));
+			category.put("recommend", "F");
+			category.put("new", "T");
+			productData.put("add_category_no", List.of(category));
 
 			List<String> hostedImages = product.getHostedImages();
 			if (!hostedImages.isEmpty()) {
@@ -124,6 +132,51 @@ public class Cafe24MarketClient implements MarketClient {
 		} catch (NumberFormatException e) {
 			throw new IllegalStateException("카페24 분류번호가 숫자가 아닙니다: " + raw);
 		}
+	}
+
+	/**
+	 * 컨텍스트에 분류가 없을 때 {@link Cafe24CategoryResolver}로 자동 해석한다.
+	 *
+	 * <p>수정 라운드 1(리뷰 Important): 매칭 실패(용어 불일치) 시 리졸버는 <b>가장 낮은 번호의 분류로
+	 * 폴백</b>하며 {@code isResolved()}는 여전히 true, {@code confident()}만 false다. 리졸버 자신의
+	 * 주석대로 최저 번호는 "전체상품" 같은 포괄적 루트 분류일 가능성이 높다 — 이걸 성공으로 치면
+	 * "카테고리를 구할 수 없으면 거부한다"는 사용자 결정을, 상품이 짐작으로 아무 곳에나 걸리는 것으로
+	 * 이름만 바꿔 무력화하는 셈이다. 같은 신호({@code confident()==false})를 소싱 초안 경로
+	 * ({@code MarketDraftBuilder})는 이미 차단 사유로 다루고 있으므로, 이 경로도 맞춘다.
+	 * {@code isResolved() && confident()} 둘 다일 때만 "구했다"로 인정한다.
+	 */
+	private String resolveCategoryOrThrow(Product product) {
+		MarketCategory resolved = categoryResolver.resolve(
+			categoryHint(product), product.getProductName(), product.getBrand());
+		if (!resolved.isResolved()) {
+			throw new IllegalStateException(
+				"[카페24] 진열 분류를 확보하지 못해 등록을 거부합니다: sbCode=" + product.getSbCode()
+				+ " — 쇼핑몰 분류 목록 조회 실패(분류 0개 또는 API 오류)로 자동 매칭도 폴백도 불가능합니다. "
+				+ "카페24 관리자에서 분류를 확인하거나 market.cafe24.default-category-no 설정으로 고정하세요.");
+		}
+		if (!resolved.confident()) {
+			throw new IllegalStateException(
+				"[카페24] 진열 분류 자동 매칭이 확신을 얻지 못해 등록을 거부합니다: sbCode=" + product.getSbCode()
+				+ " — 이름 매칭이 되지 않아 가장 낮은 번호의 분류(" + resolved.categoryPath()
+				+ ")로 폴백했는데, 그건 보통 포괄적인 루트 분류라 상품이 엉뚱한 곳에 걸립니다. "
+				+ "초안 검수 화면에서 이 마켓의 카테고리를 직접 지정한 뒤 등록하세요.");
+		}
+		log.info("[카페24] 진열 분류 자동 해석: {} (confident=true)", resolved.categoryPath());
+		return resolved.categoryId();
+	}
+
+	/** 상품의 대분류(ProductCategory)를 Cafe24 분류명 매칭 힌트로 변환한다. */
+	private String categoryHint(Product product) {
+		ProductCategory category = product.getCategory();
+		if (category == null) {
+			return null;
+		}
+		return switch (category) {
+			case SUPPLEMENT -> "건강기능식품";
+			case FOOD -> "식품";
+			case COSMETICS -> "화장품";
+			default -> null;
+		};
 	}
 
 	@Override

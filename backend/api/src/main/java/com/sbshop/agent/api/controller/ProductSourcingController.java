@@ -2,13 +2,18 @@ package com.sbshop.agent.api.controller;
 
 import com.sbshop.agent.api.dto.product.BulkProductCreateResponse;
 import com.sbshop.agent.api.dto.product.IherbSourcingResponse;
+import com.sbshop.agent.api.dto.product.MarketPublishPriceRequest;
+import com.sbshop.agent.api.dto.product.MarketPublishResponse;
 import com.sbshop.agent.api.dto.product.ProductSaveRequest;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.product.ProductCreateUseCase;
 import com.sbshop.agent.core.application.product.ProductPublishUseCase;
 import com.sbshop.agent.core.application.product.dto.BulkProductCreateResult;
+import com.sbshop.agent.core.application.product.dto.MarketPublishOutcome;
 import com.sbshop.agent.core.application.sourcing.ProductSourcingUseCase;
 import com.sbshop.agent.core.application.sourcing.dto.SourcingCrawlResult;
+import com.sbshop.agent.core.domain.market.MarketRegistration;
+import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.product.dto.ProductCreateCommand;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
@@ -37,6 +42,7 @@ public class ProductSourcingController {
 	private final ProductSourcingUseCase productSourcingUseCase;
 	private final ProductCreateUseCase productCreateUseCase;
 	private final ProductPublishUseCase productPublishUseCase;
+	private final MarketRegistrationRepository marketRegistrationRepository;
 	// D-076: 사용자 액션 활동로그 기록 서비스
 	private final ActionLogService actionLogService;
 
@@ -134,18 +140,26 @@ public class ProductSourcingController {
 	}
 
 	@PostMapping("/products/{id}/markets/{marketType}")
-	public ResponseEntity<Void> publishToMarket(
+	public ResponseEntity<MarketPublishResponse> publishToMarket(
 		@PathVariable
 		Long id,
 		@PathVariable
-		String marketType) {
+		String marketType,
+		// 결함 B: 등록가 산정 파라미터(마진율·쿠폰율·최소마진) — 선택적 바디. 없으면 종전 동작과 같다.
+		@RequestBody(required = false)
+		MarketPublishPriceRequest priceRequest) {
 		MarketType type = MarketType.valueOf(marketType.toUpperCase());
 		// D-076: 마켓 등록(게시) — 결과만 기록(marketType은 경로변수에서).
 		try {
-			productPublishUseCase.publishToMarket(id, type);
+			MarketPublishOutcome outcome = productPublishUseCase.publishToMarket(
+				id, type, priceRequest == null ? null : priceRequest.toOverrides());
+			// 등록 직후 링크 식별자가 확보됐으면 URL까지 내려 배지를 바로 링크로 바꾼다.
+			String url = marketRegistrationRepository.findByProductIdAndMarketType(id, type)
+				.map(MarketRegistration::buildMarketUrl)
+				.orElse(null);
 			actionLogService.record(ActionLogConstants.PRODUCT_PUBLISH, type.name(),
 				ActionStatus.SUCCESS, "마켓 게시 성공 (상품 " + id + ")");
-			return ResponseEntity.ok().build();
+			return ResponseEntity.ok(MarketPublishResponse.from(outcome, url));
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.PRODUCT_PUBLISH, type.name(),
 				ActionStatus.FAILED, "마켓 게시 실패 (상품 " + id + "): " + e.getMessage());

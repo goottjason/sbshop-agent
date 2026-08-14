@@ -9,6 +9,7 @@ import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.product.ProductCreateUseCase;
 import com.sbshop.agent.core.application.product.ProductPublishUseCase;
 import com.sbshop.agent.core.application.sourcing.ProductSourcingUseCase;
+import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,8 @@ class BadEnumBodyAlreadyBadRequestTest {
 	@Mock
 	private ProductPublishUseCase productPublishUseCase;
 	@Mock
+	private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
 	private ActionLogService actionLogService;
 
 	private MockMvc mockMvc;
@@ -44,7 +47,8 @@ class BadEnumBodyAlreadyBadRequestTest {
 	void setUp() {
 		mockMvc = MockMvcBuilders
 			.standaloneSetup(new ProductSourcingController(
-				productSourcingUseCase, productCreateUseCase, productPublishUseCase, actionLogService))
+				productSourcingUseCase, productCreateUseCase, productPublishUseCase,
+				marketRegistrationRepository, actionLogService))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.build();
 	}

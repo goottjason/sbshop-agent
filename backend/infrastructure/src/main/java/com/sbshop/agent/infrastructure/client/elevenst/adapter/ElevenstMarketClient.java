@@ -266,11 +266,19 @@ public class ElevenstMarketClient implements MarketClient {
 		sb.append("<makerNm>").append("<![CDATA[").append(product.getBrand() != null ? product.getBrand() : "")
 			.append("]]>").append("</makerNm>");
 		sb.append("<dptNo>1012345</dptNo>");
-		// 전시 카테고리 — 검수된 값이 있으면 그것을 쓴다. 없으면 태그를 넣지 않는다
-		// (빈 dispCtgrNo를 보내면 11번가가 카테고리 오류로 거절한다).
+		// 전시 카테고리 — 검수된 값이 있으면 그것을 쓴다. 없으면 등록 자체를 거부한다
+		// (빈 dispCtgrNo를 보내면 11번가가 카테고리 오류로 거절하므로, 태그를 생략하고 그대로
+		// 진행해도 마켓이 나중에 거절할 뿐이다 — 여기서 먼저 실패를 표면화한다).
+		// 11번가는 Cafe24CategoryResolver 같은 자동 카테고리 해석기가 아직 없다(코드베이스 조사로 확인) —
+		// 그래서 자동 해석 시도 없이 곧장 거부한다.
 		String dispCtgrNo = context.categoryId();
 		if (dispCtgrNo != null && !dispCtgrNo.isBlank()) {
 			sb.append("<dispCtgrNo>").append(dispCtgrNo.trim()).append("</dispCtgrNo>");
+		} else {
+			throw new IllegalStateException(
+				"[Elevenst] 진열 분류(dispCtgrNo)가 없어 등록을 거부합니다: sbCode=" + product.getSbCode()
+				+ " — 빈 dispCtgrNo를 보내면 11번가가 카테고리 오류로 거절합니다. 11번가는 자동 카테고리 해석기가"
+				+ " 없으므로 초안 검수 화면에서 카테고리를 지정한 뒤 등록하세요.");
 		}
 		int selPrc = context.salePrice() != null ? context.salePrice().intValue()
 			: (product.getSalePrice() != null ? product.getSalePrice().intValue() : 0);

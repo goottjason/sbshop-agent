@@ -1,6 +1,7 @@
 package com.sbshop.agent.api.controller;
 
 import com.sbshop.agent.api.dto.product.ImageUploadResponse;
+import com.sbshop.agent.api.dto.product.MarketBadgeState;
 import com.sbshop.agent.api.dto.product.PriceStockUpdateRequest;
 import com.sbshop.agent.api.dto.product.ProductDetailResponse;
 import com.sbshop.agent.api.dto.product.ProductListResponse;
@@ -415,36 +416,37 @@ public class ProductController {
 	}
 
 	/**
-	 * 상품 그리드 "마켓" 배지 컬럼용 맵: 마켓명 → 상품페이지 URL.
-	 * <p>키가 있으면 그 마켓에 등록됨(배지 표시), 값이 비어있지 않으면 클릭 링크로 노출한다.
-	 * 값이 빈 문자열이면 "등록됐으나 링크용 식별자 미확보"(배지만, 링크 없음).
-	 * <p>쿠팡/스토어/11번가는 각자의 등록행에서 URL을 만들고, G마켓/옥션은 등록행이 없어
-	 * Cafe24 등록행에 ESM 백필된 식별자(gmarket_goodsNo/auction_goodsNo)에서 파생한다.
-	 * 카페24 자체는 배지 대상에서 제외.
+	 * 마켓 배지 상태 맵을 조립한다. 키는 프론트 소비 키(MarketType.name()),
+	 * 값은 {@link MarketBadgeState}. 키가 없으면 그 마켓은 미등록이다.
+	 *
+	 * <p>CAFE24는 자신도 키로 내보낸다 — 프론트가 G마켓/옥션 배지의 선행조건(카페24 등록 여부)을
+	 * 판정해야 하기 때문이다. G마켓/옥션은 여전히 Cafe24 등록행에 백필된 식별자에서 파생한다.
 	 */
-	private Map<String, String> buildMarketMap(List<MarketRegistration> registrations) {
+	private Map<String, MarketBadgeState> buildMarketMap(List<MarketRegistration> registrations) {
 		if (registrations.isEmpty()) {
 			return Collections.emptyMap();
 		}
-		Map<String, String> marketMap = new HashMap<>();
+		Map<String, MarketBadgeState> marketMap = new HashMap<>();
 		for (MarketRegistration reg : registrations) {
+			boolean synced = Boolean.TRUE.equals(reg.getIsSynced());
 			switch (reg.getMarketType()) {
 				case COUPANG:
 				case SMART_STORE:
 				case ELEVEN_STREET: {
-					String url = reg.buildMarketUrl();
-					marketMap.put(reg.getMarketType().name(), url != null ? url : "");
+					marketMap.put(reg.getMarketType().name(),
+						MarketBadgeState.of(synced, reg.buildMarketUrl()));
 					break;
 				}
 				case CAFE24: {
+					marketMap.put("CAFE24", MarketBadgeState.of(synced, null));
 					// ESM(지마켓/옥션)은 Cafe24 경유 연동 → Cafe24 등록행에 백필된 코드에서 링크 파생.
 					String gUrl = reg.buildGmarketUrl();
 					if (gUrl != null) {
-						marketMap.put("GMARKET", gUrl);
+						marketMap.put("GMARKET", MarketBadgeState.of(true, gUrl));
 					}
 					String aUrl = reg.buildAuctionUrl();
 					if (aUrl != null) {
-						marketMap.put("AUCTION", aUrl);
+						marketMap.put("AUCTION", MarketBadgeState.of(true, aUrl));
 					}
 					break;
 				}

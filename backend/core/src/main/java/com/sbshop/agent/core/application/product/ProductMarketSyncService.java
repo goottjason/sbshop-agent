@@ -2,7 +2,6 @@ package com.sbshop.agent.core.application.product;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.product.dto.PricingInputs;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
@@ -12,8 +11,6 @@ import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
-import com.sbshop.agent.core.domain.product.service.MarginCalculator;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -35,8 +32,7 @@ public class ProductMarketSyncService {
 
 	private final MarketRegistrationRepository marketRegistrationRepository;
 	private final MarketClientRouter marketClientRouter;
-	private final MarginCalculator marginCalculator;
-	private final MarketFeeService marketFeeService;
+	private final MarketSalePriceResolver marketSalePriceResolver;
 	// 스마트스토어 단위가격(가격표시제) 등 상품 속성 전달용 — 마켓 전송 시 Product 조회.
 	private final ProductReader productReader;
 	private final ObjectMapper objectMapper = new ObjectMapper();
@@ -71,11 +67,9 @@ public class ProductMarketSyncService {
 			changed);
 	}
 
-	/** 마켓 실수수료로 산정한 그 마켓의 판매가(원, 정수). */
+	/** 마켓 실수수료로 산정한 그 마켓의 판매가(원, 정수). 계산은 MarketSalePriceResolver가 단독 소유한다. */
 	private Integer priceForMarket(PricingInputs p, MarketType marketType) {
-		BigDecimal fee = marketFeeService.feeRate(marketType);
-		return marginCalculator.calculateSalePrice(p.buyPrice(), p.bundleQty(), p.marginRate(),
-			p.couponRate(), p.minMarginPrice(), fee).intValue();
+		return marketSalePriceResolver.resolve(p, marketType);
 	}
 
 	private MarketRepublishResult syncInternal(Long productId, Function<MarketType, Integer> priceResolver,

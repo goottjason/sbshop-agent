@@ -1,14 +1,19 @@
 package com.sbshop.agent.core.application.product;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sbshop.agent.core.application.product.dto.MarketPublishOutcome;
+import com.sbshop.agent.core.application.product.dto.MarketSalePriceOverrides;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
+import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
 import com.sbshop.agent.core.domain.product.component.ProductSanitizer;
 import com.sbshop.agent.core.domain.product.component.ProductValidator;
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,10 +46,26 @@ public class ProductPublishUseCase {
 	private final ObjectMapper objectMapper;
 	private final ProductSanitizer productSanitizer;
 	private final ProductValidator productValidator;
+	private final MarketSalePriceResolver marketSalePriceResolver;
 
-	public void publishToMarket(Long productId, MarketType marketType) {
+	public MarketPublishOutcome publishToMarket(Long productId, MarketType marketType) {
+		return publishToMarket(productId, marketType, null);
+	}
+
+	/**
+	 * 결함 B(등록가 20%대 고평가) 수정: 호출자가 마진율·쿠폰율·최소마진을 직접 넘겨 등록가 산정에
+	 * 반영할 수 있게 한다. {@code pricingOverrides}가 null이면 기존 동작(오버라이드 없음)과 같다.
+	 */
+	public MarketPublishOutcome publishToMarket(Long productId, MarketType marketType,
+		MarketSalePriceOverrides pricingOverrides) {
 		Product product = productReader.findById(productId)
 			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
+
+		// G마켓·옥션에는 상품등록 API가 없다(ESM은 Cafe24 마켓플러스 경유). 조용히 실패하는 대신 이유를 말한다.
+		if (marketType == MarketType.GMARKET || marketType == MarketType.AUCTION) {
+			throw new IllegalStateException(
+				"G마켓·옥션은 API 등록을 지원하지 않습니다 — 마켓플러스에서 전송해야 합니다");
+		}
 
 		if (!marketClientRouter.hasClient(marketType)) {
 			throw new IllegalArgumentException("지원하지 않는 마켓입니다: " + marketType);
@@ -60,7 +81,14 @@ public class ProductPublishUseCase {
 			registrationTxService.savePending(productId, marketType, product.getProductName());
 
 		// 2) 되돌릴 수 없는 외부 게시 — 트랜잭션 밖에서 호출.
-		Map<String, String> identifiers = client.publish(product);
+		//    D-094: 등록 순간부터 그 마켓의 실수수료 반영가로 올린다. 기준가(쿠팡 기준)로 올리면
+		//    다음 재가격 배치까지 수수료가 다른 마켓은 목표 마진을 벗어난 가격으로 팔린다.
+		BigDecimal salePrice = pricingOverrides == null
+			? marketSalePriceResolver.resolveForProduct(product, marketType)
+			: marketSalePriceResolver.resolveForProduct(product, marketType, pricingOverrides);
+		MarketPublishContext context = new MarketPublishContext(
+			null, null, salePrice, List.of(), Map.of(), Map.of());
+		Map<String, String> identifiers = client.publish(product, context);
 		String identifiersJson = toJson(identifiers);
 
 		// 3) 게시 성공 후 identifiers + SYNCED 갱신(별도 트랜잭션).
@@ -75,6 +103,7 @@ public class ProductPublishUseCase {
 		}
 
 		log.info("상품 마켓 등록 완료: productId={}, market={}, identifiers={}", productId, marketType, identifiers);
+		return new MarketPublishOutcome(marketType, identifiers, true);
 	}
 
 	private String toJson(Map<String, String> identifiers) {

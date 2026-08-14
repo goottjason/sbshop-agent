@@ -36,7 +36,8 @@ class ProductMarketSyncServiceSoldOutTest {
     @BeforeEach
     void setUp() {
         service = new ProductMarketSyncService(marketRegistrationRepository, marketClientRouter,
-            new com.sbshop.agent.core.domain.product.service.MarginCalculator(), marketFeeService,
+            new MarketSalePriceResolver(new com.sbshop.agent.core.domain.product.service.MarginCalculator(),
+                marketFeeService),
             org.mockito.Mockito.mock(com.sbshop.agent.core.domain.product.component.ProductReader.class));
     }
 

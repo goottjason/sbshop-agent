@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.infrastructure.client.cafe24.adapter.Cafe24MarketClient;
 import com.sbshop.agent.infrastructure.client.cafe24.client.Cafe24RestClient;
+import com.sbshop.agent.infrastructure.client.cafe24.component.Cafe24CategoryResolver;
 import com.sbshop.agent.infrastructure.client.common.util.HtmlImageExtractor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -23,6 +24,7 @@ class Cafe24MarketClientDeleteTest {
 
     @Mock private Cafe24RestClient cafe24RestClient;
     @Mock private HtmlImageExtractor imageExtractor;
+    @Mock private Cafe24CategoryResolver categoryResolver;
 
     private Cafe24MarketClient client;
 
@@ -30,7 +32,7 @@ class Cafe24MarketClientDeleteTest {
 
     @BeforeEach
     void setUp() {
-        client = new Cafe24MarketClient(new ObjectMapper(), cafe24RestClient, imageExtractor);
+        client = new Cafe24MarketClient(new ObjectMapper(), cafe24RestClient, imageExtractor, categoryResolver);
     }
 
     @Test

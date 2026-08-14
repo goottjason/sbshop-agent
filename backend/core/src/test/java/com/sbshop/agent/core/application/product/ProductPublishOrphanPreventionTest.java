@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sbshop.agent.core.application.product.dto.MarketPublishOutcome;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
@@ -54,6 +55,8 @@ class ProductPublishOrphanPreventionTest {
 	@Mock
 	private ProductValidator productValidator;
 	@Mock
+	private MarketSalePriceResolver marketSalePriceResolver;
+	@Mock
 	private Product product;
 	@Mock
 	private MarketClient client;
@@ -66,7 +69,8 @@ class ProductPublishOrphanPreventionTest {
 	@BeforeEach
 	void setUp() {
 		useCase = new ProductPublishUseCase(productReader, marketClientRouter,
-			registrationTxService, new ObjectMapper(), productSanitizer, productValidator);
+			registrationTxService, new ObjectMapper(), productSanitizer, productValidator,
+			marketSalePriceResolver);
 
 		lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 		lenient().when(product.getProductName()).thenReturn("테스트 상품");
@@ -80,14 +84,14 @@ class ProductPublishOrphanPreventionTest {
 		MarketRegistration pending = MarketRegistration.builder()
 			.productId(PRODUCT_ID).marketType(MARKET).marketDetailedInfo("{}").build();
 		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품")).thenReturn(pending);
-		when(client.publish(product)).thenReturn(Map.of("vendorItemId", "V123"));
+		when(client.publish(eq(product), any())).thenReturn(Map.of("vendorItemId", "V123"));
 
 		useCase.publishToMarket(PRODUCT_ID, MARKET);
 
 		// PENDING 선-저장이 외부 publish보다 먼저, 갱신은 publish 이후여야 한다.
 		InOrder order = inOrder(registrationTxService, client);
 		order.verify(registrationTxService).savePending(PRODUCT_ID, MARKET, "테스트 상품");
-		order.verify(client).publish(product);
+		order.verify(client).publish(eq(product), any());
 		order.verify(registrationTxService).markPublished(eq(pending), anyString());
 	}
 
@@ -97,7 +101,7 @@ class ProductPublishOrphanPreventionTest {
 		MarketRegistration pending = MarketRegistration.builder()
 			.productId(PRODUCT_ID).marketType(MARKET).marketDetailedInfo("{}").build();
 		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품")).thenReturn(pending);
-		when(client.publish(product)).thenReturn(Map.of("vendorItemId", "V999"));
+		when(client.publish(eq(product), any())).thenReturn(Map.of("vendorItemId", "V999"));
 		// 게시 성공 후 갱신 저장에서 예외 주입
 		doThrow(new RuntimeException("DB save failed"))
 			.when(registrationTxService).markPublished(any(), anyString());
@@ -107,7 +111,7 @@ class ProductPublishOrphanPreventionTest {
 			.isInstanceOf(RuntimeException.class);
 
 		// 외부 게시는 실제로 일어났고(되돌릴 수 없음), PENDING 행은 선-저장되어 DB에 남는다.
-		verify(client).publish(product);
+		verify(client).publish(eq(product), any());
 		verify(registrationTxService).savePending(PRODUCT_ID, MARKET, "테스트 상품");
 	}
 
@@ -118,12 +122,28 @@ class ProductPublishOrphanPreventionTest {
 		when(router.hasClient(MARKET)).thenReturn(false);
 		when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 		ProductPublishUseCase uc = new ProductPublishUseCase(productReader, router,
-			registrationTxService, new ObjectMapper(), productSanitizer, productValidator);
+			registrationTxService, new ObjectMapper(), productSanitizer, productValidator,
+			marketSalePriceResolver);
 
 		assertThatThrownBy(() -> uc.publishToMarket(PRODUCT_ID, MARKET))
 			.isInstanceOf(IllegalArgumentException.class);
 
 		verify(registrationTxService, never()).savePending(any(), any(), anyString());
 		verify(client, never()).publish(any());
+	}
+
+	@Test
+	@DisplayName("게시 성공 시 마켓 identifiers를 담은 결과를 반환한다 — 프론트가 재조회 없이 배지를 링크로 바꿔야 한다")
+	void publishToMarket_returnsOutcomeWithIdentifiers() {
+		MarketRegistration pending = MarketRegistration.builder()
+			.productId(PRODUCT_ID).marketType(MARKET).marketDetailedInfo("{}").build();
+		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품")).thenReturn(pending);
+		when(client.publish(eq(product), any())).thenReturn(Map.of("vendorItemId", "V123"));
+
+		MarketPublishOutcome outcome = useCase.publishToMarket(PRODUCT_ID, MARKET);
+
+		assertThat(outcome.marketType()).isEqualTo(MARKET);
+		assertThat(outcome.synced()).isTrue();
+		assertThat(outcome.identifiers()).isNotEmpty();
 	}
 }

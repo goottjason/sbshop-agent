@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.sbshop.agent.api.dto.product.MarketBadgeState;
 import com.sbshop.agent.api.dto.product.ProductListResponse;
 import com.sbshop.agent.core.application.product.ProductManageUseCase;
 import com.sbshop.agent.core.application.product.ProductSearchUseCase;
@@ -17,6 +18,7 @@ import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
 import com.sbshop.agent.core.application.product.port.ProductInfoCrawlerPort;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,10 +30,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 
 /**
- * 상품 목록의 마켓 배지 링크 맵(마켓명 → 상품페이지 URL) 조립 검증.
+ * 상품 목록의 마켓 배지 상태 맵(마켓명 → {@link MarketBadgeState}) 조립 검증.
  * - 응답 키가 프론트 소비 키(MarketType.name())와 일치.
- * - 값은 마켓 상품페이지 URL(등록됐으나 링크식별자 미확보면 빈 문자열).
+ * - 값은 status(SYNCED/PENDING)+url(등록됐으나 링크식별자 미확보면 null).
  * - G마켓/옥션은 Cafe24 등록행에 백필된 식별자에서 파생.
+ * - CAFE24도 자신의 키로 노출(G마켓/옥션 배지 선행조건 판정용).
  * - N+1(row별 findByProductId) 대신 배치 조회(findByProductIdIn) 사용.
  */
 @ExtendWith(MockitoExtension.class)
@@ -87,12 +90,10 @@ class ProductControllerMarketMapTest {
 
 		List<ProductListResponse> content = res.getBody().getContent();
 		assertThat(content).hasSize(2);
-		assertThat(content.get(0).marketRegistrations())
-			.containsEntry(MarketType.COUPANG.name(),
-				"https://www.coupang.com/vp/products/9334584158?vendorItemId=73567246734");
-		// channelProductNo 없으면 배지는 표시하되 링크 없음(빈 문자열)
-		assertThat(content.get(1).marketRegistrations())
-			.containsEntry(MarketType.SMART_STORE.name(), "");
+		assertThat(content.get(0).marketRegistrations().get(MarketType.COUPANG.name()).url())
+			.isEqualTo("https://www.coupang.com/vp/products/9334584158?vendorItemId=73567246734");
+		// channelProductNo 없으면 배지는 표시하되 링크 없음(null)
+		assertThat(content.get(1).marketRegistrations().get(MarketType.SMART_STORE.name()).url()).isNull();
 
 		// N+1 제거: 배치 조회 1회, 개별 조회 0회
 		verify(marketRegistrationRepository).findByProductIdIn(List.of(1L, 2L));
@@ -113,9 +114,44 @@ class ProductControllerMarketMapTest {
 			controller().getProducts(null, null, PageRequest.of(0, 50));
 
 		var links = res.getBody().getContent().get(0).marketRegistrations();
-		assertThat(links).containsEntry("GMARKET", "http://item.gmarket.co.kr/Item?goodscode=3490122824");
-		assertThat(links).containsEntry("AUCTION", "http://itempage3.auction.co.kr/DetailView.aspx?ItemNo=D888857683");
-		// 카페24 자체는 배지 대상 아님
-		assertThat(links).doesNotContainKey(MarketType.CAFE24.name());
+		assertThat(links.get("GMARKET").url()).isEqualTo("http://item.gmarket.co.kr/Item?goodscode=3490122824");
+		assertThat(links.get("AUCTION").url())
+			.isEqualTo("http://itempage3.auction.co.kr/DetailView.aspx?ItemNo=D888857683");
+		// 카페24 자체도 배지 키로 노출된다(프론트 선행조건 판정용) — getProducts_includesCafe24Key에서 별도 검증
+		assertThat(links).containsKey(MarketType.CAFE24.name());
+	}
+
+	@Test
+	@DisplayName("CAFE24 등록행은 CAFE24 키로도 내려간다 — 프론트가 카페24 등록 여부를 알아야 G마켓/옥션 선행조건을 판정한다")
+	void getProducts_includesCafe24Key() {
+		when(product1.getId()).thenReturn(1L);
+		Page<Product> page = new PageImpl<>(List.of(product1), PageRequest.of(0, 50), 1);
+		when(productSearchUseCase.searchProducts(any(), any())).thenReturn(page);
+		when(marketRegistrationRepository.findByProductIdIn(List.of(1L)))
+			.thenReturn(List.of(reg(1L, MarketType.CAFE24, "{\"cafe24ProductNo\":\"77\"}")));
+
+		ResponseEntity<Page<ProductListResponse>> res =
+			controller().getProducts(null, null, PageRequest.of(0, 50));
+
+		Map<String, MarketBadgeState> map = res.getBody().getContent().get(0).marketRegistrations();
+		assertThat(map).containsKey("CAFE24");
+		assertThat(map).doesNotContainKey("GMARKET");
+	}
+
+	@Test
+	@DisplayName("등록행의 isSynced가 false면 status=PENDING으로 내려간다 — 등록중/미완료를 미등록과 구분해야 한다")
+	void getProducts_pendingStatusWhenNotSynced() {
+		when(product1.getId()).thenReturn(1L);
+		Page<Product> page = new PageImpl<>(List.of(product1), PageRequest.of(0, 50), 1);
+		when(productSearchUseCase.searchProducts(any(), any())).thenReturn(page);
+		when(marketRegistrationRepository.findByProductIdIn(List.of(1L)))
+			.thenReturn(List.of(reg(1L, MarketType.COUPANG, "{}")));
+
+		ResponseEntity<Page<ProductListResponse>> res =
+			controller().getProducts(null, null, PageRequest.of(0, 50));
+
+		MarketBadgeState state = res.getBody().getContent().get(0).marketRegistrations().get("COUPANG");
+		assertThat(state.status()).isEqualTo("PENDING");
+		assertThat(state.url()).isNull();
 	}
 }

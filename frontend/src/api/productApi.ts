@@ -14,14 +14,21 @@ export interface ProductList {
   hostedImages: string[];
   sourcingUrl: string;
   memo: string;
-  // D-047: 마켓별 연동코드 맵. 키는 백엔드 MarketType.name()
+  // D-047: 마켓별 등록상태 맵. 키는 백엔드 MarketType.name()
   // (COUPANG / SMART_STORE / ELEVEN_STREET / GMARKET / AUCTION / CAFE24).
-  // 값은 마켓 상품코드(vendorItemId 우선), 없으면 내부 productId 폴백(= row.id).
-  marketRegistrations?: Record<string, string>;
+  marketRegistrations?: Record<string, MarketBadgeState>;
   // 상품 카테고리(ProductCategory enum). 목록 API가 아직 미포함 → 값 없으면 '-'. 다음 세션 백엔드 확장.
   category?: string;
   // SP-B: 백엔드 StockStatus 열거값. 가격/재고 편집 시 현재 판매상태 시드에 사용.
   stockStatus?: 'IN_STOCK' | 'OUT_OF_STOCK';
+}
+
+// 마켓 배지 1칸의 서버 상태. 키가 없으면 그 마켓은 미등록(클릭하면 등록).
+// status: 'SYNCED' 등록 완료 · 'PENDING' 등록행은 있으나 동기화 미완료.
+// url: 마켓 상품페이지. 링크 식별자 미확보면 null.
+export interface MarketBadgeState {
+  status: 'SYNCED' | 'PENDING';
+  url: string | null;
 }
 
 export interface ProductDetail {
@@ -100,6 +107,15 @@ export interface PriceStockSyncResult {
   failed: Record<string, string>;
 }
 
+// G마켓·옥션은 상품등록 API가 없어 사람이 마켓플러스에서 전송한다.
+// 서버는 "어느 상품코드로 찾으면 되는지"까지만 알려준다.
+export interface MarketPlusHandoff {
+  market: string;
+  cafe24ProductCode: string;
+  marketplusUrl: string;
+  guide: string;
+}
+
 export const productApi = {
   fetchProducts: (page: number, size: number, keyword?: string) =>
     apiClient.get('/api/v1/products', { params: { page, size, keyword } }),
@@ -139,4 +155,7 @@ export const productApi = {
 
   syncMarketLive: (id: number, marketType: string) =>
     apiClient.post(`/api/v1/products/${id}/markets/${marketType}/sync`),
+
+  getMarketPlusHandoff: (id: number, marketType: string) =>
+    apiClient.get<MarketPlusHandoff>(`/api/v1/products/${id}/markets/${marketType}/handoff`),
 };

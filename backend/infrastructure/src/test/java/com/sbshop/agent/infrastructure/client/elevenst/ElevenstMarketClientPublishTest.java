@@ -128,14 +128,16 @@ class ElevenstMarketClientPublishTest {
 	}
 
 	@Test
-	@DisplayName("카테고리가 없으면 빈 dispCtgrNo 태그를 보내지 않는다")
-	void omitsEmptyCategoryTag() {
-		when(restClient.post(eq("/rest/prodservices/product"), anyString())).thenReturn(OK_RESPONSE);
-		client.publish(product(), MarketPublishContext.empty());
+	@DisplayName("결함 A: 카테고리가 없으면 빈 dispCtgrNo 태그로 등록을 강행하지 않고 거부한다")
+	void noCategory_rejectsPublishInsteadOfOmittingTag() {
+		// 종전 구현은 태그를 생략하고 그대로 등록해, 11번가가 나중에 카테고리 오류로 거절하거나
+		// (더 나쁘게는) 진열 없는 유령 상품을 만들었다. 11번가는 자동 카테고리 해석기가 없으므로
+		// 자동 해석 시도 없이 곧장 거부해야 한다.
+		assertThatThrownBy(() -> client.publish(product(), MarketPublishContext.empty()))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("dispCtgrNo");
 
-		ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
-		verify(restClient).post(eq("/rest/prodservices/product"), captor.capture());
-		assertThat(captor.getValue()).doesNotContain("<dispCtgrNo>");
+		verify(restClient, org.mockito.Mockito.never()).post(anyString(), anyString());
 	}
 
 	@Test

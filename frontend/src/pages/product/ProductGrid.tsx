@@ -9,7 +9,8 @@ import { Modal as AntModal, Pagination, InputNumber } from 'antd';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/Table';
 import { productApi, type ProductList } from '../../api/productApi';
 import { batchApi } from '../../api/batchApi';
-import { renderMarketBadges, MARKET_FILTER_OPTIONS } from './productGridShared';
+import { MARKET_FILTER_OPTIONS } from './productGridShared';
+import { MarketBadgeCell } from './MarketBadgeCell';
 import { ProductFilterPanel, type ProductFilters } from './ProductFilterPanel';
 import { ProductDetailModal } from './ProductDetailModal';
 import { bulkDeleteProducts } from './productMockApi';
@@ -36,6 +37,7 @@ export function applyClientFilters(rows: ProductList[], f: ProductFilters): Prod
     }
     if (f.inStockOnly && !(r.stock > 0)) return false;
     // 마켓 등록상태: 선택 마켓 중 하나라도 등록돼 있으면 통과. 전체선택이면 통과.
+    // 값이 객체로 바뀌었지만 "키 존재 = 등록"이라는 판정은 그대로다.
     if (f.markets.length > 0 && f.markets.length < MARKET_FILTER_OPTIONS.length) {
       const regs = r.marketRegistrations ?? {};
       const hit = f.markets.some((m) => regs[m] !== undefined);
@@ -136,10 +138,10 @@ export default function ProductGrid() {
       },
     }),
     columnHelper.display({
-      id: 'markets', header: '마켓', size: 270,
-      cell: ({ row }) => renderMarketBadges(row.original.marketRegistrations),
+      id: 'markets', header: '마켓', size: 340,
+      cell: ({ row }) => <MarketBadgeCell product={row.original} onPublished={refetch} />,
     }),
-  ], []);
+  ], [refetch]);
 
   const table = useReactTable({
     data: pageRows,
@@ -200,6 +202,7 @@ export default function ProductGrid() {
         }
         .pg-size:hover { border-color: #cbd5e1; }
         .pg-size:focus { outline: none; border-color: var(--product-primary); box-shadow: 0 0 0 3px rgba(22,101,52,0.12); }
+        @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
       `}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
