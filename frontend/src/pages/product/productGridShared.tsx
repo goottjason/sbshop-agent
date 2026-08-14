@@ -51,19 +51,29 @@ export const MARKET_BADGES: { key: string; label: string; bg: string; text: stri
 // ESM 계열(G마켓·옥션)은 Cafe24 등록행을 경유해야 전송할 수 있다.
 export const ESM_MARKET_KEYS = ['GMARKET', 'AUCTION'];
 
+// 카페24는 상품페이지 URL을 만들 방법이 없다 — 백엔드가 항상 MarketBadgeState.of(synced, null)로
+// 내려준다(ProductController.buildMarketMap). 그래서 이 목록에 있는 마켓은 url이 없어도
+// "등록됐지만 링크 미확보"(비정상, linkless)가 아니라 "정상 등록, 원래 링크가 없음"으로 판정한다.
+// 다른 마켓(쿠팡·N스토어·11번가)은 링크를 만들 수 있으므로 없으면 진짜 비정상이다 — 여기 넣지 말 것.
+export const NO_LINK_MARKET_KEYS = ['CAFE24'];
+
 // 배지 1칸이 가질 수 있는 화면 상태.
-//  registered  등록 완료 + 상품페이지 링크 확보 → 채색 배지, 클릭 시 새 탭
-//  linkless    등록됐으나 링크 식별자 미확보 → 채색 테두리 반투명, 클릭 없음
-//  missing     미등록 → 점선 배지, 클릭 시 등록
-//  blocked     미등록 + 선행조건 미충족(카페24 미등록 상태의 G마켓·옥션) → 흐린 점선, 클릭 불가
-export type BadgeVisual = 'registered' | 'linkless' | 'missing' | 'blocked';
+//  registered       등록 완료 + 상품페이지 링크 확보 → 채색 배지, 클릭 시 새 탭
+//  registeredNoLink 등록 완료 + 애초에 링크를 만들 수 없는 마켓(카페24) → 채색 배지, 클릭 없음(<span>)
+//  linkless         등록됐으나 링크 식별자 미확보(비정상) → 채색 테두리 반투명, 클릭 없음
+//  missing          미등록 → 점선 배지, 클릭 시 등록
+//  blocked          미등록 + 선행조건 미충족(카페24 미등록 상태의 G마켓·옥션) → 흐린 점선, 클릭 불가
+export type BadgeVisual = 'registered' | 'registeredNoLink' | 'linkless' | 'missing' | 'blocked';
 
 // MarketBadgeCell.tsx에 두면 react-refresh/only-export-components에 걸린다(컴포넌트 파일은
 // 컴포넌트만 export해야 HMR이 안전). 상수/헬퍼 전용인 이 파일로 옮겨 둔다.
 export function badgeVisual(product: ProductList, marketKey: string): BadgeVisual {
   const regs = product.marketRegistrations ?? {};
   const state = regs[marketKey];
-  if (state) return state.url ? 'registered' : 'linkless';
+  if (state) {
+    if (state.url) return 'registered';
+    return NO_LINK_MARKET_KEYS.includes(marketKey) ? 'registeredNoLink' : 'linkless';
+  }
   // 카페24 등록행이 없으면 G마켓·옥션은 마켓플러스로 보낼 수 없다.
   if (ESM_MARKET_KEYS.includes(marketKey) && !regs['CAFE24']) return 'blocked';
   return 'missing';

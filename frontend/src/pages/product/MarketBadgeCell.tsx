@@ -53,9 +53,18 @@ export function MarketBadgeCell({ product, onPublished }:
         content: `${label}는 상품등록 API가 없어 마켓플러스에서 직접 보내야 합니다. ${data.guide}`,
         okText: '마켓플러스 열기', cancelText: '취소',
         onOk: () => {
-          navigator.clipboard?.writeText(data.cafe24ProductCode);
+          // window.open은 사용자 제스처 콜스택 안에서 동기 실행돼야 팝업이 차단되지 않는다.
+          // writeText를 await하면 그 콜스택이 끊기므로, 순서는 그대로 두고 성공/실패 토스트만
+          // 프로미스가 끝난 뒤 .then()/.catch()로 나중에 띄운다 — 실패를 조용히 삼키지 않는다.
+          const copied = navigator.clipboard?.writeText(data.cafe24ProductCode);
           window.open(data.marketplusUrl, '_blank', 'noopener');
-          toast.info(`상품코드 ${data.cafe24ProductCode} 를 복사했습니다.`);
+          if (copied) {
+            copied
+              .then(() => toast.info(`상품코드 ${data.cafe24ProductCode} 를 복사했습니다.`))
+              .catch(() => toast.warning(`복사하지 못했습니다 — 상품코드 ${data.cafe24ProductCode}`));
+          } else {
+            toast.warning(`복사하지 못했습니다 — 상품코드 ${data.cafe24ProductCode}`);
+          }
         },
       });
     } catch (e) {
@@ -102,6 +111,16 @@ export function MarketBadgeCell({ product, onPublished }:
               style={{ ...baseStyle, color: m.text, background: m.bg, textDecoration: 'none', cursor: 'pointer' }}>
               {m.label}
             </a>
+          );
+        }
+        if (visual === 'registeredNoLink') {
+          // 카페24는 상품페이지 URL을 만들 방법이 없다 — 정상 등록이므로 채색은 registered와 동일,
+          // 다만 열 링크가 없으므로 <a>가 아니라 <span>이고 클릭도 없다.
+          return (
+            <span key={m.key} title={`${m.label} 등록됨`}
+              style={{ ...baseStyle, color: m.text, background: m.bg }}>
+              {m.label}
+            </span>
           );
         }
         if (visual === 'linkless') {
