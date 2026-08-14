@@ -1,9 +1,12 @@
 import { useState, type CSSProperties } from 'react';
-import { Modal as AntModal } from 'antd';
+import { Modal as AntModal, InputNumber } from 'antd';
 import { toast } from 'react-toastify';
 import { productApi, type ProductList } from '../../api/productApi';
 import { sourcingApi } from '../../api/sourcingApi';
-import { MARKET_BADGES, badgeVisual, ESM_MARKET_KEYS } from './productGridShared';
+import {
+  MARKET_BADGES, badgeVisual, ESM_MARKET_KEYS,
+  DEFAULT_MARKET_MARGIN_RATE, DEFAULT_MARKET_COUPON_RATE, DEFAULT_MARKET_MIN_MARGIN_PRICE,
+} from './productGridShared';
 
 const baseStyle: CSSProperties = {
   fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, lineHeight: 1.5,
@@ -17,28 +20,44 @@ export function MarketBadgeCell({ product, onPublished }:
   const [publishing, setPublishing] = useState<string | null>(null);
   const [failed, setFailed] = useState<Record<string, string>>({});
 
+  // 결함 B: 등록가가 쿠폰율·최소마진 미반영으로 목표가보다 크게 높게 올라간다(정기 재가격
+  // 배치는 D-093으로 비활성). AntModal.confirm의 문구만으로는 값을 받을 수 없어 제어형 Modal로
+  // 바꾸고, ProductGrid.tsx 일괄 업데이트 모달과 같은 기본값(15/20/5000)으로 입력받는다.
+  const [publishTarget, setPublishTarget] = useState<{ key: string; label: string } | null>(null);
+  const [confirmSubmitting, setConfirmSubmitting] = useState(false);
+  const [marginRate, setMarginRate] = useState<number | null>(DEFAULT_MARKET_MARGIN_RATE);
+  const [couponRate, setCouponRate] = useState<number | null>(DEFAULT_MARKET_COUPON_RATE);
+  const [minMarginPrice, setMinMarginPrice] = useState<number | null>(DEFAULT_MARKET_MIN_MARGIN_PRICE);
+
   const publish = (marketKey: string, label: string) => {
-    AntModal.confirm({
-      title: `${label} 등록`,
-      content: `'${label}'에 해당 상품을 등록하시겠습니까?`,
-      okText: '등록', cancelText: '취소',
-      onOk: async () => {
-        setPublishing(marketKey);
-        setFailed((f) => { const next = { ...f }; delete next[marketKey]; return next; });
-        try {
-          await sourcingApi.publishToMarket(product.id, marketKey);
-          toast.success(`${label} 등록 완료 — ${product.sbCode}`);
-          onPublished();
-        } catch (e) {
-          // 실패를 조용히 삼키지 않는다. 사유를 배지 툴팁과 토스트 양쪽에 남긴다.
-          const msg = extractError(e);
-          setFailed((f) => ({ ...f, [marketKey]: msg }));
-          toast.error(`${label} 등록 실패 — ${msg}`);
-        } finally {
-          setPublishing(null);
-        }
-      },
-    });
+    setPublishTarget({ key: marketKey, label });
+  };
+
+  const confirmPublish = async () => {
+    if (!publishTarget) return;
+    const { key: marketKey, label } = publishTarget;
+    setConfirmSubmitting(true);
+    setPublishing(marketKey);
+    setFailed((f) => { const next = { ...f }; delete next[marketKey]; return next; });
+    try {
+      await sourcingApi.publishToMarket(product.id, marketKey, {
+        marginRate: marginRate ?? DEFAULT_MARKET_MARGIN_RATE,
+        couponRate: couponRate ?? DEFAULT_MARKET_COUPON_RATE,
+        minMarginPrice: minMarginPrice ?? DEFAULT_MARKET_MIN_MARGIN_PRICE,
+      });
+      toast.success(`${label} 등록 완료 — ${product.sbCode}`);
+      setPublishTarget(null);
+      onPublished();
+    } catch (e) {
+      // 실패를 조용히 삼키지 않는다. 사유를 배지 툴팁과 토스트 양쪽에 남긴다.
+      const msg = extractError(e);
+      setFailed((f) => ({ ...f, [marketKey]: msg }));
+      toast.error(`${label} 등록 실패 — ${msg}`);
+      setPublishTarget(null);
+    } finally {
+      setPublishing(null);
+      setConfirmSubmitting(false);
+    }
   };
 
   // G마켓·옥션: 자동 등록이 불가능하므로 사람을 마켓플러스로 데려간다.
@@ -77,7 +96,8 @@ export function MarketBadgeCell({ product, onPublished }:
   };
 
   return (
-    // nowrap: 6개 마켓이 한 줄에 모두 보이도록(줄바꿈 방지). 컬럼 폭은 ProductGrid에서 확보.
+    <>
+    {/* nowrap: 6개 마켓이 한 줄에 모두 보이도록(줄바꿈 방지). 컬럼 폭은 ProductGrid에서 확보. */}
     <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 3, alignItems: 'center', justifyContent: 'center' }}>
       {MARKET_BADGES.map((m) => {
         if (publishing === m.key) {
@@ -131,6 +151,18 @@ export function MarketBadgeCell({ product, onPublished }:
             </span>
           );
         }
+        if (visual === 'pending') {
+          // 등록 요청은 커밋됐지만(고아 방지) 마켓 동기화가 안 끝난 상태 — 성공/실패를 알 수 없다.
+          // 재시도 버튼을 두면 실제로는 등록에 성공했는데 행 갱신만 실패한 경우 마켓에 상품이
+          // 두 번 올라간다. 그래서 클릭을 아예 막고, 사용자가 마켓에서 직접 확인하도록 안내한다.
+          return (
+            <span key={m.key}
+              title={`${m.label} 등록 미완료 — 등록 요청은 접수됐으나 마켓 동기화 결과를 확인하지 못했습니다. ${m.label}에서 실제 등록 여부를 직접 확인하세요. 중복 등록 위험 때문에 여기서는 재시도를 지원하지 않습니다.`}
+              style={{ ...baseStyle, color: '#b45309', background: '#fffbeb', border: '1px solid #f59e0b', cursor: 'default' }}>
+              {m.label}
+            </span>
+          );
+        }
         if (visual === 'blocked') {
           return (
             <span key={m.key} title={`${m.label} — 카페24 등록 후 가능`}
@@ -157,6 +189,37 @@ export function MarketBadgeCell({ product, onPublished }:
         );
       })}
     </div>
+    <AntModal
+      title={publishTarget ? `${publishTarget.label} 등록` : ''}
+      open={publishTarget != null}
+      onCancel={() => setPublishTarget(null)}
+      onOk={confirmPublish}
+      okText="등록" cancelText="취소"
+      confirmLoading={confirmSubmitting}
+    >
+      {publishTarget && (
+        <>
+          <p>{`'${publishTarget.label}'에 해당 상품을 등록하시겠습니까?`}</p>
+          {/* 쿠폰율·최소마진 미반영으로 등록가가 목표가보다 높게 올라가는 문제(결함 B) —
+              정기 재가격 배치가 비활성이라 등록 시점에 직접 입력받는다. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ color: '#374151' }}>마진율 (%)</span>
+              <InputNumber min={0} value={marginRate} onChange={setMarginRate} style={{ width: 140 }} />
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ color: '#374151' }}>쿠폰율 (구매시 할인율, %)</span>
+              <InputNumber min={0} value={couponRate} onChange={setCouponRate} style={{ width: 140 }} />
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ color: '#374151' }}>최소 마진가 (원)</span>
+              <InputNumber min={0} step={100} value={minMarginPrice} onChange={setMinMarginPrice} style={{ width: 140 }} />
+            </label>
+          </div>
+        </>
+      )}
+    </AntModal>
+    </>
   );
 }
 

@@ -61,9 +61,12 @@ export const NO_LINK_MARKET_KEYS = ['CAFE24'];
 //  registered       등록 완료 + 상품페이지 링크 확보 → 채색 배지, 클릭 시 새 탭
 //  registeredNoLink 등록 완료 + 애초에 링크를 만들 수 없는 마켓(카페24) → 채색 배지, 클릭 없음(<span>)
 //  linkless         등록됐으나 링크 식별자 미확보(비정상) → 채색 테두리 반투명, 클릭 없음
+//  pending          등록행은 커밋됐으나(고아 방지) 마켓 동기화 미완료 — 마켓이 등록을 거절하면 영구히
+//                   이 상태로 남는다. 성공/실패 불명이라 재시도 버튼을 두면 마켓에 중복 리스팅이
+//                   생길 수 있어 클릭 불가 → 주의색(호박색) 테두리, 정상/미등록과 확실히 구분
 //  missing          미등록 → 점선 배지, 클릭 시 등록
 //  blocked          미등록 + 선행조건 미충족(카페24 미등록 상태의 G마켓·옥션) → 흐린 점선, 클릭 불가
-export type BadgeVisual = 'registered' | 'registeredNoLink' | 'linkless' | 'missing' | 'blocked';
+export type BadgeVisual = 'registered' | 'registeredNoLink' | 'linkless' | 'pending' | 'missing' | 'blocked';
 
 // MarketBadgeCell.tsx에 두면 react-refresh/only-export-components에 걸린다(컴포넌트 파일은
 // 컴포넌트만 export해야 HMR이 안전). 상수/헬퍼 전용인 이 파일로 옮겨 둔다.
@@ -71,6 +74,9 @@ export function badgeVisual(product: ProductList, marketKey: string): BadgeVisua
   const regs = product.marketRegistrations ?? {};
   const state = regs[marketKey];
   if (state) {
+    // PENDING은 url 유무와 무관하게 최우선으로 판정한다 — 동기화 미완료 상태를
+    // "링크만 없는 정상 등록"으로 오인시키면 안 된다.
+    if (state.status === 'PENDING') return 'pending';
     if (state.url) return 'registered';
     return NO_LINK_MARKET_KEYS.includes(marketKey) ? 'registeredNoLink' : 'linkless';
   }
@@ -78,3 +84,10 @@ export function badgeVisual(product: ProductList, marketKey: string): BadgeVisua
   if (ESM_MARKET_KEYS.includes(marketKey) && !regs['CAFE24']) return 'blocked';
   return 'missing';
 }
+
+// ─── 마켓 등록 가격 파라미터 기본값 ───
+// ProductGrid.tsx의 일괄 가격/재고 업데이트 모달과 같은 기본값을 쓴다 — 등록가와 배치 재산정가가
+// 기본적으로 어긋나지 않도록 사용자가 화면마다 다시 맞출 필요가 없게 한다.
+export const DEFAULT_MARKET_MARGIN_RATE = 15;
+export const DEFAULT_MARKET_COUPON_RATE = 20;
+export const DEFAULT_MARKET_MIN_MARGIN_PRICE = 5000;
