@@ -34,15 +34,31 @@ const MEASURE_UNIT_OPTIONS: Opt[] = [
   ['ML', '밀리리터'], ['L', '리터'], ['UNKNOWN', '기타/미지정'],
 ].map(([value, label]) => ({ value, label }));
 
+// 편집 가능한 URL만 새 탭으로 연다. 사용자가 직접 고치는 필드라 `javascript:` 같은 스킴이
+// 들어올 수 있고, 그걸 그대로 href에 넣으면 클릭 한 번에 스크립트가 실행된다. http/https만 통과시킨다.
+function safeHttpUrl(value: string | number | undefined): string | null {
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  try {
+    const u = new URL(value.trim());
+    return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
 // 편집 행: 라벨(불릿) 좌 · 고스트 인풋 우(포커스 시 그린 밑줄).
 // 모듈 최상위에 두어 매 입력 리렌더 시 리마운트(포커스 이탈)를 방지한다.
-function EditRow({ label, value, type = 'text', full = false, onChange }: {
+function EditRow({ label, value, type = 'text', full = false, link = false, onChange }: {
   label: string;
   value: string | number | undefined;
   type?: 'text' | 'number';
   full?: boolean;
+  /** 값이 http(s) URL이면 인풋 오른쪽에 새 탭으로 여는 버튼을 붙인다. */
+  link?: boolean;
   onChange: (v: string | number | undefined) => void;
 }) {
+  // 인풋 자체를 링크로 만들면 편집이 불가능해지므로, 여는 동작은 옆 버튼이 맡는다.
+  const href = link ? safeHttpUrl(value) : null;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', gridColumn: full ? '1 / -1' : undefined, borderBottom: '1px solid #f4f4f5' }}>
       <span style={{ color: '#9ca3af', fontSize: 13 }}>•</span>
@@ -53,6 +69,20 @@ function EditRow({ label, value, type = 'text', full = false, onChange }: {
         value={value ?? ''}
         onChange={(e) => onChange(type === 'number' ? (e.target.value === '' ? undefined : Number(e.target.value)) : e.target.value)}
       />
+      {link && (
+        href ? (
+          <Tooltip title="새 탭으로 열기">
+            <a href={href} target="_blank" rel="noopener noreferrer" className="pd-openlink" aria-label={`${label} 새 탭으로 열기`}>
+              <LinkOutlined /> 열기
+            </a>
+          </Tooltip>
+        ) : (
+          // 값이 없거나 http(s)가 아니면 버튼 자리를 유지하되 비활성 — 레이아웃이 흔들리지 않게.
+          <span className="pd-openlink pd-openlink-off" title="열 수 있는 http(s) 주소가 아닙니다">
+            <LinkOutlined /> 열기
+          </span>
+        )
+      )}
     </div>
   );
 }
@@ -219,9 +249,10 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
   };
 
   // keyof Fields 이름으로 EditRow를 렌더하는 헬퍼(값 바인딩·set 위임).
-  const row = (label: string, name: keyof Fields, type: 'text' | 'number' = 'text', full = false) => (
+  const row = (label: string, name: keyof Fields, type: 'text' | 'number' = 'text', full = false,
+    link = false) => (
     <EditRow label={label} value={fields[name] as string | number | undefined} type={type} full={full}
-      onChange={(v) => set(name, v as Fields[typeof name])} />
+      link={link} onChange={(v) => set(name, v as Fields[typeof name])} />
   );
 
   // enum 필드용 셀렉트 행 헬퍼. 빈 선택은 undefined로 저장(미변경 = 백엔드에서 스킵).
@@ -268,6 +299,13 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
         .pd-inp:hover { border-bottom-color: #e5e7eb; }
         .pd-inp:focus { border-bottom-color: ${GREEN}; }
         .pd-inp::placeholder { color: #cbd5e1; font-weight: 400; }
+        /* 소스 URL 등 링크 필드의 '열기' 버튼. 인풋은 편집용이라 링크 역할은 이 버튼이 맡는다. */
+        .pd-openlink { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;
+          font-size: 12px; font-weight: 600; line-height: 1.6; padding: 1px 8px; border-radius: 4px;
+          white-space: nowrap; text-decoration: none; color: ${GREEN}; background: #f1f8e9;
+          border: 1px solid #dcedc8; transition: background .15s, border-color .15s; }
+        .pd-openlink:hover { background: #e8f5e9; border-color: ${GREEN}; color: ${GREEN}; }
+        .pd-openlink-off { color: #cbd5e1; background: #fff; border-color: #eef0f2; cursor: not-allowed; }
         /* enum 셀렉트: 고스트 인풋과 동일 톤. 우측정렬 + 화살표 여백 확보. */
         .pd-sel { cursor: pointer; text-align: right; text-align-last: right; padding-right: 2px;
           appearance: none; -webkit-appearance: none; -moz-appearance: none; }
@@ -336,7 +374,7 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
             {row('제조사', 'manufacturer')}
             {row('원산지', 'origin')}
             {row('HS코드', 'hsCode')}
-            {row('소스 URL', 'sourceUrl', 'text', true)}
+            {row('소스 URL', 'sourceUrl', 'text', true, true)}
           </div>
 
           {/* 메모 */}
