@@ -7,6 +7,7 @@ import java.util.Map;
 
 import org.hibernate.annotations.JdbcTypeCode;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.sbshop.agent.core.domain.common.BaseEntity;
 import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -67,6 +68,27 @@ public class Order extends BaseEntity {
 	@Embedded
 	private CustomsData customsData = CustomsData.builder().build();
 
+	// ─── 마켓 원본 스냅샷 ───────────────────────────────────────────────
+	// 마켓이 <b>마지막으로 보내온</b> 값. 사용자가 손으로 고친 값을 동기화가 되돌리지 않게 하려고 둔다.
+	// 동기화는 이 스냅샷과 새로 받은 값을 비교해, 마켓 쪽이 실제로 바뀌었을 때만 반영한다.
+	// (단순 잠금이 아닌 이유: 고객이 마켓에서 배송지를 진짜로 바꾸면 그건 반영해야 오배송이 안 난다.)
+	// 수동 편집 경로는 이 값을 건드리지 않는다 — 건드리면 비교 기준이 오염돼 보호가 풀린다.
+
+	// @JsonIgnore: 내부 동기화 장부일 뿐 주문의 공개 형태가 아니다. 응답에 나가면 프론트 계약이
+	// 바뀌고(OrderResponseContractTest), 소비처도 없이 마켓 원본 개인정보를 한 벌 더 노출하게 된다.
+
+	@JsonIgnore
+	@Column(name = "last_market_address", length = 500)
+	private String lastMarketAddress;
+
+	@JsonIgnore
+	@Column(name = "last_market_message", length = 1000)
+	private String lastMarketMessage;
+
+	@JsonIgnore
+	@Column(name = "last_market_customs_no", length = 50)
+	private String lastMarketCustomsNo;
+
 	/** 주문자(구매자) 이름 - 수취인과 다를 수 있음 */
 	@Column(name = "orderer_name", length = 100)
 	private String ordererName;
@@ -124,6 +146,24 @@ public class Order extends BaseEntity {
 	}
 
 	/** 배송지 주소 변경 */
+	/**
+	 * 마켓이 보낸 값이 <b>직전에 받은 값과 달라졌는가</b>. 달라졌을 때만 우리 값을 덮는다.
+	 *
+	 * <p>스냅샷이 없으면 <b>종전대로 적용한다</b>. "모르면 덮지 않는다"가 더 안전해 보이지만
+	 * 실제로는 정반대다 — 배포 직전에 고객이 배송지를 바꾼 주문은 첫 동기화에서 그 변경이
+	 * 무시된 채 스냅샷에 기록돼버려, 이후로는 "변경 없음"으로 보여 <b>영영 반영되지 않는다</b>.
+	 * 막으려던 오배송을 오히려 만드는 셈이다.
+	 *
+	 * <p>대신 배포 시 스냅샷을 현재 값으로 백필해 이 상황 자체를 없앤다
+	 * (docs/normalize/working_history 결과서의 DDL 참조). 백필 전 창에서는 종전 동작과 같다.
+	 */
+	private static boolean marketValueChanged(String snapshot, String incoming) {
+		if (snapshot == null) {
+			return true;
+		}
+		return !snapshot.equals(incoming);
+	}
+
 	public void updateAddress(String address) {
 		this.address = address;
 	}
@@ -167,6 +207,12 @@ public class Order extends BaseEntity {
 		if (!isMeaningfulPii(customsClearanceNo)) {
 			return;
 		}
+		boolean changed = marketValueChanged(this.lastMarketCustomsNo, customsClearanceNo);
+		this.lastMarketCustomsNo = customsClearanceNo;
+		if (!changed) {
+			// 마켓이 같은 번호를 재전송한 것 — 사용자가 고쳐둔 번호를 되돌리지 않는다.
+			return;
+		}
 		updateCustomsClearanceNo(customsClearanceNo);
 	}
 
@@ -193,11 +239,17 @@ public class Order extends BaseEntity {
 			this.recipientPhone = recipientPhone;
 		if (isMeaningfulPii(zipcode))
 			this.zipcode = zipcode;
-		if (isMeaningfulPii(address))
-			this.address = address;
+		if (isMeaningfulPii(address)) {
+			if (marketValueChanged(this.lastMarketAddress, address))
+				this.address = address;
+			this.lastMarketAddress = address;
+		}
 		// 메시지는 자유텍스트('*' 포함 가능) — 마스킹 판정 없이 빈값만 거부(동기화가 기존 요청사항을 지우지 않게).
-		if (message != null && !message.isBlank())
-			this.message = message;
+		if (message != null && !message.isBlank()) {
+			if (marketValueChanged(this.lastMarketMessage, message))
+				this.message = message;
+			this.lastMarketMessage = message;
+		}
 		if (isMeaningfulPii(ordererName))
 			this.ordererName = ordererName;
 		if (isUsablePhone(ordererPhone))
