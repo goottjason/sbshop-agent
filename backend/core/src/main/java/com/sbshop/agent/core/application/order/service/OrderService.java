@@ -252,6 +252,11 @@ public class OrderService {
 			order.updateCustomsClearanceNo(command.getCustomsClearanceNo());
 		}
 
+		// 배송메시지 수정 — 주소와 동일한 시맨틱(""=클리어, null=변경 안 함)
+		if (command.getMessage() != null) {
+			order.updateMessage(command.getMessage());
+		}
+
 		return order;
 	}
 

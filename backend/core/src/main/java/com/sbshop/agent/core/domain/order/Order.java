@@ -129,6 +129,16 @@ public class Order extends BaseEntity {
 	}
 
 	/**
+	 * 배송메시지 수동 변경. {@link #update} 동기화 경로의 "빈값 거부" 가드를 타지 않는다 —
+	 * 그 가드는 마켓이 빈 메시지를 보내와 기존 요청사항을 지우는 것을 막기 위한 것이고,
+	 * 여기는 사용자가 <b>의도적으로</b> 지우는 경로라 빈 문자열이 그대로 저장돼야 한다
+	 * (F-ORD-23 클리어 시맨틱, 주소와 동일).
+	 */
+	public void updateMessage(String message) {
+		this.message = message;
+	}
+
+	/**
 	 * 통관번호 변경. 번호가 실제로 바뀐 경우에만 검증상태를 PENDING/NONE으로 무효화하고,
 	 * 같은 번호가 재하달되면 사용자의 수기 검증상태(VALID/INVALID_*)를 유지한다 (D-073).
 	 */

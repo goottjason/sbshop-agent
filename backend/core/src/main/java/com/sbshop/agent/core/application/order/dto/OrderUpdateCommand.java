@@ -8,4 +8,5 @@ import lombok.Data;
 public class OrderUpdateCommand {
 	private String address;
 	private String customsClearanceNo;
+	private String message;
 }

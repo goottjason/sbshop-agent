@@ -126,12 +126,14 @@ function blurLeftToPage(e: React.FocusEvent<HTMLElement>): boolean {
 //   - Enter: 커밋(=blur 유발). 필수 아님 — Tab/클릭 이탈만으로도 저장됨.
 //   - Escape: 원복 후 이탈. 저장 성공=초록 플래시, 실패=빨강+원복.
 //   - 외부 값(동기화·낙관적 패치)이 바뀌면 편집 중이 아닐 때만 draft에 반영.
-function InlineInput({ value, onCommit, type = 'text', align = 'left', title }: {
+function InlineInput({ value, onCommit, type = 'text', align = 'left', title, selectAllOnFocus = false }: {
   value: string;
   onCommit: (v: string) => Promise<unknown>;
   type?: string;
   align?: 'left' | 'center';
   title?: string;
+  /** 클릭·포커스 즉시 전체 선택 — 통째로 복사하거나 덮어쓰는 필드(배송메시지)용. */
+  selectAllOnFocus?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
   const [status, setStatus] = useState<SaveStatus>('idle');
@@ -154,7 +156,15 @@ function InlineInput({ value, onCommit, type = 'text', align = 'left', title }: 
       value={draft}
       title={title}
       style={{ ...inputStyle, textAlign: align, borderColor: statusBorder(status), borderWidth: status === 'idle' ? 1 : 2 }}
-      onFocus={() => { focused.current = true; }}
+      onFocus={(e) => {
+        focused.current = true;
+        // select()만으로는 부족하다 — 마우스 클릭은 focus 뒤에 커서를 놓아 선택을 풀어버린다.
+        // 다음 틱으로 미뤄 클릭 처리가 끝난 뒤 선택한다.
+        if (selectAllOnFocus) {
+          const el = e.currentTarget;
+          setTimeout(() => el.select(), 0);
+        }
+      }}
       onChange={(e) => { setDraft(e.target.value); setStatus('dirty'); }}
       // 페이지 내 다른 영역으로 이탈할 때만 저장. Alt-Tab(창 전환)에서는 draft 유지·저장 보류.
       onBlur={() => { if (document.hasFocus()) commit(); }}
@@ -1580,11 +1590,17 @@ const OrderGrid: React.FC = () => {
         if (row.original.rowType === 'fulfillment') return null;
         const zipcode = row.original.order?.zipcode || '';
         const message = row.original.order?.message || '';
+        // 우편번호는 마켓이 주는 값이라 읽기 전용. 배송메시지는 주소와 같은 인라인 편집 필드다.
         return (
-          <div style={{ fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left', paddingLeft: '4px' }}>
-            <span style={{ fontWeight: 500 }}>{zipcode || '-'}</span>
-            <span style={{ margin: '0 4px', color: '#999' }}>|</span>
-            <span style={{ color: '#666' }}>{message || '-'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '12px', paddingLeft: '4px' }}>
+            <span style={{ fontWeight: 500, flexShrink: 0 }}>{zipcode || '-'}</span>
+            <span style={{ color: '#999', flexShrink: 0 }}>|</span>
+            <InlineInput
+              value={message}
+              selectAllOnFocus
+              title="배송메시지 — 클릭하면 전체 선택됩니다"
+              onCommit={(v) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'order.message', v)}
+            />
           </div>
         );
       }
