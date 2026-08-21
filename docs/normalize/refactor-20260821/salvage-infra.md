@@ -96,7 +96,7 @@
 - 응답 형태: `{ code, message, data: { sellerProductId, productId, items:[...], ... } }`.
 
 ### `CoupangMarketClient.syncImagesAndHtml`
-- 저장된 `rawData`가 `{}`(가격/재고만 있고 items 없음)인 경우가 잦다 → **items가 없으면 전체 상품 페이로드를 GET으로 다시 받아** 작업 대상 rawData로 쓴다.
+- (2026-08-21 D-183 3차 개정) **저장 rawData는 신뢰하지 않는다 — items 유무와 무관하게 항상 seller-products GET으로 신선한 전체 페이로드를 받아** 작업 대상으로 쓴다. 이전 재게시가 정화(빈 필수옵션 드롭)한 rawData가 DB에 저장되면 재충전이 자기무력화되던 실사고의 교훈. 이 구현에서 `currentRawData` 파라미터는 미사용(인터페이스 호환용 — 타 3마켓은 사용).
 - **D-092 경로 함정:** 쿠팡 상품수정(승인필요)은 **id 없는 base에 PUT**(sellerProductId는 바디에). publish POST 경로와 동일하다. **id 포함 경로 `.../seller-products/{id}`는 GET/DELETE 전용 → PUT 시 404 PRECONDITION_FAILED.**
 - **`requested=true`를 넣어야** 저장 후 자동 판매승인요청까지 진행된다(문서: false면 임시저장에 머묾).
 - 별도 `/approvals`(상품 승인 요청) API는 **임시저장 상품 전용**이라 승인상품 편집엔 부적합 → 제거됨. 편집 경로에서 호출하면 안 된다.

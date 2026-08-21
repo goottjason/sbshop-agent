@@ -200,22 +200,20 @@ public class CoupangMarketClient implements MarketClient {
 		if (marketItemId == null || marketItemId.isBlank()) {
 			throw new IllegalStateException("쿠팡 sellerProductId(marketItemId) 없음 — 이미지 재게시 불가");
 		}
-		Map<String, Object> rawData = currentRawData;
-		if (rawData == null || !rawData.containsKey("items")) {
-			String getPath = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId;
-			String responseJson = restClient.get(getPath);
-			log.info("[D092][쿠팡] seller-products GET (len={}): {}", responseJson == null ? -1 : responseJson.length(),
-				responseJson == null ? "null" : responseJson.substring(0, Math.min(responseJson.length(), 3000)));
-			try {
-				JsonNode root = objectMapper.readTree(responseJson);
-				rawData = objectMapper.convertValue(root.path("data"),
-					new TypeReference<Map<String, Object>>() {});
-			} catch (Exception e) {
-				throw new IllegalStateException("쿠팡 상품 조회 응답 파싱 실패 (ID: " + marketItemId + ")", e);
-			}
-			if (rawData == null || rawData.isEmpty()) {
-				throw new IllegalStateException("쿠팡 상품 전체 페이로드 조회 실패 — data 없음 (ID: " + marketItemId + ")");
-			}
+		Map<String, Object> rawData;
+		String getPath = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId;
+		String responseJson = restClient.get(getPath);
+		log.info("[D092][쿠팡] seller-products GET (len={}): {}", responseJson == null ? -1 : responseJson.length(),
+			responseJson == null ? "null" : responseJson.substring(0, Math.min(responseJson.length(), 3000)));
+		try {
+			JsonNode root = objectMapper.readTree(responseJson);
+			rawData = objectMapper.convertValue(root.path("data"),
+				new TypeReference<Map<String, Object>>() {});
+		} catch (Exception e) {
+			throw new IllegalStateException("쿠팡 상품 조회 응답 파싱 실패 (ID: " + marketItemId + ")", e);
+		}
+		if (rawData == null || rawData.isEmpty()) {
+			throw new IllegalStateException("쿠팡 상품 전체 페이로드 조회 실패 — data 없음 (ID: " + marketItemId + ")");
 		}
 
 		@SuppressWarnings("unchecked") List<Map<String, Object>> items = (List<Map<String, Object>>)rawData
