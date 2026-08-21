@@ -3081,13 +3081,19 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 
 - 심각도: P2 / 리스크: 경량 | 위치: `backend/api/.../exception/GlobalExceptionHandler.java` (`handleNotFound`/`handleIllegalState`/`handleIllegalArgument`)
 - 증상: 메시지 없는 예외에서 `Map.of("message", null)` NPE → 의도한 상태코드 대신 컨테이너 기본 500. 같은 파일 내 안전 패턴(문자열 연결)과 혼재.
-- 상세: `docs/normalize/refactor-20260821/bugs-api.md` B-API-1 (수정·테스트 방향 포함) | 상태: 발견
+- 상세: `docs/normalize/refactor-20260821/bugs-api.md` B-API-1
+- 수정(2026-08-21, fixer-d171): 3개 핸들러의 `Map.of` 값에 `Objects.requireNonNullElse(e.getMessage(), 핸들러별 기본 문구)` 적용. `handleTypeMismatch`/`handleGeneral`은 무변경. Red: `GlobalExceptionHandlerTest` 신규 5케이스(null 메시지 3핸들러 — 수정 전 NPE 실패 확인 + 보존 가드 2).
+- 검증(2026-08-21, qa-verifier PASS): `:api:test --rerun` 167 tests 그린, 메시지 있는 예외의 상태코드·원문 보존 단언 통과, spotlessCheck 통과. 리더 전 모듈 회귀 1,098 tests 그린. 판정서: `_workspace/verify/D-171_D-172_verdict.md`
+- 상태: 검증통과
 
 ### D-172: 재고 동기화 트리거 실패 시 FAILED 활동로그 누락 — STARTED 영구 미완결 (2026-08-21)
 
 - 심각도: P2 / 리스크: 경량 | 위치: `backend/api/.../controller/ProductSyncController.syncAllProductStock`
 - 증상: catch가 500만 반환하고 FAILED 미기록. `OrderSyncController` 5개 트리거는 전부 기록(F-SYNC-3) — 규율 누락.
-- 상세: `docs/normalize/refactor-20260821/bugs-api.md` B-API-2 | 상태: 발견
+- 상세: `docs/normalize/refactor-20260821/bugs-api.md` B-API-2
+- 수정(2026-08-21, fixer-d172): catch에 `ActionStatus.FAILED` 활동로그 기록 추가(F-SYNC-3 패턴) + 응답 메시지 null 방어(`failureMessage`). STARTED·성공·403 경로 불변. Red: `ProductSyncControllerActionLogTest` 신규 5케이스(FAILED 미기록·null NPE — 수정 전 실패 확인).
+- 검증(2026-08-21, qa-verifier PASS): 기존 계약 테스트가 200/403/500 본문 JSON 완전일치로 불변 고정, STOCK_SYNC·FAILED·null 마켓 전부 프론트 매핑 실존, `@Async` 본문 내 SUCCESS/FAILED 기록과 중복 없음(컨트롤러 catch는 동기 디스패치 실패만 포착). 리더 전 모듈 회귀 1,098 tests 그린. 개선 여지(비차단): 컨트롤러에 로거 부재로 앱 로그 미기록, null 메시지 시 활동로그 문구 "실패: null"은 코드베이스 공통 관례. 판정서: `_workspace/verify/D-171_D-172_verdict.md`
+- 상태: 검증통과
 
 ### D-173: `/api/admin/**` permitAll — Cafe24 리프레시 토큰 발급이 무인증 (2026-08-21)
 

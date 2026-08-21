@@ -41,8 +41,15 @@ public class ProductSyncController {
 			return ResponseEntity.ok(Map.<String, Object>of("success", true, "message",
 				"NEW/PREPARING 상태 주문 상품 재고 동기화 시작"));
 		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.STOCK_SYNC, null,
+				ActionStatus.FAILED, "재고 동기화 실패: " + e.getMessage());
+
 			return ResponseEntity.internalServerError()
-				.body(Map.<String, Object>of("success", false, "message", e.getMessage()));
+				.body(Map.<String, Object>of("success", false, "message", failureMessage(e)));
 		}
+	}
+
+	private String failureMessage(Exception e) {
+		return e.getMessage() != null ? e.getMessage() : "재고 동기화 실패";
 	}
 }
