@@ -140,48 +140,53 @@ public class SmartstoreProductPayloadBuilder {
 	}
 
 	private Map<String, Object> dietFoodDetail(Product product, Map<String, String> notice) {
-		Map<String, Object> detail = commonNoticeDetail();
+		String capacity = pick(notice, "capacity", SEE_DETAIL);
+		Map<String, Object> detail = new LinkedHashMap<>();
 		detail.put("productName", pick(notice, "productName", product.getBaseName()));
-		detail.put("manufacturer", pick(notice, "producer", manufacturer(product)));
-		detail.put("weight", pick(notice, "capacity", SEE_DETAIL));
 		detail.put("ingredients", pick(notice, "ingredients", SEE_DETAIL));
+		detail.put("specification", pick(notice, "specification", SEE_DETAIL));
+		detail.put("weight", capacity);
+		detail.put("amount", capacity);
+		detail.put("producer", pick(notice, "producer", manufacturer(product)));
+		detail.put("location", pick(notice, "location", SEE_DETAIL));
+		detail.put("customerServicePhoneNumber", pick(notice, "customerServiceNumber", SEE_DETAIL));
+		detail.put("cautionAndSideEffect", pick(notice, "caution", SEE_DETAIL));
+		detail.put("consumerSafetyCaution", pick(notice, "consumerSafetyCaution", SEE_DETAIL));
+		detail.put("storageMethod", pick(notice, "storageMethod", SEE_DETAIL));
 		detail.put("nutritionFacts", pick(notice, "nutrition", SEE_DETAIL));
 		detail.put("intakeMethod", pick(notice, "intakeMethod", SEE_DETAIL));
 		detail.put("consumptionDateText", pick(notice, "expirationDate", SEE_DETAIL));
-		detail.put("customerServicePhoneNumber", pick(notice, "customerServiceNumber", SEE_DETAIL));
-		detail.put("geneticallyModified", pick(notice, "gmoInfo", SEE_DETAIL));
-		detail.put("cautionAndSideEffect", pick(notice, "caution", SEE_DETAIL));
-		detail.put("storageMethod", pick(notice, "storageMethod", SEE_DETAIL));
-		detail.put("specification", pick(notice, "specification", SEE_DETAIL));
-		detail.put("funtionalInfo", pick(notice, "functionalInfo", SEE_DETAIL));
-		detail.put("noMedicinePhrase", true);
+		detail.put("nonMedicinalUsesMessage", true);
 		detail.put("importDeclarationCheck", true);
+		detail.put("geneticallyModified", false);
+		detail.putAll(commonNoticeFooter());
 		return detail;
 	}
 
 	private Map<String, Object> foodDetail(Product product, Map<String, String> notice) {
 		String capacity = pick(notice, "capacity", SEE_DETAIL);
-		Map<String, Object> detail = commonNoticeDetail();
+		Map<String, Object> detail = new LinkedHashMap<>();
+		detail.put("foodItem", pick(notice, "foodType", SEE_DETAIL));
 		detail.put("amount", capacity);
-		detail.put("weight", capacity);
 		detail.put("producer", pick(notice, "producer", manufacturer(product)));
+		detail.put("weight", capacity);
 		detail.put("keep", pick(notice, "storageMethod", SEE_DETAIL));
 		detail.put("adCaution", pick(notice, "adCaution", SEE_DETAIL));
-		detail.put("foodItem", pick(notice, "foodType", SEE_DETAIL));
 		detail.put("productComposition", pick(notice, "productComposition", SEE_DETAIL));
 		detail.put("size", pick(notice, "size", SEE_DETAIL));
 		detail.put("customerServicePhoneNumber", pick(notice, "customerServiceNumber", SEE_DETAIL));
+		detail.putAll(commonNoticeFooter());
 		return detail;
 	}
 
-	private Map<String, Object> commonNoticeDetail() {
-		Map<String, Object> detail = new LinkedHashMap<>();
-		detail.put("returnCostReason", SEE_DETAIL);
-		detail.put("noRefundReason", SEE_DETAIL);
-		detail.put("qualityAssuranceStandard", SEE_DETAIL);
-		detail.put("compensationProcedure", SEE_DETAIL);
-		detail.put("troubleShootingContents", SEE_DETAIL);
-		return detail;
+	private Map<String, Object> commonNoticeFooter() {
+		Map<String, Object> footer = new LinkedHashMap<>();
+		footer.put("returnCostReason", true);
+		footer.put("noRefundReason", true);
+		footer.put("qualityAssuranceStandard", true);
+		footer.put("compensationProcedure", true);
+		footer.put("troubleShootingContents", true);
+		return footer;
 	}
 
 	private String manufacturer(Product product) {

@@ -137,27 +137,33 @@ class SmartstoreProductPayloadBuilderTest {
 		assertThat(notice).containsKey("dietFood").doesNotContainKey("healthFunctionalFood");
 
 		@SuppressWarnings("unchecked") Map<String, Object> diet = (Map<String, Object>)notice.get("dietFood");
-		assertThat(diet).containsKeys("productName", "manufacturer", "weight", "ingredients",
-			"nutritionFacts", "intakeMethod", "consumptionDateText", "customerServicePhoneNumber",
-			"geneticallyModified", "cautionAndSideEffect", "storageMethod", "specification",
-			"funtionalInfo", "noMedicinePhrase", "importDeclarationCheck");
-		assertThat(diet).doesNotContainKeys("rawMaterial", "nutritionInfo", "gmoInfo",
-			"customerServiceNumber", "capacity", "expirationDate");
+		assertThat(diet).containsKeys("productName", "ingredients", "specification", "weight",
+			"amount", "producer", "location", "customerServicePhoneNumber", "cautionAndSideEffect",
+			"consumerSafetyCaution", "storageMethod", "nutritionFacts", "intakeMethod",
+			"consumptionDateText");
+		assertThat(diet).doesNotContainKeys("manufacturer", "noMedicinePhrase", "funtionalInfo",
+			"rawMaterial", "nutritionInfo", "gmoInfo", "customerServiceNumber", "capacity",
+			"expirationDate");
 		assertThat(diet.get("productName")).isEqualTo("비타민D3 K2");
-		assertThat(diet.get("manufacturer")).isEqualTo("California Gold Nutrition");
+		assertThat(diet.get("producer")).isEqualTo("California Gold Nutrition");
 		assertThat(diet.get("ingredients")).isEqualTo("비타민D3, 비타민K2");
 		assertThat(diet.get("nutritionFacts")).isEqualTo("상세설명 참조");
 		assertThat(diet.get("storageMethod")).isEqualTo("상세설명 참조");
+		assertThat(diet.get("location")).isEqualTo("상세설명 참조");
 	}
 
 	@Test
-	@DisplayName("고시 boolean 필드는 Boolean 타입으로 나간다 — 문자열이면 네이버가 역직렬화를 거부한다")
-	void noticeBooleanFieldsAreBooleanTyped() {
+	@DisplayName("건기식 고시의 boolean 필드는 Boolean 타입으로 나간다 — 문자열이면 네이버가 역직렬화를 거부한다(라이브 실측)")
+	void dietFoodNoticeBooleanFieldsAreBooleanTyped() {
 		Map<String, Object> notice = notice(builder.build(product(), context()));
 
 		@SuppressWarnings("unchecked") Map<String, Object> diet = (Map<String, Object>)notice.get("dietFood");
-		assertThat(diet.get("noMedicinePhrase")).isInstanceOf(Boolean.class).isEqualTo(true);
+		assertThat(diet.get("nonMedicinalUsesMessage")).isInstanceOf(Boolean.class).isEqualTo(true);
 		assertThat(diet.get("importDeclarationCheck")).isInstanceOf(Boolean.class).isEqualTo(true);
+		assertThat(diet.get("geneticallyModified")).isInstanceOf(Boolean.class).isEqualTo(false);
+		assertThat(diet).extractingByKeys("returnCostReason", "noRefundReason",
+			"qualityAssuranceStandard", "compensationProcedure", "troubleShootingContents")
+			.allSatisfy(v -> assertThat(v).isInstanceOf(Boolean.class).isEqualTo(true));
 	}
 
 	@Test
@@ -169,14 +175,25 @@ class SmartstoreProductPayloadBuilderTest {
 		assertThat(notice).containsKey("food").doesNotContainKey("processedFood");
 
 		@SuppressWarnings("unchecked") Map<String, Object> food = (Map<String, Object>)notice.get("food");
-		assertThat(food).containsKeys("amount", "producer", "weight", "keep", "adCaution",
-			"foodItem", "productComposition", "size", "customerServicePhoneNumber");
+		assertThat(food).extractingByKeys("foodItem", "amount", "producer", "weight", "keep",
+			"adCaution", "productComposition", "size", "customerServicePhoneNumber")
+			.allSatisfy(v -> assertThat(v).isInstanceOf(String.class).asString().isNotBlank());
 		assertThat(food.get("weight")).isEqualTo("500g");
 		assertThat(food.get("amount")).isEqualTo("500g");
 		assertThat(food.get("producer")).isEqualTo("제조사A");
 		assertThat(food.get("customerServicePhoneNumber")).isEqualTo("010-2597-2480");
 		assertThat(food.get("keep")).isEqualTo("상세설명 참조");
-		assertThat(food.values()).allSatisfy(v -> assertThat(String.valueOf(v)).isNotBlank());
+	}
+
+	@Test
+	@DisplayName("일반식품 고시의 공통 5필드도 Boolean 타입으로 나간다")
+	void foodNoticeFooterFieldsAreBooleanTyped() {
+		Map<String, Object> notice = notice(builder.build(product(), processedFoodContext()));
+
+		@SuppressWarnings("unchecked") Map<String, Object> food = (Map<String, Object>)notice.get("food");
+		assertThat(food).extractingByKeys("returnCostReason", "noRefundReason",
+			"qualityAssuranceStandard", "compensationProcedure", "troubleShootingContents")
+			.allSatisfy(v -> assertThat(v).isInstanceOf(Boolean.class).isEqualTo(true));
 	}
 
 	@Test
