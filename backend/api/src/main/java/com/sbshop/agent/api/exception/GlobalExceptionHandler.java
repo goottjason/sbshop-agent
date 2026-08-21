@@ -3,6 +3,7 @@ package com.sbshop.agent.api.exception;
 import com.sbshop.agent.core.domain.common.exception.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -28,7 +29,7 @@ public class GlobalExceptionHandler {
 		log.warn("리소스 없음: {}", e.getMessage());
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
 			"success", false,
-			"message", e.getMessage()));
+			"message", Objects.requireNonNullElse(e.getMessage(), "요청한 리소스를 찾을 수 없습니다.")));
 	}
 
 	@ExceptionHandler(IllegalStateException.class)
@@ -36,7 +37,7 @@ public class GlobalExceptionHandler {
 		log.warn("비즈니스 오류: {}", e.getMessage());
 		return ResponseEntity.badRequest().body(Map.of(
 			"success", false,
-			"message", e.getMessage()));
+			"message", Objects.requireNonNullElse(e.getMessage(), "처리할 수 없는 요청 상태입니다.")));
 	}
 
 	@ExceptionHandler(IllegalArgumentException.class)
@@ -44,7 +45,7 @@ public class GlobalExceptionHandler {
 		log.warn("입력값 오류: {}", e.getMessage());
 		return ResponseEntity.badRequest().body(Map.of(
 			"success", false,
-			"message", e.getMessage()));
+			"message", Objects.requireNonNullElse(e.getMessage(), "잘못된 요청입니다.")));
 	}
 
 	@ExceptionHandler(Exception.class)
