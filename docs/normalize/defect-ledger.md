@@ -3209,7 +3209,10 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 
 - 심각도: P1(신규 등록 기능 불능 — 출고지 수동 설정 없는 상품 전부) | 위치: `backend/infrastructure/.../smartstore/component/SmartstoreAddressBookResolver` 경유 `GET /v1/seller/addressbooks`
 - 증상: 3상품(3194·2270·1803) 등록 시도 전부 → 주소록 조회 404 `GW.NOT_FOUND` → 출고지/반품지 자동 해석 실패 → `SmartstoreProductPayloadBuilder`가 "출고지 주소ID 없음"으로 거부. 네이버 커머스API 주소록 엔드포인트 경로 확인 필요(스펙 변경 추정).
-- 상태: 발견
+- 원인(확정): 1순위 경로 `GET /v1/seller/addressbooks-for-page?page=1&size=100`은 **HTTP 200 정상**이며 실응답 최상위 키가 **`addressBooks`**(리더 라이브 실측). `SmartstoreAddressBookResolver.fetchFromApi`가 `contents`/`content`/배열루트만 인식해 정상 응답을 "빈 목록"으로 오인, **로그 한 줄 없이 continue** → 2순위 폐기 경로 `/v1/seller/addressbooks`(404 GW.NOT_FOUND)로 넘어가 전체 실패. 로그의 404는 증상이지 원인이 아니었다.
+- 수정: `LIST_KEYS = [addressBooks, contents, content]` + 배열루트 순으로 `extractList` 일원화, 미인식/빈 목록 시 `log.warn`에 `path`와 응답 최상위 키 기록(침묵 continue 제거). 헬퍼·경로목록·캐시·설정 오버라이드 불변. `_workspace/fixes/D-186_fix.md`
+- 검증(2026-08-22, `_workspace/verify/D-186_verdict.md`): **PASS**. Red 실측 = 수정 전 소스 스크래치 재구성(`git archive HEAD`)에 신규 테스트 이식 → **7 tests, 5 failed**(통과 2건은 보존가드). Green = `:infrastructure:test --rerun` **185/0**, `:core:test`+`:api:test --rerun-tasks` **748/0·170/0** (합계 1,103 tests 0 failures). 행위 보존은 검증자 독립 프로브 7케이스를 수정 전/후 사본에 교차 실행 — 배열루트·`content`키·첫원소폴백·2순위폴백·실패비캐시·`invalidate` **6종 pre/post 동일**, 차이는 `addressBooks` 경로 1건뿐. 경계면(`MarketAccountResourcePort`·`SmartstoreProductPayloadBuilder.asLong`·`MarketRequiredFieldValidator`) 계약 불변. 클린 사본 `spotlessCheck` 통과, 신규 주석 0·FQN 0.
+- 상태: 검증통과 (단위·통합 범위) — **라이브 실등록 1건 미검증**(리더 몫). 관찰: 주소록 100건 초과 시 1페이지만 조회하는 페이지네이션 한계는 기존 동작으로 잔존.
 
 ### D-187: 카페24 신규 등록이 진열 분류 목록 조회 실패로 불가 (2026-08-22, D-166 라이브 검증 중 발견)
 

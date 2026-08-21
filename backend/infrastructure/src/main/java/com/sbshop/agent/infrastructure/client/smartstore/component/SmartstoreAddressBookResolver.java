@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.sourcing.port.MarketAccountResourcePort;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.infrastructure.client.smartstore.client.SmartstoreRestClient;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,8 @@ public class SmartstoreAddressBookResolver implements MarketAccountResourcePort 
 	private static final List<String> PATHS = List.of(
 		"/v1/seller/addressbooks-for-page?page=1&size=100",
 		"/v1/seller/addressbooks");
+
+	private static final List<String> LIST_KEYS = List.of("addressBooks", "contents", "content");
 
 	private static final String RELEASE_PREFIX = "RELEASE";
 	private static final String REFUND_PREFIX = "REFUND";
@@ -75,10 +78,12 @@ public class SmartstoreAddressBookResolver implements MarketAccountResourcePort 
 		for (String path : PATHS) {
 			try {
 				JsonNode root = objectMapper.readTree(restClient.get(path));
-				JsonNode list = root.isArray() ? root
-					: root.has("contents") ? root.path("contents") : root.path("content");
-				if (!list.isArray() || list.isEmpty())
+				JsonNode list = extractList(root);
+				if (list == null || list.isEmpty()) {
+					log.warn("[스토어주소록] 응답에서 주소록 목록을 찾지 못했습니다 path={} 최상위키={}", path,
+						topLevelKeys(root));
 					continue;
+				}
 
 				String release = pickByTypePrefix(list, RELEASE_PREFIX);
 				String refund = pickByTypePrefix(list, REFUND_PREFIX);
@@ -102,6 +107,23 @@ public class SmartstoreAddressBookResolver implements MarketAccountResourcePort 
 		}
 		log.warn("[스토어주소록] 자동 조회에 실패했습니다 — 검수 화면에 '출고지/반품지 주소ID 미충족'으로 표시됩니다.");
 		return out;
+	}
+
+	private JsonNode extractList(JsonNode root) {
+		for (String key : LIST_KEYS) {
+			JsonNode node = root.path(key);
+			if (node.isArray())
+				return node;
+		}
+		return root.isArray() ? root : null;
+	}
+
+	private String topLevelKeys(JsonNode root) {
+		if (root.isArray())
+			return "배열루트(size=" + root.size() + ")";
+		List<String> keys = new ArrayList<>();
+		root.fieldNames().forEachRemaining(keys::add);
+		return keys.toString();
 	}
 
 	private String pickByTypePrefix(JsonNode list, String prefix) {
