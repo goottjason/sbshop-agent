@@ -225,6 +225,7 @@ public class SmartstoreMarketClient implements MarketClient {
 				applyImages(originProduct, targetImages);
 			}
 			applyCustomsTaxType(originProduct);
+			applyUnitPrice(originProduct, product);
 			if (newDetailHtml != null) {
 				originProduct.put("detailContent", newDetailHtml);
 			}
