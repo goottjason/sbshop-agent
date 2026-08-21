@@ -3160,4 +3160,16 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 영향: D-181 수정 전에는 이 실패가 조용히 성공으로 기록돼 왔으므로, **쿠팡 재게시가 실제로 언제부터 안 되고 있었는지 알 수 없음** — 재게시 시도 이력이 있는 상품의 쿠팡 실물 리스팅과 로컬 기록 대조 필요.
 - 재현: 상품 3110 상세 모달 → 이미지 URL로 등록 → 재게시 → failed=[COUPANG], 위 메시지.
 - 수정 방향(미착수): GET 페이로드를 PUT에 되돌릴 때 items의 attributes/notices 등에서 PUT이 거부하는 필드·값 정규화 필요(쿠팡 문서의 수정 API 요구 스키마와 대조). 관련 salvage: `refactor-20260821/salvage-infra.md` CoupangMarketClient.syncImagesAndHtml 절(D-092 경로 함정).
+- 수정(2026-08-21, tdd-fixer): `syncImagesAndHtml`가 PUT 직전 `sanitizeItemAttributes` — 빈/null 값 엔트리 드롭, 자리표시 값(값==타입명 또는 {수량,용량,중량,정,개,캡슐})은 상품 데이터로 재충전(수량류→bundleQuantity+"개", 용량/중량/함량/캡슐/정류→capacity+단위 접미사), 의미값·부가 필드·타입명 불변.
+- 검증(2026-08-21, qa-verifier **PASS**): Red를 수정 전 코드(`git archive HEAD` 전개 + 테스트 이식)에 실측 — 행위 변경 2건만 FAILED, 보존 가드 2건은 전후 모두 Green(가짜 Red 아님). `:infrastructure:test --rerun` **144 tests / failures 0**, XML에 신규 4 testcase 실행 기록 확인. 호출부 1곳(`ProductManageUseCase:170`)·인터페이스·타 마켓 어댑터 무변경, D-181 봉투 검사 무영향, `:api:/:worker:compileJava`·`spotlessCheck` 통과, 신규 주석 0·FQN 0. 반환 rawData가 DB에 저장되므로 2회차 재게시는 정화값 그대로 통과(멱등). 판정서: `_workspace/verify/D-182_verdict.md`
+- 잔여 리스크(라이브): ① 단위 접미사가 카테고리 `usableUnits` 미대조 고정 매핑 — 다른 카테고리에서 재거부 가능 ② 자리표시 문구 집합이 실측 2종+유추 4종 ③ `포장단위="개"`처럼 단일 토큰이 정상값인 속성은 드롭될 수 있음(실데이터 미확인). 오탐 파급은 "이미 거부되던 엔트리" 한정이라 신규 회귀는 아님.
+- 후속 후보(분리 등재 제안): `CoupangMetaService.extractMandatoryAttributes`(최초 등록 경로)와 신규 `refillAttributeValue`(재게시 경로)의 **산식이 상이** — 수량 계열 `capacity*bundleQuantity`(600) vs `bundleQuantity+"개"`(3개), `캡슐`·`정` 타입의 수량/용량 분기가 반대, 단위 선택이 `findProperUnit(usableUnits)` vs 고정 switch. 라이브 수락된 쪽은 신규 sanitize라 D-182 반려 사유는 아니나 두 경로 통일 필요. 덧: `CoupangMetaService.java:51` Integer 언박싱 NPE 여지(기존 코드).
+- 상태: **검증통과** (커밋·배포 후 상품 3110 재게시 라이브 재확인 권장)
+
+### D-183: 쿠팡 최초 등록과 재게시의 속성값 산식이 서로 다르다 + 등록 경로 언박싱 NPE 여지 (2026-08-21, D-182 검증 중 발견)
+
+- 심각도: P2 | 위치: `backend/infrastructure/.../coupang/component/CoupangMetaService.extractMandatoryAttributes` vs `.../adapter/CoupangMarketClient.refillAttributeValue`
+- 증상: 같은 필수 구매옵션에 두 경로가 다른 값을 만든다 — 수량 계열이 등록은 `capacity*bundleQuantity`(상품 3110이면 600), 재게시는 `bundleQuantity+"개"`(3개, 라이브 수락 실증). 캡슐·정 타입의 수량/용량 분기가 서로 반대. 단위 선택도 등록은 `findProperUnit(usableUnits)` 동적, 재게시는 고정 switch. 등록 산식(600개)이 오히려 의심스러움 — 등록 직후 상품의 옵션 표기가 틀릴 가능성.
+- 부수: `CoupangMetaService.java:51`이 `getBundleQuantity()`(Integer)를 null 가드 없이 언박싱 — NPE 여지.
+- 수정 방향(미착수): 산식을 검증된 쪽(재게시 sanitize)으로 단일화하고 usableUnits 대조는 유지·공용화. D-182 잔여 리스크(고정 단위 매핑)도 함께 해소 가능.
 - 상태: 발견

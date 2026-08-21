@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -14,6 +15,10 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sbshop.agent.core.domain.product.Product;
+import com.sbshop.agent.core.domain.product.enums.MeasureUnit;
+import com.sbshop.agent.core.domain.product.vo.LogisticsInfo;
+import com.sbshop.agent.core.domain.product.vo.ProductSpec;
 import com.sbshop.agent.infrastructure.client.coupang.adapter.CoupangMarketClient;
 import com.sbshop.agent.infrastructure.client.coupang.client.CoupangRestClient;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangCategoryPredictor;
@@ -22,6 +27,7 @@ import com.sbshop.agent.infrastructure.client.coupang.component.CoupangSearchTag
 import com.sbshop.agent.infrastructure.client.coupang.config.CoupangProperties;
 import com.sbshop.agent.infrastructure.client.coupang.mapper.CoupangDataMapper;
 import com.sbshop.agent.infrastructure.client.coupang.parser.CoupangProductParser;
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +35,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -243,6 +250,110 @@ class CoupangMarketClientImagesTest {
 		Map<String, Object> raw = rawWithSingleItem();
 
 		assertThat(client.syncImagesAndHtml(null, "305", raw, List.of("u0"), "<html>")).isSameAs(raw);
+	}
+
+	@Test
+	@DisplayName("D-182: 빈 값 속성은 드롭하고 자리표시 속성은 상품 값으로 재충전해 PUT 한다")
+	void syncImagesAndHtml_sanitizesAttributesBeforePut() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
+		Map<String, Object> firstItem = new HashMap<>();
+		firstItem.put("attributes", List.of(
+			Map.of("attributeTypeName", "브랜드", "attributeValueName", "", "exposed", "EXPOSED"),
+			Map.of("attributeTypeName", "유통기한", "attributeValueName", "", "exposed", "EXPOSED"),
+			Map.of("attributeTypeName", "수량", "attributeValueName", "수량", "exposed", "EXPOSED"),
+			Map.of("attributeTypeName", "개당 용량/중량/정", "attributeValueName", "용량",
+				"exposed", "EXPOSED", "editable", false),
+			Map.of("attributeTypeName", "모델명", "attributeValueName", "Osteocare Liquid")));
+		Map<String, Object> raw = new HashMap<>();
+		raw.put("items", List.of(firstItem));
+
+		client.syncImagesAndHtml(product(), "305", raw, List.of("u0"), "<html>");
+
+		List<Map<String, Object>> attributes = capturedAttributes();
+		assertThat(attributes).hasSize(3);
+		assertThat(attributes.get(0)).containsEntry("attributeTypeName", "수량")
+			.containsEntry("attributeValueName", "3개")
+			.containsEntry("exposed", "EXPOSED");
+		assertThat(attributes.get(1)).containsEntry("attributeTypeName", "개당 용량/중량/정")
+			.containsEntry("attributeValueName", "200ml")
+			.containsEntry("exposed", "EXPOSED")
+			.containsEntry("editable", false);
+		assertThat(attributes.get(2)).containsEntry("attributeTypeName", "모델명")
+			.containsEntry("attributeValueName", "Osteocare Liquid");
+	}
+
+	@Test
+	@DisplayName("D-182: attributeValueName 이 null 인 속성도 드롭한다")
+	void syncImagesAndHtml_nullAttributeValue_dropped() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
+		Map<String, Object> blank = new HashMap<>();
+		blank.put("attributeTypeName", "브랜드");
+		blank.put("attributeValueName", null);
+		Map<String, Object> firstItem = new HashMap<>();
+		firstItem.put("attributes", List.of(blank,
+			Map.of("attributeTypeName", "모델명", "attributeValueName", "Osteocare Liquid")));
+		Map<String, Object> raw = new HashMap<>();
+		raw.put("items", List.of(firstItem));
+
+		client.syncImagesAndHtml(product(), "305", raw, List.of("u0"), "<html>");
+
+		List<Map<String, Object>> attributes = capturedAttributes();
+		assertThat(attributes).hasSize(1);
+		assertThat(attributes.get(0)).containsEntry("attributeTypeName", "모델명");
+	}
+
+	@Test
+	@DisplayName("D-182: 의미 있는 값을 가진 속성은 그대로 유지한다")
+	void syncImagesAndHtml_meaningfulAttributes_keptAsIs() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
+		Map<String, Object> firstItem = new HashMap<>();
+		firstItem.put("attributes", List.of(
+			Map.of("attributeTypeName", "수량", "attributeValueName", "12개"),
+			Map.of("attributeTypeName", "개당 용량/중량/정", "attributeValueName", "500ml")));
+		Map<String, Object> raw = new HashMap<>();
+		raw.put("items", List.of(firstItem));
+
+		client.syncImagesAndHtml(product(), "305", raw, List.of("u0"), "<html>");
+
+		List<Map<String, Object>> attributes = capturedAttributes();
+		assertThat(attributes).hasSize(2);
+		assertThat(attributes.get(0)).containsEntry("attributeValueName", "12개");
+		assertThat(attributes.get(1)).containsEntry("attributeValueName", "500ml");
+	}
+
+	@Test
+	@DisplayName("D-182: attributes 키가 없는 아이템은 건드리지 않는다")
+	void syncImagesAndHtml_withoutAttributes_itemUntouched() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
+		Map<String, Object> firstItem = new HashMap<>();
+		Map<String, Object> raw = new HashMap<>();
+		raw.put("items", List.of(firstItem));
+
+		client.syncImagesAndHtml(product(), "305", raw, List.of("u0"), "<html>");
+
+		assertThat(firstItem).doesNotContainKey("attributes");
+	}
+
+	private List<Map<String, Object>> capturedAttributes() {
+		ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
+		verify(restClient).put(eq(BASE_PATH), body.capture());
+		@SuppressWarnings("unchecked") Map<String, Object> sent = (Map<String, Object>)body.getValue();
+		@SuppressWarnings("unchecked") List<Map<String, Object>> items = (List<Map<String, Object>>)sent.get("items");
+		@SuppressWarnings("unchecked") List<Map<String, Object>> attributes = (List<Map<String, Object>>)items.get(0)
+			.get("attributes");
+		return attributes;
+	}
+
+	private Product product() {
+		Product product = mock(Product.class);
+		lenient().when(product.getLogisticsInfo()).thenReturn(LogisticsInfo.builder().bundleQuantity(3).build());
+		lenient().when(product.getProductSpec()).thenReturn(ProductSpec.builder()
+			.capacity(new BigDecimal("200")).measureUnit(MeasureUnit.ML).build());
+		return product;
 	}
 
 	private Map<String, Object> rawWithSingleItem() {

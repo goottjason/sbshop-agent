@@ -8,6 +8,7 @@ import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
+import com.sbshop.agent.core.domain.product.enums.MeasureUnit;
 import com.sbshop.agent.infrastructure.client.coupang.client.CoupangRestClient;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangCategoryPredictor;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangMetaService;
@@ -20,9 +21,11 @@ import com.sbshop.agent.infrastructure.client.coupang.parser.CoupangProductParse
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +35,8 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class CoupangMarketClient implements MarketClient {
+
+	private static final Set<String> PLACEHOLDER_ATTRIBUTE_VALUES = Set.of("수량", "용량", "중량", "정", "개", "캡슐");
 
 	private final CoupangProperties properties;
 	private final ObjectMapper objectMapper;
@@ -234,6 +239,8 @@ public class CoupangMarketClient implements MarketClient {
 			firstItem.put("contents", contents);
 		}
 
+		sanitizeItemAttributes(items, product);
+
 		String base = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
 		rawData.put("requested", true);
 		try {
@@ -289,6 +296,94 @@ public class CoupangMarketClient implements MarketClient {
 			log.error("[쿠팡] 상품 삭제 실패: sellerProductId={}, msg={}", marketItemId, e.getMessage());
 			throw e;
 		}
+	}
+
+	private void sanitizeItemAttributes(List<Map<String, Object>> items, Product product) {
+		if (items == null) {
+			return;
+		}
+		for (Map<String, Object> item : items) {
+			if (!(item.get("attributes") instanceof List<?> attributes)) {
+				continue;
+			}
+			List<Map<String, Object>> sanitized = new ArrayList<>();
+			for (Object element : attributes) {
+				if (!(element instanceof Map<?, ?> attribute)) {
+					continue;
+				}
+				Map<String, Object> entry = new LinkedHashMap<>();
+				attribute.forEach((key, value) -> entry.put(String.valueOf(key), value));
+				String typeName = attributeText(entry.get("attributeTypeName"));
+				String valueName = attributeText(entry.get("attributeValueName"));
+				if (valueName.isBlank()) {
+					continue;
+				}
+				if (!isPlaceholderAttributeValue(typeName, valueName)) {
+					sanitized.add(entry);
+					continue;
+				}
+				String refilled = refillAttributeValue(typeName, product);
+				if (refilled == null) {
+					continue;
+				}
+				entry.put("attributeValueName", refilled);
+				sanitized.add(entry);
+			}
+			item.put("attributes", sanitized);
+		}
+	}
+
+	private String attributeText(Object value) {
+		return value == null ? "" : String.valueOf(value).trim();
+	}
+
+	private boolean isPlaceholderAttributeValue(String typeName, String valueName) {
+		return valueName.equals(typeName) || PLACEHOLDER_ATTRIBUTE_VALUES.contains(valueName);
+	}
+
+	private String refillAttributeValue(String typeName, Product product) {
+		if (typeName.contains("수량")) {
+			return bundleQuantity(product) + "개";
+		}
+		if (typeName.contains("용량") || typeName.contains("중량") || typeName.contains("함량")
+			|| typeName.contains("캡슐") || typeName.contains("정")) {
+			return capacityValue(product) + measureUnitSuffix(product);
+		}
+		return null;
+	}
+
+	private int bundleQuantity(Product product) {
+		if (product == null || product.getLogisticsInfo() == null
+			|| product.getLogisticsInfo().getBundleQuantity() == null) {
+			return 1;
+		}
+		return product.getLogisticsInfo().getBundleQuantity();
+	}
+
+	private int capacityValue(Product product) {
+		if (product == null || product.getProductSpec() == null
+			|| product.getProductSpec().getCapacity() == null) {
+			return 1;
+		}
+		return product.getProductSpec().getCapacity().intValue();
+	}
+
+	private String measureUnitSuffix(Product product) {
+		MeasureUnit unit = product == null || product.getProductSpec() == null
+			? null : product.getProductSpec().getMeasureUnit();
+		if (unit == null) {
+			return "개";
+		}
+		return switch (unit) {
+			case ML -> "ml";
+			case L -> "L";
+			case MG -> "mg";
+			case G -> "g";
+			case KG -> "kg";
+			case TABLET -> "정";
+			case CAPSULE -> "캡슐";
+			default -> "개";
+		};
 	}
 
 	private void verifyEnvelopeStrict(String responseJson, String context) {
