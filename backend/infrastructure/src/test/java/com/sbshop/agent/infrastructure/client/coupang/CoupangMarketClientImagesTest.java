@@ -9,6 +9,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -21,6 +22,7 @@ import com.sbshop.agent.core.domain.product.vo.LogisticsInfo;
 import com.sbshop.agent.core.domain.product.vo.ProductSpec;
 import com.sbshop.agent.infrastructure.client.coupang.adapter.CoupangMarketClient;
 import com.sbshop.agent.infrastructure.client.coupang.client.CoupangRestClient;
+import com.sbshop.agent.infrastructure.client.coupang.component.CoupangAttributeValueResolver;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangCategoryPredictor;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangMetaService;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangSearchTagGenerator;
@@ -68,7 +70,7 @@ class CoupangMarketClientImagesTest {
 	@BeforeEach
 	void setUp() {
 		client = new CoupangMarketClient(properties, objectMapper, restClient, categoryPredictor,
-			productParser, searchTagGenerator, dataMapper, metaService);
+			productParser, searchTagGenerator, dataMapper, metaService, new CoupangAttributeValueResolver());
 	}
 
 	@Test
@@ -336,6 +338,78 @@ class CoupangMarketClientImagesTest {
 		client.syncImagesAndHtml(product(), "305", raw, List.of("u0"), "<html>");
 
 		assertThat(firstItem).doesNotContainKey("attributes");
+	}
+
+	@Test
+	@DisplayName("D-183: 카테고리 usableUnits 를 대조해 재충전 단위를 고른다")
+	void syncImagesAndHtml_refillUsesCategoryUsableUnits() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
+		when(metaService.getUsableUnits(1001L)).thenReturn(Map.of("용량", List.of("정", "캡슐")));
+		Map<String, Object> raw = rawWithPlaceholders(1001L,
+			Map.of("attributeTypeName", "용량", "attributeValueName", "용량"));
+
+		client.syncImagesAndHtml(product(), "305", raw, List.of("u0"), "<html>");
+
+		assertThat(capturedAttributes().get(0)).containsEntry("attributeValueName", "200정");
+	}
+
+	@Test
+	@DisplayName("D-183: 자리표시가 여러 개여도 카테고리 메타는 한 번만 조회한다")
+	void syncImagesAndHtml_loadsCategoryMetaOnce() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
+		when(metaService.getUsableUnits(1001L)).thenReturn(Map.of("용량", List.of("ml")));
+		Map<String, Object> raw = rawWithPlaceholders(1001L,
+			Map.of("attributeTypeName", "용량", "attributeValueName", "용량"),
+			Map.of("attributeTypeName", "수량", "attributeValueName", "수량"));
+
+		client.syncImagesAndHtml(product(), "305", raw, List.of("u0"), "<html>");
+
+		verify(metaService, times(1)).getUsableUnits(1001L);
+		assertThat(capturedAttributes()).hasSize(2);
+		assertThat(capturedAttributes().get(0)).containsEntry("attributeValueName", "200ml");
+		assertThat(capturedAttributes().get(1)).containsEntry("attributeValueName", "3개");
+	}
+
+	@Test
+	@DisplayName("D-183: 카테고리 메타 조회가 실패해도 고정 단위로 재충전하고 PUT 은 계속한다")
+	void syncImagesAndHtml_metaFailure_fallsBackToFixedUnit() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
+		when(metaService.getUsableUnits(1001L)).thenThrow(new IllegalStateException("메타 API 장애"));
+		Map<String, Object> raw = rawWithPlaceholders(1001L,
+			Map.of("attributeTypeName", "개당 용량/중량/정", "attributeValueName", "용량"));
+
+		client.syncImagesAndHtml(product(), "305", raw, List.of("u0"), "<html>");
+
+		assertThat(capturedAttributes().get(0)).containsEntry("attributeValueName", "200ml");
+	}
+
+	@Test
+	@DisplayName("D-183: displayCategoryCode 가 없으면 메타를 조회하지 않고 고정 단위로 재충전한다")
+	void syncImagesAndHtml_withoutCategoryCode_skipsMetaLookup() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
+		Map<String, Object> raw = rawWithPlaceholders(null,
+			Map.of("attributeTypeName", "개당 용량/중량/정", "attributeValueName", "용량"));
+
+		client.syncImagesAndHtml(product(), "305", raw, List.of("u0"), "<html>");
+
+		verify(metaService, never()).getUsableUnits(any());
+		assertThat(capturedAttributes().get(0)).containsEntry("attributeValueName", "200ml");
+	}
+
+	@SafeVarargs
+	private Map<String, Object> rawWithPlaceholders(Long categoryCode, Map<String, String>... attributes) {
+		Map<String, Object> firstItem = new HashMap<>();
+		firstItem.put("attributes", List.of(attributes));
+		Map<String, Object> raw = new HashMap<>();
+		raw.put("items", List.of(firstItem));
+		if (categoryCode != null) {
+			raw.put("displayCategoryCode", categoryCode);
+		}
+		return raw;
 	}
 
 	private List<Map<String, Object>> capturedAttributes() {

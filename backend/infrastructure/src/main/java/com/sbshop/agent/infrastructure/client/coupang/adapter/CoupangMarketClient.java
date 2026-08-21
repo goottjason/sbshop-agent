@@ -8,8 +8,8 @@ import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
-import com.sbshop.agent.core.domain.product.enums.MeasureUnit;
 import com.sbshop.agent.infrastructure.client.coupang.client.CoupangRestClient;
+import com.sbshop.agent.infrastructure.client.coupang.component.CoupangAttributeValueResolver;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangCategoryPredictor;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangMetaService;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangSearchTagGenerator;
@@ -46,6 +46,7 @@ public class CoupangMarketClient implements MarketClient {
 	private final CoupangSearchTagGenerator searchTagGenerator;
 	private final CoupangDataMapper dataMapper;
 	private final CoupangMetaService metaService;
+	private final CoupangAttributeValueResolver attributeValueResolver;
 
 	@Override
 	public MarketType getSupportedMarket() {
@@ -239,7 +240,7 @@ public class CoupangMarketClient implements MarketClient {
 			firstItem.put("contents", contents);
 		}
 
-		sanitizeItemAttributes(items, product);
+		sanitizeItemAttributes(items, product, rawData);
 
 		String base = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
 		rawData.put("requested", true);
@@ -298,10 +299,12 @@ public class CoupangMarketClient implements MarketClient {
 		}
 	}
 
-	private void sanitizeItemAttributes(List<Map<String, Object>> items, Product product) {
+	private void sanitizeItemAttributes(List<Map<String, Object>> items, Product product,
+		Map<String, Object> rawData) {
 		if (items == null) {
 			return;
 		}
+		Map<String, List<String>> unitsByTypeName = null;
 		for (Map<String, Object> item : items) {
 			if (!(item.get("attributes") instanceof List<?> attributes)) {
 				continue;
@@ -322,7 +325,10 @@ public class CoupangMarketClient implements MarketClient {
 					sanitized.add(entry);
 					continue;
 				}
-				String refilled = refillAttributeValue(typeName, product);
+				if (unitsByTypeName == null) {
+					unitsByTypeName = loadUsableUnits(rawData);
+				}
+				String refilled = attributeValueResolver.resolve(typeName, product, unitsByTypeName.get(typeName));
 				if (refilled == null) {
 					continue;
 				}
@@ -341,49 +347,33 @@ public class CoupangMarketClient implements MarketClient {
 		return valueName.equals(typeName) || PLACEHOLDER_ATTRIBUTE_VALUES.contains(valueName);
 	}
 
-	private String refillAttributeValue(String typeName, Product product) {
-		if (typeName.contains("수량")) {
-			return bundleQuantity(product) + "개";
+	private Map<String, List<String>> loadUsableUnits(Map<String, Object> rawData) {
+		Long categoryCode = displayCategoryCode(rawData);
+		if (categoryCode == null) {
+			return Map.of();
 		}
-		if (typeName.contains("용량") || typeName.contains("중량") || typeName.contains("함량")
-			|| typeName.contains("캡슐") || typeName.contains("정")) {
-			return capacityValue(product) + measureUnitSuffix(product);
+		try {
+			return metaService.getUsableUnits(categoryCode);
+		} catch (Exception e) {
+			log.warn("[쿠팡] 카테고리 메타 조회 실패 — 고정 단위로 속성 재충전: categoryCode={}, msg={}",
+				categoryCode, e.getMessage());
+			return Map.of();
 		}
-		return null;
 	}
 
-	private int bundleQuantity(Product product) {
-		if (product == null || product.getLogisticsInfo() == null
-			|| product.getLogisticsInfo().getBundleQuantity() == null) {
-			return 1;
+	private Long displayCategoryCode(Map<String, Object> rawData) {
+		Object value = rawData == null ? null : rawData.get("displayCategoryCode");
+		if (value instanceof Number number) {
+			return number.longValue();
 		}
-		return product.getLogisticsInfo().getBundleQuantity();
-	}
-
-	private int capacityValue(Product product) {
-		if (product == null || product.getProductSpec() == null
-			|| product.getProductSpec().getCapacity() == null) {
-			return 1;
+		if (value == null) {
+			return null;
 		}
-		return product.getProductSpec().getCapacity().intValue();
-	}
-
-	private String measureUnitSuffix(Product product) {
-		MeasureUnit unit = product == null || product.getProductSpec() == null
-			? null : product.getProductSpec().getMeasureUnit();
-		if (unit == null) {
-			return "개";
+		try {
+			return Long.valueOf(String.valueOf(value).trim());
+		} catch (NumberFormatException e) {
+			return null;
 		}
-		return switch (unit) {
-			case ML -> "ml";
-			case L -> "L";
-			case MG -> "mg";
-			case G -> "g";
-			case KG -> "kg";
-			case TABLET -> "정";
-			case CAPSULE -> "캡슐";
-			default -> "개";
-		};
 	}
 
 	private void verifyEnvelopeStrict(String responseJson, String context) {

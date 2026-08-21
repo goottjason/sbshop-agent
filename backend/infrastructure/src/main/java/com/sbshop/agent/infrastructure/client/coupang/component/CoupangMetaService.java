@@ -8,7 +8,9 @@ import com.sbshop.agent.infrastructure.client.coupang.dto.CategoryMetaResult;
 import com.sbshop.agent.infrastructure.client.coupang.dto.CoupangProductPayload.Item.Attribute;
 import com.sbshop.agent.infrastructure.client.coupang.dto.CoupangProductPayload.Item.Notice;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
@@ -19,20 +21,39 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class CoupangMetaService {
 
+	private static final String CATEGORY_META_PATH = "/v2/providers/openapi/apis/api/v2/products/category-meta/";
+
 	private final CoupangRestClient restClient;
 	private final ObjectMapper objectMapper;
+	private final CoupangAttributeValueResolver attributeValueResolver;
 
 	@Cacheable(value = "coupangCategoryMeta", key = "#categoryId")
 	public CategoryMetaResult getCategoryMeta(Long categoryId, Product product) throws Exception {
 		log.info("[Coupang Meta API] 캐시 미스, API 호출. CategoryId: {}", categoryId);
-		String path = "/v2/providers/openapi/apis/api/v2/products/category-meta/" + categoryId;
-		String response = restClient.requestWithBody("GET", path, null);
-		JsonNode dataNode = objectMapper.readTree(response).path("data");
+		JsonNode dataNode = fetchCategoryMeta(categoryId);
 
 		List<Attribute> attributes = extractMandatoryAttributes(dataNode, product);
 		List<Notice> notices = extractNotices(dataNode);
 
 		return CategoryMetaResult.builder().attributes(attributes).notices(notices).build();
+	}
+
+	public Map<String, List<String>> getUsableUnits(Long categoryId) throws Exception {
+		JsonNode dataNode = fetchCategoryMeta(categoryId);
+		Map<String, List<String>> unitsByTypeName = new LinkedHashMap<>();
+		for (JsonNode attr : dataNode.path("attributes")) {
+			String typeName = attr.path("attributeTypeName").asText();
+			List<String> units = extractUsableUnits(attr);
+			if (!typeName.isBlank() && !units.isEmpty()) {
+				unitsByTypeName.put(typeName, units);
+			}
+		}
+		return unitsByTypeName;
+	}
+
+	private JsonNode fetchCategoryMeta(Long categoryId) throws Exception {
+		String response = restClient.requestWithBody("GET", CATEGORY_META_PATH + categoryId, null);
+		return objectMapper.readTree(response).path("data");
 	}
 
 	private List<Attribute> extractMandatoryAttributes(JsonNode dataNode, Product product) {
@@ -42,30 +63,11 @@ public class CoupangMetaService {
 			if ("MANDATORY".equals(attr.path("basicRequired").asText())) {
 				String typeName = attr.path("attributeTypeName").asText();
 				String dataType = attr.path("dataType").asText();
-				JsonNode unitsNode = attr.path("usableUnits");
 				String valueName = "상세페이지 참조";
 
 				if ("NUMBER".equals(dataType)) {
-					if (typeName.contains("수량") || typeName.contains("캡슐") || typeName.contains("정")) {
-						int bundleQty = product.getLogisticsInfo() != null
-							? product.getLogisticsInfo().getBundleQuantity() : 1;
-						int totalCount = (product.getProductSpec() != null
-							&& product.getProductSpec().getCapacity() != null
-								? product.getProductSpec().getCapacity().intValue() : 1)
-							* bundleQty;
-						valueName = String.valueOf(totalCount > 0 ? totalCount : 1);
-					} else if (typeName.contains("용량") || typeName.contains("중량") || typeName.contains("함량")) {
-						valueName = String
-							.valueOf(product.getProductSpec() != null && product.getProductSpec().getCapacity() != null
-								? product.getProductSpec().getCapacity().intValue() : 1);
-					} else {
-						valueName = "1";
-					}
-					if (unitsNode.isArray() && !unitsNode.isEmpty() && product.getProductSpec() != null) {
-						String unitStr = product.getProductSpec().getMeasureUnit() != null
-							? product.getProductSpec().getMeasureUnit().getDescription() : "";
-						valueName += findProperUnit(unitsNode, unitStr);
-					}
+					valueName = attributeValueResolver
+						.resolveWithNumberDefault(typeName, product, extractUsableUnits(attr));
 				}
 				attributes.add(Attribute.builder()
 					.attributeTypeName(typeName).attributeValueName(valueName).exposed("NONE").build());
@@ -74,24 +76,15 @@ public class CoupangMetaService {
 		return attributes;
 	}
 
-	private String findProperUnit(JsonNode usableUnitsNode, String myUnit) {
-		if (myUnit == null || myUnit.isBlank())
-			return usableUnitsNode.get(0).asText();
-		String normalized = normalizeUnit(myUnit);
-		for (JsonNode unitNode : usableUnitsNode) {
-			String coupangUnit = unitNode.asText();
-			if (coupangUnit.contains(normalized) || normalized.contains(coupangUnit))
-				return coupangUnit;
+	private List<String> extractUsableUnits(JsonNode attributeNode) {
+		List<String> units = new ArrayList<>();
+		for (JsonNode unitNode : attributeNode.path("usableUnits")) {
+			String unit = unitNode.asText();
+			if (!unit.isBlank()) {
+				units.add(unit);
+			}
 		}
-		return usableUnitsNode.get(0).asText();
-	}
-
-	private String normalizeUnit(String unit) {
-		if (unit.contains("타블렛") || unit.contains("tablet") || unit.contains("정"))
-			return "정";
-		if (unit.contains("캡슐") || unit.contains("capsule") || unit.contains("소프트겔"))
-			return "캡슐";
-		return unit;
+		return units;
 	}
 
 	private List<Notice> extractNotices(JsonNode dataNode) {

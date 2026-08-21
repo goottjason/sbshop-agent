@@ -3172,5 +3172,7 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 심각도: P2 | 위치: `backend/infrastructure/.../coupang/component/CoupangMetaService.extractMandatoryAttributes` vs `.../adapter/CoupangMarketClient.refillAttributeValue`
 - 증상: 같은 필수 구매옵션에 두 경로가 다른 값을 만든다 — 수량 계열이 등록은 `capacity*bundleQuantity`(상품 3110이면 600), 재게시는 `bundleQuantity+"개"`(3개, 라이브 수락 실증). 캡슐·정 타입의 수량/용량 분기가 서로 반대. 단위 선택도 등록은 `findProperUnit(usableUnits)` 동적, 재게시는 고정 switch. 등록 산식(600개)이 오히려 의심스러움 — 등록 직후 상품의 옵션 표기가 틀릴 가능성.
 - 부수: `CoupangMetaService.java:51`이 `getBundleQuantity()`(Integer)를 null 가드 없이 언박싱 — NPE 여지.
-- 수정 방향(미착수): 산식을 검증된 쪽(재게시 sanitize)으로 단일화하고 usableUnits 대조는 유지·공용화. D-182 잔여 리스크(고정 단위 매핑)도 함께 해소 가능.
-- 상태: 발견
+- 수정(2026-08-21, fixer-d183, 반려 1회 재수정 포함): 공용 `CoupangAttributeValueResolver` 신설 — "총"=capacity×bundleQty / 순수 "수량"=bundleQty / "개당"·용량류=capacity. 단위는 usableUnits 3상태(null=미상→고정 매핑 / 빈 목록=단위 없음 확정→미부착 / 목록→완전일치→부분일치→첫 단위 폴백). 등록(`CoupangMetaService`)·재게시(`CoupangMarketClient`) 두 경로 모두 리졸버 사용, 재게시는 displayCategoryCode로 메타 1회 지연 조회+실패 폴백. NPE 가드·0 이하 방어 포함. 타입명 불변.
+- 검증(2026-08-21, qa-verifier — 1차 조건부(F-1 빈 목록 단위 강제부착·F-2 "개" 하드코딩) → 재수정 → 재검증 **PASS**): 검증자 자체 프로브 테스트로 3상태 전 분기 실측, 등록 "수량" 600→"3개" 교정·NPE Red 재현 확인, 소비자 경계 분석(등록은 null 불가·재게시는 빈 목록 불가 → D-182 라이브 경로 무영향 실측). `:infrastructure:test --rerun` 167 그린, 전 모듈 1,143 tests 그린, spotlessCheck 통과. 판정서: `_workspace/verify/D-183_verdict.md`
+- 범위 명시: **산식·단위 통일 완료 / 정규 타입명 전환은 미완** — 재게시 잔여 경고("'개당 용량/중량/정' 비정규명")는 이번 수정으로 사라지지 않으며 라이브 정규명 실험 후 별도 판단. `getUsableUnits` 미캐시(재게시당 메타 1회)는 소소한 낭비로 기록만.
+- 상태: 검증통과 (라이브 검증 대기)

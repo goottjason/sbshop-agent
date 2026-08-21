@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.infrastructure.client.coupang.adapter.CoupangMarketClient;
 import com.sbshop.agent.infrastructure.client.coupang.client.CoupangRestClient;
+import com.sbshop.agent.infrastructure.client.coupang.component.CoupangAttributeValueResolver;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangCategoryPredictor;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangMetaService;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangSearchTagGenerator;
@@ -55,7 +56,7 @@ class CoupangMarketClientFetchProductIdTest {
 	@BeforeEach
 	void setUp() {
 		client = new CoupangMarketClient(properties, objectMapper, restClient, categoryPredictor,
-			productParser, searchTagGenerator, dataMapper, metaService);
+			productParser, searchTagGenerator, dataMapper, metaService, new CoupangAttributeValueResolver());
 	}
 
 	private void delegateReadTree(String json) throws Exception {
