@@ -7,6 +7,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,8 @@ class EmailFetchControllerSyncStatusTest {
 	@Test
 	@DisplayName("수동 트리거 성공 → markRunning(EMAIL) 후 markCompleted(EMAIL) 순서로 기록")
 	void success_recordsRunningThenCompleted() {
+		when(emailFetcherService.fetchAndProcessEmails()).thenReturn(true);
+
 		ResponseEntity<?> res = controller("").fetch(null);
 
 		assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -55,6 +58,18 @@ class EmailFetchControllerSyncStatusTest {
 		inOrder.verify(syncStatusService).markRunning(SyncMarketKeys.EMAIL);
 		inOrder.verify(emailFetcherService).fetchAndProcessEmails();
 		inOrder.verify(syncStatusService).markFailed(eq(SyncMarketKeys.EMAIL), contains("boom"));
+		verify(syncStatusService, never()).markCompleted(SyncMarketKeys.EMAIL);
+	}
+
+	@Test
+	@DisplayName("재진입 가드로 스킵(false) → markRunning만 기록, markCompleted 미기록")
+	void skipped_doesNotRecordCompleted() {
+		when(emailFetcherService.fetchAndProcessEmails()).thenReturn(false);
+
+		ResponseEntity<?> res = controller("").fetch(null);
+
+		assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+		verify(syncStatusService).markRunning(SyncMarketKeys.EMAIL);
 		verify(syncStatusService, never()).markCompleted(SyncMarketKeys.EMAIL);
 	}
 

@@ -3023,10 +3023,12 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 
 ### D-163: 수동 이메일 트리거가 재진입 스킵 시에도 동기화 상태를 COMPLETED로 기록 (2026-08-21, 리팩토링 캠페인 발견)
 
-- 심각도: P2 / 리스크: 경량 | 위치: `backend/worker/src/main/java/com/sbshop/agent/worker/controller/EmailFetchController.java` (markCompleted 호출부)
+- 심각도: P2 / 리스크: 경량 | 위치: `backend/worker/.../controller/EmailFetchController.java` + `backend/worker/.../scheduler/OrderSyncScheduler.syncOrders` (검증 중 동일 결함 확인 — 30분 주기 상시 경로라 오히려 주 발생 지점)
 - 증상: 스케줄러 실행 중 `/internal/email/fetch` 호출 시 재진입 가드가 본처리를 스킵(`executed=false`)하는데도 `markCompleted(EMAIL)`을 무조건 호출 — 진행 중인 동기화가 화면상 COMPLETED로 표시되는 구간 발생. 최종 상태는 자가 교정됨(표시 오류만).
-- 상세: `docs/normalize/refactor-20260821/bugs-core-rest-worker.md` B-1 (Red 테스트 삽입 지점 포함)
-- 상태: 발견
+- 상세: `docs/normalize/refactor-20260821/bugs-core-rest-worker.md` B-1
+- 수정(2026-08-21, fixer-d163): 두 호출부에 `if (executed)` 가드 — 재진입 스킵(false) 시 markCompleted 미호출. markRunning 선행·markFailed·응답 JSON·403 경로·타 스케줄 메서드 불변. 스케줄러 스킵 로그 분기 추가. Red: `EmailFetchControllerSyncStatusTest` 확장 + `OrderSyncSchedulerSyncStatusTest` 신규.
+- 검증(2026-08-21, qa-verifier PASS): Red를 수정 전 코드(git archive 전개)에 실측 — 스킵 2케이스가 정확히 NeverWantedButInvoked로 실패, 나머지 5건 통과. `:worker:test --rerun` 72 tests 그린, 리더 전 모듈 회귀 1,102 tests 그린. 경계면 — markRunning은 lastSyncAt 미변경(거짓 "방금" 시각 소멸이 의도 결과), 프론트 RUNNING 1급 렌더 상태·60초 폴링 수렴, 가드 해제가 서비스 내부 finally라 스킵 관측 시 실제 실행자의 완료/실패 기록이 반드시 뒤따름(RUNNING 고착 없음). spotlessCheck 통과. 판정서: `_workspace/verify/D-163_verdict.md`
+- 상태: 검증통과
 
 ### D-164: `markSentIfSucceeded`의 실패 분기가 거짓 "롤백 예정" 로그를 남기고, 3개 호출 경로 중 2개는 실패 로깅 계약(D-125) 미적용 (2026-08-21)
 

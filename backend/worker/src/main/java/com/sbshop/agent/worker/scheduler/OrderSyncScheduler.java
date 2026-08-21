@@ -33,9 +33,13 @@ public class OrderSyncScheduler {
 		log.info("IMAP 이메일 주문 동기화 시작...");
 		syncStatusService.markRunning(EMAIL);
 		try {
-			emailFetcherService.fetchAndProcessEmails();
-			syncStatusService.markCompleted(EMAIL);
-			log.info("IMAP 이메일 주문 동기화 완료.");
+			boolean executed = emailFetcherService.fetchAndProcessEmails();
+			if (executed) {
+				syncStatusService.markCompleted(EMAIL);
+				log.info("IMAP 이메일 주문 동기화 완료.");
+			} else {
+				log.info("IMAP 이메일 주문 동기화 스킵 — 다른 실행이 진행 중.");
+			}
 		} catch (Exception e) {
 			syncStatusService.markFailed(EMAIL, e.getMessage());
 			log.error("IMAP 이메일 주문 동기화 실패: {}", e.getMessage());

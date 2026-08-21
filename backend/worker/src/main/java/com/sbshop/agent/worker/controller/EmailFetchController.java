@@ -40,7 +40,9 @@ public class EmailFetchController {
 		syncStatusService.markRunning(SyncMarketKeys.EMAIL);
 		try {
 			boolean executed = emailFetcherService.fetchAndProcessEmails();
-			syncStatusService.markCompleted(SyncMarketKeys.EMAIL);
+			if (executed) {
+				syncStatusService.markCompleted(SyncMarketKeys.EMAIL);
+			}
 			return ResponseEntity.ok(Map.of(
 				"ok", true,
 				"executed", executed,
