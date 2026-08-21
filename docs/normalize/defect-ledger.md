@@ -24,6 +24,8 @@
 >
 > 2026-07-07 사이클 4 갱신(fixer-c4, D-005+D-013 통합 중대 배치·사용자 승인): **D-005·D-013 수정완료(검증대기)**. testcontainers-PostgreSQL 도입, api 순환 depends-on 해소(defer 제거), after-migrate.sql → V5 흡수(멱등). **D-013은 실 Postgres Red 재현으로 P0 확정**(운영 기동 차단). 배치 중 파생: **신규 D-015**(V1~V4 빈 DB 비자족 — V2 shipping_fee)·**D-016**(sb_market_credential/sb_market_registration 마이그레이션 부재), 둘 다 범위 밖 후보로 기록. Flyway 의존성 공백(`flyway-database-postgresql`)도 교정. 총 결함 16건(D-001~D-016).
 
+> 2026-08-21 갱신(리더, 전면 구조 리팩토링 캠페인): **신규 18건 등재 D-163~D-180** (P1 2: D-167 Cafe24 거짓성공·D-175 상품 500건 상한 / P2 9 / P3 7). 캠페인 자체는 구조 변경만 수행(행위 변경 0) — 주석 전량 제거·FQN→import·스텝다운 정렬·데드코드 삭제(BusinessDayCalculator·UnipassUpdateRequest·프론트 supplierApi/App.css/assets/ag-grid 등). 제거 주석의 "왜" 지식은 `docs/normalize/refactor-20260821/salvage-*.md` 6부에 보존 — **추후 주석 재작성 규칙 수립 시 1차 원천.** 특기: `BannedIngredientSyncService` raw NUL(0x00)로 grep이 파일째 누락하던 함정 발견·교정(`"\0"` 이스케이프, 바이트 동일) — 미참조 판정은 `grep -ra` 필수.
+
 ## 최우선 수정 권고 3건 (사이클 2 대상 — 리더 갱신)
 
 1. **D-013 (P2)** — api 테스트 datasource/Flyway 미구성: 현재 api 모듈에 @SpringBootTest 실기동 검증이 0인 상태. 통합 테스트 확보의 선결 과제 (D-005와 연계 처리 권장).
@@ -3016,3 +3018,116 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 충돌 0(전 마켓), `extractMarketCode`는 `product_no`/`product_code`만 읽어 가격·재고 경로 무영향,
 `enrichIdentifier`가 병합이라 백필이 지우지 않는다. 덤으로 상품 그리드 G마켓 배지 링크가 살아난다.
 **나머지 12건은 별칭을 넣지 않았다** — 판매중지라 새 주문이 나지 않고 곧 삭제 대상이다.
+
+---
+
+### D-163: 수동 이메일 트리거가 재진입 스킵 시에도 동기화 상태를 COMPLETED로 기록 (2026-08-21, 리팩토링 캠페인 발견)
+
+- 심각도: P2 / 리스크: 경량 | 위치: `backend/worker/src/main/java/com/sbshop/agent/worker/controller/EmailFetchController.java` (markCompleted 호출부)
+- 증상: 스케줄러 실행 중 `/internal/email/fetch` 호출 시 재진입 가드가 본처리를 스킵(`executed=false`)하는데도 `markCompleted(EMAIL)`을 무조건 호출 — 진행 중인 동기화가 화면상 COMPLETED로 표시되는 구간 발생. 최종 상태는 자가 교정됨(표시 오류만).
+- 상세: `docs/normalize/refactor-20260821/bugs-core-rest-worker.md` B-1 (Red 테스트 삽입 지점 포함)
+- 상태: 발견
+
+### D-164: `markSentIfSucceeded`의 실패 분기가 거짓 "롤백 예정" 로그를 남기고, 3개 호출 경로 중 2개는 실패 로깅 계약(D-125) 미적용 (2026-08-21)
+
+- 심각도: P2 / 리스크: 표준 | 위치: `backend/core/.../application/order/service/OrderService.java` (`markSentIfSucceeded`·`dispatchLineItem`·`updateTracking`)
+- 증상: D-125 계약 반전(실패해도 로컬 보존) 이후 갱신되지 않은 "도달 불가" 분기가 실제로 도달하며 "롤백 예정" 로그를 남김 — 롤백은 일어나지 않아 운영 오진단 유발. `dispatchLineItem`·`updateTracking` 경로는 `logIfNotSent` 미호출로 terminal/재시도 구분 없이 기록됨.
+- 상세: `docs/normalize/refactor-20260821/bugs-core-order.md` B-1 (수정 방향 포함)
+- 상태: 발견
+
+### D-165: `Order.marketSpecificData` 수제 JSON 파서가 콤마·따옴표 포함 값을 조용히 훼손 (2026-08-21)
+
+- 심각도: P2 / 리스크: 중대(스키마·마이그레이션 영향) | 위치: `backend/core/.../domain/order/Order.java` (`getMarketSpecificDataMap`/`setMarketSpecificDataFromMap`)
+- 증상: split 기반 파서 + 무이스케이프 직렬화 + 실패 전부 삼키는 catch. D-135의 `|` 구분자 규약은 특정 2필드만 피해간 봉합이며, 콤마 포함 값을 넣는 순간 재발. 파싱 실패와 "데이터 없음"이 구분 안 됨.
+- 상세: `docs/normalize/refactor-20260821/bugs-core-order.md` B-3 (Jackson/jsonb 전환 제안)
+- 상태: 발견
+
+### D-166: 신규 상품 등록가가 쿠폰 미반영분만큼 상향 편향 — 재가격 배치 비활성(D-093)로 영구화 (2026-08-21)
+
+- 심각도: P2 / 리스크: 표준 | 위치: `backend/core/.../application/product/MarketSalePriceResolver.resolveForProduct`
+- 증상: 쿠폰율·최소마진이 배치 파라미터라 상품에 없음 → 오버라이드 없는 등록 경로는 판매가 과대 산정(실측 51,400 vs 62,200). "재가격 배치가 나중에 교정" 전제가 D-093으로 무효화되어 편향이 영구 잔존. 호출부 전수의 오버라이드 전달 여부 확인 필요.
+- 상세: `docs/normalize/refactor-20260821/bugs-core-prodsrc.md` B-4
+- 상태: 발견
+
+### D-167: Cafe24 이미지·상세HTML 동기화 실패가 조용히 성공으로 기록 (2026-08-21)
+
+- 심각도: P1 / 리스크: 표준 | 위치: `backend/infrastructure/.../cafe24/adapter/Cafe24MarketClient.syncImagesAndHtml`
+- 증상: 상세설명 PUT 실패·이미지 업로드 실패를 log.error만 하고 삼킨 뒤 정상 반환 — 호출자는 동기화 성공으로 기록(거짓 성공, D-145/D-150 계열). 타 3마켓 어댑터·같은 클래스 publish는 전부 예외 전파.
+- 상세: `docs/normalize/refactor-20260821/bugs-infra.md` B-INF-1
+- 상태: 발견
+
+### D-168: Cafe24 주문취소가 검증된 발주확인과 다른 미검증 API 형태 사용 (2026-08-21)
+
+- 심각도: P2 / 리스크: 표준(마켓 API 계약) | 위치: `backend/infrastructure/.../cafe24/client/Cafe24OrderApiClient.cancelOrder`
+- 증상: 검증 스펙(D-091, `PUT /admin/orders` + `requests[].process_status`) 대신 `PUT /admin/orders/{id}` + `request.status="C40"` 사용. 원주석이 "별도 API 필요(D-091 후속 미검증)" 명시(salvage 보존). 라이브 취소 시 422 가능성 높음.
+- 상세: `docs/normalize/refactor-20260821/bugs-infra.md` B-INF-2
+- 상태: 발견
+
+### D-169: 11번가 XML 중복 태그 제거가 3회 이상 반복·값 불일치에 미방어 (2026-08-21)
+
+- 심각도: P3 | 위치: `backend/infrastructure/.../elevenst/ElevenstOrderRestClient.removeDuplicateTags`
+- 증상: 비중첩 replaceAll이라 3회 반복 시 잔여, 두 번째 값이 달라도 검사 없이 폐기. 현재 라이브 미관측 — 잠재 결함.
+- 상세: `docs/normalize/refactor-20260821/bugs-infra.md` B-INF-3 | 상태: 발견
+
+### D-170: R2 이미지 업로드가 InputStream을 닫지 않음 (2026-08-21)
+
+- 심각도: P3 | 위치: `backend/infrastructure/.../cloudflare/R2ImageStorageClient.uploadImages`
+- 증상: try-with-resources 부재로 성공/실패 모두 미닫음 — 대량 배치에서 핸들 누적 가능. `ImageUploadFile.inputStream()` 실체 확인 필요.
+- 상세: `docs/normalize/refactor-20260821/bugs-infra.md` B-INF-4 | 상태: 발견
+
+### D-171: 예외 핸들러의 `Map.of`가 null 메시지에서 NPE — 400/404가 500으로 둔갑 (2026-08-21)
+
+- 심각도: P2 / 리스크: 경량 | 위치: `backend/api/.../exception/GlobalExceptionHandler.java` (`handleNotFound`/`handleIllegalState`/`handleIllegalArgument`)
+- 증상: 메시지 없는 예외에서 `Map.of("message", null)` NPE → 의도한 상태코드 대신 컨테이너 기본 500. 같은 파일 내 안전 패턴(문자열 연결)과 혼재.
+- 상세: `docs/normalize/refactor-20260821/bugs-api.md` B-API-1 (수정·테스트 방향 포함) | 상태: 발견
+
+### D-172: 재고 동기화 트리거 실패 시 FAILED 활동로그 누락 — STARTED 영구 미완결 (2026-08-21)
+
+- 심각도: P2 / 리스크: 경량 | 위치: `backend/api/.../controller/ProductSyncController.syncAllProductStock`
+- 증상: catch가 500만 반환하고 FAILED 미기록. `OrderSyncController` 5개 트리거는 전부 기록(F-SYNC-3) — 규율 누락.
+- 상세: `docs/normalize/refactor-20260821/bugs-api.md` B-API-2 | 상태: 발견
+
+### D-173: `/api/admin/**` permitAll — Cafe24 리프레시 토큰 발급이 무인증 (2026-08-21)
+
+- 심각도: P2(보안 — 사용자 우선순위상 비중요 분류) | 위치: `backend/api/.../security/SecurityConfig.java`
+- 증상: `POST /api/admin/sync/cafe24/issue-token`이 무인증 호출 가능 — 저장 토큰 교란·상태 무인증 조회 가능. 같은 파일의 크레덴셜 보호 원칙과 불일치. 의도/누락 판별 필요.
+- 상세: `docs/normalize/refactor-20260821/bugs-api.md` B-API-3 | 상태: 발견
+
+### D-174: `VendorType.valueOf(toUpperCase())` 로케일 의존 (2026-08-21)
+
+- 심각도: P3 | 위치: `backend/api/.../controller/BatchController.java` | 증상: 터키어 등 로케일에서 정상 코드 거부. `Locale.ROOT` 명시가 정석.
+- 상세: `docs/normalize/refactor-20260821/bugs-api.md` B-API-4 | 상태: 발견
+
+### D-175: 상품 500건 초과 시 목록·필터·카운트가 조용히 부정확 (2026-08-21)
+
+- 심각도: P1(데이터 규모 도달 시 기능 불능) | 위치: `frontend/src/pages/product/ProductGrid.tsx` (500건 하드코딩 + 클라이언트 필터/페이지네이션/카테고리 역산)
+- 증상: 501번째 상품부터 무경고 누락. 근본 해소는 목록 API 서버 필터·페이지네이션·category 필드(백엔드 4작업, bugs-frontend.md T1) 선행 필요.
+- 상세: `docs/normalize/refactor-20260821/bugs-frontend.md` B1·T1 | 상태: 발견
+
+### D-176: 날짜 필터 기본값이 UTC 계산 — KST 00~09시에 전날로 밀림 (2026-08-21)
+
+- 심각도: P3 | 위치: `frontend/src/pages/OrderGrid.tsx` 기본 날짜 범위, `pages/dashboard/AttentionPanel.tsx` `todayMinus`
+- 증상: `toISOString().split('T')[0]`은 UTC 날짜. `utils/datetime.ts`의 Asia/Seoul 규칙과 불일치.
+- 상세: `docs/normalize/refactor-20260821/bugs-frontend.md` B2 | 상태: 발견
+
+### D-177: 마켓 라벨 맵 3벌의 키 불일치 — CAFE24·AUCTION 라벨 누락, 화면/엑셀 표기 상이 (2026-08-21)
+
+- 심각도: P3 | 위치: `OrderGrid.tsx` `marketLabels`(6키) vs `ProcessStatusPage.tsx`(8키) vs `orderExcelExport.ts`(6키)
+- 증상: 해당 마켓에서 원문 코드 노출 가능, 같은 주문이 화면/엑셀에서 다른 이름. G마켓/옥션 통합 여부는 사용자 판정 필요.
+- 상세: `docs/normalize/refactor-20260821/bugs-frontend.md` B3·B4 | 상태: 발견
+
+### D-178: 소싱 초안 목록 화면 부재 — 2건 이상 생성 시 나머지 초안 접근 불가 (2026-08-21)
+
+- 심각도: P2(기능 공백) | 위치: `frontend/src/api/sourcingDiscoveryApi.ts` `drafts`(호출부 0) / `DiscoveryPage.handleCreateDrafts`(첫 건만 navigate)
+- 증상: 이전 세션의 미처리 초안에 UI로 도달 불가. 백엔드 목록 API는 존재.
+- 상세: `docs/normalize/refactor-20260821/bugs-frontend.md` B5·§C | 상태: 발견
+
+### D-179: 죽은 추상화·오도성 코드 정리 후보 묶음 (2026-08-21, P3 일괄)
+
+- `SourcingAgentFactory`+`SourcingAgent` 구현체 0의 고아 쌍(빈 리스트 주입, 오도성 예외 메시지) / `worker/config/EmailAccount` enum(참조 0 + 실계정 하드코딩이 현행 구성과 불일치 — 오독 위험) / `MarketRegistrationDefaults.unconfigured()` 미배선 점검 기능 / `CoupangHmacUtil.generateSignature·generateDatetime`(구 KST 서명, "HMAC format is invalid" 유발 이력) / `CoupangDataMapper.extractMergedHtmlDescription·getPrice` 미참조 / `api/config/AsyncConfig` 껍데기(D-011 후속 — `@EnableAsync` 담당 여부 검증 후 판단) / 프론트 §C "백엔드 엔드포인트와 짝인 미호출 API 클라이언트 7건"(양쪽 동반 판정 필요)
+- 상세: 각 `docs/normalize/refactor-20260821/bugs-*.md` 데드 의심 절 | 상태: 발견
+
+### D-180: 계약 일관성·프론트 품질 잔부채 묶음 (2026-08-21, P3 일괄)
+
+- 배치 트리거 4종 응답 키셋 비대칭(`count` 유무) / `requireNonNegative` 헬퍼 2중 + 인라인 반복 / eslint `react-hooks/set-state-in-effect` 5건(useEffect 수동 페칭 6파일이 근본 원인) / 스타일 4방식·페칭 3패턴·toast 이중화·라벨/색상 다중 정의 등 구조 부채 목록 / `OrderGrid.tsx` 2,065줄 분해(독립 사이클 권장) / `productMockApi.ts` 파일명 정정(rename → productBulkApi)
+- 상세: `docs/normalize/refactor-20260821/bugs-api.md` B-API-5·BL-API-3, `bugs-frontend.md` B8·D | 상태: 발견
