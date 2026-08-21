@@ -3054,7 +3054,9 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 심각도: P1 / 리스크: 표준 | 위치: `backend/infrastructure/.../cafe24/adapter/Cafe24MarketClient.syncImagesAndHtml`
 - 증상: 상세설명 PUT 실패·이미지 업로드 실패를 log.error만 하고 삼킨 뒤 정상 반환 — 호출자는 동기화 성공으로 기록(거짓 성공, D-145/D-150 계열). 타 3마켓 어댑터·같은 클래스 publish는 전부 예외 전파.
 - 상세: `docs/normalize/refactor-20260821/bugs-infra.md` B-INF-1
-- 상태: 발견
+- 수정(2026-08-21, fixer-d167): 실패 삼킴 3지점을 예외 전파로 교체 — 상세설명 PUT 실패·이미지 POST 실패·외부 이미지 바이트 null → RuntimeException(원인 포함). 기존 이미지 삭제 실패의 log.warn 삼킴(멱등 정리)만 의도적 유지. 사용자 승인 범위(바이트 null 포함). Red 테스트: `infrastructure/.../cafe24/Cafe24MarketClientImagesTest` 5케이스(전파 3 + 회귀 가드 2).
+- 검증(2026-08-21, qa-verifier PASS): `test --rerun-tasks` 전 모듈 강제 재실행 1,088 tests 실패 0. Red 재현성 논증 성립(수정 전 코드에서 전파 3케이스 실패). 경계면 — `MarketClient` 시그니처 불변, 호출부 재게시 부분실패 계약(`updateImagesAndHtml_partialFailureDoesNotBlockOthers`)이 예외를 failed 수집·markSynced 미도달로 수용. 4마켓 실패 전파 일관성 달성. spotlessCheck 통과. 판정서: `_workspace/verify/D-167_verdict.md`. 잔여: 카페24 실 API 라운드트립은 목 기반 미확인 — 라이브 재게시 1건 육안 확인 권고.
+- 상태: 검증통과
 
 ### D-168: Cafe24 주문취소가 검증된 발주확인과 다른 미검증 API 형태 사용 (2026-08-21)
 
@@ -3131,3 +3133,9 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 
 - 배치 트리거 4종 응답 키셋 비대칭(`count` 유무) / `requireNonNegative` 헬퍼 2중 + 인라인 반복 / eslint `react-hooks/set-state-in-effect` 5건(useEffect 수동 페칭 6파일이 근본 원인) / 스타일 4방식·페칭 3패턴·toast 이중화·라벨/색상 다중 정의 등 구조 부채 목록 / `OrderGrid.tsx` 2,065줄 분해(독립 사이클 권장) / `productMockApi.ts` 파일명 정정(rename → productBulkApi)
 - 상세: `docs/normalize/refactor-20260821/bugs-api.md` B-API-5·BL-API-3, `bugs-frontend.md` B8·D | 상태: 발견
+
+### D-181: 쿠팡 어댑터가 이미지·상세 수정 PUT 응답의 마켓 레벨 오류코드를 검사하지 않음 — 거짓 성공 여지 (2026-08-21, D-167 검증 중 발견)
+
+- 심각도: P2(추정 — 응답 포맷 확인 필요) | 위치: `backend/infrastructure/.../coupang/adapter/CoupangMarketClient.syncImagesAndHtml` 계열
+- 증상: HTTP 예외는 자연 전파되지만, 200 응답 본문에 담기는 쿠팡 오류코드(실패 응답)를 검사하지 않아 D-167과 같은 계열의 거짓 성공 가능. qa-verifier가 D-167 검증 중 4마켓 대조에서 지적.
+- 상태: 발견

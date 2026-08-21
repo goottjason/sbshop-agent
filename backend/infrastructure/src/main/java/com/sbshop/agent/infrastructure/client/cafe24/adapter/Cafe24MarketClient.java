@@ -194,40 +194,48 @@ public class Cafe24MarketClient implements MarketClient {
 			log.info("[카페24] 상세설명 업데이트 완료: {}", marketItemId);
 		} catch (Exception e) {
 			log.error("[카페24] 상세설명 업데이트 실패 (ID: {}): {}", marketItemId, e.getMessage());
+			throw new RuntimeException(
+				"[카페24] 상세설명 업데이트 실패 (ID: " + marketItemId + "): " + e.getMessage(), e);
 		}
 
 		if (hostedImages != null && !hostedImages.isEmpty()) {
 			try {
-				try {
-					cafe24RestClient.delete("/admin/products/" + marketItemId + "/images");
-				} catch (Exception e) {
-					log.warn("[카페24] 기존 이미지 삭제 중 경고: {}", e.getMessage());
-				}
+				cafe24RestClient.delete("/admin/products/" + marketItemId + "/images");
+			} catch (Exception e) {
+				log.warn("[카페24] 기존 이미지 삭제 중 경고: {}", e.getMessage());
+			}
 
-				String mainImageUrl = hostedImages.get(0);
-				byte[] imageBytes = cafe24RestClient.getExternalImageBytes(mainImageUrl);
-				if (imageBytes != null) {
-					String base64Content = Base64.getEncoder().encodeToString(imageBytes);
-					String dataUri = "data:image/jpeg;base64," + base64Content;
+			String mainImageUrl = hostedImages.get(0);
+			byte[] imageBytes = cafe24RestClient.getExternalImageBytes(mainImageUrl);
+			if (imageBytes == null) {
+				log.error("[카페24] 외부 이미지 다운로드 실패 (ID: {}): {}", marketItemId, mainImageUrl);
+				throw new RuntimeException(
+					"[카페24] 외부 이미지 다운로드 실패 (ID: " + marketItemId + "): " + mainImageUrl);
+			}
 
-					Map<String, Object> imageRequestBody = new HashMap<>();
-					Map<String, Object> imageData = new HashMap<>();
-					imageData.put("shop_no", 1);
-					imageData.put("image_upload_type", "B");
-					imageData.put("detail_image", dataUri);
-					imageData.put("list_image", dataUri);
-					imageData.put("tiny_image", dataUri);
-					imageData.put("small_image", dataUri);
-					imageRequestBody.put("request", imageData);
+			String base64Content = Base64.getEncoder().encodeToString(imageBytes);
+			String dataUri = "data:image/jpeg;base64," + base64Content;
 
-					String imgResp = cafe24RestClient.post("/admin/products/" + marketItemId + "/images",
-						imageRequestBody);
-					log.info("[D092][카페24] 이미지 POST resp (len={}): {}", imgResp == null ? -1 : imgResp.length(),
-						imgResp == null ? "null" : imgResp.substring(0, Math.min(imgResp.length(), 2000)));
-					log.info("[카페24] 이미지 업로드 완료: {}", marketItemId);
-				}
+			Map<String, Object> imageRequestBody = new HashMap<>();
+			Map<String, Object> imageData = new HashMap<>();
+			imageData.put("shop_no", 1);
+			imageData.put("image_upload_type", "B");
+			imageData.put("detail_image", dataUri);
+			imageData.put("list_image", dataUri);
+			imageData.put("tiny_image", dataUri);
+			imageData.put("small_image", dataUri);
+			imageRequestBody.put("request", imageData);
+
+			try {
+				String imgResp = cafe24RestClient.post("/admin/products/" + marketItemId + "/images",
+					imageRequestBody);
+				log.info("[D092][카페24] 이미지 POST resp (len={}): {}", imgResp == null ? -1 : imgResp.length(),
+					imgResp == null ? "null" : imgResp.substring(0, Math.min(imgResp.length(), 2000)));
+				log.info("[카페24] 이미지 업로드 완료: {}", marketItemId);
 			} catch (Exception e) {
 				log.error("[카페24] 이미지 업데이트 실패 (ID: {}): {}", marketItemId, e.getMessage());
+				throw new RuntimeException(
+					"[카페24] 이미지 업로드 실패 (ID: " + marketItemId + "): " + e.getMessage(), e);
 			}
 		}
 
