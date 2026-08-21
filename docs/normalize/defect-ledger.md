@@ -3149,5 +3149,15 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 라이브 실측(2026-08-21, 리더 SSH 읽기): vendor-items PUT 실패는 HTTP 400 + `{"code":"ERROR","message":...}`로 도착(당일 배치 로그 실증 — 판매중지 재개 거부·삭제상품 가격변경 거부) → 기존에도 예외 전파됨. seller-products PUT 성공 봉투는 로그 부재로 미실측.
 - 수정(2026-08-21, fixer-d181): 실측 근거의 경로별 규칙 — 상품수정 PUT(콜드 패스)은 **엄격**(code≠SUCCESS/200·파싱 불가·code 부재 전부 throw), vendor-items PUT 3발·DELETE(핫 패스)는 **방어적**(봉투가 파싱되고 code가 명시적 비성공일 때만 throw — 성공 봉투 미실측이라 거짓 실패 방지). delete는 본문 수신 위해 `requestWithBody("DELETE")` 전환(HMAC·헤더 동일 확인). 단일 헬퍼 `verifyEnvelope(strict)`.
 - 검증(2026-08-21, qa-verifier PASS): Red를 수정 전 코드(git archive)에 실측 — **거짓 성공 실증 8케이스**(전부 "예외가 던져지지 않음"으로 실패). `:infrastructure:test --rerun` 140 tests 그린, 리더 전 모듈 회귀 1,116 tests 그린. 경계면 — 3개 호출부 전부 기존 부분실패 계약으로 수용(재게시는 오염 rawData 미저장, 가격재고는 markSyncFailed 교정, 삭제는 best-effort 유지), publish POST는 기존 data 검사로 등가 가드 존재(미보호 경로 없음). spotlessCheck 통과. 판정서: `_workspace/verify/D-181_verdict.md`
-- 잔여: ① 배포 후 최초 라이브 재게시 1건에서 `[D092][쿠팡] 상품수정 PUT resp:` 로그로 성공 봉투 확정 권장(엄격 규칙의 수용된 리스크 — 200+빈 본문이 성공이라면 거짓 실패 발생). ② `CoupangRestClient.delete(String)` 호출부 0으로 데드코드화 — D-179 묶음에 편입.
-- 상태: 검증통과
+- 라이브 검증(2026-08-21 17:58 KST, 배포 커밋 85937c5 · 상품 3110 재게시 실측): ① 쿠팡 seller-products GET 성공 응답이 `{"code":"SUCCESS",...}` — **성공 봉투에 code 실존 확정, 엄격 규칙 잔여 리스크 해소.** ② 상품수정 PUT이 실제로 **HTTP 200 + `{"code":"ERROR","message":"유효하지 않은 구매 옵션 값 혹은 단위가 존재합니다."}`** 를 반환 — 신규 검사 로직이 포착·전파해 `failed=[COUPANG]` 집계, DB 확인 결과 COUPANG is_synced=false 유지·rawData 미오염(CAFE24·SMART_STORE는 정상 갱신). **구 코드였다면 이 호출이 "성공"으로 기록되고 로컬이 오염됐을 실제 사례.** PUT 거부 자체는 신규 결함 [[D-182]]로 분리 등재.
+- 잔여: `CoupangRestClient.delete(String)` 호출부 0으로 데드코드화 — D-179 묶음에 편입.
+- 상태: 검증통과 (라이브 검증 완료)
+
+### D-182: 쿠팡 재게시 왕복 페이로드가 옵션 값·단위 검증에 거부된다 (2026-08-21, D-181 라이브 검증 중 발견)
+
+- 심각도: P2 (쿠팡 재게시 기능 불능 — 최소 해당 상품, 왕복 패턴 공유하는 상품 전반 가능성) | 위치: `backend/infrastructure/.../coupang/adapter/CoupangMarketClient.syncImagesAndHtml` 페이로드 구성부
+- 증상: 상품 3110(NU00069) 재게시에서 seller-products GET(SUCCESS) → 이미지/contents만 교체 → 동일 base PUT이 `code=ERROR, "유효하지 않은 구매 옵션 값 혹은 단위가 존재합니다."`로 거부됨. GET이 돌려준 전체 페이로드를 그대로 되돌려도 PUT 검증을 통과하지 못함 — GET 응답의 옵션(items) 속성/단위 표현이 PUT 스키마 요구와 다르거나, 과거 등록 시점의 값이 현행 검증 규칙에 안 맞는 것으로 추정. 상품 3110은 용량 200 밀리리터·묶음 3개 구성.
+- 영향: D-181 수정 전에는 이 실패가 조용히 성공으로 기록돼 왔으므로, **쿠팡 재게시가 실제로 언제부터 안 되고 있었는지 알 수 없음** — 재게시 시도 이력이 있는 상품의 쿠팡 실물 리스팅과 로컬 기록 대조 필요.
+- 재현: 상품 3110 상세 모달 → 이미지 URL로 등록 → 재게시 → failed=[COUPANG], 위 메시지.
+- 수정 방향(미착수): GET 페이로드를 PUT에 되돌릴 때 items의 attributes/notices 등에서 PUT이 거부하는 필드·값 정규화 필요(쿠팡 문서의 수정 API 요구 스키마와 대조). 관련 salvage: `refactor-20260821/salvage-infra.md` CoupangMarketClient.syncImagesAndHtml 절(D-092 경로 함정).
+- 상태: 발견
