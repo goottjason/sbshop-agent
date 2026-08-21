@@ -1,8 +1,12 @@
 package com.sbshop.agent.infrastructure.client.coupang;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.infrastructure.client.coupang.adapter.CoupangMarketClient;
@@ -57,14 +61,14 @@ class CoupangMarketClientDeleteTest {
 	void deleteCallsSellerProductsDeletePath() {
 		client.deleteFromMarket(SELLER_PRODUCT_ID);
 
-		verify(restClient).delete(DELETE_PATH);
+		verify(restClient).requestWithBody(eq("DELETE"), eq(DELETE_PATH), isNull());
 	}
 
 	@Test
 	@DisplayName("REST 오류(주문이력 하드삭제 거부 등) 시 예외 전파")
 	void deletePropagatesRestError() {
-		doThrow(new RuntimeException("Coupang API 호출 실패"))
-			.when(restClient).delete(DELETE_PATH);
+		when(restClient.requestWithBody(eq("DELETE"), eq(DELETE_PATH), isNull()))
+			.thenThrow(new RuntimeException("Coupang API 호출 실패"));
 
 		assertThatThrownBy(() -> client.deleteFromMarket(SELLER_PRODUCT_ID))
 			.isInstanceOf(RuntimeException.class);
@@ -75,5 +79,46 @@ class CoupangMarketClientDeleteTest {
 	void deleteRejectsBlankId() {
 		assertThatThrownBy(() -> client.deleteFromMarket("  "))
 			.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	@DisplayName("D-181: DELETE 응답이 200 + code=ERROR 봉투면 예외")
+	void deleteErrorEnvelopeThrows() throws Exception {
+		stubJsonParsing();
+		when(restClient.requestWithBody(eq("DELETE"), eq(DELETE_PATH), isNull()))
+			.thenReturn("{\"code\":\"ERROR\",\"message\":\"삭제에 실패했습니다\"}");
+
+		assertThatThrownBy(() -> client.deleteFromMarket(SELLER_PRODUCT_ID))
+			.isInstanceOf(RuntimeException.class)
+			.hasMessageContaining("삭제에 실패했습니다");
+	}
+
+	@Test
+	@DisplayName("D-181: DELETE 성공 봉투면 통과")
+	void deleteSuccessEnvelopePasses() throws Exception {
+		stubJsonParsing();
+		when(restClient.requestWithBody(eq("DELETE"), eq(DELETE_PATH), isNull()))
+			.thenReturn("{\"code\":\"SUCCESS\",\"message\":\"OK\"}");
+
+		client.deleteFromMarket(SELLER_PRODUCT_ID);
+
+		verify(restClient).requestWithBody(eq("DELETE"), eq(DELETE_PATH), isNull());
+	}
+
+	@Test
+	@DisplayName("D-181: DELETE 응답 본문이 없거나 봉투가 아니면 기존대로 통과")
+	void deleteNonEnvelopeResponsePasses() throws Exception {
+		stubJsonParsing();
+		when(restClient.requestWithBody(eq("DELETE"), eq(DELETE_PATH), isNull())).thenReturn("");
+
+		client.deleteFromMarket(SELLER_PRODUCT_ID);
+
+		verify(restClient).requestWithBody(eq("DELETE"), eq(DELETE_PATH), isNull());
+	}
+
+	private void stubJsonParsing() throws Exception {
+		ObjectMapper real = new ObjectMapper();
+		lenient().when(objectMapper.readTree(anyString()))
+			.thenAnswer(invocation -> real.readTree((String)invocation.getArgument(0)));
 	}
 }

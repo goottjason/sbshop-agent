@@ -3134,7 +3134,7 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 
 ### D-179: 죽은 추상화·오도성 코드 정리 후보 묶음 (2026-08-21, P3 일괄)
 
-- `SourcingAgentFactory`+`SourcingAgent` 구현체 0의 고아 쌍(빈 리스트 주입, 오도성 예외 메시지) / `worker/config/EmailAccount` enum(참조 0 + 실계정 하드코딩이 현행 구성과 불일치 — 오독 위험) / `MarketRegistrationDefaults.unconfigured()` 미배선 점검 기능 / `CoupangHmacUtil.generateSignature·generateDatetime`(구 KST 서명, "HMAC format is invalid" 유발 이력) / `CoupangDataMapper.extractMergedHtmlDescription·getPrice` 미참조 / `api/config/AsyncConfig` 껍데기(D-011 후속 — `@EnableAsync` 담당 여부 검증 후 판단) / 프론트 §C "백엔드 엔드포인트와 짝인 미호출 API 클라이언트 7건"(양쪽 동반 판정 필요)
+- `CoupangRestClient.delete(String)` — D-181 수정으로 호출부 0 (2026-08-21 편입) / `SourcingAgentFactory`+`SourcingAgent` 구현체 0의 고아 쌍(빈 리스트 주입, 오도성 예외 메시지) / `worker/config/EmailAccount` enum(참조 0 + 실계정 하드코딩이 현행 구성과 불일치 — 오독 위험) / `MarketRegistrationDefaults.unconfigured()` 미배선 점검 기능 / `CoupangHmacUtil.generateSignature·generateDatetime`(구 KST 서명, "HMAC format is invalid" 유발 이력) / `CoupangDataMapper.extractMergedHtmlDescription·getPrice` 미참조 / `api/config/AsyncConfig` 껍데기(D-011 후속 — `@EnableAsync` 담당 여부 검증 후 판단) / 프론트 §C "백엔드 엔드포인트와 짝인 미호출 API 클라이언트 7건"(양쪽 동반 판정 필요)
 - 상세: 각 `docs/normalize/refactor-20260821/bugs-*.md` 데드 의심 절 | 상태: 발견
 
 ### D-180: 계약 일관성·프론트 품질 잔부채 묶음 (2026-08-21, P3 일괄)
@@ -3145,5 +3145,9 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 ### D-181: 쿠팡 어댑터가 이미지·상세 수정 PUT 응답의 마켓 레벨 오류코드를 검사하지 않음 — 거짓 성공 여지 (2026-08-21, D-167 검증 중 발견)
 
 - 심각도: P2(추정 — 응답 포맷 확인 필요) | 위치: `backend/infrastructure/.../coupang/adapter/CoupangMarketClient.syncImagesAndHtml` 계열
-- 증상: HTTP 예외는 자연 전파되지만, 200 응답 본문에 담기는 쿠팡 오류코드(실패 응답)를 검사하지 않아 D-167과 같은 계열의 거짓 성공 가능. qa-verifier가 D-167 검증 중 4마켓 대조에서 지적.
-- 상태: 발견
+- 증상: HTTP 예외는 자연 전파되지만, 200 응답 본문에 담기는 쿠팡 봉투(`{code, message}`) 실패를 검사하지 않아 D-167 계열의 거짓 성공 가능. qa-verifier가 D-167 검증 중 4마켓 대조에서 지적. 조사 결과 `syncPriceAndStock`(PUT 3발)·`deleteFromMarket`도 동일하게 본문 미검사 — 사용자 결정으로 3경로 일괄 수정.
+- 라이브 실측(2026-08-21, 리더 SSH 읽기): vendor-items PUT 실패는 HTTP 400 + `{"code":"ERROR","message":...}`로 도착(당일 배치 로그 실증 — 판매중지 재개 거부·삭제상품 가격변경 거부) → 기존에도 예외 전파됨. seller-products PUT 성공 봉투는 로그 부재로 미실측.
+- 수정(2026-08-21, fixer-d181): 실측 근거의 경로별 규칙 — 상품수정 PUT(콜드 패스)은 **엄격**(code≠SUCCESS/200·파싱 불가·code 부재 전부 throw), vendor-items PUT 3발·DELETE(핫 패스)는 **방어적**(봉투가 파싱되고 code가 명시적 비성공일 때만 throw — 성공 봉투 미실측이라 거짓 실패 방지). delete는 본문 수신 위해 `requestWithBody("DELETE")` 전환(HMAC·헤더 동일 확인). 단일 헬퍼 `verifyEnvelope(strict)`.
+- 검증(2026-08-21, qa-verifier PASS): Red를 수정 전 코드(git archive)에 실측 — **거짓 성공 실증 8케이스**(전부 "예외가 던져지지 않음"으로 실패). `:infrastructure:test --rerun` 140 tests 그린, 리더 전 모듈 회귀 1,116 tests 그린. 경계면 — 3개 호출부 전부 기존 부분실패 계약으로 수용(재게시는 오염 rawData 미저장, 가격재고는 markSyncFailed 교정, 삭제는 best-effort 유지), publish POST는 기존 data 검사로 등가 가드 존재(미보호 경로 없음). spotlessCheck 통과. 판정서: `_workspace/verify/D-181_verdict.md`
+- 잔여: ① 배포 후 최초 라이브 재게시 1건에서 `[D092][쿠팡] 상품수정 PUT resp:` 로그로 성공 봉투 확정 권장(엄격 규칙의 수용된 리스크 — 200+빈 본문이 성공이라면 거짓 실패 발생). ② `CoupangRestClient.delete(String)` 호출부 0으로 데드코드화 — D-179 묶음에 편입.
+- 상태: 검증통과

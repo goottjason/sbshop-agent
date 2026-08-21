@@ -177,10 +177,11 @@ public class CoupangMarketClient implements MarketClient {
 		}
 		String base = "/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/" + marketItemId;
 		if (price != null) {
-			restClient.put(base + "/prices/" + price, Map.of());
+			verifyEnvelopeLenient(restClient.put(base + "/prices/" + price, Map.of()), "[쿠팡] 가격 변경");
 		}
-		restClient.put(base + "/quantities/" + quantity, Map.of());
-		restClient.put(base + (soldOut ? "/sales/stop" : "/sales/resume"), Map.of());
+		verifyEnvelopeLenient(restClient.put(base + "/quantities/" + quantity, Map.of()), "[쿠팡] 재고 변경");
+		verifyEnvelopeLenient(restClient.put(base + (soldOut ? "/sales/stop" : "/sales/resume"), Map.of()),
+			"[쿠팡] 판매상태 변경");
 		log.info("[쿠팡] 가격/재고/판매상태: vendorItemId={}, price={}, qty={}, soldOut={}",
 			marketItemId, price, quantity, soldOut);
 		return currentRawData;
@@ -242,6 +243,7 @@ public class CoupangMarketClient implements MarketClient {
 		} catch (Exception ignore) {}
 		String putResp = restClient.put(base, rawData);
 		log.info("[D092][쿠팡] 상품수정 PUT resp: {}", putResp);
+		verifyEnvelopeStrict(putResp, "[쿠팡] 상품수정(이미지/상세)");
 		log.info("[쿠팡] 이미지/HTML 동기화 완료(requested=true 자동승인요청): {}", marketItemId);
 		return rawData;
 	}
@@ -281,12 +283,54 @@ public class CoupangMarketClient implements MarketClient {
 		}
 		String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId;
 		try {
-			restClient.delete(path);
+			verifyEnvelopeLenient(restClient.requestWithBody("DELETE", path, null), "[쿠팡] 상품 삭제");
 			log.info("[쿠팡] 상품 삭제 성공: sellerProductId={}", marketItemId);
 		} catch (Exception e) {
 			log.error("[쿠팡] 상품 삭제 실패: sellerProductId={}, msg={}", marketItemId, e.getMessage());
 			throw e;
 		}
+	}
+
+	private void verifyEnvelopeStrict(String responseJson, String context) {
+		verifyEnvelope(responseJson, context, true);
+	}
+
+	private void verifyEnvelopeLenient(String responseJson, String context) {
+		verifyEnvelope(responseJson, context, false);
+	}
+
+	private void verifyEnvelope(String responseJson, String context, boolean strict) {
+		JsonNode root = readEnvelope(responseJson);
+		String code = root == null ? "" : root.path("code").asText("");
+		if (code.isBlank()) {
+			if (strict) {
+				throw new RuntimeException(context + " 실패 — 응답 봉투를 확인할 수 없음: " + envelopeSnippet(responseJson));
+			}
+			return;
+		}
+		if ("SUCCESS".equalsIgnoreCase(code) || "200".equals(code)) {
+			return;
+		}
+		throw new RuntimeException(context + " 실패 — code=" + code
+			+ ", message=" + root.path("message").asText("") + ", 응답=" + envelopeSnippet(responseJson));
+	}
+
+	private JsonNode readEnvelope(String responseJson) {
+		if (responseJson == null || responseJson.isBlank()) {
+			return null;
+		}
+		try {
+			return objectMapper.readTree(responseJson);
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	private static String envelopeSnippet(String responseJson) {
+		if (responseJson == null) {
+			return "null";
+		}
+		return responseJson.substring(0, Math.min(responseJson.length(), 500));
 	}
 
 	private Long resolveCategoryId(Product product, MarketPublishContext context) {

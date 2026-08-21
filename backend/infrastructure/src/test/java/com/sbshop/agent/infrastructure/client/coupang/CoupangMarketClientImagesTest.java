@@ -3,8 +3,10 @@ package com.sbshop.agent.infrastructure.client.coupang;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,6 +56,7 @@ class CoupangMarketClientImagesTest {
 	private CoupangMarketClient client;
 
 	private static final String BASE_PATH = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
+	private static final String SUCCESS_ENVELOPE = "{\"code\":\"SUCCESS\",\"message\":\"OK\"}";
 
 	@BeforeEach
 	void setUp() {
@@ -63,7 +66,9 @@ class CoupangMarketClientImagesTest {
 
 	@Test
 	@DisplayName("D-092: items 존재 → id 없는 base로 PUT(requested=true), /approvals 미호출")
-	void syncImagesAndHtml_withItems_putsWithRequestedTrue() {
+	void syncImagesAndHtml_withItems_putsWithRequestedTrue() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
 		Map<String, Object> firstItem = new HashMap<>();
 		Map<String, Object> raw = new HashMap<>();
 		raw.put("items", List.of(firstItem));
@@ -76,7 +81,9 @@ class CoupangMarketClientImagesTest {
 
 	@Test
 	@DisplayName("D-092: PUT 바디에 requested=true 를 넣어 자동 승인요청(임시저장 방지)")
-	void syncImagesAndHtml_setsRequestedTrue() {
+	void syncImagesAndHtml_setsRequestedTrue() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
 		Map<String, Object> firstItem = new HashMap<>();
 		Map<String, Object> raw = new HashMap<>();
 		raw.put("items", List.of(firstItem));
@@ -92,9 +99,10 @@ class CoupangMarketClientImagesTest {
 		String responseJson = "{\"code\":200,\"message\":\"OK\",\"data\":{\"items\":[{}]}}";
 		when(restClient.get(eq(BASE_PATH + "/305"))).thenReturn(responseJson);
 
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
 		ObjectMapper real = new ObjectMapper();
 		JsonNode root = real.readTree(responseJson);
-		when(objectMapper.readTree(responseJson)).thenReturn(root);
 		Map<String, Object> data = real.convertValue(root.path("data"),
 			new TypeReference<Map<String, Object>>() {});
 		when(objectMapper.convertValue(eq(root.path("data")), any(TypeReference.class))).thenReturn(data);
@@ -113,9 +121,10 @@ class CoupangMarketClientImagesTest {
 		String responseJson = "{\"code\":200,\"message\":\"OK\",\"data\":{\"items\":[{}]}}";
 		when(restClient.get(eq(BASE_PATH + "/305"))).thenReturn(responseJson);
 
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
 		ObjectMapper real = new ObjectMapper();
 		JsonNode root = real.readTree(responseJson);
-		when(objectMapper.readTree(responseJson)).thenReturn(root);
 		Map<String, Object> data = real.convertValue(root.path("data"),
 			new TypeReference<Map<String, Object>>() {});
 		when(objectMapper.convertValue(eq(root.path("data")), any(TypeReference.class))).thenReturn(data);
@@ -133,9 +142,9 @@ class CoupangMarketClientImagesTest {
 		String responseJson = "{\"code\":200,\"message\":\"OK\",\"data\":{}}";
 		when(restClient.get(eq(BASE_PATH + "/305"))).thenReturn(responseJson);
 
+		stubJsonParsing();
 		ObjectMapper real = new ObjectMapper();
 		JsonNode root = real.readTree(responseJson);
-		when(objectMapper.readTree(responseJson)).thenReturn(root);
 		when(objectMapper.convertValue(eq(root.path("data")), any(TypeReference.class)))
 			.thenReturn(new HashMap<>());
 
@@ -156,7 +165,9 @@ class CoupangMarketClientImagesTest {
 
 	@Test
 	@DisplayName("첫 번째 이미지는 REPRESENTATION 타입")
-	void syncImagesAndHtml_firstImageIsRepresentation() {
+	void syncImagesAndHtml_firstImageIsRepresentation() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
 		Map<String, Object> firstItem = new HashMap<>();
 		Map<String, Object> raw = new HashMap<>();
 		raw.put("items", List.of(firstItem));
@@ -168,5 +179,81 @@ class CoupangMarketClientImagesTest {
 		assertThat(images).isNotNull().hasSize(2);
 		assertThat(images.get(0).get("imageType")).isEqualTo("REPRESENTATION");
 		assertThat(images.get(1).get("imageType")).isEqualTo("DETAIL");
+	}
+
+	@Test
+	@DisplayName("D-181: 상품수정 PUT 이 200 + code=ERROR 봉투면 예외")
+	void syncImagesAndHtml_errorEnvelope_throws() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any()))
+			.thenReturn("{\"code\":\"ERROR\",\"message\":\"상품 수정에 실패했습니다\"}");
+
+		assertThatThrownBy(() -> client.syncImagesAndHtml(null, "305", rawWithSingleItem(), List.of("u0"), "<html>"))
+			.isInstanceOf(RuntimeException.class)
+			.hasMessageContaining("상품 수정에 실패했습니다");
+	}
+
+	@Test
+	@DisplayName("D-181: 상품수정 PUT 응답이 JSON 이 아니면 예외")
+	void syncImagesAndHtml_unparsableEnvelope_throws() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn("<html>gateway error</html>");
+
+		assertThatThrownBy(() -> client.syncImagesAndHtml(null, "305", rawWithSingleItem(), List.of("u0"), "<html>"))
+			.isInstanceOf(RuntimeException.class);
+	}
+
+	@Test
+	@DisplayName("D-181: 상품수정 PUT 응답에 code 가 없으면 예외")
+	void syncImagesAndHtml_missingCode_throws() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn("{\"message\":\"OK\"}");
+
+		assertThatThrownBy(() -> client.syncImagesAndHtml(null, "305", rawWithSingleItem(), List.of("u0"), "<html>"))
+			.isInstanceOf(RuntimeException.class);
+	}
+
+	@Test
+	@DisplayName("D-181: 상품수정 PUT 응답 본문이 없으면 예외")
+	void syncImagesAndHtml_nullEnvelope_throws() {
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(null);
+
+		assertThatThrownBy(() -> client.syncImagesAndHtml(null, "305", rawWithSingleItem(), List.of("u0"), "<html>"))
+			.isInstanceOf(RuntimeException.class);
+	}
+
+	@Test
+	@DisplayName("D-181: 성공 봉투(code=SUCCESS)면 rawData 를 그대로 반환")
+	void syncImagesAndHtml_successEnvelope_returnsRawData() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
+		Map<String, Object> raw = rawWithSingleItem();
+
+		Map<String, Object> result = client.syncImagesAndHtml(null, "305", raw, List.of("u0"), "<html>");
+
+		assertThat(result).isSameAs(raw);
+		assertThat(result.get("requested")).isEqualTo(true);
+	}
+
+	@Test
+	@DisplayName("D-181: 숫자 code=200 도 성공으로 인정")
+	void syncImagesAndHtml_numericSuccessCode_returnsRawData() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn("{\"code\":200,\"message\":\"OK\"}");
+		Map<String, Object> raw = rawWithSingleItem();
+
+		assertThat(client.syncImagesAndHtml(null, "305", raw, List.of("u0"), "<html>")).isSameAs(raw);
+	}
+
+	private Map<String, Object> rawWithSingleItem() {
+		Map<String, Object> raw = new HashMap<>();
+		raw.put("items", List.of(new HashMap<String, Object>()));
+		return raw;
+	}
+
+	private void stubJsonParsing() throws Exception {
+		ObjectMapper real = new ObjectMapper();
+		lenient().when(objectMapper.readTree(anyString()))
+			.thenAnswer(invocation -> real.readTree((String)invocation.getArgument(0)));
 	}
 }
