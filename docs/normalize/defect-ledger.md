@@ -3234,3 +3234,12 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 증상: POST /v2/products 400 `"올바른 이미지 파일이 아닙니다."` — D-092 salvage에 기록된 함정("네이버는 외부 URL 대표이미지 거부 → 네이버 이미지 서버 업로드 후 반환 URL 사용, 무확장자면 .jpg 힌트")이 재게시(`syncImagesAndHtml`→`uploadImagesToNaver`)에는 구현돼 있으나 **신규 등록 경로에는 미적용**.
 - 상태: 검증통과 (2026-08-22, `_workspace/verify/D-188_verdict.md` D-189 절) — `publish()`에 `applyUploadedImages` 1호출 추가(19줄 순수 추가, 헬퍼·재게시·빌더 무변경). Red 5건 실측 재현(핵심 2건은 `file:///` 원 URL 전송 증명, 3건은 `UnnecessaryStubbingException`으로 업로드 미호출 증명) 후 Green, 전 모듈 1184테스트 0실패. 업로드 상한 10장은 빌더 상한(대표1+추가9)과 정합하며 `applyImages`의 무제한 펼침을 막는 필수 장치로 확인. **라이브 POST /v2/products 실호출은 미검증 — D-186·D-188·D-189가 신규 등록 불능의 1·2·3단계 원인이므로 실제 등록 1건으로 함께 닫아야 한다.**
 - 후속 후보(검증 중 발견): 재게시 경로 `syncImagesAndHtml`은 `uploadImagesToNaver(hostedImages)`를 **상한 없이** 호출한다 — 신규 등록만 10장 캡이 걸려 두 경로의 이미지 상한이 불일치. hostedImages가 10장 초과인 상품에서 재게시 쪽 초과 위험.
+
+### D-190: 스토어 등록가가 10원 단위 미준수로 거부 (2026-08-22, D-189 라이브 검증 중 발견)
+
+- 심각도: P2(스토어 신규 등록 4단계 원인) | 위치: `SmartstoreProductPayloadBuilder`의 salePrice (D-166 정책 계산가가 1원 단위로 산출됨)
+- 증상: POST /v2/products 400 `originProduct.salePrice NumberUnit "판매가 항목은 10원 단위로 입력해 주세요."` — 네이버는 10원 단위 강제. 같은 응답에서 정책 계산가가 실제 페이로드에 실림이 간접 확인됨(D-166 라이브 방증).
+- 병행 발견(코드 외 제약): `statusType limitOver "상품 등록 한도를 초과했습니다"` — **네이버 계정 상품 등록 한도 초과. 코드로 해결 불가 — 판매자센터에서 한도 확인/기존 상품 정리 필요(사용자 조치).** 해소 전까지 스토어 실등록 검증 불가.
+- 상태: 검증통과 (2026-08-22, `_workspace/verify/D-188_verdict.md` D-190 절) — 빌더 내 `floorToTenWon` 단일 지점 라운딩(컨텍스트·폴백 공통). Red 2건 실측 재현(51912→51910, 23912→23910) 후 Green, 전 모듈 1187테스트 0실패. 라운딩은 스토어 빌더 파일 밖으로 새지 않음(전역 grep + `git diff --stat` 확인, 타 마켓·계산기·재게시 무변경). null→0은 구 코드와 완전 동치이며 `0 % 10 == 0`이라 단위 위반 아님. **라이브 미검증 — 위 등록 한도 초과 해소 후 D-186·188·189·190을 실등록 1건으로 함께 닫아야 한다.**
+- 후속 후보(검증 중 발견) ①: **가격 동기화(PUT) 경로에는 10원 단위 라운딩이 없다** — `SmartstoreMarketClient.syncPriceAndStock:145`가 `priceResolver`가 준 Integer를 그대로 `salePrice`에 넣고, core 전역에 10원 라운딩 코드가 없다. 등록(POST)만 흡수되고 수정(PUT)은 1원 단위로 나갈 수 있다. PUT에도 `NumberUnit`이 적용되는지는 라이브 확인 필요.
+- 후속 후보(검증 중 발견) ②: **판매가 fail-fast 부재** — 빌더 `require()`와 core `MarketRequiredFieldValidator` 어디에도 salePrice 검증이 없어, 가격 없는 상품이 `salePrice=0`으로 조립돼 네이버 400으로만 드러난다(구 코드부터 동일). 카테고리·주소ID·A/S전화가 한국어 메시지로 즉시 실패하는 것과 대비.

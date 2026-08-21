@@ -47,6 +47,22 @@ class SmartstoreProductPayloadBuilderTest {
 			new BigDecimal("42300"), List.of("비타민D3"), notice, extra);
 	}
 
+	private Product product(BigDecimal costPrice, BigDecimal marginRate) {
+		ProductCreateCommand command = new ProductCreateCommand(
+			"https://kr.iherb.com/pr/x/1", costPrice, "비타민D3 K2",
+			"Vitamin D3 K2", "California Gold Nutrition", "미국",
+			new BigDecimal("60"), new BigDecimal("180"), MeasureUnit.EA,
+			List.of("https://src/1.jpg"), List.of("https://cdn/1.jpg", "https://cdn/2.jpg"),
+			"<div>본문</div>", "보충제", true, 1, marginRate, VendorType.IHB);
+		return Product.create("250726IHB001", command);
+	}
+
+	private MarketPublishContext contextWithSalePrice(BigDecimal salePrice) {
+		MarketPublishContext base = context();
+		return new MarketPublishContext(base.categoryId(), base.categoryPath(), salePrice,
+			base.keywords(), base.noticeFields(), base.extraFields());
+	}
+
 	@SuppressWarnings("unchecked")
 	private Map<String, Object> originProduct(Map<String, Object> body) {
 		return (Map<String, Object>)body.get("originProduct");
@@ -215,6 +231,35 @@ class SmartstoreProductPayloadBuilderTest {
 		assertThatThrownBy(() -> builder.build(product(), bare))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("출고지 주소ID");
+	}
+
+	@Test
+	@DisplayName("판매가는 10원 단위로 내려서 보낸다 — 네이버는 1원 단위 판매가를 NumberUnit으로 거부한다(라이브 실측)")
+	void salePriceIsFlooredToTenWon() {
+		Map<String, Object> origin = originProduct(
+			builder.build(product(), contextWithSalePrice(new BigDecimal("51912"))));
+
+		assertThat(origin.get("salePrice")).isEqualTo(51910);
+	}
+
+	@Test
+	@DisplayName("컨텍스트 판매가가 없어 상품 판매가로 폴백할 때도 10원 단위로 내린다")
+	void fallbackSalePriceIsFlooredToTenWon() {
+		Product product = product(new BigDecimal("20000"), new BigDecimal("19.56"));
+		assertThat(product.getSalePrice().intValue()).isEqualTo(23912);
+
+		Map<String, Object> origin = originProduct(builder.build(product, contextWithSalePrice(null)));
+
+		assertThat(origin.get("salePrice")).isEqualTo(23910);
+	}
+
+	@Test
+	@DisplayName("이미 10원 단위인 판매가는 그대로 나간다")
+	void tenWonUnitSalePriceIsUnchanged() {
+		Map<String, Object> origin = originProduct(
+			builder.build(product(), contextWithSalePrice(new BigDecimal("51910"))));
+
+		assertThat(origin.get("salePrice")).isEqualTo(51910);
 	}
 
 	@Test

@@ -2,6 +2,7 @@ package com.sbshop.agent.infrastructure.client.smartstore.component;
 
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.product.Product;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,15 +19,16 @@ public class SmartstoreProductPayloadBuilder {
 	private static final String SOURCE_NOTICE_PROCESSED = "PROCESSED_FOOD";
 	private static final String SEE_DETAIL = "상세설명 참조";
 
+	private static final int SALE_PRICE_UNIT = 10;
+
 	public Map<String, Object> build(Product product, MarketPublishContext context) {
 		String leafCategoryId = require(context.categoryId(), "스마트스토어 리프 카테고리(leafCategoryId)");
 		String shippingAddressId = require(context.extraString("shippingAddressId"), "출고지 주소ID");
 		String returnAddressId = require(context.extraString("returnAddressId"), "반품지 주소ID");
 		String asTelephone = require(context.extraString("afterServiceTelephoneNumber"), "A/S 전화번호");
 
-		int salePrice = context.salePrice() != null
-			? context.salePrice().intValue()
-			: (product.getSalePrice() != null ? product.getSalePrice().intValue() : 0);
+		int salePrice = floorToTenWon(
+			context.salePrice() != null ? context.salePrice() : product.getSalePrice());
 
 		Map<String, Object> originProduct = new LinkedHashMap<>();
 		originProduct.put("statusType", "SALE");
@@ -48,6 +50,13 @@ public class SmartstoreProductPayloadBuilder {
 			"naverShoppingRegistration", true,
 			"channelProductDisplayStatusType", "ON"));
 		return body;
+	}
+
+	private int floorToTenWon(BigDecimal price) {
+		if (price == null) {
+			return 0;
+		}
+		return price.intValue() / SALE_PRICE_UNIT * SALE_PRICE_UNIT;
 	}
 
 	private Map<String, Object> images(Product product) {
