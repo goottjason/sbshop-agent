@@ -3053,7 +3053,8 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 검증(2026-08-21, qa-verifier **부분**): `:core:test --rerun` 747 tests·`:api:test` 170 tests 실패 0(신규 8+4+3 케이스 실행 확인), spotlessCheck 통과, 프론트 `tsc -p tsconfig.app.json`·`npm run build` 그린, eslint 5 error 기준선 유지(전부 기존 set-state-in-effect). Red 실측 재현 — `git archive HEAD` 전개본에 신규 테스트 이식 시 8 tests 중 6 fail(`expected 19000 but was 21700` 등, 수정자 보고와 일치), 기대값은 `MarginCalculator` 손계산으로 독립 검증. 행위 보존 확인 — 정책 부재 시 결과 동일, 기존 4테스트는 목 인자 추가뿐 단언 약화 없음, 배치 경로 `resolve(PricingInputs,..)` 무변경, 배지 등록은 3값 전달로 정책 무관. 계약 일치(경로·필드·null 200·래퍼 없음·`Map.of` 미사용), Testcontainers Postgres 컨텍스트 로드로 빈·엔티티 실증. **잔여 2건** — ①정책 `minMarginPrice`가 실제 결속되는 테스트 케이스 부재(현재 6케이스 모두 보정 미발동 → `return null`로 바꿔도 그린) ②정책 시드 후 "원가 있고 마진율 없는 상품"이 기준가→계산가로 전환되는 범위 밖 행위 변화(영향 규모는 운영 DB 조회 필요). 판정서: `_workspace/verify/D-166_verdict.md`.
 - 잔여 ② 종결(2026-08-21, 리더 운영 DB 실측): `cost_price>0 AND margin_rate IS NULL` 상품 **0건**(원가 보유 2,467 / 전체 3,195) — 기준가→계산가 전환 대상이 현재 데이터에 없음. **설계 유지 결정**(정책 = 3파라미터 공통 기본값, 향후 마진율 없는 상품은 정책 마진으로 계산되는 것이 의도된 동작).
 - 잔여 ① 종결 + **최종 PASS**(2026-08-22, qa-verifier 재검증): 테스트 파일 1개만 보강(프로덕션 무변경 — `MarketSalePriceResolver.java` diff 37/4 및 전문 대조로 복원 확인). 신규 `resolveForProduct_policyMinMarginRaisesPrice`(정책 최소마진 8000 → 22000) + 기존 `일부만 오버라이드…` 강화(최소마진 8000, 기대 23000 — 정상 23000/쿠폰 오염 22000/수정 전 20300으로 세 값이 갈려 두 축 동시 판별). 검증자 독립 뮤테이션(`resolveMinMarginPrice` → `return null;`) 재현으로 두 케이스가 실제로 깨짐 확인(23000→20300, 22000→19000; 20300은 수정 전 실측값과 동일). 재게이트 `:core:test --rerun` **748**/0/0 · `:api:test --rerun` 170/0/0 · spotlessCheck · `tsc -p tsconfig.app.json` 통과. 배포 후 리더 수동 조치(시드 INSERT + `\d sb_price_policy` 확인)는 유효. 환경 flake 1건 기록 — 재검증 1회차 `:core:test`가 단언 실패 0건인데 BUILD FAILED(테스트 실행기 JVM 사망 추정, 원문 미확보), 동일 커맨드 2·3회차는 클린. 이번 수정 귀속 근거 없음, 재발 시 원인 규명 필요.
-- 상태: 검증통과
+- 라이브 검증(2026-08-22): ① `sb_price_policy` 테이블 자동 생성 확인(ddl-auto), **PUT→GET→DB 왕복 실측 일치**(15/20/5000). ② 배지 등록 다이얼로그가 정책값을 실제로 읽음 — 정책 쿠폰율을 21로 바꾸자 다이얼로그 초기값이 21로 표시(하드코딩 폴백 20과 구별되는 결정적 증거), 확인 후 20 복원. ③ Settings 정책 섹션은 관리자 로그인 뒤라 사용자 육안 확인 위임. ④ 실등록 1건은 **선행 결함으로 불가** — 3마켓 신규 등록 파이프라인이 각기 다른 이유로 고장 상태임을 발견(D-185 쿠팡 카테고리 메타 404 · D-186 스토어 주소록 404 · D-187 카페24 분류 조회 실패). 무오버라이드 정책 보충 경로는 단위테스트 Red 실측으로 검증됨 — 실등록 실측은 D-185~187 해소 후로 이월.
+- 상태: 검증통과 (실등록 실측만 D-185~187 이후로 이월)
 
 ### D-167: Cafe24 이미지·상세HTML 동기화 실패가 조용히 성공으로 기록 (2026-08-21)
 
@@ -3196,3 +3197,23 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 검증(2026-08-21, qa-verifier — 기능 4항 PASS + 포맷 반려 1회 교정 후 spotlessCheck 그린): Red 실측(git archive 이식), 헬퍼 3종 diff 0·syncPriceAndStock 무영향·detailAttribute 타 키 보존·D-092 함정 저촉 없음. `:infrastructure:test --rerun-tasks` 178 그린, 리더 전 모듈 회귀 1,154 그린. 주의(비차단): `applyUnitPrice`는 라이브 unitCapacity를 상품 스펙으로 **전면 교체**(가격/재고 경로와 동일 거동 — 신규 위험 아님). 2334는 스펙 보유(28·G·b4) DB 실측 → unitPriceYn=true 경로. 판정서: `_workspace/verify/D-184_verdict.md`
 - 라이브 검증 완료(2026-08-21 21:37 KST, 배포 커밋 9ee9056 · 상품 2334 재게시 실측): 스마트스토어 PUT 200 정상 응답(originProductNo 4824226277) — 3회 연속 400이던 경로 해소. **`synced=[CAFE24, COUPANG, SMART_STORE], failed=[]` 3마켓 완전 성공**, DB 3마켓 is_synced=t. 잔여 참고: `applyUnitPrice`는 라이브 unitCapacity를 스펙으로 전면 교체(가격/재고 경로와 동일 거동) — 수동 설정 사용 시 유의.
 - 상태: **검증통과 (라이브 검증 완료)**
+
+### D-185: 쿠팡 신규 등록이 카테고리 메타 조회 404로 불가 (2026-08-22, D-166 라이브 검증 중 발견)
+
+- 심각도: P1(신규 등록 기능 불능) | 위치: `backend/infrastructure/.../coupang/component/CoupangMetaService` 경유 `GET /v2/providers/openapi/apis/api/v2/products/category-meta/{code}`
+- 증상: 상품 3194 등록 시도 → 404 `PRECONDITION_FAILED "No exactly matching API specification ... found"` — **엔드포인트 자체가 쿠팡 측에서 사라진 것으로 보임**(스펙 변경/폐기 추정). 카테고리 예측 결과 73134으로 메타 조회 실패 → publish 중단.
+- 참고: 2026-08-14 배지 등록 라이브 검증 이후 어느 시점의 외부 스펙 변경 추정. 쿠팡 개발자 문서에서 현행 카테고리 메타 API 경로 확인 필요.
+- 상태: 발견
+
+### D-186: 스마트스토어 신규 등록이 주소록 자동조회 404로 불가 (2026-08-22, D-166 라이브 검증 중 발견)
+
+- 심각도: P1(신규 등록 기능 불능 — 출고지 수동 설정 없는 상품 전부) | 위치: `backend/infrastructure/.../smartstore/component/SmartstoreAddressBookResolver` 경유 `GET /v1/seller/addressbooks`
+- 증상: 3상품(3194·2270·1803) 등록 시도 전부 → 주소록 조회 404 `GW.NOT_FOUND` → 출고지/반품지 자동 해석 실패 → `SmartstoreProductPayloadBuilder`가 "출고지 주소ID 없음"으로 거부. 네이버 커머스API 주소록 엔드포인트 경로 확인 필요(스펙 변경 추정).
+- 상태: 발견
+
+### D-187: 카페24 신규 등록이 진열 분류 목록 조회 실패로 불가 (2026-08-22, D-166 라이브 검증 중 발견)
+
+- 심각도: P1(신규 등록 기능 불능) | 위치: cafe24 publish 경로의 쇼핑몰 분류 자동 매칭
+- 증상: 상품 766 등록 시도 → "쇼핑몰 분류 목록 조회 실패(분류 0개 또는 API 오류)로 자동 매칭도 폴백도 불가" 거부. 오류 메시지가 안내하는 `market.cafe24.default-category-no` 설정도 미구성 상태.
+- 종합: **D-185~187로 배지 클릭 신규 등록이 3마켓 전부 현재 불능** — 기존 상품 재게시·가격재고 동기화는 정상(금일 라이브 확인)이며 신규 등록 파이프라인만 고장. 마켓 측 API 스펙 변경이 공통 원인 후보.
+- 상태: 발견
