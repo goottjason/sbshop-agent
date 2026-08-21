@@ -41,6 +41,8 @@ public class SmartstoreMarketClient implements MarketClient {
 	private final SmartstoreRestClient restClient;
 	private final ObjectMapper objectMapper;
 
+	private static final int MAX_PUBLISH_IMAGES = 10;
+
 	@Override
 	public MarketType getSupportedMarket() {
 		return MarketType.SMART_STORE;
@@ -57,6 +59,7 @@ public class SmartstoreMarketClient implements MarketClient {
 		log.info("[Smartstore] 상품 등록 시작: {}", product.getSbCode());
 		try {
 			Map<String, Object> requestBody = payloadBuilder.build(product, context);
+			applyUploadedImages(requestBody, product);
 			String response = restClient.post("/v2/products", requestBody);
 			JsonNode node = objectMapper.readTree(response);
 
@@ -471,6 +474,22 @@ public class SmartstoreMarketClient implements MarketClient {
 			log.warn("[D092][스토어] 네이버 이미지 업로드 실패 — 외부 URL 폴백: {}", e.getMessage());
 		}
 		return hostedImages;
+	}
+
+	@SuppressWarnings("unchecked")
+	private void applyUploadedImages(Map<String, Object> requestBody, Product product) {
+		List<String> hosted = product.getHostedImages();
+		if (hosted == null || hosted.isEmpty()) {
+			return;
+		}
+		Object origin = requestBody.get("originProduct");
+		if (!(origin instanceof Map)) {
+			return;
+		}
+		List<String> capped = hosted.subList(0, Math.min(hosted.size(), MAX_PUBLISH_IMAGES));
+		List<String> targetImages = uploadImagesToNaver(capped).stream()
+			.map(this::ensureImageExtension).toList();
+		applyImages((Map<String, Object>)origin, targetImages);
 	}
 
 	private byte[] downloadImage(String imageUrl) {
