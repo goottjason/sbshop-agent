@@ -2,10 +2,20 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchCredentials, saveCredential, getCafe24Status, issueCafe24Token } from '../api/marketApi';
 import type { MarketCredential } from '../api/marketApi';
+import { fetchPricePolicy, savePricePolicy } from '../api/pricePolicyApi';
 import { getAdminAuth, setAdminAuth } from '../api/axios';
 
 const secretPlaceholder = (hasValue?: boolean, fallback = ''): string =>
   hasValue ? '설정됨 — 변경하려면 새 값 입력 (비우면 기존 값 유지)' : fallback;
+
+type PricePolicyForm = { marginRate: string; couponRate: string; minMarginPrice: string };
+
+const toPolicyNumber = (value: string): number | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 
 const Settings = () => {
   const queryClient = useQueryClient();
@@ -96,6 +106,41 @@ const Settings = () => {
       alert('설정 저장 중 오류가 발생했습니다.');
     },
   });
+
+  const [policyDraft, setPolicyDraft] = useState<PricePolicyForm | null>(null);
+
+  const { data: pricePolicy, isFetching: policyLoading } = useQuery({
+    queryKey: ['price-policy'],
+    queryFn: fetchPricePolicy,
+    enabled: authed,
+  });
+
+  const policyForm: PricePolicyForm = policyDraft ?? {
+    marginRate: pricePolicy?.marginRate != null ? String(pricePolicy.marginRate) : '',
+    couponRate: pricePolicy?.couponRate != null ? String(pricePolicy.couponRate) : '',
+    minMarginPrice: pricePolicy?.minMarginPrice != null ? String(pricePolicy.minMarginPrice) : '',
+  };
+
+  const policyMutation = useMutation({
+    mutationFn: (form: PricePolicyForm) => savePricePolicy({
+      marginRate: toPolicyNumber(form.marginRate),
+      couponRate: toPolicyNumber(form.couponRate),
+      minMarginPrice: toPolicyNumber(form.minMarginPrice),
+    }),
+    onSuccess: () => {
+      setPolicyDraft(null);
+      queryClient.invalidateQueries({ queryKey: ['price-policy'] });
+      alert('가격 정책이 저장되었습니다.');
+    },
+    onError: () => {
+      alert('가격 정책 저장 중 오류가 발생했습니다.');
+    },
+  });
+
+  const handlePolicyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setPolicyDraft({ ...policyForm, [name]: value });
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -394,6 +439,61 @@ const Settings = () => {
             </button>
           </div>
         </form>
+      </div>
+
+      <div className="card" style={{ padding: '32px', marginTop: '24px' }}>
+        <h2 style={{ marginBottom: '8px' }}>가격 정책</h2>
+        <p style={{ color: '#666', fontSize: 14, marginTop: 0, marginBottom: '24px' }}>
+          상품 등록·일괄 가격 갱신에 쓰이는 기본값입니다. 비워두면 화면별 기본값이 사용됩니다.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontWeight: 500 }}>마진율 (%)</label>
+            <input
+              type="number"
+              name="marginRate"
+              value={policyForm.marginRate}
+              onChange={handlePolicyChange}
+              className="input-field"
+              placeholder="예: 15"
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontWeight: 500 }}>쿠폰율 (%)</label>
+            <input
+              type="number"
+              name="couponRate"
+              value={policyForm.couponRate}
+              onChange={handlePolicyChange}
+              className="input-field"
+              placeholder="예: 20"
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontWeight: 500 }}>최소 마진가 (원)</label>
+            <input
+              type="number"
+              name="minMarginPrice"
+              value={policyForm.minMarginPrice}
+              onChange={handlePolicyChange}
+              className="input-field"
+              placeholder="예: 5000"
+            />
+          </div>
+
+          <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12 }}>
+            {policyLoading && <span style={{ color: '#666', fontSize: 13 }}>정책 불러오는 중…</span>}
+            <button
+              type="button"
+              onClick={() => policyMutation.mutate(policyForm)}
+              className="btn-primary"
+              disabled={policyMutation.isPending}
+            >
+              {policyMutation.isPending ? '저장 중...' : '가격 정책 저장'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

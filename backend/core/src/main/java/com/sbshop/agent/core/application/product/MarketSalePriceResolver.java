@@ -1,8 +1,10 @@
 package com.sbshop.agent.core.application.product;
 
 import com.sbshop.agent.core.application.fee.MarketFeeService;
+import com.sbshop.agent.core.application.fee.PricePolicyService;
 import com.sbshop.agent.core.application.product.dto.MarketSalePriceOverrides;
 import com.sbshop.agent.core.application.product.dto.PricingInputs;
+import com.sbshop.agent.core.domain.fee.PricePolicy;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.service.MarginCalculator;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Component;
 public class MarketSalePriceResolver {
 	private final MarginCalculator marginCalculator;
 	private final MarketFeeService marketFeeService;
+	private final PricePolicyService pricePolicyService;
 
 	public Integer resolve(PricingInputs p, MarketType marketType) {
 		BigDecimal fee = marketFeeService.feeRate(marketType);
@@ -31,9 +34,9 @@ public class MarketSalePriceResolver {
 	public BigDecimal resolveForProduct(Product product, MarketType marketType,
 		MarketSalePriceOverrides overrides) {
 		MarketSalePriceOverrides o = overrides != null ? overrides : MarketSalePriceOverrides.EMPTY;
+		PricePolicy policy = isFullyOverridden(o) ? null : pricePolicyService.get();
 		BigDecimal costPrice = product.getPriceInfo() != null ? product.getPriceInfo().getCostPrice() : null;
-		BigDecimal marginRate = o.marginRate() != null ? o.marginRate()
-			: (product.getPriceInfo() != null ? product.getPriceInfo().getMarginRate() : null);
+		BigDecimal marginRate = resolveMarginRate(product, o, policy);
 		if (costPrice == null || costPrice.signum() <= 0 || marginRate == null) {
 			log.info("[등록가] 원가·마진 미보유 → 기준가로 등록: sbCode={}, market={}",
 				product.getSbCode(), marketType);
@@ -43,7 +46,37 @@ public class MarketSalePriceResolver {
 			&& product.getLogisticsInfo().getBundleQuantity() != null
 				? product.getLogisticsInfo().getBundleQuantity() : 1;
 		BigDecimal fee = marketFeeService.feeRate(marketType);
-		return marginCalculator.calculateSalePrice(
-			costPrice, bundleQty, marginRate, o.couponRate(), o.minMarginPrice(), fee);
+		return marginCalculator.calculateSalePrice(costPrice, bundleQty, marginRate,
+			resolveCouponRate(o, policy), resolveMinMarginPrice(o, policy), fee);
+	}
+
+	private boolean isFullyOverridden(MarketSalePriceOverrides o) {
+		return o.marginRate() != null && o.couponRate() != null && o.minMarginPrice() != null;
+	}
+
+	private BigDecimal resolveMarginRate(Product product, MarketSalePriceOverrides o, PricePolicy policy) {
+		if (o.marginRate() != null) {
+			return o.marginRate();
+		}
+		BigDecimal productRate = product.getPriceInfo() != null
+			? product.getPriceInfo().getMarginRate() : null;
+		if (productRate != null) {
+			return productRate;
+		}
+		return policy != null ? policy.getMarginRate() : null;
+	}
+
+	private BigDecimal resolveCouponRate(MarketSalePriceOverrides o, PricePolicy policy) {
+		if (o.couponRate() != null) {
+			return o.couponRate();
+		}
+		return policy != null ? policy.getCouponRate() : null;
+	}
+
+	private BigDecimal resolveMinMarginPrice(MarketSalePriceOverrides o, PricePolicy policy) {
+		if (o.minMarginPrice() != null) {
+			return o.minMarginPrice();
+		}
+		return policy != null ? policy.getMinMarginPrice() : null;
 	}
 }

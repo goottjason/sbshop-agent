@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.product;
 
 import com.sbshop.agent.core.application.fee.MarketFeeService;
+import com.sbshop.agent.core.application.fee.PricePolicyService;
 import com.sbshop.agent.core.application.product.dto.PricingInputs;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
@@ -40,7 +41,8 @@ class ProductMarketSyncPerMarketPriceTest {
 	void setUp() {
 		service = new ProductMarketSyncService(
 			marketRegistrationRepository, marketClientRouter,
-			new MarketSalePriceResolver(new MarginCalculator(), marketFeeService),
+			new MarketSalePriceResolver(new MarginCalculator(), marketFeeService,
+				Mockito.mock(PricePolicyService.class)),
 			Mockito.mock(ProductReader.class));
 	}
 

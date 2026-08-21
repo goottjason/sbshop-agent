@@ -3,6 +3,7 @@ import { Modal as AntModal, InputNumber } from 'antd';
 import { toast } from 'react-toastify';
 import { productApi, type ProductList } from '../../api/productApi';
 import { sourcingApi } from '../../api/sourcingApi';
+import { fetchPricePolicy } from '../../api/pricePolicyApi';
 import {
   MARKET_BADGES, badgeVisual, ESM_MARKET_KEYS,
   DEFAULT_MARKET_MARGIN_RATE, DEFAULT_MARKET_COUPON_RATE, DEFAULT_MARKET_MIN_MARGIN_PRICE,
@@ -34,8 +35,18 @@ export function MarketBadgeCell({ product, onPublished }:
   const [couponRate, setCouponRate] = useState<number | null>(DEFAULT_MARKET_COUPON_RATE);
   const [minMarginPrice, setMinMarginPrice] = useState<number | null>(DEFAULT_MARKET_MIN_MARGIN_PRICE);
 
-  const publish = (marketKey: string, label: string) => {
+  const publish = async (marketKey: string, label: string) => {
     setPublishTarget({ key: marketKey, label });
+    try {
+      const policy = await fetchPricePolicy();
+      setMarginRate(policy.marginRate ?? DEFAULT_MARKET_MARGIN_RATE);
+      setCouponRate(policy.couponRate ?? DEFAULT_MARKET_COUPON_RATE);
+      setMinMarginPrice(policy.minMarginPrice ?? DEFAULT_MARKET_MIN_MARGIN_PRICE);
+    } catch {
+      setMarginRate(DEFAULT_MARKET_MARGIN_RATE);
+      setCouponRate(DEFAULT_MARKET_COUPON_RATE);
+      setMinMarginPrice(DEFAULT_MARKET_MIN_MARGIN_PRICE);
+    }
   };
 
   const confirmPublish = async () => {
