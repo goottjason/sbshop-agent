@@ -318,11 +318,14 @@ public class CoupangMarketClient implements MarketClient {
 				attribute.forEach((key, value) -> entry.put(String.valueOf(key), value));
 				String typeName = attributeText(entry.get("attributeTypeName"));
 				String valueName = attributeText(entry.get("attributeValueName"));
-				if (valueName.isBlank()) {
+				if (valueName.isBlank() && !isExposedAttribute(entry)) {
 					continue;
 				}
-				if (!isPlaceholderAttributeValue(typeName, valueName)) {
+				if (!valueName.isBlank() && !isPlaceholderAttributeValue(typeName, valueName)) {
 					sanitized.add(entry);
+					continue;
+				}
+				if (!attributeValueResolver.supportsUnitFamily(typeName, product)) {
 					continue;
 				}
 				if (unitsByTypeName == null) {
@@ -341,6 +344,10 @@ public class CoupangMarketClient implements MarketClient {
 
 	private String attributeText(Object value) {
 		return value == null ? "" : String.valueOf(value).trim();
+	}
+
+	private boolean isExposedAttribute(Map<String, Object> entry) {
+		return "EXPOSED".equals(attributeText(entry.get("exposed")));
 	}
 
 	private boolean isPlaceholderAttributeValue(String typeName, String valueName) {

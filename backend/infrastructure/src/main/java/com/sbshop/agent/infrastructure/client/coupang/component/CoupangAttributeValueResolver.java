@@ -3,13 +3,23 @@ package com.sbshop.agent.infrastructure.client.coupang.component;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.enums.MeasureUnit;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Component;
 
 @Component
 public class CoupangAttributeValueResolver {
 
 	private static final String PIECE_UNIT = "개";
+	private static final Set<MeasureUnit> WEIGHT_UNITS = Set.of(MeasureUnit.MG, MeasureUnit.G, MeasureUnit.KG,
+		MeasureUnit.OZ, MeasureUnit.LB);
+	private static final Set<MeasureUnit> VOLUME_UNITS = Set.of(MeasureUnit.ML, MeasureUnit.L);
+	private static final Set<MeasureUnit> COUNT_UNITS = Set.of(MeasureUnit.TABLET, MeasureUnit.CAPSULE);
+	private static final Set<MeasureUnit> MEASURABLE_UNITS = Stream.of(WEIGHT_UNITS, VOLUME_UNITS, COUNT_UNITS)
+		.flatMap(Set::stream).collect(Collectors.toUnmodifiableSet());
 
 	public String resolve(String typeName, Product product, List<String> usableUnits) {
 		if (typeName == null || typeName.isBlank()) {
@@ -26,6 +36,30 @@ public class CoupangAttributeValueResolver {
 			return capacity(product) + measureUnit(product, usableUnits);
 		}
 		return null;
+	}
+
+	public boolean supportsUnitFamily(String typeName, Product product) {
+		if (typeName == null || typeName.isBlank()) {
+			return true;
+		}
+		if (typeName.contains("수량") && !typeName.contains("개당")) {
+			return true;
+		}
+		MeasureUnit unit = measureUnitOf(product);
+		if (unit == null || !MEASURABLE_UNITS.contains(unit)) {
+			return true;
+		}
+		Set<MeasureUnit> allowedUnits = new HashSet<>();
+		if (typeName.contains("중량")) {
+			allowedUnits.addAll(WEIGHT_UNITS);
+		}
+		if (typeName.contains("용량")) {
+			allowedUnits.addAll(VOLUME_UNITS);
+		}
+		if (typeName.contains("캡슐") || typeName.contains("정")) {
+			allowedUnits.addAll(COUNT_UNITS);
+		}
+		return allowedUnits.isEmpty() || allowedUnits.contains(unit);
 	}
 
 	public String resolveWithNumberDefault(String typeName, Product product, List<String> usableUnits) {
@@ -50,9 +84,13 @@ public class CoupangAttributeValueResolver {
 		return capacity > 0 ? capacity : 1;
 	}
 
-	private String measureUnit(Product product, List<String> usableUnits) {
-		MeasureUnit unit = product == null || product.getProductSpec() == null
+	private MeasureUnit measureUnitOf(Product product) {
+		return product == null || product.getProductSpec() == null
 			? null : product.getProductSpec().getMeasureUnit();
+	}
+
+	private String measureUnit(Product product, List<String> usableUnits) {
+		MeasureUnit unit = measureUnitOf(product);
 		if (usableUnits == null) {
 			return fixedUnit(unit);
 		}

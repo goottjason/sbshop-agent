@@ -116,6 +116,38 @@ class CoupangAttributeValueResolverTest {
 		assertThat(resolver.resolveWithNumberDefault("수량", liquidProduct(), List.of("개"))).isEqualTo("3개");
 	}
 
+	@Test
+	@DisplayName("단위 계열 게이트: 중량/용량/정 타입은 상품 단위 계열이 맞을 때만 재충전을 허용한다")
+	void unitFamilyGate_allowsMatchingFamilyOnly() {
+		Product gramProduct = product(new BigDecimal("28"), MeasureUnit.G, 4);
+
+		assertThat(resolver.supportsUnitFamily("개당 중량", gramProduct)).isTrue();
+		assertThat(resolver.supportsUnitFamily("개당 용량", gramProduct)).isFalse();
+		assertThat(resolver.supportsUnitFamily("개당 용량", liquidProduct())).isTrue();
+		assertThat(resolver.supportsUnitFamily("개당 중량", liquidProduct())).isFalse();
+		assertThat(resolver.supportsUnitFamily("총 캡슐/정 수량", liquidProduct())).isTrue();
+	}
+
+	@Test
+	@DisplayName("단위 계열 게이트: 병합 라벨은 토큰 하나만 맞아도 통과한다")
+	void unitFamilyGate_mergedLabelPassesOnAnyMatchingToken() {
+		assertThat(resolver.supportsUnitFamily("개당 용량/중량/정", liquidProduct())).isTrue();
+		assertThat(resolver.supportsUnitFamily("개당 용량/중량/정", tabletProduct())).isTrue();
+		assertThat(resolver.supportsUnitFamily("개당 용량/중량/정",
+			product(new BigDecimal("28"), MeasureUnit.G, 4))).isTrue();
+	}
+
+	@Test
+	@DisplayName("단위 계열 게이트: 수량 계열과 계열 판정 불가 상품(개·미지정)은 항상 통과한다")
+	void unitFamilyGate_quantityAndUnjudgeableUnitsAlwaysPass() {
+		assertThat(resolver.supportsUnitFamily("수량", product(new BigDecimal("28"), MeasureUnit.G, 4))).isTrue();
+		assertThat(resolver.supportsUnitFamily("개당 용량", product(new BigDecimal("28"), MeasureUnit.EA, 4))).isTrue();
+		assertThat(resolver.supportsUnitFamily("개당 용량", product(new BigDecimal("28"), MeasureUnit.UNKNOWN, 4)))
+			.isTrue();
+		assertThat(resolver.supportsUnitFamily("개당 용량", product(new BigDecimal("28"), null, 4))).isTrue();
+		assertThat(resolver.supportsUnitFamily("개당 용량", null)).isTrue();
+	}
+
 	private Product liquidProduct() {
 		return product(new BigDecimal("200"), MeasureUnit.ML, 3);
 	}

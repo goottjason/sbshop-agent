@@ -400,6 +400,56 @@ class CoupangMarketClientImagesTest {
 		assertThat(capturedAttributes().get(0)).containsEntry("attributeValueName", "200ml");
 	}
 
+	@Test
+	@DisplayName("D-183: 빈 값이라도 EXPOSED 필수옵션은 단위 계열이 맞으면 재충전한다(상품 2334 형상)")
+	void syncImagesAndHtml_emptyExposedAttribute_refilledWhenUnitFamilyMatches() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
+		Map<String, Object> raw = rawWithPlaceholders(null,
+			Map.of("attributeTypeName", "수량", "attributeValueName", "수량", "exposed", "EXPOSED"),
+			Map.of("attributeTypeName", "개당 용량", "attributeValueName", "", "exposed", "EXPOSED"),
+			Map.of("attributeTypeName", "개당 중량", "attributeValueName", "", "exposed", "EXPOSED"));
+
+		client.syncImagesAndHtml(product("28", MeasureUnit.G, 4), "305", raw, List.of("u0"), "<html>");
+
+		List<Map<String, Object>> attributes = capturedAttributes();
+		assertThat(attributes).hasSize(2);
+		assertThat(attributes.get(0)).containsEntry("attributeTypeName", "수량")
+			.containsEntry("attributeValueName", "4개");
+		assertThat(attributes.get(1)).containsEntry("attributeTypeName", "개당 중량")
+			.containsEntry("attributeValueName", "28g");
+	}
+
+	@Test
+	@DisplayName("D-183: 빈 값이 EXPOSED 가 아니면(NONE·키 부재) 기존대로 드롭한다")
+	void syncImagesAndHtml_emptyNonExposedAttribute_dropped() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
+		Map<String, Object> raw = rawWithPlaceholders(null,
+			Map.of("attributeTypeName", "개당 중량", "attributeValueName", "", "exposed", "NONE"),
+			Map.of("attributeTypeName", "개당 용량", "attributeValueName", ""),
+			Map.of("attributeTypeName", "모델명", "attributeValueName", "Osteocare Liquid"));
+
+		client.syncImagesAndHtml(product("28", MeasureUnit.G, 4), "305", raw, List.of("u0"), "<html>");
+
+		List<Map<String, Object>> attributes = capturedAttributes();
+		assertThat(attributes).hasSize(1);
+		assertThat(attributes.get(0)).containsEntry("attributeTypeName", "모델명");
+	}
+
+	@Test
+	@DisplayName("D-183: 병합 라벨 자리표시는 토큰 하나만 단위 계열과 맞아도 재충전한다(3110 ML·2591 TABLET)")
+	void syncImagesAndHtml_mergedLabelPlaceholder_refilledForBothUnitFamilies() throws Exception {
+		stubJsonParsing();
+		when(restClient.put(eq(BASE_PATH), any())).thenReturn(SUCCESS_ENVELOPE);
+		Map<String, Object> raw = rawWithPlaceholders(null,
+			Map.of("attributeTypeName", "개당 용량/중량/정", "attributeValueName", "용량", "exposed", "EXPOSED"));
+
+		client.syncImagesAndHtml(product("30", MeasureUnit.TABLET, 3), "305", raw, List.of("u0"), "<html>");
+
+		assertThat(capturedAttributes().get(0)).containsEntry("attributeValueName", "30정");
+	}
+
 	@SafeVarargs
 	private Map<String, Object> rawWithPlaceholders(Long categoryCode, Map<String, String>... attributes) {
 		Map<String, Object> firstItem = new HashMap<>();
@@ -423,10 +473,15 @@ class CoupangMarketClientImagesTest {
 	}
 
 	private Product product() {
+		return product("200", MeasureUnit.ML, 3);
+	}
+
+	private Product product(String capacity, MeasureUnit measureUnit, int bundleQuantity) {
 		Product product = mock(Product.class);
-		lenient().when(product.getLogisticsInfo()).thenReturn(LogisticsInfo.builder().bundleQuantity(3).build());
+		lenient().when(product.getLogisticsInfo())
+			.thenReturn(LogisticsInfo.builder().bundleQuantity(bundleQuantity).build());
 		lenient().when(product.getProductSpec()).thenReturn(ProductSpec.builder()
-			.capacity(new BigDecimal("200")).measureUnit(MeasureUnit.ML).build());
+			.capacity(new BigDecimal(capacity)).measureUnit(measureUnit).build());
 		return product;
 	}
 
