@@ -1,32 +1,14 @@
 import type { OrderGridDto } from '../api/orderApi';
 
-/**
- * 주문 그리드 → 엑셀(.xlsx) 내보내기.
- *
- * 그리드는 한 칸에 여러 값을 겹쳐 보여주고(주문정보=마켓+주문번호+주문일, 배송정보=송장+택배사 …)
- * 한 주문상품을 3행(order/product/fulfillment)에 나눠 그리므로 화면과 1:1로 옮길 수 없다.
- * 그래서 엑셀에서는 <b>주문상품 1건 = 1행</b>으로 되돌리고 모든 값을 개별 컬럼으로 평탄화한다.
- *
- * exceljs는 번들이 크므로 이 모듈 자체를 호출 시점에 dynamic import 하도록 설계했다
- * (호출부에서 `await import('../utils/orderExcelExport')`). 다운로드를 누르지 않는 사용자는
- * 이 코드를 내려받지 않는다.
- */
-
-/** 셀 하나의 정의. `text: true`면 숫자로 해석될 값이라도 문자열 서식을 강제한다. */
 interface ColumnSpec {
   header: string;
   width: number;
-  /**
-   * 주문번호(17자리)·송장(12~13자리)·우편번호는 엑셀이 숫자로 읽으면 지수표기(2.02607E+16)로
-   * 뭉개지거나 앞자리 0이 사라진다. 텍스트 서식을 강제해 원본을 보존한다.
-   */
   text?: boolean;
   value: (row: OrderGridDto, label: LabelFn) => string | number | Date | null;
 }
 
 type LabelFn = (category: string, name: string) => string;
 
-/** 택배사 enum → 한글명. 그리드의 CARRIER_LABELS와 같은 표를 쓴다. */
 const CARRIER_LABELS: Record<string, string> = {
   CJ_LOGISTICS: 'CJ대한통운',
   HANJIN: '한진택배',
@@ -56,16 +38,6 @@ const STOCK_STATUS_LABELS: Record<string, string> = {
   OUT_OF_STOCK: '품절',
 };
 
-/** 백엔드 LocalDateTime(zone 없는 UTC 벽시계값)을 KST 표시 문자열로. 그리드와 같은 규칙. */
-const formatDateTime = (value?: string): string => {
-  if (!value) return '';
-  const normalized = value.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(value) ? value : `${value}Z`;
-  const d = new Date(normalized);
-  if (Number.isNaN(d.getTime())) return value;
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-};
-
 const COLUMNS: ColumnSpec[] = [
   { header: '마켓', width: 10, value: r => MARKET_LABELS[r.order?.marketType || ''] || r.order?.marketType || '' },
   { header: '마켓 주문번호', width: 20, text: true, value: r => r.order?.marketOrderNo || '' },
@@ -88,8 +60,6 @@ const COLUMNS: ColumnSpec[] = [
   { header: 'SB코드', width: 14, text: true, value: r => r.product?.sbCode || '' },
   { header: '상품명', width: 40, value: r => r.product?.productName || '' },
   { header: '원문상품명', width: 40, value: r => r.product?.originalName || '' },
-  // 소싱처에서 실제로 주문을 넣을 때 바로 눌러야 하는 값이라 상품 정보 옆에 둔다.
-  // text 서식 고정 — URL을 엑셀이 하이퍼링크로 자동 변환하며 값을 건드리는 것을 막는다.
   { header: '상품URL', width: 50, text: true, value: r => r.product?.sourcingInfo?.sourceUrl || '' },
   { header: '카테고리', width: 14, value: r => r.product?.category || '' },
   { header: '공급처', width: 12, value: r => r.product?.vendor || '' },
@@ -112,34 +82,33 @@ const COLUMNS: ColumnSpec[] = [
   { header: '유니패스', width: 10, value: r => (r.lineItem?.isUnipassDone ? 'Y' : 'N') },
 ];
 
-/** 파일명에 쓸 `YYYYMMDD_HHmm`. */
+const formatDateTime = (value?: string): string => {
+  if (!value) return '';
+  const normalized = value.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(value) ? value : `${value}Z`;
+  const d = new Date(normalized);
+  if (Number.isNaN(d.getTime())) return value;
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
 const timestamp = (): string => {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
 };
 
-/**
- * 선택된 주문상품 행을 xlsx로 만들어 브라우저 다운로드를 띄운다.
- *
- * @param rows   주문상품 단위 행(그리드의 3행 분할을 이미 접어 놓은 상태여야 한다)
- * @param label  공통코드 라벨 조회 함수(그리드의 getCommonLabel과 동일 출처)
- */
 export const exportOrdersToExcel = async (rows: OrderGridDto[], label: LabelFn): Promise<void> => {
   const ExcelJS = await import('exceljs');
   const workbook = new ExcelJS.Workbook();
   workbook.created = new Date();
   const sheet = workbook.addWorksheet('주문');
-
   sheet.columns = COLUMNS.map(c => ({ header: c.header, key: c.header, width: c.width }));
-
   const headerRow = sheet.getRow(1);
   headerRow.font = { bold: true, size: 10 };
   headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
   headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E9' } };
   headerRow.border = { bottom: { style: 'thin', color: { argb: 'FFB0BEC5' } } };
   headerRow.height = 20;
-
   rows.forEach(row => {
     const values = COLUMNS.map(c => c.value(row, label));
     const added = sheet.addRow(values);
@@ -147,7 +116,6 @@ export const exportOrdersToExcel = async (rows: OrderGridDto[], label: LabelFn):
     COLUMNS.forEach((c, i) => {
       const cell = added.getCell(i + 1);
       if (c.text) {
-        // 긴 자릿수 식별자가 지수표기로 뭉개지지 않도록 텍스트 서식 고정.
         cell.numFmt = '@';
         cell.alignment = { horizontal: 'left' };
       } else if (typeof cell.value === 'number') {
@@ -155,11 +123,8 @@ export const exportOrdersToExcel = async (rows: OrderGridDto[], label: LabelFn):
       }
     });
   });
-
-  // 헤더 고정 + 자동 필터 — 수백 행을 다룰 때 실사용에서 바로 필요해진다.
   sheet.views = [{ state: 'frozen', ySplit: 1 }];
   sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: COLUMNS.length } };
-
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

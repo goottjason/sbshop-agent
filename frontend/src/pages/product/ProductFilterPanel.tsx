@@ -44,7 +44,6 @@ export function ProductFilterPanel({ categoryOptions, onSearch }: { categoryOpti
         .pf-search::placeholder { color: #cbd5e1; }
         .pf-searchbtn:hover { filter: brightness(1.08); box-shadow: 0 2px 8px rgba(22,101,52,0.25); }
       `}</style>
-      {/* Row 1: 통합검색 + 카테고리 */}
       <div style={{ display: 'flex', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px', marginBottom: '8px' }}>
         <div style={{ flex: 1, ...rowStyle }}>
           <span style={labelStyle}>통합 검색</span>
@@ -71,7 +70,6 @@ export function ProductFilterPanel({ categoryOptions, onSearch }: { categoryOpti
         </div>
       </div>
 
-      {/* Row 2: 마켓 등록상태 + 소싱처 */}
       <div style={{ display: 'flex', paddingBottom: '8px', marginBottom: '8px', borderBottom: '1px solid #f1f5f9' }}>
         <div style={{ flex: 1, ...rowStyle }}>
           <span style={labelStyle}>마켓 등록상태</span>
@@ -105,7 +103,6 @@ export function ProductFilterPanel({ categoryOptions, onSearch }: { categoryOpti
         </div>
       </div>
 
-      {/* Row 3: 재고·판매상태 + 재고유무 */}
       <div style={{ display: 'flex' }}>
         <div style={{ flex: 1, ...rowStyle }}>
           <span style={labelStyle}>재고·판매상태</span>

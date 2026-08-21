@@ -8,8 +8,6 @@ import Settings from './pages/Settings';
 
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-quartz.css';
 
 const ProductGrid = lazy(() => import('./pages/product/ProductGrid'));
 const ProductRegisterPage = lazy(() => import('./pages/ProductRegisterPage'));
@@ -30,7 +28,6 @@ function App() {
           <Route path="orders" element={<OrderGrid />} />
           <Route path="products" element={<Suspense fallback={<Loading />}><ProductGrid /></Suspense>} />
           <Route path="register" element={<Suspense fallback={<Loading />}><ProductRegisterPage /></Suspense>} />
-          {/* 신규 상품 등록 자동화 — 추천 → 검수 → 등록. /register(URL 직접입력)는 수동 경로로 남긴다. */}
           <Route path="sourcing" element={<Suspense fallback={<Loading />}><DiscoveryPage /></Suspense>} />
           <Route path="sourcing/drafts/:id" element={<Suspense fallback={<Loading />}><DraftReviewPage /></Suspense>} />
           <Route path="sourcing/settings" element={<Suspense fallback={<Loading />}><SourcingSettingsPage /></Suspense>} />

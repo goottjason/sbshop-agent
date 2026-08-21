@@ -17,7 +17,6 @@ import ScoreBreakdownPanel from './ScoreBreakdownPanel';
 
 const { Title, Text, Paragraph } = Typography;
 
-/** 발굴이 도는 동안 진행 상태를 물어보는 주기. 크롤이 수 분 걸려 짧게 볼 이유가 없다. */
 const POLL_INTERVAL_MS = 10_000;
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -59,13 +58,6 @@ const CustomsBadge = ({ verdict, reason }: { verdict: string | null; reason: str
   return <Tag>통관 미판정</Tag>;
 };
 
-/**
- * 추천 상품 목록.
- *
- * 통관 REVIEW 후보를 목록에서 빼지 않고 경고 배지로 노출하는 게 핵심이다 —
- * 판정이 애매한 상품을 조용히 감추면 사용자가 기회를 잃고, 왜 사라졌는지도 모른다.
- * 대신 초안 생성 후 검수 화면에서 명시적 승인을 요구한다.
- */
 const DiscoveryPage = () => {
   const navigate = useNavigate();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -77,7 +69,6 @@ const DiscoveryPage = () => {
   const [showBlocked, setShowBlocked] = useState(false);
   const [includeReview, setIncludeReview] = useState(true);
   const pollRef = useRef<number | null>(null);
-
   const loadCandidates = useCallback(async () => {
     try {
       const res = await sourcingDiscoveryApi.candidates(undefined, includeReview);
@@ -88,7 +79,6 @@ const DiscoveryPage = () => {
       setLoading(false);
     }
   }, [includeReview]);
-
   const loadStatus = useCallback(async () => {
     try {
       const res = await sourcingDiscoveryApi.discoveryStatus();
@@ -98,13 +88,11 @@ const DiscoveryPage = () => {
       return false;
     }
   }, []);
-
   useEffect(() => {
     void loadCandidates();
     void loadStatus();
   }, [loadCandidates, loadStatus]);
 
-  // 발굴이 도는 동안만 폴링한다. 끝나면 목록을 다시 읽고 폴링을 멈춘다.
   useEffect(() => {
     if (!status?.running) {
       if (pollRef.current) {
@@ -128,7 +116,6 @@ const DiscoveryPage = () => {
       }
     };
   }, [status?.running, loadStatus, loadCandidates]);
-
   const handleRun = async () => {
     try {
       await sourcingDiscoveryApi.runDiscovery();
@@ -139,14 +126,12 @@ const DiscoveryPage = () => {
       message.warning(err.response?.data?.message ?? '발굴을 시작하지 못했습니다');
     }
   };
-
   const handleReject = async (id: number) => {
     await sourcingDiscoveryApi.reject(id);
     setCandidates((prev) => prev.filter((c) => c.id !== id));
     setSelected((prev) => prev.filter((s) => s !== id));
     message.success('거절했습니다. 쿨다운 기간 동안 재추천되지 않습니다.');
   };
-
   const handleCreateDrafts = async () => {
     if (selected.length === 0) {
       message.warning('상품을 선택하세요');
@@ -168,7 +153,6 @@ const DiscoveryPage = () => {
       setCreating(false);
     }
   };
-
   const openBlocked = async () => {
     setShowBlocked(true);
     try {
@@ -178,9 +162,7 @@ const DiscoveryPage = () => {
       message.error('통관 차단 목록을 불러오지 못했습니다');
     }
   };
-
   const lastRun = status?.lastRun && 'crawled' in status.lastRun ? status.lastRun : null;
-
   const columns = [
     {
       title: '점수',
@@ -267,7 +249,6 @@ const DiscoveryPage = () => {
       ),
     },
   ];
-
   return (
     <div style={{ padding: 24 }}>
       <Space
@@ -296,7 +277,6 @@ const DiscoveryPage = () => {
           </Button>
         </Space>
       </Space>
-
       {status?.running && (
         <Alert
           type="info"
@@ -307,7 +287,6 @@ const DiscoveryPage = () => {
           description="iHerb 카테고리별 베스트셀러 크롤 → 통관 성분 대조 → 수요 조회 → 채점 순으로 진행됩니다. 수 분 걸립니다."
         />
       )}
-
       {lastRun && lastRun.warnings.length > 0 && (
         <Alert
           type="warning"
@@ -323,7 +302,6 @@ const DiscoveryPage = () => {
           }
         />
       )}
-
       {lastRun && (
         <Card size="small" style={{ marginBottom: 12 }}>
           <Space size="large" wrap>
@@ -337,7 +315,6 @@ const DiscoveryPage = () => {
           </Space>
         </Card>
       )}
-
       <Space style={{ marginBottom: 8 }}>
         <Checkbox checked={includeReview} onChange={(e) => setIncludeReview(e.target.checked)}>
           통관 확인필요 상품 포함
@@ -395,7 +372,6 @@ const DiscoveryPage = () => {
           ),
         }}
       />
-
       <div
         style={{
           position: 'sticky',
@@ -416,7 +392,6 @@ const DiscoveryPage = () => {
           선택 {selected.length}건 초안 생성 →
         </Button>
       </div>
-
       <Drawer
         title="통관 차단 상품"
         width={640}
@@ -447,5 +422,4 @@ const DiscoveryPage = () => {
     </div>
   );
 };
-
 export default DiscoveryPage;

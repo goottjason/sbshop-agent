@@ -2,13 +2,6 @@ import { useState } from 'react';
 import { Input, Button, Table, Space, message, Typography, Steps, InputNumber, Select, Result, Tag, Alert } from 'antd';
 import { sourcingApi, type SourcingResult, type IherbSourcingResponse, type BulkProductCreateResponse } from '../api/sourcingApi';
 
-const { TextArea } = Input;
-const { Title } = Typography;
-
-const VENDOR_OPTIONS = ['IHB', 'AMZ', 'FTN', 'COK', 'OCD', 'TES', 'VTB'];
-const MARKETS = ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24'];
-
-// 크롤 결과 + 보정 입력을 합친 편집 행
 interface EditableRow extends SourcingResult {
   origin?: string;
   weight?: number;
@@ -19,6 +12,14 @@ interface EditableRow extends SourcingResult {
 }
 
 interface PublishOutcome { productId: number; market: string; ok: boolean; error?: string; }
+
+const { TextArea } = Input;
+
+const { Title } = Typography;
+
+const VENDOR_OPTIONS = ['IHB', 'AMZ', 'FTN', 'COK', 'OCD', 'TES', 'VTB'];
+
+const MARKETS = ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24'];
 
 const ProductRegisterPage = () => {
   const [current, setCurrent] = useState(0);
@@ -32,7 +33,6 @@ const ProductRegisterPage = () => {
   const [crawlFailures, setCrawlFailures] = useState<{ url: string; reason: string }[]>([]);
   const [saveFailures, setSaveFailures] = useState<{ index: number; baseName: string; reason: string }[]>([]);
 
-  // Step 1: 크롤
   const handleCrawl = async () => {
     const urlList = urls.split('\n').map((u) => u.trim()).filter(Boolean);
     if (urlList.length === 0) { message.warning('URL을 입력하세요'); return; }
@@ -45,7 +45,6 @@ const ProductRegisterPage = () => {
       setRows(scraped.map((s) => ({ ...s, bundleQuantity: 1, marginRate: 20, vendor: 'IHB' })));
       setSelectedRowKeys(scraped.map((_, i) => i));
       setCrawlFailures(failed);
-      // F-PSRC-2: 실패한 URL은 조용히 누락하지 않고 사용자에게 표면화한다.
       if (failed.length > 0) message.warning(`${scraped.length}개 크롤링 완료, ${failed.length}개 실패`);
       else message.success(`${scraped.length}개 상품 크롤링 완료`);
       if (scraped.length > 0) setCurrent(1);
@@ -57,7 +56,6 @@ const ProductRegisterPage = () => {
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
   };
 
-  // Step 2 → 저장
   const handleSave = async () => {
     const selected = rows.filter((_, i) => selectedRowKeys.includes(i));
     if (selected.length === 0) { message.warning('저장할 상품을 선택하세요'); return; }
@@ -79,7 +77,6 @@ const ProductRegisterPage = () => {
       const ids = succeeded.map((s) => s.productId);
       setSavedIds(ids);
       setSaveFailures(failed);
-      // F-PSRC-6: 저장 실패 항목을 조용히 누락하지 않고 사용자에게 표면화한다.
       if (failed.length > 0) message.warning(`${ids.length}개 저장 완료, ${failed.length}개 실패`);
       else message.success(`${ids.length}개 상품 저장 완료`);
       setCurrent(2);
@@ -87,7 +84,6 @@ const ProductRegisterPage = () => {
     finally { setLoading(false); }
   };
 
-  // Step 3: 마켓 등록 — 저장된 productId × 선택 마켓 루프(단건 publish)
   const handlePublish = async () => {
     if (selectedMarkets.length === 0) { message.warning('등록할 마켓을 선택하세요'); return; }
     setLoading(true);

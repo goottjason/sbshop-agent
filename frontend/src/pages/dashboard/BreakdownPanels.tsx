@@ -21,7 +21,6 @@ export function BreakdownPanels({ range }: { range: { start: string; end: string
     queryKey: ['breakdown', dim, range.start, range.end],
     queryFn: () => fetchBreakdown(range.start, range.end, dim, limit),
   });
-  // 훅 규칙: 고정 4회 명시 호출 (조건/반복 금지)
   const market = useBreakdownQuery('MARKET');
   const status = useBreakdownQuery('STATUS');
   const product = useBreakdownQuery('PRODUCT', 10);
@@ -30,15 +29,11 @@ export function BreakdownPanels({ range }: { range: { start: string; end: string
 
   const statusRows = (status.data ?? []).map((s) => ({ ...s, label: STATUS_LABEL[s.key] ?? s.key }));
 
-  // recharts v3: Pie onClick receives (data: PieSectorDataItem, index, event) — the original datum
-  // (with our `key`/`label` fields) is spread into `data.payload`.
   const onMarketClick = (data: PieSectorDataItem) => {
     const key = (data.payload as { key?: string } | undefined)?.key;
     if (key) go({ markets: [key] });
   };
 
-  // recharts v3: BarChart chart-level onClick receives MouseHandlerDataParam (has activeLabel), not
-  // a bare { activeLabel } object like v2 — same adaptation as TrendChart.tsx.
   const onStatusClick = (state: MouseHandlerDataParam) => {
     const label = state?.activeLabel;
     const it = statusRows.find((x) => x.label === label);

@@ -15,7 +15,6 @@ const ALL_CATEGORIES: { slug: string; label: string; hint: string }[] = [
   { slug: 'herbs-homeopathy', label: '허브', hint: '허브·동종요법. 반입차단 성분이 상대적으로 많다' },
 ];
 
-/** 가중치 슬라이더 정의 — 서버 CandidateScoringService의 키와 1:1로 맞춰야 한다. */
 const WEIGHT_FIELDS: { key: string; label: string; group: string }[] = [
   { key: 'sales30d', label: '30일 판매량', group: 'iHerb 신호' },
   { key: 'reviewCount', label: '리뷰 수', group: 'iHerb 신호' },

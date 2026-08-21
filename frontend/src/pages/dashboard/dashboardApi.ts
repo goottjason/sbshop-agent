@@ -8,10 +8,10 @@ export interface Summary {
   current: { newCount: number; shippingCount: number; customsIssueCount: number };
 }
 export interface TimeseriesBucket { bucketStart: string; orderCount: number; settlementSum: number; profitSum: number; }
-export interface BreakdownItem { key: string; label: string; orderCount: number; settlementSum: number; profitSum: number; }
+interface BreakdownItem { key: string; label: string; orderCount: number; settlementSum: number; profitSum: number; }
 export interface Attention { customsIssue: number; outOfStock: number; delayed: number; returnCancel: number; }
 
-const iso = (d: string) => d; // 'YYYY-MM-DDTHH:mm:ss' 형태로 이미 조립됨
+const iso = (d: string) => d;
 
 export const fetchSummary = async (start: string, end: string): Promise<Summary> =>
   (await apiClient.get('/api/v1/dashboard/summary', { params: { start: iso(start), end: iso(end) } })).data;

@@ -4,6 +4,17 @@ import { batchApi } from '../api/batchApi';
 import { actionLogApi, type ActionLogItem } from '../api/actionLogApi';
 import { formatKst } from '../utils/datetime';
 
+interface ProcessStatusItem {
+  id: number;
+  batchId: string;
+  productCode: string;
+  jobType: string;
+  step: string;
+  processStatus: string;
+  message: string;
+  startedAt: string;
+}
+
 const { Title } = Typography;
 
 const actionStatusColor: Record<string, string> = {
@@ -12,7 +23,6 @@ const actionStatusColor: Record<string, string> = {
   FAILED: 'red',
 };
 
-// D-050: 마켓 코드 → 한글 라벨 (OrderGrid.tsx:416 marketLabels 선례 이식)
 const marketTypeLabels: Record<string, string> = {
   COUPANG: '쿠팡',
   SMART_STORE: 'N스토어',
@@ -24,15 +34,6 @@ const marketTypeLabels: Record<string, string> = {
   COUPANG_SETTLEMENT: '쿠팡 정산',
 };
 
-// D-050: 액션 코드 → 한글 라벨. actionType은 자유문자열(enum 아님)이며 관례상 `{MARKET}_SYNC` 패턴.
-// 명시 라벨 우선, `_SYNC` 접미 패턴은 마켓 라벨+동작으로 조합, 그 외는 원문 폴백(미매칭 시 깨지지 않게).
-const renderMarketType = (v: string | null): string => {
-  if (!v) return '-';
-  return marketTypeLabels[v] || v;
-};
-
-// D-076: 전체 사용자 액션 activityType → 한글 라벨. ActionLogConstants(백엔드)와 값이 매칭된다.
-// 명시 라벨이 `{MARKET}_SYNC` 패턴보다 우선(CUSTOMS_SYNC/STOCK_SYNC 등은 마켓 라벨 조합이 아니라 고정 라벨).
 const actionTypeLabels: Record<string, string> = {
   COUPANG_SETTLEMENT_SYNC: '쿠팡 정산 동기화',
   CUSTOMS_SYNC: '통관상태 동기화',
@@ -64,6 +65,11 @@ const actionTypeLabels: Record<string, string> = {
   CAFE24_AUTH: 'Cafe24 재인증',
 };
 
+const renderMarketType = (v: string | null): string => {
+  if (!v) return '-';
+  return marketTypeLabels[v] || v;
+};
+
 const renderActionType = (v: string): string => {
   if (!v) return '-';
   const explicit = actionTypeLabels[v];
@@ -76,27 +82,14 @@ const renderActionType = (v: string): string => {
   return v;
 };
 
-interface ProcessStatusItem {
-  id: number;
-  batchId: string;
-  productCode: string;
-  jobType: string;
-  step: string;
-  processStatus: string;
-  message: string;
-  startedAt: string;
-}
-
 const ProcessStatusPage = () => {
   const [batchId, setBatchId] = useState('');
   const [data, setData] = useState<ProcessStatusItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // 활동 로그 (D-042)
   const [actionLogs, setActionLogs] = useState<ActionLogItem[]>([]);
   const [logLoading, setLogLoading] = useState(false);
 
-  // D-051: 메시지 전체보기 모달
   const [messageModal, setMessageModal] = useState<{ open: boolean; content: string }>({
     open: false,
     content: '',
@@ -172,7 +165,6 @@ const ProcessStatusPage = () => {
     { title: '상태', dataIndex: 'actionStatus', width: 100,
       render: (v: string) => <Tag color={actionStatusColor[v] || 'default'}>{v}</Tag> },
     { title: '메시지', dataIndex: 'message', ellipsis: true,
-      // D-051: 셀 클릭 시 전체 메시지를 모달로 표시(줄바꿈 보존). 목록 ellipsis는 유지.
       render: (v: string) =>
         v ? (
           <span
@@ -226,7 +218,6 @@ const ProcessStatusPage = () => {
         />
       </Card>
 
-      {/* D-051: 메시지 전체보기 모달 */}
       <Modal
         title="메시지 전체보기"
         open={messageModal.open}

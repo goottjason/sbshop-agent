@@ -3,14 +3,6 @@ import { Form, Input, InputNumber, Button, Radio, message, Card, Progress, Space
 import { batchApi } from '../api/batchApi';
 import { VENDOR_OPTIONS } from './product/productGridShared';
 
-// 그린 테마(상품/주문 페이지와 통일). antd 전역 primary는 검정이라 이 페이지만 ConfigProvider로 그린 적용.
-const GREEN = '#166534';
-
-const ACTIVE_BATCH_KEY = 'sbshop.activeBatchId';
-const POLL_INTERVAL_MS = 30000;
-// D-089: 배치 진행바를 전 클라이언트에 공유하기 위한 SSE 구독 주소(다른 페이지와 동일 경로)
-const SSE_URL = '/sbshop-agent/api/v1/notifications/subscribe';
-
 interface BatchSummary {
   batchId: string;
   total: number;
@@ -21,6 +13,14 @@ interface BatchSummary {
   percent: number;
 }
 
+const GREEN = '#166534';
+
+const ACTIVE_BATCH_KEY = 'sbshop.activeBatchId';
+
+const POLL_INTERVAL_MS = 30000;
+
+const SSE_URL = '/sbshop-agent/api/v1/notifications/subscribe';
+
 const BatchUpdatePage = () => {
   const [mode, setMode] = useState<'supplier' | 'manual'>('supplier');
   const [loading, setLoading] = useState(false);
@@ -29,10 +29,8 @@ const BatchUpdatePage = () => {
   const [batchId, setBatchId] = useState<string | null>(null);
   const [summary, setSummary] = useState<BatchSummary | null>(null);
 
-  // setState-after-unmount 가드 + 인터벌 핸들
   const mountedRef = useRef(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // SSE 콜백이 최신 batchId를 참조하도록(자기 배치 중복 startTracking 방지)
   const batchIdRef = useRef<string | null>(null);
   useEffect(() => {
     batchIdRef.current = batchId;
@@ -54,7 +52,6 @@ const BatchUpdatePage = () => {
     }
   }, [clearPoll]);
 
-  // 단발 요약 조회. 완료면 폴링 중단. 404/에러는 조용히 추적 해제(폴링마다 토스트 스팸 방지).
   const fetchSummary = useCallback(async (id: string) => {
     try {
       const res = await batchApi.getBatchSummary(id);
@@ -65,12 +62,10 @@ const BatchUpdatePage = () => {
         clearPoll();
       }
     } catch {
-      // 알 수 없는/정리된 batchId 등 → 조용히 카드 숨김
       stopTracking();
     }
   }, [clearPoll, stopTracking]);
 
-  // batchId 추적 시작: localStorage 저장 + 즉시 조회 + 폴링(30초)
   const startTracking = useCallback((id: string) => {
     localStorage.setItem(ACTIVE_BATCH_KEY, id);
     setBatchId(id);
@@ -82,7 +77,6 @@ const BatchUpdatePage = () => {
     }, POLL_INTERVAL_MS);
   }, [clearPoll, fetchSummary]);
 
-  // 새로고침 복원: 마운트 시 저장된 batchId가 있으면 즉시 조회 후 폴링 재개
   useEffect(() => {
     mountedRef.current = true;
     const saved = localStorage.getItem(ACTIVE_BATCH_KEY);
@@ -93,23 +87,18 @@ const BatchUpdatePage = () => {
       mountedRef.current = false;
       clearPoll();
     };
-    // 마운트 시 1회만 실행
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // D-089: SSE 구독 — 다른 클라이언트(동업자)가 시작한 배치도 진행바에 공유한다.
-  // BATCH_STARTED로 batchId를 받으면 추적 시작, 완료 이벤트는 즉시 요약 갱신.
   useEffect(() => {
     const es = new EventSource(SSE_URL);
     const onStarted = (e: Event) => {
       const startedId = (e as MessageEvent).data as string;
-      // 자기 자신이 방금 시작한 배치면 중복 startTracking(요약 리셋) 회피
       if (startedId && startedId !== batchIdRef.current) {
         startTracking(startedId);
       }
     };
     const onCompleted = (e: Event) => {
-      // payload: "batchId|success" — 추적 중인 배치면 즉시 갱신(폴링 주기 대기 없이 완료 반영)
       const completedId = String((e as MessageEvent).data).split('|')[0];
       if (completedId && completedId === batchIdRef.current) {
         void fetchSummary(completedId);
@@ -142,7 +131,6 @@ const BatchUpdatePage = () => {
           values.couponRate,
           values.minMarginPrice
         );
-        // D-038: 대상 상품이 없으면 백엔드는 {message}만 반환(batchId·count 없음) → undefined 방지 분기
         const data = res.data as { batchId?: string; count?: string; message?: string };
         if (data.batchId) {
           message.success(`배치 시작: ${data.count}개 상품 (batchId: ${data.batchId})`);
@@ -190,7 +178,6 @@ const BatchUpdatePage = () => {
         </Radio.Group>
 
         <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ marginRate: 15, couponRate: 20, minMarginPrice: 5000 }}>
-          {/* 입력을 한 줄로: 라벨은 위, 필드는 나란히, 실행 버튼은 줄 끝 정렬 */}
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             {mode === 'supplier' ? (
               <Form.Item name="supplierCode" label="소싱업체 코드" initialValue="IHB" style={{ marginBottom: 0 }}>

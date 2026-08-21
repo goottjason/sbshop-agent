@@ -23,7 +23,6 @@ const MARKET_LABELS: Record<string, string> = {
   CAFE24: 'Cafe24',
 };
 
-/** 마켓별 상품명 최대 길이 — 서버 MarketProductRules와 같은 값이어야 한다. */
 const NAME_LIMITS: Record<string, number> = {
   COUPANG: 100,
   SMART_STORE: 100,
@@ -34,33 +33,22 @@ const NAME_LIMITS: Record<string, number> = {
 const won = (v: number | null | undefined) =>
   v == null ? '-' : `₩${Math.round(v).toLocaleString()}`;
 
-/**
- * 등록 전 최종 검수 화면.
- *
- * 사용자가 실제로 손대는 건 대부분 <b>상품명과 묶음수량</b>이라 공통 영역 맨 위에 둔다.
- * 마켓별 탭에는 그 마켓에서만 다른 값(상품명·카테고리·판매가·키워드)과
- * <b>미충족 필수필드</b>를 보여준다 — 등록 버튼을 막는 이유가 화면에 있어야 한다.
- */
 const DraftReviewPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const draftId = Number(id);
-
   const [draft, setDraft] = useState<Draft | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [result, setResult] = useState<PublishResult | null>(null);
 
-  // 편집 버퍼 — 저장 전까지 서버 상태를 덮어쓰지 않는다.
   const [baseNameKo, setBaseNameKo] = useState('');
   const [bundleQty, setBundleQty] = useState(1);
   const [marginRate, setMarginRate] = useState<number | null>(null);
   const [origin, setOrigin] = useState('');
   const [customsAck, setCustomsAck] = useState(false);
   const [marketEdits, setMarketEdits] = useState<Record<string, Partial<MarketDraft>>>({});
-
-  /** 서버 응답을 편집 버퍼에 반영한다. 저장·등록 직후에도 같은 경로를 탄다. */
   const applyDraft = useCallback((d: Draft) => {
     setDraft(d);
     setBaseNameKo(d.baseNameKo ?? '');
@@ -70,7 +58,6 @@ const DraftReviewPage = () => {
     setCustomsAck(d.customsAck);
     setMarketEdits({});
   }, []);
-
   const load = useCallback(async () => {
     try {
       const res = await sourcingDiscoveryApi.draft(draftId);
@@ -81,12 +68,10 @@ const DraftReviewPage = () => {
       setLoading(false);
     }
   }, [draftId, applyDraft]);
-
   useEffect(() => {
     if (!Number.isFinite(draftId)) return;
     void load();
   }, [draftId, load]);
-
   const patch = (): DraftPatch => ({
     baseNameKo,
     bundleQty,
@@ -102,7 +87,6 @@ const DraftReviewPage = () => {
       enabled: edit.enabled ?? null,
     })),
   });
-
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -115,14 +99,11 @@ const DraftReviewPage = () => {
       setSaving(false);
     }
   };
-
   const handlePublish = async () => {
     setPublishing(true);
     try {
-      // 저장하지 않은 편집이 등록에 반영되지 않는 사고를 막기 위해 등록 직전에 항상 저장한다.
       const saved = await sourcingDiscoveryApi.updateDraft(draftId, patch());
       applyDraft(saved.data);
-
       const res = await sourcingDiscoveryApi.publishDraft(draftId);
       setResult(res.data);
       if (res.data.successCount === res.data.totalCount) {
@@ -143,7 +124,6 @@ const DraftReviewPage = () => {
       setPublishing(false);
     }
   };
-
   const marketDrafts = useMemo(() => draft?.marketDrafts ?? [], [draft]);
   const needsCustomsAck = useMemo(
     () => draft != null && !draft.customsAck,
@@ -153,7 +133,6 @@ const DraftReviewPage = () => {
     const enabledValid = marketDrafts.filter((m) => m.enabled && m.valid);
     return enabledValid.length > 0 && customsAck;
   }, [marketDrafts, customsAck]);
-
   if (loading) {
     return (
       <div style={{ padding: 48, textAlign: 'center' }}>
@@ -164,7 +143,6 @@ const DraftReviewPage = () => {
   if (!draft) {
     return <Result status="404" title="초안을 찾을 수 없습니다" />;
   }
-
   if (result) {
     return (
       <div style={{ padding: 24 }}>
@@ -190,16 +168,13 @@ const DraftReviewPage = () => {
       </div>
     );
   }
-
   const hostedImages = parseJsonField<string[]>(draft.hostedImages, []);
-
   return (
     <div style={{ padding: 24, paddingBottom: 96 }}>
       <Title level={3} style={{ marginBottom: 4 }}>
         등록 검수
       </Title>
       <Text type="secondary">{draft.originalName}</Text>
-
       {draft.enrichNote && (
         <Alert
           type="info"
@@ -209,7 +184,6 @@ const DraftReviewPage = () => {
           description={draft.enrichNote}
         />
       )}
-
       {needsCustomsAck && (
         <Alert
           type="warning"
@@ -235,8 +209,6 @@ const DraftReviewPage = () => {
           }
         />
       )}
-
-      {/* 공통 — 사용자가 실제로 손대는 항목을 맨 위에 */}
       <Card title="공통 정보" size="small" style={{ marginTop: 16 }}>
         <Row gutter={[16, 12]}>
           <Col span={12}>
@@ -268,7 +240,6 @@ const DraftReviewPage = () => {
             <Input value={origin} onChange={(e) => setOrigin(e.target.value)} />
           </Col>
         </Row>
-
         <Divider style={{ margin: '12px 0' }} />
         <Descriptions size="small" column={4}>
           <Descriptions.Item label="브랜드">{draft.brand ?? '-'}</Descriptions.Item>
@@ -284,7 +255,6 @@ const DraftReviewPage = () => {
           <Descriptions.Item label="HS코드">{draft.hsCode || '-'}</Descriptions.Item>
           <Descriptions.Item label="이미지">{hostedImages.length}장</Descriptions.Item>
         </Descriptions>
-
         {hostedImages.length > 0 && (
           <Space wrap style={{ marginTop: 8 }}>
             {hostedImages.slice(0, 6).map((url) => (
@@ -300,8 +270,6 @@ const DraftReviewPage = () => {
           </Space>
         )}
       </Card>
-
-      {/* 마켓별 */}
       <Tabs
         style={{ marginTop: 16 }}
         items={marketDrafts.map((md) => {
@@ -310,7 +278,6 @@ const DraftReviewPage = () => {
           const edit = marketEdits[md.marketType] ?? {};
           const name = edit.productName ?? md.productName ?? '';
           const limit = NAME_LIMITS[md.marketType] ?? 100;
-
           return {
             key: md.marketType,
             label: (
@@ -342,7 +309,6 @@ const DraftReviewPage = () => {
                     }
                   />
                 )}
-
                 <Row gutter={[16, 12]}>
                   <Col span={16}>
                     <Text type="secondary">
@@ -379,7 +345,6 @@ const DraftReviewPage = () => {
                     <div style={{ paddingTop: 5 }}>{md.channelFeeRate ?? '-'}%</div>
                   </Col>
                 </Row>
-
                 <Divider style={{ margin: '12px 0' }} />
                 <Descriptions size="small" column={2}>
                   <Descriptions.Item label="카테고리">
@@ -399,7 +364,6 @@ const DraftReviewPage = () => {
                     </Checkbox>
                   </Descriptions.Item>
                 </Descriptions>
-
                 <div style={{ marginTop: 8 }}>
                   <Text type="secondary">검색 키워드 {keywords.length}개</Text>
                   <div style={{ marginTop: 4 }}>
@@ -408,7 +372,6 @@ const DraftReviewPage = () => {
                     ))}
                   </div>
                 </div>
-
                 {md.publishError && (
                   <Alert
                     type="error"
@@ -423,7 +386,6 @@ const DraftReviewPage = () => {
           };
         })}
       />
-
       <div
         style={{
           position: 'fixed',
@@ -466,5 +428,4 @@ const DraftReviewPage = () => {
     </div>
   );
 };
-
 export default DraftReviewPage;

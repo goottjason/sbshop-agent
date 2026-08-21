@@ -1,9 +1,5 @@
 import React from 'react';
 
-// fluid=true면 컨테이너가 부모 폭을 100% 채운다(전폭 데이터테이블용). 기본값(false)은
-// inline-block으로 콘텐츠 폭에 맞춘다 — OrderGrid 등 가로스크롤·frozen 컬럼 화면 하위호환.
-// minTableWidth: fluid일 때 컨테이너 최소 폭(px). 좁은 화면에선 이 값이 유지돼 바깥
-// overflow 컨테이너에서 가로 스크롤이 나므로 컬럼이 찌그러지지 않는다.
 export const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement> & { fluid?: boolean; minTableWidth?: number }

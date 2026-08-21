@@ -231,16 +231,6 @@ body {
   color: var(--primary-color);
 }
 
-/* AG Grid Overrides */
-.ag-theme-alpine {
-  --ag-header-background-color: #f8f9fa;
-  --ag-header-foreground-color: #333;
-  --ag-row-hover-color: #f3f4f6;
-  --ag-selected-row-background-color: #e5e7eb;
-  --ag-font-family: 'Inter', sans-serif;
-  --ag-font-size: 12px;
-}
-
 /* Toast Overrides */
 .Toastify__toast {
   font-size: 13px !important;

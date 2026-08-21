@@ -1,4 +1,3 @@
-// 대시보드 요소 → 통합 주문 관리(/orders) 드릴다운 URL 빌더. OrderGrid의 URL 파라미터 파싱과 계약 일치.
 export interface DrilldownFilters {
   markets?: string[];
   statuses?: string[];
@@ -6,8 +5,8 @@ export interface DrilldownFilters {
   stockStatuses?: string[];
   vendors?: string[];
   keyword?: string;
-  startDate?: string; // 'YYYY-MM-DD'
-  endDate?: string;   // 'YYYY-MM-DD'
+  startDate?: string;
+  endDate?: string;
 }
 
 export function buildOrderGridUrl(f: DrilldownFilters): string {

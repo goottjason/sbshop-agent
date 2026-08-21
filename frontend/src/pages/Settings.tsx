@@ -4,8 +4,6 @@ import { fetchCredentials, saveCredential, getCafe24Status, issueCafe24Token } f
 import type { MarketCredential } from '../api/marketApi';
 import { getAdminAuth, setAdminAuth } from '../api/axios';
 
-// 시크릿 입력칸 플레이스홀더: 서버에 이미 저장돼 있으면(hasXxx=true) '설정됨' 안내를 보이고,
-// 비운 채 저장하면 기존 값이 유지된다(F-CRED-8). 미설정이면 기본 안내(예시 등)를 사용한다.
 const secretPlaceholder = (hasValue?: boolean, fallback = ''): string =>
   hasValue ? '설정됨 — 변경하려면 새 값 입력 (비우면 기존 값 유지)' : fallback;
 
@@ -15,8 +13,6 @@ const Settings = () => {
   const [formData, setFormData] = useState<Partial<MarketCredential>>({});
   const [authCode, setAuthCode] = useState('');
 
-  // 관리자 인증 게이트 — 시크릿(access/secret/refresh)은 인증된 관리자만 조회·수정할 수 있다.
-  // 인증 성공 시 base64("id:pw")를 sessionStorage에 저장하고, axios 인터셉터가 요청에 실어보낸다.
   const [authed, setAuthed] = useState<boolean>(!!getAdminAuth());
   const [loginId, setLoginId] = useState('admin');
   const [loginPw, setLoginPw] = useState('');
@@ -26,7 +22,7 @@ const Settings = () => {
     const token = btoa(`${loginId}:${loginPw}`);
     setAdminAuth(token);
     try {
-      await fetchCredentials(); // 인터셉터가 토큰 첨부 — 성공하면 인증 통과
+      await fetchCredentials();
       setAuthed(true);
       setLoginErr('');
       queryClient.invalidateQueries({ queryKey: ['market-credentials'] });
@@ -43,7 +39,6 @@ const Settings = () => {
     queryClient.removeQueries({ queryKey: ['market-credentials'] });
   };
 
-  // Cafe24 실연동 상태(토큰 유효성 실검증) — '존재'가 아니라 실제 API 호출 성공 여부.
   const { data: cafe24Status, isFetching: cafe24Checking, refetch: refetchCafe24Status } = useQuery({
     queryKey: ['cafe24-status'],
     queryFn: getCafe24Status,
@@ -70,7 +65,7 @@ const Settings = () => {
   const { data: credentials, isLoading } = useQuery({
     queryKey: ['market-credentials'],
     queryFn: fetchCredentials,
-    enabled: authed, // 인증 전에는 조회하지 않음(401 방지)
+    enabled: authed,
     retry: false,
   });
 
@@ -78,8 +73,6 @@ const Settings = () => {
     if (credentials) {
       const cred = credentials.find((c) => c.marketType === activeTab);
       if (cred) {
-        // 인증된 관리자에게는 서버가 시크릿 평문을 내려주므로 저장값을 그대로 표시한다.
-        // 비운 채 저장하면 서버가 기존 값을 유지한다(F-CRED-8).
         setFormData({ ...cred });
       } else {
         setFormData({
@@ -121,7 +114,6 @@ const Settings = () => {
     { id: 'CAFE24', label: '카페24 (Cafe24)' },
   ];
 
-  // 관리자 인증 게이트: 인증 전에는 로그인 폼만 노출(시크릿 조회 차단).
   if (!authed) {
     return (
       <div style={{ maxWidth: '420px' }}>
@@ -185,9 +177,9 @@ const Settings = () => {
 
       <div className="card" style={{ padding: '32px' }}>
         <h2 style={{ marginBottom: '24px' }}>{tabs.find((t) => t.id === activeTab)?.label} API 설정</h2>
-        
+
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          
+
           {activeTab === 'COUPANG' && (
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -316,7 +308,6 @@ const Settings = () => {
                 />
               </div>
 
-              {/* 실연동 상태 — 토큰의 '존재'가 아니라 실제 API 호출로 검증한 결과 */}
               <div
                 style={{
                   marginTop: '12px', padding: '12px', borderRadius: '6px',
@@ -338,8 +329,6 @@ const Settings = () => {
                 </button>
               </div>
 
-              {/* 재인증 카드 — 상태가 '정상 아님'(토큰 무효 또는 주문 권한 없음)일 때 노출.
-                  상태 점검이 상품·주문 권한을 모두 검사하므로, 주문 권한만 없어도 카드가 뜬다. */}
               {!cafe24Status?.connected && !cafe24Checking && (
                 <div style={{ marginTop: '12px', padding: '16px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px' }}>
                   <div style={{ fontWeight: 600, marginBottom: 12, color: '#92400e' }}>리프레시 토큰 발급 (재인증 / 권한 갱신)</div>
@@ -391,7 +380,6 @@ const Settings = () => {
               )}
             </>
           )}
-
           <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
             <button
               type="button"
@@ -410,5 +398,4 @@ const Settings = () => {
     </div>
   );
 };
-
 export default Settings;

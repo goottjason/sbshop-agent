@@ -20,14 +20,12 @@ const DEFAULT_FILTERS: ProductFilters = {
   keyword: '', categories: [], markets: [], vendors: [], stockStatuses: [], inStockOnly: false,
 };
 
-// 재고 배지(읽기전용): 통합 주문 관리와 동일한 파스텔 톤. 있음(연녹)·품절(연적) 중 하나만 표시.
 function stockBadge(soldOut: boolean): React.CSSProperties {
   const c = soldOut ? { bg: '#ffebee', text: '#c62828' } : { bg: '#e8f5e9', text: '#2e7d32' };
   return { fontSize: 11, fontWeight: 600, padding: '2px 10px', borderRadius: 4, background: c.bg, color: c.text };
 }
 
-// 로드된 500건에 고급필터를 적용(서버는 keyword만). 카테고리/마켓/소싱처/재고상태·재고유무.
-export function applyClientFilters(rows: ProductList[], f: ProductFilters): ProductList[] {
+function applyClientFilters(rows: ProductList[], f: ProductFilters): ProductList[] {
   return rows.filter((r) => {
     if (f.categories.length > 0 && !(r.category && f.categories.includes(r.category))) return false;
     if (f.vendors.length > 0 && !(r.vendor && f.vendors.includes(r.vendor))) return false;
@@ -36,8 +34,6 @@ export function applyClientFilters(rows: ProductList[], f: ProductFilters): Prod
       if (!f.stockStatuses.includes(st)) return false;
     }
     if (f.inStockOnly && !(r.stock > 0)) return false;
-    // 마켓 등록상태: 선택 마켓 중 하나라도 등록돼 있으면 통과. 전체선택이면 통과.
-    // 값이 객체로 바뀌었지만 "키 존재 = 등록"이라는 판정은 그대로다.
     if (f.markets.length > 0 && f.markets.length < MARKET_FILTER_OPTIONS.length) {
       const regs = r.marketRegistrations ?? {};
       const hit = f.markets.some((m) => regs[m] !== undefined);
@@ -54,7 +50,6 @@ export default function ProductGrid() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
-  // 선택 상품 가격/재고 일괄 업데이트 모달(배치 crawl-and-update 3파라미터)
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [marginRate, setMarginRate] = useState<number | null>(15);
@@ -71,7 +66,6 @@ export default function ProductGrid() {
 
   const allRows = useMemo(() => data ?? [], [data]);
   const rows = useMemo(() => applyClientFilters(allRows, filters), [allRows, filters]);
-  // 필터링된 결과에 클라이언트 페이지네이션 적용. 현재 페이지가 범위를 벗어나면 마지막 페이지로 보정.
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const safePage = Math.min(page, pageCount - 1);
   const pageRows = useMemo(
@@ -171,7 +165,6 @@ export default function ProductGrid() {
     });
   };
 
-  // 선택 상품 크롤 기반 가격/재고 일괄 업데이트(배치). 마켓별 실수수료로 판매가 재산정 후 연동 마켓 반영.
   const handleBulkUpdate = async () => {
     if (selectedIds.length === 0) { toast.warning('업데이트할 상품을 선택하세요.'); return; }
     setBulkSubmitting(true);
@@ -269,7 +262,6 @@ export default function ProductGrid() {
       </div>
 
       <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        {/* 좌: 페이지 크기 선택(페이지네이션과 분리) + 카운트 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <select className="pg-size" value={pageSize}
             onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}>
@@ -277,7 +269,6 @@ export default function ProductGrid() {
           </select>
           <span style={{ fontSize: 12, color: '#94a3b8' }}>표시 {rows.length.toLocaleString()}건 · {safePage + 1}/{pageCount} 페이지</span>
         </div>
-        {/* 우: 페이지 이동(숫자만 — 크기 변경·바로가기 제거) */}
         <Pagination
           current={safePage + 1}
           pageSize={pageSize}

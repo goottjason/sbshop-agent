@@ -1,21 +1,7 @@
 import type { Unit } from './dashboardApi';
+import type { PeriodValue } from './period';
 
-export interface PeriodValue { year: number; month: number; unit: Unit; } // month: 1-12
-
-// 선택된 (연,월,단위) → 조회 구간. 일/주는 그 달, 월은 최근 12개월.
-export function computeRange(v: PeriodValue): { start: string; end: string } {
-  if (v.unit === 'MONTH') {
-    const endD = new Date(v.year, v.month, 0); // 그 달 말일
-    const startD = new Date(v.year, v.month - 1 - 11, 1); // 12개월 전 1일
-    return { start: fmtStart(startD), end: fmtEnd(endD) };
-  }
-  const startD = new Date(v.year, v.month - 1, 1);
-  const endD = new Date(v.year, v.month, 0);
-  return { start: fmtStart(startD), end: fmtEnd(endD) };
-}
-const pad = (n: number) => String(n).padStart(2, '0');
-const fmtStart = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T00:00:00`;
-const fmtEnd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T23:59:59`;
+const btn: React.CSSProperties = { padding: '4px 10px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 16 };
 
 export function PeriodControl({ value, onChange }: { value: PeriodValue; onChange: (v: PeriodValue) => void }) {
   const move = (delta: number) => {
@@ -42,4 +28,3 @@ export function PeriodControl({ value, onChange }: { value: PeriodValue; onChang
     </div>
   );
 }
-const btn: React.CSSProperties = { padding: '4px 10px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 16 };

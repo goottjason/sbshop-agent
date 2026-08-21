@@ -5,7 +5,26 @@ import { productApi, type ProductDetail, type ImageUploadResult, type ProductEdi
 
 type Fields = Partial<ProductEditFields>;
 
-// axios 에러 바디에서 사람이 읽을 사유를 추출(GlobalExceptionHandler는 { message } 형태).
+type Opt = { value: string; label: string };
+
+const GREEN = '#166534';
+
+const CATEGORY_OPTIONS: Opt[] = [
+  { value: 'SUPPLEMENT', label: '영양제' },
+  { value: 'FOOD', label: '식품' },
+  { value: 'COSMETICS', label: '화장품' },
+  { value: 'UNKNOWN', label: '기타' },
+];
+
+const VENDOR_OPTIONS: Opt[] = ['IHB', 'AMZ', 'FTN', 'COK', 'OCD', 'TES', 'VTB'].map((v) => ({ value: v, label: v }));
+
+const MEASURE_UNIT_OPTIONS: Opt[] = [
+  ['EA', '개'], ['CAPSULE', '캡슐'], ['TABLET', '정(타블렛)'], ['PIECE', '조각'], ['PACK', '팩'],
+  ['BOX', '박스'], ['BOTTLE', '병'], ['T_BAG', '티백'], ['COUNT', '개(COUNT)'],
+  ['MG', '밀리그램'], ['G', '그램'], ['KG', '킬로그램'], ['OZ', '온스'], ['LB', '파운드'],
+  ['ML', '밀리리터'], ['L', '리터'], ['UNKNOWN', '기타/미지정'],
+].map(([value, label]) => ({ value, label }));
+
 function extractErrorMessage(e: unknown): string {
   const data = (e as { response?: { data?: unknown } })?.response?.data;
   if (typeof data === 'string' && data) return data;
@@ -16,26 +35,6 @@ function extractErrorMessage(e: unknown): string {
   return '알 수 없는 오류';
 }
 
-const GREEN = '#166534';
-
-// enum 필드 옵션(백엔드 enum명 = value, 한글 라벨 = label). 잘못된 값 저장(400)을 원천 차단.
-type Opt = { value: string; label: string };
-const CATEGORY_OPTIONS: Opt[] = [
-  { value: 'SUPPLEMENT', label: '영양제' },
-  { value: 'FOOD', label: '식품' },
-  { value: 'COSMETICS', label: '화장품' },
-  { value: 'UNKNOWN', label: '기타' },
-];
-const VENDOR_OPTIONS: Opt[] = ['IHB', 'AMZ', 'FTN', 'COK', 'OCD', 'TES', 'VTB'].map((v) => ({ value: v, label: v }));
-const MEASURE_UNIT_OPTIONS: Opt[] = [
-  ['EA', '개'], ['CAPSULE', '캡슐'], ['TABLET', '정(타블렛)'], ['PIECE', '조각'], ['PACK', '팩'],
-  ['BOX', '박스'], ['BOTTLE', '병'], ['T_BAG', '티백'], ['COUNT', '개(COUNT)'],
-  ['MG', '밀리그램'], ['G', '그램'], ['KG', '킬로그램'], ['OZ', '온스'], ['LB', '파운드'],
-  ['ML', '밀리리터'], ['L', '리터'], ['UNKNOWN', '기타/미지정'],
-].map(([value, label]) => ({ value, label }));
-
-// 편집 가능한 URL만 새 탭으로 연다. 사용자가 직접 고치는 필드라 `javascript:` 같은 스킴이
-// 들어올 수 있고, 그걸 그대로 href에 넣으면 클릭 한 번에 스크립트가 실행된다. http/https만 통과시킨다.
 function safeHttpUrl(value: string | number | undefined): string | null {
   if (typeof value !== 'string' || value.trim() === '') return null;
   try {
@@ -46,18 +45,27 @@ function safeHttpUrl(value: string | number | undefined): string | null {
   }
 }
 
-// 편집 행: 라벨(불릿) 좌 · 고스트 인풋 우(포커스 시 그린 밑줄).
-// 모듈 최상위에 두어 매 입력 리렌더 시 리마운트(포커스 이탈)를 방지한다.
+function toFields(d: ProductDetail): Fields {
+  return {
+    brand: d.brand, productName: d.productName, baseName: d.baseName, originalName: d.originalName,
+    category: d.category, costPrice: d.priceInfo?.costPrice, salePrice: d.priceInfo?.salePrice,
+    marginRate: d.priceInfo?.marginRate, stock: d.logisticsInfo?.stock, weight: d.logisticsInfo?.weight,
+    bundleQuantity: d.logisticsInfo?.bundleQuantity, barcode: d.productSpec?.barcode,
+    capacity: d.productSpec?.capacity, measureUnit: d.productSpec?.measureUnit,
+    vendor: d.sourcingInfo?.vendor, manufacturer: d.sourcingInfo?.manufacturer,
+    origin: d.sourcingInfo?.origin, hsCode: d.sourcingInfo?.hsCode, sourceUrl: d.sourcingInfo?.sourceUrl,
+    memo: d.memo, detailHtml: d.detailHtml,
+  };
+}
+
 function EditRow({ label, value, type = 'text', full = false, link = false, onChange }: {
   label: string;
   value: string | number | undefined;
   type?: 'text' | 'number';
   full?: boolean;
-  /** 값이 http(s) URL이면 인풋 오른쪽에 새 탭으로 여는 버튼을 붙인다. */
   link?: boolean;
   onChange: (v: string | number | undefined) => void;
 }) {
-  // 인풋 자체를 링크로 만들면 편집이 불가능해지므로, 여는 동작은 옆 버튼이 맡는다.
   const href = link ? safeHttpUrl(value) : null;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', gridColumn: full ? '1 / -1' : undefined, borderBottom: '1px solid #f4f4f5' }}>
@@ -77,7 +85,6 @@ function EditRow({ label, value, type = 'text', full = false, link = false, onCh
             </a>
           </Tooltip>
         ) : (
-          // 값이 없거나 http(s)가 아니면 버튼 자리를 유지하되 비활성 — 레이아웃이 흔들리지 않게.
           <span className="pd-openlink pd-openlink-off" title="열 수 있는 http(s) 주소가 아닙니다">
             <LinkOutlined /> 열기
           </span>
@@ -87,8 +94,6 @@ function EditRow({ label, value, type = 'text', full = false, link = false, onCh
   );
 }
 
-// 선택 행: EditRow와 동일 레이아웃(우측정렬 고스트 셀렉트). 현재 값이 옵션에 없으면(레거시 값)
-// 그 값도 옵션에 보존해 표시 — 사용자가 건드리지 않으면 원값이 유지되도록.
 function EditSelectRow({ label, value, options, full = false, onChange }: {
   label: string;
   value: string | undefined;
@@ -111,20 +116,6 @@ function EditSelectRow({ label, value, options, full = false, onChange }: {
   );
 }
 
-// ProductDetail(중첩) → 편집폼(평탄) 로드
-function toFields(d: ProductDetail): Fields {
-  return {
-    brand: d.brand, productName: d.productName, baseName: d.baseName, originalName: d.originalName,
-    category: d.category, costPrice: d.priceInfo?.costPrice, salePrice: d.priceInfo?.salePrice,
-    marginRate: d.priceInfo?.marginRate, stock: d.logisticsInfo?.stock, weight: d.logisticsInfo?.weight,
-    bundleQuantity: d.logisticsInfo?.bundleQuantity, barcode: d.productSpec?.barcode,
-    capacity: d.productSpec?.capacity, measureUnit: d.productSpec?.measureUnit,
-    vendor: d.sourcingInfo?.vendor, manufacturer: d.sourcingInfo?.manufacturer,
-    origin: d.sourcingInfo?.origin, hsCode: d.sourcingInfo?.hsCode, sourceUrl: d.sourcingInfo?.sourceUrl,
-    memo: d.memo, detailHtml: d.detailHtml,
-  };
-}
-
 export function ProductDetailModal({ productId, open, onClose, onSaved }: {
   productId: number | null;
   open: boolean;
@@ -135,7 +126,6 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
   const [saving, setSaving] = useState(false);
   const [detail, setDetail] = useState<ProductDetail | null>(null);
   const [fields, setFields] = useState<Fields>({});
-  // 저장 시점 원본(로드/갱신 때 확정) — 현재 폼과 비교해 변경 여부(dirty)를 판정.
   const [baseline, setBaseline] = useState<Fields>({});
   const [urlInput, setUrlInput] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -143,7 +133,6 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
 
   useEffect(() => {
     if (!open || productId == null) return;
-    // baseline 패턴(코드베이스 다수 파일에 동일): effect 진입 시 로딩 표시.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setUrlInput('');
@@ -161,7 +150,6 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
 
   const set = <K extends keyof Fields>(name: K, value: Fields[K]) => setFields((f) => ({ ...f, [name]: value }));
 
-  // dirty 판정: 로드 시 baseline과 현재 폼 비교(둘 다 toFields 산출이라 키 순서 동일 → JSON 비교 안전).
   const dirty = JSON.stringify(fields) !== JSON.stringify(baseline);
 
   const refreshDetail = async () => {
@@ -179,21 +167,16 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
     if (productId == null) return;
     setSaving(true);
     try {
-      // 판매가 변경 시 먼저 마켓 가격 동기화 경로로 반영한다(재고상태는 미변경 → soldOut null).
-      // D-060/F-PROD-7 경로: DB 반영 + 연동 마켓 가격 동기화.
       const origSale = detail?.priceInfo?.salePrice;
       if (fields.salePrice != null && fields.salePrice !== origSale) {
         await productApi.updatePriceStock(productId, fields.salePrice, null);
       }
-      // D-106: 소스URL 등 전체 편집 필드를 실제 엔드포인트(PUT /api/v1/products/{id})로 저장한다.
-      // 평탄 폼 → ProductUpdateRequest 매핑(유일 차이: productName → name).
       const { productName, ...rest } = fields;
       await productApi.updateProduct(productId, { ...rest, name: productName });
       message.success('상품 정보가 저장되었습니다.');
       onSaved();
       onClose();
     } catch (e) {
-      // 백엔드는 실패 시 { message } 를 준다(GlobalExceptionHandler) — 사유를 그대로 표면화.
       message.error(`상품 정보 저장 실패: ${extractErrorMessage(e)}`);
     } finally {
       setSaving(false);
@@ -248,14 +231,12 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
     finally { setUploading(false); }
   };
 
-  // keyof Fields 이름으로 EditRow를 렌더하는 헬퍼(값 바인딩·set 위임).
   const row = (label: string, name: keyof Fields, type: 'text' | 'number' = 'text', full = false,
     link = false) => (
     <EditRow label={label} value={fields[name] as string | number | undefined} type={type} full={full}
       link={link} onChange={(v) => set(name, v as Fields[typeof name])} />
   );
 
-  // enum 필드용 셀렉트 행 헬퍼. 빈 선택은 undefined로 저장(미변경 = 백엔드에서 스킵).
   const selectRow = (label: string, name: keyof Fields, options: Opt[], full = false) => (
     <EditSelectRow label={label} value={fields[name] as string | undefined} options={options} full={full}
       onChange={(v) => set(name, (v === '' ? undefined : v) as Fields[typeof name])} />
@@ -276,7 +257,6 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
       styles={{ body: { maxHeight: '72vh', overflowY: 'auto', padding: '4px 28px 8px' } }}
       footer={
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 20px 4px' }}>
-          {/* 변경 상태 표시: 저장할 내용이 있을 때만 점+라벨 노출 */}
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 64, fontSize: 12, fontWeight: 600,
             color: dirty ? GREEN : 'transparent', visibility: d ? 'visible' : 'hidden' }}>
             <span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? GREEN : 'transparent' }} />
@@ -299,14 +279,12 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
         .pd-inp:hover { border-bottom-color: #e5e7eb; }
         .pd-inp:focus { border-bottom-color: ${GREEN}; }
         .pd-inp::placeholder { color: #cbd5e1; font-weight: 400; }
-        /* 소스 URL 등 링크 필드의 '열기' 버튼. 인풋은 편집용이라 링크 역할은 이 버튼이 맡는다. */
         .pd-openlink { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;
           font-size: 12px; font-weight: 600; line-height: 1.6; padding: 1px 8px; border-radius: 4px;
           white-space: nowrap; text-decoration: none; color: ${GREEN}; background: #f1f8e9;
           border: 1px solid #dcedc8; transition: background .15s, border-color .15s; }
         .pd-openlink:hover { background: #e8f5e9; border-color: ${GREEN}; color: ${GREEN}; }
         .pd-openlink-off { color: #cbd5e1; background: #fff; border-color: #eef0f2; cursor: not-allowed; }
-        /* enum 셀렉트: 고스트 인풋과 동일 톤. 우측정렬 + 화살표 여백 확보. */
         .pd-sel { cursor: pointer; text-align: right; text-align-last: right; padding-right: 2px;
           appearance: none; -webkit-appearance: none; -moz-appearance: none; }
         .pd-sel:hover { border-bottom-color: #e5e7eb; }
@@ -323,7 +301,6 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
         <div style={{ textAlign: 'center', padding: 64, color: '#94a3b8' }}>불러오는 중…</div>
       ) : (
         <>
-          {/* 헤더: 중앙 정렬 제목 + 배지 + 부제 */}
           <div style={{ textAlign: 'center', paddingTop: 14 }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: '#111827', lineHeight: 1.25 }}>{d.productName || '상품 상세'}</div>
             <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -338,7 +315,6 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
 
           <div style={{ borderBottom: '2px solid #1f2937', margin: '16px 0 4px' }} />
 
-          {/* 기본 정보 */}
           <div style={sectionTitle}>기본 정보</div>
           <div style={grid2}>
             {row('브랜드', 'brand')}
@@ -348,7 +324,6 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
             {row('원문명', 'originalName')}
           </div>
 
-          {/* 가격 */}
           <div style={sectionTitle}>가격</div>
           <div style={grid2}>
             {row('원가', 'costPrice', 'number')}
@@ -356,7 +331,6 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
             {row('마진율(%)', 'marginRate', 'number')}
           </div>
 
-          {/* 물류·스펙 */}
           <div style={sectionTitle}>물류 · 스펙</div>
           <div style={grid2}>
             {row('재고', 'stock', 'number')}
@@ -367,7 +341,6 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
             {selectRow('단위', 'measureUnit', MEASURE_UNIT_OPTIONS)}
           </div>
 
-          {/* 소싱 */}
           <div style={sectionTitle}>소싱</div>
           <div style={grid2}>
             {selectRow('소싱처', 'vendor', VENDOR_OPTIONS)}
@@ -377,11 +350,9 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
             {row('소스 URL', 'sourceUrl', 'text', true, true)}
           </div>
 
-          {/* 메모 */}
           <div style={sectionTitle}>메모</div>
           <textarea className="pd-ta" rows={2} value={fields.memo ?? ''} onChange={(e) => set('memo', e.target.value)} placeholder="메모" />
 
-          {/* 이미지 카드 (참고 디자인의 카드 섹션) */}
           <div style={{ marginTop: 16, background: '#f8fafc', border: '1px solid #eef2f7', borderRadius: 12, padding: 16 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 10 }}>이미지</div>
             <div style={{ marginBottom: 12 }}>

@@ -1,7 +1,6 @@
 import { apiClient } from './axios';
 
-/** 통관 게이트 판정. REVIEW는 사용자가 성분을 확인하고 승인해야 등록할 수 있다. */
-export type CustomsVerdict = 'PASS' | 'REVIEW' | 'BLOCKED' | 'UNKNOWN';
+type CustomsVerdict = 'PASS' | 'REVIEW' | 'BLOCKED' | 'UNKNOWN';
 
 export interface Candidate {
   id: number;
@@ -22,14 +21,12 @@ export interface Candidate {
   monthlySearchVolume: number | null;
   competitorCount: number | null;
   domesticLowPrice: number | null;
-  /** 국내 시세 중앙값 — 가격 경쟁력 판정 기준(최저가는 소용량·샘플에 걸려 비교 불가). */
   domesticMedianPrice: number | null;
   demandKeyword: string | null;
   customsVerdict: CustomsVerdict | null;
   customsReason: string | null;
   ingredientsRaw: string | null;
   totalScore: number | null;
-  /** 서브스코어 근거 JSON 원문 — ScoreBreakdown 컴포넌트가 파싱한다. */
   scoreBreakdown: string | null;
   estimatedSalePrice: number | null;
   estimatedMarginRate: number | null;
@@ -39,14 +36,12 @@ export interface Candidate {
   lastSeenAt: string | null;
 }
 
-/** scoreBreakdown JSON의 구조. */
 export interface ScoreBreakdown {
   total: number;
   usableWeight: number;
   estimatedSalePrice: number;
   estimatedMargin: number;
   parts: Record<string, { score: number; weight: number; contribution: number }>;
-  /** 신호가 없어 채점에서 빠진 항목 — 점수가 낮은 이유를 설명한다. */
   missing: string[];
 }
 
@@ -61,7 +56,6 @@ export interface MarketDraft {
   keywords: string | null;
   noticeFields: string | null;
   extraFields: string | null;
-  /** 미충족 필수필드 JSON 배열. 비어 있어야 등록 가능. */
   missingFields: string | null;
   valid: boolean;
   enabled: boolean;
@@ -94,7 +88,6 @@ export interface Draft {
   cautionKo: string | null;
   customsAck: boolean;
   draftStatus: string | null;
-  /** 인리치먼트 중 무엇이 실패했는지 — 화면에 그대로 띄운다. */
   enrichNote: string | null;
   productId: number | null;
   marketDrafts: MarketDraft[];
@@ -153,7 +146,7 @@ export interface PublishResult {
   outcomes: PublishOutcome[];
 }
 
-export interface MarketDraftPatch {
+interface MarketDraftPatch {
   marketType: string;
   productName?: string | null;
   categoryId?: string | null;
@@ -218,7 +211,6 @@ export const sourcingDiscoveryApi = {
     }>(`${BASE}/customs/sync-banned`),
 };
 
-/** JSON 문자열 컬럼을 안전하게 파싱한다. 서버가 "[]"·null·깨진 값을 줄 수 있다. */
 export function parseJsonField<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;
   try {

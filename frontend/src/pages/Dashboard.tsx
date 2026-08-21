@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { PeriodControl, computeRange, type PeriodValue } from './dashboard/PeriodControl';
+import { PeriodControl } from './dashboard/PeriodControl';
+import { computeRange, type PeriodValue } from './dashboard/period';
 import { KpiCards } from './dashboard/KpiCards';
 import { TrendChart } from './dashboard/TrendChart';
 import { BreakdownPanels } from './dashboard/BreakdownPanels';

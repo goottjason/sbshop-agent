@@ -14,8 +14,6 @@
     "@ant-design/icons": "^6.1.0",
     "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-table": "^8.21.3",
-    "ag-grid-community": "^32.3.0",
-    "ag-grid-react": "^32.3.0",
     "antd": "^5.22.0",
     "axios": "^1.17.0",
     "exceljs": "^4.4.0",
