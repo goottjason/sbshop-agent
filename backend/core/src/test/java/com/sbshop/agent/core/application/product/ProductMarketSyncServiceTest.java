@@ -29,9 +29,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ProductMarketSyncServiceTest {
 
-	@Mock private MarketRegistrationRepository marketRegistrationRepository;
-	@Mock private MarketClientRouter marketClientRouter;
-	@Mock private com.sbshop.agent.core.application.fee.MarketFeeService marketFeeService;
+	@Mock
+	private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private MarketClientRouter marketClientRouter;
+	@Mock
+	private com.sbshop.agent.core.application.fee.MarketFeeService marketFeeService;
 
 	private ProductMarketSyncService service;
 	private static final Long PRODUCT_ID = 1L;

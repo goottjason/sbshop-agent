@@ -24,8 +24,8 @@ import org.junit.jupiter.api.Test;
  */
 class CandidateScoringServiceTest {
 
-	private final CandidateScoringService service =
-		new CandidateScoringService(new MarginCalculator(), new ObjectMapper());
+	private final CandidateScoringService service = new CandidateScoringService(new MarginCalculator(),
+		new ObjectMapper());
 
 	private SourcingConfig config() {
 		return SourcingConfig.createDefault();

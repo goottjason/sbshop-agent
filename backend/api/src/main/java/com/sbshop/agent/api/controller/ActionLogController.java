@@ -40,8 +40,10 @@ public class ActionLogController {
 	 */
 	@GetMapping
 	public ResponseEntity<List<ActionLogResponse>> getActionLogs(
-		@RequestParam(name = "limit", defaultValue = "100") int limit,
-		@RequestParam(name = "page", defaultValue = "0") int page) {
+		@RequestParam(name = "limit", defaultValue = "100")
+		int limit,
+		@RequestParam(name = "page", defaultValue = "0")
+		int page) {
 		int safeLimit = limit <= 0 ? DEFAULT_LIMIT : Math.min(limit, MAX_LIMIT);
 		int safePage = Math.max(page, 0);
 		List<ActionLogResponse> logs = actionLogService.recentLogs(safePage, safeLimit).stream()

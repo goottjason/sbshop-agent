@@ -52,9 +52,12 @@ public class NaverKeywordToolClient implements KeywordVolumePort {
 	private final String customerId;
 
 	public NaverKeywordToolClient(ObjectMapper objectMapper,
-		@Value("${naver.searchad.api-key:}") String apiKey,
-		@Value("${naver.searchad.secret-key:}") String secretKey,
-		@Value("${naver.searchad.customer-id:}") String customerId) {
+		@Value("${naver.searchad.api-key:}")
+		String apiKey,
+		@Value("${naver.searchad.secret-key:}")
+		String secretKey,
+		@Value("${naver.searchad.customer-id:}")
+		String customerId) {
 		this.objectMapper = objectMapper;
 		this.apiKey = apiKey;
 		this.secretKey = secretKey;

@@ -39,9 +39,12 @@ public class SmartstoreDiscountController {
 
 	@PostMapping("/remove-seller-discount")
 	public ResponseEntity<Map<String, Object>> removeSellerDiscount(
-			@RequestHeader(value = InternalAccessGuard.HEADER_NAME, required = false) String internalToken,
-			@RequestParam(value = "productIds", required = false) List<Long> productIds,
-			@RequestParam(value = "dryRun", defaultValue = "true") boolean dryRun) {
+		@RequestHeader(value = InternalAccessGuard.HEADER_NAME, required = false)
+		String internalToken,
+		@RequestParam(value = "productIds", required = false)
+		List<Long> productIds,
+		@RequestParam(value = "dryRun", defaultValue = "true")
+		boolean dryRun) {
 		if (!internalAccessGuard.isAllowed(internalToken)) {
 			log.warn("[내부트리거] 스토어 즉시할인 제거 접근 거부 — 유효한 내부 토큰 없음");
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)

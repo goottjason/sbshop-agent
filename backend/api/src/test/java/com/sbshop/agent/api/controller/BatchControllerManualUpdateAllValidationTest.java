@@ -26,12 +26,16 @@ import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
 @ExtendWith(MockitoExtension.class)
 class BatchControllerManualUpdateAllValidationTest {
 
-	@Mock private BatchPriceStockService batchPriceStockService;
-	@Mock private ProcessStatusService processStatusService;
-	@Mock private ActionLogService actionLogService;
+	@Mock
+	private BatchPriceStockService batchPriceStockService;
+	@Mock
+	private ProcessStatusService processStatusService;
+	@Mock
+	private ActionLogService actionLogService;
 
 	private BatchController controller() {
-		return new BatchController(batchPriceStockService, processStatusService, actionLogService, org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
+		return new BatchController(batchPriceStockService, processStatusService, actionLogService,
+			org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
 	}
 
 	private ProductUpdateCommand emptyCommand() {

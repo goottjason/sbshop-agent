@@ -89,8 +89,7 @@ public class DraftPublishUseCase {
 	}
 
 	private Product createProduct(ProductDraft draft) {
-		BulkProductCreateResult result =
-			productCreateUseCase.createBulk(List.of(toCreateCommand(draft)));
+		BulkProductCreateResult result = productCreateUseCase.createBulk(List.of(toCreateCommand(draft)));
 		if (result.succeeded().isEmpty()) {
 			String reason = result.failed().isEmpty() ? "알 수 없는 오류"
 				: result.failed().get(0).reason();
@@ -168,7 +167,7 @@ public class DraftPublishUseCase {
 		if (json == null || json.isBlank())
 			return List.of();
 		try {
-			return objectMapper.readValue(json, new TypeReference<List<String>>() { });
+			return objectMapper.readValue(json, new TypeReference<List<String>>() {});
 		} catch (Exception e) {
 			return List.of();
 		}
@@ -178,7 +177,7 @@ public class DraftPublishUseCase {
 		if (json == null || json.isBlank())
 			return Map.of();
 		try {
-			return objectMapper.readValue(json, new TypeReference<LinkedHashMap<String, String>>() { });
+			return objectMapper.readValue(json, new TypeReference<LinkedHashMap<String, String>>() {});
 		} catch (Exception e) {
 			return Map.of();
 		}
@@ -188,7 +187,7 @@ public class DraftPublishUseCase {
 		if (json == null || json.isBlank())
 			return Map.of();
 		try {
-			return objectMapper.readValue(json, new TypeReference<LinkedHashMap<String, Object>>() { });
+			return objectMapper.readValue(json, new TypeReference<LinkedHashMap<String, Object>>() {});
 		} catch (Exception e) {
 			return Map.of();
 		}

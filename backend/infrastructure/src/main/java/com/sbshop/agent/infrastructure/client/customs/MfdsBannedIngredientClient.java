@@ -39,8 +39,7 @@ import org.springframework.stereotype.Component;
 public class MfdsBannedIngredientClient implements BannedIngredientSourcePort {
 
 	private static final String LIST_PATH = "/ajax/fooddanger/selectFoodDirectImportBlockRawIrdntList.do";
-	private static final String REFERER =
-		"https://www.foodsafetykorea.go.kr/portal/fooddanger/foodDirectImportBlockRawIrdnt.do";
+	private static final String REFERER = "https://www.foodsafetykorea.go.kr/portal/fooddanger/foodDirectImportBlockRawIrdnt.do";
 	/** 전량이 300여 건이라 한 번에 받는다. 여유를 둬 상한을 크게 잡는다. */
 	private static final int PAGE_SIZE = 2000;
 	private static final DateTimeFormatter DASH = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -54,7 +53,8 @@ public class MfdsBannedIngredientClient implements BannedIngredientSourcePort {
 	private final String baseUrl;
 
 	public MfdsBannedIngredientClient(ObjectMapper objectMapper,
-		@Value("${customs.mfds.base-url:https://www.foodsafetykorea.go.kr}") String baseUrl) {
+		@Value("${customs.mfds.base-url:https://www.foodsafetykorea.go.kr}")
+		String baseUrl) {
 		this.objectMapper = objectMapper;
 		this.baseUrl = baseUrl;
 	}

@@ -1,6 +1,5 @@
 package com.sbshop.agent.api.controller;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
@@ -8,7 +7,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.api.dto.SourcingUpdateRequest;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
@@ -55,8 +53,7 @@ class OrderControllerSourcingValidationTest {
 	@Test
 	@DisplayName("소싱금액(sourcingAmount) 음수: 400(IllegalArgumentException)으로 거부하고 서비스 호출 안 함")
 	void updateSourcingInfo_rejectsNegativeSourcingAmount() {
-		assertThatThrownBy(() ->
-			controller().updateSourcingInfo(11L, request(new BigDecimal("-1"), null)))
+		assertThatThrownBy(() -> controller().updateSourcingInfo(11L, request(new BigDecimal("-1"), null)))
 			.isInstanceOf(IllegalArgumentException.class);
 
 		verify(orderService, never()).updateSourcingInfo(anyLong(), any());
@@ -65,8 +62,7 @@ class OrderControllerSourcingValidationTest {
 	@Test
 	@DisplayName("물류비(logisticsCost) 음수: 400(IllegalArgumentException)으로 거부하고 서비스 호출 안 함")
 	void updateSourcingInfo_rejectsNegativeLogisticsCost() {
-		assertThatThrownBy(() ->
-			controller().updateSourcingInfo(11L, request(null, new BigDecimal("-0.01"))))
+		assertThatThrownBy(() -> controller().updateSourcingInfo(11L, request(null, new BigDecimal("-0.01"))))
 			.isInstanceOf(IllegalArgumentException.class);
 
 		verify(orderService, never()).updateSourcingInfo(anyLong(), any());
@@ -80,11 +76,9 @@ class OrderControllerSourcingValidationTest {
 		lenient().when(orderService.marketTypeOfLineItem(anyLong()))
 			.thenReturn(MarketType.SMART_STORE);
 
-		assertThatCode(() ->
-			controller().updateSourcingInfo(11L, request(BigDecimal.ZERO, null)))
+		assertThatCode(() -> controller().updateSourcingInfo(11L, request(BigDecimal.ZERO, null)))
 			.doesNotThrowAnyException();
-		assertThatCode(() ->
-			controller().updateSourcingInfo(11L, request(null, null)))
+		assertThatCode(() -> controller().updateSourcingInfo(11L, request(null, null)))
 			.doesNotThrowAnyException();
 
 		verify(orderService, org.mockito.Mockito.times(2)).updateSourcingInfo(anyLong(), any());

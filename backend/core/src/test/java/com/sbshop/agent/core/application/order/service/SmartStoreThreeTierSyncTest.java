@@ -68,16 +68,26 @@ class SmartStoreThreeTierSyncTest {
 	private static final String PO_2 = "2026072112554022";
 	private static final String PKG = "2026072160001571";
 
-	@Mock private MarketCredentialRepository credentialRepository;
-	@Mock private OrderRepository orderRepository;
-	@Mock private OrderLineItemRepository orderLineItemRepository;
-	@Mock private ShipmentRepository shipmentRepository;
-	@Mock private ProductRepository productRepository;
-	@Mock private ApplicationEventPublisher eventPublisher;
-	@Mock private SmartStoreOrderAdapter adapter;
-	@Mock private SyncStatusService syncStatusService;
-	@Mock private MarketFeeService marketFeeService;
-	@Mock private TerminalSettlementService terminalSettlementService;
+	@Mock
+	private MarketCredentialRepository credentialRepository;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private ShipmentRepository shipmentRepository;
+	@Mock
+	private ProductRepository productRepository;
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+	@Mock
+	private SmartStoreOrderAdapter adapter;
+	@Mock
+	private SyncStatusService syncStatusService;
+	@Mock
+	private MarketFeeService marketFeeService;
+	@Mock
+	private TerminalSettlementService terminalSettlementService;
 
 	private SmartStoreOrderSyncService service;
 
@@ -134,7 +144,7 @@ class SmartStoreThreeTierSyncTest {
 		// 요율 추정(실측값이 없을 때만 쓰인다) — 4.9% 수수료 가정.
 		when(marketFeeService.settlementAmount(any(), any()))
 			.thenAnswer(inv -> inv.getArgument(0) == null ? BigDecimal.ZERO
-				: ((BigDecimal) inv.getArgument(0)).multiply(new BigDecimal("0.951")));
+				: ((BigDecimal)inv.getArgument(0)).multiply(new BigDecimal("0.951")));
 	}
 
 	private MarketLineItemDto item(String productOrderId, String sbCode, String amount,

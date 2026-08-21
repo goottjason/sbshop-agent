@@ -357,7 +357,8 @@ public class OrderService {
 
 		// 마켓플레이스에 송장 전송/업데이트 — 반영 실패 시 자사 저장을 롤백해 DB/마켓 정합을 유지(@Transactional),
 		// 스킵(전송 대상 아님)은 로컬 편집 유지, 성공 시에만 전송완료 마킹.
-		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, invoiceAlreadyExists);
+		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item,
+			invoiceAlreadyExists);
 		logIfNotSent(item, sendResult);
 		markSentIfSucceeded(item, sendResult, lineItemId);
 
@@ -501,7 +502,8 @@ public class OrderService {
 			.build(), TrackingSource.MANUAL);
 
 		// 마켓플레이스에 송장 전송 — 실패해도 위의 배송정보 저장은 보존, 성공 시에만 전송완료 마킹
-		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, invoiceAlreadyExists);
+		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item,
+			invoiceAlreadyExists);
 		markSentIfSucceeded(item, sendResult, lineItemId);
 
 		log.info("라인아이템 {} 배송지시 처리: tracking={}, carrier={}", lineItemId, trackingNo, carrier);

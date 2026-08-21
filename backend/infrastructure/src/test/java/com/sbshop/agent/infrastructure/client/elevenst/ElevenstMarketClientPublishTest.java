@@ -41,8 +41,7 @@ class ElevenstMarketClientPublishTest {
 
 	private ElevenstMarketClient client;
 
-	private static final String OK_RESPONSE =
-		"<?xml version=\"1.0\" encoding=\"euc-kr\"?><Product><prdNo>3300123456</prdNo></Product>";
+	private static final String OK_RESPONSE = "<?xml version=\"1.0\" encoding=\"euc-kr\"?><Product><prdNo>3300123456</prdNo></Product>";
 
 	@BeforeEach
 	void setUp() {

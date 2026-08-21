@@ -74,8 +74,8 @@ class ElevenstShipOrderDlvNoTest {
 		ElevenstOrderAdapter adapter = new ElevenstOrderAdapter(elevenstOrderApiPort, statusMapper);
 
 		// 주문번호 폴백은 "존재하지 않는 배송번호" 실패를 낳을 뿐이므로, 조용한 실패보다 즉시 오류가 낫다.
-		assertThatThrownBy(() ->
-			adapter.shipOrder(credential, order, null, "424079080471", ShippingCarrier.CJ_LOGISTICS))
+		assertThatThrownBy(
+			() -> adapter.shipOrder(credential, order, null, "424079080471", ShippingCarrier.CJ_LOGISTICS))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("배송번호");
 	}

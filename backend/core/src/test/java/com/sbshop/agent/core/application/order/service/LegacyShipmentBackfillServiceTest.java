@@ -48,9 +48,12 @@ import com.sbshop.agent.core.domain.order.vo.ShippingData;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class LegacyShipmentBackfillServiceTest {
 
-	@Mock private OrderLineItemRepository lineItemRepository;
-	@Mock private OrderRepository orderRepository;
-	@Mock private ShipmentRepository shipmentRepository;
+	@Mock
+	private OrderLineItemRepository lineItemRepository;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private ShipmentRepository shipmentRepository;
 
 	private LegacyShipmentBackfillService service;
 

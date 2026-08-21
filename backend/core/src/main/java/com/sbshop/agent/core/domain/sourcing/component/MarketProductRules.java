@@ -26,8 +26,7 @@ public final class MarketProductRules {
 
 	private static final Rules DEFAULT = new Rules(100, 10, 20);
 
-	private MarketProductRules() {
-	}
+	private MarketProductRules() {}
 
 	public static Rules of(MarketType marketType) {
 		return RULES.getOrDefault(marketType, DEFAULT);

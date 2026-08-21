@@ -54,7 +54,7 @@ public class SseNotificationController {
 	}
 
 	static String syncPayload(com.sbshop.agent.core.domain.order.enums.MarketType marketType,
-			boolean success, String errorMessage) {
+		boolean success, String errorMessage) {
 		return success
 			? marketType.name() + "|success"
 			: marketType.name() + "|fail|" + errorMessage;

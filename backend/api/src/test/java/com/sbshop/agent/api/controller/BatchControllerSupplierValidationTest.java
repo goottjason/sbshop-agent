@@ -19,12 +19,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class BatchControllerSupplierValidationTest {
 
-	@Mock private BatchPriceStockService batchPriceStockService;
-	@Mock private ProcessStatusService processStatusService;
-	@Mock private ActionLogService actionLogService;
+	@Mock
+	private BatchPriceStockService batchPriceStockService;
+	@Mock
+	private ProcessStatusService processStatusService;
+	@Mock
+	private ActionLogService actionLogService;
 
 	private BatchController controller() {
-		return new BatchController(batchPriceStockService, processStatusService, actionLogService, org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
+		return new BatchController(batchPriceStockService, processStatusService, actionLogService,
+			org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
 	}
 
 	private SupplierBatchRequest requestWith(String supplierCode) {

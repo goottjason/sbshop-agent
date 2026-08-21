@@ -38,7 +38,8 @@ public class EmailFetchController {
 	/** iHerb 이메일 수집·송장 대조/배송 처리를 즉시 1회 실행 */
 	@PostMapping("/fetch")
 	public ResponseEntity<Map<String, Object>> fetch(
-			@RequestHeader(value = InternalAccessGuard.HEADER_NAME, required = false) String internalToken) {
+		@RequestHeader(value = InternalAccessGuard.HEADER_NAME, required = false)
+		String internalToken) {
 		// F-MISC-17: 가드 활성 시 시크릿 헤더 불일치/누락은 서비스 실행 전 403으로 차단.
 		if (!internalAccessGuard.isAllowed(internalToken)) {
 			log.warn("[내부트리거] 이메일 수집·처리 접근 거부 — 유효한 내부 토큰 없음");

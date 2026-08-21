@@ -64,8 +64,10 @@ class ElevenstDetectCancellationsTest {
 			productRepository, eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService,
 			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
 			// 3계층 반영 골격. 이 테스트들은 라인아이템 반영을 검증하지 않으므로 목으로 둔다.
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.MarketLineItemSyncDispatcher.class),
-			shipmentRepository, org.mockito.Mockito.mock(com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository.class));
+			org.mockito.Mockito
+				.mock(com.sbshop.agent.core.application.order.service.MarketLineItemSyncDispatcher.class),
+			shipmentRepository, org.mockito.Mockito
+				.mock(com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository.class));
 	}
 
 	private void stubCredentialAndEmptyApi() {
@@ -87,8 +89,8 @@ class ElevenstDetectCancellationsTest {
 	}
 
 	/** 주문 전체 키로 상태 하나만 담은 응답(순번 미상 라인아이템에 적용된다). */
-	private com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter.MissingOrderState
-		missingState(ShippingStatus status) {
+	private com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter.MissingOrderState missingState(
+		ShippingStatus status) {
 		return new com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter.MissingOrderState(
 			java.util.Map.of(
 				com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter.CLAIM_ORDER_WIDE, status),

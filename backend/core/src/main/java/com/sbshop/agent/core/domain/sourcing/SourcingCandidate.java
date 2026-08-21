@@ -29,10 +29,8 @@ import org.hibernate.annotations.JdbcTypeCode;
  * 갱신하되 사용자 판단({@code REJECTED})과 진행 상태({@code DRAFTED}/{@code PUBLISHED})는 보존한다.
  */
 @Entity
-@Table(
-	name = "sb_sourcing_candidate",
-	uniqueConstraints = @UniqueConstraint(name = "uk_candidate_vendor_external",
-		columnNames = {"vendor", "external_id"}))
+@Table(name = "sb_sourcing_candidate", uniqueConstraints = @UniqueConstraint(name = "uk_candidate_vendor_external", columnNames = {
+	"vendor", "external_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SourcingCandidate extends BaseEntity {

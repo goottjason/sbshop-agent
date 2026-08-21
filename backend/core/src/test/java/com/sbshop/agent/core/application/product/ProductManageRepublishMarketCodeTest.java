@@ -163,8 +163,8 @@ class ProductManageRepublishMarketCodeTest {
 		MarketClient elevenStreetClient = mock(MarketClient.class);
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID))
 			.thenReturn(List.of(
-				reg(MarketType.SMART_STORE, "{}"),              // 코드 없음 → failed
-				reg(MarketType.ELEVEN_STREET, "{\"prdNo\":\"E11_001\"}")  // 코드 있음 → synced
+				reg(MarketType.SMART_STORE, "{}"), // 코드 없음 → failed
+				reg(MarketType.ELEVEN_STREET, "{\"prdNo\":\"E11_001\"}") // 코드 있음 → synced
 			));
 		when(marketClientRouter.hasClient(MarketType.SMART_STORE)).thenReturn(true);
 		when(marketClientRouter.hasClient(MarketType.ELEVEN_STREET)).thenReturn(true);

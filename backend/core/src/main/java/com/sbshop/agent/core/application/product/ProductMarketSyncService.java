@@ -102,9 +102,9 @@ public class ProductMarketSyncService {
 				Map<String, Object> currentRawData = parseRawData(reg.getMarketDetailedInfo());
 
 				MarketClient client = marketClientRouter.getClient(marketType);
-				Map<String, Object> updated =
-					client.syncPriceAndStock(marketItemId, currentRawData, priceResolver.apply(marketType),
-							quantity, soldOut, product);
+				Map<String, Object> updated = client.syncPriceAndStock(marketItemId, currentRawData,
+					priceResolver.apply(marketType),
+					quantity, soldOut, product);
 
 				if (updated != null) {
 					reg.updateMarketDetailedInfo(objectMapper.writeValueAsString(updated));
@@ -133,8 +133,7 @@ public class ProductMarketSyncService {
 			return new HashMap<>();
 		}
 		try {
-			return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {
-			});
+			return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
 		} catch (Exception e) {
 			log.warn("[가격재고동기화] marketDetailedInfo 파싱 실패 — 빈 rawData로 진행: {}", e.getMessage());
 			return new HashMap<>();

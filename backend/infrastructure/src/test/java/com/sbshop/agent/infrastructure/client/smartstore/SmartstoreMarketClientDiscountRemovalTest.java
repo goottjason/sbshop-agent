@@ -27,7 +27,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SmartstoreMarketClientDiscountRemovalTest {
 
-	@Mock private SmartstoreRestClient restClient;
+	@Mock
+	private SmartstoreRestClient restClient;
 
 	private SmartstoreMarketClient client;
 	private static final String ITEM_ID = "OP123";
@@ -35,9 +36,9 @@ class SmartstoreMarketClientDiscountRemovalTest {
 	@BeforeEach
 	void setUp() {
 		client = new SmartstoreMarketClient(
-            // 신규 등록(publish) 전용 협력자 — 이 테스트가 검증하는 경로에서는 호출되지 않는다.
-            null, null, null, null,
-            restClient, new ObjectMapper());
+			// 신규 등록(publish) 전용 협력자 — 이 테스트가 검증하는 경로에서는 호출되지 않는다.
+			null, null, null, null,
+			restClient, new ObjectMapper());
 	}
 
 	private String getWithImmediateDiscount() {

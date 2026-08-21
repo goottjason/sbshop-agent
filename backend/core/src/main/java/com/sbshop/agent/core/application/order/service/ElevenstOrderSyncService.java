@@ -7,7 +7,6 @@ import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.Shipment;
 import com.sbshop.agent.core.application.order.dto.MarketLineItemDto;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
-import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -96,8 +95,8 @@ public class ElevenstOrderSyncService {
 		try {
 			MarketCredential credential = loadAndValidateCredential();
 			// D-160: 부분 실패 여부를 함께 받는다 — 못 본 것을 사라진 것으로 읽지 않기 위해서다.
-			com.sbshop.agent.core.application.order.dto.MarketFetchOutcome outcome =
-				elevenstOrderAdapter.fetchOrdersWithOutcome(credential, fromDate, toDate);
+			com.sbshop.agent.core.application.order.dto.MarketFetchOutcome outcome = elevenstOrderAdapter
+				.fetchOrdersWithOutcome(credential, fromDate, toDate);
 			List<MarketOrderDto> orders = outcome.orders();
 
 			processOrders(orders, credential, createMissing);
@@ -384,8 +383,8 @@ public class ElevenstOrderSyncService {
 			// 2단계 정정: 응답이 상품주문마다 한 행이므로 순번별로 적용한다. 종전에는 첫 행의 상태를
 			// 주문 전체에 씌워, 한 상품만 취소된 주문의 나머지 상품까지 취소로 만들 수 있었다.
 			// D-157/D-158: 클레임만 보던 것을 "종결 상태 + 마켓 보유 송장"으로 넓혔다.
-			ElevenstOrderAdapter.MissingOrderState state =
-				elevenstOrderAdapter.resolveMissingOrderState(apiKey, order.getMarketOrderNo());
+			ElevenstOrderAdapter.MissingOrderState state = elevenstOrderAdapter.resolveMissingOrderState(apiKey,
+				order.getMarketOrderNo());
 			if (state.isEmpty()) {
 				continue;
 			}

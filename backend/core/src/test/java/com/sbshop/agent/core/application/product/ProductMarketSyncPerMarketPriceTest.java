@@ -1,6 +1,5 @@
 package com.sbshop.agent.core.application.product;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -31,9 +30,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ProductMarketSyncPerMarketPriceTest {
 
-	@Mock private MarketRegistrationRepository marketRegistrationRepository;
-	@Mock private MarketClientRouter marketClientRouter;
-	@Mock private MarketFeeService marketFeeService;
+	@Mock
+	private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private MarketClientRouter marketClientRouter;
+	@Mock
+	private MarketFeeService marketFeeService;
 
 	private ProductMarketSyncService service;
 	private static final Long PRODUCT_ID = 1L;

@@ -11,7 +11,6 @@ import com.sbshop.agent.core.application.product.ProductManageUseCase;
 import com.sbshop.agent.core.application.product.ProductSearchUseCase;
 import com.sbshop.agent.core.application.product.port.ProductInfoCrawlerPort;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
-import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
 import com.sbshop.agent.core.domain.product.client.dto.ImageProcessResult;
 import com.sbshop.agent.core.domain.product.client.dto.ImageUploadFile;
@@ -124,8 +123,8 @@ class ProductControllerImagePartialFailureTest {
 	/** 최소 유효 JPEG 1x1 (thumbnailator가 디코드 가능). */
 	private static byte[] jpegBytes() {
 		try {
-			java.awt.image.BufferedImage img =
-				new java.awt.image.BufferedImage(2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB);
+			java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(2, 2,
+				java.awt.image.BufferedImage.TYPE_INT_RGB);
 			java.io.ByteArrayOutputStream os = new java.io.ByteArrayOutputStream();
 			javax.imageio.ImageIO.write(img, "jpg", os);
 			return os.toByteArray();

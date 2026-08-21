@@ -13,8 +13,7 @@ import com.sbshop.agent.core.application.product.dto.MarketPlusHandoff;
 public record MarketPlusHandoffResponse(String market, String cafe24ProductCode,
 	String marketplusUrl, String guide) {
 
-	private static final String MARKETPLUS_NO_SALE_URL =
-		"https://mp.cafe24.com/mp/product/front/noSaleAll";
+	private static final String MARKETPLUS_NO_SALE_URL = "https://mp.cafe24.com/mp/product/front/noSaleAll";
 
 	public static MarketPlusHandoffResponse from(MarketPlusHandoff handoff, String marketLabel) {
 		return new MarketPlusHandoffResponse(

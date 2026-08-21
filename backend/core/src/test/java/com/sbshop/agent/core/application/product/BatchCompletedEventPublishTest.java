@@ -47,8 +47,7 @@ class BatchCompletedEventPublishTest {
 			mock(MarginCalculator.class),
 			eventPublisher,
 			mock(ProductMarketSyncService.class),
-			mock(MarketFeeService.class)
-		);
+			mock(MarketFeeService.class));
 	}
 
 	@Test
@@ -76,7 +75,7 @@ class BatchCompletedEventPublishTest {
 
 		// Assert
 		org.mockito.Mockito.verify(eventPublisher).publishEvent(captor.capture());
-		BatchCompletedEvent event = (BatchCompletedEvent) captor.getValue();
+		BatchCompletedEvent event = (BatchCompletedEvent)captor.getValue();
 		assertThat(event.getActionType()).isEqualTo(ActionLogConstants.BATCH_MANUAL_UPDATE_ALL);
 		assertThat(event.isSuccess()).isFalse();
 	}
@@ -98,7 +97,7 @@ class BatchCompletedEventPublishTest {
 
 		// Assert: failCount > 0 → success=false
 		org.mockito.Mockito.verify(eventPublisher).publishEvent(captor.capture());
-		BatchCompletedEvent event = (BatchCompletedEvent) captor.getValue();
+		BatchCompletedEvent event = (BatchCompletedEvent)captor.getValue();
 		assertThat(event.getActionType()).isEqualTo(ActionLogConstants.BATCH_CRAWL_UPDATE);
 		assertThat(event.isSuccess()).isFalse();
 	}
@@ -116,7 +115,7 @@ class BatchCompletedEventPublishTest {
 
 		// Assert: event.getActionType() == BATCH_BY_SUPPLIER
 		org.mockito.Mockito.verify(eventPublisher).publishEvent(captor.capture());
-		BatchCompletedEvent event = (BatchCompletedEvent) captor.getValue();
+		BatchCompletedEvent event = (BatchCompletedEvent)captor.getValue();
 		assertThat(event.getActionType()).isEqualTo(ActionLogConstants.BATCH_BY_SUPPLIER);
 		assertThat(event.isSuccess()).isTrue();
 	}
@@ -148,7 +147,7 @@ class BatchCompletedEventPublishTest {
 
 		// Assert
 		org.mockito.Mockito.verify(eventPublisher).publishEvent(captor.capture());
-		BatchCompletedEvent event = (BatchCompletedEvent) captor.getValue();
+		BatchCompletedEvent event = (BatchCompletedEvent)captor.getValue();
 		assertThat(event.getActionType()).isEqualTo(ActionLogConstants.BATCH_MANUAL_UPDATE_ALL);
 		assertThat(event.isSuccess()).isTrue();
 	}

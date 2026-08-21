@@ -34,11 +34,10 @@ class ProductDetailResponseContractTest {
 
 	// Spring Boot 기본 ObjectMapper와 동일하게 jsr310(LocalDate ISO 문자열) 모듈을 등록해
 	// 실제 직렬화 형태(GET /products/{id} 응답)를 그대로 재현한다.
-	private final ObjectMapper mapper =
-		com.fasterxml.jackson.databind.json.JsonMapper.builder()
-			.findAndAddModules()
-			.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-			.build();
+	private final ObjectMapper mapper = com.fasterxml.jackson.databind.json.JsonMapper.builder()
+		.findAndAddModules()
+		.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+		.build();
 
 	@Mock
 	private Product product;
@@ -88,8 +87,7 @@ class ProductDetailResponseContractTest {
 	@Test
 	@DisplayName("F-PROD-6: 응답 record가 도메인 VO 타입을 직접 컴포넌트로 노출하지 않는다")
 	void doesNotExposeDomainVoTypesDirectly() {
-		List<Class<?>> forbidden =
-			List.of(PriceInfo.class, LogisticsInfo.class, ProductSpec.class, SourcingInfo.class);
+		List<Class<?>> forbidden = List.of(PriceInfo.class, LogisticsInfo.class, ProductSpec.class, SourcingInfo.class);
 		for (RecordComponent rc : ProductDetailResponse.class.getRecordComponents()) {
 			assertThat(forbidden)
 				.as("컴포넌트 %s 가 도메인 VO %s 를 직접 노출", rc.getName(), rc.getType().getSimpleName())

@@ -46,8 +46,8 @@ class SmartstoreRestClientTest {
 		when(marketCredentialRepository.findByMarketType(MarketType.SMART_STORE))
 			.thenReturn(Optional.empty());
 
-		SmartstoreRestClient client =
-			new SmartstoreRestClient(properties, new ObjectMapper(), marketCredentialRepository);
+		SmartstoreRestClient client = new SmartstoreRestClient(properties, new ObjectMapper(),
+			marketCredentialRepository);
 
 		// private final restClient 필드를 MockRestServiceServer 바인딩 인스턴스로 교체
 		RestClient.Builder builder = RestClient.builder();
@@ -79,7 +79,7 @@ class SmartstoreRestClientTest {
 	/** 폼 바디에서 timestamp 필드 값을 추출해 캡처하는 RequestMatcher. */
 	private static RequestMatcher captureFormTimestamp(String[] sink) {
 		return request -> {
-			String body = ((MockClientHttpRequest) request).getBodyAsString();
+			String body = ((MockClientHttpRequest)request).getBodyAsString();
 			for (String pair : body.split("&")) {
 				if (pair.startsWith("timestamp=")) {
 					sink[0] = pair.substring("timestamp=".length());

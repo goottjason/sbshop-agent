@@ -73,8 +73,7 @@ class TrackingSourceWritePathTest {
 		when(shipmentRepository.findByOrderIdAndMarketShipmentNo(1L, "S-1"))
 			.thenReturn(Optional.of(adopted));
 		when(shipmentRepository.save(any(Shipment.class))).thenAnswer(inv -> inv.getArgument(0));
-		OrderShipmentUpsertService service =
-			new OrderShipmentUpsertService(shipmentRepository, lineItemRepository);
+		OrderShipmentUpsertService service = new OrderShipmentUpsertService(shipmentRepository, lineItemRepository);
 
 		service.upsertShipment(1L, MarketShipmentDto.builder()
 			.marketShipmentNo("S-1").trackingNo("6079990333504").build());
@@ -91,8 +90,7 @@ class TrackingSourceWritePathTest {
 		when(shipmentRepository.findByOrderIdAndMarketShipmentNo(1L, "S-1"))
 			.thenReturn(Optional.of(ours));
 		when(shipmentRepository.save(any(Shipment.class))).thenAnswer(inv -> inv.getArgument(0));
-		OrderShipmentUpsertService service =
-			new OrderShipmentUpsertService(shipmentRepository, lineItemRepository);
+		OrderShipmentUpsertService service = new OrderShipmentUpsertService(shipmentRepository, lineItemRepository);
 
 		service.upsertShipment(1L, MarketShipmentDto.builder()
 			.marketShipmentNo("S-1").trackingNo("6079990333504").build());

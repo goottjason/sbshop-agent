@@ -79,7 +79,8 @@ class MarketCredentialValidationTest {
 
 		SmartStoreOrderSyncService service = new SmartStoreOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, smartStoreOrderAdapter, syncStatusService, marketFeeService, org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
+			eventPublisher, smartStoreOrderAdapter, syncStatusService, marketFeeService,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
 			// 이 테스트는 주문 계층(자격정보·이벤트·주소 보호)만 검증한다 — 라인아이템 반영은 범위 밖이라 골격을 목으로 둔다.
 			org.mockito.Mockito.mock(MarketLineItemSyncDispatcher.class));
 		service.syncSmartStoreOrders();
@@ -99,8 +100,11 @@ class MarketCredentialValidationTest {
 			eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService,
 			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
 			// 3계층 반영 골격. 이 테스트들은 라인아이템 반영을 검증하지 않으므로 목으로 둔다.
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.MarketLineItemSyncDispatcher.class),
-			org.mockito.Mockito.mock(com.sbshop.agent.core.domain.order.repository.ShipmentRepository.class), org.mockito.Mockito.mock(com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository.class));
+			org.mockito.Mockito
+				.mock(com.sbshop.agent.core.application.order.service.MarketLineItemSyncDispatcher.class),
+			org.mockito.Mockito.mock(com.sbshop.agent.core.domain.order.repository.ShipmentRepository.class),
+			org.mockito.Mockito
+				.mock(com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository.class));
 		service.syncElevenstOrders();
 
 		assertIncompleteCredentialFailure(capturedEvents());

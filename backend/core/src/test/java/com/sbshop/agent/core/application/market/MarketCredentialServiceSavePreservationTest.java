@@ -92,8 +92,7 @@ class MarketCredentialServiceSavePreservationTest {
 		when(repository.findByMarketType(MarketType.COUPANG)).thenReturn(Optional.empty());
 		when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-		MarketCredentialDto dto =
-			service.saveCredential(command("V", "A_PLAIN", "S_PLAIN", "https://r"));
+		MarketCredentialDto dto = service.saveCredential(command("V", "A_PLAIN", "S_PLAIN", "https://r"));
 
 		// getSecretKey()/getAccessKey()는 DTO에서 제거됨(평문 필드 부재로 마스킹 보증).
 		assertThat(dto.isHasAccessKey()).isTrue();

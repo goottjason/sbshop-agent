@@ -12,6 +12,7 @@ import java.util.List;
 /** 대시보드 캘린더 버킷팅(KST, 월요일 주, 달력 월). 순수함수. */
 public final class DashboardBucketing {
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
 	private DashboardBucketing() {}
 
 	/** zone 없는 UTC 벽시계값을 KST 날짜로 본 뒤, unit 버킷 시작일로 내린다. */

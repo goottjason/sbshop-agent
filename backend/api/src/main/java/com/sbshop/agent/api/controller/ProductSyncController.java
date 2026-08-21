@@ -30,7 +30,8 @@ public class ProductSyncController {
 
 	@PostMapping("/sync/stock")
 	public ResponseEntity<Map<String, Object>> syncAllProductStock(
-			@RequestHeader(value = InternalAccessGuard.HEADER_NAME, required = false) String internalToken) {
+		@RequestHeader(value = InternalAccessGuard.HEADER_NAME, required = false)
+		String internalToken) {
 		// F-MISC-7: 가드 활성 시 시크릿 헤더 불일치/누락은 동기화 트리거 전 403으로 차단.
 		if (!internalAccessGuard.isAllowed(internalToken)) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)

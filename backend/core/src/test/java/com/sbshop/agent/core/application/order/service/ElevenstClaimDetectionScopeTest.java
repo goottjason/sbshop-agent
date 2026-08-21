@@ -57,18 +57,30 @@ import com.sbshop.agent.core.domain.product.ProductRepository;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ElevenstClaimDetectionScopeTest {
 
-	@Mock private MarketCredentialRepository credentialRepository;
-	@Mock private OrderRepository orderRepository;
-	@Mock private OrderLineItemRepository orderLineItemRepository;
-	@Mock private ProductRepository productRepository;
-	@Mock private ApplicationEventPublisher eventPublisher;
-	@Mock private ElevenstOrderAdapter adapter;
-	@Mock private SyncStatusService syncStatusService;
-	@Mock private MarketFeeService marketFeeService;
-	@Mock private TerminalSettlementService terminalSettlementService;
-	@Mock private MarketLineItemSyncDispatcher lineItemSyncDispatcher;
-	@Mock private ShipmentRepository shipmentRepository;
-	@Mock private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private MarketCredentialRepository credentialRepository;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private ProductRepository productRepository;
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+	@Mock
+	private ElevenstOrderAdapter adapter;
+	@Mock
+	private SyncStatusService syncStatusService;
+	@Mock
+	private MarketFeeService marketFeeService;
+	@Mock
+	private TerminalSettlementService terminalSettlementService;
+	@Mock
+	private MarketLineItemSyncDispatcher lineItemSyncDispatcher;
+	@Mock
+	private ShipmentRepository shipmentRepository;
+	@Mock
+	private MarketRegistrationRepository marketRegistrationRepository;
 
 	private ElevenstOrderSyncService service;
 

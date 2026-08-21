@@ -16,8 +16,19 @@ public class BatchCompletedEvent extends ApplicationEvent {
 		this.message = message;
 	}
 
-	public String getBatchId() { return batchId; }
-	public String getActionType() { return actionType; }
-	public boolean isSuccess() { return success; }
-	public String getMessage() { return message; }
+	public String getBatchId() {
+		return batchId;
+	}
+
+	public String getActionType() {
+		return actionType;
+	}
+
+	public boolean isSuccess() {
+		return success;
+	}
+
+	public String getMessage() {
+		return message;
+	}
 }

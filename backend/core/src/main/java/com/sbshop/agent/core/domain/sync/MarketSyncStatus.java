@@ -19,8 +19,7 @@ import lombok.NoArgsConstructor;
  * BaseEntity에 이미 status(RecordStatus)가 있으므로 동기화 상태 필드는 syncStatus(컬럼 sync_status)로 둔다.
  */
 @Entity
-@Table(name = "sb_market_sync_status",
-	uniqueConstraints = @UniqueConstraint(columnNames = "market_type"))
+@Table(name = "sb_market_sync_status", uniqueConstraints = @UniqueConstraint(columnNames = "market_type"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MarketSyncStatus extends BaseEntity {

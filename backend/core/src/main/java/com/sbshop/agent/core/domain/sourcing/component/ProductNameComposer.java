@@ -24,8 +24,7 @@ public final class ProductNameComposer {
 		"[0-9][0-9,.]*\\s*(g|kg|mg|ml|l|oz|lb|정|개|캡슐|소프트젤|포|정제|티백|스쿱|회분)",
 		Pattern.CASE_INSENSITIVE);
 
-	private ProductNameComposer() {
-	}
+	private ProductNameComposer() {}
 
 	public static String compose(String brandKo, String baseName, BigDecimal capacity,
 		String unitDesc, int bundleQty, MarketType marketType) {

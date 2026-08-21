@@ -29,8 +29,7 @@ class OrderEmailParserConfirmationTest {
 			</body></html>
 			""";
 
-		Optional<OrderEmailParser.IherbConfirmationData> result =
-			parser.parseIherbConfirmation(SUBJECT, body);
+		Optional<OrderEmailParser.IherbConfirmationData> result = parser.parseIherbConfirmation(SUBJECT, body);
 
 		assertThat(result).isPresent();
 		assertThat(result.get().getOrderNo()).isEqualTo("123456789");
@@ -42,8 +41,7 @@ class OrderEmailParserConfirmationTest {
 	void extractsAmountFromSecondaryPattern() {
 		String body = "<div>총 금액 &#8361;45,000</div>";
 
-		Optional<OrderEmailParser.IherbConfirmationData> result =
-			parser.parseIherbConfirmation(SUBJECT, body);
+		Optional<OrderEmailParser.IherbConfirmationData> result = parser.parseIherbConfirmation(SUBJECT, body);
 
 		assertThat(result).isPresent();
 		assertThat(result.get().getTotalAmount()).isEqualByComparingTo(new BigDecimal("45000"));
@@ -55,8 +53,7 @@ class OrderEmailParserConfirmationTest {
 		String subject = "iHerb 주문 #343977053 결제가 처리되었습니다";
 		String body = "총 결제 금액: $48.00";
 
-		Optional<OrderEmailParser.IherbConfirmationData> result =
-			parser.parseIherbConfirmation(subject, body);
+		Optional<OrderEmailParser.IherbConfirmationData> result = parser.parseIherbConfirmation(subject, body);
 
 		assertThat(result).isPresent();
 		assertThat(result.get().getOrderNo()).isEqualTo("343977053");
@@ -70,8 +67,7 @@ class OrderEmailParserConfirmationTest {
 		String subject = "iHerb 주문 #343977053 결제가 처리되었습니다";
 		String body = "배송지 대한민국 (KR) 결제 유형: 페이코 총 주문: &#8361;40,418";
 
-		OrderEmailParser.IherbConfirmationData data =
-			parser.parseIherbConfirmation(subject, body).get();
+		OrderEmailParser.IherbConfirmationData data = parser.parseIherbConfirmation(subject, body).get();
 
 		assertThat(data.getTotalAmount()).isEqualByComparingTo(new BigDecimal("40418"));
 		assertThat(data.getCurrency()).isEqualTo(OrderEmailParser.KRW);
@@ -111,8 +107,7 @@ class OrderEmailParserConfirmationTest {
 		// 실제 운영 메일: "결제 수단: Master Card x2218 총 결제 금액: $48.00"
 		String body = "결제 수단: Master Card x2218 총 결제 금액: $48.00 주문 확인 / 관리";
 
-		Optional<OrderEmailParser.IherbConfirmationData> result =
-			parser.parseIherbConfirmation(SUBJECT, body);
+		Optional<OrderEmailParser.IherbConfirmationData> result = parser.parseIherbConfirmation(SUBJECT, body);
 
 		assertThat(result).isPresent();
 		assertThat(result.get().getTotalAmount()).isEqualByComparingTo(new BigDecimal("48.00"));
@@ -124,8 +119,7 @@ class OrderEmailParserConfirmationTest {
 	void usdIsNotSubjectToKrwFloor() {
 		String body = "총 결제 금액: $30.61";
 
-		OrderEmailParser.IherbConfirmationData data =
-			parser.parseIherbConfirmation(SUBJECT, body).get();
+		OrderEmailParser.IherbConfirmationData data = parser.parseIherbConfirmation(SUBJECT, body).get();
 
 		assertThat(data.getTotalAmount()).isEqualByComparingTo(new BigDecimal("30.61"));
 		assertThat(data.getCurrency()).isEqualTo(OrderEmailParser.USD);
@@ -136,8 +130,7 @@ class OrderEmailParserConfirmationTest {
 	void marksKrwDenominatedTotal() {
 		String body = "총 결제 금액 &#8361;45,254";
 
-		OrderEmailParser.IherbConfirmationData data =
-			parser.parseIherbConfirmation(SUBJECT, body).get();
+		OrderEmailParser.IherbConfirmationData data = parser.parseIherbConfirmation(SUBJECT, body).get();
 
 		assertThat(data.getTotalAmount()).isEqualByComparingTo(new BigDecimal("45254"));
 		assertThat(data.getCurrency()).isEqualTo(OrderEmailParser.KRW);
@@ -158,8 +151,7 @@ class OrderEmailParserConfirmationTest {
 		// 숫자가 태그 경계로 쪼개져 "31 ,441" 처럼 평탄화되면 앞 토막만 잡힌다.
 		String body = "<td>총 결제 금액</td><td>&#8361;<span>31</span><span>,441</span></td>";
 
-		Optional<OrderEmailParser.IherbConfirmationData> result =
-			parser.parseIherbConfirmation(SUBJECT, body);
+		Optional<OrderEmailParser.IherbConfirmationData> result = parser.parseIherbConfirmation(SUBJECT, body);
 
 		assertThat(result).isPresent();
 		assertThat(result.get().getTotalAmount()).isNull();
@@ -171,8 +163,7 @@ class OrderEmailParserConfirmationTest {
 		String body = "<td>총 결제 금액</td><td>&#8361;<span>31</span><span>,441</span></td>"
 			+ "<td>합계</td><td>&#8361;31,441</td>";
 
-		Optional<OrderEmailParser.IherbConfirmationData> result =
-			parser.parseIherbConfirmation(SUBJECT, body);
+		Optional<OrderEmailParser.IherbConfirmationData> result = parser.parseIherbConfirmation(SUBJECT, body);
 
 		assertThat(result).isPresent();
 		assertThat(result.get().getTotalAmount()).isEqualByComparingTo(new BigDecimal("31441"));
@@ -183,8 +174,7 @@ class OrderEmailParserConfirmationTest {
 	void extractsAmountFromTertiaryPattern() {
 		String body = "<div>합계 &#8361;45,000</div>";
 
-		Optional<OrderEmailParser.IherbConfirmationData> result =
-			parser.parseIherbConfirmation(SUBJECT, body);
+		Optional<OrderEmailParser.IherbConfirmationData> result = parser.parseIherbConfirmation(SUBJECT, body);
 
 		assertThat(result).isPresent();
 		assertThat(result.get().getTotalAmount()).isEqualByComparingTo(new BigDecimal("45000"));

@@ -26,24 +26,25 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ElevenstMarketClientImagesTest {
 
-    @Mock private ElevenstMarketRestClient restClient;
+	@Mock
+	private ElevenstMarketRestClient restClient;
 
-    private ElevenstMarketClient client;
-    private Map<String, Object> raw;
+	private ElevenstMarketClient client;
+	private Map<String, Object> raw;
 
-    private static final String CURRENT_XML = "<?xml version=\"1.0\" encoding=\"euc-kr\"?>"
-        + "<Product><prdNo>PRD9</prdNo>"
-        + "<prdImage01>http://old/rep.jpg</prdImage01>"
-        + "<htmlDetail><![CDATA[<p>old</p>]]></htmlDetail></Product>";
+	private static final String CURRENT_XML = "<?xml version=\"1.0\" encoding=\"euc-kr\"?>"
+		+ "<Product><prdNo>PRD9</prdNo>"
+		+ "<prdImage01>http://old/rep.jpg</prdImage01>"
+		+ "<htmlDetail><![CDATA[<p>old</p>]]></htmlDetail></Product>";
 
-    @BeforeEach
-    void setUp() {
-        client = new ElevenstMarketClient(restClient);
-        raw = new HashMap<>();
-        raw.put("prdNo", "PRD9");
-    }
+	@BeforeEach
+	void setUp() {
+		client = new ElevenstMarketClient(restClient);
+		raw = new HashMap<>();
+		raw.put("prdNo", "PRD9");
+	}
 
-    @Test
+	@Test
     @DisplayName("성공(resultCode 200) → 상세HTML CDATA 포함 전문 PUT")
     void successPutsUpdatedXmlWithCdata() {
         when(restClient.get(eq("/rest/prodmarketservice/prodmarket/PRD9"))).thenReturn(CURRENT_XML);
@@ -57,7 +58,7 @@ class ElevenstMarketClientImagesTest {
         assertThat(body.getValue()).contains("<![CDATA[<p>hi</p>]]>");
     }
 
-    @Test
+	@Test
     @DisplayName("PUT 실패 응답(200/210 아님) → RuntimeException")
     void errorResponseThrowsRuntimeException() {
         when(restClient.get(eq("/rest/prodmarketservice/prodmarket/PRD9"))).thenReturn(CURRENT_XML);

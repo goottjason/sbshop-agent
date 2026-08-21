@@ -72,7 +72,7 @@ class ActionLogServiceTest {
 		assertThat(service.recentLogs(0, 2)).hasSize(2); // 0~1
 		assertThat(service.recentLogs(1, 2)).hasSize(2); // 2~3
 		assertThat(service.recentLogs(2, 2)).hasSize(1); // 4 (마지막 부분 페이지)
-		assertThat(service.recentLogs(3, 2)).isEmpty();  // 오프셋 초과 → 빈 페이지
+		assertThat(service.recentLogs(3, 2)).isEmpty(); // 오프셋 초과 → 빈 페이지
 	}
 
 	/**

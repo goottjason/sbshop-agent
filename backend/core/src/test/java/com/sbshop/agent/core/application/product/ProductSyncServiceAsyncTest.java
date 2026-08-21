@@ -32,10 +32,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ProductSyncServiceAsyncTest {
 
-	@Mock private ProductRepository productRepository;
-	@Mock private ProductStockCrawlerPort productStockCrawlerPort;
-	@Mock private OrderLineItemRepository orderLineItemRepository;
-	@Mock private ActionLogService actionLogService;
+	@Mock
+	private ProductRepository productRepository;
+	@Mock
+	private ProductStockCrawlerPort productStockCrawlerPort;
+	@Mock
+	private OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private ActionLogService actionLogService;
 
 	private ProductSyncService service;
 

@@ -34,10 +34,8 @@ import lombok.NoArgsConstructor;
  * 마켓이 배송상태를 주지 않으면 비운다. 마켓마다 코드계가 달라 enum으로 묶지 않았다.
  */
 @Entity
-@Table(name = "sb_shipment",
-	uniqueConstraints = @UniqueConstraint(
-		name = "uk_shipment_order_market_no",
-		columnNames = {"order_id", "market_shipment_no"}))
+@Table(name = "sb_shipment", uniqueConstraints = @UniqueConstraint(name = "uk_shipment_order_market_no", columnNames = {
+	"order_id", "market_shipment_no"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Shipment extends BaseEntity {

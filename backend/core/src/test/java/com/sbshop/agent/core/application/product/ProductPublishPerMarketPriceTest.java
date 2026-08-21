@@ -34,15 +34,24 @@ class ProductPublishPerMarketPriceTest {
 
 	private static final Long PRODUCT_ID = 1L;
 
-	@Mock private ProductReader productReader;
-	@Mock private MarketClientRouter marketClientRouter;
-	@Mock private MarketRegistrationTxService registrationTxService;
-	@Mock private ProductSanitizer productSanitizer;
-	@Mock private ProductValidator productValidator;
-	@Mock private MarketSalePriceResolver marketSalePriceResolver;
-	@Mock private MarketClient client;
-	@Mock private Product product;
-	@Mock private MarketRegistration registration;
+	@Mock
+	private ProductReader productReader;
+	@Mock
+	private MarketClientRouter marketClientRouter;
+	@Mock
+	private MarketRegistrationTxService registrationTxService;
+	@Mock
+	private ProductSanitizer productSanitizer;
+	@Mock
+	private ProductValidator productValidator;
+	@Mock
+	private MarketSalePriceResolver marketSalePriceResolver;
+	@Mock
+	private MarketClient client;
+	@Mock
+	private Product product;
+	@Mock
+	private MarketRegistration registration;
 
 	@Test
 	@DisplayName("게시 시 마켓별 산정가를 MarketPublishContext.salePrice로 전달한다")

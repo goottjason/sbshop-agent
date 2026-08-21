@@ -58,8 +58,6 @@ public class DetailHtmlBuilder {
 			.append(esc(body)).append("</div></div>");
 	}
 
-
-
 	/** 크롤한 문자열이 그대로 HTML에 들어가므로 태그 주입을 막는다. */
 	private String esc(String s) {
 		if (s == null)

@@ -301,11 +301,12 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 			String partNumber = root.path("partNumber").asText(null);
 			JsonNode imageIndices = root.path("imageIndices");
 			if (partNumber != null && imageIndices.isArray()) {
-				String brandLike = partNumber.split("-")[0].toLowerCase();   // "-" 앞 첫 segment
+				String brandLike = partNumber.split("-")[0].toLowerCase(); // "-" 앞 첫 segment
 				String part = partNumber.toLowerCase().replace("-", "");
 				int count = 0;
 				for (JsonNode idxNode : imageIndices) {
-					if (count >= 5) break;                                   // 최대 5장(메인1+추가4)
+					if (count >= 5)
+						break; // 최대 5장(메인1+추가4)
 					imageLinks.add(String.format(
 						"https://cloudinary.images-iherb.com/image/upload/f_auto,q_auto:eco/images/%s/%s/l/%d.jpg",
 						brandLike, part, idxNode.asInt()));

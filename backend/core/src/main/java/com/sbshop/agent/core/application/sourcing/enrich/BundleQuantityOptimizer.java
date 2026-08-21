@@ -78,7 +78,7 @@ public class BundleQuantityOptimizer {
 
 	private int weightCap(Double unitWeightG) {
 		if (unitWeightG == null || unitWeightG <= 0)
-			return MAX_BUNDLE;   // 무게 불명이면 제한하지 않는다(일반 상한만 적용)
+			return MAX_BUNDLE; // 무게 불명이면 제한하지 않는다(일반 상한만 적용)
 		return (int)Math.max(1, Math.floor(MAX_TOTAL_WEIGHT_G / unitWeightG));
 	}
 

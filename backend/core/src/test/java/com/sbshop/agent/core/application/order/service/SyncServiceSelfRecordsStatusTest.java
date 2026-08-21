@@ -34,12 +34,18 @@ import org.springframework.context.ApplicationEventPublisher;
 @ExtendWith(MockitoExtension.class)
 class SyncServiceSelfRecordsStatusTest {
 
-	@Mock private Cafe24OrderApiPort cafe24OrderApiPort;
-	@Mock private OrderRepository orderRepository;
-	@Mock private OrderLineItemRepository orderLineItemRepository;
-	@Mock private MarketRegistrationRepository marketRegistrationRepository;
-	@Mock private ApplicationEventPublisher eventPublisher;
-	@Mock private SyncStatusService syncStatusService;
+	@Mock
+	private Cafe24OrderApiPort cafe24OrderApiPort;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+	@Mock
+	private SyncStatusService syncStatusService;
 
 	// 코드 기본요율(빈 정책 폴백)로 정산액을 계산하도록 실제 인스턴스 사용
 	private final MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
@@ -50,7 +56,8 @@ class SyncServiceSelfRecordsStatusTest {
 	void setUp() {
 		service = new Cafe24OrderSyncService(cafe24OrderApiPort, orderRepository,
 			orderLineItemRepository, marketRegistrationRepository, eventPublisher, syncStatusService,
-			marketFeeService, org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
+			marketFeeService,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
 			org.mockito.Mockito.mock(Cafe24ShipmentTrackingLookup.class),
 			// 4단계: 3계층 반영 골격. 이 테스트들은 라인아이템 반영을 검증하지 않으므로 목으로 둔다.
 			org.mockito.Mockito.mock(MarketLineItemSyncDispatcher.class));

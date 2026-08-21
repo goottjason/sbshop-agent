@@ -37,7 +37,7 @@ class MarketTrackingBackfillServiceTest {
 		elevenst = mock(ElevenstOrderSyncService.class);
 		cafe24 = mock(Cafe24OrderSyncService.class);
 		service = new MarketTrackingBackfillService(coupang, smartStore, elevenst, cafe24);
-		service.pauseBetweenWindowsMs = 0;   // 페이싱은 운영 값이고, 여기서 검증하는 계약은 구간 분할이다
+		service.pauseBetweenWindowsMs = 0; // 페이싱은 운영 값이고, 여기서 검증하는 계약은 구간 분할이다
 	}
 
 	private List<Long> windowLengths(ArgumentCaptor<LocalDate> from, ArgumentCaptor<LocalDate> to) {
@@ -112,9 +112,12 @@ class MarketTrackingBackfillServiceTest {
 
 		service.backfill(60);
 
-		verify(smartStore, org.mockito.Mockito.atLeastOnce()).syncSmartStoreOrders(any(), any(), org.mockito.ArgumentMatchers.eq(false));
-		verify(elevenst, org.mockito.Mockito.atLeastOnce()).syncElevenstOrders(any(), any(), org.mockito.ArgumentMatchers.eq(false));
-		verify(cafe24, org.mockito.Mockito.atLeastOnce()).syncCafe24Orders(any(), any(), org.mockito.ArgumentMatchers.eq(false));
+		verify(smartStore, org.mockito.Mockito.atLeastOnce()).syncSmartStoreOrders(any(), any(),
+			org.mockito.ArgumentMatchers.eq(false));
+		verify(elevenst, org.mockito.Mockito.atLeastOnce()).syncElevenstOrders(any(), any(),
+			org.mockito.ArgumentMatchers.eq(false));
+		verify(cafe24, org.mockito.Mockito.atLeastOnce()).syncCafe24Orders(any(), any(),
+			org.mockito.ArgumentMatchers.eq(false));
 	}
 
 	@Test
@@ -126,6 +129,7 @@ class MarketTrackingBackfillServiceTest {
 
 		service.backfill(90);
 
-		verify(smartStore, org.mockito.Mockito.atLeast(2)).syncSmartStoreOrders(any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+		verify(smartStore, org.mockito.Mockito.atLeast(2)).syncSmartStoreOrders(any(), any(),
+			org.mockito.ArgumentMatchers.anyBoolean());
 	}
 }

@@ -37,14 +37,13 @@ class CoupangOrderAdapterCarrierCodeTest {
 		when(regRepo.findByProductIdAndMarketType(any(), any())).thenReturn(Optional.of(reg));
 
 		// 6단계: 배송박스번호는 배송에서만 온다(주문 컬럼 폴백 제거) — 라인아이템이 속한 배송을 끼운다.
-		com.sbshop.agent.core.domain.order.repository.ShipmentRepository shipmentRepo =
-			mock(com.sbshop.agent.core.domain.order.repository.ShipmentRepository.class);
+		com.sbshop.agent.core.domain.order.repository.ShipmentRepository shipmentRepo = mock(
+			com.sbshop.agent.core.domain.order.repository.ShipmentRepository.class);
 		when(shipmentRepo.findById(900L)).thenReturn(Optional.of(
 			com.sbshop.agent.core.domain.order.Shipment.builder()
 				.orderId(1L).marketShipmentNo("708248067784723").build()));
 
-		CoupangOrderAdapter adapter =
-			new CoupangOrderAdapter(apiPort, null, null, null, regRepo, shipmentRepo);
+		CoupangOrderAdapter adapter = new CoupangOrderAdapter(apiPort, null, null, null, regRepo, shipmentRepo);
 
 		MarketCredential cred = MarketCredential.builder()
 			.marketType(MarketType.COUPANG).clientId("vendorX").build();
@@ -59,8 +58,7 @@ class CoupangOrderAdapterCarrierCodeTest {
 		adapter.updateTracking(cred, order, item, "315398790560", ShippingCarrier.LOTTE_LOGISTICS);
 
 		// then
-		ArgumentCaptor<CoupangUpdateInvoiceRequest> captor =
-			ArgumentCaptor.forClass(CoupangUpdateInvoiceRequest.class);
+		ArgumentCaptor<CoupangUpdateInvoiceRequest> captor = ArgumentCaptor.forClass(CoupangUpdateInvoiceRequest.class);
 		verify(apiPort).updateTracking(any(), captor.capture());
 		String code = captor.getValue().orderSheetInvoiceApplyDtos().get(0).deliveryCompanyCode();
 		assertThat(code).isEqualTo("HYUNDAI");

@@ -25,9 +25,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SmartstoreSellerDiscountRemovalServiceTest {
 
-	@Mock private MarketRegistrationRepository marketRegistrationRepository;
-	@Mock private MarketClientRouter marketClientRouter;
-	@Mock private MarketClient smartstoreClient;
+	@Mock
+	private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private MarketClientRouter marketClientRouter;
+	@Mock
+	private MarketClient smartstoreClient;
 
 	private SmartstoreSellerDiscountRemovalService service;
 

@@ -15,7 +15,6 @@ import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
-import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
@@ -251,8 +250,7 @@ public class Cafe24OrderSyncService {
 	 * 여기서는 <b>배송·상품주문 계층</b>만 담는다.
 	 */
 	private MarketOrderDto toNestedDto(JsonNode o, Order order, MarketType marketType) {
-		List<MarketShipmentDto> shipments =
-			Cafe24LineItemMapper.toShipments(o, order.getMarketOrderNo());
+		List<MarketShipmentDto> shipments = Cafe24LineItemMapper.toShipments(o, order.getMarketOrderNo());
 		enrichTrackingFromShipmentList(shipments, order.getCafe24OrderId());
 
 		return MarketOrderDto.builder()
@@ -317,8 +315,7 @@ public class Cafe24OrderSyncService {
 		@Override
 		public OrderLineItem createLineItem(MarketLineItemDto dto, Long orderId, Long productId) {
 			// Cafe24는 G마켓/옥션 주문의 동기화 매개체 — 요율은 세 마켓 동일(18%)이라 CAFE24 기준 1회 적용.
-			BigDecimal settlement =
-				marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.CAFE24);
+			BigDecimal settlement = marketFeeService.settlementAmount(dto.getTotalAmount(), MarketType.CAFE24);
 			return OrderLineItem.builder()
 				.orderId(orderId)
 				.productId(productId)

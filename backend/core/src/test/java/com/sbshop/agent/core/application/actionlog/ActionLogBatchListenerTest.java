@@ -14,7 +14,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ActionLogBatchListenerTest {
 
-	@Mock ActionLogService actionLogService;
+	@Mock
+	ActionLogService actionLogService;
 
 	@Test
 	@DisplayName("배치 성공 이벤트를 SUCCESS 활동로그로 기록한다")

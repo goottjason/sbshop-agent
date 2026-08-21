@@ -24,11 +24,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class DashboardServiceTest {
 
-	@Mock DashboardRepository repo;
+	@Mock
+	DashboardRepository repo;
 	DashboardService service;
 
 	@BeforeEach
-	void setUp() { service = new DashboardService(repo); }
+	void setUp() {
+		service = new DashboardService(repo);
+	}
 
 	private AggRow row(long orderId, String date, MarketType mk, ShippingStatus st,
 		long settle, long src, long logi, String sb) {

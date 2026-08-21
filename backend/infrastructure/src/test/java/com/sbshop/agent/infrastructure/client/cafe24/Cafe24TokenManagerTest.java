@@ -23,12 +23,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class Cafe24TokenManagerTest {
 
-	@Mock MarketCredentialRepository repo;
-	@Mock Cafe24OAuthTokenClient tokenClient;
+	@Mock
+	MarketCredentialRepository repo;
+	@Mock
+	Cafe24OAuthTokenClient tokenClient;
 
 	/** action을 즉시 실행하는(직렬화만 흉내) fake lock. */
 	static final TokenRefreshLock DIRECT_LOCK = new TokenRefreshLock() {
-		@Override public <T> T runExclusively(long key, Supplier<T> action) {
+		@Override
+		public <T> T runExclusively(long key, Supplier<T> action) {
 			return action.get();
 		}
 	};

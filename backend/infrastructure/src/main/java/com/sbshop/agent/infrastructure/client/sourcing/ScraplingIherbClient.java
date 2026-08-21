@@ -48,7 +48,8 @@ public class ScraplingIherbClient implements BestsellerCrawlerPort, ProductDetai
 	private final String baseUrl;
 
 	public ScraplingIherbClient(ObjectMapper objectMapper,
-		@Value("${scraper.base-url:http://localhost:8099}") String baseUrl) {
+		@Value("${scraper.base-url:http://localhost:8099}")
+		String baseUrl) {
 		this.objectMapper = objectMapper;
 		this.baseUrl = baseUrl;
 	}

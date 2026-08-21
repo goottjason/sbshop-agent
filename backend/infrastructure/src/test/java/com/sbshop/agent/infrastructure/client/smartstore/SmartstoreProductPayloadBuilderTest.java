@@ -80,8 +80,8 @@ class SmartstoreProductPayloadBuilderTest {
 		Map<String, Object> body = builder.build(product(), context());
 
 		assertThat(body).containsKey("smartstoreChannelProduct");
-		@SuppressWarnings("unchecked")
-		Map<String, Object> channel = (Map<String, Object>)body.get("smartstoreChannelProduct");
+		@SuppressWarnings("unchecked") Map<String, Object> channel = (Map<String, Object>)body
+			.get("smartstoreChannelProduct");
 		assertThat(channel.get("channelProductDisplayStatusType")).isEqualTo("ON");
 		assertThat(channel.get("naverShoppingRegistration")).isEqualTo(true);
 	}
@@ -91,10 +91,9 @@ class SmartstoreProductPayloadBuilderTest {
 	void includesClaimDeliveryInfo() {
 		Map<String, Object> origin = originProduct(builder.build(product(), context()));
 
-		@SuppressWarnings("unchecked")
-		Map<String, Object> delivery = (Map<String, Object>)origin.get("deliveryInfo");
-		@SuppressWarnings("unchecked")
-		Map<String, Object> claim = (Map<String, Object>)delivery.get("claimDeliveryInfo");
+		@SuppressWarnings("unchecked") Map<String, Object> delivery = (Map<String, Object>)origin.get("deliveryInfo");
+		@SuppressWarnings("unchecked") Map<String, Object> claim = (Map<String, Object>)delivery
+			.get("claimDeliveryInfo");
 
 		assertThat(claim.get("returnDeliveryFee")).isEqualTo(7000);
 		assertThat(claim.get("exchangeDeliveryFee")).isEqualTo(14000);
@@ -108,17 +107,15 @@ class SmartstoreProductPayloadBuilderTest {
 	void includesDetailAttribute() {
 		Map<String, Object> origin = originProduct(builder.build(product(), context()));
 
-		@SuppressWarnings("unchecked")
-		Map<String, Object> attr = (Map<String, Object>)origin.get("detailAttribute");
+		@SuppressWarnings("unchecked") Map<String, Object> attr = (Map<String, Object>)origin.get("detailAttribute");
 		assertThat(attr).containsKeys("afterServiceInfo", "originAreaInfo",
 			"productInfoProvidedNotice", "sellerCodeInfo", "minorPurchasable");
 
-		@SuppressWarnings("unchecked")
-		Map<String, Object> as = (Map<String, Object>)attr.get("afterServiceInfo");
+		@SuppressWarnings("unchecked") Map<String, Object> as = (Map<String, Object>)attr.get("afterServiceInfo");
 		assertThat(as.get("afterServiceTelephoneNumber")).isEqualTo("010-2597-2480");
 
-		@SuppressWarnings("unchecked")
-		Map<String, Object> notice = (Map<String, Object>)attr.get("productInfoProvidedNotice");
+		@SuppressWarnings("unchecked") Map<String, Object> notice = (Map<String, Object>)attr
+			.get("productInfoProvidedNotice");
 		assertThat(notice.get("productInfoProvidedNoticeType")).isEqualTo("HEALTH_FUNCTIONAL_FOOD");
 		assertThat(notice).containsKey("healthFunctionalFood");
 	}
@@ -128,8 +125,7 @@ class SmartstoreProductPayloadBuilderTest {
 	void representativeImageIsObject() {
 		Map<String, Object> origin = originProduct(builder.build(product(), context()));
 
-		@SuppressWarnings("unchecked")
-		Map<String, Object> images = (Map<String, Object>)origin.get("images");
+		@SuppressWarnings("unchecked") Map<String, Object> images = (Map<String, Object>)origin.get("images");
 		assertThat(images.get("representativeImage")).isInstanceOf(Map.class);
 		assertThat(images).containsKey("optionalImages");
 	}

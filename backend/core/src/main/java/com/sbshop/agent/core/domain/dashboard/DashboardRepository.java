@@ -8,8 +8,12 @@ import java.util.List;
 
 public interface DashboardRepository {
 	List<AggRow> findRowsBetween(LocalDateTime start, LocalDateTime end);
+
 	int countByShippingStatusIn(List<ShippingStatus> statuses);
+
 	int countCustomsIssue(List<CustomsStatus> statuses);
+
 	int countOutOfStock();
+
 	int countDelayed(LocalDateTime newOnOrBefore, LocalDateTime preparingOnOrBefore);
 }

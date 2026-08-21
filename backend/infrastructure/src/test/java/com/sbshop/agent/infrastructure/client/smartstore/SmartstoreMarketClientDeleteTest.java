@@ -22,35 +22,36 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SmartstoreMarketClientDeleteTest {
 
-    @Mock private SmartstoreRestClient restClient;
+	@Mock
+	private SmartstoreRestClient restClient;
 
-    private SmartstoreMarketClient client;
+	private SmartstoreMarketClient client;
 
-    private static final String ORIGIN_PRODUCT_NO = "OP123";
+	private static final String ORIGIN_PRODUCT_NO = "OP123";
 
-    @BeforeEach
-    void setUp() {
-        client = new SmartstoreMarketClient(
-            // 신규 등록(publish) 전용 협력자 — 이 테스트가 검증하는 경로에서는 호출되지 않는다.
-            null, null, null, null,
-            restClient, new ObjectMapper());
-    }
+	@BeforeEach
+	void setUp() {
+		client = new SmartstoreMarketClient(
+			// 신규 등록(publish) 전용 협력자 — 이 테스트가 검증하는 경로에서는 호출되지 않는다.
+			null, null, null, null,
+			restClient, new ObjectMapper());
+	}
 
-    @Test
-    @DisplayName("deleteFromMarket → DELETE /v2/products/origin-products/{originProductNo} 호출")
-    void deleteCallsOriginProductDeleteEndpoint() {
-        client.deleteFromMarket(ORIGIN_PRODUCT_NO);
+	@Test
+	@DisplayName("deleteFromMarket → DELETE /v2/products/origin-products/{originProductNo} 호출")
+	void deleteCallsOriginProductDeleteEndpoint() {
+		client.deleteFromMarket(ORIGIN_PRODUCT_NO);
 
-        verify(restClient).delete("/v2/products/origin-products/" + ORIGIN_PRODUCT_NO);
-    }
+		verify(restClient).delete("/v2/products/origin-products/" + ORIGIN_PRODUCT_NO);
+	}
 
-    @Test
-    @DisplayName("삭제 API 오류(주문이력 등 하드삭제 거부) 시 예외 전파")
-    void deletePropagatesExceptionOnFailure() {
-        doThrow(new RuntimeException("Smartstore API 호출 실패"))
-            .when(restClient).delete("/v2/products/origin-products/" + ORIGIN_PRODUCT_NO);
+	@Test
+	@DisplayName("삭제 API 오류(주문이력 등 하드삭제 거부) 시 예외 전파")
+	void deletePropagatesExceptionOnFailure() {
+		doThrow(new RuntimeException("Smartstore API 호출 실패"))
+			.when(restClient).delete("/v2/products/origin-products/" + ORIGIN_PRODUCT_NO);
 
-        assertThatThrownBy(() -> client.deleteFromMarket(ORIGIN_PRODUCT_NO))
-            .isInstanceOf(RuntimeException.class);
-    }
+		assertThatThrownBy(() -> client.deleteFromMarket(ORIGIN_PRODUCT_NO))
+			.isInstanceOf(RuntimeException.class);
+	}
 }

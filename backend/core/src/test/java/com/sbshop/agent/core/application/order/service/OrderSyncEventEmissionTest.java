@@ -145,7 +145,8 @@ class OrderSyncEventEmissionTest {
 		when(smartStoreOrderAdapter.fetchOrders(any(), any(), any())).thenReturn(List.of());
 		SmartStoreOrderSyncService service = new SmartStoreOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, smartStoreOrderAdapter, syncStatusService, marketFeeService, org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
+			eventPublisher, smartStoreOrderAdapter, syncStatusService, marketFeeService,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
 			// 이 테스트는 주문 계층(자격정보·이벤트·주소 보호)만 검증한다 — 라인아이템 반영은 범위 밖이라 골격을 목으로 둔다.
 			org.mockito.Mockito.mock(MarketLineItemSyncDispatcher.class));
 

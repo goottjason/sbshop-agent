@@ -1,7 +1,6 @@
 package com.sbshop.agent.core.application.order.service;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -49,19 +48,32 @@ import com.sbshop.agent.core.domain.product.ProductRepository;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class CoupangCancelDetectionScopeTest {
 
-	@Mock private MarketCredentialRepository credentialRepository;
-	@Mock private OrderRepository orderRepository;
-	@Mock private OrderLineItemRepository orderLineItemRepository;
-	@Mock private ProductRepository productRepository;
-	@Mock private MarketRegistrationRepository marketRegistrationRepository;
-	@Mock private ApplicationEventPublisher eventPublisher;
-	@Mock private CoupangOrderAdapter adapter;
-	@Mock private com.sbshop.agent.core.application.order.mapper.CoupangStatusMapper statusMapper;
-	@Mock private SyncStatusService syncStatusService;
-	@Mock private MarketFeeService marketFeeService;
-	@Mock private TerminalSettlementService terminalSettlementService;
-	@Mock private ActionLogService actionLogService;
-	@Mock private MarketLineItemSyncDispatcher lineItemSyncDispatcher;
+	@Mock
+	private MarketCredentialRepository credentialRepository;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private ProductRepository productRepository;
+	@Mock
+	private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+	@Mock
+	private CoupangOrderAdapter adapter;
+	@Mock
+	private com.sbshop.agent.core.application.order.mapper.CoupangStatusMapper statusMapper;
+	@Mock
+	private SyncStatusService syncStatusService;
+	@Mock
+	private MarketFeeService marketFeeService;
+	@Mock
+	private TerminalSettlementService terminalSettlementService;
+	@Mock
+	private ActionLogService actionLogService;
+	@Mock
+	private MarketLineItemSyncDispatcher lineItemSyncDispatcher;
 
 	private CoupangOrderSyncService service;
 

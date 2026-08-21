@@ -32,11 +32,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ProductSourcingControllerPriceOverrideTest {
 
-	@Mock private ProductSourcingUseCase productSourcingUseCase;
-	@Mock private ProductCreateUseCase productCreateUseCase;
-	@Mock private ProductPublishUseCase productPublishUseCase;
-	@Mock private MarketRegistrationRepository marketRegistrationRepository;
-	@Mock private ActionLogService actionLogService;
+	@Mock
+	private ProductSourcingUseCase productSourcingUseCase;
+	@Mock
+	private ProductCreateUseCase productCreateUseCase;
+	@Mock
+	private ProductPublishUseCase productPublishUseCase;
+	@Mock
+	private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private ActionLogService actionLogService;
 
 	private ProductSourcingController controller() {
 		return new ProductSourcingController(productSourcingUseCase, productCreateUseCase,
@@ -47,8 +52,8 @@ class ProductSourcingControllerPriceOverrideTest {
 	@DisplayName("가격 바디가 있으면 오버라이드로 변환해 UseCase에 넘긴다")
 	void publishToMarket_withPriceBody_passesOverrides() {
 		Long productId = 1L;
-		MarketPublishPriceRequest body =
-			new MarketPublishPriceRequest(new BigDecimal("15"), new BigDecimal("20"), new BigDecimal("5000"));
+		MarketPublishPriceRequest body = new MarketPublishPriceRequest(new BigDecimal("15"), new BigDecimal("20"),
+			new BigDecimal("5000"));
 		when(productPublishUseCase.publishToMarket(eq(productId), eq(MarketType.ELEVEN_STREET), any()))
 			.thenReturn(new MarketPublishOutcome(MarketType.ELEVEN_STREET, Map.of("elevenstId", "1"), true));
 		when(marketRegistrationRepository.findByProductIdAndMarketType(productId, MarketType.ELEVEN_STREET))

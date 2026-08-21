@@ -58,11 +58,16 @@ class CoupangThreeTierFetchTest {
 
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
-	@Mock private CoupangOrderApiPort api;
-	@Mock private OrderRepository orderRepository;
-	@Mock private OrderLineItemRepository orderLineItemRepository;
-	@Mock private ShipmentRepository shipmentRepository;
-	@Mock private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private CoupangOrderApiPort api;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private ShipmentRepository shipmentRepository;
+	@Mock
+	private MarketRegistrationRepository marketRegistrationRepository;
 
 	private final CoupangStatusMapper statusMapper = new CoupangStatusMapper();
 
@@ -111,7 +116,7 @@ class CoupangThreeTierFetchTest {
 				.append(",\"vendorItemName\":\"").append(items[i + 3]).append('"')
 				.append(",\"shippingCount\":").append(items[i + 4])
 				.append(",\"orderPrice\":").append(items[i + 5])
-				.append(",\"canceled\":false")  // 취소 케이스는 별도 테스트가 원문 JSON으로 만든다
+				.append(",\"canceled\":false") // 취소 케이스는 별도 테스트가 원문 JSON으로 만든다
 				.append('}');
 		}
 		sb.append("]}");

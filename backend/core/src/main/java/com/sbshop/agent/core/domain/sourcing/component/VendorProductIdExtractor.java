@@ -22,8 +22,7 @@ public final class VendorProductIdExtractor {
 
 	private static final Pattern IHERB_ID = Pattern.compile("/(?:pr/[^/]+|product)/(\\d+)");
 
-	private VendorProductIdExtractor() {
-	}
+	private VendorProductIdExtractor() {}
 
 	/** iHerb 상품 ID. 뽑을 수 없으면 null. */
 	public static String iherbId(String url) {

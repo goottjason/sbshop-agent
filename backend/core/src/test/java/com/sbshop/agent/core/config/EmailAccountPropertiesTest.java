@@ -29,8 +29,7 @@ class EmailAccountPropertiesTest {
 		@Test
 		@DisplayName("user:pass 한 쌍이면 Gmail 기본값(imap.gmail.com/993/imaps)으로 계정 1개")
 		void singlePairUsesGmailDefaults() {
-			List<Account> result =
-				EmailAccountProperties.parseCompactAccounts("central@gmail.com:abcdefghijklmnop");
+			List<Account> result = EmailAccountProperties.parseCompactAccounts("central@gmail.com:abcdefghijklmnop");
 
 			assertThat(result).hasSize(1);
 			Account a = result.get(0);
@@ -54,8 +53,7 @@ class EmailAccountPropertiesTest {
 		@Test
 		@DisplayName("공백 포함 앱 비밀번호(구글 표기)를 그대로 보존")
 		void preservesSpacedAppPassword() {
-			List<Account> result =
-				EmailAccountProperties.parseCompactAccounts("spaced@gmail.com:abcd efgh ijkl mnop");
+			List<Account> result = EmailAccountProperties.parseCompactAccounts("spaced@gmail.com:abcd efgh ijkl mnop");
 
 			assertThat(result).hasSize(1);
 			assertThat(result.get(0).getPassword()).isEqualTo("abcd efgh ijkl mnop");
@@ -74,8 +72,7 @@ class EmailAccountPropertiesTest {
 		@Test
 		@DisplayName("username·구분자 주변 공백은 트림")
 		void trimsWhitespace() {
-			List<Account> result =
-				EmailAccountProperties.parseCompactAccounts("  a@gmail.com : pw1  ");
+			List<Account> result = EmailAccountProperties.parseCompactAccounts("  a@gmail.com : pw1  ");
 
 			assertThat(result).hasSize(1);
 			assertThat(result.get(0).getUsername()).isEqualTo("a@gmail.com");

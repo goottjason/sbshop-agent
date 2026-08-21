@@ -35,7 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
 @ExtendWith(MockitoExtension.class)
 class OrderShipTransactionBoundaryTest {
 
-	@Mock private OrderShipProcessor orderShipProcessor;
+	@Mock
+	private OrderShipProcessor orderShipProcessor;
 
 	private OrderShipService service() {
 		return new OrderShipService(orderShipProcessor);

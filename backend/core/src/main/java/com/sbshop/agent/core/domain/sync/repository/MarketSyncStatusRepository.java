@@ -18,5 +18,6 @@ public interface MarketSyncStatusRepository extends JpaRepository<MarketSyncStat
 	@Modifying(clearAutomatically = true)
 	@Query("UPDATE MarketSyncStatus e SET e.syncStatus = 'RUNNING', e.errorMessage = null "
 		+ "WHERE e.marketType = :marketType AND e.syncStatus <> 'RUNNING'")
-	int claimRunning(@Param("marketType") String marketType);
+	int claimRunning(@Param("marketType")
+	String marketType);
 }

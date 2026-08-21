@@ -29,8 +29,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SupplierServiceTest {
 
-	@Mock private SupplierRepository supplierRepository;
-	@Mock private CurrencyRepository currencyRepository;
+	@Mock
+	private SupplierRepository supplierRepository;
+	@Mock
+	private CurrencyRepository currencyRepository;
 
 	private SupplierService service() {
 		return new SupplierService(supplierRepository, currencyRepository);

@@ -50,7 +50,6 @@ public class MarketOrderDto {
 	private ShippingStatus status;
 	private LocalDateTime orderDate;
 
-
 	private Map<String, Object> marketSpecificData;
 
 	/**

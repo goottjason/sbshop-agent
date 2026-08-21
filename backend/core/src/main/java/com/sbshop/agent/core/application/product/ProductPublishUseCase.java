@@ -77,8 +77,8 @@ public class ProductPublishUseCase {
 		MarketClient client = marketClientRouter.getClient(marketType);
 
 		// 1) 외부 게시 전에 PENDING 등록행을 먼저 커밋해 상태를 확보한다(별도 트랜잭션).
-		MarketRegistration registration =
-			registrationTxService.savePending(productId, marketType, product.getProductName());
+		MarketRegistration registration = registrationTxService.savePending(productId, marketType,
+			product.getProductName());
 
 		// 2) 되돌릴 수 없는 외부 게시 — 트랜잭션 밖에서 호출.
 		//    D-094: 등록 순간부터 그 마켓의 실수수료 반영가로 올린다. 기준가(쿠팡 기준)로 올리면

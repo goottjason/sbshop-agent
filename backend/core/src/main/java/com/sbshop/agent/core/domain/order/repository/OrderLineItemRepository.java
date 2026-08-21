@@ -36,7 +36,8 @@ public interface OrderLineItemRepository extends JpaRepository<OrderLineItem, Lo
 		GROUP BY p.brand
 		""")
 	List<Object[]> aggregateBrandSalesSince(
-		@org.springframework.data.repository.query.Param("since") java.time.LocalDateTime since);
+		@org.springframework.data.repository.query.Param("since")
+		java.time.LocalDateTime since);
 
 	/**
 	 * 최근 판매 실적을 상품 카테고리별로 집계한다.
@@ -51,5 +52,6 @@ public interface OrderLineItemRepository extends JpaRepository<OrderLineItem, Lo
 		GROUP BY p.category
 		""")
 	List<Object[]> aggregateCategorySalesSince(
-		@org.springframework.data.repository.query.Param("since") java.time.LocalDateTime since);
+		@org.springframework.data.repository.query.Param("since")
+		java.time.LocalDateTime since);
 }

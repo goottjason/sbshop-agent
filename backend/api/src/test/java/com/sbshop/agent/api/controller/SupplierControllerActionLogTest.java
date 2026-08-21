@@ -29,8 +29,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SupplierControllerActionLogTest {
 
-	@Mock private SupplierService supplierService;
-	@Mock private ActionLogService actionLogService;
+	@Mock
+	private SupplierService supplierService;
+	@Mock
+	private ActionLogService actionLogService;
 
 	private SupplierController controller() {
 		return new SupplierController(supplierService, actionLogService);

@@ -22,34 +22,37 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class Cafe24MarketClientDeleteTest {
 
-    @Mock private Cafe24RestClient cafe24RestClient;
-    @Mock private HtmlImageExtractor imageExtractor;
-    @Mock private Cafe24CategoryResolver categoryResolver;
+	@Mock
+	private Cafe24RestClient cafe24RestClient;
+	@Mock
+	private HtmlImageExtractor imageExtractor;
+	@Mock
+	private Cafe24CategoryResolver categoryResolver;
 
-    private Cafe24MarketClient client;
+	private Cafe24MarketClient client;
 
-    private static final String PRODUCT_NO = "12345";
+	private static final String PRODUCT_NO = "12345";
 
-    @BeforeEach
-    void setUp() {
-        client = new Cafe24MarketClient(new ObjectMapper(), cafe24RestClient, imageExtractor, categoryResolver);
-    }
+	@BeforeEach
+	void setUp() {
+		client = new Cafe24MarketClient(new ObjectMapper(), cafe24RestClient, imageExtractor, categoryResolver);
+	}
 
-    @Test
-    @DisplayName("deleteFromMarket → DELETE /admin/products/{product_no} 호출")
-    void deleteFromMarketCallsCorrectPath() {
-        client.deleteFromMarket(PRODUCT_NO);
+	@Test
+	@DisplayName("deleteFromMarket → DELETE /admin/products/{product_no} 호출")
+	void deleteFromMarketCallsCorrectPath() {
+		client.deleteFromMarket(PRODUCT_NO);
 
-        verify(cafe24RestClient).delete("/admin/products/" + PRODUCT_NO);
-    }
+		verify(cafe24RestClient).delete("/admin/products/" + PRODUCT_NO);
+	}
 
-    @Test
-    @DisplayName("Cafe24 삭제 API 오류 시 예외 전파")
-    void deleteFromMarketPropagatesError() {
-        doThrow(new RuntimeException("Cafe24 API DELETE 호출 실패"))
-            .when(cafe24RestClient).delete("/admin/products/" + PRODUCT_NO);
+	@Test
+	@DisplayName("Cafe24 삭제 API 오류 시 예외 전파")
+	void deleteFromMarketPropagatesError() {
+		doThrow(new RuntimeException("Cafe24 API DELETE 호출 실패"))
+			.when(cafe24RestClient).delete("/admin/products/" + PRODUCT_NO);
 
-        assertThatThrownBy(() -> client.deleteFromMarket(PRODUCT_NO))
-            .isInstanceOf(RuntimeException.class);
-    }
+		assertThatThrownBy(() -> client.deleteFromMarket(PRODUCT_NO))
+			.isInstanceOf(RuntimeException.class);
+	}
 }

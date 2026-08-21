@@ -94,7 +94,8 @@ public class ProductController {
 		// D-047: 페이지 상품 전체의 마켓 등록정보를 한 번에 배치 조회(N+1 제거).
 		Map<Long, List<MarketRegistration>> registrationsByProduct = loadRegistrations(products.getContent());
 		return ResponseEntity.ok(products.map(
-			p -> ProductListResponse.from(p, buildMarketMap(registrationsByProduct.getOrDefault(p.getId(), List.of())))));
+			p -> ProductListResponse.from(p,
+				buildMarketMap(registrationsByProduct.getOrDefault(p.getId(), List.of())))));
 	}
 
 	@GetMapping("/{id}")
@@ -118,8 +119,8 @@ public class ProductController {
 		}
 		try {
 			// F-PROD-7: soldOut을 nullable 그대로 전달 — null이면 재고상태 미변경(판매재개 오전파 방지).
-			MarketRepublishResult result =
-				productManageUseCase.updatePriceStock(id, request.price(), request.soldOut());
+			MarketRepublishResult result = productManageUseCase.updatePriceStock(id, request.price(),
+				request.soldOut());
 			actionLogService.record(ActionLogConstants.PRODUCT_PRICE_STOCK_UPDATE, null,
 				ActionStatus.SUCCESS, buildMarketResultMessage(id, "DB 저장 완료", result));
 			return ResponseEntity.ok(result);
@@ -185,7 +186,8 @@ public class ProductController {
 	}
 
 	@PostMapping("/{id}/images/crawl-and-upload")
-	public ResponseEntity<ImageUploadResponse> crawlAndUpload(@PathVariable Long id) {
+	public ResponseEntity<ImageUploadResponse> crawlAndUpload(@PathVariable
+	Long id) {
 		// F-PROD-19: 크롤 앞단은 crawlSourceImageUrls로 공유. F-PROD-20: 뒷단(업로드→집계→응답)은
 		// uploadPreparedImages로 공유. crawl-and-upload 고유 부분(빈 URL/빈 결과 처리)만 여기 남긴다.
 		// 동작 보존: 크롤·다운로드·저장 어느 단계에서 실패하든 SOURCE_IMAGE_CRAWL FAILED 로그를 정확히

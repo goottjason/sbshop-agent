@@ -18,8 +18,7 @@ import java.util.List;
  */
 public final class SourcingDtos {
 
-	private SourcingDtos() {
-	}
+	private SourcingDtos() {}
 
 	// ── 후보 ────────────────────────────────────────────────────────────────
 

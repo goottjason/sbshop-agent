@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -63,17 +62,28 @@ class ElevenstThreeTierSyncTest {
 
 	private static final String ORD_NO = "20260731088778989";
 
-	@Mock private MarketCredentialRepository credentialRepository;
-	@Mock private OrderRepository orderRepository;
-	@Mock private OrderLineItemRepository orderLineItemRepository;
-	@Mock private ShipmentRepository shipmentRepository;
-	@Mock private ProductRepository productRepository;
-	@Mock private ApplicationEventPublisher eventPublisher;
-	@Mock private ElevenstOrderAdapter adapter;
-	@Mock private SyncStatusService syncStatusService;
-	@Mock private MarketFeeService marketFeeService;
-	@Mock private TerminalSettlementService terminalSettlementService;
-	@Mock private com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private MarketCredentialRepository credentialRepository;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private ShipmentRepository shipmentRepository;
+	@Mock
+	private ProductRepository productRepository;
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+	@Mock
+	private ElevenstOrderAdapter adapter;
+	@Mock
+	private SyncStatusService syncStatusService;
+	@Mock
+	private MarketFeeService marketFeeService;
+	@Mock
+	private TerminalSettlementService terminalSettlementService;
+	@Mock
+	private com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository marketRegistrationRepository;
 
 	private ElevenstOrderSyncService service;
 
@@ -86,7 +96,7 @@ class ElevenstThreeTierSyncTest {
 	void setUp() {
 		// 골격은 진짜 객체를 끼운다 — 목이면 반영이 사라져 검증이 통과해도 아무것도 증명하지 못한다.
 		MarketLineItemSyncDispatcher syncDispatcher = new MarketLineItemSyncDispatcher(orderLineItemRepository,
-				new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
+			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
 		service = new ElevenstOrderSyncService(credentialRepository, orderRepository,
 			orderLineItemRepository, productRepository, eventPublisher, adapter,
 			syncStatusService, marketFeeService, terminalSettlementService, syncDispatcher,
@@ -127,7 +137,7 @@ class ElevenstThreeTierSyncTest {
 		when(orderLineItemRepository.findByShipmentId(anyLong())).thenReturn(List.of());
 		when(marketFeeService.settlementAmount(any(), any()))
 			.thenAnswer(inv -> inv.getArgument(0) == null ? BigDecimal.ZERO
-				: ((BigDecimal) inv.getArgument(0)).multiply(new BigDecimal("0.82")));
+				: ((BigDecimal)inv.getArgument(0)).multiply(new BigDecimal("0.82")));
 		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of());
 	}
 
@@ -335,6 +345,7 @@ class ElevenstThreeTierSyncTest {
 		assertThat(legacy.getMarketLineItemNo()).isNull();
 		assertThat(legacy.getShippingData().getTrackingNo()).isEqualTo("363082000865");
 	}
+
 	@Test
 	@DisplayName("상품을 식별할 수 없으면 분할을 미룬다 — 빈 껍데기 행과 고아 행을 만들지 않는다")
 	void defersSplitWhenProductUnidentifiable() {
@@ -415,8 +426,8 @@ class ElevenstThreeTierSyncTest {
 
 	/** D-161: prdNo → sb_market_registration → sb_product_id 폴백을 위한 등록 스텁. */
 	private void stubRegistration(String prdNo, Long productId) {
-		com.sbshop.agent.core.domain.market.MarketRegistration reg =
-			mock(com.sbshop.agent.core.domain.market.MarketRegistration.class);
+		com.sbshop.agent.core.domain.market.MarketRegistration reg = mock(
+			com.sbshop.agent.core.domain.market.MarketRegistration.class);
 		when(reg.getSbProductId()).thenReturn(productId);
 		when(marketRegistrationRepository.findByMarketTypeAndIdentifiersContaining(
 			MarketType.ELEVEN_STREET, prdNo)).thenReturn(List.of(reg));

@@ -1,7 +1,6 @@
 package com.sbshop.agent.core.application.order.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
@@ -25,7 +24,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class MarketOrderUpsertDispatcherTest {
 
-	@Mock private OrderRepository orderRepository;
+	@Mock
+	private OrderRepository orderRepository;
 
 	private MarketOrderDto dto(String orderNo) {
 		return MarketOrderDto.builder().marketOrderNo(orderNo).build();

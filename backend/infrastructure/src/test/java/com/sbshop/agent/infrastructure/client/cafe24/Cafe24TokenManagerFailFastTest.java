@@ -21,8 +21,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class Cafe24TokenManagerFailFastTest {
 
-	@Mock private MarketCredentialRepository marketCredentialRepository;
-	@Mock private com.sbshop.agent.infrastructure.client.cafe24.Cafe24OAuthTokenClient tokenClient;
+	@Mock
+	private MarketCredentialRepository marketCredentialRepository;
+	@Mock
+	private com.sbshop.agent.infrastructure.client.cafe24.Cafe24OAuthTokenClient tokenClient;
 
 	@Test
 	@DisplayName("credential/refresh token이 없어 토큰을 못 얻으면 IllegalStateException으로 즉시 실패한다")

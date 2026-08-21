@@ -29,10 +29,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ProductSyncServiceRestockDateTest {
 
-	@Mock private ProductRepository productRepository;
-	@Mock private ProductStockCrawlerPort productStockCrawlerPort;
-	@Mock private com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository orderLineItemRepository;
-	@Mock private com.sbshop.agent.core.application.actionlog.ActionLogService actionLogService;
+	@Mock
+	private ProductRepository productRepository;
+	@Mock
+	private ProductStockCrawlerPort productStockCrawlerPort;
+	@Mock
+	private com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private com.sbshop.agent.core.application.actionlog.ActionLogService actionLogService;
 
 	private ProductSyncService service;
 	private static final Long PRODUCT_ID = 1L;

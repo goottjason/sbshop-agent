@@ -36,15 +36,24 @@ class ProductPublishPriceOverrideTest {
 	private static final Long PRODUCT_ID = 1L;
 	private static final MarketType MARKET = MarketType.ELEVEN_STREET;
 
-	@Mock private ProductReader productReader;
-	@Mock private MarketClientRouter marketClientRouter;
-	@Mock private MarketRegistrationTxService registrationTxService;
-	@Mock private ProductSanitizer productSanitizer;
-	@Mock private ProductValidator productValidator;
-	@Mock private MarketSalePriceResolver marketSalePriceResolver;
-	@Mock private MarketClient client;
-	@Mock private Product product;
-	@Mock private MarketRegistration registration;
+	@Mock
+	private ProductReader productReader;
+	@Mock
+	private MarketClientRouter marketClientRouter;
+	@Mock
+	private MarketRegistrationTxService registrationTxService;
+	@Mock
+	private ProductSanitizer productSanitizer;
+	@Mock
+	private ProductValidator productValidator;
+	@Mock
+	private MarketSalePriceResolver marketSalePriceResolver;
+	@Mock
+	private MarketClient client;
+	@Mock
+	private Product product;
+	@Mock
+	private MarketRegistration registration;
 
 	private ProductPublishUseCase useCase() {
 		return new ProductPublishUseCase(productReader, marketClientRouter, registrationTxService,
@@ -89,8 +98,8 @@ class ProductPublishPriceOverrideTest {
 	@Test
 	@DisplayName("두 값 모두 같은 재료로 계산하면 오버라이드가 실제로 등록가를 낮춘다(쿠폰 반영분)")
 	void resolver_overridesLowerRegistrationPriceToMatchSyncPath() {
-		com.sbshop.agent.core.application.fee.MarketFeeService feeService =
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.fee.MarketFeeService.class);
+		com.sbshop.agent.core.application.fee.MarketFeeService feeService = org.mockito.Mockito
+			.mock(com.sbshop.agent.core.application.fee.MarketFeeService.class);
 		when(feeService.feeRate(MARKET)).thenReturn(new BigDecimal("18"));
 		MarketSalePriceResolver resolver = new MarketSalePriceResolver(
 			new com.sbshop.agent.core.domain.product.service.MarginCalculator(), feeService);

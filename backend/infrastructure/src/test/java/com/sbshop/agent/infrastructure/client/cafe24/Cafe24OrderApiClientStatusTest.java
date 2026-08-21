@@ -17,7 +17,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class Cafe24OrderApiClientStatusTest {
 
-	@Mock Cafe24RestClient restClient;
+	@Mock
+	Cafe24RestClient restClient;
 
 	@Test
 	@DisplayName("D-091: acceptOrder는 PUT /admin/orders에 requests[].process_status=prepare로 발주확인한다")
@@ -41,13 +42,13 @@ class Cafe24OrderApiClientStatusTest {
 
 	@SuppressWarnings("unchecked")
 	private Map<String, Object> firstRequest(Object body) {
-		var requests = (java.util.List<Map<String, Object>>) ((Map<String, Object>) body).get("requests");
+		var requests = (java.util.List<Map<String, Object>>)((Map<String, Object>)body).get("requests");
 		return requests.get(0);
 	}
 
 	@SuppressWarnings("unchecked")
 	private String bodyStatus(Object body) {
-		Map<String, Object> req = (Map<String, Object>) ((Map<String, Object>) body).get("request");
+		Map<String, Object> req = (Map<String, Object>)((Map<String, Object>)body).get("request");
 		return String.valueOf(req.get("status"));
 	}
 }

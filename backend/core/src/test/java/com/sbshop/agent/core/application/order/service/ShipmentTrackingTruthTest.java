@@ -64,9 +64,9 @@ class ShipmentTrackingTruthTest {
 	@Test
 	@DisplayName("마켓의 가송장이 우리가 아는 실제 송장을 덮지 않는다 — 오늘의 원복 사건 회귀")
 	void marketValueDoesNotOverwriteOurTracking() {
-		Shipment shipment = existing("315399497965");   // 이메일이 준 진짜 송장
+		Shipment shipment = existing("315399497965"); // 이메일이 준 진짜 송장
 
-		service.upsertShipment(1L, fromMarket("363092185283"));  // 마켓의 가송장
+		service.upsertShipment(1L, fromMarket("363092185283")); // 마켓의 가송장
 
 		assertThat(shipment.getTrackingNo()).isEqualTo("315399497965");
 		assertThat(shipment.getMarketTrackingNo()).isEqualTo("363092185283");
@@ -91,7 +91,7 @@ class ShipmentTrackingTruthTest {
 		Shipment shipment = existing("315399497965");
 		shipment.markManualFixRequired();
 
-		service.upsertShipment(1L, fromMarket("315399497965"));   // 마켓이 따라옴
+		service.upsertShipment(1L, fromMarket("315399497965")); // 마켓이 따라옴
 
 		assertThat(shipment.isManualFixRequired()).isFalse();
 	}

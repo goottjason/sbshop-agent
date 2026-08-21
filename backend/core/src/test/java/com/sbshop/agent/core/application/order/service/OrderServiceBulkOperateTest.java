@@ -44,6 +44,7 @@ class OrderServiceBulkOperateTest {
 	private LineItemShippingWriter shippingWriter() {
 		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
 	}
+
 	private MarketCredentialRepository credentialRepository;
 	private MarketplaceShippingService marketplaceShippingService;
 	private OrderService service;

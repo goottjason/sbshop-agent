@@ -19,7 +19,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -638,7 +637,8 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 
 		private record DetailRow(String sellerPrdCd, String productName, Integer quantity,
 			BigDecimal orderPrice, BigDecimal totalAmount, ShippingStatus listStatus,
-			String dlvNo, String addPrdYn, String addPrdNo) {}
+			String dlvNo, String addPrdYn, String addPrdNo) {
+		}
 
 		/**
 		 * orderlistall이 주는 상품주문별 사실. 2026-08-06 라이브 응답으로 확인한 필드다:
@@ -649,9 +649,11 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		 */
 		private record StatusRow(String statusName, String dlvNo, Integer quantity,
 			BigDecimal settlementAmount, BigDecimal sellerFee, BigDecimal marketDiscount,
-			String prdNo, String productName) {}
+			String prdNo, String productName) {
+		}
 
-		private record TrackingInfo(String trackingNo, ShippingCarrier carrier) {}
+		private record TrackingInfo(String trackingNo, ShippingCarrier carrier) {
+		}
 
 		/** 전체 정보 목록(결제완료·배송준비중·배송완료) 행. */
 		private void addDetailRow(Element row, String source, ElevenstStatusMapper mapper) {

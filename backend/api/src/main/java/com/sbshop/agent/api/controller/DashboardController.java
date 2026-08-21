@@ -27,25 +27,34 @@ public class DashboardController {
 
 	@GetMapping("/summary")
 	public SummaryResponse summary(
-		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
-		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
+		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+		LocalDateTime start,
+		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+		LocalDateTime end) {
 		return dashboardService.summary(start, end);
 	}
 
 	@GetMapping("/timeseries")
 	public List<TimeseriesBucket> timeseries(
-		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
-		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
-		@RequestParam Unit unit) {
+		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+		LocalDateTime start,
+		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+		LocalDateTime end,
+		@RequestParam
+		Unit unit) {
 		return dashboardService.timeseries(start, end, unit);
 	}
 
 	@GetMapping("/breakdown")
 	public List<BreakdownItem> breakdown(
-		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
-		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
-		@RequestParam Dimension dimension,
-		@RequestParam(defaultValue = "10") int limit) {
+		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+		LocalDateTime start,
+		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+		LocalDateTime end,
+		@RequestParam
+		Dimension dimension,
+		@RequestParam(defaultValue = "10")
+		int limit) {
 		return dashboardService.breakdown(start, end, dimension, limit);
 	}
 

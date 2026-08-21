@@ -32,17 +32,24 @@ class Cafe24TokenManagerConcurrencyTest {
 	static class BarrierSerializingLock implements TokenRefreshLock {
 		private final java.util.concurrent.CyclicBarrier barrier;
 		private final ReentrantLock lock = new ReentrantLock();
+
 		BarrierSerializingLock(int parties) {
 			this.barrier = new java.util.concurrent.CyclicBarrier(parties);
 		}
-		@Override public <T> T runExclusively(long key, Supplier<T> action) {
+
+		@Override
+		public <T> T runExclusively(long key, Supplier<T> action) {
 			try {
 				barrier.await(10, java.util.concurrent.TimeUnit.SECONDS);
 			} catch (Exception e) {
 				throw new RuntimeException("barrier await failed (a thread never reached the lock)", e);
 			}
 			lock.lock();
-			try { return action.get(); } finally { lock.unlock(); }
+			try {
+				return action.get();
+			} finally {
+				lock.unlock();
+			}
 		}
 	}
 
@@ -76,7 +83,11 @@ class Cafe24TokenManagerConcurrencyTest {
 		for (int i = 0; i < threads; i++) {
 			pool.submit(() -> {
 				ready.countDown();
-				try { go.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+				try {
+					go.await();
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
 				results.add(manager.getValidAccessToken());
 			});
 		}

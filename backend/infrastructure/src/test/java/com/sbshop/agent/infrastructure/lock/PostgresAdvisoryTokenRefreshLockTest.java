@@ -14,7 +14,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @ExtendWith(MockitoExtension.class)
 class PostgresAdvisoryTokenRefreshLockTest {
 
-	@Mock private JdbcTemplate jdbcTemplate;
+	@Mock
+	private JdbcTemplate jdbcTemplate;
 
 	@Test
 	@DisplayName("advisory lock을 획득하고 action 결과를 반환한다")

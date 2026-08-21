@@ -37,6 +37,7 @@ class ShippingCarrierTest {
 		assertThat(ShippingCarrier.fromMarketCode("SOME_UNKNOWN_XYZ")).isNull();
 		assertThat(ShippingCarrier.fromMarketCode("DHL")).isNull();
 	}
+
 	@Test
 	@DisplayName("코드가 미매핑이면 이름으로 폴백한다 — 부분 신호가 더 나은 신호를 가리지 않는다")
 	void unmappedCodeFallsBackToName() {

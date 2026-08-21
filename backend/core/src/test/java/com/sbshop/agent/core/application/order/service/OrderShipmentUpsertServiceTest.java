@@ -279,8 +279,7 @@ class OrderShipmentUpsertServiceTest {
 	/** BaseEntity.id는 생성자로 못 넣으므로 리플렉션으로 채운다(테스트 전용). */
 	private static void setId(Object entity, Long id) {
 		try {
-			java.lang.reflect.Field field =
-				com.sbshop.agent.core.domain.common.BaseEntity.class.getDeclaredField("id");
+			java.lang.reflect.Field field = com.sbshop.agent.core.domain.common.BaseEntity.class.getDeclaredField("id");
 			field.setAccessible(true);
 			field.set(entity, id);
 		} catch (ReflectiveOperationException e) {

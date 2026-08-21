@@ -31,7 +31,8 @@ public class MarketLinkIdentifierBackfillService {
 	private final MarketClientRouter marketClientRouter;
 
 	/** 마켓별: (조회 소스 키, 백필 대상 키, 배치 크기, 배치/페이지 간 지연ms, 전체스캔 여부). */
-	private record Spec(String sourceKey, String targetKey, int batchSize, long throttleMs, boolean bulkScan) {}
+	private record Spec(String sourceKey, String targetKey, int batchSize, long throttleMs, boolean bulkScan) {
+	}
 
 	private static final Map<MarketType, Spec> SPECS = Map.of(
 		// 쿠팡: seller-products GET은 단건 API → batch=1, 요청 간 100ms.
@@ -124,8 +125,7 @@ public class MarketLinkIdentifierBackfillService {
 			return resultMap(scanned, skipped, updated, failed, "ok");
 		}
 
-		outer:
-		for (int i = 0; i < sources.size(); i += spec.batchSize()) {
+		outer: for (int i = 0; i < sources.size(); i += spec.batchSize()) {
 			List<String> chunk = sources.subList(i, Math.min(i + spec.batchSize(), sources.size()));
 			try {
 				Map<String, String> found = client.fetchLinkIdentifiers(chunk);

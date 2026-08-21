@@ -33,8 +33,7 @@ public final class SearchKeywordDeriver {
 	/** 검색어에서 의미 없는 기호. */
 	private static final String NOISE = "[®™©·•]";
 
-	private SearchKeywordDeriver() {
-	}
+	private SearchKeywordDeriver() {}
 
 	/** 검색량·경쟁도 조회에 쓸 대표 키워드 1개. */
 	public static String derive(String nameKo, String brand) {

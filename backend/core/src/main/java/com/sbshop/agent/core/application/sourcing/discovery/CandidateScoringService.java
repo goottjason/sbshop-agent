@@ -32,9 +32,9 @@ import org.springframework.stereotype.Service;
 public class CandidateScoringService {
 
 	/** log 정규화 기준 상한 — 이 값 이상이면 만점. */
-	private static final double SALES_LOG_MAX = 5.0;      // 100,000개/30일
-	private static final double REVIEW_LOG_MAX = 5.0;     // 100,000건
-	private static final double SEARCH_LOG_MAX = 5.0;     // 100,000회/월
+	private static final double SALES_LOG_MAX = 5.0; // 100,000개/30일
+	private static final double REVIEW_LOG_MAX = 5.0; // 100,000건
+	private static final double SEARCH_LOG_MAX = 5.0; // 100,000회/월
 	private static final double COMPETITION_LOG_MAX = 5.0; // 100,000개 경쟁상품
 
 	/** 랭킹 점수 산정 시 "이 순위 밖은 동일 취급" 기준. */
@@ -205,7 +205,7 @@ public class CandidateScoringService {
 
 	private Double logScore(Integer value, double logMax) {
 		if (value == null)
-			return null;             // 결측 — 0점이 아니다
+			return null; // 결측 — 0점이 아니다
 		if (value <= 0)
 			return 0.0;
 		double v = Math.log10(value) / logMax;

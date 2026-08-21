@@ -92,8 +92,10 @@ public class SourcingDiscoveryController {
 
 	@GetMapping("/candidates")
 	public ResponseEntity<List<CandidateResponse>> candidates(
-		@RequestParam(required = false) Integer limit,
-		@RequestParam(defaultValue = "true") boolean includeReview) {
+		@RequestParam(required = false)
+		Integer limit,
+		@RequestParam(defaultValue = "true")
+		boolean includeReview) {
 		return ResponseEntity.ok(queryService.recommended(limit, includeReview).stream()
 			.map(CandidateResponse::from).toList());
 	}
@@ -106,12 +108,14 @@ public class SourcingDiscoveryController {
 	}
 
 	@GetMapping("/candidates/{id}")
-	public ResponseEntity<CandidateResponse> candidate(@PathVariable Long id) {
+	public ResponseEntity<CandidateResponse> candidate(@PathVariable
+	Long id) {
 		return ResponseEntity.ok(CandidateResponse.from(queryService.requireCandidate(id)));
 	}
 
 	@PostMapping("/candidates/{id}/reject")
-	public ResponseEntity<CandidateResponse> reject(@PathVariable Long id) {
+	public ResponseEntity<CandidateResponse> reject(@PathVariable
+	Long id) {
 		return ResponseEntity.ok(CandidateResponse.from(queryService.reject(id)));
 	}
 
@@ -119,7 +123,8 @@ public class SourcingDiscoveryController {
 
 	@PostMapping("/drafts")
 	public ResponseEntity<CreateDraftsResponse> createDrafts(
-		@RequestBody CreateDraftsRequest request) {
+		@RequestBody
+		CreateDraftsRequest request) {
 		if (request == null || request.candidateIds() == null || request.candidateIds().isEmpty()) {
 			throw new IllegalArgumentException("candidateIds는 필수이며 비어 있을 수 없습니다.");
 		}
@@ -141,19 +146,23 @@ public class SourcingDiscoveryController {
 
 	@GetMapping("/drafts")
 	public ResponseEntity<List<DraftResponse>> drafts(
-		@RequestParam(required = false) List<String> status) {
+		@RequestParam(required = false)
+		List<String> status) {
 		return ResponseEntity.ok(queryService.drafts(status).stream()
 			.map(DraftResponse::from).toList());
 	}
 
 	@GetMapping("/drafts/{id}")
-	public ResponseEntity<DraftResponse> draft(@PathVariable Long id) {
+	public ResponseEntity<DraftResponse> draft(@PathVariable
+	Long id) {
 		return ResponseEntity.ok(DraftResponse.from(queryService.requireDraft(id)));
 	}
 
 	@PatchMapping("/drafts/{id}")
-	public ResponseEntity<DraftResponse> updateDraft(@PathVariable Long id,
-		@RequestBody UpdateDraftRequest request) {
+	public ResponseEntity<DraftResponse> updateDraft(@PathVariable
+	Long id,
+		@RequestBody
+		UpdateDraftRequest request) {
 		SourcingQueryService.DraftUpdate update = new SourcingQueryService.DraftUpdate(
 			request.baseNameKo(), request.bundleQty(), request.marginRate(), request.costPrice(),
 			request.origin(), request.hsCode(), request.barcode(), request.weightG(),
@@ -167,7 +176,8 @@ public class SourcingDiscoveryController {
 	}
 
 	@PostMapping("/drafts/{id}/publish")
-	public ResponseEntity<PublishDraftResponse> publish(@PathVariable Long id) {
+	public ResponseEntity<PublishDraftResponse> publish(@PathVariable
+	Long id) {
 		try {
 			DraftPublishUseCase.PublishResult result = publishUseCase.publish(id);
 			actionLogService.record(ActionLogConstants.SOURCING_PUBLISH, null,
@@ -191,7 +201,8 @@ public class SourcingDiscoveryController {
 	}
 
 	@PutMapping("/config")
-	public ResponseEntity<ConfigResponse> updateConfig(@RequestBody ConfigUpdateRequest r) {
+	public ResponseEntity<ConfigResponse> updateConfig(@RequestBody
+	ConfigUpdateRequest r) {
 		return ResponseEntity.ok(ConfigResponse.from(configService.update(
 			r.recommendCount(), r.categories(), r.pagesPerCategory(), r.scoreWeights(),
 			r.profitGuardEnabled(), r.targetMarginRate(), r.minMarginPrice(), r.maxPriceRatio(),

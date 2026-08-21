@@ -27,9 +27,12 @@ import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 @ExtendWith(MockitoExtension.class)
 class MarketplaceShippingServiceCancelTest {
 
-	@Mock private OrderRepository orderRepository;
-	@Mock private MarketCredentialRepository credentialRepository;
-	@Mock private MarketOrderPort gmarketPort;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private MarketCredentialRepository credentialRepository;
+	@Mock
+	private MarketOrderPort gmarketPort;
 
 	private MarketplaceShippingService service() {
 		when(gmarketPort.getMarketType()).thenReturn(MarketType.GMARKET);

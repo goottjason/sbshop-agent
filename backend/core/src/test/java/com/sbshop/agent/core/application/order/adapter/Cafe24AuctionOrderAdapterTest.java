@@ -16,10 +16,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class Cafe24AuctionOrderAdapterTest {
 
-	@Mock Cafe24OrderApiPort cafe24OrderApiPort;
-	@Mock Cafe24ShipmentService cafe24ShipmentService;
-	@Mock MarketCredential credential;
-	@Mock Order order;
+	@Mock
+	Cafe24OrderApiPort cafe24OrderApiPort;
+	@Mock
+	Cafe24ShipmentService cafe24ShipmentService;
+	@Mock
+	MarketCredential credential;
+	@Mock
+	Order order;
 
 	@Test
 	@DisplayName("acceptOrders는 order.getCafe24OrderId()(cafe24_order_id)로 Cafe24를 타깃한다(마켓번호 아님)")

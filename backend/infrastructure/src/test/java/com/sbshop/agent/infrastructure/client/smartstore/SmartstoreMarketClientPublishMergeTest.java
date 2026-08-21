@@ -40,12 +40,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SmartstoreMarketClientPublishMergeTest {
 
-	@Mock private SmartstoreProductPayloadBuilder payloadBuilder;
-	@Mock private SmartstoreCategoryResolver categoryResolver;
-	@Mock private SmartstoreAddressBookResolver addressBookResolver;
-	@Mock private MarketRegistrationDefaults defaults;
-	@Mock private SmartstoreRestClient restClient;
-	@Mock private Product product;
+	@Mock
+	private SmartstoreProductPayloadBuilder payloadBuilder;
+	@Mock
+	private SmartstoreCategoryResolver categoryResolver;
+	@Mock
+	private SmartstoreAddressBookResolver addressBookResolver;
+	@Mock
+	private MarketRegistrationDefaults defaults;
+	@Mock
+	private SmartstoreRestClient restClient;
+	@Mock
+	private Product product;
 
 	private SmartstoreMarketClient client;
 

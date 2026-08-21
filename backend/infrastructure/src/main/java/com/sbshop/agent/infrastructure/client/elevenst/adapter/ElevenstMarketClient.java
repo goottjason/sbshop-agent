@@ -141,7 +141,8 @@ public class ElevenstMarketClient implements MarketClient {
 
 		String updatedXml = currentXml;
 		// (1) 상세HTML 치환 (esmplus http→https: SK Planet 방화벽 409 방지)
-		String safeHtml = (newDetailHtml == null ? "" : newDetailHtml).replace("http://ai.esmplus.com", "https://ai.esmplus.com");
+		String safeHtml = (newDetailHtml == null ? "" : newDetailHtml).replace("http://ai.esmplus.com",
+			"https://ai.esmplus.com");
 		updatedXml = updatedXml.replaceAll("(?s)<htmlDetail>.*?</htmlDetail>",
 			"<htmlDetail><![CDATA[" + java.util.regex.Matcher.quoteReplacement(safeHtml) + "]]></htmlDetail>");
 		// (2) 대표/추가 이미지 치환
@@ -213,9 +214,11 @@ public class ElevenstMarketClient implements MarketClient {
 			out = out.replace("</Product>", "  <selMthdCd>01</selMthdCd>\n</Product>");
 		}
 		// 인코딩 EUC-KR 강제
-		out = out.replace("encoding=\"UTF-8\"", "encoding=\"euc-kr\"").replace("encoding=\"utf-8\"", "encoding=\"euc-kr\"");
+		out = out.replace("encoding=\"UTF-8\"", "encoding=\"euc-kr\"").replace("encoding=\"utf-8\"",
+			"encoding=\"euc-kr\"");
 		// 원산지: 기존 태그 제거 후 해외(미국) 재주입 (태그명 유사 → 긴 것부터 제거)
-		for (String t : new String[] {"orgnNmDetail", "orgnAreaNm", "orgnTypCd", "orgnOriginCd", "orgnTypDtlsCd", "orgnNmVal", "orgnNm"}) {
+		for (String t : new String[] {"orgnNmDetail", "orgnAreaNm", "orgnTypCd", "orgnOriginCd", "orgnTypDtlsCd",
+			"orgnNmVal", "orgnNm"}) {
 			out = out.replaceAll("(?s)<" + t + "[^>]*>.*?</" + t + ">", "").replaceAll("<" + t + "\\s*/>", "");
 		}
 		String origin = "\n  <orgnTypCd>02</orgnTypCd>\n  <orgnTypDtlsCd>1405</orgnTypDtlsCd>\n  <orgnOriginCd>1405</orgnOriginCd>"
@@ -231,8 +234,8 @@ public class ElevenstMarketClient implements MarketClient {
 		if (!out.contains("<dlvCstInstBasiCd>")) {
 			out = out.replace("</Product>",
 				"  <dlvCstInstBasiCd>01</dlvCstInstBasiCd>\n  <dlvCstPayTypCd>03</dlvCstPayTypCd>\n  <bndlDlvCnYn>N</bndlDlvCnYn>\n"
-				+ "  <rtngdDlvCst>7000</rtngdDlvCst>\n  <exchDlvCst>7000</exchDlvCst>\n"
-				+ "  <asDetail><![CDATA[상품 상세설명 참조]]></asDetail>\n  <rtngExchDetail><![CDATA[상품 상세설명 참조]]></rtngExchDetail>\n</Product>");
+					+ "  <rtngdDlvCst>7000</rtngdDlvCst>\n  <exchDlvCst>7000</exchDlvCst>\n"
+					+ "  <asDetail><![CDATA[상품 상세설명 참조]]></asDetail>\n  <rtngExchDetail><![CDATA[상품 상세설명 참조]]></rtngExchDetail>\n</Product>");
 		}
 		// 출고지/반품지 주소 시퀀스코드(판매자 실계정: 출고지 5=미국, 반품지 3=국내)
 		for (String t : new String[] {"addrSeqOut", "addrSeqIn", "outsideYnOut", "outsideYnIn"}) {
@@ -277,8 +280,8 @@ public class ElevenstMarketClient implements MarketClient {
 		} else {
 			throw new IllegalStateException(
 				"[Elevenst] 진열 분류(dispCtgrNo)가 없어 등록을 거부합니다: sbCode=" + product.getSbCode()
-				+ " — 빈 dispCtgrNo를 보내면 11번가가 카테고리 오류로 거절합니다. 11번가는 자동 카테고리 해석기가"
-				+ " 없으므로 초안 검수 화면에서 카테고리를 지정한 뒤 등록하세요.");
+					+ " — 빈 dispCtgrNo를 보내면 11번가가 카테고리 오류로 거절합니다. 11번가는 자동 카테고리 해석기가"
+					+ " 없으므로 초안 검수 화면에서 카테고리를 지정한 뒤 등록하세요.");
 		}
 		int selPrc = context.salePrice() != null ? context.salePrice().intValue()
 			: (product.getSalePrice() != null ? product.getSalePrice().intValue() : 0);
@@ -303,22 +306,22 @@ public class ElevenstMarketClient implements MarketClient {
 		sb.append("<dlvSendCloseTmpltNo>682132</dlvSendCloseTmpltNo>");
 		// D-092: 11번가가 등록 후 필수로 승격한 필드들 — 빈값이면 상품수정이 거부되므로 기본값으로 채운다.
 		// (전체 덮어쓰기 방식의 한계: 기존값을 못 읽어 기본값으로 대체. 견고한 해법은 전체 상품상세조회 round-trip.)
-		sb.append("<selMthdCd>01</selMthdCd>");              // 고정가판매
-		sb.append("<prdTypCd>01</prdTypCd>");                // 일반배송상품
-		sb.append("<rmaterialTypCd>05</rmaterialTypCd>");    // 상품별 원산지는 상세설명 참조
-		sb.append("<minorSelCnYn>N</minorSelCnYn>");         // 미성년자 구매가능
+		sb.append("<selMthdCd>01</selMthdCd>"); // 고정가판매
+		sb.append("<prdTypCd>01</prdTypCd>"); // 일반배송상품
+		sb.append("<rmaterialTypCd>05</rmaterialTypCd>"); // 상품별 원산지는 상세설명 참조
+		sb.append("<minorSelCnYn>N</minorSelCnYn>"); // 미성년자 구매가능
 		sb.append("<suplDtyfrPrdClfCd>01</suplDtyfrPrdClfCd>"); // 과세상품
-		sb.append("<dlvClf>02</dlvClf>");                    // 업체배송
-		sb.append("<dlvCnAreaCd>01</dlvCnAreaCd>");          // 배송가능지역 전국
-		sb.append("<dlvWyCd>01</dlvWyCd>");                  // 배송방법 택배
-		sb.append("<dlvEtprsCd>00034</dlvEtprsCd>");         // 발송택배사 CJ대한통운(기본값)
-		sb.append("<asDetail><![CDATA[.]]></asDetail>");     // AS안내(필수·빈값 불가)
+		sb.append("<dlvClf>02</dlvClf>"); // 업체배송
+		sb.append("<dlvCnAreaCd>01</dlvCnAreaCd>"); // 배송가능지역 전국
+		sb.append("<dlvWyCd>01</dlvWyCd>"); // 배송방법 택배
+		sb.append("<dlvEtprsCd>00034</dlvEtprsCd>"); // 발송택배사 CJ대한통운(기본값)
+		sb.append("<asDetail><![CDATA[.]]></asDetail>"); // AS안내(필수·빈값 불가)
 		sb.append("<rtngExchDetail><![CDATA[.]]></rtngExchDetail>"); // 반품/교환 안내(필수)
 		sb.append("<dlvCstInstBasiCd>01</dlvCstInstBasiCd>"); // 배송비 종류: 무료
-		sb.append("<bndlDlvCnYn>N</bndlDlvCnYn>");           // 묶음배송 불가
-		sb.append("<dlvCstPayTypCd>03</dlvCstPayTypCd>");    // 결제방법: 선결제
-		sb.append("<jejuDlvCst>0</jejuDlvCst>");             // 제주 추가배송비
-		sb.append("<islandDlvCst>0</islandDlvCst>");         // 도서산간 추가배송비
+		sb.append("<bndlDlvCnYn>N</bndlDlvCnYn>"); // 묶음배송 불가
+		sb.append("<dlvCstPayTypCd>03</dlvCstPayTypCd>"); // 결제방법: 선결제
+		sb.append("<jejuDlvCst>0</jejuDlvCst>"); // 제주 추가배송비
+		sb.append("<islandDlvCst>0</islandDlvCst>"); // 도서산간 추가배송비
 
 		// 원산지(해외/미국) — D-092에서 검증된 코드 조합.
 		String originDetail = nvl(context.extraString("orgnTypDtlsCd"), "1405");
@@ -326,7 +329,7 @@ public class ElevenstMarketClient implements MarketClient {
 		sb.append("<orgnTypDtlsCd>").append(originDetail).append("</orgnTypDtlsCd>");
 		sb.append("<orgnNm><![CDATA[미국]]></orgnNm>");
 
-        // 해외구매대행 표기 — 누락 시 국내 배송 상품으로 오인돼 클레임 사유가 된다.
+		// 해외구매대행 표기 — 누락 시 국내 배송 상품으로 오인돼 클레임 사유가 된다.
 		sb.append("<abrdBuyPlace><![CDATA[")
 			.append(nvl(context.extraString("abrdBuyPlace"), "iHerb")).append("]]></abrdBuyPlace>");
 		sb.append("<abrdCntrCd>US</abrdCntrCd>");

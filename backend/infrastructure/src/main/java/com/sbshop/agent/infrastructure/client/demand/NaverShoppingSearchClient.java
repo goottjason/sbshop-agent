@@ -50,8 +50,10 @@ public class NaverShoppingSearchClient implements ShoppingMarketPort {
 	private final String clientSecret;
 
 	public NaverShoppingSearchClient(ObjectMapper objectMapper,
-		@Value("${naver.openapi.client-id:}") String clientId,
-		@Value("${naver.openapi.client-secret:}") String clientSecret) {
+		@Value("${naver.openapi.client-id:}")
+		String clientId,
+		@Value("${naver.openapi.client-secret:}")
+		String clientSecret) {
 		this.objectMapper = objectMapper;
 		this.clientId = clientId;
 		this.clientSecret = clientSecret;

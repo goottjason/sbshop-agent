@@ -41,16 +41,26 @@ import org.springframework.context.ApplicationEventPublisher;
 @ExtendWith(MockitoExtension.class)
 class OrderAddressProtectionTest {
 
-	@Mock private MarketCredentialRepository credentialRepository;
-	@Mock private OrderRepository orderRepository;
-	@Mock private OrderLineItemRepository orderLineItemRepository;
-	@Mock private ProductRepository productRepository;
-	@Mock private MarketRegistrationRepository marketRegistrationRepository;
-	@Mock private ApplicationEventPublisher eventPublisher;
-	@Mock private SmartStoreOrderAdapter smartStoreOrderAdapter;
-	@Mock private CoupangOrderAdapter coupangOrderAdapter;
-	@Mock private CoupangStatusMapper coupangStatusMapper;
-	@Mock private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
+	@Mock
+	private MarketCredentialRepository credentialRepository;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private ProductRepository productRepository;
+	@Mock
+	private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+	@Mock
+	private SmartStoreOrderAdapter smartStoreOrderAdapter;
+	@Mock
+	private CoupangOrderAdapter coupangOrderAdapter;
+	@Mock
+	private CoupangStatusMapper coupangStatusMapper;
+	@Mock
+	private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
 
 	// 코드 기본요율(빈 정책 폴백)로 정산액을 계산하도록 실제 인스턴스 사용
 	private final MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
@@ -153,10 +163,11 @@ class OrderAddressProtectionTest {
 			.clientId("cid").accessKey("akey").secretKey("sec").build();
 		when(credentialRepository.findByMarketType(MarketType.COUPANG)).thenReturn(Optional.of(cred));
 		when(coupangOrderAdapter.fetchOrdersWithOutcome(any(), any(LocalDate.class), any(LocalDate.class)))
-			.thenReturn(new com.sbshop.agent.core.application.order.dto.MarketFetchOutcome(List.of(MarketOrderDto.builder()
-				.marketOrderNo("CP-1").marketType(MarketType.COUPANG)
-				.zipcode(MARKET_ZIP).address(MARKET_ADDRESS)
-				.status(ShippingStatus.PREPARING).build()), true));
+			.thenReturn(
+				new com.sbshop.agent.core.application.order.dto.MarketFetchOutcome(List.of(MarketOrderDto.builder()
+					.marketOrderNo("CP-1").marketType(MarketType.COUPANG)
+					.zipcode(MARKET_ZIP).address(MARKET_ADDRESS)
+					.status(ShippingStatus.PREPARING).build()), true));
 		when(orderRepository.findByMarketOrderNo("CP-1")).thenReturn(Optional.of(order));
 		when(orderLineItemRepository.findByOrderId(any()))
 			.thenReturn(List.of(lineItem(ShippingStatus.PREPARING)));
@@ -169,7 +180,8 @@ class OrderAddressProtectionTest {
 			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
 			org.mockito.Mockito.mock(com.sbshop.agent.core.application.actionlog.ActionLogService.class),
 			// 3계층 반영 골격. 이 테스트들은 라인아이템 반영을 검증하지 않으므로 목으로 둔다.
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.MarketLineItemSyncDispatcher.class));
+			org.mockito.Mockito
+				.mock(com.sbshop.agent.core.application.order.service.MarketLineItemSyncDispatcher.class));
 		service.syncCoupangOrders();
 
 		assertThat(order.getAddress()).isEqualTo(MANUAL_ADDRESS);

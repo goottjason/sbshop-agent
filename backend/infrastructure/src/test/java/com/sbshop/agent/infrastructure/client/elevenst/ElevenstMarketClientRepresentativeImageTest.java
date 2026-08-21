@@ -29,26 +29,27 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ElevenstMarketClientRepresentativeImageTest {
 
-    @Mock private ElevenstMarketRestClient restClient;
+	@Mock
+	private ElevenstMarketRestClient restClient;
 
-    private ElevenstMarketClient client;
-    private Map<String, Object> raw;
+	private ElevenstMarketClient client;
+	private Map<String, Object> raw;
 
-    // 신규상품조회 GET이 돌려주는 현재 상품 전문(대표이미지·상세·기존 주소코드 포함).
-    private static final String CURRENT_XML = "<?xml version=\"1.0\" encoding=\"euc-kr\"?>"
-        + "<Product><prdNo>PRD9</prdNo><prdNm>기존상품</prdNm>"
-        + "<prdImage01>http://old/rep.jpg</prdImage01>"
-        + "<htmlDetail><![CDATA[<p>old</p>]]></htmlDetail>"
-        + "<addrSeqOut>99</addrSeqOut><addrSeqIn>88</addrSeqIn>"
-        + "<message>[PRD9] 조회되었습니다.</message></Product>";
+	// 신규상품조회 GET이 돌려주는 현재 상품 전문(대표이미지·상세·기존 주소코드 포함).
+	private static final String CURRENT_XML = "<?xml version=\"1.0\" encoding=\"euc-kr\"?>"
+		+ "<Product><prdNo>PRD9</prdNo><prdNm>기존상품</prdNm>"
+		+ "<prdImage01>http://old/rep.jpg</prdImage01>"
+		+ "<htmlDetail><![CDATA[<p>old</p>]]></htmlDetail>"
+		+ "<addrSeqOut>99</addrSeqOut><addrSeqIn>88</addrSeqIn>"
+		+ "<message>[PRD9] 조회되었습니다.</message></Product>";
 
-    @BeforeEach
-    void setUp() {
-        client = new ElevenstMarketClient(restClient);
-        raw = new HashMap<>();
-    }
+	@BeforeEach
+	void setUp() {
+		client = new ElevenstMarketClient(restClient);
+		raw = new HashMap<>();
+	}
 
-    @Test
+	@Test
     @DisplayName("전체전문 GET 후 새 prdImage01·htmlDetail 치환 + 주소코드(5/3) 주입해 PUT")
     void roundTripsAndInjectsRequiredFields() {
         when(restClient.get(eq("/rest/prodmarketservice/prodmarket/PRD9"))).thenReturn(CURRENT_XML);
@@ -71,7 +72,7 @@ class ElevenstMarketClientRepresentativeImageTest {
         assertThat(sent).doesNotContain("<message>");
     }
 
-    @Test
+	@Test
     @DisplayName("GET 실패(빈 응답) → RuntimeException, PUT 미호출")
     void throwsWhenGetFails() {
         when(restClient.get(eq("/rest/prodmarketservice/prodmarket/PRD9"))).thenReturn("");
@@ -82,7 +83,7 @@ class ElevenstMarketClientRepresentativeImageTest {
         verify(restClient, never()).put(anyString(), anyString());
     }
 
-    @Test
+	@Test
     @DisplayName("PUT 응답이 resultCode 200/210 아니면 RuntimeException(가짜성공 차단)")
     void throwsWhenPutNotSuccess() {
         when(restClient.get(eq("/rest/prodmarketservice/prodmarket/PRD9"))).thenReturn(CURRENT_XML);

@@ -79,12 +79,13 @@ class ProductControllerR6QueryTest {
 		when(productSearchUseCase.searchByMarketAndKeyword(
 			eq(MarketType.COUPANG), eq(true), eq("shampoo"), any())).thenReturn(page);
 
-		ResponseEntity<Page<ProductListResponse>> res =
-			controller().getProducts("shampoo", "COUPANG", PageRequest.of(0, 50));
+		ResponseEntity<Page<ProductListResponse>> res = controller().getProducts("shampoo", "COUPANG",
+			PageRequest.of(0, 50));
 
 		assertThat(res.getStatusCode().value()).isEqualTo(200);
 		// keyword가 무시되지 않고 결합 조회 메서드로 전달된다.
-		verify(productSearchUseCase).searchByMarketAndKeyword(MarketType.COUPANG, true, "shampoo", PageRequest.of(0, 50));
+		verify(productSearchUseCase).searchByMarketAndKeyword(MarketType.COUPANG, true, "shampoo",
+			PageRequest.of(0, 50));
 		// 기존 배타 경로(마켓 단독/키워드 단독)는 호출되지 않는다.
 		verify(productSearchUseCase, never()).searchByMarket(any(), anyBoolean(), any());
 		verify(productSearchUseCase, never()).searchProducts(any(), any());
@@ -111,7 +112,8 @@ class ProductControllerR6QueryTest {
 
 		controller().getProducts("shampoo", "!COUPANG", PageRequest.of(0, 50));
 
-		verify(productSearchUseCase).searchByMarketAndKeyword(MarketType.COUPANG, false, "shampoo", PageRequest.of(0, 50));
+		verify(productSearchUseCase).searchByMarketAndKeyword(MarketType.COUPANG, false, "shampoo",
+			PageRequest.of(0, 50));
 	}
 
 	// ---- F-PROD-18: 크롤 URL 유효성 + 중복 제거 ----
@@ -126,10 +128,10 @@ class ProductControllerR6QueryTest {
 			.thenReturn(ScrapedProductDto.builder()
 				.sourceImages(java.util.Arrays.asList(
 					"http://img/a.jpg",
-					"http://img/a.jpg",   // 중복
-					"not-a-url",          // 형식 오류
-					"  ",                 // 공백
-					null,                 // null
+					"http://img/a.jpg", // 중복
+					"not-a-url", // 형식 오류
+					"  ", // 공백
+					null, // null
 					"https://img/b.jpg")) // 유효
 				.build());
 
@@ -160,8 +162,7 @@ class ProductControllerR6QueryTest {
 		ResponseEntity<ImageUploadResponse> res = controller().crawlAndUpload(7L);
 
 		assertThat(res.getStatusCode().value()).isEqualTo(200);
-		@SuppressWarnings("unchecked")
-		ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
+		@SuppressWarnings("unchecked") ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
 		verify(imageDownloadClient).downloadAndConvertDetailed(captor.capture());
 		assertThat(captor.getValue()).hasSize(ProductController.MAX_CRAWL_IMAGES);
 	}

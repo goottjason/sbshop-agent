@@ -36,84 +36,95 @@ import org.springframework.context.ApplicationEventPublisher;
 @ExtendWith(MockitoExtension.class)
 class BatchProcessStatusKeyTest {
 
-    @Mock private ProductReader productReader;
-    @Mock private ProductWriter productWriter;
-    @Mock private ProductRepository productRepository;
-    @Mock private StockCrawlerRouter stockCrawlerRouter;
-    @Mock private ProcessStatusService processStatusService;
-    @Mock private MarginCalculator marginCalculator;
-    @Mock private ApplicationEventPublisher eventPublisher;
-    @Mock private ProductMarketSyncService productMarketSyncService;
-    @Mock private com.sbshop.agent.core.application.fee.MarketFeeService marketFeeService;
-    @Mock private Product product;
+	@Mock
+	private ProductReader productReader;
+	@Mock
+	private ProductWriter productWriter;
+	@Mock
+	private ProductRepository productRepository;
+	@Mock
+	private StockCrawlerRouter stockCrawlerRouter;
+	@Mock
+	private ProcessStatusService processStatusService;
+	@Mock
+	private MarginCalculator marginCalculator;
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+	@Mock
+	private ProductMarketSyncService productMarketSyncService;
+	@Mock
+	private com.sbshop.agent.core.application.fee.MarketFeeService marketFeeService;
+	@Mock
+	private Product product;
 
-    private BatchPriceStockService service;
+	private BatchPriceStockService service;
 
-    private static final Long PRODUCT_ID = 132L;
-    private static final String PRODUCT_ID_KEY = "132";
-    private static final String SB_CODE = "IHB1234";
+	private static final Long PRODUCT_ID = 132L;
+	private static final String PRODUCT_ID_KEY = "132";
+	private static final String SB_CODE = "IHB1234";
 
-    @BeforeEach
-    void setUp() {
-        service = new BatchPriceStockService(productReader, productWriter, productRepository,
-            stockCrawlerRouter, processStatusService, marginCalculator, eventPublisher,
-            productMarketSyncService, marketFeeService);
+	@BeforeEach
+	void setUp() {
+		service = new BatchPriceStockService(productReader, productWriter, productRepository,
+			stockCrawlerRouter, processStatusService, marginCalculator, eventPublisher,
+			productMarketSyncService, marketFeeService);
 
-        lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
-        lenient().when(product.getSbCode()).thenReturn(SB_CODE);
-        lenient().when(product.getLogisticsInfo()).thenReturn(null);
-        lenient().when(marketFeeService.feeRate(any())).thenReturn(new BigDecimal("11"));
-        lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any()))
-            .thenReturn(new BigDecimal("9900"));
-        lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any(), any(), any()))
-            .thenReturn(new BigDecimal("9900"));
-        lenient().when(productMarketSyncService.syncPriceStockPerMarket(any(), any(), any(StockStatus.class), anyBoolean()))
-            .thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
-        lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class)))
-            .thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
-        lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class), anyBoolean()))
-            .thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
-    }
+		lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+		lenient().when(product.getSbCode()).thenReturn(SB_CODE);
+		lenient().when(product.getLogisticsInfo()).thenReturn(null);
+		lenient().when(marketFeeService.feeRate(any())).thenReturn(new BigDecimal("11"));
+		lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any()))
+			.thenReturn(new BigDecimal("9900"));
+		lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any(), any(), any()))
+			.thenReturn(new BigDecimal("9900"));
+		lenient()
+			.when(productMarketSyncService.syncPriceStockPerMarket(any(), any(), any(StockStatus.class), anyBoolean()))
+			.thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
+		lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class)))
+			.thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
+		lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class), anyBoolean()))
+			.thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
+	}
 
-    @Test
-    @DisplayName("크롤 배치 성공 시 markSuccess의 KEY는 sbCode가 아니라 productId(String.valueOf)여야 한다")
-    void crawlBatch_success_marksWithProductIdKey() {
-        lenient().when(product.getSourcingUrl()).thenReturn("https://example.com/item/132");
-        when(stockCrawlerRouter.checkStockWithDetails(any(), eq("https://example.com/item/132")))
-            .thenReturn(new StockCheckResult(StockStatus.IN_STOCK, new BigDecimal("5000"), 100, null));
+	@Test
+	@DisplayName("크롤 배치 성공 시 markSuccess의 KEY는 sbCode가 아니라 productId(String.valueOf)여야 한다")
+	void crawlBatch_success_marksWithProductIdKey() {
+		lenient().when(product.getSourcingUrl()).thenReturn("https://example.com/item/132");
+		when(stockCrawlerRouter.checkStockWithDetails(any(), eq("https://example.com/item/132")))
+			.thenReturn(new StockCheckResult(StockStatus.IN_STOCK, new BigDecimal("5000"), 100, null));
 
-        service.crawlAndUpdatePriceStock("batch-1", List.of(PRODUCT_ID),
-            new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO,
-            com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_CRAWL_UPDATE);
+		service.crawlAndUpdatePriceStock("batch-1", List.of(PRODUCT_ID),
+			new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO,
+			com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_CRAWL_UPDATE);
 
-        verify(processStatusService).markSuccess(eq("batch-1"), eq(PRODUCT_ID_KEY), anyString());
-        verify(processStatusService, never()).markSuccess(eq("batch-1"), eq(SB_CODE), anyString());
-    }
+		verify(processStatusService).markSuccess(eq("batch-1"), eq(PRODUCT_ID_KEY), anyString());
+		verify(processStatusService, never()).markSuccess(eq("batch-1"), eq(SB_CODE), anyString());
+	}
 
-    @Test
-    @DisplayName("크롤 배치 실패(소싱 URL 없음) 시 markFailed의 KEY도 productId여야 한다")
-    void crawlBatch_noSourceUrl_marksFailedWithProductIdKey() {
-        lenient().when(product.getSourcingUrl()).thenReturn(null);
+	@Test
+	@DisplayName("크롤 배치 실패(소싱 URL 없음) 시 markFailed의 KEY도 productId여야 한다")
+	void crawlBatch_noSourceUrl_marksFailedWithProductIdKey() {
+		lenient().when(product.getSourcingUrl()).thenReturn(null);
 
-        service.crawlAndUpdatePriceStock("batch-1", List.of(PRODUCT_ID),
-            new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO,
-            com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_CRAWL_UPDATE);
+		service.crawlAndUpdatePriceStock("batch-1", List.of(PRODUCT_ID),
+			new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO,
+			com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_CRAWL_UPDATE);
 
-        verify(processStatusService).markFailed(eq("batch-1"), eq(PRODUCT_ID_KEY), anyString());
-        verify(processStatusService, never()).markFailed(eq("batch-1"), eq(SB_CODE), anyString());
-    }
+		verify(processStatusService).markFailed(eq("batch-1"), eq(PRODUCT_ID_KEY), anyString());
+		verify(processStatusService, never()).markFailed(eq("batch-1"), eq(SB_CODE), anyString());
+	}
 
-    @Test
-    @DisplayName("수동 배치 성공 시 markSuccess의 KEY는 productId여야 한다")
-    void manualBatch_success_marksWithProductIdKey() {
-        lenient().when(product.getStockStatus()).thenReturn(StockStatus.IN_STOCK);
-        lenient().when(product.getSalePrice()).thenReturn(new BigDecimal("8800"));
+	@Test
+	@DisplayName("수동 배치 성공 시 markSuccess의 KEY는 productId여야 한다")
+	void manualBatch_success_marksWithProductIdKey() {
+		lenient().when(product.getStockStatus()).thenReturn(StockStatus.IN_STOCK);
+		lenient().when(product.getSalePrice()).thenReturn(new BigDecimal("8800"));
 
-        service.manualUpdatePriceStock("batch-manual", List.of(
-            new com.sbshop.agent.core.application.product.dto.PriceStockItem(
-                PRODUCT_ID, new BigDecimal("9900"), 50)));
+		service.manualUpdatePriceStock("batch-manual", List.of(
+			new com.sbshop.agent.core.application.product.dto.PriceStockItem(
+				PRODUCT_ID, new BigDecimal("9900"), 50)));
 
-        verify(processStatusService).markSuccess(eq("batch-manual"), eq(PRODUCT_ID_KEY), anyString());
-        verify(processStatusService, never()).markSuccess(eq("batch-manual"), eq(SB_CODE), anyString());
-    }
+		verify(processStatusService).markSuccess(eq("batch-manual"), eq(PRODUCT_ID_KEY), anyString());
+		verify(processStatusService, never()).markSuccess(eq("batch-manual"), eq(SB_CODE), anyString());
+	}
 }

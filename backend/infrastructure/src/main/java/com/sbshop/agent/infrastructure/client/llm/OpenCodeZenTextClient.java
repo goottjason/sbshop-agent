@@ -61,9 +61,12 @@ public class OpenCodeZenTextClient implements ProductTextGenerationPort {
 	private final List<String> models;
 
 	public OpenCodeZenTextClient(ObjectMapper objectMapper,
-		@Value("${zen.base-url:https://opencode.ai/zen/v1}") String baseUrl,
-		@Value("${zen.api-key:}") String apiKey,
-		@Value("${zen.models:nemotron-3-ultra-free,ling-3.0-flash-free}") String models) {
+		@Value("${zen.base-url:https://opencode.ai/zen/v1}")
+		String baseUrl,
+		@Value("${zen.api-key:}")
+		String apiKey,
+		@Value("${zen.models:nemotron-3-ultra-free,ling-3.0-flash-free}")
+		String models) {
 		this.objectMapper = objectMapper;
 		this.baseUrl = baseUrl;
 		this.apiKey = apiKey;

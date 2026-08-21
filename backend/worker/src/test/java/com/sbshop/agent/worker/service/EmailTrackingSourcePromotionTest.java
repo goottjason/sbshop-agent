@@ -89,7 +89,7 @@ class EmailTrackingSourcePromotionTest {
 
 		service.processIherbShipment(email());
 
-		assertThat(shipment.getTrackingNo()).isEqualTo(REAL);          // 값은 그대로
-		assertThat(shipment.getTrackingSource()).isEqualTo(TrackingSource.EMAIL);   // 출처만 승격
+		assertThat(shipment.getTrackingNo()).isEqualTo(REAL); // 값은 그대로
+		assertThat(shipment.getTrackingSource()).isEqualTo(TrackingSource.EMAIL); // 출처만 승격
 	}
 }

@@ -18,7 +18,15 @@ public class BatchStartedEvent extends ApplicationEvent {
 		this.count = count;
 	}
 
-	public String getBatchId() { return batchId; }
-	public String getActionType() { return actionType; }
-	public int getCount() { return count; }
+	public String getBatchId() {
+		return batchId;
+	}
+
+	public String getActionType() {
+		return actionType;
+	}
+
+	public int getCount() {
+		return count;
+	}
 }

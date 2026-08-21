@@ -71,7 +71,7 @@ class MarketOrderUpsertDispatcherUpdateOnlyTest {
 
 		MarketOrderUpsertDispatcher.dispatch(
 			List.of(dto("NEW-1")), repo, "COUPANG",
-			(order, d) -> { },
+			(order, d) -> {},
 			d -> created.add(d.getMarketOrderNo()));
 
 		assertThat(created).containsExactly("NEW-1");

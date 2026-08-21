@@ -34,7 +34,7 @@ public class DashboardService {
 
 	public SummaryResponse summary(LocalDateTime start, LocalDateTime end) {
 		List<AggRow> rows = repo.findRowsBetween(start, end);
-		int orderCount = (int) rows.stream().map(AggRow::orderId).distinct().count();
+		int orderCount = (int)rows.stream().map(AggRow::orderId).distinct().count();
 		long settlement = rows.stream().mapToLong(AggRow::settlementAmount).sum();
 		long profit = rows.stream().mapToLong(AggRow::profit).sum();
 		var current = new SummaryResponse.Current(
@@ -50,23 +50,24 @@ public class DashboardService {
 		// A1 리뷰 Important 대응: 축(x)은 bucketRange(빈 구간 0채움)와 실제 주문의 KST 버킷키의
 		// 합집합으로 구성한다. naive 경계(bucketRange)와 KST 주문키(bucketKey)의 9h 스큐로 마지막 날
 		// UTC 꼬리 주문이 다음 KST 버킷으로 가더라도 축에 포함되어 절대 누락되지 않는다.
-		Map<LocalDate, Set<Long>> orders = new java.util.TreeMap<>();  // 버킷키 오름차순 정렬
-		Map<LocalDate, long[]> sums = new java.util.HashMap<>();       // [settlement, profit]
+		Map<LocalDate, Set<Long>> orders = new java.util.TreeMap<>(); // 버킷키 오름차순 정렬
+		Map<LocalDate, long[]> sums = new java.util.HashMap<>(); // [settlement, profit]
 		java.util.function.Consumer<LocalDate> ensure = b -> {
 			orders.computeIfAbsent(b, k -> new java.util.HashSet<>());
 			sums.computeIfAbsent(b, k -> new long[2]);
 		};
-		for (LocalDate b : DashboardBucketing.bucketRange(start, end, unit)) ensure.accept(b);
+		for (LocalDate b : DashboardBucketing.bucketRange(start, end, unit))
+			ensure.accept(b);
 		for (AggRow r : rows) {
 			LocalDate b = DashboardBucketing.bucketKey(r.orderDate(), unit);
-			ensure.accept(b);                     // 축에 없던 KST 꼬리 버킷도 편입(누락 방지)
+			ensure.accept(b); // 축에 없던 KST 꼬리 버킷도 편입(누락 방지)
 			orders.get(b).add(r.orderId());
 			long[] s = sums.get(b);
 			s[0] += r.settlementAmount();
 			s[1] += r.profit();
 		}
 		List<TimeseriesBucket> out = new ArrayList<>();
-		for (LocalDate b : orders.keySet()) {     // TreeMap → 오름차순
+		for (LocalDate b : orders.keySet()) { // TreeMap → 오름차순
 			long[] s = sums.get(b);
 			out.add(new TimeseriesBucket(b.toString(), orders.get(b).size(), s[0], s[1]));
 		}
@@ -80,7 +81,8 @@ public class DashboardService {
 		Map<String, String> labels = new LinkedHashMap<>();
 		for (AggRow r : rows) {
 			String key = keyOf(r, dim);
-			if (key == null) continue;
+			if (key == null)
+				continue;
 			ordersByKey.computeIfAbsent(key, k -> new java.util.HashSet<>()).add(r.orderId());
 			sumsByKey.computeIfAbsent(key, k -> new long[2]);
 			sumsByKey.get(key)[0] += r.settlementAmount();
@@ -116,9 +118,15 @@ public class DashboardService {
 
 	private String labelOf(AggRow r, Dimension dim, String key) {
 		return switch (dim) {
-			case MARKET -> { try { yield MarketType.valueOf(key).getLabel(); } catch (Exception e) { yield key; } }
+			case MARKET -> {
+				try {
+					yield MarketType.valueOf(key).getLabel();
+				} catch (Exception e) {
+					yield key;
+				}
+			}
 			case PRODUCT -> r.productName() != null ? r.productName() : key;
-			default -> key;   // STATUS·VENDOR는 프론트에서 라벨링
+			default -> key; // STATUS·VENDOR는 프론트에서 라벨링
 		};
 	}
 }

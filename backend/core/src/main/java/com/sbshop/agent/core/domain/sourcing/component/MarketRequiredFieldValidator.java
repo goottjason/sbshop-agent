@@ -1,6 +1,5 @@
 package com.sbshop.agent.core.domain.sourcing.component;
 
-import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.sourcing.MarketDraft;
 import com.sbshop.agent.core.domain.sourcing.ProductDraft;
 import java.util.ArrayList;
@@ -20,8 +19,7 @@ import java.util.List;
  */
 public final class MarketRequiredFieldValidator {
 
-	private MarketRequiredFieldValidator() {
-	}
+	private MarketRequiredFieldValidator() {}
 
 	/** 미충족 필수필드 라벨 목록. 비어 있으면 등록 가능. */
 	public static List<String> validate(ProductDraft draft, MarketDraft marketDraft) {
@@ -44,7 +42,7 @@ public final class MarketRequiredFieldValidator {
 			case SMART_STORE -> validateSmartstore(draft, marketDraft, missing);
 			case ELEVEN_STREET -> validateElevenst(draft, marketDraft, missing);
 			case CAFE24 -> validateCafe24(draft, marketDraft, missing);
-			default -> { }
+			default -> {}
 		}
 		return missing;
 	}

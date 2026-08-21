@@ -21,8 +21,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SourcingConfig extends BaseEntity {
 
-	public static final String DEFAULT_CATEGORIES =
-		"supplements,grocery,sports-nutrition,herbs-homeopathy";
+	public static final String DEFAULT_CATEGORIES = "supplements,grocery,sports-nutrition,herbs-homeopathy";
 
 	/**
 	 * 서브스코어 가중치 기본값. 합계 100.

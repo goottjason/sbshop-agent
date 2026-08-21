@@ -243,8 +243,7 @@ public class SmartstoreMarketClient implements MarketClient {
 			if (!(benefitObj instanceof Map)) {
 				return java.util.Optional.empty();
 			}
-			@SuppressWarnings("unchecked")
-			Map<String, Object> customerBenefit = (Map<String, Object>) benefitObj;
+			@SuppressWarnings("unchecked") Map<String, Object> customerBenefit = (Map<String, Object>)benefitObj;
 			Object immediate = customerBenefit.get("immediateDiscountPolicy");
 			if (immediate == null) {
 				return java.util.Optional.empty();
@@ -438,18 +437,17 @@ public class SmartstoreMarketClient implements MarketClient {
 	 */
 	private List<String> uploadImagesToNaver(List<String> hostedImages) {
 		try {
-			org.springframework.util.MultiValueMap<String, Object> body =
-				new org.springframework.util.LinkedMultiValueMap<>();
+			org.springframework.util.MultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
 			for (String imageUrl : hostedImages) {
 				byte[] bytes = downloadImage(imageUrl);
 				if (bytes != null) {
-					org.springframework.core.io.ByteArrayResource res =
-						new org.springframework.core.io.ByteArrayResource(bytes) {
-							@Override
-							public String getFilename() {
-								return "image.jpg";
-							}
-						};
+					org.springframework.core.io.ByteArrayResource res = new org.springframework.core.io.ByteArrayResource(
+						bytes) {
+						@Override
+						public String getFilename() {
+							return "image.jpg";
+						}
+					};
 					body.add("imageFiles", res);
 				}
 			}
@@ -498,7 +496,7 @@ public class SmartstoreMarketClient implements MarketClient {
 	private void applyCustomsTaxType(Map<String, Object> originProduct) {
 		Object da = originProduct.get("detailAttribute");
 		Map<String, Object> detailAttribute = (da instanceof Map)
-			? (Map<String, Object>) da : new HashMap<>();
+			? (Map<String, Object>)da : new HashMap<>();
 		detailAttribute.put("customsTaxType", "INCLUDED");
 		originProduct.put("detailAttribute", detailAttribute);
 	}
@@ -512,7 +510,7 @@ public class SmartstoreMarketClient implements MarketClient {
 	private void applyUnitPrice(Map<String, Object> originProduct, Product product) {
 		Object da = originProduct.get("detailAttribute");
 		Map<String, Object> detailAttribute = (da instanceof Map)
-			? (Map<String, Object>) da : new HashMap<>();
+			? (Map<String, Object>)da : new HashMap<>();
 
 		ProductSpec spec = product != null ? product.getProductSpec() : null;
 		BigDecimal capacity = spec != null ? spec.getCapacity() : null;
@@ -574,7 +572,7 @@ public class SmartstoreMarketClient implements MarketClient {
 	private void applyImages(Map<String, Object> originProduct, List<String> hostedImages) {
 		Object existing = originProduct.get("images");
 		Map<String, Object> images = (existing instanceof Map)
-			? (Map<String, Object>) existing
+			? (Map<String, Object>)existing
 			: new HashMap<>();
 
 		images.put("representativeImage", Map.of("url", hostedImages.get(0)));

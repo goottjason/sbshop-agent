@@ -29,9 +29,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class MarketRegistrationServiceTest {
 
-	@Mock private MarketRegistrationRepository marketRegistrationRepository;
-	@Mock private MarketClientRouter marketClientRouter;
-	@Mock private ProductReader productReader;
+	@Mock
+	private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private MarketClientRouter marketClientRouter;
+	@Mock
+	private ProductReader productReader;
 
 	private MarketRegistrationService service() {
 		return new MarketRegistrationService(

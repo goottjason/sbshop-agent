@@ -34,11 +34,16 @@ import com.sbshop.agent.core.domain.order.vo.ShippingData;
 @ExtendWith(MockitoExtension.class)
 class OrderServiceUpdateMessageTest {
 
-	@Mock private OrderRepository orderRepository;
-	@Mock private OrderLineItemRepository orderLineItemRepository;
-	@Mock private ShipmentRepository shipmentRepository;
-	@Mock private MarketCredentialRepository credentialRepository;
-	@Mock private MarketplaceShippingService marketplaceShippingService;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private ShipmentRepository shipmentRepository;
+	@Mock
+	private MarketCredentialRepository credentialRepository;
+	@Mock
+	private MarketplaceShippingService marketplaceShippingService;
 
 	private OrderService service() {
 		return new OrderService(orderRepository, orderLineItemRepository,

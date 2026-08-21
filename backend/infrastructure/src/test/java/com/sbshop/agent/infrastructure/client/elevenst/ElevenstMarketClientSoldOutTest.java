@@ -9,7 +9,6 @@ import static org.mockito.Mockito.when;
 import com.sbshop.agent.infrastructure.client.elevenst.adapter.ElevenstMarketClient;
 import com.sbshop.agent.infrastructure.client.elevenst.client.ElevenstMarketRestClient;
 import java.util.HashMap;
-import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,34 +22,35 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ElevenstMarketClientSoldOutTest {
 
-    @Mock private ElevenstMarketRestClient restClient;
+	@Mock
+	private ElevenstMarketRestClient restClient;
 
-    private ElevenstMarketClient client;
+	private ElevenstMarketClient client;
 
-    @BeforeEach
-    void setUp() {
-        client = new ElevenstMarketClient(restClient);
-    }
+	@BeforeEach
+	void setUp() {
+		client = new ElevenstMarketClient(restClient);
+	}
 
-    @Test
-    @DisplayName("soldOut=true → stopdisplay PUT 호출")
-    void soldOutCallsStopDisplay() {
-        client.syncPriceAndStock("P001", new HashMap<>(), null, 1, true);
+	@Test
+	@DisplayName("soldOut=true → stopdisplay PUT 호출")
+	void soldOutCallsStopDisplay() {
+		client.syncPriceAndStock("P001", new HashMap<>(), null, 1, true);
 
-        verify(restClient).put(eq("/rest/prodstatservice/stat/stopdisplay/P001"), anyString());
-        verify(restClient, never()).put(eq("/rest/prodstatservice/stat/restartdisplay/P001"), anyString());
-    }
+		verify(restClient).put(eq("/rest/prodstatservice/stat/stopdisplay/P001"), anyString());
+		verify(restClient, never()).put(eq("/rest/prodstatservice/stat/restartdisplay/P001"), anyString());
+	}
 
-    @Test
-    @DisplayName("soldOut=false → restartdisplay PUT 호출")
-    void inStockCallsRestartDisplay() {
-        client.syncPriceAndStock("P001", new HashMap<>(), null, 999, false);
+	@Test
+	@DisplayName("soldOut=false → restartdisplay PUT 호출")
+	void inStockCallsRestartDisplay() {
+		client.syncPriceAndStock("P001", new HashMap<>(), null, 999, false);
 
-        verify(restClient).put(eq("/rest/prodstatservice/stat/restartdisplay/P001"), anyString());
-        verify(restClient, never()).put(eq("/rest/prodstatservice/stat/stopdisplay/P001"), anyString());
-    }
+		verify(restClient).put(eq("/rest/prodstatservice/stat/restartdisplay/P001"), anyString());
+		verify(restClient, never()).put(eq("/rest/prodstatservice/stat/stopdisplay/P001"), anyString());
+	}
 
-    @Test
+	@Test
     @DisplayName("price!=null → 가격 GET 호출")
     void withPriceCallsGetPrice() {
         when(restClient.get(anyString())).thenReturn("");
@@ -59,11 +59,11 @@ class ElevenstMarketClientSoldOutTest {
         verify(restClient).get("/rest/prodservices/product/price/P001/5000");
     }
 
-    @Test
-    @DisplayName("price==null → 가격 GET 미호출")
-    void withNullPriceSkipsGetPrice() {
-        client.syncPriceAndStock("P001", new HashMap<>(), null, 1, true);
+	@Test
+	@DisplayName("price==null → 가격 GET 미호출")
+	void withNullPriceSkipsGetPrice() {
+		client.syncPriceAndStock("P001", new HashMap<>(), null, 1, true);
 
-        verify(restClient, never()).get(anyString());
-    }
+		verify(restClient, never()).get(anyString());
+	}
 }

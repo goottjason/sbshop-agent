@@ -1,6 +1,5 @@
 package com.sbshop.agent.infrastructure.client.cafe24;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -52,8 +51,7 @@ class Cafe24MarketClientCategoryTest {
 
 	private Cafe24MarketClient client;
 
-	private static final String OK_RESPONSE =
-		"{\"product\":{\"product_no\":\"999\",\"product_code\":\"P000000AB\"}}";
+	private static final String OK_RESPONSE = "{\"product\":{\"product_no\":\"999\",\"product_code\":\"P000000AB\"}}";
 
 	@BeforeEach
 	void setUp() {

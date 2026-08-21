@@ -6,15 +6,11 @@ import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
-import com.sbshop.agent.core.domain.order.Shipment;
 import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.order.dto.MarketLineItemDto;
 import com.sbshop.agent.core.application.order.dto.MarketFetchOutcome;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
-import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
-import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
-import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.application.order.adapter.CoupangOrderAdapter;
@@ -27,7 +23,6 @@ import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -407,7 +402,7 @@ public class CoupangOrderSyncService {
 					marketRegistrationRepository.save(reg);
 				}
 				log.info("[COUPANG] sellerProductId 역조회로 productId 매칭·vendorItemId 보강: "
-						+ "sellerProductId={}, vendorItemId={}, sbProductId={}",
+					+ "sellerProductId={}, vendorItemId={}, sbProductId={}",
 					dto.getSellerProductId(), dto.getMarketProductCode(), reg.getSbProductId());
 				return reg.getSbProductId();
 			}

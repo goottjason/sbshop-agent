@@ -39,11 +39,9 @@ public class MarketDraftBuilder {
 	private final ProductNoticeBuilder noticeBuilder;
 	private final MarketRegistrationDefaults defaults;
 	private final ObjectMapper objectMapper;
-	private final Map<MarketType, MarketCategoryResolverPort> categoryResolvers =
-		new EnumMap<>(MarketType.class);
+	private final Map<MarketType, MarketCategoryResolverPort> categoryResolvers = new EnumMap<>(MarketType.class);
 	/** 마켓 API로 자동 조회하는 계정 리소스(스토어 주소록 등). */
-	private final Map<MarketType, MarketAccountResourcePort> accountResources =
-		new EnumMap<>(MarketType.class);
+	private final Map<MarketType, MarketAccountResourcePort> accountResources = new EnumMap<>(MarketType.class);
 
 	public MarketDraftBuilder(MarketFeeService marketFeeService, MarginCalculator marginCalculator,
 		ProductNoticeBuilder noticeBuilder, MarketRegistrationDefaults defaults,
@@ -165,14 +163,14 @@ public class MarketDraftBuilder {
 				extra.put("exchDlvCst", defaults.getElevenstExchangeDeliveryFee());
 				putIfPresent(extra, "orgnTypDtlsCd", defaults.getElevenstOriginDetailCode());
 				putIfPresent(extra, "abrdBuyPlace", defaults.getElevenstAbroadBuyPlace());
-				extra.put("dlvCnAreaCd", "01");   // 배송가능지역: 전국
+				extra.put("dlvCnAreaCd", "01"); // 배송가능지역: 전국
 				extra.put("abrdCntrCd", "US");
 			}
 			case CAFE24 -> {
 				// 진열 분류는 Cafe24CategoryResolver가 categoryId로 이미 채운다.
 				extra.put("originPlace", nz(draft.getOrigin(), defaults.getDefaultOrigin()));
 			}
-			default -> { }
+			default -> {}
 		}
 		return extra;
 	}

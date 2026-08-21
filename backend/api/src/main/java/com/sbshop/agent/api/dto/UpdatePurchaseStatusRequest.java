@@ -7,5 +7,5 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor
 public class UpdatePurchaseStatusRequest {
-    private PurchaseStatus purchaseStatus;
+	private PurchaseStatus purchaseStatus;
 }

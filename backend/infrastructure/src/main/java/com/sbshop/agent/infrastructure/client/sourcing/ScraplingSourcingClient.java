@@ -42,7 +42,8 @@ public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 	private final String baseUrl;
 
 	public ScraplingSourcingClient(ObjectMapper objectMapper,
-		@Value("${scraper.base-url:http://localhost:8099}") String baseUrl) {
+		@Value("${scraper.base-url:http://localhost:8099}")
+		String baseUrl) {
 		this.objectMapper = objectMapper;
 		this.baseUrl = baseUrl;
 	}

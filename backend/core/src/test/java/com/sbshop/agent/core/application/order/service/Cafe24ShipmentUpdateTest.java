@@ -41,7 +41,8 @@ class Cafe24ShipmentUpdateTest {
 
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
-	@Mock private Cafe24OrderApiPort port;
+	@Mock
+	private Cafe24OrderApiPort port;
 	private Cafe24ShipmentService service;
 
 	@BeforeEach
@@ -158,6 +159,6 @@ class Cafe24ShipmentUpdateTest {
 
 	@SuppressWarnings("unchecked")
 	private Map<String, Object> request(Object body) {
-		return (Map<String, Object>) ((Map<String, Object>) body).get("request");
+		return (Map<String, Object>)((Map<String, Object>)body).get("request");
 	}
 }

@@ -25,19 +25,20 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SmartstoreMarketClientFetchChannelTest {
 
-    @Mock private SmartstoreRestClient restClient;
+	@Mock
+	private SmartstoreRestClient restClient;
 
-    private SmartstoreMarketClient client;
+	private SmartstoreMarketClient client;
 
-    @BeforeEach
-    void setUp() {
-        client = new SmartstoreMarketClient(
-            // 신규 등록(publish) 전용 협력자 — 이 테스트가 검증하는 경로에서는 호출되지 않는다.
-            null, null, null, null,
-            restClient, new ObjectMapper());
-    }
+	@BeforeEach
+	void setUp() {
+		client = new SmartstoreMarketClient(
+			// 신규 등록(publish) 전용 협력자 — 이 테스트가 검증하는 경로에서는 호출되지 않는다.
+			null, null, null, null,
+			restClient, new ObjectMapper());
+	}
 
-    @Test
+	@Test
     @DisplayName("STOREFARM 채널상품이 있으면 그 channelProductNo 를 반환한다")
     void returnsStorefarmChannelProductNo() {
         when(restClient.post(eq("/v1/products/search"), any())).thenReturn(
@@ -47,7 +48,7 @@ class SmartstoreMarketClientFetchChannelTest {
         assertThat(client.fetchChannelProductNo("5327391662")).isEqualTo(Optional.of("5348874248"));
     }
 
-    @Test
+	@Test
     @DisplayName("STOREFARM 이 없으면 첫 채널상품의 channelProductNo 를 반환한다(폴백)")
     void fallsBackToFirstChannelProduct() {
         when(restClient.post(eq("/v1/products/search"), any())).thenReturn(
@@ -57,7 +58,7 @@ class SmartstoreMarketClientFetchChannelTest {
         assertThat(client.fetchChannelProductNo("5327391662")).isEqualTo(Optional.of("9999999999"));
     }
 
-    @Test
+	@Test
     @DisplayName("여러 채널상품 중 STOREFARM 을 우선 선택한다(순서 무관)")
     void prefersStorefarmOverOthers() {
         when(restClient.post(eq("/v1/products/search"), any())).thenReturn(
@@ -68,7 +69,7 @@ class SmartstoreMarketClientFetchChannelTest {
         assertThat(client.fetchChannelProductNo("5327391662")).isEqualTo(Optional.of("5348874248"));
     }
 
-    @Test
+	@Test
     @DisplayName("contents 가 비어 있으면 empty 를 반환한다")
     void emptyContents_returnsEmpty() {
         when(restClient.post(eq("/v1/products/search"), any())).thenReturn(
@@ -77,7 +78,7 @@ class SmartstoreMarketClientFetchChannelTest {
         assertThat(client.fetchChannelProductNo("5327391662")).isEmpty();
     }
 
-    @Test
+	@Test
     @DisplayName("originProductNo 가 일치하지 않으면 empty 를 반환한다")
     void noMatchingOrigin_returnsEmpty() {
         when(restClient.post(eq("/v1/products/search"), any())).thenReturn(
@@ -87,7 +88,7 @@ class SmartstoreMarketClientFetchChannelTest {
         assertThat(client.fetchChannelProductNo("5327391662")).isEmpty();
     }
 
-    @Test
+	@Test
     @DisplayName("restClient 가 예외를 던져도 전파하지 않고 empty 를 반환한다(best-effort)")
     void restClientThrows_returnsEmpty() {
         when(restClient.post(eq("/v1/products/search"), any())).thenThrow(new RuntimeException("네트워크 오류"));
@@ -95,21 +96,21 @@ class SmartstoreMarketClientFetchChannelTest {
         assertThat(client.fetchChannelProductNo("5327391662")).isEmpty();
     }
 
-    @Test
-    @DisplayName("blank 입력은 restClient 를 호출하지 않고 empty 를 반환한다")
-    void blankInput_returnsEmptyWithoutCall() {
-        assertThat(client.fetchChannelProductNo("   ")).isEmpty();
-        assertThat(client.fetchChannelProductNo(null)).isEmpty();
-        verify(restClient, never()).post(any(), any());
-    }
+	@Test
+	@DisplayName("blank 입력은 restClient 를 호출하지 않고 empty 를 반환한다")
+	void blankInput_returnsEmptyWithoutCall() {
+		assertThat(client.fetchChannelProductNo("   ")).isEmpty();
+		assertThat(client.fetchChannelProductNo(null)).isEmpty();
+		verify(restClient, never()).post(any(), any());
+	}
 
-    @Test
-    @DisplayName("파싱 불가한 originProductNo 는 empty 를 반환한다")
-    void unparseableInput_returnsEmpty() {
-        assertThat(client.fetchChannelProductNo("not-a-number")).isEmpty();
-    }
+	@Test
+	@DisplayName("파싱 불가한 originProductNo 는 empty 를 반환한다")
+	void unparseableInput_returnsEmpty() {
+		assertThat(client.fetchChannelProductNo("not-a-number")).isEmpty();
+	}
 
-    @Test
+	@Test
     @DisplayName("전체 스캔: 여러 페이지를 순회해 origin→channel 맵을 통째로 구축한다(last=true에서 종료)")
     void fetchAllChannelProductNos_paginatesUntilLast() {
         // page1: last=false, page2: last=true. search는 originProductNos 필터를 무시하므로 전체를 페이지로 훑는다.
@@ -127,7 +128,7 @@ class SmartstoreMarketClientFetchChannelTest {
         verify(restClient, org.mockito.Mockito.times(2)).post(eq("/v1/products/search"), any());
     }
 
-    @Test
+	@Test
     @DisplayName("전체 스캔: 빈 contents면 즉시 종료하고 빈 맵을 반환한다")
     void fetchAllChannelProductNos_emptyContents() {
         when(restClient.post(eq("/v1/products/search"), any()))

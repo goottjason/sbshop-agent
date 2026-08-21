@@ -29,8 +29,7 @@ import org.junit.jupiter.api.Test;
  */
 class Cafe24RestClientErrorMessageTest {
 
-	private static final String ERROR_BODY =
-		"{\"error\":{\"code\":422,\"message\":\"You cannot change to that order state.\"}}";
+	private static final String ERROR_BODY = "{\"error\":{\"code\":422,\"message\":\"You cannot change to that order state.\"}}";
 
 	private HttpServer server;
 	private Cafe24RestClient client;

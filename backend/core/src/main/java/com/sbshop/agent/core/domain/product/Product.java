@@ -379,7 +379,7 @@ public class Product extends BaseEntity {
 
 	private static LogisticsInfo createLogisticsInfo(ProductCreateCommand command, int bundleQty) {
 		return LogisticsInfo.builder()
-			.stock(DEFAULT_IN_STOCK_QUANTITY)   // 기존: command.isAvailable() ? 999 : 0
+			.stock(DEFAULT_IN_STOCK_QUANTITY) // 기존: command.isAvailable() ? 999 : 0
 			.weight(defaultIfNull(command.weight(), BigDecimal.ZERO))
 			.bundleQuantity(bundleQty)
 			.build();

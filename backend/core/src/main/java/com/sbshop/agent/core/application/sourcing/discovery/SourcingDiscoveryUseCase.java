@@ -51,12 +51,10 @@ public class SourcingDiscoveryUseCase {
 		}
 
 		// S1: 적재 + 중복·부적격 제외 (짧은 트랜잭션)
-		CandidateIngestTxService.IngestResult ingest =
-			ingestTxService.ingest(crawl.candidates(), config);
+		CandidateIngestTxService.IngestResult ingest = ingestTxService.ingest(crawl.candidates(), config);
 
 		// S2~S3: 통관 게이트 + 수요신호 + 스코어링 (외부 I/O 포함 — 트랜잭션 밖)
-		CandidateEnrichmentPipeline.Outcome outcome =
-			enrichmentPipeline.process(ingest.survivors(), config);
+		CandidateEnrichmentPipeline.Outcome outcome = enrichmentPipeline.process(ingest.survivors(), config);
 
 		DiscoverySummary summary = new DiscoverySummary(
 			startedAt,

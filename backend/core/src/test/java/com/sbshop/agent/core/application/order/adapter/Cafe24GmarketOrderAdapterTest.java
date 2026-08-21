@@ -18,10 +18,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class Cafe24GmarketOrderAdapterTest {
 
-	@Mock Cafe24OrderApiPort cafe24OrderApiPort;
-	@Mock Cafe24ShipmentService cafe24ShipmentService;
-	@Mock MarketCredential credential;
-	@Mock Order order;
+	@Mock
+	Cafe24OrderApiPort cafe24OrderApiPort;
+	@Mock
+	Cafe24ShipmentService cafe24ShipmentService;
+	@Mock
+	MarketCredential credential;
+	@Mock
+	Order order;
 
 	@Test
 	@DisplayName("marketType은 GMARKET")

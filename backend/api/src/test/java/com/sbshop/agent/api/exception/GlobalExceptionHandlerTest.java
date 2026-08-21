@@ -16,8 +16,8 @@ class GlobalExceptionHandlerTest {
 	@Test
 	@DisplayName("ResourceNotFoundException → 404 + {success:false, message}")
 	void resourceNotFound_maps404() {
-		ResponseEntity<Map<String, Object>> res =
-			handler.handleNotFound(new ResourceNotFoundException("상품을 찾을 수 없습니다: 99"));
+		ResponseEntity<Map<String, Object>> res = handler
+			.handleNotFound(new ResourceNotFoundException("상품을 찾을 수 없습니다: 99"));
 
 		assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 		assertThat(res.getBody()).containsEntry("success", false);
@@ -27,8 +27,7 @@ class GlobalExceptionHandlerTest {
 	@Test
 	@DisplayName("IllegalArgumentException은 여전히 400(입력오류와 404 구분)")
 	void illegalArgument_still400() {
-		ResponseEntity<Map<String, Object>> res =
-			handler.handleIllegalArgument(new IllegalArgumentException("잘못된 값"));
+		ResponseEntity<Map<String, Object>> res = handler.handleIllegalArgument(new IllegalArgumentException("잘못된 값"));
 
 		assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 	}

@@ -166,7 +166,8 @@ public class BatchController {
 	 */
 	@GetMapping("/status/{batchId}")
 	public ResponseEntity<List<ProcessStatusResponse>> getBatchStatus(
-		@PathVariable String batchId,
+		@PathVariable
+		String batchId,
 		@org.springframework.web.bind.annotation.RequestParam(name = "status", required = false)
 		com.sbshop.agent.core.domain.process.enums.ProcessStatusType status) {
 		List<ProcessStatusResponse> statuses = processStatusService.getBatchStatus(batchId, status).stream()

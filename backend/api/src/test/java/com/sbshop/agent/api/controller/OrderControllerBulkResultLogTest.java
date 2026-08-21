@@ -32,9 +32,12 @@ import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 @ExtendWith(MockitoExtension.class)
 class OrderControllerBulkResultLogTest {
 
-	@Mock private OrderService orderService;
-	@Mock private OrderShipService orderShipService;
-	@Mock private ActionLogService actionLogService;
+	@Mock
+	private OrderService orderService;
+	@Mock
+	private OrderShipService orderShipService;
+	@Mock
+	private ActionLogService actionLogService;
 
 	private OrderController controller() {
 		return new OrderController(orderService, orderShipService, actionLogService);

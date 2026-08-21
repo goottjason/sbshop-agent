@@ -151,15 +151,15 @@ public class Cafe24MarketClient implements MarketClient {
 		if (!resolved.isResolved()) {
 			throw new IllegalStateException(
 				"[카페24] 진열 분류를 확보하지 못해 등록을 거부합니다: sbCode=" + product.getSbCode()
-				+ " — 쇼핑몰 분류 목록 조회 실패(분류 0개 또는 API 오류)로 자동 매칭도 폴백도 불가능합니다. "
-				+ "카페24 관리자에서 분류를 확인하거나 market.cafe24.default-category-no 설정으로 고정하세요.");
+					+ " — 쇼핑몰 분류 목록 조회 실패(분류 0개 또는 API 오류)로 자동 매칭도 폴백도 불가능합니다. "
+					+ "카페24 관리자에서 분류를 확인하거나 market.cafe24.default-category-no 설정으로 고정하세요.");
 		}
 		if (!resolved.confident()) {
 			throw new IllegalStateException(
 				"[카페24] 진열 분류 자동 매칭이 확신을 얻지 못해 등록을 거부합니다: sbCode=" + product.getSbCode()
-				+ " — 이름 매칭이 되지 않아 가장 낮은 번호의 분류(" + resolved.categoryPath()
-				+ ")로 폴백했는데, 그건 보통 포괄적인 루트 분류라 상품이 엉뚱한 곳에 걸립니다. "
-				+ "초안 검수 화면에서 이 마켓의 카테고리를 직접 지정한 뒤 등록하세요.");
+					+ " — 이름 매칭이 되지 않아 가장 낮은 번호의 분류(" + resolved.categoryPath()
+					+ ")로 폴백했는데, 그건 보통 포괄적인 루트 분류라 상품이 엉뚱한 곳에 걸립니다. "
+					+ "초안 검수 화면에서 이 마켓의 카테고리를 직접 지정한 뒤 등록하세요.");
 		}
 		log.info("[카페24] 진열 분류 자동 해석: {} (confident=true)", resolved.categoryPath());
 		return resolved.categoryId();
@@ -225,7 +225,7 @@ public class Cafe24MarketClient implements MarketClient {
 			productData.put("price", price + ".00");
 		}
 		productData.put("supply_quantity", String.valueOf(quantity)); // 항상 ≥1
-		productData.put("selling", soldOut ? "F" : "T");              // 신규, 라이브 검증 필요
+		productData.put("selling", soldOut ? "F" : "T"); // 신규, 라이브 검증 필요
 		Map<String, Object> requestBody = new HashMap<>();
 		requestBody.put("request", productData);
 		// 실패 시 예외 전파 → 상위에서 '실패 마켓'으로 표면화.
@@ -301,7 +301,8 @@ public class Cafe24MarketClient implements MarketClient {
 					imageData.put("small_image", dataUri);
 					imageRequestBody.put("request", imageData);
 
-					String imgResp = cafe24RestClient.post("/admin/products/" + marketItemId + "/images", imageRequestBody);
+					String imgResp = cafe24RestClient.post("/admin/products/" + marketItemId + "/images",
+						imageRequestBody);
 					log.info("[D092][카페24] 이미지 POST resp (len={}): {}", imgResp == null ? -1 : imgResp.length(),
 						imgResp == null ? "null" : imgResp.substring(0, Math.min(imgResp.length(), 2000)));
 					log.info("[카페24] 이미지 업로드 완료: {}", marketItemId);

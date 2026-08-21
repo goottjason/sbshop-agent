@@ -32,8 +32,7 @@ public final class IngredientAliasSeed {
 		Map.entry("이카리틴", List.of("Icaritin", "이카린", "Icariin")),
 		Map.entry("에보디아민", List.of("Evodiamine", "에보디아", "Evodia")));
 
-	private IngredientAliasSeed() {
-	}
+	private IngredientAliasSeed() {}
 
 	/**
 	 * 대표명에 대한 별칭. 시드에 없으면 빈 목록.

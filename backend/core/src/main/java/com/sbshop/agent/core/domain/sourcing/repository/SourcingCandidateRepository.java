@@ -24,7 +24,8 @@ public interface SourcingCandidateRepository extends JpaRepository<SourcingCandi
 		WHERE c.candidateStatus = :status
 		ORDER BY c.totalScore DESC NULLS LAST, c.id ASC
 		""")
-	List<SourcingCandidate> findTopScored(@Param("status") CandidateStatus status, Pageable pageable);
+	List<SourcingCandidate> findTopScored(@Param("status")
+	CandidateStatus status, Pageable pageable);
 
 	List<SourcingCandidate> findByCandidateStatusIn(Collection<CandidateStatus> statuses);
 

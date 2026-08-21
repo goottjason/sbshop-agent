@@ -22,8 +22,10 @@ public record MarketRegistrationResponse(
 	Long sbProductId,
 	String marketType,
 	String marketProductName,
-	@JsonRawValue String marketIdentifiers,
-	@JsonRawValue String marketDetailedInfo,
+	@JsonRawValue
+	String marketIdentifiers,
+	@JsonRawValue
+	String marketDetailedInfo,
 	Boolean isSynced,
 	LocalDateTime lastSyncedAt) {
 

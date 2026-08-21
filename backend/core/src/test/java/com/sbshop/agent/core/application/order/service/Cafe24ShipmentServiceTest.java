@@ -30,7 +30,8 @@ class Cafe24ShipmentServiceTest {
 
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
-	@Mock private Cafe24OrderApiPort port;
+	@Mock
+	private Cafe24OrderApiPort port;
 	private Cafe24ShipmentService service;
 
 	@BeforeEach
@@ -88,15 +89,13 @@ class Cafe24ShipmentServiceTest {
 		ArgumentCaptor<Object> bodyCaptor = ArgumentCaptor.forClass(Object.class);
 		verify(port).registerShipment(eq("20260708-0000011"), bodyCaptor.capture());
 
-		@SuppressWarnings("unchecked")
-		Map<String, Object> body = (Map<String, Object>) bodyCaptor.getValue();
-		@SuppressWarnings("unchecked")
-		Map<String, Object> req = (Map<String, Object>) body.get("request");
+		@SuppressWarnings("unchecked") Map<String, Object> body = (Map<String, Object>)bodyCaptor.getValue();
+		@SuppressWarnings("unchecked") Map<String, Object> req = (Map<String, Object>)body.get("request");
 		assertThat(req.get("tracking_no")).isEqualTo("1234567890");
 		assertThat(req.get("shipping_company_code")).isEqualTo("0019");
 		assertThat(req.get("status")).isEqualTo("shipping");
-		@SuppressWarnings("unchecked")
-		java.util.List<Object> codes = (java.util.List<Object>) req.get("order_item_code");
+		@SuppressWarnings("unchecked") java.util.List<Object> codes = (java.util.List<Object>)req
+			.get("order_item_code");
 		assertThat(codes).containsExactly("20260708-0000011-01");
 	}
 

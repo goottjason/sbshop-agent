@@ -44,8 +44,10 @@ class SmartStoreOrderGroupingTest {
 
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
-	@Mock private SmartStoreOrderApiPort apiPort;
-	@Mock private SmartStoreStatusMapper statusMapper;
+	@Mock
+	private SmartStoreOrderApiPort apiPort;
+	@Mock
+	private SmartStoreStatusMapper statusMapper;
 
 	private SmartStoreOrderAdapter adapter;
 

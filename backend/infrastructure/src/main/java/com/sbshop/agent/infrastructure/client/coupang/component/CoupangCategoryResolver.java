@@ -27,8 +27,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class CoupangCategoryResolver implements MarketCategoryResolverPort {
 
-	private static final String PREDICT_PATH =
-		"/v2/providers/openapi/apis/api/v1/categorization/predict";
+	private static final String PREDICT_PATH = "/v2/providers/openapi/apis/api/v1/categorization/predict";
 
 	/** 해외직구 판매가 가능한 것으로 확인된 카테고리(기존 CoupangCategoryPredictor와 동일 목록). */
 	private static final Set<Long> SAFE_OVERSEAS_CATEGORIES = Set.of(

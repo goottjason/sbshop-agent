@@ -51,7 +51,7 @@ class ProductSoldOutCreateTest {
 
 		Product q = Product.create("SB-TEST-2", unavailableCommand);
 
-		assertThat(q.getStock()).isEqualTo(999);          // 0이 아니다 (핵심)
+		assertThat(q.getStock()).isEqualTo(999); // 0이 아니다 (핵심)
 		assertThat(q.getStockStatus()).isEqualTo(StockStatus.OUT_OF_STOCK);
 	}
 

@@ -31,6 +31,5 @@ public final class SettlementPolicy {
 		return DEFAULT_FEE_RATES.getOrDefault(marketType, FALLBACK_FEE_RATE);
 	}
 
-	private SettlementPolicy() {
-	}
+	private SettlementPolicy() {}
 }

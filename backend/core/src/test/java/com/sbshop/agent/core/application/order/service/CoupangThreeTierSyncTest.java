@@ -63,18 +63,30 @@ class CoupangThreeTierSyncTest {
 	private static final String ORDER_NO = "2101945764711";
 	private static final String BOX = "714841543016459";
 
-	@Mock private MarketCredentialRepository credentialRepository;
-	@Mock private OrderRepository orderRepository;
-	@Mock private OrderLineItemRepository orderLineItemRepository;
-	@Mock private ProductRepository productRepository;
-	@Mock private MarketRegistrationRepository marketRegistrationRepository;
-	@Mock private ApplicationEventPublisher eventPublisher;
-	@Mock private CoupangOrderAdapter adapter;
-	@Mock private SyncStatusService syncStatusService;
-	@Mock private MarketFeeService marketFeeService;
-	@Mock private TerminalSettlementService terminalSettlementService;
-	@Mock private ActionLogService actionLogService;
-	@Mock private ShipmentRepository shipmentRepository;
+	@Mock
+	private MarketCredentialRepository credentialRepository;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private ProductRepository productRepository;
+	@Mock
+	private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+	@Mock
+	private CoupangOrderAdapter adapter;
+	@Mock
+	private SyncStatusService syncStatusService;
+	@Mock
+	private MarketFeeService marketFeeService;
+	@Mock
+	private TerminalSettlementService terminalSettlementService;
+	@Mock
+	private ActionLogService actionLogService;
+	@Mock
+	private ShipmentRepository shipmentRepository;
 
 	private CoupangOrderSyncService service;
 
@@ -86,7 +98,7 @@ class CoupangThreeTierSyncTest {
 	void setUp() {
 		// 골격은 진짜 객체를 끼운다 — 목이면 반영이 사라져 검증이 통과해도 아무것도 증명하지 못한다.
 		MarketLineItemSyncDispatcher syncDispatcher = new MarketLineItemSyncDispatcher(orderLineItemRepository,
-				new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
+			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
 		service = new CoupangOrderSyncService(credentialRepository, orderRepository,
 			orderLineItemRepository, productRepository, marketRegistrationRepository, eventPublisher,
 			adapter, new CoupangStatusMapper(), syncStatusService, marketFeeService,
@@ -128,7 +140,7 @@ class CoupangThreeTierSyncTest {
 		when(orderLineItemRepository.findByShipmentId(anyLong())).thenReturn(List.of());
 		when(marketFeeService.settlementAmount(any(), any()))
 			.thenAnswer(inv -> inv.getArgument(0) == null ? BigDecimal.ZERO
-				: ((BigDecimal) inv.getArgument(0)).multiply(new BigDecimal("0.89")));
+				: ((BigDecimal)inv.getArgument(0)).multiply(new BigDecimal("0.89")));
 		when(orderRepository.findByMarketType(MarketType.COUPANG)).thenReturn(List.of());
 	}
 

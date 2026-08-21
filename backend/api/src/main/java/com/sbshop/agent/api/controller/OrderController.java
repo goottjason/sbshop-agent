@@ -294,8 +294,10 @@ public class OrderController {
 	/** 라인아이템 구매 상태 수정 */
 	@PatchMapping("/line-items/{lineItemId}/purchase-status")
 	public ResponseEntity<OrderLineItemResponse> updatePurchaseStatus(
-		@PathVariable Long lineItemId,
-		@RequestBody UpdatePurchaseStatusRequest request) {
+		@PathVariable
+		Long lineItemId,
+		@RequestBody
+		UpdatePurchaseStatusRequest request) {
 
 		// D-076/SP-6: 구매 상태 수정 — 성공 시 라인아이템 마켓을 해석해 기록.
 		try {

@@ -39,10 +39,14 @@ import com.sbshop.agent.core.domain.order.vo.ShippingData;
 @ExtendWith(MockitoExtension.class)
 class OrderShipServiceGuardTest {
 
-	@Mock private OrderRepository orderRepository;
-	@Mock private MarketCredentialRepository credentialRepository;
-	@Mock private OrderLineItemRepository orderLineItemRepository;
-	@Mock private ShipmentRepository shipmentRepository;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private MarketCredentialRepository credentialRepository;
+	@Mock
+	private OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private ShipmentRepository shipmentRepository;
 
 	/**
 	 * D-133: 송장 쓰기 통로는 <b>진짜 객체</b>를 끼운다. 목으로 대체하면 라인아이템 쓰기 자체가
@@ -52,8 +56,11 @@ class OrderShipServiceGuardTest {
 	private LineItemShippingWriter shippingWriter() {
 		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
 	}
-	@Mock private MarketplaceShippingService marketplaceShippingService;
-	@Mock private MarketOrderPort port;
+
+	@Mock
+	private MarketplaceShippingService marketplaceShippingService;
+	@Mock
+	private MarketOrderPort port;
 
 	private OrderShipProcessor processor() {
 		return new OrderShipProcessor(orderRepository, credentialRepository,

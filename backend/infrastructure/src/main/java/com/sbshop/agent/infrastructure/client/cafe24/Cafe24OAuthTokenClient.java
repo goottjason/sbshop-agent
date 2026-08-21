@@ -13,5 +13,6 @@ public interface Cafe24OAuthTokenClient {
 	 */
 	TokenResponse exchange(String mallId, String clientId, String clientSecret, String formPayload);
 
-	record TokenResponse(String accessToken, String refreshToken, Instant expiresAt) {}
+	record TokenResponse(String accessToken, String refreshToken, Instant expiresAt) {
+	}
 }

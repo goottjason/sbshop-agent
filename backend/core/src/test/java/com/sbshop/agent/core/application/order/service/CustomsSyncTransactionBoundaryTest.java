@@ -40,9 +40,12 @@ import org.springframework.transaction.annotation.Transactional;
 @ExtendWith(MockitoExtension.class)
 class CustomsSyncTransactionBoundaryTest {
 
-	@Mock private OrderRepository orderRepository;
-	@Mock private SyncStatusService syncStatusService;
-	@Mock private CustomsBatchProcessor customsBatchProcessor;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private SyncStatusService syncStatusService;
+	@Mock
+	private CustomsBatchProcessor customsBatchProcessor;
 
 	private CustomsOrderSyncService service;
 
@@ -90,8 +93,8 @@ class CustomsSyncTransactionBoundaryTest {
 		// 배치 단위로 커밋(부분 진행 보존)한다.
 		Order order = org.mockito.Mockito.mock(Order.class);
 		when(order.getId()).thenReturn(7L);
-		com.sbshop.agent.core.application.order.port.CustomsClearancePort port =
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.port.CustomsClearancePort.class);
+		com.sbshop.agent.core.application.order.port.CustomsClearancePort port = org.mockito.Mockito
+			.mock(com.sbshop.agent.core.application.order.port.CustomsClearancePort.class);
 		CustomsBatchProcessor processor = new CustomsBatchProcessor(orderRepository, port);
 
 		when(port.verifyBulk(anyList())).thenReturn(

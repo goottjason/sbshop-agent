@@ -2,7 +2,6 @@ package com.sbshop.agent.core.application.order.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -43,9 +42,12 @@ import com.sbshop.agent.core.domain.order.vo.SourcingData;
 @ExtendWith(MockitoExtension.class)
 class OrderServiceStateGuardTest {
 
-	@Mock private OrderRepository orderRepository;
-	@Mock private OrderLineItemRepository orderLineItemRepository;
-	@Mock private ShipmentRepository shipmentRepository;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private ShipmentRepository shipmentRepository;
 
 	/**
 	 * D-133: 송장 쓰기 통로는 <b>진짜 객체</b>를 끼운다. 목으로 대체하면 라인아이템 쓰기 자체가
@@ -55,8 +57,11 @@ class OrderServiceStateGuardTest {
 	private LineItemShippingWriter shippingWriter() {
 		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
 	}
-	@Mock private MarketCredentialRepository credentialRepository;
-	@Mock private MarketplaceShippingService marketplaceShippingService;
+
+	@Mock
+	private MarketCredentialRepository credentialRepository;
+	@Mock
+	private MarketplaceShippingService marketplaceShippingService;
 
 	private OrderService service() {
 		return new OrderService(orderRepository, orderLineItemRepository,
@@ -258,8 +263,8 @@ class OrderServiceStateGuardTest {
 			when(orderLineItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 			// AUCTION 크레덴셜은 설계상 DB에 없음
 			when(credentialRepository.findByMarketType(MarketType.AUCTION)).thenReturn(Optional.empty());
-			com.sbshop.agent.core.application.order.port.MarketOrderPort port =
-				org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.port.MarketOrderPort.class);
+			com.sbshop.agent.core.application.order.port.MarketOrderPort port = org.mockito.Mockito
+				.mock(com.sbshop.agent.core.application.order.port.MarketOrderPort.class);
 			when(marketplaceShippingService.getPort(MarketType.AUCTION)).thenReturn(port);
 
 			service().confirmOrder(6L);

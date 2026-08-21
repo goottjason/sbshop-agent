@@ -138,7 +138,8 @@ public class ProductManageUseCase {
 				Map<String, Object> currentRawData = parseRawData(reg.getMarketDetailedInfo());
 
 				MarketClient client = marketClientRouter.getClient(marketType);
-				Map<String, Object> updated = client.syncImagesAndHtml(product, marketItemId, currentRawData, hostedImages, newHtml);
+				Map<String, Object> updated = client.syncImagesAndHtml(product, marketItemId, currentRawData,
+					hostedImages, newHtml);
 
 				if (updated != null) {
 					reg.updateMarketDetailedInfo(objectMapper.writeValueAsString(updated));

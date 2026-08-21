@@ -47,14 +47,22 @@ import org.springframework.context.ApplicationEventPublisher;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ElevenstMissingOrderStateTest {
 
-	@Mock private MarketCredentialRepository credentialRepository;
-	@Mock private OrderRepository orderRepository;
-	@Mock private OrderLineItemRepository orderLineItemRepository;
-	@Mock private ProductRepository productRepository;
-	@Mock private ApplicationEventPublisher eventPublisher;
-	@Mock private ElevenstOrderAdapter elevenstOrderAdapter;
-	@Mock private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
-	@Mock private ShipmentRepository shipmentRepository;
+	@Mock
+	private MarketCredentialRepository credentialRepository;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private ProductRepository productRepository;
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+	@Mock
+	private ElevenstOrderAdapter elevenstOrderAdapter;
+	@Mock
+	private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
+	@Mock
+	private ShipmentRepository shipmentRepository;
 
 	private final MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
 
@@ -63,7 +71,8 @@ class ElevenstMissingOrderStateTest {
 			credentialRepository, orderRepository, orderLineItemRepository,
 			productRepository, eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService,
 			mock(TerminalSettlementService.class), mock(MarketLineItemSyncDispatcher.class),
-			shipmentRepository, org.mockito.Mockito.mock(com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository.class));
+			shipmentRepository, org.mockito.Mockito
+				.mock(com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository.class));
 	}
 
 	private void stubCredentialAndEmptyApi() {
@@ -123,11 +132,11 @@ class ElevenstMissingOrderStateTest {
 	@DisplayName("D-158: 사라진 주문의 마켓 보유 송장이 배송 계층에 기록된다")
 	void marketTrackingIsRecorded() {
 		stubCredentialAndEmptyApi();
-		Shipment shipment = shipment("424438293101");            // 우리 송장(CJ)
+		Shipment shipment = shipment("424438293101"); // 우리 송장(CJ)
 		when(shipmentRepository.findByOrderId(any())).thenReturn(List.of(shipment));
 		stubOrderWith(item(ShippingStatus.SHIPPED), new MissingOrderState(
 			Map.of(ElevenstOrderAdapter.CLAIM_ORDER_WIDE, ShippingStatus.DELIVERED),
-			Map.of("1", "6079990333504")));                       // 마켓 송장(우체국)
+			Map.of("1", "6079990333504"))); // 마켓 송장(우체국)
 
 		service().syncElevenstOrders();
 
@@ -144,7 +153,7 @@ class ElevenstMissingOrderStateTest {
 		shipment.markManualFixRequired();
 		when(shipmentRepository.findByOrderId(any())).thenReturn(List.of(shipment));
 		stubOrderWith(item(ShippingStatus.SHIPPED), new MissingOrderState(
-			Map.of(), Map.of("1", "424438293101")));               // 사람이 판매자센터에서 고친 상태
+			Map.of(), Map.of("1", "424438293101"))); // 사람이 판매자센터에서 고친 상태
 
 		service().syncElevenstOrders();
 

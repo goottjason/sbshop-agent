@@ -154,10 +154,10 @@ final class Cafe24LineItemMapper {
 		}
 		return switch (c) {
 			// D-088: N10(상품준비중)=발주확인 전(신규주문). 발주확인(acceptOrder)이 N20으로 올린다.
-			case "N00", "N02", "N10" -> ShippingStatus.NEW;       // 입금전/주문접수중/상품준비중
+			case "N00", "N02", "N10" -> ShippingStatus.NEW; // 입금전/주문접수중/상품준비중
 			case "N20", "N21", "N22" -> ShippingStatus.PREPARING; // 배송준비중/배송대기/배송보류
-			case "N30" -> ShippingStatus.SHIPPED;                 // 배송중
-			case "N40", "N50" -> ShippingStatus.DELIVERED;        // 배송완료/구매확정
+			case "N30" -> ShippingStatus.SHIPPED; // 배송중
+			case "N40", "N50" -> ShippingStatus.DELIVERED; // 배송완료/구매확정
 			default -> {
 				log.warn("[CAFE24-ORDER] 미매핑 order_status 코드={} → UNKNOWN(상태를 덮지 않는다)", code);
 				yield ShippingStatus.UNKNOWN;

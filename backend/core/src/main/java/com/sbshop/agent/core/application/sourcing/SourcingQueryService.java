@@ -120,8 +120,8 @@ public class SourcingQueryService {
 
 		for (MarketDraftUpdate mu : update.marketDrafts()) {
 			MarketType type = MarketType.valueOf(mu.marketType().toUpperCase());
-			draft.findMarketDraft(type).ifPresent(md ->
-				md.update(mu.productName(), mu.categoryId(), mu.categoryPath(), mu.salePrice(),
+			draft.findMarketDraft(type)
+				.ifPresent(md -> md.update(mu.productName(), mu.categoryId(), mu.categoryPath(), mu.salePrice(),
 					mu.keywords() != null ? toJson(mu.keywords()) : null,
 					null, null, mu.enabled()));
 		}

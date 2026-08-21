@@ -1,7 +1,6 @@
 package com.sbshop.agent.core.application.order.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -46,13 +45,20 @@ class Cafe24OrderSyncServiceTest {
 
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
-	@Mock private Cafe24OrderApiPort cafe24OrderApiPort;
-	@Mock private OrderRepository orderRepository;
-	@Mock private OrderLineItemRepository orderLineItemRepository;
-	@Mock private MarketRegistrationRepository marketRegistrationRepository;
-	@Mock private ApplicationEventPublisher eventPublisher;
-	@Mock private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
-	@Mock private com.sbshop.agent.core.domain.order.repository.ShipmentRepository shipmentRepository;
+	@Mock
+	private Cafe24OrderApiPort cafe24OrderApiPort;
+	@Mock
+	private OrderRepository orderRepository;
+	@Mock
+	private OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+	@Mock
+	private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
+	@Mock
+	private com.sbshop.agent.core.domain.order.repository.ShipmentRepository shipmentRepository;
 
 	// 코드 기본요율(빈 정책 폴백)로 정산액을 계산하도록 실제 인스턴스 사용
 	private final MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
@@ -63,7 +69,8 @@ class Cafe24OrderSyncServiceTest {
 	void setUp() {
 		service = new Cafe24OrderSyncService(cafe24OrderApiPort, orderRepository,
 			orderLineItemRepository, marketRegistrationRepository, eventPublisher, syncStatusService,
-			marketFeeService, org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
+			marketFeeService,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
 			org.mockito.Mockito.mock(Cafe24ShipmentTrackingLookup.class),
 			// 4단계: 이 테스트들이 검증하는 것이 곧 골격이 하는 일이다 — 목으로 대체하면 라인아이템
 			// 반영이 사라져 검증이 통과해도 아무것도 증명하지 못한다. 진짜 골격을 끼운다.

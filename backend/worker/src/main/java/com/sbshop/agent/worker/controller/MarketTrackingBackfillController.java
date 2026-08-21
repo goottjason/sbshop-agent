@@ -49,8 +49,10 @@ public class MarketTrackingBackfillController {
 
 	@PostMapping("/market-tracking")
 	public ResponseEntity<Map<String, Object>> backfill(
-		@RequestParam(defaultValue = "120") int days,
-		@RequestHeader(value = InternalAccessGuard.HEADER_NAME, required = false) String internalToken) {
+		@RequestParam(defaultValue = "120")
+		int days,
+		@RequestHeader(value = InternalAccessGuard.HEADER_NAME, required = false)
+		String internalToken) {
 
 		if (!internalAccessGuard.isAllowed(internalToken)) {
 			log.warn("[내부트리거] 마켓 송장 백필 접근 거부 — 유효한 내부 토큰 없음");

@@ -23,7 +23,8 @@ class ElevenstRestClientBeanConflictTest {
 			// 상품-마켓 클라이언트가 자격증명 단일소스로 DB(MarketCredentialRepository)를 쓰므로,
 			// 좁은 스캔 컨텍스트에 목 빈을 제공한다(이 테스트의 목적은 빈 이름 충돌 검증).
 			ctx.registerBean(com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository.class,
-				() -> org.mockito.Mockito.mock(com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository.class));
+				() -> org.mockito.Mockito
+					.mock(com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository.class));
 			ctx.scan("com.sbshop.agent.infrastructure.client.elevenst");
 			ctx.refresh();
 

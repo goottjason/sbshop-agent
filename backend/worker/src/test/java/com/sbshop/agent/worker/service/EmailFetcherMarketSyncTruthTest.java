@@ -58,8 +58,8 @@ class EmailFetcherMarketSyncTruthTest {
 		when(lineItemRepository.findByShipmentId(any())).thenReturn(List.of());
 
 		// 종결 처리는 마켓 타입 조회와 감사 로그를 쓴다 — 목으로 채워 본 검증에 방해되지 않게 한다.
-		com.sbshop.agent.core.domain.order.repository.OrderRepository orderRepository =
-			mock(com.sbshop.agent.core.domain.order.repository.OrderRepository.class);
+		com.sbshop.agent.core.domain.order.repository.OrderRepository orderRepository = mock(
+			com.sbshop.agent.core.domain.order.repository.OrderRepository.class);
 		when(orderRepository.findById(any())).thenReturn(Optional.empty());
 		service = new EmailFetcherService(null, null, lineItemRepository, orderRepository, shippingService,
 			mock(com.sbshop.agent.core.application.actionlog.ActionLogService.class), null);
@@ -75,7 +75,7 @@ class EmailFetcherMarketSyncTruthTest {
 			.shippingData(ShippingData.builder()
 				.trackingNo(REAL).shippingCarrier(ShippingCarrier.LOTTE_LOGISTICS)
 				.shippingStatus(ShippingStatus.SHIPPED)
-				.trackingSentToMarket(true)          // ← 거짓 성공이 남긴 플래그
+				.trackingSentToMarket(true) // ← 거짓 성공이 남긴 플래그
 				.build())
 			.build();
 		ReflectionTestUtils.setField(item, "id", 460L);
@@ -83,7 +83,7 @@ class EmailFetcherMarketSyncTruthTest {
 
 		Shipment shipment = Shipment.builder()
 			.orderId(1L).marketShipmentNo("PKG").trackingNo(REAL)
-			.marketTrackingNo(FAKE)                  // ← 마켓은 아직 가송장을 갖고 있다
+			.marketTrackingNo(FAKE) // ← 마켓은 아직 가송장을 갖고 있다
 			.build();
 		ReflectionTestUtils.setField(shipment, "id", 12L);
 		if (manualFixRequired) {

@@ -39,8 +39,10 @@ import org.mockito.quality.Strictness;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SmartStoreDispatchKeyTest {
 
-	@Mock private SmartStoreOrderApiPort apiPort;
-	@Mock private SmartStoreStatusMapper statusMapper;
+	@Mock
+	private SmartStoreOrderApiPort apiPort;
+	@Mock
+	private SmartStoreStatusMapper statusMapper;
 
 	private SmartStoreOrderAdapter adapter;
 	private MarketCredential credential;
@@ -130,8 +132,7 @@ class SmartStoreDispatchKeyTest {
 	void acceptOrders_confirmsAllProductOrders() {
 		adapter.acceptOrders(credential, orderWithProductOrderIds("PO-1", "PO-2"));
 
-		@SuppressWarnings("unchecked")
-		ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
+		@SuppressWarnings("unchecked") ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
 		verify(apiPort).confirmOrders(eq("clientId"), eq("secret"), captor.capture());
 		assertThat(captor.getValue()).containsExactly("PO-1", "PO-2");
 	}
@@ -141,8 +142,7 @@ class SmartStoreDispatchKeyTest {
 	void cancelOrder_cancelsAllProductOrders() {
 		adapter.cancelOrder(credential, orderWithProductOrderIds("PO-1", "PO-2"));
 
-		@SuppressWarnings("unchecked")
-		ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
+		@SuppressWarnings("unchecked") ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
 		verify(apiPort).cancelOrders(eq("clientId"), eq("secret"), captor.capture());
 		assertThat(captor.getValue()).containsExactly("PO-1", "PO-2");
 	}
@@ -158,8 +158,7 @@ class SmartStoreDispatchKeyTest {
 
 		adapter.acceptOrders(credential, legacy);
 
-		@SuppressWarnings("unchecked")
-		ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
+		@SuppressWarnings("unchecked") ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
 		verify(apiPort).confirmOrders(eq("clientId"), eq("secret"), captor.capture());
 		assertThat(captor.getValue()).containsExactly("2026072251442781");
 	}

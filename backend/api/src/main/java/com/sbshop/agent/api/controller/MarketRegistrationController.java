@@ -30,10 +30,9 @@ public class MarketRegistrationController {
 	@GetMapping
 	public ResponseEntity<List<MarketRegistrationResponse>> getMarketRegistrations(@PathVariable
 	Long productId) {
-		List<MarketRegistrationResponse> registrations =
-			marketRegistrationService.getRegistrations(productId).stream()
-				.map(MarketRegistrationResponse::from)
-				.toList();
+		List<MarketRegistrationResponse> registrations = marketRegistrationService.getRegistrations(productId).stream()
+			.map(MarketRegistrationResponse::from)
+			.toList();
 		return ResponseEntity.ok(registrations);
 	}
 
@@ -43,8 +42,8 @@ public class MarketRegistrationController {
 		Long productId,
 		@PathVariable
 		String marketType) {
-		MarketRegistrationResponse response =
-			MarketRegistrationResponse.from(marketRegistrationService.getLocalData(productId, marketType));
+		MarketRegistrationResponse response = MarketRegistrationResponse
+			.from(marketRegistrationService.getLocalData(productId, marketType));
 		return ResponseEntity.ok(response);
 	}
 

@@ -52,10 +52,12 @@ public final class OrderLineItemMatcher {
 	 * @param resolvedProductId 이 상품주문에서 해석된 SB 상품 ID. 해석은 마켓별
 	 *                          {@code findBySbCode} 로직이라 호출자가 미리 넘긴다. 미매핑이면 null.
 	 */
-	public record Incoming(MarketLineItemDto dto, Long resolvedProductId) {}
+	public record Incoming(MarketLineItemDto dto, Long resolvedProductId) {
+	}
 
 	/** 기존 행 하나에 상품주문 하나가 짝지어졌다. */
-	public record Adoption(OrderLineItem lineItem, MarketLineItemDto dto) {}
+	public record Adoption(OrderLineItem lineItem, MarketLineItemDto dto) {
+	}
 
 	/**
 	 * @param matched   기존 행에 반영할 짝
@@ -69,7 +71,8 @@ public final class OrderLineItemMatcher {
 		List<Adoption> matched,
 		List<MarketLineItemDto> toCreate,
 		List<OrderLineItem> unclaimed,
-		List<String> warnings) {}
+		List<String> warnings) {
+	}
 
 	/**
 	 * 짝을 짓고, 채택한 레거시 행에는 상품주문 식별자를 <b>부여한다</b>(백필).

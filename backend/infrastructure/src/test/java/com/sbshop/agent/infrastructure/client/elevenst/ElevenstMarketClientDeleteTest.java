@@ -20,16 +20,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ElevenstMarketClientDeleteTest {
 
-    @Mock private ElevenstMarketRestClient restClient;
+	@Mock
+	private ElevenstMarketRestClient restClient;
 
-    private ElevenstMarketClient client;
+	private ElevenstMarketClient client;
 
-    @BeforeEach
-    void setUp() {
-        client = new ElevenstMarketClient(restClient);
-    }
+	@BeforeEach
+	void setUp() {
+		client = new ElevenstMarketClient(restClient);
+	}
 
-    @Test
+	@Test
     @DisplayName("성공 응답 → DELETE /rest/prodservices/product/{prdNo} 호출")
     void deleteCallsDeleteEndpointWithPrdNo() {
         when(restClient.delete("/rest/prodservices/product/E999"))
@@ -40,7 +41,7 @@ class ElevenstMarketClientDeleteTest {
         verify(restClient).delete("/rest/prodservices/product/E999");
     }
 
-    @Test
+	@Test
     @DisplayName("marketItemId(elevenstId=prdNo)를 그대로 삭제 경로에 사용")
     void deleteUsesMarketItemIdAsPrdNo() {
         when(restClient.delete(anyString())).thenReturn("<message>성공</message>");
@@ -50,7 +51,7 @@ class ElevenstMarketClientDeleteTest {
         verify(restClient).delete("/rest/prodservices/product/PRD12345");
     }
 
-    @Test
+	@Test
     @DisplayName("ERROR 응답 → RuntimeException 전파 (주문이력 등 삭제 거부)")
     void errorResponseThrowsRuntimeException() {
         when(restClient.delete(anyString()))
@@ -60,7 +61,7 @@ class ElevenstMarketClientDeleteTest {
             .isInstanceOf(RuntimeException.class);
     }
 
-    @Test
+	@Test
     @DisplayName("resultCode ERROR 응답 → RuntimeException 전파")
     void resultCodeErrorThrowsRuntimeException() {
         when(restClient.delete(anyString()))

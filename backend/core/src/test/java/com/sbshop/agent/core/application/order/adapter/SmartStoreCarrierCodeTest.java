@@ -35,8 +35,10 @@ import org.mockito.quality.Strictness;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SmartStoreCarrierCodeTest {
 
-	@Mock private SmartStoreOrderApiPort apiPort;
-	@Mock private SmartStoreStatusMapper statusMapper;
+	@Mock
+	private SmartStoreOrderApiPort apiPort;
+	@Mock
+	private SmartStoreStatusMapper statusMapper;
 
 	private SmartStoreOrderAdapter adapter;
 	private MarketCredential credential;

@@ -38,10 +38,10 @@ public class MarketTrackingBackfillService {
 	private final Cafe24OrderSyncService cafe24OrderSyncService;
 
 	/** 마켓별 안전 구간 크기(일). 위 실측 제약에서 나온 값이다. */
-	private static final int COUPANG_WINDOW = 30;      // 429 회피
+	private static final int COUPANG_WINDOW = 30; // 429 회피
 	private static final int SMARTSTORE_WINDOW = 30;
-	private static final int ELEVENST_WINDOW = 30;     // 어댑터가 다시 7일로 쪼갠다
-	private static final int CAFE24_WINDOW = 60;       // 3개월 상한에 여유를 둔다
+	private static final int ELEVENST_WINDOW = 30; // 어댑터가 다시 7일로 쪼갠다
+	private static final int CAFE24_WINDOW = 60; // 3개월 상한에 여유를 둔다
 
 	/**
 	 * 구간 사이 대기(ms). 레이트리밋에 걸리면 그 마켓의 남은 구간이 통째로 무의미해진다.

@@ -12,8 +12,7 @@ package com.sbshop.agent.core.domain.actionlog;
  */
 public final class ActionLogConstants {
 
-	private ActionLogConstants() {
-	}
+	private ActionLogConstants() {}
 
 	// ── 주문 동기화(OrderSyncController) ─────────────────────────────
 	/** 쿠팡 정산 데이터 동기화 (S5) */

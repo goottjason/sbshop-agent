@@ -28,7 +28,8 @@ public class InternalAccessGuard {
 
 	private final String configuredToken;
 
-	public InternalAccessGuard(@Value("${INTERNAL_API_TOKEN:}") String configuredToken) {
+	public InternalAccessGuard(@Value("${INTERNAL_API_TOKEN:}")
+	String configuredToken) {
 		this.configuredToken = configuredToken == null ? "" : configuredToken.trim();
 	}
 

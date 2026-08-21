@@ -46,11 +46,12 @@ public class DashboardRepositoryImpl implements DashboardRepository {
 			toLong(t.get(li.sourcingData.logisticsCost)),
 			t.get(li.productId), t.get(p.sbCode), t.get(p.productName),
 			t.get(li.sourcingData.sourcingVendor),
-			t.get(p.stockStatus) != null ? t.get(p.stockStatus).name() : null
-		)).toList();
+			t.get(p.stockStatus) != null ? t.get(p.stockStatus).name() : null)).toList();
 	}
 
-	private static long toLong(java.math.BigDecimal n) { return n == null ? 0L : n.longValue(); }
+	private static long toLong(java.math.BigDecimal n) {
+		return n == null ? 0L : n.longValue();
+	}
 
 	@Override
 	public int countByShippingStatusIn(List<ShippingStatus> statuses) {

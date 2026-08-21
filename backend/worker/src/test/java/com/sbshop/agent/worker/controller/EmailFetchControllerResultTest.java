@@ -39,7 +39,7 @@ class EmailFetchControllerResultTest {
 
 	@SuppressWarnings("unchecked")
 	private Map<String, Object> body(ResponseEntity<?> res) {
-		return (Map<String, Object>) res.getBody();
+		return (Map<String, Object>)res.getBody();
 	}
 
 	@Test

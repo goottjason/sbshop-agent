@@ -56,8 +56,10 @@ import com.sbshop.agent.core.domain.order.vo.SourcingData;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class MarketLineItemSyncDispatcherTest {
 
-	@Mock private OrderLineItemRepository orderLineItemRepository;
-	@Mock private ShipmentRepository shipmentRepository;
+	@Mock
+	private OrderLineItemRepository orderLineItemRepository;
+	@Mock
+	private ShipmentRepository shipmentRepository;
 
 	private MarketLineItemSyncDispatcher dispatcher;
 
@@ -73,7 +75,7 @@ class MarketLineItemSyncDispatcherTest {
 	@BeforeEach
 	void setUp() {
 		logs.start();
-		((Logger) org.slf4j.LoggerFactory.getLogger(MarketLineItemSyncDispatcher.class)).addAppender(logs);
+		((Logger)org.slf4j.LoggerFactory.getLogger(MarketLineItemSyncDispatcher.class)).addAppender(logs);
 		dispatcher = new MarketLineItemSyncDispatcher(orderLineItemRepository,
 			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
 
@@ -101,7 +103,7 @@ class MarketLineItemSyncDispatcherTest {
 
 	@AfterEach
 	void tearDown() {
-		((Logger) org.slf4j.LoggerFactory.getLogger(MarketLineItemSyncDispatcher.class))
+		((Logger)org.slf4j.LoggerFactory.getLogger(MarketLineItemSyncDispatcher.class))
 			.detachAppender(logs);
 	}
 
@@ -409,7 +411,6 @@ class MarketLineItemSyncDispatcherTest {
 
 		assertThat(damaged.getSettlementData().getSettlementAmount()).isEqualByComparingTo("0");
 	}
-
 
 	@Test
 	@DisplayName("상품을 못 붙인 라인아이템은 경고로 드러낸다 — 마켓 식별자를 실어서")
