@@ -6,13 +6,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import java.util.Map;
 
-/**
- * 쿠팡 주문 상태를 내부 배송 상태로 매핑하는 구현체
- */
 @Slf4j
 @Component
 public class CoupangStatusMapper implements MarketStatusMapper {
-
 	@Override
 	public MarketType getMarketType() {
 		return MarketType.COUPANG;

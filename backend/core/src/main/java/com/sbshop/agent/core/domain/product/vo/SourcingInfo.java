@@ -19,7 +19,6 @@ import java.sql.Types;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class SourcingInfo {
-
 	@Enumerated(EnumType.STRING)
 	@JdbcTypeCode(Types.VARCHAR)
 	@Column(name = "vendor", length = 50)

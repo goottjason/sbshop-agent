@@ -1,66 +1,55 @@
 package com.sbshop.agent.core.application.product;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
+import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.product.component.ProductReader;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
+import com.sbshop.agent.core.domain.product.service.MarginCalculator;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 
-/**
- * D-060: 상품의 연동 마켓별 가격/재고 반영(단건·배치 공용). 순회 호출·스킵·부분 실패 수집 검증.
- */
 @ExtendWith(MockitoExtension.class)
 class ProductMarketSyncServiceTest {
-
 	@Mock
 	private MarketRegistrationRepository marketRegistrationRepository;
 	@Mock
 	private MarketClientRouter marketClientRouter;
 	@Mock
-	private com.sbshop.agent.core.application.fee.MarketFeeService marketFeeService;
+	private MarketFeeService marketFeeService;
 
 	private ProductMarketSyncService service;
 	private static final Long PRODUCT_ID = 1L;
 
 	@BeforeEach
 	void setUp() {
-		// 단일 가격 경로 검증이라 MarginCalculator/MarketFeeService는 실제로 호출되지 않는다.
 		service = new ProductMarketSyncService(marketRegistrationRepository, marketClientRouter,
-			new MarketSalePriceResolver(new com.sbshop.agent.core.domain.product.service.MarginCalculator(),
+			new MarketSalePriceResolver(new MarginCalculator(),
 				marketFeeService),
-			org.mockito.Mockito.mock(com.sbshop.agent.core.domain.product.component.ProductReader.class));
-	}
-
-	private MarketRegistration reg(MarketType type, String identifiersJson) {
-		return MarketRegistration.builder()
-			.productId(PRODUCT_ID)
-			.marketType(type)
-			.marketIdentifiers(identifiersJson)
-			.marketDetailedInfo("{}")
-			.build();
+			Mockito.mock(ProductReader.class));
 	}
 
 	@Test
 	@DisplayName("클라이언트가 있는 마켓별로 syncPriceAndStock을 호출한다")
 	void syncsToRegisteredMarkets() {
-		MarketClient coupangClient = org.mockito.Mockito.mock(MarketClient.class);
+		MarketClient coupangClient = Mockito.mock(MarketClient.class);
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID))
 			.thenReturn(List.of(reg(MarketType.COUPANG, "{\"vendorItemId\":\"CP123\"}")));
 		when(marketClientRouter.hasClient(MarketType.COUPANG)).thenReturn(true);
@@ -91,8 +80,8 @@ class ProductMarketSyncServiceTest {
 	@Test
 	@DisplayName("한 마켓 동기화 실패가 다른 마켓을 막지 않는다(부분 실패 수집)")
 	void partialFailureCollected() {
-		MarketClient coupangClient = org.mockito.Mockito.mock(MarketClient.class);
-		MarketClient storeClient = org.mockito.Mockito.mock(MarketClient.class);
+		MarketClient coupangClient = Mockito.mock(MarketClient.class);
+		MarketClient storeClient = Mockito.mock(MarketClient.class);
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID))
 			.thenReturn(List.of(reg(MarketType.COUPANG, "{\"vendorItemId\":\"CP123\"}"),
 				reg(MarketType.SMART_STORE, "{\"originProductNo\":\"OP99\"}")));
@@ -108,10 +97,6 @@ class ProductMarketSyncServiceTest {
 		verify(storeClient).syncPriceAndStock(eq("OP99"), any(), eq(1000), eq(999), eq(false), any());
 		assertThat(result.synced()).containsExactly(MarketType.SMART_STORE);
 		assertThat(result.failed()).containsKey(MarketType.COUPANG);
-	}
-
-	private MarketRegistration cafe24Reg() {
-		return reg(MarketType.CAFE24, "{\"product_no\":\"21159\"}");
 	}
 
 	@Test
@@ -131,8 +116,8 @@ class ProductMarketSyncServiceTest {
 	@Test
 	@DisplayName("변경없음이지만 Cafe24 직전 동기화 실패(isSynced=false) → 재시도(호출)")
 	void changedFalse_cafe24NotSynced_callsCafe24() {
-		MarketClient cafeClient = org.mockito.Mockito.mock(MarketClient.class);
-		MarketRegistration cafe = cafe24Reg(); // isSynced=false 기본
+		MarketClient cafeClient = Mockito.mock(MarketClient.class);
+		MarketRegistration cafe = cafe24Reg();
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID)).thenReturn(List.of(cafe));
 		when(marketClientRouter.hasClient(MarketType.CAFE24)).thenReturn(true);
 		when(marketClientRouter.getClient(MarketType.CAFE24)).thenReturn(cafeClient);
@@ -145,7 +130,7 @@ class ProductMarketSyncServiceTest {
 	@Test
 	@DisplayName("변경 있음이면 isSynced 무관 Cafe24 호출")
 	void changedTrue_callsCafe24EvenIfSynced() {
-		MarketClient cafeClient = org.mockito.Mockito.mock(MarketClient.class);
+		MarketClient cafeClient = Mockito.mock(MarketClient.class);
 		MarketRegistration cafe = cafe24Reg();
 		cafe.markSynced();
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID)).thenReturn(List.of(cafe));
@@ -160,7 +145,7 @@ class ProductMarketSyncServiceTest {
 	@Test
 	@DisplayName("변경없음이어도 스킵은 Cafe24 한정 — 쿠팡 등 타 마켓은 항상 호출")
 	void changedFalse_nonCafe24AlwaysCalled() {
-		MarketClient coupangClient = org.mockito.Mockito.mock(MarketClient.class);
+		MarketClient coupangClient = Mockito.mock(MarketClient.class);
 		MarketRegistration cp = reg(MarketType.COUPANG, "{\"vendorItemId\":\"CP123\"}");
 		cp.markSynced();
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID)).thenReturn(List.of(cp));
@@ -175,9 +160,9 @@ class ProductMarketSyncServiceTest {
 	@Test
 	@DisplayName("동기화 실패 시 등록행 isSynced=false로 리셋·저장(다음 배치 재시도 신호)")
 	void syncFailure_marksRegSyncFailed() {
-		MarketClient coupangClient = org.mockito.Mockito.mock(MarketClient.class);
+		MarketClient coupangClient = Mockito.mock(MarketClient.class);
 		MarketRegistration cp = reg(MarketType.COUPANG, "{\"vendorItemId\":\"CP123\"}");
-		cp.markSynced(); // 초기 isSynced=true
+		cp.markSynced();
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID)).thenReturn(List.of(cp));
 		when(marketClientRouter.hasClient(MarketType.COUPANG)).thenReturn(true);
 		when(marketClientRouter.getClient(MarketType.COUPANG)).thenReturn(coupangClient);
@@ -188,5 +173,18 @@ class ProductMarketSyncServiceTest {
 
 		assertThat(cp.getIsSynced()).isFalse();
 		verify(marketRegistrationRepository).save(cp);
+	}
+
+	private MarketRegistration reg(MarketType type, String identifiersJson) {
+		return MarketRegistration.builder()
+			.productId(PRODUCT_ID)
+			.marketType(type)
+			.marketIdentifiers(identifiersJson)
+			.marketDetailedInfo("{}")
+			.build();
+	}
+
+	private MarketRegistration cafe24Reg() {
+		return reg(MarketType.CAFE24, "{\"product_no\":\"21159\"}");
 	}
 }

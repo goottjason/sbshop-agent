@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class SourcingAgentFactory {
-
 	private final List<SourcingAgent> agents;
 
 	public SourcingAgent getAgentByUrl(String url) {

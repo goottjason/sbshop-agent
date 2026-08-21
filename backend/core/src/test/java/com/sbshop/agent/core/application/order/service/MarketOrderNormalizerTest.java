@@ -15,15 +15,7 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * 어댑터를 마켓별로 순차 전환하는 동안 평면 DTO와 3계층 DTO가 공존한다.
- * 소비자가 분기를 갖지 않도록, 정규화기가 평면 DTO를 배송 1 : 상품주문 1로 감싼다.
- *
- * <p>이 래핑이 1단계 "동작 불변"의 핵심이다 — 단일 상품 주문(현재 데이터의 전부)이
- * 3계층을 거쳐도 같은 결과가 나와야 한다.
- */
 class MarketOrderNormalizerTest {
-
 	@Test
 	@DisplayName("평면 DTO는 배송 1 : 상품주문 1로 감싸지고 값이 그대로 옮겨진다")
 	void wrapsFlatDtoIntoSingleShipmentAndLineItem() {
@@ -75,10 +67,6 @@ class MarketOrderNormalizerTest {
 	@Test
 	@DisplayName("상품주문 식별자는 위조하지 않는다 — 전환 전 마켓은 null(=아직 모름)")
 	void doesNotFabricateLineItemNo() {
-		// D-131: 종전에는 배송 식별자(=주문번호/shipmentBoxId)를 상품주문 식별자 자리에도 넣었다.
-		// market_line_item_no는 "마켓 상품주문번호"를 뜻하므로 주문번호를 넣는 것은 거짓이고,
-		// uk_line_item_order_market_no 하에서 주문당 라인아이템이 2건이 되는 순간 유니크 위반으로
-		// 동기화가 통째로 실패한다. PostgreSQL은 NULL끼리 충돌로 보지 않으므로 null이 안전하고 정직하다.
 		MarketOrderDto flat = MarketOrderDto.builder()
 			.marketOrderNo("20260731088778989")
 			.build();
@@ -92,8 +80,6 @@ class MarketOrderNormalizerTest {
 	@Test
 	@DisplayName("6단계: 평면 DTO의 배송 식별자는 주문번호다 — 배송박스번호를 주문 계층으로 나르지 않는다")
 	void flatDtoUsesMarketOrderNoAsShipmentNo() {
-		// 종전에는 쿠팡의 shipmentBoxId를 평면 DTO에서 받아 배송 식별자로 썼다. 쿠팡이 3계층으로
-		// 전환된 뒤(D-137) 그 경로는 쓰이지 않게 됐고, 같은 값을 두 곳에서 나르는 것이 원본을 흐렸다.
 		MarketOrderDto flat = MarketOrderDto.builder()
 			.marketType(MarketType.COUPANG)
 			.marketOrderNo("3000012345")
@@ -102,7 +88,6 @@ class MarketOrderNormalizerTest {
 		MarketOrderDto result = MarketOrderNormalizer.normalize(flat);
 
 		assertThat(result.getShipments().get(0).getMarketShipmentNo()).isEqualTo("3000012345");
-		// 배송 식별자를 상품주문 식별자 자리에 전용하지 않는다(D-131) — 주문당 2건이 되는 순간 충돌한다.
 		assertThat(result.getShipments().get(0).getLineItems().get(0).getMarketLineItemNo())
 			.isNull();
 	}
@@ -166,11 +151,9 @@ class MarketOrderNormalizerTest {
 		MarketOrderDto result = MarketOrderNormalizer.normalize(flat);
 		MarketLineItemDto lineItem = result.getShipments().get(0).getLineItems().get(0);
 
-		// 반환된 라인아이템의 마켓 데이터를 수정
 		lineItem.getMarketSpecificData().put("newKey", "new-value");
 		lineItem.getMarketSpecificData().remove("externalKey");
 
-		// 원본은 수정되지 않아야 한다
 		assertThat(mutableData)
 			.containsEntry("ordPrdSeq", "1")
 			.containsEntry("externalKey", "external-value")
@@ -180,9 +163,6 @@ class MarketOrderNormalizerTest {
 	@Test
 	@DisplayName("반환된 주문 DTO의 marketSpecificData도 방어적으로 복사되어 원본과 독립적이다")
 	void defensivelyCopiesOrderLevelMarketSpecificData() {
-		// 라인아이템만 방어 복사하고 주문 계층은 toBuilder()의 얕은 복사로 원본과 참조를
-		// 공유하면, "정규화기는 방어 복사한다"는 믿음과 달리 2단계에서 어댑터가 채운
-		// dlvNo·ordPrdSeq를 소비자가 변형할 때 원본이 오염된다.
 		Map<String, Object> mutableData = new HashMap<>();
 		mutableData.put("dlvNo", "D1");
 		mutableData.put("externalKey", "external-value");
@@ -194,11 +174,9 @@ class MarketOrderNormalizerTest {
 
 		MarketOrderDto result = MarketOrderNormalizer.normalize(flat);
 
-		// 반환된 주문 DTO의 마켓 데이터를 수정
 		result.getMarketSpecificData().put("newKey", "new-value");
 		result.getMarketSpecificData().remove("externalKey");
 
-		// 원본은 수정되지 않아야 한다
 		assertThat(mutableData)
 			.containsEntry("dlvNo", "D1")
 			.containsEntry("externalKey", "external-value")

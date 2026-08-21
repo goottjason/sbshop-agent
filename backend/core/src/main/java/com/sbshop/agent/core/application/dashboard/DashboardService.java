@@ -14,10 +14,14 @@ import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -46,28 +50,24 @@ public class DashboardService {
 
 	public List<TimeseriesBucket> timeseries(LocalDateTime start, LocalDateTime end, Unit unit) {
 		List<AggRow> rows = repo.findRowsBetween(start, end);
-		// 버킷별: distinct 주문 집합 + 금액 합.
-		// A1 리뷰 Important 대응: 축(x)은 bucketRange(빈 구간 0채움)와 실제 주문의 KST 버킷키의
-		// 합집합으로 구성한다. naive 경계(bucketRange)와 KST 주문키(bucketKey)의 9h 스큐로 마지막 날
-		// UTC 꼬리 주문이 다음 KST 버킷으로 가더라도 축에 포함되어 절대 누락되지 않는다.
-		Map<LocalDate, Set<Long>> orders = new java.util.TreeMap<>(); // 버킷키 오름차순 정렬
-		Map<LocalDate, long[]> sums = new java.util.HashMap<>(); // [settlement, profit]
-		java.util.function.Consumer<LocalDate> ensure = b -> {
-			orders.computeIfAbsent(b, k -> new java.util.HashSet<>());
+		Map<LocalDate, Set<Long>> orders = new TreeMap<>();
+		Map<LocalDate, long[]> sums = new HashMap<>();
+		Consumer<LocalDate> ensure = b -> {
+			orders.computeIfAbsent(b, k -> new HashSet<>());
 			sums.computeIfAbsent(b, k -> new long[2]);
 		};
 		for (LocalDate b : DashboardBucketing.bucketRange(start, end, unit))
 			ensure.accept(b);
 		for (AggRow r : rows) {
 			LocalDate b = DashboardBucketing.bucketKey(r.orderDate(), unit);
-			ensure.accept(b); // 축에 없던 KST 꼬리 버킷도 편입(누락 방지)
+			ensure.accept(b);
 			orders.get(b).add(r.orderId());
 			long[] s = sums.get(b);
 			s[0] += r.settlementAmount();
 			s[1] += r.profit();
 		}
 		List<TimeseriesBucket> out = new ArrayList<>();
-		for (LocalDate b : orders.keySet()) { // TreeMap → 오름차순
+		for (LocalDate b : orders.keySet()) {
 			long[] s = sums.get(b);
 			out.add(new TimeseriesBucket(b.toString(), orders.get(b).size(), s[0], s[1]));
 		}
@@ -83,7 +83,7 @@ public class DashboardService {
 			String key = keyOf(r, dim);
 			if (key == null)
 				continue;
-			ordersByKey.computeIfAbsent(key, k -> new java.util.HashSet<>()).add(r.orderId());
+			ordersByKey.computeIfAbsent(key, k -> new HashSet<>()).add(r.orderId());
 			sumsByKey.computeIfAbsent(key, k -> new long[2]);
 			sumsByKey.get(key)[0] += r.settlementAmount();
 			sumsByKey.get(key)[1] += r.profit();
@@ -126,7 +126,7 @@ public class DashboardService {
 				}
 			}
 			case PRODUCT -> r.productName() != null ? r.productName() : key;
-			default -> key; // STATUS·VENDOR는 프론트에서 라벨링
+			default -> key;
 		};
 	}
 }

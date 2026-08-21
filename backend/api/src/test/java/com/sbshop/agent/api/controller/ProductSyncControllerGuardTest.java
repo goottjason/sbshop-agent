@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.sbshop.agent.core.application.actionlog.ActionLogService;
+import com.sbshop.agent.core.application.product.ProductSyncService;
+import com.sbshop.agent.core.config.InternalAccessGuard;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,15 +15,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import com.sbshop.agent.core.application.actionlog.ActionLogService;
-import com.sbshop.agent.core.application.product.ProductSyncService;
-import com.sbshop.agent.core.config.InternalAccessGuard;
-
-/**
- * F-MISC-7: POST /api/v1/products/sync/stock 무인증 공개 트리거에 공유시크릿 헤더 가드 적용.
- * 가드 활성 시 토큰 불일치/누락은 403 + 동기화 미실행, 일치하면 실행.
- * 가드 비활성(토큰 미설정)이면 헤더 없이도 실행(무파손, 프론트 옵트인).
- */
 @ExtendWith(MockitoExtension.class)
 class ProductSyncControllerGuardTest {
 

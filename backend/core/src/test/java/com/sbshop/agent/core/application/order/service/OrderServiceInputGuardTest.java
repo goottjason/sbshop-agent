@@ -29,50 +29,14 @@ import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 
-/**
- * 저순위 order 입력검증·엣지케이스 가드.
- * - F-H4: PREPARING→DISPATCHED 전이 시 trackingNo(공백 포함) 필수.
- * - F-ORD-22: 라인아이템 없는 주문의 발주확인 차단.
- * - F-ORD-26: isUnipassDone null(빈 요청) 차단 — no-op 성공 방지.
- */
 @ExtendWith(MockitoExtension.class)
 class OrderServiceInputGuardTest {
-
 	@Mock
 	private OrderRepository orderRepository;
 	@Mock
 	private OrderLineItemRepository orderLineItemRepository;
 	@Mock
 	private ShipmentRepository shipmentRepository;
-
-	/**
-	 * D-133: 송장 쓰기 통로는 <b>진짜 객체</b>를 끼운다. 목으로 대체하면 라인아이템 쓰기 자체가
-	 * 사라져 기존 검증이 통과해도 아무것도 증명하지 못한다. {@code shipment_id}가 null인 이
-	 * 테스트들에서는 통로가 배송을 건드리지 않으므로 종전과 동작이 같다 — 그 사실이 회귀 증거다.
-	 */
-	private LineItemShippingWriter shippingWriter() {
-		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
-	}
-
-	@Mock
-	private MarketCredentialRepository credentialRepository;
-	@Mock
-	private MarketplaceShippingService marketplaceShippingService;
-
-	private OrderService service() {
-		return new OrderService(orderRepository, orderLineItemRepository,
-			credentialRepository, marketplaceShippingService, shippingWriter());
-	}
-
-	private OrderLineItem itemWithStatus(ShippingStatus status) {
-		return OrderLineItem.builder()
-			.orderId(10L)
-			.quantity(1)
-			.shippingData(ShippingData.builder().shippingStatus(status).build())
-			.build();
-	}
-
-	// ===================== F-H4 =====================
 
 	@Test
 	@DisplayName("F-H4: PREPARING→DISPATCHED 전이 시 trackingNo 없으면 차단, 마켓 전송·저장 없음")
@@ -92,6 +56,11 @@ class OrderServiceInputGuardTest {
 		verify(orderLineItemRepository, never()).save(any());
 	}
 
+	@Mock
+	private MarketCredentialRepository credentialRepository;
+	@Mock
+	private MarketplaceShippingService marketplaceShippingService;
+
 	@Test
 	@DisplayName("F-H4: PREPARING→DISPATCHED 전이 시 trackingNo가 공백이면 차단")
 	void preparing_to_dispatched_with_blank_trackingNo_blocked() {
@@ -110,8 +79,6 @@ class OrderServiceInputGuardTest {
 		verify(orderLineItemRepository, never()).save(any());
 	}
 
-	// ===================== F-ORD-22 =====================
-
 	@Test
 	@DisplayName("F-ORD-22: 라인아이템이 하나도 없는 주문의 발주확인 차단(마켓 API 호출 없음)")
 	void confirmOrder_withNoLineItems_blocked() {
@@ -125,8 +92,6 @@ class OrderServiceInputGuardTest {
 		verify(marketplaceShippingService, never()).getPort(any());
 	}
 
-	// ===================== F-ORD-26 =====================
-
 	@Test
 	@DisplayName("F-ORD-26: isUnipassDone null(빈 요청) → 차단, no-op 성공 방지")
 	void updateOrderLineItem_withNullUnipassDone_blocked() {
@@ -139,5 +104,22 @@ class OrderServiceInputGuardTest {
 			.isInstanceOf(IllegalArgumentException.class);
 
 		verify(orderLineItemRepository, never()).save(any());
+	}
+
+	private LineItemShippingWriter shippingWriter() {
+		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
+	}
+
+	private OrderService service() {
+		return new OrderService(orderRepository, orderLineItemRepository,
+			credentialRepository, marketplaceShippingService, shippingWriter());
+	}
+
+	private OrderLineItem itemWithStatus(ShippingStatus status) {
+		return OrderLineItem.builder()
+			.orderId(10L)
+			.quantity(1)
+			.shippingData(ShippingData.builder().shippingStatus(status).build())
+			.build();
 	}
 }

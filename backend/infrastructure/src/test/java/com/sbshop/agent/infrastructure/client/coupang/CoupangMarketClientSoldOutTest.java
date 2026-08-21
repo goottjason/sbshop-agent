@@ -22,9 +22,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * SP-B Task 2: CoupangMarketClient soldOut → quantities/{qty} + sales/stop|resume 특성화 테스트.
- */
 @ExtendWith(MockitoExtension.class)
 class CoupangMarketClientSoldOutTest {
 
@@ -90,7 +87,6 @@ class CoupangMarketClientSoldOutTest {
 		client.syncPriceAndStock(ITEM_ID, new HashMap<>(), null, 1, true);
 
 		verify(restClient, never()).put(org.mockito.ArgumentMatchers.contains("/prices/"), any());
-		// quantities + sales/stop은 항상 호출됨
 		verify(restClient).put(eq(BASE + "/quantities/1"), any());
 		verify(restClient).put(eq(BASE + "/sales/stop"), any());
 	}

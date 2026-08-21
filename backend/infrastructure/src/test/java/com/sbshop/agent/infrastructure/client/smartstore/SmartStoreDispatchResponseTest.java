@@ -7,13 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * D-145: 스마트스토어 발송 API는 <b>HTTP 200 본문 안에 실패를 담아</b> 준다.
- *
- * <p>종전에는 최상위 {@code code}만 검사해서, 아래 라이브 응답이 그대로 "전송 완료"로 기록됐다.
- * 그 결과 마켓에 반영되지 않은 송장이 반영됨으로 마킹되고, 다음 동기화가 마켓 값으로 되돌렸다
- * (2026-08-07 실측: 교정 11:34 → 원복 11:38).
- */
 class SmartStoreDispatchResponseTest {
 
 	private final ObjectMapper mapper = new ObjectMapper();

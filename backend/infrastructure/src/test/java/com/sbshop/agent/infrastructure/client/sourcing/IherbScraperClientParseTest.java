@@ -8,10 +8,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * SP-C: iHerb 현행 API 스펙(partNumber+imageIndices) 파싱 검증.
- * parseProductInfo는 package-private으로 노출하여 직접 테스트.
- */
 class IherbScraperClientParseTest {
 
 	private IherbScraperClient client;
@@ -128,7 +124,6 @@ class IherbScraperClientParseTest {
 		IherbProductInfo info = client.parseProductInfo(json, "https://www.iherb.com/pr/test/77777");
 
 		assertThat(info).isNotNull();
-		// 구 필드만 있으면 partNumber가 없으므로 imageLinks는 비어야 함
 		assertThat(info.imageLinks()).isEmpty();
 	}
 }

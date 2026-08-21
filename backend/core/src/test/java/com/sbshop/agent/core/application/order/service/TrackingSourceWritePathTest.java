@@ -18,22 +18,9 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * 세 쓰기 경로가 각자의 출처를 남기는지 — 이 기록이 없으면 화면이 진짜/가짜를 가릴 근거를 잃는다.
- */
 class TrackingSourceWritePathTest {
-
 	private final ShipmentRepository shipmentRepository = mock(ShipmentRepository.class);
 	private final OrderLineItemRepository lineItemRepository = mock(OrderLineItemRepository.class);
-
-	private Shipment shipment() {
-		return Shipment.builder().orderId(1L).marketShipmentNo("S-1").build();
-	}
-
-	private OrderLineItem item(Long shipmentId) {
-		return OrderLineItem.builder().orderId(1L).quantity(1).shipmentId(shipmentId)
-			.shippingData(ShippingData.builder().build()).build();
-	}
 
 	@Test
 	@DisplayName("출처를 지정하면 배송에 기록된다")
@@ -96,5 +83,14 @@ class TrackingSourceWritePathTest {
 			.marketShipmentNo("S-1").trackingNo("6079990333504").build());
 
 		assertThat(ours.getTrackingSource()).isEqualTo(TrackingSource.EMAIL);
+	}
+
+	private Shipment shipment() {
+		return Shipment.builder().orderId(1L).marketShipmentNo("S-1").build();
+	}
+
+	private OrderLineItem item(Long shipmentId) {
+		return OrderLineItem.builder().orderId(1L).quantity(1).shipmentId(shipmentId)
+			.shippingData(ShippingData.builder().build()).build();
 	}
 }

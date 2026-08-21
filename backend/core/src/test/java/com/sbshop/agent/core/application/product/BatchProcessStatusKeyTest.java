@@ -1,16 +1,10 @@
 package com.sbshop.agent.core.application.product;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
+import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
+import com.sbshop.agent.core.application.product.dto.PriceStockItem;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
+import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
@@ -18,6 +12,7 @@ import com.sbshop.agent.core.domain.product.component.ProductWriter;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.service.MarginCalculator;
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,15 +22,17 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-/**
- * PART A 회귀 방지: ProcessStatus 진행현황 행의 KEY는 startBatch가 심은 productId(String.valueOf)여야 한다.
- * 이전 버그는 sbCode를 KEY로 사용해 updateStep의 productCode.equals(...) 필터가 매칭되지 않아
- * 모든 행이 PENDING에 머물렀다.
- */
 @ExtendWith(MockitoExtension.class)
 class BatchProcessStatusKeyTest {
-
 	@Mock
 	private ProductReader productReader;
 	@Mock
@@ -53,7 +50,7 @@ class BatchProcessStatusKeyTest {
 	@Mock
 	private ProductMarketSyncService productMarketSyncService;
 	@Mock
-	private com.sbshop.agent.core.application.fee.MarketFeeService marketFeeService;
+	private MarketFeeService marketFeeService;
 	@Mock
 	private Product product;
 
@@ -79,11 +76,11 @@ class BatchProcessStatusKeyTest {
 			.thenReturn(new BigDecimal("9900"));
 		lenient()
 			.when(productMarketSyncService.syncPriceStockPerMarket(any(), any(), any(StockStatus.class), anyBoolean()))
-			.thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
+			.thenReturn(new MarketRepublishResult(List.of(), List.of(), new LinkedHashMap<>()));
 		lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class)))
-			.thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
+			.thenReturn(new MarketRepublishResult(List.of(), List.of(), new LinkedHashMap<>()));
 		lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class), anyBoolean()))
-			.thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
+			.thenReturn(new MarketRepublishResult(List.of(), List.of(), new LinkedHashMap<>()));
 	}
 
 	@Test
@@ -95,7 +92,7 @@ class BatchProcessStatusKeyTest {
 
 		service.crawlAndUpdatePriceStock("batch-1", List.of(PRODUCT_ID),
 			new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO,
-			com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_CRAWL_UPDATE);
+			ActionLogConstants.BATCH_CRAWL_UPDATE);
 
 		verify(processStatusService).markSuccess(eq("batch-1"), eq(PRODUCT_ID_KEY), anyString());
 		verify(processStatusService, never()).markSuccess(eq("batch-1"), eq(SB_CODE), anyString());
@@ -108,7 +105,7 @@ class BatchProcessStatusKeyTest {
 
 		service.crawlAndUpdatePriceStock("batch-1", List.of(PRODUCT_ID),
 			new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO,
-			com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_CRAWL_UPDATE);
+			ActionLogConstants.BATCH_CRAWL_UPDATE);
 
 		verify(processStatusService).markFailed(eq("batch-1"), eq(PRODUCT_ID_KEY), anyString());
 		verify(processStatusService, never()).markFailed(eq("batch-1"), eq(SB_CODE), anyString());
@@ -121,7 +118,7 @@ class BatchProcessStatusKeyTest {
 		lenient().when(product.getSalePrice()).thenReturn(new BigDecimal("8800"));
 
 		service.manualUpdatePriceStock("batch-manual", List.of(
-			new com.sbshop.agent.core.application.product.dto.PriceStockItem(
+			new PriceStockItem(
 				PRODUCT_ID, new BigDecimal("9900"), 50)));
 
 		verify(processStatusService).markSuccess(eq("batch-manual"), eq(PRODUCT_ID_KEY), anyString());

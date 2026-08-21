@@ -31,17 +31,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * D-052: republishToMarkets가 extractVendorItemId(쿠팡 전용) 대신
- * extractMarketCode(마켓별 올바른 코드 키)를 사용하는지 검증.
- * - SMART_STORE: originProductNo 키를 읽어 클라이언트에 전달
- * - ELEVEN_STREET: elevenstId/prdNo 키를 읽어 전달
- * - CAFE24: product_no/product_code 키를 읽어 전달
- * - 코드 키 부재(null/empty) 시 해당 마켓을 failed 로 수집하고 나머지 마켓은 계속 진행
- */
 @ExtendWith(MockitoExtension.class)
 class ProductManageRepublishMarketCodeTest {
-
 	@Mock
 	private ProductReader productReader;
 	@Mock
@@ -78,19 +69,6 @@ class ProductManageRepublishMarketCodeTest {
 			.thenReturn("<new/>");
 	}
 
-	private MarketRegistration reg(MarketType type, String identifiersJson) {
-		return MarketRegistration.builder()
-			.productId(PRODUCT_ID)
-			.marketType(type)
-			.marketIdentifiers(identifiersJson)
-			.marketDetailedInfo("{}")
-			.build();
-	}
-
-	private List<ImageUploadFile> files() {
-		return List.of(new ImageUploadFile("a.jpg", "image/jpeg", null, 10));
-	}
-
 	@Test
 	@DisplayName("SMART_STORE 등록의 originProductNo가 syncImagesAndHtml 첫 번째 인자로 전달된다")
 	void smartStore_usesOriginProductNo_asMarketItemId() {
@@ -102,7 +80,6 @@ class ProductManageRepublishMarketCodeTest {
 
 		useCase.updateImagesAndHtml(PRODUCT_ID, files());
 
-		// extractMarketCode()는 SMART_STORE에서 originProductNo를 읽어야 함
 		verify(smartStoreClient).syncImagesAndHtml(any(), eq("OP123"), any(),
 			eq(List.of("https://r2.dev/a.jpg")), eq("<new/>"));
 	}
@@ -134,7 +111,6 @@ class ProductManageRepublishMarketCodeTest {
 
 		useCase.updateImagesAndHtml(PRODUCT_ID, files());
 
-		// seller-products 엔드포인트는 sellerProductId가 필요 — vendorItemId를 넘기면 "data not found"
 		verify(coupangClient).syncImagesAndHtml(any(), eq("11658784734"), any(),
 			eq(List.of("https://r2.dev/a.jpg")), eq("<new/>"));
 	}
@@ -158,27 +134,37 @@ class ProductManageRepublishMarketCodeTest {
 	@DisplayName("마켓 상품코드 키 부재 시 해당 마켓은 failed로 수집되고 나머지 마켓은 계속 진행된다")
 	void missingMarketCode_collectsAsFailed_otherMarketsStillSynced() {
 		MarketClient smartStoreClient = mock(MarketClient.class);
-		// SMART_STORE: 코드 키 없음 ({}에서 originProductNo/channelProductNo 없음)
-		// ELEVEN_STREET: 코드 있음
+
 		MarketClient elevenStreetClient = mock(MarketClient.class);
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID))
 			.thenReturn(List.of(
-				reg(MarketType.SMART_STORE, "{}"), // 코드 없음 → failed
-				reg(MarketType.ELEVEN_STREET, "{\"prdNo\":\"E11_001\"}") // 코드 있음 → synced
-			));
+				reg(MarketType.SMART_STORE, "{}"),
+				reg(MarketType.ELEVEN_STREET, "{\"prdNo\":\"E11_001\"}")));
 		when(marketClientRouter.hasClient(MarketType.SMART_STORE)).thenReturn(true);
 		when(marketClientRouter.hasClient(MarketType.ELEVEN_STREET)).thenReturn(true);
-		// SMART_STORE: extractMarketCode() → null → throws before getClient — 스텁 불필요
+
 		lenient().when(marketClientRouter.getClient(MarketType.SMART_STORE)).thenReturn(smartStoreClient);
 		when(marketClientRouter.getClient(MarketType.ELEVEN_STREET)).thenReturn(elevenStreetClient);
 
 		MarketRepublishResult result = useCase.updateImagesAndHtml(PRODUCT_ID, files());
 
-		// 코드 없는 SMART_STORE는 클라이언트 호출 없이 failed 수집
 		verify(smartStoreClient, never()).syncImagesAndHtml(any(), any(), any(), anyList(), any());
-		// 코드 있는 ELEVEN_STREET는 정상 호출
+
 		verify(elevenStreetClient).syncImagesAndHtml(any(), eq("E11_001"), any(), anyList(), any());
 		assertThat(result.failed()).containsKey(MarketType.SMART_STORE);
 		assertThat(result.synced()).contains(MarketType.ELEVEN_STREET);
+	}
+
+	private MarketRegistration reg(MarketType type, String identifiersJson) {
+		return MarketRegistration.builder()
+			.productId(PRODUCT_ID)
+			.marketType(type)
+			.marketIdentifiers(identifiersJson)
+			.marketDetailedInfo("{}")
+			.build();
+	}
+
+	private List<ImageUploadFile> files() {
+		return List.of(new ImageUploadFile("a.jpg", "image/jpeg", null, 10));
 	}
 }

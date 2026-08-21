@@ -15,11 +15,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 
-/**
- * F-MISC-1/F-MISC-2: action-logs 조회 컨트롤러 계약 검증.
- * - 응답은 프론트 계약 유지를 위해 평면 배열(List)이어야 한다.
- * - limit/page 기본값·방어가 컨트롤러 계약에서 명시적으로 서비스에 전달돼야 한다.
- */
 @ExtendWith(MockitoExtension.class)
 class ActionLogControllerTest {
 
@@ -68,9 +63,9 @@ class ActionLogControllerTest {
 		when(actionLogService.recentLogs(anyInt(), anyInt())).thenReturn(List.of());
 
 		controller().getActionLogs(0, 0);
-		verify(actionLogService).recentLogs(0, 100); // limit<=0 → 기본 100
+		verify(actionLogService).recentLogs(0, 100);
 
 		controller().getActionLogs(9999, 0);
-		verify(actionLogService).recentLogs(0, 500); // 상한 500
+		verify(actionLogService).recentLogs(0, 500);
 	}
 }

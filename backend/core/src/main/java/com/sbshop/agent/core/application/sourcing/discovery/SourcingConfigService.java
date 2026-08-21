@@ -8,12 +8,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 소싱 설정 단일 행의 조회·생성·수정. 행이 없으면 기본값으로 만든다. */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class SourcingConfigService {
-
 	private final SourcingConfigRepository repository;
 
 	@Transactional

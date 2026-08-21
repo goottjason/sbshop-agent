@@ -14,13 +14,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
-/**
- * 마켓 보유 송장 백필 트리거의 안전장치.
- *
- * <p>이 트리거는 네 마켓 API를 과거 구간까지 호출한다 — 실수로 부르면 부담이 크고, 무인증이면
- * 외부에서 부를 수 있다. 토큰 가드와 기간 상한을 계약으로 고정한다.
- * (구간 분할·페이싱은 {@link MarketTrackingBackfillService}의 책임이다.)
- */
 class MarketTrackingBackfillControllerTest {
 
 	private MarketTrackingBackfillService backfillService;

@@ -2,14 +2,6 @@ package com.sbshop.agent.api.dto.market;
 
 import com.sbshop.agent.core.application.product.dto.MarketPlusHandoff;
 
-/**
- * 프론트가 이것만으로 사용자를 마켓플러스로 데려갈 수 있어야 한다.
- *
- * @param market            MarketType.name()
- * @param cafe24ProductCode 마켓플러스 목록 검색에 쓸 코드(상품코드 검색, 완전일치)
- * @param marketplusUrl     미판매 상품 목록 URL
- * @param guide             사용자에게 그대로 보여줄 안내 문구
- */
 public record MarketPlusHandoffResponse(String market, String cafe24ProductCode,
 	String marketplusUrl, String guide) {
 

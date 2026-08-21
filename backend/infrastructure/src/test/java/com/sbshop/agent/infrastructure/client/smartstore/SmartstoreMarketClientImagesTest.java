@@ -21,9 +21,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * SP-C Task 2: SmartstoreMarketClient syncImagesAndHtml — optionalImages(다중이미지) + 실패 표면화 특성화 테스트.
- */
 @ExtendWith(MockitoExtension.class)
 class SmartstoreMarketClientImagesTest {
 
@@ -37,7 +34,6 @@ class SmartstoreMarketClientImagesTest {
 	@BeforeEach
 	void setUp() {
 		client = new SmartstoreMarketClient(
-			// 신규 등록(publish) 전용 협력자 — 이 테스트가 검증하는 경로에서는 호출되지 않는다.
 			null, null, null, null,
 			restClient, new ObjectMapper());
 	}
@@ -49,7 +45,6 @@ class SmartstoreMarketClientImagesTest {
 	@Test
 	@DisplayName("다중이미지: images.representativeImage.url==hostedImages[0], images.optionalImages==[{url}..], detailContent 세팅")
 	void multipleImages_setsRepresentativeAndOptionalAndDetailContent() throws Exception {
-		// 커머스API 스키마: originProduct.images.representativeImage.url (오브젝트)
 		stubGet("{\"originProduct\":{\"images\":{\"representativeImage\":{\"url\":\"old\"}}}}");
 		@SuppressWarnings("unchecked") ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
 

@@ -19,14 +19,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
-/**
- * R1 / F-CAFE-2: {@code GET /status}의 HTTP 시맨틱을 특성화한다.
- *
- * <p><b>계약(비파괴):</b> "토큰 만료/무효·권한 없음"은 <em>정상 상태 결과</em>이므로
- * 반드시 {@code 200 + body(connected=false)}로 유지한다(프론트가 body를 읽어 표시).
- * <p><b>결함(F-CAFE-2):</b> 반면 <em>진짜 서버/인프라 오류</em>(Cafe24 미도달·타임아웃·5xx 등)를
- * 정상 status 결과인 양 200으로 감싸면 HTTP로 오류를 구분할 수 없다 → 예외를 전파해 5xx가 되게 한다.
- */
 @ExtendWith(MockitoExtension.class)
 class Cafe24AuthControllerStatusTest {
 
@@ -44,8 +36,6 @@ class Cafe24AuthControllerStatusTest {
 			cafe24OrderApiPort, actionLogService);
 	}
 
-	// ─────────────────────── 정상 상태(200 유지) 계약 ───────────────────────
-
 	@Test
 	@DisplayName("리프레시 토큰 없음: 200 + connected=false (정상 미연동 상태)")
 	void noRefreshToken_returns200() {
@@ -61,7 +51,6 @@ class Cafe24AuthControllerStatusTest {
 	@DisplayName("토큰 만료/무효(재인증 필요): 200 + connected=false 유지 (프론트 계약)")
 	void tokenExpired_returns200() {
 		when(cafe24TokenManager.isRefreshTokenPresent()).thenReturn(true);
-		// 토큰 매니저가 만료/무효를 알림 — RestClient는 401 등을 이 메시지로 감싼다.
 		when(cafe24RestClient.get(anyString()))
 			.thenThrow(new RuntimeException(
 				"Cafe24 API 호출 실패: Cafe24 토큰 갱신 실패 — 재인증이 필요합니다"));
@@ -113,8 +102,6 @@ class Cafe24AuthControllerStatusTest {
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(response.getBody().connected()).isTrue();
 	}
-
-	// ─────────────────── 진짜 인프라 오류(전파 → 5xx) — F-CAFE-2 ───────────────────
 
 	@Test
 	@DisplayName("F-CAFE-2: 상품 점검 중 진짜 인프라 오류(Cafe24 미도달)는 200으로 감싸지 않고 전파한다")

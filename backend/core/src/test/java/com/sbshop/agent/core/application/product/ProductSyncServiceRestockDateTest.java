@@ -1,12 +1,9 @@
 package com.sbshop.agent.core.application.product;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
+import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
 import com.sbshop.agent.core.application.product.port.ProductStockCrawlerPort;
+import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
@@ -18,25 +15,23 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
-/**
- * D-065: 재고 동기화 시 restockDate null 소거 방어.
- * 크롤이 restockDate를 일시적으로 null로 반환해도, 여전히 품절(OUT_OF_STOCK) 상태라면
- * DB의 기존 재입고일을 덮어쓰지 않아야 한다(재입고일 (-) 버그 방지). 재입고 완료(IN_STOCK)
- * 시에는 재입고일이 의미 없으므로 null로 지우는 것이 정상이다.
- */
 @ExtendWith(MockitoExtension.class)
 class ProductSyncServiceRestockDateTest {
-
 	@Mock
 	private ProductRepository productRepository;
 	@Mock
 	private ProductStockCrawlerPort productStockCrawlerPort;
 	@Mock
-	private com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository orderLineItemRepository;
+	private OrderLineItemRepository orderLineItemRepository;
 	@Mock
-	private com.sbshop.agent.core.application.actionlog.ActionLogService actionLogService;
+	private ActionLogService actionLogService;
 
 	private ProductSyncService service;
 	private static final Long PRODUCT_ID = 1L;
@@ -51,7 +46,7 @@ class ProductSyncServiceRestockDateTest {
 	@Test
 	@DisplayName("품절 유지 중 크롤 restockDate=null이면 기존 재입고일을 덮어쓰지 않는다")
 	void keepsRestockDateWhenCrawlReturnsNullAndOutOfStock() {
-		Product product = org.mockito.Mockito.mock(Product.class);
+		Product product = Mockito.mock(Product.class);
 		when(product.getSourcingUrl()).thenReturn(SOURCE_URL);
 		when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 		when(productStockCrawlerPort.checkStockWithDetails(SOURCE_URL))
@@ -65,7 +60,7 @@ class ProductSyncServiceRestockDateTest {
 	@Test
 	@DisplayName("재입고 완료(IN_STOCK)면 restockDate=null을 반영해 기존 재입고일을 지운다")
 	void clearsRestockDateWhenInStock() {
-		Product product = org.mockito.Mockito.mock(Product.class);
+		Product product = Mockito.mock(Product.class);
 		when(product.getSourcingUrl()).thenReturn(SOURCE_URL);
 		when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 		when(productStockCrawlerPort.checkStockWithDetails(SOURCE_URL))
@@ -80,7 +75,7 @@ class ProductSyncServiceRestockDateTest {
 	@DisplayName("크롤이 새 restockDate를 주면 품절 상태에서도 갱신한다")
 	void updatesRestockDateWhenCrawlProvidesValue() {
 		LocalDate newDate = LocalDate.of(2026, 8, 1);
-		Product product = org.mockito.Mockito.mock(Product.class);
+		Product product = Mockito.mock(Product.class);
 		when(product.getSourcingUrl()).thenReturn(SOURCE_URL);
 		when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 		when(productStockCrawlerPort.checkStockWithDetails(SOURCE_URL))

@@ -9,9 +9,7 @@ import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** 마켓 상품명 조립·길이 제한 규칙을 고정한다. */
 class ProductNameComposerTest {
-
 	@Test
 	@DisplayName("브랜드·핵심명·용량·묶음수를 순서대로 조립한다")
 	void composesInOrder() {
@@ -35,8 +33,6 @@ class ProductNameComposerTest {
 	@Test
 	@DisplayName("핵심명에 이미 규격이 있으면 용량을 중복 표기하지 않는다")
 	void skipsCapacityWhenBaseNameAlreadyHasSize() {
-		// 실측: LLM 핵심명 "크레아틴 일수화물 무맛 454g" + iHerb 상품수량 453 →
-		//       "…454g 453개 3개" 라는 이름이 나왔다.
 		String name = ProductNameComposer.compose(
 			"캘리포니아골드뉴트리션", "크레아틴 일수화물 무맛 454g", new BigDecimal("453"), "개",
 			3, MarketType.COUPANG);
@@ -81,7 +77,7 @@ class ProductNameComposerTest {
 			.hasSizeLessThanOrEqualTo(100);
 		assertThat(ProductNameComposer.compose("브랜드", longBase, null, null, 1, MarketType.SMART_STORE))
 			.hasSizeLessThanOrEqualTo(100);
-		// Cafe24는 자사몰이라 250자까지 허용된다.
+
 		assertThat(ProductNameComposer.compose("브랜드", longBase, null, null, 1, MarketType.CAFE24))
 			.hasSizeLessThanOrEqualTo(250);
 	}
@@ -95,7 +91,7 @@ class ProductNameComposerTest {
 
 		assertThat(name).hasSizeLessThanOrEqualTo(100);
 		assertThat(name).doesNotEndWith(" ");
-		// 마지막 토큰이 온전해야 한다.
+
 		assertThat(name.substring(name.lastIndexOf(' ') + 1)).isEqualTo("가나다라마바사");
 	}
 

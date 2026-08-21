@@ -21,8 +21,6 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 public class R2ImageStorageClient implements ImageStorageClient {
 
 	private final R2Properties r2Properties;
-	// @Lazy S3Client를 사용 시점에 해석한다(D-020). 자격증명이 없으면 여기서 명확히 실패하고,
-	// 업로드를 호출하지 않는 다른 기능은 기동·동작에 영향받지 않는다.
 	private final ObjectProvider<S3Client> s3ClientProvider;
 
 	@Override

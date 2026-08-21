@@ -6,16 +6,7 @@ import com.sbshop.agent.core.domain.order.enums.TrackingSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * 송장 출처는 "누가 처음 썼나"가 아니라 <b>"무엇이 이 값을 확인했나"</b>다.
- * 화면은 이 값으로 📧(이메일이 확인한 진짜)와 ✍(진위 불명)를 가른다.
- */
 class ShipmentTrackingSourceTest {
-
-	private Shipment shipment() {
-		return Shipment.builder().orderId(1L).marketShipmentNo("S-1").build();
-	}
-
 	@Test
 	@DisplayName("출처를 기록한다")
 	void recordsSource() {
@@ -52,5 +43,9 @@ class ShipmentTrackingSourceTest {
 	@DisplayName("기록한 적 없으면 null — 과거 데이터는 아이콘 없이 둔다")
 	void defaultsToNull() {
 		assertThat(shipment().getTrackingSource()).isNull();
+	}
+
+	private Shipment shipment() {
+		return Shipment.builder().orderId(1L).marketShipmentNo("S-1").build();
 	}
 }

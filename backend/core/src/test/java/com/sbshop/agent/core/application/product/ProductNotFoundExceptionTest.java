@@ -21,16 +21,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * F-PROD-5 / F-PROD-26 / F-PROD-29: 미존재 상품 id 조회 실패는 404(ResourceNotFoundException)여야 한다.
- *
- * <p>기존 결함 — 미존재 리소스 조회를 {@link IllegalArgumentException}(GlobalExceptionHandler가 400으로 매핑)으로
- * 던져 클라이언트에 "잘못된 입력(400)"으로 잘못 전달됐다. 입력값 자체는 유효하나 대상이 없는 경우이므로
- * 404가 옳다. 수정 후: "상품을 찾을 수 없습니다" 조회 실패는 {@link ResourceNotFoundException}으로 던진다.
- */
 @ExtendWith(MockitoExtension.class)
 class ProductNotFoundExceptionTest {
-
 	@Mock
 	private ProductReader productReader;
 	@Mock

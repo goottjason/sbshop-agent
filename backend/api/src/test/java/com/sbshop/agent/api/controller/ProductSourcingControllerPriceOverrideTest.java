@@ -24,11 +24,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * 결함 B: POST /api/v1/products/{id}/markets/{marketType}의 선택적 가격 바디가
- * ProductPublishUseCase까지 전달되는지 검증한다. 프론트가 실제로 값을 보내는 것은 별도 태스크지만,
- * 서버는 지금부터 받을 수 있어야 한다.
- */
 @ExtendWith(MockitoExtension.class)
 class ProductSourcingControllerPriceOverrideTest {
 

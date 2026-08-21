@@ -7,6 +7,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.sbshop.agent.api.dto.OrderLineItemUpdateRequest;
+import com.sbshop.agent.api.dto.ShippingUpdateRequest;
+import com.sbshop.agent.api.dto.SourcingUpdateRequest;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.order.service.OrderService;
 import com.sbshop.agent.core.application.order.service.OrderShipService;
@@ -21,13 +24,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * SP-6 / F-ORD-27·F-S6·F-H6·F-ORD-37: 컨트롤러에서 해석 가능한 성공 경로의 활동로그
- * marketType이 null이 아니라 실제 마켓으로 채워지는지 검증한다.
- *
- * <p>대상은 단일 마켓으로 해석되는 성공 경로에 한정한다:
- * 라인아이템 유니패스/소싱/배송 수정. (일괄 발주확인/취소/발송은 다마켓이라 null 유지가 의도.)
- */
 @ExtendWith(MockitoExtension.class)
 class OrderControllerMarketTypeLogTest {
 
@@ -66,7 +62,7 @@ class OrderControllerMarketTypeLogTest {
 		when(orderService.updateOrderLineItem(anyLong(), any())).thenReturn(lineItem());
 		when(orderService.marketTypeOfLineItem(10L)).thenReturn(MarketType.COUPANG);
 
-		controller().updateOrderLineItem(10L, new com.sbshop.agent.api.dto.OrderLineItemUpdateRequest());
+		controller().updateOrderLineItem(10L, new OrderLineItemUpdateRequest());
 
 		assertThat(capturedMarketType(ActionLogConstants.UNIPASS_UPDATE)).isEqualTo("COUPANG");
 	}
@@ -77,7 +73,7 @@ class OrderControllerMarketTypeLogTest {
 		when(orderService.updateSourcingInfo(anyLong(), any())).thenReturn(lineItem());
 		when(orderService.marketTypeOfLineItem(11L)).thenReturn(MarketType.SMART_STORE);
 
-		controller().updateSourcingInfo(11L, new com.sbshop.agent.api.dto.SourcingUpdateRequest());
+		controller().updateSourcingInfo(11L, new SourcingUpdateRequest());
 
 		assertThat(capturedMarketType(ActionLogConstants.PURCHASE_UPDATE)).isEqualTo("SMART_STORE");
 	}
@@ -88,12 +84,10 @@ class OrderControllerMarketTypeLogTest {
 		when(orderService.updateShippingInfo(anyLong(), any())).thenReturn(lineItem());
 		when(orderService.marketTypeOfLineItem(12L)).thenReturn(MarketType.GMARKET);
 
-		controller().updateShippingInfo(12L, new com.sbshop.agent.api.dto.ShippingUpdateRequest());
+		controller().updateShippingInfo(12L, new ShippingUpdateRequest());
 
 		assertThat(capturedMarketType(ActionLogConstants.SHIPPING_UPDATE)).isEqualTo("GMARKET");
 	}
-
-	// ----- F-ORD-5 / F-ORD-15: 단건 발주확인/취소 실패 경로 marketType 조회 채움 -----
 
 	@Test
 	@DisplayName("발주확인 실패: 활동로그 marketType이 주문 조회로 채워진다(null 아님)")
@@ -104,7 +98,6 @@ class OrderControllerMarketTypeLogTest {
 		try {
 			controller().confirmOrder(20L);
 		} catch (RuntimeException ignored) {
-			// 실패 응답 보존을 위한 재throw는 정상 — 로그 기록만 검증한다.
 		}
 
 		assertThat(capturedFailedMarketType(ActionLogConstants.ORDER_CONFIRM)).isEqualTo("COUPANG");
@@ -119,7 +112,6 @@ class OrderControllerMarketTypeLogTest {
 		try {
 			controller().cancelOrder(21L);
 		} catch (RuntimeException ignored) {
-			// 실패 응답 보존을 위한 재throw는 정상.
 		}
 
 		assertThat(capturedFailedMarketType(ActionLogConstants.ORDER_CANCEL)).isEqualTo("GMARKET");
@@ -135,7 +127,6 @@ class OrderControllerMarketTypeLogTest {
 		try {
 			controller().confirmOrder(99L);
 		} catch (RuntimeException ignored) {
-			// 재throw 정상.
 		}
 
 		assertThat(capturedFailedMarketType(ActionLogConstants.ORDER_CONFIRM)).isNull();

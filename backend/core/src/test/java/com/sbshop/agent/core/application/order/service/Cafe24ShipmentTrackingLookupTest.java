@@ -15,33 +15,8 @@ import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * D-124: 주문 목록의 items[].tracking_no가 자리표시자('00000000')뿐일 때,
- * 배송건 목록(GET /admin/orders/{id}/shipments)에서 실제 송장을 찾아낸다.
- *
- * 배경: 옥션/G마켓에서 등록·변경한 송장이 Cafe24 주문 item에는 자체배송 자리표시자로만
- * 비치는 사례가 확인됐다. 배송건이 여러 개면 실값이 별도 레코드에 있을 수 있다.
- */
 class Cafe24ShipmentTrackingLookupTest {
-
 	private static final ObjectMapper MAPPER = new ObjectMapper();
-
-	private Cafe24OrderApiPort portReturning(String... trackingNos) {
-		Cafe24OrderApiPort port = mock(Cafe24OrderApiPort.class);
-		ArrayNode shipments = MAPPER.createArrayNode();
-		for (String no : trackingNos) {
-			ObjectNode s = shipments.addObject();
-			s.put("tracking_no", no);
-			s.put("shipping_company_code", "0006");
-			s.put("status", "shipping");
-		}
-		when(port.fetchShipments(anyString())).thenReturn(shipments);
-		return port;
-	}
-
-	private Cafe24ShipmentTrackingLookup lookup(Cafe24OrderApiPort port) {
-		return new Cafe24ShipmentTrackingLookup(port);
-	}
 
 	@Test
 	@DisplayName("D-124: 자리표시자와 실값이 섞여 있으면 실값을 고른다")
@@ -103,5 +78,22 @@ class Cafe24ShipmentTrackingLookupTest {
 		Cafe24ShipmentTrackingLookup.Found found = lookup(port).findRealTracking("20260730-0000016");
 
 		assertThat(found.carrier()).isEqualTo(ShippingCarrier.KOREA_POST);
+	}
+
+	private Cafe24OrderApiPort portReturning(String... trackingNos) {
+		Cafe24OrderApiPort port = mock(Cafe24OrderApiPort.class);
+		ArrayNode shipments = MAPPER.createArrayNode();
+		for (String no : trackingNos) {
+			ObjectNode s = shipments.addObject();
+			s.put("tracking_no", no);
+			s.put("shipping_company_code", "0006");
+			s.put("status", "shipping");
+		}
+		when(port.fetchShipments(anyString())).thenReturn(shipments);
+		return port;
+	}
+
+	private Cafe24ShipmentTrackingLookup lookup(Cafe24OrderApiPort port) {
+		return new Cafe24ShipmentTrackingLookup(port);
 	}
 }

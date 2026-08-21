@@ -17,17 +17,14 @@ import java.sql.Types;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CustomsData {
-	/** 개인통관고유부호 (예: P로 시작하는 13자리 번호) */
 	@Column(name = "customs_clearance_no", length = 50)
 	private String customsClearanceNo;
 
-	/** 통관 진행 상태 (진행중, 완료, 오류 등) */
 	@Enumerated(EnumType.STRING)
 	@JdbcTypeCode(Types.VARCHAR)
 	@Column(name = "customs_status", length = 20)
 	private CustomsStatus customsStatus;
 
-	/** 통관 검증된 사람 (수취인/주문자) */
 	@Enumerated(EnumType.STRING)
 	@JdbcTypeCode(Types.VARCHAR)
 	@Column(name = "verified_person", length = 20)

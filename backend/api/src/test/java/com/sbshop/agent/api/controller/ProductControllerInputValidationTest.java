@@ -11,12 +11,14 @@ import static org.mockito.Mockito.when;
 import com.sbshop.agent.api.dto.product.ImageUploadResponse;
 import com.sbshop.agent.api.dto.product.PriceStockUpdateRequest;
 import com.sbshop.agent.api.dto.product.ProductUpdateRequest;
+import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.product.MarketRepublishResult;
 import com.sbshop.agent.core.application.product.ProductManageUseCase;
 import com.sbshop.agent.core.application.product.ProductSearchUseCase;
 import com.sbshop.agent.core.application.product.port.ProductInfoCrawlerPort;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
+import com.sbshop.agent.core.domain.product.client.dto.ImageProcessResult;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -27,27 +29,25 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 
-/**
- * F-PROD-8 / F-PROD-11 / F-PROD-23: product 수정 엔드포인트의 입력 검증 부재 결함.
- *
- * <p>프로젝트 규약(BatchController 참조): 컨트롤러 진입부에서 IllegalArgumentException을 던지면
- * GlobalExceptionHandler가 400으로 매핑한다. 검증 실패 시 usecase는 호출되지 않아야 한다.
- */
 @ExtendWith(MockitoExtension.class)
 class ProductControllerInputValidationTest {
-
 	@Mock
 	private ProductSearchUseCase productSearchUseCase;
+
 	@Mock
 	private ProductManageUseCase productManageUseCase;
+
 	@Mock
 	private ImageDownloadClient imageDownloadClient;
+
 	@Mock
 	private ProductInfoCrawlerPort productInfoCrawlerPort;
+
 	@Mock
 	private MarketRegistrationRepository marketRegistrationRepository;
+
 	@Mock
-	private com.sbshop.agent.core.application.actionlog.ActionLogService actionLogService;
+	private ActionLogService actionLogService;
 
 	private ProductController controller() {
 		return new ProductController(productSearchUseCase, productManageUseCase,
@@ -58,7 +58,15 @@ class ProductControllerInputValidationTest {
 		return new MarketRepublishResult(List.of(), List.of(), Map.of());
 	}
 
-	// ---- F-PROD-8: price-stock 음수 가격 거부 ----
+	private ProductUpdateRequest updateRequestWith(BigDecimal salePrice, Integer stock, BigDecimal costPrice) {
+		return new ProductUpdateRequest(
+			"brand", "name", "baseName", "originalName", null,
+			costPrice, null, null, null, salePrice,
+			stock, null, null,
+			null, null, null,
+			null, null, null, null, null,
+			null, null, null, null, null);
+	}
 
 	@Test
 	@DisplayName("updatePriceStock: 음수 price는 IllegalArgumentException(400)으로 거부하고 usecase를 호출하지 않는다")
@@ -83,8 +91,6 @@ class ProductControllerInputValidationTest {
 		verify(productManageUseCase).updatePriceStock(1L, BigDecimal.ZERO, Boolean.TRUE);
 	}
 
-	// ---- F-PROD-11: images/by-url 빈/누락 이미지 입력 거부 ----
-
 	@Test
 	@DisplayName("uploadImagesByUrl: null 이미지 목록은 IllegalArgumentException(400)으로 거부한다")
 	void uploadImagesByUrl_nullList_rejected() {
@@ -108,25 +114,13 @@ class ProductControllerInputValidationTest {
 	void uploadImagesByUrl_validList_processed() {
 		List<String> urls = List.of("http://img/1.jpg");
 		when(imageDownloadClient.downloadAndConvertDetailed(urls)).thenReturn(
-			com.sbshop.agent.core.domain.product.client.dto.ImageProcessResult.of(List.of(), List.of()));
+			ImageProcessResult.of(List.of(), List.of()));
 		when(productManageUseCase.updateImagesAndHtml(anyLong(), any())).thenReturn(noMarketResult());
 
 		ResponseEntity<ImageUploadResponse> res = controller().uploadImagesByUrl(1L, urls);
 
 		assertThat(res.getBody()).isNotNull();
 		verify(imageDownloadClient).downloadAndConvertDetailed(urls);
-	}
-
-	// ---- F-PROD-23: PUT /{id} 전체수정 음수 금액/수량 거부 ----
-
-	private ProductUpdateRequest updateRequestWith(BigDecimal salePrice, Integer stock, BigDecimal costPrice) {
-		return new ProductUpdateRequest(
-			"brand", "name", "baseName", "originalName", null,
-			costPrice, null, null, null, salePrice,
-			stock, null, null,
-			null, null, null,
-			null, null, null, null, null,
-			null, null, null, null, null);
 	}
 
 	@Test

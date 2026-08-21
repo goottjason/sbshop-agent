@@ -31,45 +31,13 @@ import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 
-/**
- * D-069: 마켓 송장 전송 실패의 표면화.
- * 마켓 port 예외가 밖으로 전파되어 @Transactional 롤백을 유발하지 않고,
- * 결과 객체(성공/실패/스킵)로 반환되며 실패 시 trackingSentToMarket을 마킹하지 않음을 고정한다.
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class MarketplaceShippingServiceTest {
-
 	@Mock
 	private OrderRepository orderRepository;
 	@Mock
 	private MarketCredentialRepository credentialRepository;
-
-	private OrderLineItem shippedItem(Long orderId, boolean alreadySent) {
-		return OrderLineItem.builder()
-			.orderId(orderId)
-			.quantity(1)
-			.shippingData(ShippingData.builder()
-				.trackingNo("TRK-123")
-				.shippingCarrier(ShippingCarrier.CJ_LOGISTICS)
-				.shippingStatus(ShippingStatus.SHIPPED)
-				.trackingSentToMarket(alreadySent ? Boolean.TRUE : null)
-				.build())
-			.build();
-	}
-
-	private Order order(MarketType marketType) {
-		return Order.builder()
-			.marketType(marketType)
-			.marketOrderNo("ORD-1")
-			.build();
-	}
-
-	private MarketOrderPort portFor(MarketType type) {
-		MarketOrderPort port = mock(MarketOrderPort.class);
-		when(port.getMarketType()).thenReturn(type);
-		return port;
-	}
 
 	@Test
 	@DisplayName("마켓 port 예외 시: 예외를 던지지 않고 실패 결과를 반환한다")
@@ -164,7 +132,6 @@ class MarketplaceShippingServiceTest {
 		MarketplaceShippingService service = new MarketplaceShippingService(
 			orderRepository, credentialRepository, List.of(port));
 
-		// trackingSentToMarket=false여도 invoiceAlreadyExists=true면 수정 API를 쓴다(동기화 유입분 결함 수정).
 		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(1L, false), true);
 
 		assertThat(result.sent()).isTrue();
@@ -184,11 +151,36 @@ class MarketplaceShippingServiceTest {
 		MarketplaceShippingService service = new MarketplaceShippingService(
 			orderRepository, credentialRepository, List.of(port));
 
-		// trackingSentToMarket=true여도 invoiceAlreadyExists=false면 초기등록 API를 쓴다(판단은 인자로만).
 		MarketShippingResult result = service.sendTrackingToMarketplace(shippedItem(1L, true), false);
 
 		assertThat(result.sent()).isTrue();
 		verify(port).shipOrder(any(), any(), any(), anyString(), any());
 		verify(port, never()).updateTracking(any(), any(), any(), anyString(), any());
+	}
+
+	private OrderLineItem shippedItem(Long orderId, boolean alreadySent) {
+		return OrderLineItem.builder()
+			.orderId(orderId)
+			.quantity(1)
+			.shippingData(ShippingData.builder()
+				.trackingNo("TRK-123")
+				.shippingCarrier(ShippingCarrier.CJ_LOGISTICS)
+				.shippingStatus(ShippingStatus.SHIPPED)
+				.trackingSentToMarket(alreadySent ? Boolean.TRUE : null)
+				.build())
+			.build();
+	}
+
+	private Order order(MarketType marketType) {
+		return Order.builder()
+			.marketType(marketType)
+			.marketOrderNo("ORD-1")
+			.build();
+	}
+
+	private MarketOrderPort portFor(MarketType type) {
+		MarketOrderPort port = mock(MarketOrderPort.class);
+		when(port.getMarketType()).thenReturn(type);
+		return port;
 	}
 }

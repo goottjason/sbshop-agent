@@ -1,29 +1,14 @@
 package com.sbshop.agent.core.application.order.service;
 
+import java.util.HashMap;
 import java.util.List;
 
 import com.sbshop.agent.core.application.order.dto.MarketLineItemDto;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
+import java.util.Map;
 
-/**
- * 평면 {@link MarketOrderDto}를 (주문 / 배송 / 상품주문) 3계층으로 정규화한다.
- *
- * <p>어댑터를 마켓별로 순차 전환하는 동안 두 형태가 공존한다. 소비자가 분기를 갖지 않도록
- * 여기서 흡수한다 — 평면 DTO는 <b>배송 1 : 상품주문 1</b>로 감싸고, 이미 3계층인 DTO는
- * 그대로 통과시킨다.
- *
- * <p><b>배송</b> 식별자를 얻지 못하면 주문번호로 대체한다(설계 §3.3). 배송 계층이 항상 존재해야
- * 상위 로직("이 배송의 상품들")에 null 분기가 생기지 않고, 전환 전 마켓은 주문당 배송 1건이므로
- * {@code (order_id, market_shipment_no)} 유니크와 충돌하지 않는다.
- *
- * <p><b>상품주문</b> 식별자는 반대로 <b>비워 둔다</b>(D-131). 대체값을 넣으면 그 값이
- * {@code uk_line_item_order_market_no}에 영속돼, 주문당 라인아이템이 2건이 되는 순간
- * 동기화가 유니크 위반으로 통째로 실패한다. 모르는 값은 모른다고 두고, 레거시·미전환 행의
- * 매칭은 {@link OrderLineItemMatcher}가 맡는다.
- */
 public final class MarketOrderNormalizer {
-
 	private MarketOrderNormalizer() {}
 
 	public static MarketOrderDto normalize(MarketOrderDto dto) {
@@ -37,9 +22,6 @@ public final class MarketOrderNormalizer {
 		String shipmentNo = resolveShipmentNo(dto);
 
 		MarketLineItemDto lineItem = MarketLineItemDto.builder()
-			// D-131: 상품주문 식별자는 비운다. 전환 전 마켓의 평면 DTO는 그 값을 알려주지 않으며,
-			// 배송 식별자를 여기 전용하면 uk_line_item_order_market_no와 충돌한다(주문당 2건부터).
-			// null은 "아직 모름"이고, 그때의 매칭은 OrderLineItemMatcher가 담당한다.
 			.marketProductCode(dto.getMarketProductCode())
 			.sellerProductId(dto.getSellerProductId())
 			.productName(dto.getProductName())
@@ -57,40 +39,21 @@ public final class MarketOrderNormalizer {
 			.lineItems(List.of(lineItem))
 			.build();
 
-		// 원본을 건드리지 않는다 — 호출자가 평면 필드를 계속 쓰고 있을 수 있다.
-		// marketSpecificData도 라인아이템과 대칭으로 방어적 복사한다 — toBuilder()는 얕은
-		// 복사라 그대로 두면 이 계층만 원본과 참조를 공유해, 2단계에서 어댑터가 채운
-		// dlvNo·ordPrdSeq를 소비자가 변형할 때 원본이 오염될 수 있다.
 		return dto.toBuilder()
 			.marketSpecificData(copyMarketSpecificData(dto.getMarketSpecificData()))
 			.shipments(List.of(shipment))
 			.build();
 	}
 
-	/**
-	 * 배송 식별자를 고른다. 평면 DTO에는 배송 식별자가 없으므로 주문번호로 대체한다
-	 * (배송 1 : 상품주문 1). 배송 식별자를 아는 마켓은 이미 3계층으로 내주므로 여기 오지 않는다.
-	 *
-	 * <p>6단계 이전에는 쿠팡의 {@code shipmentBoxId}를 평면 DTO에서 받아 썼다. 쿠팡이 3계층으로
-	 * 전환된 뒤(D-137) 그 경로는 쓰이지 않게 됐고, 같은 값을 두 곳에서 나르는 것이 오히려
-	 * 원본을 흐렸다 — 배송이 배송 식별자를 갖는다.
-	 */
 	private static String resolveShipmentNo(MarketOrderDto dto) {
 		return dto.getMarketOrderNo();
 	}
 
-	/**
-	 * marketSpecificData를 방어적으로 복사한다.
-	 *
-	 * <p>원본 DTO와 정규화된 DTO의 마켓 데이터가 독립적이어야 한다.
-	 * 어댑터가 {@code new HashMap<>()}으로 생성하므로 null 값을 포함할 수 있어
-	 * {@link java.util.Map#copyOf(Map)}이 아닌 {@code new HashMap<>(Map)}을 사용한다.
-	 */
-	private static java.util.Map<String, Object> copyMarketSpecificData(
-		java.util.Map<String, Object> original) {
+	private static Map<String, Object> copyMarketSpecificData(
+		Map<String, Object> original) {
 		if (original == null) {
 			return null;
 		}
-		return new java.util.HashMap<>(original);
+		return new HashMap<>(original);
 	}
 }

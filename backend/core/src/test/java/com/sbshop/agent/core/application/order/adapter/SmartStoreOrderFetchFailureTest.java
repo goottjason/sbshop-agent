@@ -1,5 +1,7 @@
 package com.sbshop.agent.core.application.order.adapter;
 
+import java.time.ZoneOffset;
+import org.junit.jupiter.api.BeforeEach;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -20,13 +22,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-/**
- * D-043: 스마트스토어 fetchOrders가 API 실패를 "성공 0건"으로 삼키지 않고 전량 실패 시 예외를 전파하는지 검증.
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SmartStoreOrderFetchFailureTest {
-
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	@Mock
@@ -36,18 +34,10 @@ class SmartStoreOrderFetchFailureTest {
 	@InjectMocks
 	private SmartStoreOrderAdapter adapter;
 
-	@org.junit.jupiter.api.BeforeEach
+	@BeforeEach
 	void speedUpDelays() {
-		// D-118로 청크 간 지연이 생겼다 — 단위 테스트는 대기 없이 돌린다.
 		adapter.chunkDelayMillis = 0L;
 		adapter.retryBackoffMillis = 0L;
-	}
-
-	private MarketCredential credential() {
-		MarketCredential c = mock(MarketCredential.class);
-		when(c.getClientId()).thenReturn("clientId");
-		when(c.getSecretKey()).thenReturn("secret");
-		return c;
 	}
 
 	@Test
@@ -56,10 +46,7 @@ class SmartStoreOrderFetchFailureTest {
 		when(smartStoreOrderApiPort.fetchOrders(any(), any(), any(), any()))
 			.thenThrow(new RuntimeException("스마트스토어 주문 조회 HTTP 오류: 401"));
 
-		// 어댑터는 endDate=now(UTC), startDate=fromDate.atStartOfDay(UTC)로 chunk를 만든다. 로컬 머신이
-		// KST면 LocalDate.now()가 UTC보다 하루 앞서(자정~오전9시) startDate>endDate가 되어 chunk 0개 →
-		// 예외 미발생으로 오탐한다. 어댑터의 UTC 기준에 맞춰 UTC 오늘 날짜를 넘겨 항상 1개 이상 chunk가 생기게 한다.
-		LocalDate today = LocalDate.now(java.time.ZoneOffset.UTC);
+		LocalDate today = LocalDate.now(ZoneOffset.UTC);
 		assertThatThrownBy(() -> adapter.fetchOrders(credential(), today, today))
 			.isInstanceOf(RuntimeException.class)
 			.hasMessageContaining("스마트스토어 주문 조회 실패");
@@ -71,7 +58,14 @@ class SmartStoreOrderFetchFailureTest {
 		when(smartStoreOrderApiPort.fetchOrders(any(), any(), any(), any()))
 			.thenReturn(MAPPER.createArrayNode());
 
-		LocalDate today = LocalDate.now(java.time.ZoneOffset.UTC);
+		LocalDate today = LocalDate.now(ZoneOffset.UTC);
 		assertThat(adapter.fetchOrders(credential(), today, today)).isEmpty();
+	}
+
+	private MarketCredential credential() {
+		MarketCredential c = mock(MarketCredential.class);
+		when(c.getClientId()).thenReturn("clientId");
+		when(c.getSecretKey()).thenReturn("secret");
+		return c;
 	}
 }

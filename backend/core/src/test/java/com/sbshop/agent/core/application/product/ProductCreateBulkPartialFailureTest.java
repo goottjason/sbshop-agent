@@ -25,13 +25,8 @@ import org.mockito.MockedStatic;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * F-PSRC-6: 대량 등록에서 항목별 실패가 응답에서 조용히 누락되지 않고
- * 실패 목록(요청 index + 식별자 + 사유)으로 표면화되는지 검증.
- */
 @ExtendWith(MockitoExtension.class)
 class ProductCreateBulkPartialFailureTest {
-
 	@Mock
 	private ProductReader productReader;
 	@Mock
@@ -43,14 +38,6 @@ class ProductCreateBulkPartialFailureTest {
 	@InjectMocks
 	private ProductCreateUseCase useCase;
 
-	private static ProductCreateCommand command(String name) {
-		return new ProductCreateCommand(
-			"url", new BigDecimal("25"), name, name, "Brand", "KR",
-			BigDecimal.ONE, new BigDecimal("500"), MeasureUnit.TABLET,
-			null, null, "html", "카테고리",
-			true, 1, new BigDecimal("20"), VendorType.IHB);
-	}
-
 	@Test
 	@DisplayName("일부 항목 생성 실패 시 성공/실패가 각각 집계되어 반환된다")
 	void createBulk_surfacesPartialFailures() {
@@ -61,8 +48,6 @@ class ProductCreateBulkPartialFailureTest {
 		ProductCreateCommand bad = command("불량B");
 		ProductCreateCommand ok2 = command("정상C");
 
-		// index 1(불량B) 항목만 Product.create가 실패하도록 유도. 나머지는 정상 생성.
-		// sbCode 접미사(001/002/003)로 항목을 식별해 날짜 접두사에 의존하지 않는다.
 		try (MockedStatic<Product> productStatic = mockStatic(Product.class)) {
 			productStatic.when(() -> Product.create(anyString(), any())).thenAnswer(inv -> {
 				String sbCode = inv.getArgument(0);
@@ -79,10 +64,18 @@ class ProductCreateBulkPartialFailureTest {
 			assertThat(result.failed().get(0).index()).isEqualTo(1);
 			assertThat(result.failed().get(0).baseName()).isEqualTo("불량B");
 			assertThat(result.failed().get(0).reason()).isNotBlank();
-			// 성공 항목은 요청 index를 보존하며(0, 2), 실패한 index 1을 건너뛴다.
+
 			assertThat(result.succeeded()).extracting(BulkProductCreateResult.Success::index)
 				.containsExactly(0, 2);
 			assertThat(result.succeeded().get(0).product()).isNotNull();
 		}
+	}
+
+	private static ProductCreateCommand command(String name) {
+		return new ProductCreateCommand(
+			"url", new BigDecimal("25"), name, name, "Brand", "KR",
+			BigDecimal.ONE, new BigDecimal("500"), MeasureUnit.TABLET,
+			null, null, "html", "카테고리",
+			true, 1, new BigDecimal("20"), VendorType.IHB);
 	}
 }

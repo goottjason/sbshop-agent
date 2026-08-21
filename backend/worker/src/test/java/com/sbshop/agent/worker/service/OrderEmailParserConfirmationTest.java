@@ -7,10 +7,6 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * iHerb 주문 확인 메일 → 실구매가 추출 검증.
- * 이메일 동기화가 실구매비용을 자동 주입하는 경로의 유일한 파싱 지점이다.
- */
 class OrderEmailParserConfirmationTest {
 
 	private final OrderEmailParser parser = new OrderEmailParser();
@@ -63,7 +59,6 @@ class OrderEmailParserConfirmationTest {
 	@Test
 	@DisplayName("'총 주문' 라벨(페이코 결제 메일)에서 실구매가를 읽는다")
 	void extractsAmountFromOrderTotalLabel() {
-		// 실제 운영 본문: "… 대한민국 (KR) 결제 유형: 페이코 총 주문: ₩40,418"
 		String subject = "iHerb 주문 #343977053 결제가 처리되었습니다";
 		String body = "배송지 대한민국 (KR) 결제 유형: 페이코 총 주문: &#8361;40,418";
 
@@ -104,7 +99,6 @@ class OrderEmailParserConfirmationTest {
 	@Test
 	@DisplayName("달러 표기 확인 메일은 액면 금액과 USD 통화를 함께 돌려준다")
 	void marksUsdDenominatedTotal() {
-		// 실제 운영 메일: "결제 수단: Master Card x2218 총 결제 금액: $48.00"
 		String body = "결제 수단: Master Card x2218 총 결제 금액: $48.00 주문 확인 / 관리";
 
 		Optional<OrderEmailParser.IherbConfirmationData> result = parser.parseIherbConfirmation(SUBJECT, body);
@@ -148,7 +142,6 @@ class OrderEmailParserConfirmationTest {
 	@Test
 	@DisplayName("금액이 실재 불가능한 소액이면 주입하지 않는다(태그 분할 등 오파싱 방어)")
 	void rejectsImplausiblySmallAmount() {
-		// 숫자가 태그 경계로 쪼개져 "31 ,441" 처럼 평탄화되면 앞 토막만 잡힌다.
 		String body = "<td>총 결제 금액</td><td>&#8361;<span>31</span><span>,441</span></td>";
 
 		Optional<OrderEmailParser.IherbConfirmationData> result = parser.parseIherbConfirmation(SUBJECT, body);

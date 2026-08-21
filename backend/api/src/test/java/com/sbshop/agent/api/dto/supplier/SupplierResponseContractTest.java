@@ -11,11 +11,6 @@ import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * F-SUP-1 / F-SUP-LC-1: GET /suppliers·/currencies 가 도메인 엔티티(Supplier/Currency)를 직접
- * 노출하지 않도록 응답 DTO로 매핑하되, 현재 실제로 응답에 나가는 스칼라 필드는 보존한다.
- * 특히 Supplier 의 LAZY @ManyToOne currency 는 응답에서 유출되지 않아야 한다(F-SUP-1).
- */
 class SupplierResponseContractTest {
 
 	private final ObjectMapper mapper = new ObjectMapper();

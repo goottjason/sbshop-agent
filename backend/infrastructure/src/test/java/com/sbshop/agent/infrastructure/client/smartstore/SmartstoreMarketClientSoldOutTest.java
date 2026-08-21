@@ -19,10 +19,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * SP-B Fix ①: SmartstoreMarketClient 품절 처리 — 재고 0 자동품절 방식.
- * statusType OUTOFSTOCK 는 v2 수정 API에서 무효(400)이므로 stockQuantity=0으로 품절을 표현한다.
- */
 @ExtendWith(MockitoExtension.class)
 class SmartstoreMarketClientSoldOutTest {
 
@@ -36,7 +32,6 @@ class SmartstoreMarketClientSoldOutTest {
 	@BeforeEach
 	void setUp() {
 		client = new SmartstoreMarketClient(
-			// 신규 등록(publish) 전용 협력자 — 이 테스트가 검증하는 경로에서는 호출되지 않는다.
 			null, null, null, null,
 			restClient, new ObjectMapper());
 	}
@@ -58,9 +53,7 @@ class SmartstoreMarketClientSoldOutTest {
 		verify(restClient).put(eq("/v2/products/origin-products/" + ITEM_ID), captor.capture());
 		@SuppressWarnings("unchecked") Map<String, Object> originProduct = (Map<String, Object>)captor.getValue()
 			.get("originProduct");
-		// 재고 0 → API가 자동 품절 처리
 		assertThat(originProduct.get("stockQuantity")).isEqualTo(0);
-		// 수정 API에서 무효인 OUTOFSTOCK 값을 직접 지정하지 않음
 		assertThat(originProduct.get("status")).isNotEqualTo("OUTOFSTOCK");
 		assertThat(originProduct.get("statusType")).isNotEqualTo("OUTOFSTOCK");
 	}

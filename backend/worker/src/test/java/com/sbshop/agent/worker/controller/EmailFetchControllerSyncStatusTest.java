@@ -22,11 +22,6 @@ import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.config.InternalAccessGuard;
 import com.sbshop.agent.worker.service.EmailFetcherService;
 
-/**
- * F-MISC-19: 수동 트리거(/internal/email/fetch)도 스케줄러 경로와 일관되게 SyncStatus를 기록해야 한다.
- * 스케줄러(OrderSyncScheduler.syncOrders)는 markRunning(EMAIL) → fetch → markCompleted/markFailed(EMAIL)를
- * 기록하지만, 수동 경로는 서비스만 직접 호출하고 상태를 기록하지 않아 /orders/sync/status가 갱신되지 않았다.
- */
 @ExtendWith(MockitoExtension.class)
 class EmailFetchControllerSyncStatusTest {
 
@@ -35,11 +30,6 @@ class EmailFetchControllerSyncStatusTest {
 
 	@Mock
 	SyncStatusService syncStatusService;
-
-	private EmailFetchController controller(String configuredToken) {
-		return new EmailFetchController(emailFetcherService,
-			new InternalAccessGuard(configuredToken), syncStatusService);
-	}
 
 	@Test
 	@DisplayName("수동 트리거 성공 → markRunning(EMAIL) 후 markCompleted(EMAIL) 순서로 기록")
@@ -76,5 +66,10 @@ class EmailFetchControllerSyncStatusTest {
 		assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 		verify(emailFetcherService, never()).fetchAndProcessEmails();
 		verify(syncStatusService, never()).markRunning(SyncMarketKeys.EMAIL);
+	}
+
+	private EmailFetchController controller(String configuredToken) {
+		return new EmailFetchController(emailFetcherService,
+			new InternalAccessGuard(configuredToken), syncStatusService);
 	}
 }

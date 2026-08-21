@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -8,11 +9,13 @@ import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.application.supplier.dto.CreateCurrencyCommand;
 import com.sbshop.agent.core.application.supplier.dto.CreateSupplierCommand;
+import com.sbshop.agent.core.domain.common.RecordStatus;
 import com.sbshop.agent.core.domain.supplier.Currency;
 import com.sbshop.agent.core.domain.supplier.Supplier;
 import com.sbshop.agent.core.domain.supplier.repository.CurrencyRepository;
 import com.sbshop.agent.core.domain.supplier.repository.SupplierRepository;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,11 +24,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * SP-9 서비스 계층 추출: SupplierController의 통화/공급사 로직을 SupplierService로 이동.
- * F-SUP-UC-1/2/3 가드(중복 통화 거부·환율/코드 검증)는 SupplierControllerCurrencyGuardTest에서
- * 이관된 동작 보존 증거다. 컨트롤러 대신 서비스를 직접 대상으로 동일 assertion을 검증한다.
- */
 @ExtendWith(MockitoExtension.class)
 class SupplierServiceTest {
 
@@ -33,14 +31,6 @@ class SupplierServiceTest {
 	private SupplierRepository supplierRepository;
 	@Mock
 	private CurrencyRepository currencyRepository;
-
-	private SupplierService service() {
-		return new SupplierService(supplierRepository, currencyRepository);
-	}
-
-	private CreateCurrencyCommand currencyCommand(String code, BigDecimal rate) {
-		return new CreateCurrencyCommand(code, rate);
-	}
 
 	@Test
 	@DisplayName("이미 존재하는 통화 → 거부(IllegalStateException), save 호출 안 됨(기존 환율 불변)")
@@ -51,7 +41,7 @@ class SupplierServiceTest {
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("USD");
 
-		verify(currencyRepository, never()).save(org.mockito.ArgumentMatchers.any());
+		verify(currencyRepository, never()).save(any());
 	}
 
 	@Test
@@ -72,7 +62,7 @@ class SupplierServiceTest {
 	void nullRate_rejected() {
 		assertThatThrownBy(() -> service().createCurrency(currencyCommand("JPY", null)))
 			.isInstanceOf(IllegalArgumentException.class);
-		verify(currencyRepository, never()).save(org.mockito.ArgumentMatchers.any());
+		verify(currencyRepository, never()).save(any());
 	}
 
 	@Test
@@ -82,7 +72,7 @@ class SupplierServiceTest {
 			.isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> service().createCurrency(currencyCommand("JPY", new BigDecimal("-1"))))
 			.isInstanceOf(IllegalArgumentException.class);
-		verify(currencyRepository, never()).save(org.mockito.ArgumentMatchers.any());
+		verify(currencyRepository, never()).save(any());
 	}
 
 	@Test
@@ -92,7 +82,7 @@ class SupplierServiceTest {
 			.isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> service().createCurrency(currencyCommand(null, new BigDecimal("1400"))))
 			.isInstanceOf(IllegalArgumentException.class);
-		verify(currencyRepository, never()).save(org.mockito.ArgumentMatchers.any());
+		verify(currencyRepository, never()).save(any());
 	}
 
 	@Test
@@ -118,7 +108,7 @@ class SupplierServiceTest {
 		assertThatThrownBy(() -> service().createSupplier(new CreateSupplierCommand("SUP01", "이름", "ZZZ")))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("ZZZ");
-		verify(supplierRepository, never()).save(org.mockito.ArgumentMatchers.any());
+		verify(supplierRepository, never()).save(any());
 	}
 
 	@Test
@@ -128,8 +118,8 @@ class SupplierServiceTest {
 			.isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> service().createSupplier(new CreateSupplierCommand(null, "이름", "USD")))
 			.isInstanceOf(IllegalArgumentException.class);
-		verify(currencyRepository, never()).findById(org.mockito.ArgumentMatchers.any());
-		verify(supplierRepository, never()).save(org.mockito.ArgumentMatchers.any());
+		verify(currencyRepository, never()).findById(any());
+		verify(supplierRepository, never()).save(any());
 	}
 
 	@Test
@@ -139,8 +129,8 @@ class SupplierServiceTest {
 			.isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> service().createSupplier(new CreateSupplierCommand("SUP01", null, "USD")))
 			.isInstanceOf(IllegalArgumentException.class);
-		verify(currencyRepository, never()).findById(org.mockito.ArgumentMatchers.any());
-		verify(supplierRepository, never()).save(org.mockito.ArgumentMatchers.any());
+		verify(currencyRepository, never()).findById(any());
+		verify(supplierRepository, never()).save(any());
 	}
 
 	@Test
@@ -151,7 +141,7 @@ class SupplierServiceTest {
 		assertThatThrownBy(() -> service().createSupplier(new CreateSupplierCommand("SUP01", "이름", "USD")))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("SUP01");
-		verify(supplierRepository, never()).save(org.mockito.ArgumentMatchers.any());
+		verify(supplierRepository, never()).save(any());
 	}
 
 	@Test
@@ -160,10 +150,10 @@ class SupplierServiceTest {
 		Supplier active = new Supplier("SUP01", "활성공급사",
 			new Currency("USD", new BigDecimal("1400")));
 		when(supplierRepository.findByStatusOrderBySupplierCodeAsc(
-			com.sbshop.agent.core.domain.common.RecordStatus.ACTIVE))
-			.thenReturn(java.util.List.of(active));
+			RecordStatus.ACTIVE))
+			.thenReturn(List.of(active));
 
-		java.util.List<Supplier> result = service().getSuppliers();
+		List<Supplier> result = service().getSuppliers();
 
 		assertThat(result).containsExactly(active);
 		verify(supplierRepository, never()).findAll();
@@ -173,13 +163,13 @@ class SupplierServiceTest {
 	@DisplayName("공급사 목록은 supplierCode 오름차순 정렬 리포지토리에 위임한다 (F-SUP-4)")
 	void getSuppliers_delegatesToSupplierCodeOrderedQuery() {
 		when(supplierRepository.findByStatusOrderBySupplierCodeAsc(
-			com.sbshop.agent.core.domain.common.RecordStatus.ACTIVE))
-			.thenReturn(java.util.List.of());
+			RecordStatus.ACTIVE))
+			.thenReturn(List.of());
 
 		service().getSuppliers();
 
 		verify(supplierRepository).findByStatusOrderBySupplierCodeAsc(
-			com.sbshop.agent.core.domain.common.RecordStatus.ACTIVE);
+			RecordStatus.ACTIVE);
 		verify(supplierRepository, never()).findAll();
 	}
 
@@ -188,12 +178,20 @@ class SupplierServiceTest {
 	void getCurrencies_delegatesToCurrencyCodeOrderedQuery() {
 		Currency usd = new Currency("USD", new BigDecimal("1400"));
 		when(currencyRepository.findAllByOrderByCurrencyCodeAsc())
-			.thenReturn(java.util.List.of(usd));
+			.thenReturn(List.of(usd));
 
-		java.util.List<Currency> result = service().getCurrencies();
+		List<Currency> result = service().getCurrencies();
 
 		assertThat(result).containsExactly(usd);
 		verify(currencyRepository).findAllByOrderByCurrencyCodeAsc();
 		verify(currencyRepository, never()).findAll();
+	}
+
+	private SupplierService service() {
+		return new SupplierService(supplierRepository, currencyRepository);
+	}
+
+	private CreateCurrencyCommand currencyCommand(String code, BigDecimal rate) {
+		return new CreateCurrencyCommand(code, rate);
 	}
 }

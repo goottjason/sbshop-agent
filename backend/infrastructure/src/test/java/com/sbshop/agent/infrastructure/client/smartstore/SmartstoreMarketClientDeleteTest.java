@@ -14,11 +14,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * 완전 상품 삭제(F-PROD-27/28): SmartstoreMarketClient.deleteFromMarket 는
- * originProductNo 로 원상품 삭제 API(DELETE /v2/products/origin-products/{no})를 호출하고,
- * 실패 시(주문이력 등으로 하드삭제 거부 포함) 예외를 전파한다.
- */
 @ExtendWith(MockitoExtension.class)
 class SmartstoreMarketClientDeleteTest {
 
@@ -32,7 +27,6 @@ class SmartstoreMarketClientDeleteTest {
 	@BeforeEach
 	void setUp() {
 		client = new SmartstoreMarketClient(
-			// 신규 등록(publish) 전용 협력자 — 이 테스트가 검증하는 경로에서는 호출되지 않는다.
 			null, null, null, null,
 			restClient, new ObjectMapper());
 	}

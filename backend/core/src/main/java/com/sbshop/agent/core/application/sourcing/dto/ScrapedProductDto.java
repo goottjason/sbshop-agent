@@ -25,7 +25,6 @@ public record ScrapedProductDto(
 	BigDecimal capacity,
 	String unit,
 	VendorType vendor) {
-
 	public MeasureUnit inferMeasureUnit() {
 		if (unit == null)
 			return MeasureUnit.UNKNOWN;

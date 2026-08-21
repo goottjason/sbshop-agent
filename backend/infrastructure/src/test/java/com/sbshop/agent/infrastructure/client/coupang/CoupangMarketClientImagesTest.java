@@ -31,12 +31,6 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * SP-C Task 4 / 이미지-HTML 동기화 회귀 가드: CoupangMarketClient.syncImagesAndHtml.
- * - marketItemId(=sellerProductId) 를 권위 있는 경로 식별자로 사용.
- * - PUT 수정 후 반드시 /approvals 승인요청을 호출(임시저장 버그 회귀 방지).
- * - rawData 에 items 가 없으면 GET 으로 전체 페이로드를 먼저 조회.
- */
 @ExtendWith(MockitoExtension.class)
 class CoupangMarketClientImagesTest {
 
@@ -77,7 +71,6 @@ class CoupangMarketClientImagesTest {
 		client.syncImagesAndHtml(null, "305", raw, List.of("u0", "u1"), "<html>");
 
 		verify(restClient).put(eq(BASE_PATH), any());
-		// 별도 승인요청 API는 임시저장 전용 → 편집 경로에선 호출하지 않는다.
 		verify(restClient, never()).put(eq(BASE_PATH + "/305/approvals"), any());
 	}
 
@@ -99,7 +92,6 @@ class CoupangMarketClientImagesTest {
 		String responseJson = "{\"code\":200,\"message\":\"OK\",\"data\":{\"items\":[{}]}}";
 		when(restClient.get(eq(BASE_PATH + "/305"))).thenReturn(responseJson);
 
-		// 실제 파싱 위임: readTree + convertValue 를 실제 ObjectMapper 로 흉내낸다.
 		ObjectMapper real = new ObjectMapper();
 		JsonNode root = real.readTree(responseJson);
 		when(objectMapper.readTree(responseJson)).thenReturn(root);

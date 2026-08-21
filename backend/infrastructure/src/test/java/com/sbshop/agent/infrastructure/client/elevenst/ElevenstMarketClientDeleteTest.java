@@ -14,9 +14,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * F-PROD-27/28: ElevenstMarketClient.deleteFromMarket — 11번가 상품 삭제 API 호출 테스트.
- */
 @ExtendWith(MockitoExtension.class)
 class ElevenstMarketClientDeleteTest {
 

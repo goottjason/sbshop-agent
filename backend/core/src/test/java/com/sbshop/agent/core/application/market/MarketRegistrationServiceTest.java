@@ -22,10 +22,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * SP-9 서비스 계층 추출: MarketRegistrationController의 등록현황/로컬조회/sync 로직을
- * MarketRegistrationService로 이동. 동작 보존을 서비스 단위로 검증한다.
- */
 @ExtendWith(MockitoExtension.class)
 class MarketRegistrationServiceTest {
 
@@ -35,11 +31,6 @@ class MarketRegistrationServiceTest {
 	private MarketClientRouter marketClientRouter;
 	@Mock
 	private ProductReader productReader;
-
-	private MarketRegistrationService service() {
-		return new MarketRegistrationService(
-			marketRegistrationRepository, marketClientRouter, productReader);
-	}
 
 	@Test
 	@DisplayName("등록현황 목록 → 상품 존재 시 레포 findByProductId 결과 그대로 반환")
@@ -119,5 +110,10 @@ class MarketRegistrationServiceTest {
 		when(client.extractMarketItem("77")).thenReturn(info);
 
 		assertThat(service().syncMarketLive(1L, "coupang")).isSameAs(info);
+	}
+
+	private MarketRegistrationService service() {
+		return new MarketRegistrationService(
+			marketRegistrationRepository, marketClientRouter, productReader);
 	}
 }

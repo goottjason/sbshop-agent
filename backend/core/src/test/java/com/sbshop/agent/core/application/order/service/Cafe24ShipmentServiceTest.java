@@ -1,5 +1,7 @@
 package com.sbshop.agent.core.application.order.service;
 
+import java.util.List;
+import org.mockito.ArgumentMatchers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
@@ -22,12 +24,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * G마켓/옥션 송장 역전송: 택배사 코드 매칭(/carriers) + order_item_code(주문상세) + shipments 바디 구성 검증.
- */
 @ExtendWith(MockitoExtension.class)
 class Cafe24ShipmentServiceTest {
-
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	@Mock
@@ -44,25 +42,13 @@ class Cafe24ShipmentServiceTest {
 			"{\"items\":[{\"order_item_code\":\"20260708-0000011-01\",\"status_code\":\"N30\"}]}"));
 	}
 
-	/** 재키잉된 실주문: marketOrderNo=마켓 원본번호, cafe24_order_id=Cafe24 자체번호(마켓specific). */
-	private Order gmarketOrder() {
-		Order order = Order.builder()
-			.marketType(MarketType.GMARKET)
-			.marketOrderNo("4466411168")
-			.orderDate(LocalDateTime.now())
-			.build();
-		order.setMarketSpecificDataFromMap(Map.of("cafe24_order_id", "20260708-0000011"));
-		return order;
-	}
-
 	@Test
 	@DisplayName("송장등록/주문상세를 cafe24_order_id(20260708-0000011)로 타깃한다 — 마켓 원본번호(4466411168) 아님(C-1)")
 	void shipTargetsCafe24OrderIdNotNativeNumber() {
 		service.ship(gmarketOrder(), "1234567890", ShippingCarrier.CJ_LOGISTICS);
 
-		// 주문상세 조회도 Cafe24 order_id로 타깃해야 order_item_code를 얻는다(원본번호면 404).
 		verify(port).fetchOrderDetail("20260708-0000011");
-		verify(port).registerShipment(eq("20260708-0000011"), org.mockito.ArgumentMatchers.any());
+		verify(port).registerShipment(eq("20260708-0000011"), ArgumentMatchers.any());
 	}
 
 	@Test
@@ -78,7 +64,7 @@ class Cafe24ShipmentServiceTest {
 		service.ship(legacy, "1234567890", ShippingCarrier.CJ_LOGISTICS);
 
 		verify(port).fetchOrderDetail("4466411168");
-		verify(port).registerShipment(eq("4466411168"), org.mockito.ArgumentMatchers.any());
+		verify(port).registerShipment(eq("4466411168"), ArgumentMatchers.any());
 	}
 
 	@Test
@@ -94,7 +80,7 @@ class Cafe24ShipmentServiceTest {
 		assertThat(req.get("tracking_no")).isEqualTo("1234567890");
 		assertThat(req.get("shipping_company_code")).isEqualTo("0019");
 		assertThat(req.get("status")).isEqualTo("shipping");
-		@SuppressWarnings("unchecked") java.util.List<Object> codes = (java.util.List<Object>)req
+		@SuppressWarnings("unchecked") List<Object> codes = (List<Object>)req
 			.get("order_item_code");
 		assertThat(codes).containsExactly("20260708-0000011-01");
 	}
@@ -102,8 +88,18 @@ class Cafe24ShipmentServiceTest {
 	@Test
 	@DisplayName("몰에 없는 택배사는 코드 매칭 실패로 예외를 던진다(실패 표면화)")
 	void unmatchedCarrierThrows() {
-		when(port.fetchCarriers()).thenReturn(MAPPER.createArrayNode()); // 택배사 없음
+		when(port.fetchCarriers()).thenReturn(MAPPER.createArrayNode());
 		assertThatThrownBy(() -> service.ship(gmarketOrder(), "123", ShippingCarrier.CJ_LOGISTICS))
 			.isInstanceOf(IllegalStateException.class);
+	}
+
+	private Order gmarketOrder() {
+		Order order = Order.builder()
+			.marketType(MarketType.GMARKET)
+			.marketOrderNo("4466411168")
+			.orderDate(LocalDateTime.now())
+			.build();
+		order.setMarketSpecificDataFromMap(Map.of("cafe24_order_id", "20260708-0000011"));
+		return order;
 	}
 }

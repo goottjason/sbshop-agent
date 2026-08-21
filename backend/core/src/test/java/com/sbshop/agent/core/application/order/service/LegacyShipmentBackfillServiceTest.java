@@ -33,21 +33,9 @@ import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 
-/**
- * 6단계 전제: <b>배송에 속하지 않은 라인아이템</b>을 없앤다.
- *
- * <p>3계층 전환은 각 마켓의 조회 창(30일) 안에서만 일어난다. 창 밖의 옛 주문은 마켓이 더는
- * 내려주지 않아 동기화가 만나지 못하고, 그 라인아이템은 {@code shipment_id}가 비어 있다
- * (2026-08-06 실측 127건). 미러 컬럼과 {@code sb_order.shipment_box_id}를 제거하려면
- * <b>모든 라인아이템이 배송을 가져야</b> 한다 — 그 전에는 옛 행의 송장이 갈 곳을 잃는다.
- *
- * <p>송장의 원본이 뒤집힌다: 종전에는 라인아이템이 원본이고 배송이 미러였는데, 여기서
- * <b>라인아이템의 값을 배송으로 승격</b>시킨다. 미러 컬럼은 그대로 둔다(소비처 이관 전).
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class LegacyShipmentBackfillServiceTest {
-
 	@Mock
 	private OrderLineItemRepository lineItemRepository;
 	@Mock
@@ -79,33 +67,9 @@ class LegacyShipmentBackfillServiceTest {
 		when(lineItemRepository.save(any(OrderLineItem.class))).thenAnswer(inv -> inv.getArgument(0));
 	}
 
-	private Order order(Long id, MarketType market, String marketOrderNo) {
-		Order order = Order.builder()
-			.marketType(market).marketOrderNo(marketOrderNo).build();
-		ReflectionTestUtils.setField(order, "id", id);
-		when(orderRepository.findById(id)).thenReturn(Optional.of(order));
-		return order;
-	}
-
-	private OrderLineItem unlinkedItem(Long id, Long orderId, String trackingNo,
-		ShippingCarrier carrier, Boolean sentToMarket) {
-		OrderLineItem item = OrderLineItem.builder()
-			.orderId(orderId).quantity(1)
-			.shippingData(ShippingData.builder()
-				.trackingNo(trackingNo).shippingCarrier(carrier)
-				.trackingSentToMarket(sentToMarket).shippingStatus(ShippingStatus.SHIPPED)
-				.build())
-			.build();
-		ReflectionTestUtils.setField(item, "id", id);
-		return item;
-	}
-
 	@Test
 	@DisplayName("쿠팡은 배송 식별자를 지어내지 않고 건너뛴다 — 주문번호를 박스번호 자리에 넣으면 마켓이 거부한다")
 	void skipsCoupangRatherThanFabricatingBoxId() {
-		// 쿠팡의 배송 식별자(배송박스번호)는 송장 등록·수정 API가 요구하는 실제 값이다.
-		// 주문번호로 대체하면 마켓 거부가 마켓의 상태 잠금처럼 보인다(D-127에서 겪은 것).
-		// 기존 109건은 2026-08-07 백필 때 sb_order.shipment_box_id에서 정확한 값을 받아 이미 연결됐다.
 		order(10L, MarketType.COUPANG, "700000012345");
 		OrderLineItem item = unlinkedItem(500L, 10L, "123456789012", ShippingCarrier.CJ_LOGISTICS, true);
 		when(lineItemRepository.findByShipmentIdIsNull()).thenReturn(List.of(item));
@@ -192,5 +156,26 @@ class LegacyShipmentBackfillServiceTest {
 		assertThat(result).containsEntry("skipped", 1).containsEntry("linked", 1);
 		assertThat(orphan.getShipmentId()).isNull();
 		assertThat(good.getShipmentId()).isNotNull();
+	}
+
+	private Order order(Long id, MarketType market, String marketOrderNo) {
+		Order order = Order.builder()
+			.marketType(market).marketOrderNo(marketOrderNo).build();
+		ReflectionTestUtils.setField(order, "id", id);
+		when(orderRepository.findById(id)).thenReturn(Optional.of(order));
+		return order;
+	}
+
+	private OrderLineItem unlinkedItem(Long id, Long orderId, String trackingNo,
+		ShippingCarrier carrier, Boolean sentToMarket) {
+		OrderLineItem item = OrderLineItem.builder()
+			.orderId(orderId).quantity(1)
+			.shippingData(ShippingData.builder()
+				.trackingNo(trackingNo).shippingCarrier(carrier)
+				.trackingSentToMarket(sentToMarket).shippingStatus(ShippingStatus.SHIPPED)
+				.build())
+			.build();
+		ReflectionTestUtils.setField(item, "id", id);
+		return item;
 	}
 }

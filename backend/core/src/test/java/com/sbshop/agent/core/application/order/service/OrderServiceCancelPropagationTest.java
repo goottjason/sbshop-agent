@@ -24,45 +24,14 @@ import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 
-/**
- * SP-E Task 4: cancelOrder에서 G마켓/옥션 주문은 Cafe24로 취소가 전파되고,
- * 그 외 마켓(쿠팡 등)은 로컬-only(현행 유지)임을 고정한다.
- */
 @ExtendWith(MockitoExtension.class)
 class OrderServiceCancelPropagationTest {
-
 	@Mock
 	private OrderRepository orderRepository;
 	@Mock
 	private OrderLineItemRepository orderLineItemRepository;
 	@Mock
 	private ShipmentRepository shipmentRepository;
-
-	/**
-	 * D-133: 송장 쓰기 통로는 <b>진짜 객체</b>를 끼운다. 목으로 대체하면 라인아이템 쓰기 자체가
-	 * 사라져 기존 검증이 통과해도 아무것도 증명하지 못한다. {@code shipment_id}가 null인 이
-	 * 테스트들에서는 통로가 배송을 건드리지 않으므로 종전과 동작이 같다 — 그 사실이 회귀 증거다.
-	 */
-	private LineItemShippingWriter shippingWriter() {
-		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
-	}
-
-	@Mock
-	private MarketCredentialRepository credentialRepository;
-	@Mock
-	private MarketplaceShippingService marketplaceShippingService;
-
-	private OrderService service() {
-		return new OrderService(orderRepository, orderLineItemRepository,
-			credentialRepository, marketplaceShippingService, shippingWriter());
-	}
-
-	private Order orderOf(MarketType marketType) {
-		return Order.builder()
-			.marketType(marketType)
-			.marketOrderNo("ORD-" + marketType.name())
-			.build();
-	}
 
 	@Test
 	@DisplayName("GMARKET 주문 취소 → cancelOrderToMarketplace 호출됨")
@@ -75,6 +44,11 @@ class OrderServiceCancelPropagationTest {
 
 		verify(marketplaceShippingService).cancelOrderToMarketplace(order);
 	}
+
+	@Mock
+	private MarketCredentialRepository credentialRepository;
+	@Mock
+	private MarketplaceShippingService marketplaceShippingService;
 
 	@Test
 	@DisplayName("AUCTION 주문 취소 → cancelOrderToMarketplace 호출됨")
@@ -105,8 +79,6 @@ class OrderServiceCancelPropagationTest {
 	void gmarketCancelFails_throwsRuntimeException() {
 		Order order = orderOf(MarketType.GMARKET);
 		when(orderRepository.findById(4L)).thenReturn(Optional.of(order));
-		// cancelOrderToMarketplace가 예외를 던지면 아이템 루프에 도달하지 않으므로
-		// findByOrderId 스텁은 실행 경로상 사용되지 않는다 — lenient 범위 지정.
 		lenient().when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of());
 		doThrow(new RuntimeException("G마켓 취소 API 오류"))
 			.when(marketplaceShippingService).cancelOrderToMarketplace(order);
@@ -114,5 +86,21 @@ class OrderServiceCancelPropagationTest {
 		assertThatThrownBy(() -> service().cancelOrder(4L))
 			.isInstanceOf(RuntimeException.class)
 			.hasMessageContaining("마켓 주문취소 실패");
+	}
+
+	private LineItemShippingWriter shippingWriter() {
+		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
+	}
+
+	private OrderService service() {
+		return new OrderService(orderRepository, orderLineItemRepository,
+			credentialRepository, marketplaceShippingService, shippingWriter());
+	}
+
+	private Order orderOf(MarketType marketType) {
+		return Order.builder()
+			.marketType(marketType)
+			.marketOrderNo("ORD-" + marketType.name())
+			.build();
 	}
 }

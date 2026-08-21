@@ -8,14 +8,7 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * 통관 게이트 판정 규칙을 고정한다.
- *
- * <p>핵심 원칙: <b>모르면 통과시키지 않는다.</b> 잘못 차단하면 기회를 잃지만,
- * 잘못 통과시키면 주문받은 상품이 통관에서 폐기·반송돼 실손실이 난다.
- */
 class CustomsEligibilityServiceTest {
-
 	private final CustomsEligibilityService service = new CustomsEligibilityService(null);
 
 	private final List<BannedIngredient> banned = List.of(
@@ -23,10 +16,6 @@ class CustomsEligibilityServiceTest {
 		BannedIngredient.of("카바카바(뿌리, 잎, 줄기)", "Kava kava", List.of("카바"), "특별법 제25조의3", "TEST"),
 		BannedIngredient.of("대마", "Cannabis sativa L", List.of(), "마약류관리법", "TEST"),
 		BannedIngredient.of("멜라토닌", "Melatonin", List.of(), "의약품 성분", "TEST"));
-
-	private CustomsEligibilityService.Result evaluate(String ingredients, String name) {
-		return service.evaluateAgainst(ingredients, name, banned);
-	}
 
 	@Test
 	@DisplayName("정상 성분표는 PASS")
@@ -114,9 +103,12 @@ class CustomsEligibilityServiceTest {
 	@Test
 	@DisplayName("해제된 성분은 차단하지 않는다 — 활성 목록만 넘어온다는 계약")
 	void releasedIngredientsAreNotInActiveList() {
-		// 라즈베리 케톤은 2024-04-15 지정 해제 → findAllActive()에서 빠지므로 목록에 없다.
 		var r = evaluate("기타 성분 라즈베리 케톤, 녹차추출물, 셀룰로오스", "다이어트 서포트");
 
 		assertThat(r.verdict()).isEqualTo(CustomsVerdict.PASS);
+	}
+
+	private CustomsEligibilityService.Result evaluate(String ingredients, String name) {
+		return service.evaluateAgainst(ingredients, name, banned);
 	}
 }

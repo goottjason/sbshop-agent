@@ -26,7 +26,6 @@ public enum EmailAccount {
 		this.displayName = displayName;
 	}
 
-	// 이메일 주소로 계정 찾기
 	public static EmailAccount fromEmail(String email) {
 		for (EmailAccount account : values()) {
 			if (account.getEmail().equalsIgnoreCase(email)) {
@@ -36,7 +35,6 @@ public enum EmailAccount {
 		return OTHERS;
 	}
 
-	// 이메일 주소 목록 반환
 	public static List<String> getAllEmails() {
 		return Arrays.stream(values())
 			.filter(a -> a != OTHERS)

@@ -2,10 +2,12 @@ package com.sbshop.agent.worker.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 
 import jakarta.mail.BodyPart;
 import jakarta.mail.Message;
 import jakarta.mail.Multipart;
+import java.math.BigDecimal;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,10 +26,6 @@ import com.sbshop.agent.core.config.EmailAccountProperties;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 
-/**
- * D-112-2: HTML 단독 발송 확인메일에서 본문이 빈 문자열이 되어 금액을 못 읽던 결함.
- * text/html 파트를 버리면 확인메일을 찾고도 실구매가가 영구 누락된다.
- */
 @ExtendWith(MockitoExtension.class)
 class EmailFetcherBodyExtractionTest {
 
@@ -50,12 +48,6 @@ class EmailFetcherBodyExtractionTest {
 	@Mock
 	ShipmentRepository shipmentRepository;
 
-	/**
-	 * D-133: 송장 쓰기 통로는 <b>진짜 객체</b>를 끼운다. {@code @InjectMocks}가 목을 넣거나 null로
-	 * 남기면 라인아이템 쓰기 자체가 사라져, 검증이 통과해도 아무것도 증명하지 못한다.
-	 * 이 테스트들의 라인아이템은 {@code shipment_id}가 null이므로 통로는 배송을 건드리지 않는다 —
-	 * 종전과 동작이 같다는 사실이 곧 회귀 증거다.
-	 */
 	@BeforeEach
 	void injectRealShippingWriter() {
 		ReflectionTestUtils.setField(service, "shippingWriter",
@@ -65,7 +57,7 @@ class EmailFetcherBodyExtractionTest {
 	@Test
 	@DisplayName("HTML 단독 메일의 본문을 읽는다")
 	void readsHtmlOnlyMessage() throws Exception {
-		Message message = org.mockito.Mockito.mock(Message.class);
+		Message message = mock(Message.class);
 		when(message.isMimeType("text/plain")).thenReturn(false);
 		when(message.isMimeType("text/html")).thenReturn(true);
 		when(message.getContent()).thenReturn("<div>총 결제 금액 &#8361;45,254</div>");
@@ -76,16 +68,16 @@ class EmailFetcherBodyExtractionTest {
 	@Test
 	@DisplayName("multipart에 html 파트만 있어도 본문을 읽는다")
 	void readsHtmlPartInMultipart() throws Exception {
-		BodyPart htmlPart = org.mockito.Mockito.mock(BodyPart.class);
+		BodyPart htmlPart = mock(BodyPart.class);
 		when(htmlPart.isMimeType("text/plain")).thenReturn(false);
 		when(htmlPart.isMimeType("text/html")).thenReturn(true);
 		when(htmlPart.getContent()).thenReturn("<td>총 결제 금액</td><td>$48.00</td>");
 
-		Multipart multipart = org.mockito.Mockito.mock(Multipart.class);
+		Multipart multipart = mock(Multipart.class);
 		when(multipart.getCount()).thenReturn(1);
 		when(multipart.getBodyPart(0)).thenReturn(htmlPart);
 
-		Message message = org.mockito.Mockito.mock(Message.class);
+		Message message = mock(Message.class);
 		when(message.isMimeType("text/plain")).thenReturn(false);
 		when(message.isMimeType("text/html")).thenReturn(false);
 		when(message.isMimeType("multipart/*")).thenReturn(true);
@@ -97,21 +89,21 @@ class EmailFetcherBodyExtractionTest {
 	@Test
 	@DisplayName("plain·html이 함께 있으면 plain이 앞에 온다(기존 동작 보존)")
 	void plainPrecedesHtml() throws Exception {
-		BodyPart plainPart = org.mockito.Mockito.mock(BodyPart.class);
+		BodyPart plainPart = mock(BodyPart.class);
 		when(plainPart.isMimeType("text/plain")).thenReturn(true);
 		when(plainPart.getContent()).thenReturn("총 결제 금액 ₩45,254");
 
-		BodyPart htmlPart = org.mockito.Mockito.mock(BodyPart.class);
+		BodyPart htmlPart = mock(BodyPart.class);
 		when(htmlPart.isMimeType("text/plain")).thenReturn(false);
 		when(htmlPart.isMimeType("text/html")).thenReturn(true);
 		when(htmlPart.getContent()).thenReturn("<div>총 결제 금액 ₩99,999</div>");
 
-		Multipart multipart = org.mockito.Mockito.mock(Multipart.class);
+		Multipart multipart = mock(Multipart.class);
 		when(multipart.getCount()).thenReturn(2);
 		when(multipart.getBodyPart(0)).thenReturn(plainPart);
 		when(multipart.getBodyPart(1)).thenReturn(htmlPart);
 
-		Message message = org.mockito.Mockito.mock(Message.class);
+		Message message = mock(Message.class);
 		when(message.isMimeType("text/plain")).thenReturn(false);
 		when(message.isMimeType("text/html")).thenReturn(false);
 		when(message.isMimeType("multipart/*")).thenReturn(true);
@@ -131,6 +123,6 @@ class EmailFetcherBodyExtractionTest {
 		OrderEmailParser.IherbConfirmationData data = realParser
 			.parseIherbConfirmation("iHerb 주문이 확인되었습니다 #123456789", htmlBody).get();
 
-		assertThat(data.getTotalAmount()).isEqualByComparingTo(new java.math.BigDecimal("45254"));
+		assertThat(data.getTotalAmount()).isEqualByComparingTo(new BigDecimal("45254"));
 	}
 }

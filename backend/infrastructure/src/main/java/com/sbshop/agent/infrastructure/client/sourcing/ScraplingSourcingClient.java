@@ -17,23 +17,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/**
- * Fortnum &amp; Mason(FTN) 재고/가격 크롤러 — Python Scrapling 서비스(sbshop-scraper)를 HTTP로 호출한다.
- * F&amp;M은 JS 렌더링 + Cloudflare 페이지라 JVM HttpClient로는 못 가져오고, 스크래퍼가 브라우저로 렌더해
- * 가격(£)·재고·원가(원, 배대지 배송비+환율 반영)를 계산해 준다.
- *
- * <p>결과 분기(스크래퍼 status):
- * <ul>
- *   <li>ok        → 정상 재고/원가 반영</li>
- *   <li>not_found → 링크 소멸(404): 품절 처리(가격 미변경). {@code sourceGone=true}</li>
- *   <li>blocked/error → 예외를 던져 배치가 실패로 기록(재고/가격 미변경). Cloudflare 차단 오품절 방지</li>
- * </ul>
- */
 @Slf4j
 @Component
 public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 
-	// HTTP/1.1 고정: 기본 HTTP/2 협상 시 uvicorn(HTTP/1.1 전용)에 POST 본문이 유실돼 422가 난다.
 	private final HttpClient httpClient = HttpClient.newBuilder()
 		.version(HttpClient.Version.HTTP_1_1)
 		.connectTimeout(Duration.ofSeconds(15))
@@ -67,12 +54,10 @@ public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 				if (!res.hasNonNull("goodsKrw")) {
 					throw new IllegalStateException("F&M 원가(goodsKrw) 없음 — 스킵: " + sourceUrl);
 				}
-				// 재고 판별 불가(inStock 누락/null)면 오품절 방지 위해 스킵(예외→배치 실패 기록).
 				if (!res.hasNonNull("inStock")) {
 					throw new IllegalStateException("F&M 재고 판별 불가(inStock 없음) — 스킵: " + sourceUrl);
 				}
 				boolean inStock = res.path("inStock").asBoolean(false);
-				// costPrice=상품원가(묶음수량 곱 대상), shippingCost=배송비(주문당 1회 가산).
 				BigDecimal goods = BigDecimal.valueOf(res.get("goodsKrw").asLong());
 				BigDecimal shipping = res.hasNonNull("shippingKrw")
 					? BigDecimal.valueOf(res.get("shippingKrw").asLong()) : BigDecimal.ZERO;
@@ -81,7 +66,6 @@ public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 					goods, inStock ? 100 : 0, null, false, shipping);
 			}
 			case "not_found":
-				// 링크 소멸(404) → 품절(가격 미변경). sourceGone=true 신호로 배치가 재고만 내린다.
 				log.info("F&M 링크 소멸(404) → 품절 처리: {}", sourceUrl);
 				return new StockCheckResult(StockStatus.OUT_OF_STOCK, null, 0, null, true);
 			case "blocked":

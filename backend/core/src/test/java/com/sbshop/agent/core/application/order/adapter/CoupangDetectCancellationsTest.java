@@ -25,13 +25,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * D-027 회귀 방지: 쿠팡 detectCancellations의 terminal 집합이 {CANCELED, DELIVERED}뿐이라
- * fetchOrders가 조회하지 않는 RETURNED·EXCHANGED 주문을 CANCELED로 오취소하던 결함을 고정한다.
- */
 @ExtendWith(MockitoExtension.class)
 class CoupangDetectCancellationsTest {
-
 	@Mock
 	private CoupangOrderApiPort coupangOrderApiPort;
 	@Mock
@@ -45,22 +40,6 @@ class CoupangDetectCancellationsTest {
 	@InjectMocks
 	private CoupangOrderAdapter adapter;
 
-	private Order coupangOrder(String orderNo) {
-		return Order.builder()
-			.marketType(MarketType.COUPANG)
-			.marketOrderNo(orderNo)
-			.orderDate(LocalDateTime.now().minusDays(1))
-			.build();
-	}
-
-	private OrderLineItem lineItemWithStatus(ShippingStatus status) {
-		return OrderLineItem.builder()
-			.orderId(1L)
-			.quantity(1)
-			.shippingData(ShippingData.builder().shippingStatus(status).build())
-			.build();
-	}
-
 	@Test
 	@DisplayName("[D-027] RETURNED 주문이 API 응답에 없어도 CANCELED로 덮어쓰지 않는다")
 	void returnedOrder_notInApi_isNotCanceled() {
@@ -69,7 +48,6 @@ class CoupangDetectCancellationsTest {
 		when(orderRepository.findByMarketType(MarketType.COUPANG)).thenReturn(List.of(returned));
 		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(item));
 
-		// apiOrders는 비어 있음 → 반품 주문이 조회 대상에 없는 상황 재현
 		adapter.detectCancellations(List.of(), LocalDate.now().minusDays(30), LocalDate.now());
 
 		assertThat(item.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.RETURNED);
@@ -113,5 +91,21 @@ class CoupangDetectCancellationsTest {
 		adapter.detectCancellations(List.of(), LocalDate.now().minusDays(30), LocalDate.now());
 
 		assertThat(item.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.DELIVERED);
+	}
+
+	private Order coupangOrder(String orderNo) {
+		return Order.builder()
+			.marketType(MarketType.COUPANG)
+			.marketOrderNo(orderNo)
+			.orderDate(LocalDateTime.now().minusDays(1))
+			.build();
+	}
+
+	private OrderLineItem lineItemWithStatus(ShippingStatus status) {
+		return OrderLineItem.builder()
+			.orderId(1L)
+			.quantity(1)
+			.shippingData(ShippingData.builder().shippingStatus(status).build())
+			.build();
 	}
 }

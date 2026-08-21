@@ -20,7 +20,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ProductCreateBulkSbCodeTest {
-
 	@Mock
 	private ProductReader productReader;
 	@Mock
@@ -32,18 +31,9 @@ class ProductCreateBulkSbCodeTest {
 	@InjectMocks
 	private ProductCreateUseCase useCase;
 
-	private static ProductCreateCommand minimalCommand(String name) {
-		return new ProductCreateCommand(
-			"url", new BigDecimal("25"), name, name, "Brand", "KR",
-			BigDecimal.ONE, new BigDecimal("500"), MeasureUnit.TABLET,
-			null, null, "html", "카테고리",
-			true, 1, new BigDecimal("20"), VendorType.IHB);
-	}
-
 	@Test
 	@DisplayName("createBulk는 배치당 getNextSbCodeSequence를 정확히 1회 호출하고 sbCode가 연속이어야 한다")
 	void createBulk_callsGetNextSbCodeSequenceOnce_andAssignsConsecutiveCodes() {
-		// getNextSbCodeSequence가 prefix+"006"을 반환 — 기존 max는 005
 		when(productReader.getNextSbCodeSequence(anyString()))
 			.thenAnswer(inv -> ((String) inv.getArgument(0)) + "006");
 
@@ -54,15 +44,20 @@ class ProductCreateBulkSbCodeTest {
 
 		var result = useCase.createBulk(commands);
 
-		// 1) getNextSbCodeSequence는 정확히 1회만 호출되어야 한다
 		verify(productReader, times(1)).getNextSbCodeSequence(anyString());
 
-		// 2) 성공 3개
 		assertThat(result.succeeded()).hasSize(3);
 
-		// 3) sbCode 끝 3자리가 006, 007, 008로 연속
 		assertThat(result.succeeded().get(0).product().getSbCode()).endsWith("IHB006");
 		assertThat(result.succeeded().get(1).product().getSbCode()).endsWith("IHB007");
 		assertThat(result.succeeded().get(2).product().getSbCode()).endsWith("IHB008");
+	}
+
+	private static ProductCreateCommand minimalCommand(String name) {
+		return new ProductCreateCommand(
+			"url", new BigDecimal("25"), name, name, "Brand", "KR",
+			BigDecimal.ONE, new BigDecimal("500"), MeasureUnit.TABLET,
+			null, null, "html", "카테고리",
+			true, 1, new BigDecimal("20"), VendorType.IHB);
 	}
 }

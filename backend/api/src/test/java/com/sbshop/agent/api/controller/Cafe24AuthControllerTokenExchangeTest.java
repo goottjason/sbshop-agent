@@ -20,14 +20,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
-/**
- * SP-11 / F-CAFE-12: {@code /issue-token}과 {@code /auth/callback}이 공유하는
- * 인가코드→토큰 교환 로직을 특성화(characterization)한다.
- *
- * <p>중복 제거 리팩토링(동작 불변) 전후로 이 테스트가 동일하게 통과해야 한다.
- * 두 엔드포인트가 code 추출 + {@link Cafe24TokenManager#issueInitialToken} 호출을
- * 공유하되, <b>비대칭(활동로그 유무·응답 형태)</b>이 보존됨을 고정한다.
- */
 @ExtendWith(MockitoExtension.class)
 class Cafe24AuthControllerTokenExchangeTest {
 
@@ -44,8 +36,6 @@ class Cafe24AuthControllerTokenExchangeTest {
 		return new Cafe24AuthController(cafe24TokenManager, cafe24RestClient,
 			cafe24OrderApiPort, actionLogService);
 	}
-
-	// ── 공유 로직: 전체 리다이렉트 URL을 붙여넣어도 code만 추출해 issueInitialToken에 전달 ──
 
 	@Test
 	@DisplayName("issue-token: 전체 URL을 붙여넣어도 code만 추출해 토큰 발급한다")
@@ -67,8 +57,6 @@ class Cafe24AuthControllerTokenExchangeTest {
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(response.getBody()).contains("Cafe24 인증이 완료");
 	}
-
-	// ── 비대칭 1: issue-token만 활동로그를 남긴다 (성공/실패 모두) ──
 
 	@Test
 	@DisplayName("issue-token 성공: 활동로그를 SUCCESS로 기록한다")
@@ -99,8 +87,6 @@ class Cafe24AuthControllerTokenExchangeTest {
 
 		verify(actionLogService, never()).record(any(), any(), any(), any());
 	}
-
-	// ── 비대칭 2: 응답 형태·에러 처리 ──
 
 	@Test
 	@DisplayName("issue-token: 빈 코드는 400과 함께 토큰 발급을 건너뛴다")

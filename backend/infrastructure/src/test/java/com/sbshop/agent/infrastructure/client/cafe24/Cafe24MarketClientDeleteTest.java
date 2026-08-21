@@ -16,9 +16,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * 완전 상품 삭제(F-PROD-27/28): Cafe24MarketClient.deleteFromMarket 특성화 테스트.
- */
 @ExtendWith(MockitoExtension.class)
 class Cafe24MarketClientDeleteTest {
 

@@ -31,22 +31,25 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 
-/**
- * SP-D Task 1: POST /api/v1/products/bulk 이 생성된 productId 목록을 반환하는지 검증.
- */
 @ExtendWith(MockitoExtension.class)
 class ProductSourcingBulkTest {
+	private static final SourcingCrawlResult EMPTY_RESULT = new SourcingCrawlResult(List.of(), List.of());
 
 	@Mock
 	private ProductSourcingUseCase productSourcingUseCase;
+
 	@Mock
 	private ProductCreateUseCase productCreateUseCase;
+
 	@Mock
 	private ProductPublishUseCase productPublishUseCase;
+
 	@Mock
 	private MarketRegistrationRepository marketRegistrationRepository;
+
 	@Mock
 	private ActionLogService actionLogService;
+
 	@Captor
 	private ArgumentCaptor<List<String>> urlsCaptor;
 
@@ -54,6 +57,12 @@ class ProductSourcingBulkTest {
 		return new ProductSourcingController(
 			productSourcingUseCase, productCreateUseCase, productPublishUseCase,
 			marketRegistrationRepository, actionLogService);
+	}
+
+	private ProductSaveRequest requestWithCost(BigDecimal costPrice) {
+		return new ProductSaveRequest(
+			"http://x", costPrice, "name", "orig", "brand", "KR",
+			null, null, null, null, null, null, true, null, null, null);
 	}
 
 	@Test
@@ -77,12 +86,6 @@ class ProductSourcingBulkTest {
 			.extracting(BulkProductCreateResponse.Success::productId)
 			.containsExactly(1L, 2L);
 		assertThat(response.getBody().failed()).isEmpty();
-	}
-
-	private ProductSaveRequest requestWithCost(BigDecimal costPrice) {
-		return new ProductSaveRequest(
-			"http://x", costPrice, "name", "orig", "brand", "KR",
-			null, null, null, null, null, null, true, null, null, null);
 	}
 
 	@Test
@@ -125,8 +128,6 @@ class ProductSourcingBulkTest {
 			.isInstanceOf(IllegalArgumentException.class);
 		verify(productSourcingUseCase, never()).sourceFromIherb(any());
 	}
-
-	private static final SourcingCrawlResult EMPTY_RESULT = new SourcingCrawlResult(List.of(), List.of());
 
 	@Test
 	@DisplayName("F-PSRC-5: iHerb 도메인이 아닌 URL 포함 → IllegalArgumentException(400)")

@@ -18,7 +18,6 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ImageInfo {
-
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(name = "source_images", columnDefinition = "jsonb")
 	@Builder.Default

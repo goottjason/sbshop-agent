@@ -4,7 +4,6 @@ import lombok.Getter;
 
 @Getter
 public enum MeasureUnit {
-	// 1. 수량 단위
 	EA("개"),
 	CAPSULE("캡슐"),
 	TABLET("정(타블렛)"),
@@ -13,16 +12,14 @@ public enum MeasureUnit {
 	BOX("박스"),
 	BOTTLE("병"),
 	T_BAG("티백"),
-	COUNT("개"), // Added to support existing COUNT in sbshop-agent
+	COUNT("개"),
 
-	// 2. 무게 단위
 	MG("밀리그램"),
 	G("그램"),
 	KG("킬로그램"),
 	OZ("온스"),
 	LB("파운드"),
 
-	// 3. 부피 단위
 	ML("밀리리터"),
 	L("리터"),
 

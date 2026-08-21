@@ -16,13 +16,6 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * 스마트스토어 등록 payload 형태를 고정한다.
- *
- * <p>종전 구현은 {@code originProduct}에 6필드만 담아 커머스API 필수필드를 못 채웠다.
- * 이 테스트는 그 회귀를 막는다 — 필수 블록이 빠지면 등록이 400으로 실패하는데,
- * 그건 라이브 등록을 시도해야만 드러나므로 여기서 잡아야 한다.
- */
 class SmartstoreProductPayloadBuilderTest {
 
 	private final SmartstoreProductPayloadBuilder builder = new SmartstoreProductPayloadBuilder();
@@ -70,7 +63,6 @@ class SmartstoreProductPayloadBuilderTest {
 			"salePrice", "stockQuantity", "images", "deliveryInfo", "detailAttribute");
 		assertThat(origin.get("statusType")).isEqualTo("SALE");
 		assertThat(origin.get("leafCategoryId")).isEqualTo("50000123");
-		// 검수된 판매가가 상품 엔티티 값을 이긴다.
 		assertThat(origin.get("salePrice")).isEqualTo(42300);
 	}
 
@@ -97,7 +89,6 @@ class SmartstoreProductPayloadBuilderTest {
 
 		assertThat(claim.get("returnDeliveryFee")).isEqualTo(7000);
 		assertThat(claim.get("exchangeDeliveryFee")).isEqualTo(14000);
-		// 주소록 ID는 숫자로 보내야 한다(문자열이면 커머스API가 거절한다).
 		assertThat(claim.get("shippingAddressId")).isEqualTo(1001L);
 		assertThat(claim.get("returnAddressId")).isEqualTo(1002L);
 	}

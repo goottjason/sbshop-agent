@@ -6,11 +6,7 @@ import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * D-099: 11번가 주문상세 ordPrdStatNm → 클레임 상태 매핑. 상태명 부분일치.
- */
 class ElevenstClaimStatusMapperTest {
-
 	private final ElevenstStatusMapper mapper = new ElevenstStatusMapper();
 
 	@Test

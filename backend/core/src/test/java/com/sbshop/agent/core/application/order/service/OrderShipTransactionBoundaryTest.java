@@ -17,30 +17,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * F-ORD-31: 일괄 발송이 <b>단일 트랜잭션</b>이라, 루프 중 한 주문의 마켓 발송(외부 부수효과)이
- * 실제로 일어난 뒤 이후 주문 처리에서 예외/저장실패로 트랜잭션이 롤백되면, 이미 마켓에 발송된
- * 주문의 DB 상태(SHIPPED 저장)까지 함께 롤백되어 마켓/DB 정합이 깨진다.
- *
- * <p>수정 계약(F-SYNC-19/20 패턴 재사용):
- * <ul>
- *   <li>오케스트레이션 메서드 {@code bulkShipOrders()}는 {@code @Transactional}이 아니어야 한다
- *       (외부 발송을 하나의 긴 트랜잭션에 묶지 않도록).</li>
- *   <li>주문 1건의 발송(외부 전송 + DB 저장)은 별도 {@code @Transactional} 빈
- *       ({@code OrderShipProcessor})에서 수행되어 <b>주문 단위로 독립 커밋</b>된다.
- *       따라서 한 주문의 실패/롤백이 다른 주문의 이미 커밋된 발송을 되돌리지 않는다.</li>
- *   <li>대상 주문 수만큼 processor가 호출된다.</li>
- * </ul>
- */
 @ExtendWith(MockitoExtension.class)
 class OrderShipTransactionBoundaryTest {
-
 	@Mock
 	private OrderShipProcessor orderShipProcessor;
-
-	private OrderShipService service() {
-		return new OrderShipService(orderShipProcessor);
-	}
 
 	@Test
 	@DisplayName("오케스트레이션 메서드 bulkShipOrders()는 @Transactional이 아니어야 한다(외부 발송을 긴 tx에 묶지 않도록)")
@@ -86,5 +66,9 @@ class OrderShipTransactionBoundaryTest {
 		assertThat(result.getFailedCount()).isEqualTo(1);
 		assertThat(result.getFailedIds()).containsExactly(2L);
 		assertThat(result.getErrors()).isNotEmpty();
+	}
+
+	private OrderShipService service() {
+		return new OrderShipService(orderShipProcessor);
 	}
 }

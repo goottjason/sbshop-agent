@@ -5,6 +5,8 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.enums.MeasureUnit;
 import com.sbshop.agent.core.domain.product.enums.ProductCategory;
@@ -24,19 +26,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * F-PROD-6: ProductDetailResponse가 도메인 VO(PriceInfo/LogisticsInfo/ProductSpec/SourcingInfo)를
- * 직접 노출하지 않도록 DTO로 평탄화/래핑하되, GET /products/{id}의 JSON 계약(중첩 구조·필드명)은
- * 그대로 보존한다.
- */
 @ExtendWith(MockitoExtension.class)
 class ProductDetailResponseContractTest {
 
-	// Spring Boot 기본 ObjectMapper와 동일하게 jsr310(LocalDate ISO 문자열) 모듈을 등록해
-	// 실제 직렬화 형태(GET /products/{id} 응답)를 그대로 재현한다.
-	private final ObjectMapper mapper = com.fasterxml.jackson.databind.json.JsonMapper.builder()
+	private final ObjectMapper mapper = JsonMapper.builder()
 		.findAndAddModules()
-		.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+		.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
 		.build();
 
 	@Mock
@@ -101,7 +96,6 @@ class ProductDetailResponseContractTest {
 		stubProduct();
 		JsonNode json = mapper.valueToTree(ProductDetailResponse.from(product));
 
-		// 최상위 flat 필드
 		assertThat(json.get("id").asLong()).isEqualTo(7L);
 		assertThat(json.get("sbCode").asText()).isEqualTo("SB-7");
 		assertThat(json.get("brand").asText()).isEqualTo("BRD");
@@ -119,7 +113,6 @@ class ProductDetailResponseContractTest {
 		assertThat(json.get("sourceImages").get(0).asText()).isEqualTo("s1");
 		assertThat(json.get("hostedImages").get(0).asText()).isEqualTo("h1");
 
-		// priceInfo: {costPrice, exchangeRate, deliveryFee, marginRate, salePrice}
 		JsonNode price = json.get("priceInfo");
 		assertThat(price.get("costPrice").decimalValue()).isEqualByComparingTo("1000");
 		assertThat(price.get("exchangeRate").decimalValue()).isEqualByComparingTo("1350.00");
@@ -127,19 +120,16 @@ class ProductDetailResponseContractTest {
 		assertThat(price.get("marginRate").decimalValue()).isEqualByComparingTo("20.00");
 		assertThat(price.get("salePrice").decimalValue()).isEqualByComparingTo("15000");
 
-		// logisticsInfo: {stock, weight, bundleQuantity}
 		JsonNode logi = json.get("logisticsInfo");
 		assertThat(logi.get("stock").asInt()).isEqualTo(999);
 		assertThat(logi.get("weight").decimalValue()).isEqualByComparingTo("1.50");
 		assertThat(logi.get("bundleQuantity").asInt()).isEqualTo(2);
 
-		// productSpec: {barcode, capacity, measureUnit}
 		JsonNode spec = json.get("productSpec");
 		assertThat(spec.get("barcode").asText()).isEqualTo("BC-1");
 		assertThat(spec.get("capacity").decimalValue()).isEqualByComparingTo("100.00");
 		assertThat(spec.get("measureUnit").asText()).isEqualTo("CAPSULE");
 
-		// sourcingInfo: {vendor, sourceUrl, manufacturer, origin, hsCode}
 		JsonNode sourcing = json.get("sourcingInfo");
 		assertThat(sourcing.get("vendor").asText()).isEqualTo("IHB");
 		assertThat(sourcing.get("sourceUrl").asText()).isEqualTo("https://iherb.com/x");

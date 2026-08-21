@@ -7,15 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.List;
-
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
+import com.sbshop.agent.api.dto.OrderIdsRequest;
 import com.sbshop.agent.api.dto.OrderShipRequest;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.order.dto.BulkConfirmResult;
@@ -24,11 +16,14 @@ import com.sbshop.agent.core.application.order.service.OrderService;
 import com.sbshop.agent.core.application.order.service.OrderShipService;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
+import java.util.List;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * SP-3 / F-ORD-30·F-ORD-9·F-ORD-17: 일괄 발송·발주확인·발주취소 컨트롤러가
- * 부분/전건 실패를 결과 기반으로 활동로그에 반영해야 한다(무조건 SUCCESS 금지).
- */
 @ExtendWith(MockitoExtension.class)
 class OrderControllerBulkResultLogTest {
 
@@ -48,8 +43,6 @@ class OrderControllerBulkResultLogTest {
 		verify(actionLogService).record(eq(actionType), any(), status.capture(), any());
 		return status.getValue();
 	}
-
-	// ----- 3-1 일괄 발송 -----
 
 	@Test
 	@DisplayName("일괄 발송 전건 실패: 활동로그가 FAILED로 기록된다(SUCCESS 아님)")
@@ -99,8 +92,6 @@ class OrderControllerBulkResultLogTest {
 		assertThat(capturedStatus(ActionLogConstants.ORDER_SHIP)).isEqualTo(ActionStatus.SUCCESS);
 	}
 
-	// ----- 3-2 일괄 발주확인 / 취소 -----
-
 	@Test
 	@DisplayName("일괄 발주확인 전건 실패: 활동로그가 FAILED로 기록된다(현재는 SUCCESS)")
 	void bulkConfirm_allFailed_logsFailed() {
@@ -110,7 +101,7 @@ class OrderControllerBulkResultLogTest {
 				.failedIds(List.of(1L, 2L)).errors(List.of("Order 1: x", "Order 2: y"))
 				.build());
 
-		controller().bulkConfirmOrders(new com.sbshop.agent.api.dto.OrderIdsRequest(List.of(1L, 2L)));
+		controller().bulkConfirmOrders(new OrderIdsRequest(List.of(1L, 2L)));
 
 		assertThat(capturedStatus(ActionLogConstants.ORDER_CONFIRM_BATCH)).isEqualTo(ActionStatus.FAILED);
 	}
@@ -124,7 +115,7 @@ class OrderControllerBulkResultLogTest {
 				.failedIds(List.of(1L, 2L)).errors(List.of("Order 1: x", "Order 2: y"))
 				.build());
 
-		controller().bulkCancelOrders(new com.sbshop.agent.api.dto.OrderIdsRequest(List.of(1L, 2L)));
+		controller().bulkCancelOrders(new OrderIdsRequest(List.of(1L, 2L)));
 
 		assertThat(capturedStatus(ActionLogConstants.ORDER_CANCEL_BATCH)).isEqualTo(ActionStatus.FAILED);
 	}
@@ -138,7 +129,7 @@ class OrderControllerBulkResultLogTest {
 				.failedIds(List.of()).errors(null)
 				.build());
 
-		controller().bulkConfirmOrders(new com.sbshop.agent.api.dto.OrderIdsRequest(List.of(1L, 2L)));
+		controller().bulkConfirmOrders(new OrderIdsRequest(List.of(1L, 2L)));
 
 		assertThat(capturedStatus(ActionLogConstants.ORDER_CONFIRM_BATCH)).isEqualTo(ActionStatus.SUCCESS);
 	}

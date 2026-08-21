@@ -1,15 +1,10 @@
 package com.sbshop.agent.core.application.product;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.mockito.ArgumentMatchers.argThat;
-
+import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
+import com.sbshop.agent.core.application.product.dto.PriceStockItem;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
+import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
@@ -17,6 +12,7 @@ import com.sbshop.agent.core.domain.product.component.ProductWriter;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.service.MarginCalculator;
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,13 +22,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-/**
- * SP-B Task 4: 배치/크롤 경로가 크롤 결과의 StockStatus를 syncPriceStock에 전달하는지 검증.
- */
 @ExtendWith(MockitoExtension.class)
 class BatchForwardsStockStatusTest {
-
 	@Mock
 	private ProductReader productReader;
 	@Mock
@@ -50,7 +49,7 @@ class BatchForwardsStockStatusTest {
 	@Mock
 	private ProductMarketSyncService productMarketSyncService;
 	@Mock
-	private com.sbshop.agent.core.application.fee.MarketFeeService marketFeeService;
+	private MarketFeeService marketFeeService;
 	@Mock
 	private Product product;
 
@@ -69,16 +68,16 @@ class BatchForwardsStockStatusTest {
 		lenient().when(product.getLogisticsInfo()).thenReturn(null);
 		lenient().when(product.getSbCode()).thenReturn("SB-042");
 		lenient().when(marketFeeService.feeRate(any())).thenReturn(new BigDecimal("11"));
-		// 크롤 경로: 기준가 계산은 6-arg(수수료 포함), 수동 경로 등 4-arg도 방어적으로 스텁.
+
 		lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any(), any(), any()))
 			.thenReturn(new BigDecimal("9900"));
 		lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any()))
 			.thenReturn(new BigDecimal("9900"));
 		lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class)))
-			.thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
+			.thenReturn(new MarketRepublishResult(List.of(), List.of(), new LinkedHashMap<>()));
 		lenient()
 			.when(productMarketSyncService.syncPriceStockPerMarket(any(), any(), any(StockStatus.class), anyBoolean()))
-			.thenReturn(new MarketRepublishResult(List.of(), List.of(), new java.util.LinkedHashMap<>()));
+			.thenReturn(new MarketRepublishResult(List.of(), List.of(), new LinkedHashMap<>()));
 	}
 
 	@Test
@@ -91,9 +90,8 @@ class BatchForwardsStockStatusTest {
 
 		service.crawlAndUpdatePriceStock("batch-1", List.of(PRODUCT_ID),
 			new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO,
-			com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_CRAWL_UPDATE);
+			ActionLogConstants.BATCH_CRAWL_UPDATE);
 
-		// @Async — small sleep to let the async thread finish
 		Thread.sleep(500);
 
 		verify(productMarketSyncService).syncPriceStockPerMarket(eq(PRODUCT_ID), any(), eq(StockStatus.OUT_OF_STOCK),
@@ -110,7 +108,7 @@ class BatchForwardsStockStatusTest {
 
 		service.crawlAndUpdatePriceStock("batch-1", List.of(PRODUCT_ID),
 			new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO,
-			com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_CRAWL_UPDATE);
+			ActionLogConstants.BATCH_CRAWL_UPDATE);
 
 		Thread.sleep(500);
 
@@ -123,21 +121,17 @@ class BatchForwardsStockStatusTest {
 	void manualUpdate_soldOut_setsStatusAndDoesNotWriteZeroStock() throws InterruptedException {
 		BigDecimal price = new BigDecimal("9900");
 		lenient().when(product.getStockStatus()).thenReturn(StockStatus.IN_STOCK);
-		lenient().when(product.getSalePrice()).thenReturn(new BigDecimal("8800")); // different → priceChanged
+		lenient().when(product.getSalePrice()).thenReturn(new BigDecimal("8800"));
 
 		service.manualUpdatePriceStock("batch-manual", List.of(
-			new com.sbshop.agent.core.application.product.dto.PriceStockItem(PRODUCT_ID, price, 0)));
+			new PriceStockItem(PRODUCT_ID, price, 0)));
 
-		// @Async — small sleep to let the async thread finish
 		Thread.sleep(500);
 
-		// 1. sync is called with OUT_OF_STOCK
 		verify(productMarketSyncService).syncPriceStock(eq(PRODUCT_ID), any(), eq(StockStatus.OUT_OF_STOCK));
 
-		// 2. stockStatus is updated on the product domain object
 		verify(product).updateStockStatus(StockStatus.OUT_OF_STOCK);
 
-		// 3. ProductUpdateCommand passed to product.update(...) must have null at stock slot (index 10)
 		verify(product).update(argThat(cmd -> cmd.stock() == null));
 	}
 }

@@ -1,5 +1,9 @@
 package com.sbshop.agent.core.application.order.service;
 
+import com.sbshop.agent.core.application.sync.SyncStatusService;
+import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
+import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
+import org.mockito.Mockito;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -29,14 +33,9 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 
-/**
- * D-043: 빈 문자열/공백 자격증명을 API 호출 이전에 fast-fail로 표면화하는지 검증.
- * 수정 전에는 빈 secret/masterId가 검증을 통과해 "성공 0건"으로 위장되던 것을 고정한다.
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class MarketCredentialValidationTest {
-
 	@Mock
 	private MarketCredentialRepository credentialRepository;
 	@Mock
@@ -52,22 +51,9 @@ class MarketCredentialValidationTest {
 	@Mock
 	private ElevenstOrderAdapter elevenstOrderAdapter;
 	@Mock
-	private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
+	private SyncStatusService syncStatusService;
 
-	// 코드 기본요율(빈 정책 폴백)로 정산액을 계산하도록 실제 인스턴스 사용
 	private final MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
-
-	private List<SyncCompletedEvent> capturedEvents() {
-		ArgumentCaptor<SyncCompletedEvent> captor = ArgumentCaptor.forClass(SyncCompletedEvent.class);
-		verify(eventPublisher, atLeastOnce()).publishEvent(captor.capture());
-		return captor.getAllValues();
-	}
-
-	private void assertIncompleteCredentialFailure(List<SyncCompletedEvent> events) {
-		assertThat(events).noneMatch(SyncCompletedEvent::isSuccess);
-		assertThat(events).anyMatch(e -> !e.isSuccess()
-			&& e.getErrorMessage() != null && e.getErrorMessage().contains("불완전"));
-	}
 
 	@Test
 	@DisplayName("스마트스토어: secret-key 빈 문자열이면 API 이전에 불완전 실패")
@@ -80,9 +66,8 @@ class MarketCredentialValidationTest {
 		SmartStoreOrderSyncService service = new SmartStoreOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
 			eventPublisher, smartStoreOrderAdapter, syncStatusService, marketFeeService,
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
-			// 이 테스트는 주문 계층(자격정보·이벤트·주소 보호)만 검증한다 — 라인아이템 반영은 범위 밖이라 골격을 목으로 둔다.
-			org.mockito.Mockito.mock(MarketLineItemSyncDispatcher.class));
+			Mockito.mock(TerminalSettlementService.class),
+			Mockito.mock(MarketLineItemSyncDispatcher.class));
 		service.syncSmartStoreOrders();
 
 		assertIncompleteCredentialFailure(capturedEvents());
@@ -98,15 +83,26 @@ class MarketCredentialValidationTest {
 		ElevenstOrderSyncService service = new ElevenstOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
 			eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService,
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
-			// 3계층 반영 골격. 이 테스트들은 라인아이템 반영을 검증하지 않으므로 목으로 둔다.
-			org.mockito.Mockito
-				.mock(com.sbshop.agent.core.application.order.service.MarketLineItemSyncDispatcher.class),
-			org.mockito.Mockito.mock(com.sbshop.agent.core.domain.order.repository.ShipmentRepository.class),
-			org.mockito.Mockito
-				.mock(com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository.class));
+			Mockito.mock(TerminalSettlementService.class),
+			Mockito
+				.mock(MarketLineItemSyncDispatcher.class),
+			Mockito.mock(ShipmentRepository.class),
+			Mockito
+				.mock(MarketRegistrationRepository.class));
 		service.syncElevenstOrders();
 
 		assertIncompleteCredentialFailure(capturedEvents());
+	}
+
+	private List<SyncCompletedEvent> capturedEvents() {
+		ArgumentCaptor<SyncCompletedEvent> captor = ArgumentCaptor.forClass(SyncCompletedEvent.class);
+		verify(eventPublisher, atLeastOnce()).publishEvent(captor.capture());
+		return captor.getAllValues();
+	}
+
+	private void assertIncompleteCredentialFailure(List<SyncCompletedEvent> events) {
+		assertThat(events).noneMatch(SyncCompletedEvent::isSuccess);
+		assertThat(events).anyMatch(e -> !e.isSuccess()
+			&& e.getErrorMessage() != null && e.getErrorMessage().contains("불완전"));
 	}
 }

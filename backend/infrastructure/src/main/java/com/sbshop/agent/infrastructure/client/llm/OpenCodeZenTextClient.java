@@ -21,30 +21,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/**
- * OpenCode Zen 무료 모델로 한글 상품명·검색 키워드를 생성한다.
- *
- * <p>{@code POST https://opencode.ai/zen/v1/chat/completions} (OpenAI 호환).
- * 유료 API를 쓰지 않는다는 제약에 맞춰 무료 모델만 사용한다.
- *
- * <p>모델 선택은 실측 기반이다(동일 프롬프트, 한글 상품명 + 키워드 10개 JSON 강제):
- * <pre>
- *   nemotron-3-ultra-free   완전한 JSON · completion 185토큰   ← 주력
- *   ling-3.0-flash-free     완전한 JSON · 1,108토큰(추론 747)  ← 폴백
- *   deepseek-v4-flash-free  빈 content                        미사용
- *   big-pickle              2,000토큰 초과, 미완성             미사용
- * </pre>
- *
- * <p>앞 모델이 실패하면 다음 모델로 넘어가고, 전부 실패하면 빈 Optional을 돌려준다 —
- * 호출측이 규칙 기반으로 폴백해 파이프라인은 멈추지 않는다.
- */
 @Slf4j
 @Component
 public class OpenCodeZenTextClient implements ProductTextGenerationPort {
 
 	private static final int KEYWORD_TARGET = 20;
 	private static final int MAX_BASE_NAME_LENGTH = 40;
-	/** 무료 모델은 추론 토큰을 많이 쓴다 — 잘려서 JSON이 깨지지 않도록 넉넉히 준다. */
 	private static final int MAX_TOKENS = 1500;
 
 	private static final String SYSTEM_PROMPT = """
@@ -101,8 +83,6 @@ public class OpenCodeZenTextClient implements ProductTextGenerationPort {
 		return Optional.empty();
 	}
 
-	// --- 프롬프트 ---
-
 	private String buildPrompt(ProductTextRequest r) {
 		StringBuilder sb = new StringBuilder();
 		sb.append("다음 해외직구 상품의 한국 오픈마켓용 정보를 만들어라.\n\n");
@@ -135,8 +115,6 @@ public class OpenCodeZenTextClient implements ProductTextGenerationPort {
 		return sb.toString();
 	}
 
-	// --- HTTP ---
-
 	private String chat(String model, String prompt) throws Exception {
 		Map<String, Object> body = Map.of(
 			"model", model,
@@ -151,8 +129,6 @@ public class OpenCodeZenTextClient implements ProductTextGenerationPort {
 			.timeout(Duration.ofSeconds(120))
 			.header("Authorization", "Bearer " + apiKey)
 			.header("Content-Type", "application/json")
-			// UA를 명시한다. Zen 앞단이 일부 클라이언트 UA를 403으로 막는다(python-urllib 실측).
-			// JDK 기본 UA는 현재 통과하지만, 기본값이 바뀌면 조용히 전건 실패로 돌아선다.
 			.header("User-Agent", "sbshop-agent/1.0")
 			.POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
 			.build();
@@ -165,20 +141,11 @@ public class OpenCodeZenTextClient implements ProductTextGenerationPort {
 		JsonNode message = root.path("choices").path(0).path("message");
 		String content = message.path("content").asText("");
 		if (content.isBlank()) {
-			// 일부 모델은 본문을 reasoning_content로만 내보낸다.
 			content = message.path("reasoning_content").asText("");
 		}
 		return content;
 	}
 
-	// --- 파싱 ---
-
-	/**
-	 * 응답에서 JSON 객체를 뽑아 파싱한다.
-	 *
-	 * <p>무료 모델은 코드펜스(```json)나 앞뒤 설명을 붙이는 일이 잦아 문자열 전체를 그대로
-	 * 파싱하면 실패한다. 첫 '{'부터 마지막 '}'까지 잘라 시도한다.
-	 */
 	private GeneratedProductText parse(String content, String model) {
 		String json = extractJsonObject(content);
 		if (json == null)

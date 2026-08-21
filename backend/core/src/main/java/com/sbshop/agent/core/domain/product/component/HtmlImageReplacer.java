@@ -7,7 +7,6 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class HtmlImageReplacer {
-
 	public String replaceImagesBySku(String originalHtml, String sku, List<String> hostedImages) {
 		if (originalHtml == null || originalHtml.isEmpty()) {
 			return originalHtml;

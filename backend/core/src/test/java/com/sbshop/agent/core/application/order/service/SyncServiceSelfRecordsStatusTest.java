@@ -1,5 +1,7 @@
 package com.sbshop.agent.core.application.order.service;
 
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -24,16 +26,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
-/**
- * SP-1 (F-SYNC-2): @Async sync 메서드가 자신의 실행 상태(RUNNING/COMPLETED/FAILED)를 스스로 기록해야 한다.
- *
- * 기존엔 스케줄러가 @Async 메서드 호출 직후 곧바로 markCompleted를 불러(다른 스레드라 아직 안 끝났는데)
- * 조기 완료로 기록되고, async 스레드의 예외는 스케줄러 catch에 잡히지 않아 실패가 은폐됐다.
- * 상태 기록을 서비스 본문(async 스레드) 안으로 옮겨 진실성을 확보한다.
- */
 @ExtendWith(MockitoExtension.class)
 class SyncServiceSelfRecordsStatusTest {
-
 	@Mock
 	private Cafe24OrderApiPort cafe24OrderApiPort;
 	@Mock
@@ -47,7 +41,6 @@ class SyncServiceSelfRecordsStatusTest {
 	@Mock
 	private SyncStatusService syncStatusService;
 
-	// 코드 기본요율(빈 정책 폴백)로 정산액을 계산하도록 실제 인스턴스 사용
 	private final MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
 
 	private Cafe24OrderSyncService service;
@@ -57,16 +50,15 @@ class SyncServiceSelfRecordsStatusTest {
 		service = new Cafe24OrderSyncService(cafe24OrderApiPort, orderRepository,
 			orderLineItemRepository, marketRegistrationRepository, eventPublisher, syncStatusService,
 			marketFeeService,
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
-			org.mockito.Mockito.mock(Cafe24ShipmentTrackingLookup.class),
-			// 4단계: 3계층 반영 골격. 이 테스트들은 라인아이템 반영을 검증하지 않으므로 목으로 둔다.
-			org.mockito.Mockito.mock(MarketLineItemSyncDispatcher.class));
+			Mockito.mock(TerminalSettlementService.class),
+			Mockito.mock(Cafe24ShipmentTrackingLookup.class),
+			Mockito.mock(MarketLineItemSyncDispatcher.class));
 	}
 
 	@Test
 	void onSuccess_recordsRunningThenCompleted() {
 		lenient().when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(),
-			org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt()))
+			ArgumentMatchers.anyInt(), ArgumentMatchers.anyInt()))
 			.thenReturn(com.fasterxml.jackson.databind.node.MissingNode.getInstance());
 
 		service.syncCafe24Orders();
@@ -79,7 +71,7 @@ class SyncServiceSelfRecordsStatusTest {
 	@Test
 	void onFailure_recordsFailedWithReason() {
 		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(),
-			org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt()))
+			ArgumentMatchers.anyInt(), ArgumentMatchers.anyInt()))
 			.thenThrow(new RuntimeException("Cafe24 API 호출 실패"));
 
 		service.syncCafe24Orders();

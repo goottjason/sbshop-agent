@@ -6,25 +6,12 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * 반입차단 성분의 매칭 키 생성 규칙을 고정한다.
- *
- * <p>여기가 틀리면 통관 게이트가 조용히 무력화된다 — 차단 성분이 든 상품이 PASS로 흘러가
- * 주문받은 뒤 통관에서 폐기·반송된다. 특히 식약처 원문의 괄호 설명("카바카바(뿌리, 잎, 줄기)")을
- * 그대로 정규화하면 성분표의 "카바카바"와 절대 매칭되지 않는다.
- */
 class BannedIngredientNormKeyTest {
-
-	private List<String> keys(String ko, String en, List<String> aliases) {
-		return BannedIngredient.of(ko, en, aliases, "사유", "TEST").normKeyList();
-	}
-
 	@Test
 	@DisplayName("괄호 설명이 붙은 한글명은 '괄호 앞 머리부'도 키로 만든다")
 	void stripsParentheticalIntoSeparateKey() {
 		List<String> k = keys("카바카바(뿌리, 잎, 줄기)", "Kava kava", List.of());
 
-		// 머리부 키가 없으면 성분표의 "카바카바"를 못 잡는다.
 		assertThat(k).contains("카바카바");
 		assertThat(k).contains("카바카바뿌리잎줄기");
 	}
@@ -37,7 +24,7 @@ class BannedIngredientNormKeyTest {
 
 		assertThat(k).contains("대마");
 		assertThat(k).contains("cannabissatival");
-		// 영문 첫 토큰도 별도 키 — 성분표에 학명만 적히는 경우가 있다.
+
 		assertThat(k).contains("cannabis");
 	}
 
@@ -45,7 +32,7 @@ class BannedIngredientNormKeyTest {
 	@DisplayName("영문 첫 토큰은 6자 이상일 때만 별도 키가 된다")
 	void englishFirstTokenOnlyWhenLongEnough() {
 		assertThat(keys("마황", "Ephedra herb", List.of())).contains("ephedra");
-		// "Kava kava"의 "kava"(4자)는 짧아 오탐 위험이 크므로 단독 키로 만들지 않는다.
+
 		assertThat(keys("카바카바", "Kava kava", List.of())).doesNotContain("kava");
 	}
 
@@ -77,5 +64,9 @@ class BannedIngredientNormKeyTest {
 		assertThat(BannedIngredient.normalize("MK-7")).isEqualTo("mk7");
 		assertThat(BannedIngredient.normalize("요힘빈 추출물")).isEqualTo("요힘빈추출물");
 		assertThat(BannedIngredient.normalize("4-Aminoantipyrine")).isEqualTo("4aminoantipyrine");
+	}
+
+	private List<String> keys(String ko, String en, List<String> aliases) {
+		return BannedIngredient.of(ko, en, aliases, "사유", "TEST").normKeyList();
 	}
 }

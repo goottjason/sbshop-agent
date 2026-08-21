@@ -1,5 +1,9 @@
 package com.sbshop.agent.core.application.order.service;
 
+import com.sbshop.agent.core.application.actionlog.ActionLogService;
+import com.sbshop.agent.core.application.sync.SyncStatusService;
+import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
+import org.mockito.Mockito;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
@@ -33,16 +37,9 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 
-/**
- * D-022 회귀 방지: 동기화 실패 시 finally 블록이 SYNC_COMPLETED(success=true)를 재발행하여
- * 에러 이벤트를 은폐하던 결함(4개 마켓 동일 패턴)을 고정한다.
- * 실패 경로에서는 success=true 이벤트가 절대 발행되어서는 안 되고,
- * 성공 경로에서는 success=true 이벤트가 정확히 유지되어야 한다.
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class OrderSyncEventEmissionTest {
-
 	@Mock
 	private MarketCredentialRepository credentialRepository;
 	@Mock
@@ -64,18 +61,9 @@ class OrderSyncEventEmissionTest {
 	@Mock
 	private ElevenstOrderAdapter elevenstOrderAdapter;
 	@Mock
-	private com.sbshop.agent.core.application.sync.SyncStatusService syncStatusService;
+	private SyncStatusService syncStatusService;
 
-	// 코드 기본요율(빈 정책 폴백)로 정산액을 계산하도록 실제 인스턴스 사용
 	private final MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
-
-	private List<SyncCompletedEvent> capturedEvents() {
-		ArgumentCaptor<SyncCompletedEvent> captor = ArgumentCaptor.forClass(SyncCompletedEvent.class);
-		verify(eventPublisher, atLeastOnce()).publishEvent(captor.capture());
-		return captor.getAllValues();
-	}
-
-	// ---- 실패 경로: success=true 이벤트가 발행되면 안 됨 (Red 대상) ----
 
 	@Test
 	@DisplayName("[D-022] 스마트스토어 동기화 실패 시 success=true SYNC_COMPLETED를 발행하지 않는다")
@@ -83,9 +71,8 @@ class OrderSyncEventEmissionTest {
 		when(credentialRepository.findByMarketType(MarketType.SMART_STORE)).thenReturn(Optional.empty());
 		SmartStoreOrderSyncService service = new SmartStoreOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			eventPublisher, smartStoreOrderAdapter, syncStatusService, marketFeeService, org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
-			// 이 테스트는 주문 계층(자격정보·이벤트·주소 보호)만 검증한다 — 라인아이템 반영은 범위 밖이라 골격을 목으로 둔다.
-			org.mockito.Mockito.mock(MarketLineItemSyncDispatcher.class));
+			eventPublisher, smartStoreOrderAdapter, syncStatusService, marketFeeService, Mockito.mock(TerminalSettlementService.class),
+			Mockito.mock(MarketLineItemSyncDispatcher.class));
 
 		service.syncSmartStoreOrders();
 
@@ -102,10 +89,9 @@ class OrderSyncEventEmissionTest {
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
 			marketRegistrationRepository, eventPublisher, coupangOrderAdapter, coupangStatusMapper,
 			syncStatusService, marketFeeService,
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.actionlog.ActionLogService.class),
-			// 3계층 반영 골격. 이 테스트들은 라인아이템 반영을 검증하지 않으므로 목으로 둔다.
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.MarketLineItemSyncDispatcher.class));
+			Mockito.mock(TerminalSettlementService.class),
+			Mockito.mock(ActionLogService.class),
+			Mockito.mock(MarketLineItemSyncDispatcher.class));
 
 		service.syncCoupangOrders();
 
@@ -121,10 +107,9 @@ class OrderSyncEventEmissionTest {
 		ElevenstOrderSyncService service = new ElevenstOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
 			eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService,
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
-			// 3계층 반영 골격. 이 테스트들은 라인아이템 반영을 검증하지 않으므로 목으로 둔다.
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.MarketLineItemSyncDispatcher.class),
-			org.mockito.Mockito.mock(com.sbshop.agent.core.domain.order.repository.ShipmentRepository.class), org.mockito.Mockito.mock(com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository.class));
+			Mockito.mock(TerminalSettlementService.class),
+			Mockito.mock(MarketLineItemSyncDispatcher.class),
+			Mockito.mock(ShipmentRepository.class), Mockito.mock(MarketRegistrationRepository.class));
 
 		service.syncElevenstOrders();
 
@@ -133,12 +118,10 @@ class OrderSyncEventEmissionTest {
 		assertThat(events).noneMatch(SyncCompletedEvent::isSuccess);
 	}
 
-	// ---- 성공 경로: success=true 이벤트가 정확히 발행되어야 함 (회귀 방지) ----
-
 	@Test
 	@DisplayName("[D-022] 스마트스토어 동기화 성공 시 success=true SYNC_COMPLETED가 정확히 한 번 발행된다")
 	void smartStore_success_emitsExactlyOneSuccessCompleted() {
-		MarketCredential credential = org.mockito.Mockito.mock(MarketCredential.class);
+		MarketCredential credential = Mockito.mock(MarketCredential.class);
 		when(credential.getClientId()).thenReturn("client");
 		when(credential.getSecretKey()).thenReturn("secret");
 		when(credentialRepository.findByMarketType(MarketType.SMART_STORE)).thenReturn(Optional.of(credential));
@@ -146,14 +129,19 @@ class OrderSyncEventEmissionTest {
 		SmartStoreOrderSyncService service = new SmartStoreOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
 			eventPublisher, smartStoreOrderAdapter, syncStatusService, marketFeeService,
-			org.mockito.Mockito.mock(com.sbshop.agent.core.application.order.service.TerminalSettlementService.class),
-			// 이 테스트는 주문 계층(자격정보·이벤트·주소 보호)만 검증한다 — 라인아이템 반영은 범위 밖이라 골격을 목으로 둔다.
-			org.mockito.Mockito.mock(MarketLineItemSyncDispatcher.class));
+			Mockito.mock(TerminalSettlementService.class),
+			Mockito.mock(MarketLineItemSyncDispatcher.class));
 
 		service.syncSmartStoreOrders();
 
 		List<SyncCompletedEvent> events = capturedEvents();
 		assertThat(events).filteredOn(SyncCompletedEvent::isSuccess).hasSize(1);
 		assertThat(events).noneMatch(e -> !e.isSuccess());
+	}
+
+	private List<SyncCompletedEvent> capturedEvents() {
+		ArgumentCaptor<SyncCompletedEvent> captor = ArgumentCaptor.forClass(SyncCompletedEvent.class);
+		verify(eventPublisher, atLeastOnce()).publishEvent(captor.capture());
+		return captor.getAllValues();
 	}
 }

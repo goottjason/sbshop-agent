@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.api.controller.SupplierController.CurrencyRequest;
 import com.sbshop.agent.api.controller.SupplierController.SupplierRequest;
+import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.supplier.SupplierService;
 import com.sbshop.agent.core.application.supplier.dto.CreateCurrencyCommand;
 import com.sbshop.agent.core.application.supplier.dto.CreateSupplierCommand;
@@ -20,18 +21,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * SP-9 서비스 계층 추출: 통화/공급사 가드 로직(F-SUP-UC-1/2/3)은 SupplierService로 이동했다.
- * 그 동작 보존 증거는 core의 SupplierServiceTest에 이관되어 있다.
- * 이 테스트는 컨트롤러가 요청 record를 커맨드로 매핑해 서비스에 위임만 하는지(얇은 컨트롤러) 검증한다.
- */
 @ExtendWith(MockitoExtension.class)
 class SupplierControllerCurrencyGuardTest {
 
 	@Mock
 	private SupplierService supplierService;
 	@Mock
-	private com.sbshop.agent.core.application.actionlog.ActionLogService actionLogService;
+	private ActionLogService actionLogService;
 
 	private SupplierController controller() {
 		return new SupplierController(supplierService, actionLogService);

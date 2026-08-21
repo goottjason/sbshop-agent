@@ -37,10 +37,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-/**
- * D-123: 마켓 전송이 영구 거부(terminal)로 종결될 때 남기는 감사 로그가 마켓을 "COUPANG"으로
- * 하드코딩하고 있었다. 11번가·Cafe24 건까지 쿠팡으로 기록되면 원인 추적이 어긋난다.
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class EmailFetcherTerminalMarketLogTest {
@@ -64,12 +60,6 @@ class EmailFetcherTerminalMarketLogTest {
 	@Mock
 	ShipmentRepository shipmentRepository;
 
-	/**
-	 * D-133: 송장 쓰기 통로는 <b>진짜 객체</b>를 끼운다. {@code @InjectMocks}가 목을 넣거나 null로
-	 * 남기면 라인아이템 쓰기 자체가 사라져, 검증이 통과해도 아무것도 증명하지 못한다.
-	 * 이 테스트들의 라인아이템은 {@code shipment_id}가 null이므로 통로는 배송을 건드리지 않는다 —
-	 * 종전과 동작이 같다는 사실이 곧 회귀 증거다.
-	 */
 	@BeforeEach
 	void injectRealShippingWriter() {
 		ReflectionTestUtils.setField(service, "shippingWriter",
@@ -78,15 +68,6 @@ class EmailFetcherTerminalMarketLogTest {
 
 	@Captor
 	ArgumentCaptor<String> marketCaptor;
-
-	private OrderEmailParser.IherbShipmentData shipment() {
-		return OrderEmailParser.IherbShipmentData.builder()
-			.orderNo("IHERB-1")
-			.trackingNo("424438293101")
-			.carrier("CJGLS")
-			.emailAccount("test@iherb")
-			.build();
-	}
 
 	@Test
 	@DisplayName("D-123: 11번가 영구거부 종결 로그에 실제 마켓(ELEVEN_STREET)이 기록된다")
@@ -112,5 +93,14 @@ class EmailFetcherTerminalMarketLogTest {
 
 		verify(actionLogService).record(any(), marketCaptor.capture(), eq(ActionStatus.FAILED), any());
 		assertThat(marketCaptor.getValue()).isEqualTo("ELEVEN_STREET");
+	}
+
+	private OrderEmailParser.IherbShipmentData shipment() {
+		return OrderEmailParser.IherbShipmentData.builder()
+			.orderNo("IHERB-1")
+			.trackingNo("424438293101")
+			.carrier("CJGLS")
+			.emailAccount("test@iherb")
+			.build();
 	}
 }

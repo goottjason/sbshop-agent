@@ -15,25 +15,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * G마켓·옥션은 상품등록 API가 없어 Cafe24 마켓플러스에서 사람이 전송한다.
- * 서버가 할 수 있는 일은 "어느 상품코드로 찾아야 하는지"를 정확히 알려주는 것까지다.
- * 마켓플러스 미판매 목록은 Cafe24 product_code 완전일치로만 검색되므로(스파이크 실측),
- * 그 코드가 없으면 사용자를 헛걸음시키지 말고 이유를 말해줘야 한다.
- */
 @ExtendWith(MockitoExtension.class)
 class MarketPlusHandoffServiceTest {
-
 	private static final Long PRODUCT_ID = 1L;
 
 	@Mock
 	private MarketRegistrationRepository marketRegistrationRepository;
 	@Mock
 	private MarketRegistration cafe24Registration;
-
-	private MarketPlusHandoffService service() {
-		return new MarketPlusHandoffService(marketRegistrationRepository);
-	}
 
 	@Test
 	@DisplayName("Cafe24 등록행의 product_code를 핸드오프 대상 코드로 돌려준다")
@@ -76,5 +65,9 @@ class MarketPlusHandoffServiceTest {
 	void resolve_rejectsNonEsmMarket() {
 		assertThatThrownBy(() -> service().resolve(PRODUCT_ID, MarketType.COUPANG))
 			.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	private MarketPlusHandoffService service() {
+		return new MarketPlusHandoffService(marketRegistrationRepository);
 	}
 }

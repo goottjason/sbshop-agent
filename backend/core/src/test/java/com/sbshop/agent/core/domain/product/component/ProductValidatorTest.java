@@ -11,7 +11,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class ProductValidatorTest {
-
 	private final ProductValidator validator = new ProductValidator();
 
 	@Test

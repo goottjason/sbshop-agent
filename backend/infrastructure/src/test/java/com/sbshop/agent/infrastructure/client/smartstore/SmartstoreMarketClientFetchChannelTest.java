@@ -18,10 +18,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * SmartstoreMarketClient.fetchChannelProductNo — originProductNo → STOREFARM channelProductNo 매핑 테스트.
- * 주의: /v1/products/search 요청/응답 스키마는 라이브 검증 필요(리스크 최고 가정).
- */
 @ExtendWith(MockitoExtension.class)
 class SmartstoreMarketClientFetchChannelTest {
 
@@ -33,7 +29,6 @@ class SmartstoreMarketClientFetchChannelTest {
 	@BeforeEach
 	void setUp() {
 		client = new SmartstoreMarketClient(
-			// 신규 등록(publish) 전용 협력자 — 이 테스트가 검증하는 경로에서는 호출되지 않는다.
 			null, null, null, null,
 			restClient, new ObjectMapper());
 	}
@@ -113,7 +108,6 @@ class SmartstoreMarketClientFetchChannelTest {
 	@Test
     @DisplayName("전체 스캔: 여러 페이지를 순회해 origin→channel 맵을 통째로 구축한다(last=true에서 종료)")
     void fetchAllChannelProductNos_paginatesUntilLast() {
-        // page1: last=false, page2: last=true. search는 originProductNos 필터를 무시하므로 전체를 페이지로 훑는다.
         when(restClient.post(eq("/v1/products/search"), any()))
             .thenReturn("{\"last\":false,\"contents\":[{\"originProductNo\":5327391662,\"channelProducts\":"
                 + "[{\"channelProductNo\":5348874248,\"channelServiceType\":\"STOREFARM\"}]}]}")
@@ -124,7 +118,6 @@ class SmartstoreMarketClientFetchChannelTest {
 
         assertThat(result).containsEntry("5327391662", "5348874248");
         assertThat(result).containsEntry("9597246290", "9643141399");
-        // 2페이지 순회 → 2회 요청
         verify(restClient, org.mockito.Mockito.times(2)).post(eq("/v1/products/search"), any());
     }
 

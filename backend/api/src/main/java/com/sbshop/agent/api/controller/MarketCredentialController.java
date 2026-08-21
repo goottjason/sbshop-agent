@@ -21,11 +21,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/market-credentials")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*") // For local Vite frontend
+@CrossOrigin(origins = "*")
 public class MarketCredentialController {
 
 	private final MarketCredentialService marketCredentialService;
-	// D-076: 사용자 액션 활동로그 기록 서비스
 	private final ActionLogService actionLogService;
 
 	@GetMapping
@@ -46,7 +45,6 @@ public class MarketCredentialController {
 		MarketType marketType, @RequestBody
 		MarketCredentialSaveCommand command) {
 		command.setMarketType(marketType);
-		// D-076: 마켓 API 키 저장 — 결과만 기록(marketType은 경로변수).
 		try {
 			MarketCredentialDto saved = marketCredentialService.saveCredential(command);
 			actionLogService.record(ActionLogConstants.CREDENTIAL_SAVE, marketType.name(),

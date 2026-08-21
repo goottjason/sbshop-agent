@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class Cafe24TokenManager implements Cafe24TokenRefreshPort {
 
-	private static final long CAFE24_TOKEN_LOCK_KEY = 0xCAFE24L; // 모든 프로세스 공통 상수
+	private static final long CAFE24_TOKEN_LOCK_KEY = 0xCAFE24L;
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
 	private final MarketCredentialRepository marketCredentialRepository;
@@ -27,7 +27,6 @@ public class Cafe24TokenManager implements Cafe24TokenRefreshPort {
 
 	@PostConstruct
 	public void init() {
-		// startup 강제 refresh 폐지 — 불필요한 refresh_token 회전이 2 JVM 경쟁을 유발했음.
 		MarketCredential c = getCredential();
 		if (c == null || c.getClientId() == null || c.getSecretKey() == null) {
 			log.warn("🚨 Cafe24 API 정보 미등록 — 설정 페이지에서 키를 입력하세요.");
@@ -36,10 +35,6 @@ public class Cafe24TokenManager implements Cafe24TokenRefreshPort {
 		} else {
 			log.info("✅ Cafe24 자격증명 확인됨 — 토큰은 최초 사용 시 필요하면 갱신합니다.");
 		}
-	}
-
-	private MarketCredential getCredential() {
-		return marketCredentialRepository.findByMarketType(MarketType.CAFE24).orElse(null);
 	}
 
 	public boolean isRefreshTokenPresent() {
@@ -56,9 +51,9 @@ public class Cafe24TokenManager implements Cafe24TokenRefreshPort {
 			return credential.getAccessToken();
 		}
 		String token = refreshLock.runExclusively(CAFE24_TOKEN_LOCK_KEY, () -> {
-			MarketCredential fresh = getCredential(); // 락 획득 후 재조회(double-check)
+			MarketCredential fresh = getCredential();
 			if (fresh != null && isTokenValid(fresh)) {
-				return fresh.getAccessToken(); // 다른 프로세스가 이미 갱신함 — HTTP 생략
+				return fresh.getAccessToken();
 			}
 			return doRefresh(fresh);
 		});
@@ -69,12 +64,6 @@ public class Cafe24TokenManager implements Cafe24TokenRefreshPort {
 		return token;
 	}
 
-	/**
-	 * D-103: 트래픽과 독립적으로 리프레시 토큰을 선제 회전한다(2주 시한 만료 방지).
-	 * access token 유효 여부와 무관하게 refresh를 강제해 리프레시 토큰의 2주 시한을 매번 연장한다.
-	 * 과거 startup 강제 refresh는 2 JVM 경쟁 때문에 폐지됐으나(init 주석 참조), 현재 단일 JVM +
-	 * advisory lock 하에서는 안전하다. 실패는 삼켜 호출 스케줄러를 보호한다.
-	 */
 	@Override
 	public void refreshProactively() {
 		MarketCredential credential = getCredential();
@@ -89,6 +78,44 @@ public class Cafe24TokenManager implements Cafe24TokenRefreshPort {
 		} catch (Exception e) {
 			log.error("❌ Cafe24 선제 토큰 갱신 실패 — 재인증이 필요할 수 있습니다.", e);
 		}
+	}
+
+	public String getApiUrl() {
+		MarketCredential credential = getCredential();
+		if (credential == null) {
+			return null;
+		}
+		return "https://" + credential.getClientId() + ".cafe24api.com/api/v2";
+	}
+
+	public String generateAuthorizationUrl(MarketCredential credential) {
+		String apiUrl = "https://" + credential.getClientId() + ".cafe24api.com/api/v2";
+		String scope = "mall.read_application,mall.write_application,"
+			+ "mall.read_product,mall.write_product,"
+			+ "mall.read_collection,mall.write_collection,"
+			+ "mall.read_order,mall.write_order,"
+			+ "mall.read_shipping,mall.write_shipping";
+		return String.format(
+			"%s/oauth/authorize?response_type=code&client_id=%s&state=shouldbeshopping&redirect_uri=%s&scope=%s",
+			apiUrl, credential.getAccessKey(), credential.getRedirectUri(), scope);
+	}
+
+	public void issueInitialToken(String code) {
+		MarketCredential credential = getCredential();
+		if (credential == null) {
+			throw new IllegalStateException("Cafe24 credential 미등록 — 재인증이 필요합니다");
+		}
+		String payload = String.format(
+			"grant_type=authorization_code&code=%s&redirect_uri=%s",
+			code, credential.getRedirectUri());
+		var resp = tokenClient.exchange(
+			credential.getClientId(), credential.getAccessKey(), credential.getSecretKey(), payload);
+		persist(credential, resp);
+		log.info("🎉 [최초 인증 성공] 토큰 3종이 발급·저장되었습니다.");
+	}
+
+	private MarketCredential getCredential() {
+		return marketCredentialRepository.findByMarketType(MarketType.CAFE24).orElse(null);
 	}
 
 	private boolean isTokenValid(MarketCredential c) {
@@ -124,45 +151,10 @@ public class Cafe24TokenManager implements Cafe24TokenRefreshPort {
 
 	private void persist(MarketCredential credential, Cafe24OAuthTokenClient.TokenResponse resp) {
 		credential.setAccessToken(resp.accessToken());
-		// Cafe24가 refresh_token을 생략(null)할 수 있음 — 기존 값 보존
 		if (resp.refreshToken() != null && !resp.refreshToken().isBlank()) {
 			credential.setRefreshToken(resp.refreshToken());
 		}
 		credential.setTokenExpiresAt(LocalDateTime.ofInstant(resp.expiresAt(), KST));
 		marketCredentialRepository.save(credential);
-	}
-
-	public String getApiUrl() {
-		MarketCredential credential = getCredential();
-		if (credential == null) {
-			return null;
-		}
-		return "https://" + credential.getClientId() + ".cafe24api.com/api/v2";
-	}
-
-	public String generateAuthorizationUrl(MarketCredential credential) {
-		String apiUrl = "https://" + credential.getClientId() + ".cafe24api.com/api/v2";
-		String scope = "mall.read_application,mall.write_application,"
-			+ "mall.read_product,mall.write_product,"
-			+ "mall.read_collection,mall.write_collection,"
-			+ "mall.read_order,mall.write_order,"
-			+ "mall.read_shipping,mall.write_shipping";
-		return String.format(
-			"%s/oauth/authorize?response_type=code&client_id=%s&state=shouldbeshopping&redirect_uri=%s&scope=%s",
-			apiUrl, credential.getAccessKey(), credential.getRedirectUri(), scope);
-	}
-
-	public void issueInitialToken(String code) {
-		MarketCredential credential = getCredential();
-		if (credential == null) {
-			throw new IllegalStateException("Cafe24 credential 미등록 — 재인증이 필요합니다");
-		}
-		String payload = String.format(
-			"grant_type=authorization_code&code=%s&redirect_uri=%s",
-			code, credential.getRedirectUri());
-		var resp = tokenClient.exchange(
-			credential.getClientId(), credential.getAccessKey(), credential.getSecretKey(), payload);
-		persist(credential, resp);
-		log.info("🎉 [최초 인증 성공] 토큰 3종이 발급·저장되었습니다.");
 	}
 }

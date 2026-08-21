@@ -6,7 +6,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class MarginCalculatorTest {
-
 	private final MarginCalculator calculator = new MarginCalculator();
 
 	@Test
@@ -56,10 +55,9 @@ class MarginCalculatorTest {
 	@Test
 	@DisplayName("쿠폰율을 적용하면 구매가가 낮아진 실매입가로 판매가를 산정한다 (F-BATCH-6)")
 	void calculateSalePrice_withCoupon_lowersEffectiveBuyPrice() {
-		// 구매가 10000, 쿠폰 20% → 실매입가 8000. 마진 10%, 최소마진 3500.
 		BigDecimal withCoupon = calculator.calculateSalePrice(
 			new BigDecimal("10000"), 1, new BigDecimal("10"), new BigDecimal("20"), new BigDecimal("3500"));
-		// 쿠폰 적용 경로 = 실매입가 8000으로 기존 계산한 것과 동일해야 한다.
+
 		BigDecimal manual = calculator.calculateSalePrice(
 			new BigDecimal("8000"), 1, new BigDecimal("10"), new BigDecimal("3500"));
 		assertThat(withCoupon).isEqualByComparingTo(manual);
@@ -82,24 +80,22 @@ class MarginCalculatorTest {
 	@Test
 	@DisplayName("D-094: 채널수수료를 파라미터로 받으면 마켓별 실수수료로 판매가를 산정한다")
 	void calculateSalePrice_withChannelFee_usesMarketSpecificFee() {
-		// 원가 31522, 묶음 2, 마진 10%, 쿠폰 15%, 최소마진 3500 (실매입 53587.4)
 		BigDecimal buyPrice = new BigDecimal("31522");
-		// 쿠팡 수수료 11% → divisor 0.79 → 53587.4/0.79=67832.2 → 올림100 → 67900
+
 		BigDecimal coupang = calculator.calculateSalePrice(
 			buyPrice, 2, new BigDecimal("10"), new BigDecimal("15"), new BigDecimal("3500"), new BigDecimal("11"));
 		assertThat(coupang).isEqualByComparingTo("67900");
-		// G마켓 수수료 18% → divisor 0.72 → 53587.4/0.72=74426.9 → 올림100 → 74500
+
 		BigDecimal gmarket = calculator.calculateSalePrice(
 			buyPrice, 2, new BigDecimal("10"), new BigDecimal("15"), new BigDecimal("3500"), new BigDecimal("18"));
 		assertThat(gmarket).isEqualByComparingTo("74500");
-		// 수수료가 낮을수록 판매가도 낮다(경쟁력).
+
 		assertThat(coupang).isLessThan(gmarket);
 	}
 
 	@Test
 	@DisplayName("D-094: 수수료 파라미터 없는 기존 시그니처는 18.5% 고정을 유지한다 (하위호환)")
 	void calculateSalePrice_withoutFeeParam_keeps18_5Default() {
-		// 기존 동작: 원가 31522·묶음2·마진10·쿠폰15·최소3500 → 18.5% → 75000
 		BigDecimal legacy = calculator.calculateSalePrice(
 			new BigDecimal("31522"), 2, new BigDecimal("10"), new BigDecimal("15"), new BigDecimal("3500"));
 		assertThat(legacy).isEqualByComparingTo("75000");

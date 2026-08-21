@@ -32,13 +32,8 @@ import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import org.mockito.ArgumentCaptor;
 
-/**
- * F-ORD-30 / SP-3: 주문 1건 발송이 마켓 shipOrder 실패를 삼키지 않고 결과({@link OrderShipOutcome})로
- * 표면화해야 한다. F-ORD-31로 이 로직이 {@link OrderShipProcessor}로 이동했으므로 여기서 검증한다(로직 불변).
- */
 @ExtendWith(MockitoExtension.class)
 class OrderShipServiceResultTest {
-
 	@Mock
 	private OrderRepository orderRepository;
 	@Mock
@@ -47,46 +42,6 @@ class OrderShipServiceResultTest {
 	private OrderLineItemRepository orderLineItemRepository;
 	@Mock
 	private ShipmentRepository shipmentRepository;
-
-	/**
-	 * D-133: 송장 쓰기 통로는 <b>진짜 객체</b>를 끼운다. 목으로 대체하면 라인아이템 쓰기 자체가
-	 * 사라져 기존 검증이 통과해도 아무것도 증명하지 못한다. {@code shipment_id}가 null인 이
-	 * 테스트들에서는 통로가 배송을 건드리지 않으므로 종전과 동작이 같다 — 그 사실이 회귀 증거다.
-	 */
-	private LineItemShippingWriter shippingWriter() {
-		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
-	}
-
-	@Mock
-	private MarketplaceShippingService marketplaceShippingService;
-	@Mock
-	private MarketOrderPort port;
-
-	private OrderShipProcessor processor() {
-		return new OrderShipProcessor(orderRepository, credentialRepository,
-			orderLineItemRepository, marketplaceShippingService, shippingWriter());
-	}
-
-	private Order order(Long id) {
-		return Order.builder().marketType(MarketType.COUPANG).marketOrderNo("O-" + id).build();
-	}
-
-	private OrderLineItem shippableItem() {
-		return OrderLineItem.builder()
-			.orderId(1L)
-			.quantity(1)
-			.shippingData(ShippingData.builder()
-				.shippingStatus(ShippingStatus.PREPARING)
-				.trackingNo("TRK-1")
-				.shippingCarrier(ShippingCarrier.CJ_LOGISTICS)
-				.build())
-			.build();
-	}
-
-	private void stubCoupang() {
-		when(credentialRepository.findByMarketType(MarketType.COUPANG))
-			.thenReturn(Optional.of(MarketCredential.builder().marketType(MarketType.COUPANG).build()));
-	}
 
 	@Test
 	@DisplayName("마켓 전송 실패 시 FAILED 결과로 표면화되고 사유가 담긴다")
@@ -103,6 +58,11 @@ class OrderShipServiceResultTest {
 		assertThat(outcome.isFailed()).isTrue();
 		assertThat(outcome.getErrorMessage()).contains("마켓 전송 거부");
 	}
+
+	@Mock
+	private MarketplaceShippingService marketplaceShippingService;
+	@Mock
+	private MarketOrderPort port;
 
 	@Test
 	@DisplayName("발송 성공 시 SHIPPED 결과를 반환하고 저장된 상태가 DISPATCHED다")
@@ -151,5 +111,35 @@ class OrderShipServiceResultTest {
 
 		assertThat(outcome.isFailed()).isTrue();
 		assertThat(outcome.getErrorMessage()).contains("주문 없음");
+	}
+
+	private LineItemShippingWriter shippingWriter() {
+		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
+	}
+
+	private OrderShipProcessor processor() {
+		return new OrderShipProcessor(orderRepository, credentialRepository,
+			orderLineItemRepository, marketplaceShippingService, shippingWriter());
+	}
+
+	private Order order(Long id) {
+		return Order.builder().marketType(MarketType.COUPANG).marketOrderNo("O-" + id).build();
+	}
+
+	private OrderLineItem shippableItem() {
+		return OrderLineItem.builder()
+			.orderId(1L)
+			.quantity(1)
+			.shippingData(ShippingData.builder()
+				.shippingStatus(ShippingStatus.PREPARING)
+				.trackingNo("TRK-1")
+				.shippingCarrier(ShippingCarrier.CJ_LOGISTICS)
+				.build())
+			.build();
+	}
+
+	private void stubCoupang() {
+		when(credentialRepository.findByMarketType(MarketType.COUPANG))
+			.thenReturn(Optional.of(MarketCredential.builder().marketType(MarketType.COUPANG).build()));
 	}
 }

@@ -38,7 +38,6 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 		.build();
 	private final ObjectMapper objectMapper;
 
-	// 벤더 라우팅용(StockCrawlerRouter). iHerb가 기본 크롤러.
 	@Override
 	public VendorType vendor() {
 		return VendorType.IHB;
@@ -97,98 +96,6 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 		return new StockCheckResult(StockStatus.OUT_OF_STOCK, null, 0, null);
 	}
 
-	private StockCheckResult parseResponse(String body) {
-		try {
-			JsonNode root = objectMapper.readTree(body);
-
-			// 재고 상태
-			boolean isAvailable = root.path("isAvailableToPurchase").asBoolean(false);
-			StockStatus status = isAvailable ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK;
-
-			// 가격 (costPrice) - discountPriceAmount > listPriceAmount > price.discount > price.listPrice 우선순위
-			BigDecimal costPrice = null;
-			// 루트 레벨 필드 우선 (실제 API 응답 구조)
-			JsonNode discountAmountNode = root.path("discountPriceAmount");
-			if (!discountAmountNode.isMissingNode() && discountAmountNode.asDouble(0) > 0) {
-				costPrice = BigDecimal.valueOf(discountAmountNode.asDouble(0));
-			} else {
-				JsonNode listAmountNode = root.path("listPriceAmount");
-				if (!listAmountNode.isMissingNode() && listAmountNode.asDouble(0) > 0) {
-					costPrice = BigDecimal.valueOf(listAmountNode.asDouble(0));
-				}
-			}
-			// price 객체 fallback (이전 버전 API 호환)
-			if (costPrice == null) {
-				JsonNode priceNode = root.path("price");
-				if (!priceNode.isMissingNode()) {
-					JsonNode discountNode = priceNode.path("discount");
-					if (!discountNode.isMissingNode() && discountNode.has("amount")) {
-						costPrice = new BigDecimal(discountNode.path("amount").asText("0"));
-					} else if (priceNode.has("listPrice")) {
-						costPrice = new BigDecimal(priceNode.path("listPrice").asText("0"));
-					}
-				}
-			}
-
-			// 재고 수량 (stock)
-			int stock = 0;
-			JsonNode stockNode = root.path("stockQuantity");
-			if (!stockNode.isMissingNode()) {
-				stock = stockNode.asInt(0);
-			}
-			// 재고 수량이 응답에 없으면 가용성 기반으로 추정
-			if (stock == 0 && isAvailable) {
-				stock = 100; // 재고 수량 미제공 시 충분한 수량으로 추정
-			}
-
-			// 입고예정일
-			LocalDate restockDate = null;
-			JsonNode availabilityNode = root.path("expectedAvailability");
-			if (!availabilityNode.isMissingNode() && !availabilityNode.isNull()) {
-				try {
-					restockDate = LocalDate.parse(availabilityNode.asText().substring(0, 10),
-						DateTimeFormatter.ISO_LOCAL_DATE);
-				} catch (Exception e) {
-					log.debug("입고예정일 파싱 실패: {}", availabilityNode.asText());
-				}
-			}
-			// 대안 필드 시도
-			if (restockDate == null) {
-				JsonNode backOrderNode = root.path("backOrderDate");
-				if (!backOrderNode.isMissingNode() && !backOrderNode.isNull()) {
-					try {
-						restockDate = LocalDate.parse(backOrderNode.asText().substring(0, 10),
-							DateTimeFormatter.ISO_LOCAL_DATE);
-					} catch (Exception e) {
-						log.debug("backOrderDate 파싱 실패: {}", backOrderNode.asText());
-					}
-				}
-			}
-
-			log.info("아이허브 크롤링 결과 - status: {}, costPrice: {}, stock: {}, restockDate: {}",
-				status, costPrice, stock, restockDate);
-
-			return new StockCheckResult(status, costPrice, stock, restockDate);
-		} catch (Exception e) {
-			log.error("아이허브 응답 파싱 실패", e);
-			return new StockCheckResult(StockStatus.OUT_OF_STOCK, null, 0, null);
-		}
-	}
-
-	private String extractProductId(String url) {
-		if (url == null)
-			return null;
-		Pattern pattern = Pattern.compile("/product/(\\d+)");
-		Matcher matcher = pattern.matcher(url);
-		if (matcher.find())
-			return matcher.group(1);
-
-		// /pr/{name}/{id} 패턴 - 이름과 ID 사이에 /가 있어야 함
-		pattern = Pattern.compile("/pr/[^/]+/(\\d+)");
-		matcher = pattern.matcher(url);
-		return matcher.find() ? matcher.group(1) : null;
-	}
-
 	public IherbProductInfo crawlProductInfo(String url) {
 		String productId = extractProductId(url);
 		if (productId == null) {
@@ -240,7 +147,6 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 				if (dto != null) {
 					succeeded.add(dto);
 				} else {
-					// null = 크롤 결과 없음(상품 ID 추출 실패·차단·응답 파싱 실패 등). 조용히 누락 금지.
 					failed.add(new SourcingCrawlResult.SourcingFailure(url, "크롤 결과를 가져오지 못했습니다"));
 				}
 				Thread.sleep(500 + (long)(Math.random() * 500));
@@ -255,30 +161,6 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 		return new SourcingCrawlResult(succeeded, failed);
 	}
 
-	private ScrapedProductDto toScrapedDto(IherbProductInfo info) {
-		return ScrapedProductDto.builder()
-			.sourceUrl(info.sourceUrl())
-			.baseName(info.productName())
-			.originalName(info.englishName())
-			.brand(info.brandName())
-			.costPrice(info.discountPrice() != null && info.discountPrice().compareTo(BigDecimal.ZERO) > 0
-				? info.discountPrice() : info.listPrice())
-			.listPrice(info.listPrice())
-			.discountPrice(info.discountPrice())
-			.discountType(info.discountType())
-			.couponRate(info.couponRate())
-			.salesDiscount(info.salesDiscount())
-			.isAvailable(info.isAvailable())
-			.sourceImages(info.imageLinks())
-			.rawSourceHtml(info.htmlDescription())
-			.rawCategory(info.categoryPath())
-			.capacity(info.capacity())
-			.unit(info.unit())
-			.vendor(VendorType.IHB)
-			.build();
-	}
-
-	// package-private for unit testing
 	IherbProductInfo parseProductInfo(String body, String sourceUrl) {
 		try {
 			JsonNode root = objectMapper.readTree(body);
@@ -295,18 +177,16 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 
 			boolean isAvailable = root.path("isAvailableToPurchase").asBoolean(false);
 
-			// iHerb 현행 API: partNumber + imageIndices(정수 배열)로 cloudinary URL 조합.
-			// (구 필드 imageGroups/mainImage는 API 변경으로 제거되어 항상 0장이었음.)
 			List<String> imageLinks = new ArrayList<>();
 			String partNumber = root.path("partNumber").asText(null);
 			JsonNode imageIndices = root.path("imageIndices");
 			if (partNumber != null && imageIndices.isArray()) {
-				String brandLike = partNumber.split("-")[0].toLowerCase(); // "-" 앞 첫 segment
+				String brandLike = partNumber.split("-")[0].toLowerCase();
 				String part = partNumber.toLowerCase().replace("-", "");
 				int count = 0;
 				for (JsonNode idxNode : imageIndices) {
 					if (count >= 5)
-						break; // 최대 5장(메인1+추가4)
+						break;
 					imageLinks.add(String.format(
 						"https://cloudinary.images-iherb.com/image/upload/f_auto,q_auto:eco/images/%s/%s/l/%d.jpg",
 						brandLike, part, idxNode.asInt()));
@@ -335,5 +215,111 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 			log.error("아이허브 상품 정보 파싱 실패", e);
 			return null;
 		}
+	}
+
+	private StockCheckResult parseResponse(String body) {
+		try {
+			JsonNode root = objectMapper.readTree(body);
+
+			boolean isAvailable = root.path("isAvailableToPurchase").asBoolean(false);
+			StockStatus status = isAvailable ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK;
+
+			BigDecimal costPrice = null;
+			JsonNode discountAmountNode = root.path("discountPriceAmount");
+			if (!discountAmountNode.isMissingNode() && discountAmountNode.asDouble(0) > 0) {
+				costPrice = BigDecimal.valueOf(discountAmountNode.asDouble(0));
+			} else {
+				JsonNode listAmountNode = root.path("listPriceAmount");
+				if (!listAmountNode.isMissingNode() && listAmountNode.asDouble(0) > 0) {
+					costPrice = BigDecimal.valueOf(listAmountNode.asDouble(0));
+				}
+			}
+			if (costPrice == null) {
+				JsonNode priceNode = root.path("price");
+				if (!priceNode.isMissingNode()) {
+					JsonNode discountNode = priceNode.path("discount");
+					if (!discountNode.isMissingNode() && discountNode.has("amount")) {
+						costPrice = new BigDecimal(discountNode.path("amount").asText("0"));
+					} else if (priceNode.has("listPrice")) {
+						costPrice = new BigDecimal(priceNode.path("listPrice").asText("0"));
+					}
+				}
+			}
+
+			int stock = 0;
+			JsonNode stockNode = root.path("stockQuantity");
+			if (!stockNode.isMissingNode()) {
+				stock = stockNode.asInt(0);
+			}
+			if (stock == 0 && isAvailable) {
+				stock = 100;
+			}
+
+			LocalDate restockDate = null;
+			JsonNode availabilityNode = root.path("expectedAvailability");
+			if (!availabilityNode.isMissingNode() && !availabilityNode.isNull()) {
+				try {
+					restockDate = LocalDate.parse(availabilityNode.asText().substring(0, 10),
+						DateTimeFormatter.ISO_LOCAL_DATE);
+				} catch (Exception e) {
+					log.debug("입고예정일 파싱 실패: {}", availabilityNode.asText());
+				}
+			}
+			if (restockDate == null) {
+				JsonNode backOrderNode = root.path("backOrderDate");
+				if (!backOrderNode.isMissingNode() && !backOrderNode.isNull()) {
+					try {
+						restockDate = LocalDate.parse(backOrderNode.asText().substring(0, 10),
+							DateTimeFormatter.ISO_LOCAL_DATE);
+					} catch (Exception e) {
+						log.debug("backOrderDate 파싱 실패: {}", backOrderNode.asText());
+					}
+				}
+			}
+
+			log.info("아이허브 크롤링 결과 - status: {}, costPrice: {}, stock: {}, restockDate: {}",
+				status, costPrice, stock, restockDate);
+
+			return new StockCheckResult(status, costPrice, stock, restockDate);
+		} catch (Exception e) {
+			log.error("아이허브 응답 파싱 실패", e);
+			return new StockCheckResult(StockStatus.OUT_OF_STOCK, null, 0, null);
+		}
+	}
+
+	private String extractProductId(String url) {
+		if (url == null)
+			return null;
+		Pattern pattern = Pattern.compile("/product/(\\d+)");
+		Matcher matcher = pattern.matcher(url);
+		if (matcher.find())
+			return matcher.group(1);
+
+		pattern = Pattern.compile("/pr/[^/]+/(\\d+)");
+		matcher = pattern.matcher(url);
+		return matcher.find() ? matcher.group(1) : null;
+	}
+
+	private ScrapedProductDto toScrapedDto(IherbProductInfo info) {
+		return ScrapedProductDto.builder()
+			.sourceUrl(info.sourceUrl())
+			.baseName(info.productName())
+			.originalName(info.englishName())
+			.brand(info.brandName())
+			.costPrice(info.discountPrice() != null && info.discountPrice().compareTo(BigDecimal.ZERO) > 0
+				? info.discountPrice() : info.listPrice())
+			.listPrice(info.listPrice())
+			.discountPrice(info.discountPrice())
+			.discountType(info.discountType())
+			.couponRate(info.couponRate())
+			.salesDiscount(info.salesDiscount())
+			.isAvailable(info.isAvailable())
+			.sourceImages(info.imageLinks())
+			.rawSourceHtml(info.htmlDescription())
+			.rawCategory(info.categoryPath())
+			.capacity(info.capacity())
+			.unit(info.unit())
+			.vendor(VendorType.IHB)
+			.build();
 	}
 }

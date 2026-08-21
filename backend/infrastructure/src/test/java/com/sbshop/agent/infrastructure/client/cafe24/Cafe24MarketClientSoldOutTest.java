@@ -19,9 +19,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * SP-B Task 2: Cafe24MarketClient soldOut → supply_quantity≥1 + selling F/T 특성화 테스트.
- */
 @ExtendWith(MockitoExtension.class)
 class Cafe24MarketClientSoldOutTest {
 

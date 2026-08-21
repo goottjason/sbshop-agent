@@ -16,11 +16,6 @@ import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.config.InternalAccessGuard;
 import com.sbshop.agent.worker.service.EmailFetcherService;
 
-/**
- * F-MISC-17: /internal/email/fetch 무인증 트리거에 공유시크릿 헤더 가드 적용.
- * 가드 활성 시 토큰 불일치/누락은 403 + 서비스 미실행, 일치하면 실행.
- * 가드 비활성(토큰 미설정)이면 헤더 없이도 실행(무파손).
- */
 @ExtendWith(MockitoExtension.class)
 class EmailFetchControllerGuardTest {
 
@@ -29,11 +24,6 @@ class EmailFetchControllerGuardTest {
 
 	@Mock
 	SyncStatusService syncStatusService;
-
-	private EmailFetchController controller(String configuredToken) {
-		return new EmailFetchController(emailFetcherService,
-			new InternalAccessGuard(configuredToken), syncStatusService);
-	}
 
 	@Test
 	@DisplayName("가드 활성 + 헤더 누락 → 403, 서비스 미실행")
@@ -69,5 +59,10 @@ class EmailFetchControllerGuardTest {
 
 		assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
 		verify(emailFetcherService).fetchAndProcessEmails();
+	}
+
+	private EmailFetchController controller(String configuredToken) {
+		return new EmailFetchController(emailFetcherService,
+			new InternalAccessGuard(configuredToken), syncStatusService);
 	}
 }

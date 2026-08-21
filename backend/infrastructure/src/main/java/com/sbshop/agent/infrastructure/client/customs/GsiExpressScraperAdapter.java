@@ -30,8 +30,6 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 			return resultMap;
 		}
 
-		// 1. Build chk_data string payload
-		// Format per row: 이름/통관고유부호/핸드폰번호/우편번호
 		StringBuilder sb = new StringBuilder();
 		for (Order order : orders) {
 			String recipientName = order.getRecipientName();
@@ -50,13 +48,11 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 			phone = phone != null ? phone.trim() : "";
 			zip = zip != null ? zip.trim() : "";
 
-			// 수취인명으로 검사
 			sb.append(recipientName).append("/")
 				.append(pccc).append("/")
 				.append(phone).append("/")
 				.append(zip).append("\n");
 
-			// 주문자명이 다르면 별도 행으로 추가 (둘 중 하나라도 통관되면 VALID)
 			if (ordererName != null && !ordererName.isBlank() && !ordererName.trim().equals(recipientName)) {
 				sb.append(ordererName.trim()).append("/")
 					.append(pccc).append("/")
@@ -72,7 +68,6 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 			return resultMap;
 		}
 
-		// 2. Perform POST request via Jsoup
 		try {
 			log.info("GSI Express에 {}건의 주문 벌크 검증 요청 중", orders.size());
 			Document doc = Jsoup.connect(TARGET_URL)
@@ -82,7 +77,6 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 				.timeout(10000)
 				.post();
 
-			// 3. Parse result table
 			Elements rows = doc.select("tr");
 			log.info("GSI Express 응답에서 {}행 파싱 완료", rows.size());
 
@@ -106,7 +100,6 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 						recipientName = recipientName.trim();
 						pccc = pccc.trim().toUpperCase();
 
-						// Track which person (recipient or orderer) matched this response row
 						VerifiedPerson matchedPerson = null;
 						boolean nameMatches = false;
 
@@ -119,13 +112,10 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 							matchedPerson = VerifiedPerson.ORDERER;
 						}
 
-						// Check if row matches BOTH name and PCCC to correctly identify the specific order
 						if (nameMatches && rowText.contains(pccc)) {
 							log.info("주문 ID {}에서 name={} 및 PCCC {} 매칭됨",
 								orderId, matchedPerson, pccc);
 
-							// 에러 메시지 패턴에 따라 통관 상태 결정
-							// 우선순위: 납세의무자명/개인통관고유부호(1순위) > 전화번호(2순위) > 우편번호(3순위)
 							CustomsStatus rowStatus = CustomsStatus.PENDING;
 							if (rowText.contains("정상")) {
 								rowStatus = CustomsStatus.VALID;
@@ -136,12 +126,9 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 							} else if (rowText.contains("우편번호가 일치하지 않습니다")) {
 								rowStatus = CustomsStatus.INVALID_ZIPCODE;
 							} else if (rowText.contains("오류") || rowText.contains("불일치")) {
-								// 기타 불일치 에러는 통관번호 불일치로 처리
 								rowStatus = CustomsStatus.INVALID_PCCC;
 							}
 
-							// Accumulate: only update if new status has higher priority
-							// Priority: VALID(3) > VALID_PHONE_MISMATCH(2) > INVALID(1) > PENDING(0)
 							CustomsVerificationResult current = resultMap.get(orderId);
 							int currentPriority = current != null ? priority(current.getStatus()) : -1;
 							int newPriority = priority(rowStatus);
@@ -156,7 +143,6 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 				}
 			}
 
-			// Log if no rows were found or all still PENDING
 			if (rows.isEmpty() || resultMap.values().stream().allMatch(
 				r -> r.getStatus() == CustomsStatus.PENDING)) {
 				log.warn("행을 찾거나 매칭하지 못함. HTML 본문 일부: {}",
@@ -170,8 +156,6 @@ public class GsiExpressScraperAdapter implements CustomsClearancePort {
 		return resultMap;
 	}
 
-	// 통관 상태 우선순위 (높을수록 우선)
-	// VALID(4) > INVALID_PHONE(3) > INVALID_ZIPCODE(2) > INVALID_PCCC(1) > PENDING(0)
 	private int priority(CustomsStatus status) {
 		if (status == null)
 			return -1;

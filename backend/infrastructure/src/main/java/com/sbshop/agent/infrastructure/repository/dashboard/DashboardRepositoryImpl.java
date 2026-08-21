@@ -12,6 +12,7 @@ import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.product.QProduct;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -47,10 +48,6 @@ public class DashboardRepositoryImpl implements DashboardRepository {
 			t.get(li.productId), t.get(p.sbCode), t.get(p.productName),
 			t.get(li.sourcingData.sourcingVendor),
 			t.get(p.stockStatus) != null ? t.get(p.stockStatus).name() : null)).toList();
-	}
-
-	private static long toLong(java.math.BigDecimal n) {
-		return n == null ? 0L : n.longValue();
 	}
 
 	@Override
@@ -92,5 +89,9 @@ public class DashboardRepositoryImpl implements DashboardRepository {
 		Long c = queryFactory.select(order.id.countDistinct()).from(order)
 			.join(li).on(li.orderId.eq(order.id)).where(delayed).fetchOne();
 		return c == null ? 0 : c.intValue();
+	}
+
+	private static long toLong(BigDecimal n) {
+		return n == null ? 0L : n.longValue();
 	}
 }

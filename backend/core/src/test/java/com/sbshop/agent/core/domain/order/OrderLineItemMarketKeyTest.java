@@ -11,19 +11,9 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.test.context.ContextConfiguration;
 
-/**
- * 라인아이템은 <b>마켓 상품주문 1건</b>을 뜻한다(11번가 ordPrdSeq · N스토어 productOrderId ·
- * 쿠팡 orderItems 원소 · Cafe24 items 원소).
- *
- * <p>{@code marketLineItemNo}가 동기화의 매칭 키다. 지금까지 Cafe24는 배열 인덱스로 짝지어
- * 반영했는데, 마켓이 순서를 바꾸면 엉뚱한 상품에 송장이 붙는다. 식별자로만 매칭한다.
- *
- * <p>두 컬럼 모두 nullable이다. 기존 행은 값이 없고, 1단계에서는 아무도 채우지 않는다.
- */
 @DataJpaTest
 @ContextConfiguration(classes = OrderLineItemMarketKeyTest.TestApp.class)
 class OrderLineItemMarketKeyTest {
-
 	@SpringBootApplication
 	@EnableJpaRepositories(basePackages = "com.sbshop.agent.core.dummy")
 	static class TestApp {}

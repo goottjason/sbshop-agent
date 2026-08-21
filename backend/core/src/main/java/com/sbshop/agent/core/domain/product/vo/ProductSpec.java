@@ -20,7 +20,6 @@ import java.sql.Types;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ProductSpec {
-
 	@Column(name = "barcode", length = 100)
 	private String barcode;
 

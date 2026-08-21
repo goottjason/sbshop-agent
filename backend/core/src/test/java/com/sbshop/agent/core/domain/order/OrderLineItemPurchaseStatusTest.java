@@ -8,7 +8,6 @@ import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import org.junit.jupiter.api.Test;
 
 class OrderLineItemPurchaseStatusTest {
-
 	private OrderLineItem newItem() {
 		return OrderLineItem.builder()
 			.orderId(1L)
@@ -28,7 +27,6 @@ class OrderLineItemPurchaseStatusTest {
 		OrderLineItem item = newItem();
 		item.updatePurchaseStatus(PurchaseStatus.PURCHASED);
 		assertThat(item.getPurchaseStatus()).isEqualTo(PurchaseStatus.PURCHASED);
-		// shippingStatus는 변경되지 않아야 한다
 		assertThat(item.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.PREPARING);
 	}
 
@@ -37,7 +35,6 @@ class OrderLineItemPurchaseStatusTest {
 		OrderLineItem item = newItem();
 		item.markAsDispatched();
 		assertThat(item.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.DISPATCHED);
-		// purchaseStatus는 변경되지 않아야 한다
 		assertThat(item.getPurchaseStatus()).isEqualTo(PurchaseStatus.NOT_PURCHASED);
 	}
 }

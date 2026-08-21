@@ -22,12 +22,9 @@ import org.hibernate.annotations.JdbcTypeCode;
 
 @Slf4j
 @Entity
-@Table(name = "sb_market_registration",
-	// F-PSRC-13 / R3: 같은 상품·마켓의 등록행 중복을 DB 레벨에서 하드 차단(동시 재게시 경쟁 방지).
-	// savePending의 findByProductIdAndMarketType 재사용은 순차 재호출에만 멱등이므로,
-	// 동시성 안전을 위해 유니크 제약을 둔다.
-	uniqueConstraints = @UniqueConstraint(name = "uk_market_registration_product_market", columnNames = {"product_id",
-		"market_type"}))
+@Table(name = "sb_market_registration", uniqueConstraints = @UniqueConstraint(name = "uk_market_registration_product_market", columnNames = {
+	"product_id",
+	"market_type"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MarketRegistration extends BaseEntity {
@@ -62,27 +59,6 @@ public class MarketRegistration extends BaseEntity {
 	@Column(name = "last_synced_at")
 	private LocalDateTime lastSyncedAt;
 
-	@JsonRawValue
-	public String getMarketIdentifiers() {
-		return isValidJson(marketIdentifiers) ? marketIdentifiers : "{}";
-	}
-
-	@JsonRawValue
-	public String getMarketDetailedInfo() {
-		return isValidJson(marketDetailedInfo) ? marketDetailedInfo : "{}";
-	}
-
-	private boolean isValidJson(String value) {
-		if (value == null || value.isEmpty())
-			return false;
-		try {
-			MAPPER.readTree(value);
-			return true;
-		} catch (Exception e) {
-			return false;
-		}
-	}
-
 	@Builder
 	public MarketRegistration(Long productId, Long sbProductId, MarketType marketType, String marketProductName,
 		String marketIdentifiers, String marketDetailedInfo) {
@@ -94,22 +70,25 @@ public class MarketRegistration extends BaseEntity {
 		this.marketDetailedInfo = marketDetailedInfo;
 	}
 
+	@JsonRawValue
+	public String getMarketIdentifiers() {
+		return isValidJson(marketIdentifiers) ? marketIdentifiers : "{}";
+	}
+
+	@JsonRawValue
+	public String getMarketDetailedInfo() {
+		return isValidJson(marketDetailedInfo) ? marketDetailedInfo : "{}";
+	}
+
 	public void markSynced() {
 		this.isSynced = true;
 		this.lastSyncedAt = LocalDateTime.now();
 	}
 
-	/**
-	 * 동기화 실패 표시. isSynced=false로 내려 "직전 동기화 미성공"을 나타낸다 —
-	 * 변경없음이어도 다음 배치에서 재시도되도록 하는 신호(Cafe24 변경감지 스킵과 연동).
-	 */
 	public void markSyncFailed() {
 		this.isSynced = false;
 	}
 
-	/**
-	 * marketIdentifiers JSON에서 vendorItemId 추출
-	 */
 	public String extractVendorItemId() {
 		if (marketIdentifiers == null || marketIdentifiers.isEmpty()) {
 			return null;
@@ -124,16 +103,6 @@ public class MarketRegistration extends BaseEntity {
 		}
 	}
 
-	/**
-	 * (D-052) marketIdentifiers JSON에서 "마켓별 상품코드"를 추출한다.
-	 * extractVendorItemId()는 쿠팡 전용 키(vendorItemId)만 읽어 스토어/11번가/카페24는
-	 * 항상 null→productId 폴백('미확인')이 됐다. 각 마켓 클라이언트가 저장하는 실제 키로 분기한다.
-	 *   COUPANG       : vendorItemId → sellerProductId
-	 *   SMART_STORE   : originProductNo → channelProductNo
-	 *   ELEVEN_STREET : elevenstId → prdNo
-	 *   CAFE24        : product_no → product_code
-	 *   GMARKET/AUCTION(ESM+) : goodsNo → itemNo → goodsCode
-	 */
 	public String extractMarketCode() {
 		if (marketIdentifiers == null || marketIdentifiers.isEmpty()) {
 			return null;
@@ -176,14 +145,6 @@ public class MarketRegistration extends BaseEntity {
 		}
 	}
 
-	/**
-	 * 상품 삭제 API용 마켓 식별자(F-PROD-27/28 완전삭제).
-	 *
-	 * <p>대부분 {@link #extractMarketCode()}와 같지만 <b>COUPANG은 다르다</b>: 삭제(seller-products)는
-	 * {@code sellerProductId}를 요구하는데 extractMarketCode는 가격/재고용 {@code vendorItemId}를 우선하므로,
-	 * 삭제 경로에 vendorItemId를 넘기면 쿠팡이 오류를 낸다. 쿠팡만 sellerProductId를 직접 추출한다.
-	 * (sellerProductId가 없으면 null → 오케스트레이터가 실패로 수집, best-effort로 DB 삭제는 진행)
-	 */
 	public String extractDeleteCode() {
 		if (marketType == MarketType.COUPANG) {
 			if (marketIdentifiers == null || marketIdentifiers.isEmpty()) {
@@ -204,17 +165,6 @@ public class MarketRegistration extends BaseEntity {
 		this.marketIdentifiers = marketIdentifiers;
 	}
 
-	/**
-	 * 마켓이 돌려준 식별자를 하나라도 갖고 있는가 — 즉 외부 게시가 실제로 성공했는가.
-	 *
-	 * <p>{@code is_synced}는 이 판정에 쓸 수 없다. 레거시 임포트로 들어온 행 다수가
-	 * 실제로는 마켓에 정상 등록돼 있는데도 {@code is_synced=false}로 남아 있다
-	 * (운영 실측 2026-08-14: PENDING 2,594건 전부가 식별자 보유, 식별자 없는 PENDING은 0건).
-	 *
-	 * <p>반면 {@code MarketRegistrationTxService.savePending}이 외부 게시 <b>전에</b> 만드는
-	 * 미완료 행은 identifiers가 정확히 {@code "{}"}다. 그래서 "식별자 없음"이
-	 * "게시를 시작했으나 끝내지 못함"의 정확한 신호가 된다.
-	 */
 	public boolean hasIdentifiers() {
 		if (marketIdentifiers == null || marketIdentifiers.isBlank()) {
 			return false;
@@ -227,7 +177,6 @@ public class MarketRegistration extends BaseEntity {
 		}
 	}
 
-	/** marketIdentifiers JSON에서 단일 키 값을 읽는다(없으면 null). */
 	public String identifier(String key) {
 		if (marketIdentifiers == null || marketIdentifiers.isEmpty()) {
 			return null;
@@ -240,18 +189,8 @@ public class MarketRegistration extends BaseEntity {
 		}
 	}
 
-	// 스마트스토어 스토어 slug(공개 상품 URL용). 현재 단일 스토어 운영 — 상수.
 	private static final String SMARTSTORE_SLUG = "shouldbe_shop";
 
-	/**
-	 * 마켓 상품 페이지 공개 URL을 만든다. 링크에 필요한 식별자가 없으면 null.
-	 * <ul>
-	 *   <li>쿠팡: products/{productId}?vendorItemId={vendorItemId} — productId 필수(vendorItemId는 있으면 부가)</li>
-	 *   <li>스토어: smartstore.naver.com/{slug}/products/{channelProductNo}</li>
-	 *   <li>11번가: 11st.co.kr/products/{prdNo}</li>
-	 *   <li>G마켓/옥션: Cafe24 등록행에 백필된 gmarket_goodsNo/auction_goodsNo (ESM=Cafe24 경유 연동)</li>
-	 * </ul>
-	 */
 	public String buildMarketUrl() {
 		switch (marketType) {
 			case COUPANG: {
@@ -277,23 +216,16 @@ public class MarketRegistration extends BaseEntity {
 		}
 	}
 
-	/** Cafe24 등록행에 ESM 백필된 G마켓 상품 URL(없으면 null). */
 	public String buildGmarketUrl() {
 		String goods = identifier("gmarket_goodsNo");
 		return goods != null ? "http://item.gmarket.co.kr/Item?goodscode=" + goods : null;
 	}
 
-	/** Cafe24 등록행에 ESM 백필된 옥션 상품 URL(없으면 null). */
 	public String buildAuctionUrl() {
 		String item = identifier("auction_goodsNo");
 		return item != null ? "http://itempage3.auction.co.kr/DetailView.aspx?ItemNo=" + item : null;
 	}
 
-	/**
-	 * 기존 marketIdentifiers JSON을 보존하며 단일 키를 병합한다.
-	 * (D-046) 발행 시 sellerProductId만 저장되고 vendorItemId를 채우는 write-path가
-	 * 없던 구조적 공백을 메우기 위한 보강 진입점. 값이 비면 no-op.
-	 */
 	public void enrichIdentifier(String key, String value) {
 		if (key == null || key.isEmpty() || value == null || value.isEmpty()) {
 			return;
@@ -316,5 +248,16 @@ public class MarketRegistration extends BaseEntity {
 
 	public void assignSbProductId(Long sbProductId) {
 		this.sbProductId = sbProductId;
+	}
+
+	private boolean isValidJson(String value) {
+		if (value == null || value.isEmpty())
+			return false;
+		try {
+			MAPPER.readTree(value);
+			return true;
+		} catch (Exception e) {
+			return false;
+		}
 	}
 }

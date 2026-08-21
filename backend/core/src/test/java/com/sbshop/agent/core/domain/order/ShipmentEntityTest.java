@@ -15,20 +15,9 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.test.context.ContextConfiguration;
 
-/**
- * 배송(Shipment)은 "물리적으로 함께 나가는 단위"다. 송장 1개 = Shipment 1개.
- *
- * <p>마켓별 배송 식별자(11번가 dlvNo · 쿠팡 shipmentBoxId · N스토어 packageNumber ·
- * Cafe24 shipping_code)를 {@code marketShipmentNo} 한 컬럼에 담는다. 넷 다 역할이 같기 때문이다.
- *
- * <p>{@code (order_id, market_shipment_no)} 유니크는 동기화 매칭의 하드가드다. 이게 없으면
- * 같은 배송이 중복 생성돼, 송장을 마켓에 두 번 보내는 사고로 이어진다
- * (11번가 -3308 "해당 배송번호는 이미 발송처리 되었습니다").
- */
 @DataJpaTest
 @ContextConfiguration(classes = ShipmentEntityTest.TestApp.class)
 class ShipmentEntityTest {
-
 	@SpringBootApplication
 	@EnableJpaRepositories(basePackages = "com.sbshop.agent.core.dummy")
 	static class TestApp {}
@@ -70,8 +59,6 @@ class ShipmentEntityTest {
 		em.persist(Shipment.builder().orderId(100L).marketShipmentNo("2716448228").build());
 		em.flush();
 
-		// GenerationType.IDENTITY 엔티티는 persist 시점에 즉시 INSERT되어 ID를 얻으므로,
-		// 유니크 제약 위반이 persist(+flush) 경로에서 표면화된다.
 		assertThatThrownBy(() -> {
 			em.persist(Shipment.builder().orderId(100L).marketShipmentNo("2716448228").build());
 			em.flush();
@@ -90,8 +77,6 @@ class ShipmentEntityTest {
 	@Test
 	@DisplayName("applyTracking의 null 인자는 기존 값을 지우지 않는다")
 	void applyTrackingKeepsExistingOnNull() {
-		// 마켓이 이번 응답에서 송장을 주지 않았다고 해서 이미 가진 송장을 지우면 안 된다
-		// (D-119/D-120에서 자리표시자·빈 값이 실송장을 덮어써 배송정보가 유실된 이력).
 		Shipment shipment = Shipment.builder()
 			.orderId(100L)
 			.marketShipmentNo("D1")

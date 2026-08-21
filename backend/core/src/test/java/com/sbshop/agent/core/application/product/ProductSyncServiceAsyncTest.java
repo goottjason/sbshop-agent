@@ -23,15 +23,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * F-MISC-8/9/10: 재고 동기화 오케스트레이션의 @Async 정상화.
- * 컨트롤러의 원시 {@code new Thread} + 대상선정 로직을 서비스로 이동하고,
- * 크롤 성공/실패를 ActionLog(SUCCESS/FAILED)로 기록하는지 검증한다.
- * (@Async는 단위테스트에서 동기 실행되므로 검증 가능)
- */
 @ExtendWith(MockitoExtension.class)
 class ProductSyncServiceAsyncTest {
-
 	@Mock
 	private ProductRepository productRepository;
 	@Mock

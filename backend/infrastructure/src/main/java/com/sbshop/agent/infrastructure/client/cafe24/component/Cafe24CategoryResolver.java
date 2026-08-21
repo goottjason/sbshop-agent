@@ -7,6 +7,7 @@ import com.sbshop.agent.core.application.sourcing.port.MarketCategoryResolverPor
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.infrastructure.client.cafe24.client.Cafe24RestClient;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
@@ -15,17 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/**
- * Cafe24 진열 분류 자동 해석.
- *
- * <p>자사몰 분류번호는 쇼핑몰마다 임의로 만든 값이라 외부에서 알 수 없다.
- * {@code GET /admin/categories}로 쇼핑몰의 실제 분류 목록을 한 번 읽어 캐시하고,
- * 상품 카테고리 힌트("건강기능식품 &gt; 비타민/미네랄")와 <b>이름으로 매칭</b>한다.
- *
- * <p>매칭 실패 시에는 <b>가장 낮은 번호의 분류</b>로 폴백하되 {@code confident=false}로 둔다.
- * Cafe24는 분류가 없어도 등록 자체는 되지만 어느 진열에도 노출되지 않는다 —
- * 그래서 "값 없음"보다 "임시 분류 + 확인 필요"가 낫다.
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -36,7 +26,6 @@ public class Cafe24CategoryResolver implements MarketCategoryResolverPort {
 	private final Cafe24RestClient restClient;
 	private final ObjectMapper objectMapper;
 
-	/** 설정으로 고정하면 조회하지 않는다. */
 	@Value("${market.cafe24.default-category-no:}")
 	private String configuredCategoryNo;
 
@@ -81,8 +70,7 @@ public class Cafe24CategoryResolver implements MarketCategoryResolverPort {
 			if (t.length() >= 2)
 				terms.add(t);
 		}
-		// 세부 분류부터 맞춰야 한다 — 대분류로 먼저 맞추면 항상 "전체상품"류에 걸린다.
-		java.util.Collections.reverse(terms);
+		Collections.reverse(terms);
 		return terms;
 	}
 
@@ -99,7 +87,6 @@ public class Cafe24CategoryResolver implements MarketCategoryResolverPort {
 				if (!no.isBlank())
 					out.add(new Category(no, name));
 			}
-			// 번호 오름차순 — 폴백이 항상 같은 분류가 되도록 순서를 고정한다.
 			out.sort((a, b) -> Integer.compare(parseInt(a.no), parseInt(b.no)));
 			if (!out.isEmpty()) {
 				cache.set(List.copyOf(out));

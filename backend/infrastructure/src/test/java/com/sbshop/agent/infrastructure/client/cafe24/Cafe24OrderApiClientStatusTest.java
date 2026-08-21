@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.infrastructure.client.cafe24.client.Cafe24OrderApiClient;
 import com.sbshop.agent.infrastructure.client.cafe24.client.Cafe24RestClient;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,6 @@ class Cafe24OrderApiClientStatusTest {
 	void acceptOrderSendsPut() {
 		var client = new Cafe24OrderApiClient(restClient, new ObjectMapper());
 		client.acceptOrder("O123");
-		// 스펙: PUT /admin/orders (경로에 id 없음), body.requests[0]={order_id, process_status:"prepare"}
 		verify(restClient).put(eq("/admin/orders"),
 			ArgumentMatchers.argThat(body -> "O123".equals(firstRequest(body).get("order_id"))
 				&& "prepare".equals(firstRequest(body).get("process_status"))));
@@ -42,7 +42,7 @@ class Cafe24OrderApiClientStatusTest {
 
 	@SuppressWarnings("unchecked")
 	private Map<String, Object> firstRequest(Object body) {
-		var requests = (java.util.List<Map<String, Object>>)((Map<String, Object>)body).get("requests");
+		var requests = (List<Map<String, Object>>)((Map<String, Object>)body).get("requests");
 		return requests.get(0);
 	}
 

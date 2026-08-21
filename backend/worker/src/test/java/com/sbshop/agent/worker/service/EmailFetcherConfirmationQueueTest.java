@@ -40,10 +40,6 @@ import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import com.sbshop.agent.core.domain.order.vo.SourcingData;
 
-/**
- * 실구매가 자동 주입이 배송 큐에 종속되지 않아야 한다.
- * 배송완료(DELIVERED) 주문도 실구매가가 비어 있으면 확인메일 검색 대상에 포함돼야 한다.
- */
 @ExtendWith(MockitoExtension.class)
 class EmailFetcherConfirmationQueueTest {
 
@@ -66,12 +62,6 @@ class EmailFetcherConfirmationQueueTest {
 	@Mock
 	ShipmentRepository shipmentRepository;
 
-	/**
-	 * D-133: 송장 쓰기 통로는 <b>진짜 객체</b>를 끼운다. {@code @InjectMocks}가 목을 넣거나 null로
-	 * 남기면 라인아이템 쓰기 자체가 사라져, 검증이 통과해도 아무것도 증명하지 못한다.
-	 * 이 테스트들의 라인아이템은 {@code shipment_id}가 null이므로 통로는 배송을 건드리지 않는다 —
-	 * 종전과 동작이 같다는 사실이 곧 회귀 증거다.
-	 */
 	@BeforeEach
 	void injectRealShippingWriter() {
 		ReflectionTestUtils.setField(service, "shippingWriter",
@@ -80,26 +70,6 @@ class EmailFetcherConfirmationQueueTest {
 
 	@Captor
 	ArgumentCaptor<OrderLineItem> savedItemCaptor;
-
-	private OrderLineItem item(String orderNo, ShippingStatus status, BigDecimal amount) {
-		return OrderLineItem.builder()
-			.orderId(1L)
-			.quantity(1)
-			.sourcingData(SourcingData.builder()
-				.sourcingVendor("IHB")
-				.sourcingOrderNo(orderNo)
-				.sourcingAmount(amount)
-				.build())
-			.shippingData(ShippingData.builder().shippingStatus(status).build())
-			.build();
-	}
-
-	private EmailAccountProperties.Account account() {
-		EmailAccountProperties.Account a = new EmailAccountProperties.Account();
-		a.setUsername("central@gmail.com");
-		a.setHost("imap.gmail.com");
-		return a;
-	}
 
 	@Test
 	@DisplayName("배송완료라 배송 큐에 없는 주문도 실구매가가 비면 검색 계획에 포함된다")
@@ -212,7 +182,6 @@ class EmailFetcherConfirmationQueueTest {
 			.currency(OrderEmailParser.USD).build());
 
 		verify(orderLineItemRepository).save(savedItemCaptor.capture());
-		// 48.00 × 1473 = 70,704 (실제 청구 70,743과 0.06% 차이)
 		assertThat(savedItemCaptor.getValue().getSourcingData().getSourcingAmount())
 			.isEqualByComparingTo(new BigDecimal("70704"));
 	}
@@ -259,7 +228,6 @@ class EmailFetcherConfirmationQueueTest {
 		service.processIherbConfirmation(OrderEmailParser.IherbConfirmationData.builder()
 			.orderNo("666").totalAmount(new BigDecimal("45254")).build());
 
-		// 총액을 양쪽에 넣으면 원가가 2배로 잡혀 순수익이 왜곡된다(sourcing_amount는 라인아이템별 합산).
 		verify(orderLineItemRepository, never()).save(any(OrderLineItem.class));
 	}
 
@@ -274,5 +242,25 @@ class EmailFetcherConfirmationQueueTest {
 			.orderNo("555").totalAmount(new BigDecimal("48")).build());
 
 		verify(orderLineItemRepository, never()).save(target);
+	}
+
+	private OrderLineItem item(String orderNo, ShippingStatus status, BigDecimal amount) {
+		return OrderLineItem.builder()
+			.orderId(1L)
+			.quantity(1)
+			.sourcingData(SourcingData.builder()
+				.sourcingVendor("IHB")
+				.sourcingOrderNo(orderNo)
+				.sourcingAmount(amount)
+				.build())
+			.shippingData(ShippingData.builder().shippingStatus(status).build())
+			.build();
+	}
+
+	private EmailAccountProperties.Account account() {
+		EmailAccountProperties.Account a = new EmailAccountProperties.Account();
+		a.setUsername("central@gmail.com");
+		a.setHost("imap.gmail.com");
+		return a;
 	}
 }

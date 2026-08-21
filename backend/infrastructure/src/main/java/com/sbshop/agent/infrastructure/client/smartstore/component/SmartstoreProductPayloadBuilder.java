@@ -8,37 +8,12 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Component;
 
-/**
- * 스마트스토어 커머스API {@code POST /v2/products} 요청 본문 생성.
- *
- * <p>기존 구현은 {@code originProduct}에 6필드(productName·salePrice·stockQuantity·productCode·
- * detailContent·images)만 담았다. 공식 스펙상 {@code statusType}·{@code detailAttribute}와
- * <b>{@code smartstoreChannelProduct} 전체가 REQUIRED</b>이고 {@code leafCategoryId}·
- * {@code stockQuantity}는 등록 시 필수라, 그 payload로는 애초에 등록이 성립하지 않는다.
- *
- * <p>여기서 채우는 필수 블록:
- * <ul>
- *   <li>{@code originProduct} — statusType/saleType/leafCategoryId/name/detailContent/images/
- *       salePrice/stockQuantity/deliveryInfo/detailAttribute</li>
- *   <li>{@code deliveryInfo.claimDeliveryInfo} — 반품·교환 배송비 + 출고지·반품지 주소록 ID</li>
- *   <li>{@code detailAttribute} — A/S 정보, 원산지, 상품정보제공고시, 판매자 관리코드,
- *       미성년자 구매 가능 여부, 인증대상 제외 사유</li>
- *   <li>{@code smartstoreChannelProduct} — 네이버쇼핑 등록 여부 + 전시 상태</li>
- * </ul>
- *
- * <p>계정 종속값(주소록 ID·A/S 전화)은 {@link MarketPublishContext#extraFields()}로 들어온다.
- * 비어 있으면 초안 단계 검증에서 이미 걸러졌어야 하지만, 방어적으로 여기서도 확인해
- * <b>빈 값으로 마켓에 보내지 않는다</b> — 400 응답 메시지보다 우리 예외 메시지가 원인을 잘 설명한다.
- */
 @Component
 public class SmartstoreProductPayloadBuilder {
 
-	/** 재고 실수량을 추적하지 않는다(판매중/품절 이분법) — 기존 Product 규약과 동일. */
 	private static final int IN_STOCK_QUANTITY = Product.DEFAULT_IN_STOCK_QUANTITY;
 
-	/** 건강기능식품 고시 유형(커머스API 코드). */
 	private static final String NOTICE_TYPE_HEALTH = "HEALTH_FUNCTIONAL_FOOD";
-	/** 가공식품 고시 유형. */
 	private static final String NOTICE_TYPE_PROCESSED = "PROCESSED_FOOD";
 
 	public Map<String, Object> build(Product product, MarketPublishContext context) {
@@ -67,14 +42,11 @@ public class SmartstoreProductPayloadBuilder {
 
 		Map<String, Object> body = new LinkedHashMap<>();
 		body.put("originProduct", originProduct);
-		// REQUIRED — 이 블록이 없으면 채널 상품이 만들어지지 않아 스토어에 노출되지 않는다.
 		body.put("smartstoreChannelProduct", Map.of(
 			"naverShoppingRegistration", true,
 			"channelProductDisplayStatusType", "ON"));
 		return body;
 	}
-
-	// --- 블록별 ---
 
 	private Map<String, Object> images(Product product) {
 		List<String> hosted = product.getHostedImages();
@@ -84,7 +56,6 @@ public class SmartstoreProductPayloadBuilder {
 		Map<String, Object> images = new LinkedHashMap<>();
 		images.put("representativeImage", Map.of("url", hosted.get(0)));
 		if (hosted.size() > 1) {
-			// 추가 이미지는 최대 9장.
 			List<Map<String, String>> optional = new ArrayList<>();
 			for (String url : hosted.subList(1, Math.min(hosted.size(), 10))) {
 				optional.add(Map.of("url", url));
@@ -101,7 +72,6 @@ public class SmartstoreProductPayloadBuilder {
 		claim.put("exchangeDeliveryFee", context.extraInt("exchangeDeliveryFee", 14000));
 		claim.put("shippingAddressId", asLong(shippingAddressId));
 		claim.put("returnAddressId", asLong(returnAddressId));
-		// 구매대행은 주문 후 해외 배송이라 반품 안내를 별도로 남긴다.
 		claim.put("freeReturnInsuranceYn", false);
 
 		Map<String, Object> deliveryFee = new LinkedHashMap<>();
@@ -116,7 +86,6 @@ public class SmartstoreProductPayloadBuilder {
 		delivery.put("deliveryBundleGroupUsable", false);
 		delivery.put("deliveryFee", deliveryFee);
 		delivery.put("claimDeliveryInfo", claim);
-		// 해외 배송이라 출고까지 여유를 둔다(쿠팡 outboundShippingTimeDay=3과 동일 가정).
 		delivery.put("todayStockQuantity", 0);
 		delivery.put("expectedDeliveryPeriodType", "OVERSEAS_DELIVERY");
 		return delivery;
@@ -145,7 +114,6 @@ public class SmartstoreProductPayloadBuilder {
 
 		attr.put("minorPurchasable", true);
 		attr.put("productInfoProvidedNotice", productInfoProvidedNotice(product, context));
-		// 별도 인증 대상이 아님을 명시하지 않으면 심사에서 반려된다.
 		attr.put("certificationTargetExcludeContent", Map.of(
 			"childCertifiedProductExclusionYn", true,
 			"kcExemptionType", "OVERSEAS",
@@ -154,12 +122,6 @@ public class SmartstoreProductPayloadBuilder {
 		return attr;
 	}
 
-	/**
-	 * 상품정보제공고시.
-	 *
-	 * <p>초안이 만든 마켓 중립 고시 항목({@code noticeFields})을 커머스API 스키마로 옮긴다.
-	 * 값이 비어 있으면 "상세설명 참조"로 채운다 — 빈 문자열을 보내면 마켓이 거절한다.
-	 */
 	private Map<String, Object> productInfoProvidedNotice(Product product,
 		MarketPublishContext context) {
 		Map<String, String> notice = context.noticeFields();
@@ -198,8 +160,6 @@ public class SmartstoreProductPayloadBuilder {
 		String origin = product.getSourcingInfo().getOrigin();
 		return origin == null || origin.isBlank() ? "상세설명 참조" : origin;
 	}
-
-	// --- 유틸 ---
 
 	private String require(String value, String label) {
 		if (value == null || value.isBlank()) {

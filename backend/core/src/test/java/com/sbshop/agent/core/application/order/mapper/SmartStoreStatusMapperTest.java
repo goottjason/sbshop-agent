@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.mapper;
 
+import java.util.HashMap;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
@@ -8,7 +9,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class SmartStoreStatusMapperTest {
-
 	private final SmartStoreStatusMapper mapper = new SmartStoreStatusMapper();
 
 	@Test
@@ -59,7 +59,7 @@ class SmartStoreStatusMapperTest {
 	@Test
 	@DisplayName("D-117: placeOrderStatus 누락(null)이어도 NPE 없이 NEW로 매핑")
 	void payedWithNullPlaceOrderStatus_mapsToNewWithoutException() {
-		Map<String, String> statuses = new java.util.HashMap<>();
+		Map<String, String> statuses = new HashMap<>();
 		statuses.put("status", "PAYED");
 		statuses.put("placeOrderStatus", null);
 

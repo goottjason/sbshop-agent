@@ -19,17 +19,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
-/**
- * F-PSRC-13 / R3 멱등성: {@link MarketRegistrationTxService#savePending}의 재게시 멱등 동작 검증.
- * <ul>
- *   <li>순차 재호출: 기존 행이 있으면 재사용(insert 안 함).</li>
- *   <li>동시 재호출 경쟁: insert가 유니크 제약 위반(DataIntegrityViolationException)을 받으면
- *       상대 트랜잭션이 커밋한 행을 재조회해 재사용(멱등 보장).</li>
- * </ul>
- */
 @ExtendWith(MockitoExtension.class)
 class MarketRegistrationTxServiceSavePendingTest {
-
 	@Mock
 	private MarketRegistrationRepository repository;
 
@@ -58,7 +49,7 @@ class MarketRegistrationTxServiceSavePendingTest {
 	void concurrentRace_recoversByRequery() {
 		MarketRegistration winner = MarketRegistration.builder()
 			.productId(PRODUCT_ID).marketType(MARKET).marketProductName("먼저커밋").build();
-		// 1차 조회는 비어있어 insert 시도 → 제약 위반 → 재조회 시 상대 행 발견.
+
 		when(repository.findByProductIdAndMarketType(PRODUCT_ID, MARKET))
 			.thenReturn(Optional.empty())
 			.thenReturn(Optional.of(winner));

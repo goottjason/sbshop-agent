@@ -16,12 +16,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * 특성화(characterization) 테스트 — D-004 구조 통합(ImageDownloader/ImageDownloadService → 단일
- * ImageDownloadClient 구현) 전후의 다운로드 동작 불변을 고정한다. 이 구현체가 존재하는 이유는 크롤링 대상
- * 사이트의 Cloudflare 봇 차단을 우회하기 위한 브라우저 User-Agent 전송이므로, 그 동작을 회귀 방지 대상으로
- * 명시적으로 고정한다.
- */
 class ImageDownloadServiceCharacterizationTest {
 
 	private HttpServer server;

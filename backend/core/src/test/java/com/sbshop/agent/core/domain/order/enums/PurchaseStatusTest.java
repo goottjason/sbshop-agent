@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 class PurchaseStatusTest {
-
 	@Test
 	void 세_가지_값이_존재한다() {
 		assertThat(PurchaseStatus.values()).hasSize(3);

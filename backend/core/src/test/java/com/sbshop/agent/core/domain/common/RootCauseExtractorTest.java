@@ -5,11 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * F-SYNC-14: 3곳에 복붙돼 있던 root-cause 추출 로직을 공통 유틸로 통합.
- * 기존 3개 호출부(OrderSyncController preview/carriers, Cafe24OrderSyncService.failureReason)의
- * 동작을 그대로 보존하는지 특성화 검증.
- */
 class RootCauseExtractorTest {
 
 	@Test
@@ -36,7 +31,7 @@ class RootCauseExtractorTest {
 	@Test
 	@DisplayName("최심 원인 메시지가 null이면 null을 반환한다(String.valueOf 시 \"null\")")
 	void returnsNullWhenDeepestMessageNull() {
-		Throwable root = new NullPointerException(); // getMessage() == null
+		Throwable root = new NullPointerException();
 		Throwable top = new RuntimeException("wrap", root);
 		assertThat(RootCauseExtractor.rootMessage(top)).isNull();
 	}

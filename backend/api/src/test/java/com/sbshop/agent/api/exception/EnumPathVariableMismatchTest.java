@@ -16,15 +16,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-/**
- * SP-7 / F-CRED-4: enum 타입 경로변수 바인딩 실패가 500이 아니라 400으로 표면화되는지 검증.
- *
- * <p>{@code GET /api/v1/market-credentials/{marketType}}에서 {@code marketType}이
- * {@code MarketType} enum으로 바인딩되지 못하면 Spring MVC가
- * {@code MethodArgumentTypeMismatchException}을 던진다. 이 예외는 사용자 입력 오류이므로
- * 400이어야 하지만, 전용 핸들러가 없으면 {@code GlobalExceptionHandler}의 일반
- * {@code Exception} 핸들러로 떨어져 500으로 응답된다(Red).
- */
 @ExtendWith(MockitoExtension.class)
 class EnumPathVariableMismatchTest {
 

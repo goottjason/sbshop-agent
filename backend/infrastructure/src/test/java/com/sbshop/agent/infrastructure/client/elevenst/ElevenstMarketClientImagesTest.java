@@ -20,9 +20,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * D-092: ElevenstMarketClient.syncImagesAndHtml — 전체전문 GET 라운드트립 경로 테스트.
- */
 @ExtendWith(MockitoExtension.class)
 class ElevenstMarketClientImagesTest {
 

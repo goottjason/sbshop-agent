@@ -6,14 +6,7 @@ import com.sbshop.agent.core.domain.sourcing.component.SearchKeywordDeriver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * iHerb 상품명 → 국내 검색 키워드 추출 규칙을 고정한다.
- *
- * <p>여기가 틀리면 네이버 검색량이 0으로 나와 <b>잘 팔릴 상품이 조용히 낮은 점수</b>를 받는다.
- * 실패가 눈에 안 띄는 종류라 예시를 실제 iHerb 상품명으로 고정해 둔다.
- */
 class SearchKeywordDeriverTest {
-
 	@Test
 	@DisplayName("브랜드 블록과 말미 수량을 떼고 성분 핵심부만 남긴다")
 	void stripsBrandBlockAndQuantity() {
@@ -56,7 +49,7 @@ class SearchKeywordDeriverTest {
 		assertThat(SearchKeywordDeriver.extractKoreanBrand(
 			"California Gold Nutrition (캘리포니아골드뉴트리션), 비타민D3"))
 			.isEqualTo("캘리포니아골드뉴트리션");
-		// 괄호 안이 영문뿐이면 한글 브랜드가 아니다.
+
 		assertThat(SearchKeywordDeriver.extractKoreanBrand("Now Foods (NOW), Vitamin C")).isNull();
 	}
 

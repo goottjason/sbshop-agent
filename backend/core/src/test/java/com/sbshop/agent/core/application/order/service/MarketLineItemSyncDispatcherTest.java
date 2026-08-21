@@ -1,5 +1,8 @@
 package com.sbshop.agent.core.application.order.service;
 
+import com.sbshop.agent.core.domain.order.vo.SettlementData;
+import org.mockito.Mockito;
+import org.slf4j.LoggerFactory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -43,19 +46,9 @@ import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import com.sbshop.agent.core.domain.order.vo.SourcingData;
 
-/**
- * 3계층 반영의 <b>마켓 공통 규율</b>을 한 곳에서 고정한다.
- *
- * <p>11번가(D-134)·쿠팡(D-137)을 전환하며 이 로직이 거의 그대로 두 번 복제됐고, 규율도 두 곳에서
- * 따로 검증되고 있었다. 골격을 추출한 뒤로는 <b>여기가 정본</b>이다 — Cafe24·N스토어를 더할 때
- * 같은 규율을 다시 테스트하지 않아도 되고, 규율을 바꿀 때 고칠 곳이 한 군데다.
- *
- * <p>마켓별 테스트는 <b>정책만</b> 검증하면 된다(상품 해석·정산액 산출).
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class MarketLineItemSyncDispatcherTest {
-
 	@Mock
 	private OrderLineItemRepository orderLineItemRepository;
 	@Mock
@@ -66,16 +59,14 @@ class MarketLineItemSyncDispatcherTest {
 	private final List<OrderLineItem> saved = new ArrayList<>();
 	private final AtomicLong lineItemIds = new AtomicLong(1000);
 	private final AtomicLong shipmentIds = new AtomicLong(10);
-	/** 정책이 해석해 줄 상품 ID — key는 상품주문 식별자. 없으면 매핑 불가를 뜻한다. */
 	private final Map<String, Long> productBySeq = new LinkedHashMap<>();
 	private int createCalls;
-	/** 경고가 실제로 나가는지 본다 — 조용한 실패가 이 결함의 본체였다(2026-08-12 유령 리스팅). */
 	private final ListAppender<ILoggingEvent> logs = new ListAppender<>();
 
 	@BeforeEach
 	void setUp() {
 		logs.start();
-		((Logger)org.slf4j.LoggerFactory.getLogger(MarketLineItemSyncDispatcher.class)).addAppender(logs);
+		((Logger)LoggerFactory.getLogger(MarketLineItemSyncDispatcher.class)).addAppender(logs);
 		dispatcher = new MarketLineItemSyncDispatcher(orderLineItemRepository,
 			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
 
@@ -103,18 +94,20 @@ class MarketLineItemSyncDispatcherTest {
 
 	@AfterEach
 	void tearDown() {
-		((Logger)org.slf4j.LoggerFactory.getLogger(MarketLineItemSyncDispatcher.class))
+		((Logger)LoggerFactory.getLogger(MarketLineItemSyncDispatcher.class))
 			.detachAppender(logs);
 	}
 
-	private List<String> warnings() {
-		return logs.list.stream()
-			.filter(e -> e.getLevel() == Level.WARN)
-			.map(ILoggingEvent::getFormattedMessage)
-			.toList();
+	@Test
+	@DisplayName("배송 계층이 없으면 아무것도 하지 않는다 — 평면 DTO가 새어들어도 파괴하지 않는다")
+	void skipsWhenNoShipments() {
+		dispatcher.sync(order(), MarketOrderDto.builder().marketOrderNo("ORD-1").build(),
+			List.of(), policy);
+
+		assertThat(saved).isEmpty();
+		assertThat(createCalls).isZero();
 	}
 
-	/** 마켓 정책 대역 — 상품 해석과 생성만 담당한다(골격이 갖지 않는 것). */
 	private final MarketLineItemSyncPolicy policy = new MarketLineItemSyncPolicy() {
 		@Override
 		public String logTag() {
@@ -143,51 +136,9 @@ class MarketLineItemSyncDispatcherTest {
 		}
 	};
 
-	private Order order() {
-		Order o = Order.builder().marketOrderNo("ORD-1").build();
-		ReflectionTestUtils.setField(o, "id", 55L);
-		return o;
-	}
-
-	private MarketLineItemDto item(String seq, ShippingStatus status) {
-		return MarketLineItemDto.builder()
-			.marketLineItemNo(seq).quantity(1)
-			.orderPrice(BigDecimal.TEN).totalAmount(BigDecimal.TEN)
-			.status(status).build();
-	}
-
-	private MarketShipmentDto shipment(String no, String tracking, MarketLineItemDto... items) {
-		return MarketShipmentDto.builder()
-			.marketShipmentNo(no).trackingNo(tracking)
-			.carrier(tracking == null ? null : ShippingCarrier.CJ_LOGISTICS)
-			.lineItems(List.of(items)).build();
-	}
-
-	private MarketOrderDto dto(MarketShipmentDto... shipments) {
-		return MarketOrderDto.builder()
-			.marketOrderNo("ORD-1").shipments(List.of(shipments)).build();
-	}
-
-	private OrderLineItem legacy(Long productId) {
-		OrderLineItem li = OrderLineItem.builder().orderId(55L).quantity(1).productId(productId).build();
-		ReflectionTestUtils.setField(li, "id", 500L);
-		return li;
-	}
-
-	@Test
-	@DisplayName("배송 계층이 없으면 아무것도 하지 않는다 — 평면 DTO가 새어들어도 파괴하지 않는다")
-	void skipsWhenNoShipments() {
-		dispatcher.sync(order(), MarketOrderDto.builder().marketOrderNo("ORD-1").build(),
-			List.of(), policy);
-
-		assertThat(saved).isEmpty();
-		assertThat(createCalls).isZero();
-	}
-
 	@Test
 	@DisplayName("상품 해석은 상품주문당 한 번만 부른다 — 부수효과 있는 구현이 중복 실행되면 안 된다")
 	void resolvesProductOncePerLineItem() {
-		// 쿠팡 구현은 vendorItemId 보강 저장을 한다. 두 번 부르면 저장이 두 번 일어났다(2026-08-06).
 		List<String> calls = new ArrayList<>();
 		MarketLineItemSyncPolicy counting = new MarketLineItemSyncPolicy() {
 			@Override
@@ -221,7 +172,6 @@ class MarketLineItemSyncDispatcherTest {
 	@Test
 	@DisplayName("매칭은 주문 전체에서 한 번 한다 — 상품주문이 다른 배송으로 옮겨가도 중복이 생기지 않는다")
 	void matchesAcrossShipmentBoundary() {
-		// 배송별로 나눠 매칭하면 같은 기존 행을 두 배송이 각각 채택해 라인아이템이 두 벌 생긴다.
 		OrderLineItem existing = legacy(7L);
 		existing.assignMarketLineItemNo("2");
 		productBySeq.put("1", 8L);
@@ -232,7 +182,6 @@ class MarketLineItemSyncDispatcherTest {
 			shipment("D2", "T2", item("2", ShippingStatus.SHIPPED))),
 			new ArrayList<>(List.of(existing)), policy);
 
-		// 기존 행은 두 번째 배송의 상품주문으로 정확히 짝지어지고, 첫 번째만 새로 생긴다.
 		assertThat(createCalls).isEqualTo(1);
 		assertThat(existing.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.SHIPPED);
 		assertThat(existing.getShipmentId()).isNotNull();
@@ -269,14 +218,12 @@ class MarketLineItemSyncDispatcherTest {
 	@Test
 	@DisplayName("상품을 식별할 수 없고 짝짓지 못한 기존 행이 있으면 분할을 미룬다")
 	void defersSplitWhenProductUnidentifiable() {
-		// 빈 껍데기 행과 고아 행을 동시에 만드는 조합. 라이브에서 실제로 터졌다(D-136).
 		OrderLineItem existing = OrderLineItem.builder()
 			.orderId(55L).quantity(1).productId(7L)
 			.purchaseStatus(PurchaseStatus.PURCHASED)
 			.sourcingData(SourcingData.builder().sourcingOrderNo("IHB-1").build())
 			.build();
 		ReflectionTestUtils.setField(existing, "id", 500L);
-		// productBySeq 비움 → 두 상품주문 모두 매핑 불가
 
 		dispatcher.sync(order(), dto(shipment("D1", "T1",
 			item("1", ShippingStatus.SHIPPED), item("2", ShippingStatus.SHIPPED))),
@@ -312,7 +259,6 @@ class MarketLineItemSyncDispatcherTest {
 		dispatcher.sync(order(), dto(shipment("D1", "T1", item("1", ShippingStatus.SHIPPED))),
 			new ArrayList<>(List.of(stale)), policy);
 
-		// 우리 고유 정보가 붙어 있을 수 있으므로 남긴다. 삭제 호출이 없어야 한다.
 		assertThat(stale.getMarketLineItemNo()).isEqualTo("9");
 		assertThat(saved).doesNotContain(stale);
 	}
@@ -326,40 +272,14 @@ class MarketLineItemSyncDispatcherTest {
 		dispatcher.sync(order(), dto(shipment("D1", "T1",
 			item("1", ShippingStatus.NEW), item("2", ShippingStatus.NEW))), List.of(), policy);
 
-		// 배송 저장은 배송식별자당 1회 — 상품주문 수만큼 부르면 중복 생성·경합이 생긴다.
-		org.mockito.Mockito.verify(shipmentRepository, org.mockito.Mockito.times(1))
+		Mockito.verify(shipmentRepository, Mockito.times(1))
 			.save(any(Shipment.class));
 		assertThat(saved).hasSize(2);
-	}
-
-	/** D-160: 정산액을 가진 상품주문. */
-	private MarketLineItemDto itemWithSettlement(String seq, ShippingStatus status, String settlement) {
-		return MarketLineItemDto.builder()
-			.marketLineItemNo(seq).quantity(1)
-			.orderPrice(BigDecimal.TEN).totalAmount(BigDecimal.TEN)
-			.settlementAmount(settlement == null ? null : new BigDecimal(settlement))
-			.status(status).build();
-	}
-
-	/** D-160: 기존 라인아이템 — 정산액·검증플래그를 지정해 손상 상태를 재현한다. */
-	private OrderLineItem existing(String seq, ShippingStatus status, String settlement,
-		boolean verified) {
-		OrderLineItem li = OrderLineItem.builder().orderId(55L).quantity(1).productId(7L)
-			.marketLineItemNo(seq)
-			.shippingData(ShippingData.builder().shippingStatus(status).build())
-			.settlementData(com.sbshop.agent.core.domain.order.vo.SettlementData.builder()
-				.settlementAmount(settlement == null ? null : new BigDecimal(settlement))
-				.settlementVerified(verified).build())
-			.build();
-		ReflectionTestUtils.setField(li, "id", 467L);
-		return li;
 	}
 
 	@Test
 	@DisplayName("[D-160] 종결 전인데 정산액이 0이면 마켓 값으로 되살린다 — 거짓 취소가 남긴 손상을 스스로 복구한다")
 	void recoversZeroedSettlementOnLiveLineItem() {
-		// 2026-08-08 사고 재현: 거짓 취소로 0+verified가 됐고, 다음 동기화가 상태만 복원했다.
-		// 정산 0은 환불일 때만 정당하다 — 종결 전 주문의 0은 사실이 아니라 손상이다.
 		OrderLineItem damaged = existing("1", ShippingStatus.CANCELED, "0", true);
 		productBySeq.put("1", 7L);
 
@@ -368,7 +288,6 @@ class MarketLineItemSyncDispatcherTest {
 			new ArrayList<>(List.of(damaged)), policy);
 
 		assertThat(damaged.getSettlementData().getSettlementAmount()).isEqualByComparingTo("25098");
-		// 마켓 실측이 아니라 되살린 값이므로 "검증됨"을 주장하지 않는다.
 		assertThat(damaged.getSettlementData().getSettlementVerified()).isFalse();
 	}
 
@@ -415,8 +334,6 @@ class MarketLineItemSyncDispatcherTest {
 	@Test
 	@DisplayName("상품을 못 붙인 라인아이템은 경고로 드러낸다 — 마켓 식별자를 실어서")
 	void warnsWhenLineItemEndsWithoutProduct() {
-		// 2026-08-12 라이브: G마켓 유령 리스팅 주문(product_no=-99999)이 조용히 product_id=NULL로
-		// 남았다. 경고가 없어 사람이 알아챌 방법이 주문 화면의 '-' 뿐이었다.
 		MarketLineItemDto orphan = MarketLineItemDto.builder()
 			.marketLineItemNo("1").quantity(2)
 			.orderPrice(BigDecimal.TEN).totalAmount(BigDecimal.TEN)
@@ -449,7 +366,6 @@ class MarketLineItemSyncDispatcherTest {
 	@Test
 	@DisplayName("정책이 상품을 못 줘도 채택한 기존 행이 이미 알고 있으면 경고하지 않는다")
 	void doesNotWarnWhenAdoptedRowAlreadyKnowsProduct() {
-		// 이 경우 값은 멀쩡하다 — 경고를 내면 사람이 무시하는 법을 배운다.
 		OrderLineItem existing = legacy(7L);
 
 		dispatcher.sync(order(), dto(shipment("D1", "T1", item("1", ShippingStatus.SHIPPED))),
@@ -457,5 +373,64 @@ class MarketLineItemSyncDispatcherTest {
 
 		assertThat(existing.getProductId()).isEqualTo(7L);
 		assertThat(warnings()).noneMatch(msg -> msg.contains("상품 미매핑"));
+	}
+
+	private List<String> warnings() {
+		return logs.list.stream()
+			.filter(e -> e.getLevel() == Level.WARN)
+			.map(ILoggingEvent::getFormattedMessage)
+			.toList();
+	}
+
+	private Order order() {
+		Order o = Order.builder().marketOrderNo("ORD-1").build();
+		ReflectionTestUtils.setField(o, "id", 55L);
+		return o;
+	}
+
+	private MarketLineItemDto item(String seq, ShippingStatus status) {
+		return MarketLineItemDto.builder()
+			.marketLineItemNo(seq).quantity(1)
+			.orderPrice(BigDecimal.TEN).totalAmount(BigDecimal.TEN)
+			.status(status).build();
+	}
+
+	private MarketShipmentDto shipment(String no, String tracking, MarketLineItemDto... items) {
+		return MarketShipmentDto.builder()
+			.marketShipmentNo(no).trackingNo(tracking)
+			.carrier(tracking == null ? null : ShippingCarrier.CJ_LOGISTICS)
+			.lineItems(List.of(items)).build();
+	}
+
+	private MarketOrderDto dto(MarketShipmentDto... shipments) {
+		return MarketOrderDto.builder()
+			.marketOrderNo("ORD-1").shipments(List.of(shipments)).build();
+	}
+
+	private OrderLineItem legacy(Long productId) {
+		OrderLineItem li = OrderLineItem.builder().orderId(55L).quantity(1).productId(productId).build();
+		ReflectionTestUtils.setField(li, "id", 500L);
+		return li;
+	}
+
+	private MarketLineItemDto itemWithSettlement(String seq, ShippingStatus status, String settlement) {
+		return MarketLineItemDto.builder()
+			.marketLineItemNo(seq).quantity(1)
+			.orderPrice(BigDecimal.TEN).totalAmount(BigDecimal.TEN)
+			.settlementAmount(settlement == null ? null : new BigDecimal(settlement))
+			.status(status).build();
+	}
+
+	private OrderLineItem existing(String seq, ShippingStatus status, String settlement,
+		boolean verified) {
+		OrderLineItem li = OrderLineItem.builder().orderId(55L).quantity(1).productId(7L)
+			.marketLineItemNo(seq)
+			.shippingData(ShippingData.builder().shippingStatus(status).build())
+			.settlementData(SettlementData.builder()
+				.settlementAmount(settlement == null ? null : new BigDecimal(settlement))
+				.settlementVerified(verified).build())
+			.build();
+		ReflectionTestUtils.setField(li, "id", 467L);
+		return li;
 	}
 }

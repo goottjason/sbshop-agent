@@ -10,12 +10,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
-/**
- * Phase 1 파생결함: by-supplier 배치에서 supplierCode가 null/blank이면 toUpperCase() NPE로 500이 났다.
- * 사용자 입력 오류이므로 IllegalArgumentException(→400)으로 표면화한다.
- */
 @ExtendWith(MockitoExtension.class)
 class BatchControllerSupplierValidationTest {
 
@@ -28,7 +26,7 @@ class BatchControllerSupplierValidationTest {
 
 	private BatchController controller() {
 		return new BatchController(batchPriceStockService, processStatusService, actionLogService,
-			org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
+			Mockito.mock(ApplicationEventPublisher.class));
 	}
 
 	private SupplierBatchRequest requestWith(String supplierCode) {

@@ -10,10 +10,10 @@ import com.sbshop.agent.api.dto.sourcing.SourcingDtos.DraftFailure;
 import com.sbshop.agent.api.dto.sourcing.SourcingDtos.DraftResponse;
 import com.sbshop.agent.api.dto.sourcing.SourcingDtos.PublishDraftResponse;
 import com.sbshop.agent.api.dto.sourcing.SourcingDtos.UpdateDraftRequest;
+import com.sbshop.agent.api.service.SourcingDiscoveryRunner;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.sourcing.SourcingQueryService;
 import com.sbshop.agent.core.application.sourcing.customs.BannedIngredientSyncService;
-import com.sbshop.agent.api.service.SourcingDiscoveryRunner;
 import com.sbshop.agent.core.application.sourcing.discovery.SourcingConfigService;
 import com.sbshop.agent.core.application.sourcing.dto.DiscoverySummary;
 import com.sbshop.agent.core.application.sourcing.enrich.DraftEnrichmentUseCase;
@@ -37,12 +37,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 신규 상품 등록 자동화 API.
- *
- * <p>발굴 실행은 브라우저 렌더 크롤이 수 분~수십 분 걸려 <b>비동기</b>다. 요청은 즉시 202로
- * 돌려주고 진행 상황은 활동로그·후보 목록 갱신으로 확인한다.
- */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/sourcing")
@@ -58,18 +52,13 @@ public class SourcingDiscoveryController {
 	private final BannedIngredientSyncService bannedIngredientSyncService;
 	private final ActionLogService actionLogService;
 
-	// ── 발굴 ──────────────────────────────────────────────────────────────
-
 	@PostMapping("/discovery/run")
 	public ResponseEntity<Map<String, Object>> runDiscovery() {
-		// 중복 실행은 iHerb에 불필요한 부하를 주고 서로의 결과를 덮어쓴다.
 		if (!discoveryRunner.tryStart()) {
 			return ResponseEntity.status(409)
 				.body(Map.of("message", "발굴이 이미 실행 중입니다."));
 		}
 		try {
-			// 반드시 여기(다른 빈)에서 호출해야 @Async 프록시를 탄다.
-			// runner 내부에서 부르면 self-invocation이라 동기 실행되고 이 요청이 수 분간 블록된다.
 			discoveryRunner.runAsync();
 		} catch (RuntimeException e) {
 			discoveryRunner.abort();
@@ -88,8 +77,6 @@ public class SourcingDiscoveryController {
 			"lastRun", summary == null ? Map.of() : DiscoveryRunResponse.from(summary)));
 	}
 
-	// ── 후보 ──────────────────────────────────────────────────────────────
-
 	@GetMapping("/candidates")
 	public ResponseEntity<List<CandidateResponse>> candidates(
 		@RequestParam(required = false)
@@ -100,7 +87,6 @@ public class SourcingDiscoveryController {
 			.map(CandidateResponse::from).toList());
 	}
 
-	/** 통관 차단 목록 — "왜 이 상품이 추천에 없나"를 확인하는 경로. */
 	@GetMapping("/candidates/customs-blocked")
 	public ResponseEntity<List<CandidateResponse>> customsBlocked() {
 		return ResponseEntity.ok(queryService.customsBlocked().stream()
@@ -118,8 +104,6 @@ public class SourcingDiscoveryController {
 	Long id) {
 		return ResponseEntity.ok(CandidateResponse.from(queryService.reject(id)));
 	}
-
-	// ── 초안 ──────────────────────────────────────────────────────────────
 
 	@PostMapping("/drafts")
 	public ResponseEntity<CreateDraftsResponse> createDrafts(
@@ -193,8 +177,6 @@ public class SourcingDiscoveryController {
 		}
 	}
 
-	// ── 설정 ──────────────────────────────────────────────────────────────
-
 	@GetMapping("/config")
 	public ResponseEntity<ConfigResponse> config() {
 		return ResponseEntity.ok(ConfigResponse.from(configService.getOrCreate()));
@@ -209,8 +191,6 @@ public class SourcingDiscoveryController {
 			r.couponRate(), r.rejectCooldownDays(), r.excludeSponsored(), r.minReviewCount(),
 			r.minRating(), r.scheduleEnabled(), r.scheduleCron())));
 	}
-
-	// ── 통관 성분 DB ───────────────────────────────────────────────────────
 
 	@PostMapping("/customs/sync-banned")
 	public ResponseEntity<BannedIngredientSyncService.SyncResult> syncBanned() {

@@ -7,33 +7,7 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * D-107(전 마켓 확장): 마켓 동기화 병합(9-arg {@link Order#update})은 개인정보 필드를
- * 빈 문자열·공백·마스킹값으로 기존 실값을 덮어써선 안 된다.
- *
- * <p>마켓들은 배송중·배송완료·오래된 주문에서 개인정보 보호차원으로 이름/주소를 반환하지 않거나
- * ("") 마스킹("정*영")해 내려준다. 전화번호는 이미 {@code isUsablePhone}로 보호되고 있었으나
- * 이름·주소·우편번호·구매자명은 {@code != null}로만 가드해 ""·마스킹값이 실값을 덮어썼다.
- * 이 테스트는 이름/주소/우편/구매자명은 blank+mask, 메시지는 blank를 거부함을 고정한다.
- * (수동 편집 클리어는 {@code updateAddress} 등 별도 경로이므로 영향 없음.)
- */
 class OrderSyncMergeGuardTest {
-
-	private Order existingOrder() {
-		return Order.builder()
-			.marketType(MarketType.COUPANG)
-			.marketOrderNo("O-1")
-			.orderDate(LocalDateTime.now())
-			.recipientName("정채영")
-			.recipientPhone("010-1234-5678")
-			.zipcode("06134")
-			.address("서울시 강남구 테헤란로 1")
-			.message("문앞에 놓아주세요")
-			.ordererName("김주문")
-			.ordererPhone("010-9876-5432")
-			.build();
-	}
-
 	@Test
 	@DisplayName("빈 문자열 이름/주소/우편/구매자명/메시지는 기존 실값을 덮지 않는다")
 	void blankValues_doNotOverwrite() {
@@ -79,5 +53,20 @@ class OrderSyncMergeGuardTest {
 		assertThat(order.getRecipientName()).isEqualTo("정채영");
 		assertThat(order.getAddress()).isEqualTo("서울시 강남구 테헤란로 1");
 		assertThat(order.getMessage()).isEqualTo("문앞에 놓아주세요");
+	}
+
+	private Order existingOrder() {
+		return Order.builder()
+			.marketType(MarketType.COUPANG)
+			.marketOrderNo("O-1")
+			.orderDate(LocalDateTime.now())
+			.recipientName("정채영")
+			.recipientPhone("010-1234-5678")
+			.zipcode("06134")
+			.address("서울시 강남구 테헤란로 1")
+			.message("문앞에 놓아주세요")
+			.ordererName("김주문")
+			.ordererPhone("010-9876-5432")
+			.build();
 	}
 }

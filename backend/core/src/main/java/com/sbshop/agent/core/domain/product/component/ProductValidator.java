@@ -1,13 +1,13 @@
 package com.sbshop.agent.core.domain.product.component;
 
 import com.sbshop.agent.core.domain.product.Product;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
 @Component
 public class ProductValidator {
-
 	public void validateForPublish(Product product) {
 		List<String> errors = new ArrayList<>();
 
@@ -21,7 +21,7 @@ public class ProductValidator {
 			errors.add("브랜드가 없습니다");
 		}
 		if (product.getPriceInfo() == null || product.getPriceInfo().getSalePrice() == null
-			|| product.getPriceInfo().getSalePrice().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+			|| product.getPriceInfo().getSalePrice().compareTo(BigDecimal.ZERO) <= 0) {
 			errors.add("판매가가 0 이하입니다");
 		}
 		if (product.getHostedImages().isEmpty()) {

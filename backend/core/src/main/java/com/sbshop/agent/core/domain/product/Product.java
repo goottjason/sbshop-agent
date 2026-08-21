@@ -34,11 +34,7 @@ import java.sql.Types;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Product extends BaseEntity {
-
-	/** 판매중 상태에서 마켓에 전송하는 기본 재고 수량(실수량 추적 안 함 — 판매중/품절 이분법). */
 	public static final int DEFAULT_IN_STOCK_QUANTITY = 999;
-
-	// --- 1. 기본 식별 정보 (Flat 필드) ---
 
 	@Column(name = "sb_code", unique = true, nullable = false, length = 50)
 	private String sbCode;
@@ -60,8 +56,6 @@ public class Product extends BaseEntity {
 	@Column(name = "category", length = 50)
 	private ProductCategory category;
 
-	// --- 2. 묶음 정보 (Value Objects) ---
-
 	@Embedded
 	private PriceInfo priceInfo;
 
@@ -77,13 +71,9 @@ public class Product extends BaseEntity {
 	@Embedded
 	private ImageInfo imageInfo;
 
-	// --- 3. 상세 설명 및 부가 정보 ---
-
 	@Column(name = "search_keywords", length = 500)
 	private String searchKeywords;
 
-	// @Lob 금지: PostgreSQL에서 @Lob String은 Large Object(OID)로 매핑돼 text 컬럼을
-	// getLong()으로 읽다 "Bad value for type long"으로 조회 전체가 깨진다 (D-021, 운영 실측).
 	@Column(name = "detail_html", columnDefinition = "text")
 	private String detailHtml;
 
@@ -97,8 +87,6 @@ public class Product extends BaseEntity {
 
 	@Column(name = "restock_date")
 	private LocalDate restockDate;
-
-	// --- 4. 생성자 (private) ---
 
 	private Product(
 		String sbCode,
@@ -131,8 +119,6 @@ public class Product extends BaseEntity {
 		this.memo = memo;
 	}
 
-	// --- 5. 도메인 팩토리 ---
-
 	public static Product create(String sbCode, ProductCreateCommand command) {
 		String safeBrand = defaultString(command.brand());
 		String safeBaseName = defaultString(command.baseName());
@@ -163,8 +149,6 @@ public class Product extends BaseEntity {
 		return created;
 	}
 
-	// --- 6. 도메인 업데이트 ---
-
 	public void update(ProductUpdateCommand command) {
 		if (command.brand() != null)
 			this.brand = command.brand();
@@ -188,6 +172,69 @@ public class Product extends BaseEntity {
 		updateProductSpec(command);
 		updateSourcingInfo(command);
 		updateImageInfo(command);
+	}
+
+	public void updateStockStatus(StockStatus status) {
+		this.stockStatus = status;
+	}
+
+	public void updateRestockDate(LocalDate restockDate) {
+		this.restockDate = restockDate;
+	}
+
+	public void updateCostPrice(BigDecimal costPrice) {
+		if (this.priceInfo == null) {
+			this.priceInfo = PriceInfo.builder().costPrice(costPrice).build();
+		} else {
+			this.priceInfo = this.priceInfo.toBuilder().costPrice(costPrice).build();
+		}
+	}
+
+	public void updateSourcingStock(Integer stock) {
+		if (this.logisticsInfo == null) {
+			this.logisticsInfo = LogisticsInfo.builder().stock(stock).build();
+		} else {
+			this.logisticsInfo = this.logisticsInfo.toBuilder().stock(stock).build();
+		}
+	}
+
+	public List<String> getHostedImages() {
+		if (this.imageInfo == null || this.imageInfo.getHostedImages() == null) {
+			return new ArrayList<>();
+		}
+		return this.imageInfo.getHostedImages();
+	}
+
+	public String getRepImageUrl() {
+		List<String> images = getHostedImages();
+		return images.isEmpty() ? "" : images.get(0);
+	}
+
+	public String getSourcingUrl() {
+		return sourcingInfo != null ? sourcingInfo.getSourceUrl() : null;
+	}
+
+	public BigDecimal getCostPrice() {
+		return priceInfo != null ? priceInfo.getCostPrice() : null;
+	}
+
+	public BigDecimal getSalePrice() {
+		return priceInfo != null ? priceInfo.getSalePrice() : null;
+	}
+
+	public Integer getStock() {
+		return logisticsInfo != null ? logisticsInfo.getStock() : null;
+	}
+
+	public VendorType getVendor() {
+		return sourcingInfo != null ? sourcingInfo.getVendor() : null;
+	}
+
+	public List<String> getSourceImages() {
+		if (this.imageInfo == null || this.imageInfo.getSourceImages() == null) {
+			return new ArrayList<>();
+		}
+		return this.imageInfo.getSourceImages();
 	}
 
 	private void updatePriceInfo(ProductUpdateCommand command) {
@@ -269,84 +316,13 @@ public class Product extends BaseEntity {
 			return;
 		ImageInfo.ImageInfoBuilder builder = this.imageInfo != null
 			? this.imageInfo.toBuilder() : ImageInfo.builder();
-		// null이면 스킵(기존 이미지 유지), 빈 리스트(non-null)면 전체 제거 (F-PROD-13)
+
 		if (command.sourceImages() != null)
 			builder.sourceImages(command.sourceImages());
 		if (command.hostedImages() != null)
 			builder.hostedImages(command.hostedImages());
 		this.imageInfo = builder.build();
 	}
-
-	// --- 7. 기존 호환성 위임 메서드 ---
-
-	public void updateStockStatus(StockStatus status) {
-		this.stockStatus = status;
-	}
-
-	public void updateRestockDate(LocalDate restockDate) {
-		this.restockDate = restockDate;
-	}
-
-	public void updateCostPrice(BigDecimal costPrice) {
-		if (this.priceInfo == null) {
-			this.priceInfo = PriceInfo.builder().costPrice(costPrice).build();
-		} else {
-			this.priceInfo = this.priceInfo.toBuilder().costPrice(costPrice).build();
-		}
-	}
-
-	public void updateSourcingStock(Integer stock) {
-		if (this.logisticsInfo == null) {
-			this.logisticsInfo = LogisticsInfo.builder().stock(stock).build();
-		} else {
-			this.logisticsInfo = this.logisticsInfo.toBuilder().stock(stock).build();
-		}
-	}
-
-	// --- 8. 이미지 헬퍼 ---
-
-	public List<String> getHostedImages() {
-		if (this.imageInfo == null || this.imageInfo.getHostedImages() == null) {
-			return new ArrayList<>();
-		}
-		return this.imageInfo.getHostedImages();
-	}
-
-	public String getRepImageUrl() {
-		List<String> images = getHostedImages();
-		return images.isEmpty() ? "" : images.get(0);
-	}
-
-	// --- 8-1. 기존 호환성 위임 게터 ---
-
-	public String getSourcingUrl() {
-		return sourcingInfo != null ? sourcingInfo.getSourceUrl() : null;
-	}
-
-	public BigDecimal getCostPrice() {
-		return priceInfo != null ? priceInfo.getCostPrice() : null;
-	}
-
-	public BigDecimal getSalePrice() {
-		return priceInfo != null ? priceInfo.getSalePrice() : null;
-	}
-
-	public Integer getStock() {
-		return logisticsInfo != null ? logisticsInfo.getStock() : null;
-	}
-
-	public VendorType getVendor() {
-		return sourcingInfo != null ? sourcingInfo.getVendor() : null;
-	}
-
-	public List<String> getSourceImages() {
-		if (this.imageInfo == null || this.imageInfo.getSourceImages() == null) {
-			return new ArrayList<>();
-		}
-		return this.imageInfo.getSourceImages();
-	}
-
-	// --- 9. 도메인 내부 헬퍼 ---
 
 	private static ProductCategory determineCategory(String rawCategory) {
 		if (rawCategory == null)
@@ -379,7 +355,7 @@ public class Product extends BaseEntity {
 
 	private static LogisticsInfo createLogisticsInfo(ProductCreateCommand command, int bundleQty) {
 		return LogisticsInfo.builder()
-			.stock(DEFAULT_IN_STOCK_QUANTITY) // 기존: command.isAvailable() ? 999 : 0
+			.stock(DEFAULT_IN_STOCK_QUANTITY)
 			.weight(defaultIfNull(command.weight(), BigDecimal.ZERO))
 			.bundleQuantity(bundleQty)
 			.build();

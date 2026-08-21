@@ -26,13 +26,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * 11번가 신규 등록 전문의 필수필드를 고정한다.
- *
- * <p>가장 중요한 건 <b>출고지·반품지가 주소 시퀀스코드({@code addrSeqOut}/{@code addrSeqIn})</b>로
- * 나가는지다. {@code dlvCnAreaCd}(배송가능지역 01=전국)와 혼동하면 값이 있어도
- * "출고지 주소를 확인해주세요"로 거절된다 — D-092에서 실제로 부딪힌 벽이다.
- */
 @ExtendWith(MockitoExtension.class)
 class ElevenstMarketClientPublishTest {
 
@@ -92,7 +85,6 @@ class ElevenstMarketClientPublishTest {
 		assertThat(xml).contains("<addrSeqIn>3</addrSeqIn>");
 		assertThat(xml).contains("<outsideYnOut>Y</outsideYnOut>");
 		assertThat(xml).contains("<outsideYnIn>N</outsideYnIn>");
-		// 배송가능지역도 함께 나가지만 주소코드를 대체하지 않는다.
 		assertThat(xml).contains("<dlvCnAreaCd>01</dlvCnAreaCd>");
 	}
 
@@ -129,9 +121,6 @@ class ElevenstMarketClientPublishTest {
 	@Test
 	@DisplayName("결함 A: 카테고리가 없으면 빈 dispCtgrNo 태그로 등록을 강행하지 않고 거부한다")
 	void noCategory_rejectsPublishInsteadOfOmittingTag() {
-		// 종전 구현은 태그를 생략하고 그대로 등록해, 11번가가 나중에 카테고리 오류로 거절하거나
-		// (더 나쁘게는) 진열 없는 유령 상품을 만들었다. 11번가는 자동 카테고리 해석기가 없으므로
-		// 자동 해석 시도 없이 곧장 거부해야 한다.
 		assertThatThrownBy(() -> client.publish(product(), MarketPublishContext.empty()))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("dispCtgrNo");
@@ -146,8 +135,6 @@ class ElevenstMarketClientPublishTest {
 			.thenReturn("<Product><resultCode>500</resultCode>"
 				+ "<resultMsg>출고지 주소를 확인해주세요</resultMsg></Product>");
 
-		// 종전 구현은 "11ST-{sbCode}" 가짜 ID를 만들어 등록 성공으로 저장했고,
-		// 존재하지 않는 상품에 대한 이후 가격·재고 동기화가 매번 실패했다.
 		assertThatThrownBy(() -> client.publish(product(), context()))
 			.isInstanceOf(RuntimeException.class)
 			.hasMessageContaining("출고지 주소를 확인해주세요");

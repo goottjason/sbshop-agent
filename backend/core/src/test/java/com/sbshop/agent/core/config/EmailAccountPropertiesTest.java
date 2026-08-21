@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.sbshop.agent.core.config.EmailAccountProperties.Account;
 import java.util.List;
@@ -8,10 +9,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-/**
- * EMAIL_ACCOUNTS 컴팩트 목록 파싱 — 단일 env로 N개 계정을 담고, IMAP host는 이메일 도메인으로
- * 자동 판별한다(Gmail은 중앙전달·비-Gmail은 직접 IMAP 수집). port/protocol은 993/imaps 고정.
- */
 class EmailAccountPropertiesTest {
 
 	@Nested
@@ -91,11 +88,11 @@ class EmailAccountPropertiesTest {
 			List<Account> result = EmailAccountProperties.parseCompactAccounts(raw);
 
 			assertThat(result).extracting(Account::getUsername, Account::getHost).containsExactly(
-				org.assertj.core.api.Assertions.tuple("a@naver.com", "imap.naver.com"),
-				org.assertj.core.api.Assertions.tuple("b@daum.net", "imap.daum.net"),
-				org.assertj.core.api.Assertions.tuple("c@hanmail.net", "imap.daum.net"),
-				org.assertj.core.api.Assertions.tuple("d@nate.com", "imap.nate.com"),
-				org.assertj.core.api.Assertions.tuple("e@gmail.com", "imap.gmail.com"));
+				tuple("a@naver.com", "imap.naver.com"),
+				tuple("b@daum.net", "imap.daum.net"),
+				tuple("c@hanmail.net", "imap.daum.net"),
+				tuple("d@nate.com", "imap.nate.com"),
+				tuple("e@gmail.com", "imap.gmail.com"));
 			assertThat(result).allMatch(a -> a.getPort() == 993 && "imaps".equals(a.getProtocol()));
 		}
 	}

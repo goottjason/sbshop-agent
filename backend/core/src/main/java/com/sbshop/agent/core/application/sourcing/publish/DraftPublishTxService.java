@@ -11,17 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 초안 등록 과정의 DB 쓰기 — 외부 게시를 감싸지 않는 짧은 트랜잭션들.
- *
- * <p>{@link DraftPublishUseCase}는 마켓 API를 순차 호출하므로 전체가 한 트랜잭션이면
- * 커넥션을 게시 내내 붙잡고, 마지막 마켓이 실패하면 앞선 등록 기록까지 롤백된다
- * (마켓에는 이미 올라갔는데 DB에는 없는 고아가 된다).
- */
 @Service
 @RequiredArgsConstructor
 public class DraftPublishTxService {
-
 	private final ProductDraftRepository draftRepository;
 	private final SourcingCandidateRepository candidateRepository;
 
@@ -39,7 +31,6 @@ public class DraftPublishTxService {
 		});
 	}
 
-	/** 게시 결과를 초안·마켓초안·후보에 반영한다. */
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void finish(Long draftId, Long productId, boolean allOk,
 		List<DraftPublishUseCase.MarketOutcome> outcomes) {
@@ -61,8 +52,7 @@ public class DraftPublishTxService {
 		if (allOk)
 			draft.markPublished(productId);
 		else
-			// 일부 실패는 FAILED로 둔다 — 실패 마켓만 재시도할 수 있어야 하므로
-			// productId는 채워 두고 상태만 구분한다.
+
 			draft.markFailed(productId);
 		draftRepository.save(draft);
 

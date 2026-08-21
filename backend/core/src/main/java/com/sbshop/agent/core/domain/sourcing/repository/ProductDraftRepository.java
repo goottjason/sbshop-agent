@@ -7,7 +7,6 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ProductDraftRepository extends JpaRepository<ProductDraft, Long> {
-
 	List<ProductDraft> findByDraftStatusIn(Collection<DraftStatus> statuses);
 
 	List<ProductDraft> findByCandidateId(Long candidateId);

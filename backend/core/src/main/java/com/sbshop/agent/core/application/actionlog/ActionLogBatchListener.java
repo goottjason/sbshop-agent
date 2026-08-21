@@ -7,11 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
-/**
- * 배치 완료 이벤트를 활동 로그로 자동 기록한다 (SP-F).
- * BatchCompletedEvent는 발행되나 수신처가 없어 배치가 영구 STARTED로만 남던 문제를 해소.
- * core에 두어 api(수동 배치)·worker(스케줄 배치) 양 JVM에서 DB 기록된다.
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor

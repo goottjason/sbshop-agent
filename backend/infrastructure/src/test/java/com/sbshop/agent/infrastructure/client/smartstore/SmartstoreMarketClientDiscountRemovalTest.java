@@ -20,10 +20,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * D-096: 스마트스토어 판매자 즉시할인(customerBenefit.immediateDiscountPolicy) 일괄 제거.
- * 저수수료 마켓에 마켓별 가격을 이미 낮게 산정하므로, 별도 즉시할인이 겹치면 이중할인 손해가 난다.
- */
 @ExtendWith(MockitoExtension.class)
 class SmartstoreMarketClientDiscountRemovalTest {
 
@@ -36,7 +32,6 @@ class SmartstoreMarketClientDiscountRemovalTest {
 	@BeforeEach
 	void setUp() {
 		client = new SmartstoreMarketClient(
-			// 신규 등록(publish) 전용 협력자 — 이 테스트가 검증하는 경로에서는 호출되지 않는다.
 			null, null, null, null,
 			restClient, new ObjectMapper());
 	}

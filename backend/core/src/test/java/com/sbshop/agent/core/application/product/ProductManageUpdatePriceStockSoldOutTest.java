@@ -20,14 +20,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * SP-B Task 3: 수동 가격/재고 API를 (price, soldOut) 계약으로 변경.
- * - soldOut=true → stockStatus OUT_OF_STOCK, syncPriceStock(StockStatus) 호출
- * - soldOut=false → stockStatus IN_STOCK, syncPriceStock(StockStatus) 호출
- */
 @ExtendWith(MockitoExtension.class)
 class ProductManageUpdatePriceStockSoldOutTest {
-
 	@Mock
 	private ProductReader productReader;
 	@Mock

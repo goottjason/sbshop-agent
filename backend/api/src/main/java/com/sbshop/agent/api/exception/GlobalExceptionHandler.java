@@ -15,7 +15,6 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-	// SP-7/F-CRED-4: 잘못된 enum·타입 경로변수/파라미터 바인딩 실패는 사용자 입력 오류 → 500이 아닌 400.
 	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
 	public ResponseEntity<Map<String, Object>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
 		log.warn("경로변수/파라미터 타입 오류: {}={}", e.getName(), e.getValue());
@@ -24,7 +23,6 @@ public class GlobalExceptionHandler {
 			"message", "잘못된 값입니다: " + e.getName() + "=" + e.getValue()));
 	}
 
-	// R1/F-PROD-5 등: 미존재 리소스는 400/500이 아닌 404. 입력오류(IllegalArgument→400)와 구분.
 	@ExceptionHandler(ResourceNotFoundException.class)
 	public ResponseEntity<Map<String, Object>> handleNotFound(ResourceNotFoundException e) {
 		log.warn("리소스 없음: {}", e.getMessage());
@@ -51,7 +49,6 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<Map<String, Object>> handleGeneral(Exception e, HttpServletRequest request) {
-		// SSE 스트림 요청 중 오류는 JSON 변환 불가 → 로그만 남기고 빈 응답 반환
 		if (MediaType.TEXT_EVENT_STREAM_VALUE.equals(request.getHeader("Accept"))) {
 			log.error("SSE 스트림 오류", e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();

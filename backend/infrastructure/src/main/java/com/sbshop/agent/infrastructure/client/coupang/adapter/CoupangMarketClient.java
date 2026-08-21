@@ -1,5 +1,6 @@
 package com.sbshop.agent.infrastructure.client.coupang.adapter;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,13 +52,6 @@ public class CoupangMarketClient implements MarketClient {
 		return publish(product, MarketPublishContext.empty());
 	}
 
-	/**
-	 * 검수된 마켓 초안 값을 우선 사용해 등록한다.
-	 *
-	 * <p>컨텍스트가 비어 있으면(기존 경로) 종전대로 카테고리를 자동 예측하고 태그를 규칙 생성한다.
-	 * 컨텍스트가 있으면 <b>사용자가 검수한 값</b>이 이긴다 — 검수 화면에서 고친 카테고리·판매가·
-	 * 키워드가 등록에 반영되지 않으면 검수 자체가 무의미하다.
-	 */
 	@Override
 	public Map<String, String> publish(Product product, MarketPublishContext context) {
 		log.info("[쿠팡] 상품 등록 파이프라인 가동 - SKU: {}", product.getSbCode());
@@ -102,48 +97,6 @@ public class CoupangMarketClient implements MarketClient {
 			log.error("[쿠팡] 연동 실패: {}", e.getMessage());
 			throw new RuntimeException("쿠팡 연동 오류", e);
 		}
-	}
-
-	/** 검수된 카테고리가 있으면 그 값을, 없으면 추천 API 예측값을 쓴다. */
-	private Long resolveCategoryId(Product product, MarketPublishContext context) {
-		if (context.hasCategory()) {
-			try {
-				return Long.parseLong(context.categoryId().trim());
-			} catch (NumberFormatException e) {
-				log.warn("[쿠팡] 검수 카테고리가 숫자가 아니라 자동 예측으로 폴백: {}", context.categoryId());
-			}
-		}
-		return categoryPredictor.predictCategory(product);
-	}
-
-	/** 계정 고정값 — 초안이 넘긴 출고지/반품지 코드를 우선 적용한다. */
-	private CoupangProductPayload.ShippingAccount shippingAccount(MarketPublishContext context) {
-		CoupangProductPayload.ShippingAccount base = CoupangProductPayload.ShippingAccount.legacyDefaults();
-		String outbound = context.extraString("outboundShippingPlaceCode");
-		String returnCenter = context.extraString("returnCenterCode");
-		if (outbound == null && returnCenter == null) {
-			return base;
-		}
-		Integer outboundCode = base.outboundShippingPlaceCode();
-		if (outbound != null) {
-			try {
-				outboundCode = Integer.parseInt(outbound.trim());
-			} catch (NumberFormatException e) {
-				log.warn("[쿠팡] 출고지 코드가 숫자가 아님 — 기본값 사용: {}", outbound);
-			}
-		}
-		return CoupangProductPayload.ShippingAccount.builder()
-			.vendorId(base.vendorId())
-			.vendorUserId(base.vendorUserId())
-			.outboundShippingPlaceCode(outboundCode)
-			.returnCenterCode(returnCenter != null ? returnCenter : base.returnCenterCode())
-			.returnChargeName(base.returnChargeName())
-			.companyContactNumber(base.companyContactNumber())
-			.returnZipCode(base.returnZipCode())
-			.returnAddress(base.returnAddress())
-			.returnAddressDetail(base.returnAddressDetail())
-			.returnCharge(context.extraInt("deliveryChargeOnReturn", base.returnCharge()))
-			.build();
 	}
 
 	@Override
@@ -219,88 +172,27 @@ public class CoupangMarketClient implements MarketClient {
 	@Override
 	public Map<String, Object> syncPriceAndStock(String marketItemId, Map<String, Object> currentRawData,
 		Integer price, int quantity, boolean soldOut) {
-		// 쿠팡은 vendorItemId 단위 전용 엔드포인트로 가격/재고/판매상태를 반영한다(저장된 rawData 불필요).
-		// price/quantity는 경로 파라미터, 바디 없음(HMAC는 method+path에 서명).
 		if (marketItemId == null || marketItemId.isEmpty()) {
 			throw new IllegalStateException("쿠팡 vendorItemId 없음");
 		}
-		// 자격증명 검증은 CoupangRestClient가 DB 우선(env 폴백)으로 수행 — 미설정 시 명확한 예외 전파.
 		String base = "/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/" + marketItemId;
-		// 값은 경로 파라미터. JDK HttpClient가 무바디 PUT에 Content-Length를 안 보내 Akamai가 411을 반환하므로,
-		// Coupang이 무시하는 빈 JSON 객체({})를 바디로 보내 Content-Length를 강제한다.
 		if (price != null) {
-			restClient.put(base + "/prices/" + price, java.util.Map.of());
+			restClient.put(base + "/prices/" + price, Map.of());
 		}
-		restClient.put(base + "/quantities/" + quantity, java.util.Map.of()); // 항상 ≥1
-		// 판매상태: 코드에 없던 신규 경로 — 라이브 검증 필요. 빈 JSON 바디는 기존 411 회피 관습.
-		restClient.put(base + (soldOut ? "/sales/stop" : "/sales/resume"), java.util.Map.of());
+		restClient.put(base + "/quantities/" + quantity, Map.of());
+		restClient.put(base + (soldOut ? "/sales/stop" : "/sales/resume"), Map.of());
 		log.info("[쿠팡] 가격/재고/판매상태: vendorItemId={}, price={}, qty={}, soldOut={}",
 			marketItemId, price, quantity, soldOut);
 		return currentRawData;
 	}
 
 	@Override
-	public void deleteFromMarket(String marketItemId) {
-		// 완전 상품 삭제(F-PROD-27/28). 쿠팡 상품 리스팅 삭제는 seller-products/{sellerProductId} DELETE로 수행한다.
-		// marketItemId는 발행(publish)이 반환·저장하는 sellerProductId(상품 단위 안정 식별자, extractMarketItem·
-		// syncImagesAndHtml이 seller-products 경로에 쓰는 것과 동일). vendorItemId는 가격/재고/판매상태 전용이라
-		// 상품 삭제에는 사용하지 않는다. 주문이력 등으로 하드삭제를 거부하면 REST 오류가 예외로 표면화되고,
-		// 오케스트레이터가 best-effort로 수집한다.
-		if (marketItemId == null || marketItemId.isBlank()) {
-			throw new IllegalArgumentException("쿠팡 sellerProductId 없음 — 삭제 불가");
-		}
-		String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId;
-		try {
-			restClient.delete(path);
-			log.info("[쿠팡] 상품 삭제 성공: sellerProductId={}", marketItemId);
-		} catch (Exception e) {
-			log.error("[쿠팡] 상품 삭제 실패: sellerProductId={}, msg={}", marketItemId, e.getMessage());
-			throw e;
-		}
-	}
-
-	/** 백필용: sourceIdentifier(=sellerProductId)로 링크식별자(productId)를 조회한다. */
-	@Override
-	public java.util.Optional<String> fetchLinkIdentifier(String sourceIdentifier) {
-		return fetchProductId(sourceIdentifier);
-	}
-
-	/** seller-products GET에서 공개 productId를 조회한다(상품페이지 링크용). 없으면 Optional.empty(). */
-	public java.util.Optional<String> fetchProductId(String sellerProductId) {
-		if (sellerProductId == null || sellerProductId.isBlank()) {
-			return java.util.Optional.empty();
-		}
-		try {
-			// syncImagesAndHtml 과 동일한 seller-products GET 경로 접두사 재사용.
-			String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + sellerProductId;
-			String resp = restClient.get(path);
-			// 응답은 { code, message, data: { sellerProductId, productId, items:[...], ... } } 형태.
-			JsonNode root = objectMapper.readTree(resp);
-			JsonNode productIdNode = root.path("data").path("productId");
-			if (productIdNode.isMissingNode() || productIdNode.isNull() || productIdNode.asLong(0L) <= 0L) {
-				return java.util.Optional.empty();
-			}
-			String productId = productIdNode.asText();
-			if (productId == null || productId.isBlank()) {
-				return java.util.Optional.empty();
-			}
-			return java.util.Optional.of(productId);
-		} catch (Exception e) {
-			log.warn("[쿠팡] productId 조회 실패: {}", e.getMessage());
-			return java.util.Optional.empty();
-		}
-	}
-
-	@Override
-	public Map<String, Object> syncImagesAndHtml(com.sbshop.agent.core.domain.product.Product product,
+	public Map<String, Object> syncImagesAndHtml(Product product,
 		String marketItemId, Map<String, Object> currentRawData,
 		List<String> hostedImages, String newDetailHtml) {
 		if (marketItemId == null || marketItemId.isBlank()) {
 			throw new IllegalStateException("쿠팡 sellerProductId(marketItemId) 없음 — 이미지 재게시 불가");
 		}
-		// marketItemId 는 등록 식별자에서 온 sellerProductId(권위 있는 상품 식별자)다.
-		// 저장된 rawData 가 {}(가격/재고만 있고 items 없음)인 경우가 잦으므로, items 가 없으면
-		// 전체 상품 페이로드를 GET 으로 다시 받아 작업 대상 rawData 로 사용한다.
 		Map<String, Object> rawData = currentRawData;
 		if (rawData == null || !rawData.containsKey("items")) {
 			String getPath = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId;
@@ -308,10 +200,9 @@ public class CoupangMarketClient implements MarketClient {
 			log.info("[D092][쿠팡] seller-products GET (len={}): {}", responseJson == null ? -1 : responseJson.length(),
 				responseJson == null ? "null" : responseJson.substring(0, Math.min(responseJson.length(), 3000)));
 			try {
-				// 응답은 { code, message, data: { sellerProductId, items:[...], ... } } 형태.
 				JsonNode root = objectMapper.readTree(responseJson);
 				rawData = objectMapper.convertValue(root.path("data"),
-					new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+					new TypeReference<Map<String, Object>>() {});
 			} catch (Exception e) {
 				throw new IllegalStateException("쿠팡 상품 조회 응답 파싱 실패 (ID: " + marketItemId + ")", e);
 			}
@@ -342,20 +233,99 @@ public class CoupangMarketClient implements MarketClient {
 			firstItem.put("contents", contents);
 		}
 
-		// D-092: 쿠팡 상품수정(승인필요)은 id 없는 base에 PUT(sellerProductId는 바디). publish POST 경로와 동일.
-		// (id 포함 경로 `.../seller-products/{id}`는 GET/DELETE 전용 → PUT 시 404 PRECONDITION_FAILED.)
-		// requested=true 를 넣어야 저장 후 자동 판매승인요청까지 진행된다(문서: false면 임시저장에 머묾).
-		// 별도 `/approvals`(상품 승인 요청) API는 임시저장 상품 전용이라 승인상품 편집엔 부적합 → 제거.
 		String base = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
 		rawData.put("requested", true);
 		try {
 			String putBody = objectMapper.writeValueAsString(rawData);
 			log.info("[D092][쿠팡] 상품수정 PUT body (len={}): {}", putBody.length(),
 				putBody.substring(0, Math.min(putBody.length(), 3000)));
-		} catch (Exception ignore) { /* 로깅 실패 무시 */ }
+		} catch (Exception ignore) {}
 		String putResp = restClient.put(base, rawData);
 		log.info("[D092][쿠팡] 상품수정 PUT resp: {}", putResp);
 		log.info("[쿠팡] 이미지/HTML 동기화 완료(requested=true 자동승인요청): {}", marketItemId);
 		return rawData;
+	}
+
+	@Override
+	public Optional<String> fetchLinkIdentifier(String sourceIdentifier) {
+		return fetchProductId(sourceIdentifier);
+	}
+
+	public Optional<String> fetchProductId(String sellerProductId) {
+		if (sellerProductId == null || sellerProductId.isBlank()) {
+			return Optional.empty();
+		}
+		try {
+			String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + sellerProductId;
+			String resp = restClient.get(path);
+			JsonNode root = objectMapper.readTree(resp);
+			JsonNode productIdNode = root.path("data").path("productId");
+			if (productIdNode.isMissingNode() || productIdNode.isNull() || productIdNode.asLong(0L) <= 0L) {
+				return Optional.empty();
+			}
+			String productId = productIdNode.asText();
+			if (productId == null || productId.isBlank()) {
+				return Optional.empty();
+			}
+			return Optional.of(productId);
+		} catch (Exception e) {
+			log.warn("[쿠팡] productId 조회 실패: {}", e.getMessage());
+			return Optional.empty();
+		}
+	}
+
+	@Override
+	public void deleteFromMarket(String marketItemId) {
+		if (marketItemId == null || marketItemId.isBlank()) {
+			throw new IllegalArgumentException("쿠팡 sellerProductId 없음 — 삭제 불가");
+		}
+		String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId;
+		try {
+			restClient.delete(path);
+			log.info("[쿠팡] 상품 삭제 성공: sellerProductId={}", marketItemId);
+		} catch (Exception e) {
+			log.error("[쿠팡] 상품 삭제 실패: sellerProductId={}, msg={}", marketItemId, e.getMessage());
+			throw e;
+		}
+	}
+
+	private Long resolveCategoryId(Product product, MarketPublishContext context) {
+		if (context.hasCategory()) {
+			try {
+				return Long.parseLong(context.categoryId().trim());
+			} catch (NumberFormatException e) {
+				log.warn("[쿠팡] 검수 카테고리가 숫자가 아니라 자동 예측으로 폴백: {}", context.categoryId());
+			}
+		}
+		return categoryPredictor.predictCategory(product);
+	}
+
+	private CoupangProductPayload.ShippingAccount shippingAccount(MarketPublishContext context) {
+		CoupangProductPayload.ShippingAccount base = CoupangProductPayload.ShippingAccount.legacyDefaults();
+		String outbound = context.extraString("outboundShippingPlaceCode");
+		String returnCenter = context.extraString("returnCenterCode");
+		if (outbound == null && returnCenter == null) {
+			return base;
+		}
+		Integer outboundCode = base.outboundShippingPlaceCode();
+		if (outbound != null) {
+			try {
+				outboundCode = Integer.parseInt(outbound.trim());
+			} catch (NumberFormatException e) {
+				log.warn("[쿠팡] 출고지 코드가 숫자가 아님 — 기본값 사용: {}", outbound);
+			}
+		}
+		return CoupangProductPayload.ShippingAccount.builder()
+			.vendorId(base.vendorId())
+			.vendorUserId(base.vendorUserId())
+			.outboundShippingPlaceCode(outboundCode)
+			.returnCenterCode(returnCenter != null ? returnCenter : base.returnCenterCode())
+			.returnChargeName(base.returnChargeName())
+			.companyContactNumber(base.companyContactNumber())
+			.returnZipCode(base.returnZipCode())
+			.returnAddress(base.returnAddress())
+			.returnAddressDetail(base.returnAddressDetail())
+			.returnCharge(context.extraInt("deliveryChargeOnReturn", base.returnCharge()))
+			.build();
 	}
 }

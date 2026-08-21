@@ -1,7 +1,7 @@
 package com.sbshop.agent.api.controller;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
@@ -19,16 +19,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * F-S4 / R6: 소싱(구매) 정보 수정 요청의 금액 필드 음수 검증.
- *
- * <p>구매가(sourcingAmount)·물류비(logisticsCost)가 음수면 데이터 오염이므로
- * 진입부에서 {@link IllegalArgumentException}(→400)으로 거부한다.
- * null(미변경)·0(무상 소싱/무물류비)은 정상값으로 통과시켜 과잉거부하지 않는다.
- * F-PROD-8/23·F-PSRC-11의 signum()<0 패턴과 일관.
- */
 @ExtendWith(MockitoExtension.class)
 class OrderControllerSourcingValidationTest {
 
@@ -81,6 +74,6 @@ class OrderControllerSourcingValidationTest {
 		assertThatCode(() -> controller().updateSourcingInfo(11L, request(null, null)))
 			.doesNotThrowAnyException();
 
-		verify(orderService, org.mockito.Mockito.times(2)).updateSourcingInfo(anyLong(), any());
+		verify(orderService, Mockito.times(2)).updateSourcingInfo(anyLong(), any());
 	}
 }

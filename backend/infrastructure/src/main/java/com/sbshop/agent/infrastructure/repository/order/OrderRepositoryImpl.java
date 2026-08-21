@@ -3,6 +3,7 @@ package com.sbshop.agent.infrastructure.repository.order;
 import static com.sbshop.agent.core.domain.order.QOrder.order;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.sbshop.agent.core.application.order.dto.OrderDetailDto;
@@ -13,11 +14,13 @@ import com.sbshop.agent.core.domain.market.QMarketRegistration;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.QOrderLineItem;
+import com.sbshop.agent.core.domain.order.Shipment;
 import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.PurchaseStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderRepositoryCustom;
+import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.QProduct;
@@ -37,8 +40,7 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 
 	private final JPAQueryFactory queryFactory;
 	private final ProductRepository productRepository;
-	/** D-148: 화면이 "마켓이 아는 송장"과 실제 송장의 불일치를 판정하려면 배송 계층이 필요하다. */
-	private final com.sbshop.agent.core.domain.order.repository.ShipmentRepository shipmentRepository;
+	private final ShipmentRepository shipmentRepository;
 
 	@Override
 	public Page<OrderDetailDto> searchOrderGrid(OrderSearchCondition condition,
@@ -97,18 +99,15 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 		Map<Long, List<OrderLineItem>> itemsByOrderId = lineItems.stream()
 			.collect(Collectors.groupingBy(OrderLineItem::getOrderId));
 
-		// D-148: 화면이 "마켓이 아는 송장"과 실제 송장의 불일치를 판정하려면 배송이 필요하다.
-		// 라인아이템마다 조회하면 N+1이므로 shipmentId를 모아 한 번에 읽는다.
 		List<Long> shipmentIds = lineItems.stream()
 			.map(OrderLineItem::getShipmentId)
 			.filter(id -> id != null)
 			.distinct()
 			.toList();
 
-		Map<Long, com.sbshop.agent.core.domain.order.Shipment> shipmentMap = shipmentIds.isEmpty() ? Map.of()
+		Map<Long, Shipment> shipmentMap = shipmentIds.isEmpty() ? Map.of()
 			: shipmentRepository.findAllById(shipmentIds).stream()
-				.collect(Collectors.toMap(
-					com.sbshop.agent.core.domain.order.Shipment::getId, sh -> sh));
+				.collect(Collectors.toMap(Shipment::getId, sh -> sh));
 
 		List<OrderDetailDto> dtoList = orders.stream().map(o -> {
 			List<OrderLineItem> orderItems = itemsByOrderId.getOrDefault(o.getId(), List.of());
@@ -153,18 +152,29 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 		return PageableExecutionUtils.getPage(dtoList, pageable, countQuery::fetchOne);
 	}
 
-	/** 마켓 타입 필터 */
+	BooleanExpression dateBetween(LocalDateTime startDate, LocalDateTime endDate) {
+		if (startDate != null && endDate != null) {
+			return order.orderDate.between(startDate, endDate);
+		}
+		if (startDate != null) {
+			return order.orderDate.goe(startDate);
+		}
+		if (endDate != null) {
+			return order.orderDate.loe(endDate);
+		}
+		return null;
+	}
+
 	private BooleanExpression marketTypeIn(List<MarketType> marketTypes) {
 		return marketTypes != null && !marketTypes.isEmpty() ? order.marketType.in(marketTypes) : null;
 	}
 
-	/** 배송상태 필터 */
 	private BooleanExpression shippingStatusIn(List<ShippingStatus> statuses) {
 		if (statuses == null || statuses.isEmpty()) {
 			return null;
 		}
 		QOrderLineItem subLineItem = QOrderLineItem.orderLineItem;
-		return com.querydsl.jpa.JPAExpressions
+		return JPAExpressions
 			.selectOne()
 			.from(subLineItem)
 			.where(subLineItem.orderId.eq(order.id)
@@ -172,13 +182,12 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.exists();
 	}
 
-	/** 구매상태 필터 — 해당 구매상태의 라인아이템을 가진 주문만(배송상태 필터와 동일 패턴). */
 	private BooleanExpression purchaseStatusIn(List<PurchaseStatus> statuses) {
 		if (statuses == null || statuses.isEmpty()) {
 			return null;
 		}
 		QOrderLineItem subLineItem = QOrderLineItem.orderLineItem;
-		return com.querydsl.jpa.JPAExpressions
+		return JPAExpressions
 			.selectOne()
 			.from(subLineItem)
 			.where(subLineItem.orderId.eq(order.id)
@@ -186,13 +195,11 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.exists();
 	}
 
-	/** 통관상태 필터 (통관 데이터는 Order에 임베드됨) */
 	private BooleanExpression customsStatusIn(List<CustomsStatus> statuses) {
 		return statuses != null && !statuses.isEmpty()
 			? order.customsData.customsStatus.in(statuses) : null;
 	}
 
-	/** 키워드 검색 */
 	private BooleanExpression keywordContains(String keyword, QOrderLineItem qLineItem, QProduct qProduct) {
 		if (keyword == null || keyword.isBlank()) {
 			return null;
@@ -211,7 +218,7 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 
 		QOrderLineItem subLineItem = QOrderLineItem.orderLineItem;
 		QProduct subProduct = QProduct.product;
-		BooleanExpression hasMatchingLineItem = com.querydsl.jpa.JPAExpressions
+		BooleanExpression hasMatchingLineItem = JPAExpressions
 			.selectOne()
 			.from(subLineItem)
 			.leftJoin(subProduct).on(subLineItem.productId.eq(subProduct.id))
@@ -222,41 +229,25 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 		return orderFields.or(hasMatchingLineItem);
 	}
 
-	/** 재고상태 필터 — 라인아이템 연결 상품의 재고상태(enum name 문자열 비교)로 존재 여부 판정 */
 	private BooleanExpression stockStatusExists(List<String> stockStatuses) {
 		if (stockStatuses == null || stockStatuses.isEmpty()) {
 			return null;
 		}
 		QOrderLineItem sli = QOrderLineItem.orderLineItem;
 		QProduct sp = QProduct.product;
-		return com.querydsl.jpa.JPAExpressions.selectOne().from(sli)
+		return JPAExpressions.selectOne().from(sli)
 			.leftJoin(sp).on(sp.id.eq(sli.productId))
 			.where(sli.orderId.eq(order.id), sp.stockStatus.stringValue().in(stockStatuses))
 			.exists();
 	}
 
-	/** 소싱처 필터 — 라인아이템의 소싱 벤더로 존재 여부 판정 */
 	private BooleanExpression vendorExists(List<String> vendors) {
 		if (vendors == null || vendors.isEmpty()) {
 			return null;
 		}
 		QOrderLineItem sli = QOrderLineItem.orderLineItem;
-		return com.querydsl.jpa.JPAExpressions.selectOne().from(sli)
+		return JPAExpressions.selectOne().from(sli)
 			.where(sli.orderId.eq(order.id), sli.sourcingData.sourcingVendor.in(vendors))
 			.exists();
-	}
-
-	/** 기간 필터 (한쪽만 주어져도 그 경계는 적용한다 — F-ORD-2) */
-	BooleanExpression dateBetween(LocalDateTime startDate, LocalDateTime endDate) {
-		if (startDate != null && endDate != null) {
-			return order.orderDate.between(startDate, endDate);
-		}
-		if (startDate != null) {
-			return order.orderDate.goe(startDate);
-		}
-		if (endDate != null) {
-			return order.orderDate.loe(endDate);
-		}
-		return null;
 	}
 }

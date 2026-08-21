@@ -16,31 +16,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * 갱신 전용 모드(백필용)의 계약.
- *
- * <p>2026-08-08: 백필이 과거 구간을 넓게 조회하면서 <b>우리가 다룬 적 없는 옛 주문까지 만들어</b>
- * 쿠팡 272·스토어 16건이 유입됐고, 사용자가 "관리하기 어렵다"며 정리를 요청했다.
- * 백필의 목적은 이미 가진 주문의 마켓 값을 채우는 것이지 과거 주문 수집이 아니다.
- */
 class MarketOrderUpsertDispatcherUpdateOnlyTest {
-
-	private MarketOrderDto dto(String orderNo) {
-		return MarketOrderDto.builder()
-			.marketType(MarketType.COUPANG)
-			.marketOrderNo(orderNo)
-			.orderDate(LocalDateTime.now())
-			.build();
-	}
-
-	private Order existing() {
-		return Order.builder()
-			.marketType(MarketType.COUPANG)
-			.marketOrderNo("EXISTING")
-			.orderDate(LocalDateTime.now())
-			.build();
-	}
-
 	@Test
 	@DisplayName("갱신 전용이면 없는 주문을 만들지 않는다 — 기존 주문 갱신은 그대로 한다")
 	void skipsCreationButStillUpdates() {
@@ -75,5 +51,21 @@ class MarketOrderUpsertDispatcherUpdateOnlyTest {
 			d -> created.add(d.getMarketOrderNo()));
 
 		assertThat(created).containsExactly("NEW-1");
+	}
+
+	private MarketOrderDto dto(String orderNo) {
+		return MarketOrderDto.builder()
+			.marketType(MarketType.COUPANG)
+			.marketOrderNo(orderNo)
+			.orderDate(LocalDateTime.now())
+			.build();
+	}
+
+	private Order existing() {
+		return Order.builder()
+			.marketType(MarketType.COUPANG)
+			.marketOrderNo("EXISTING")
+			.orderDate(LocalDateTime.now())
+			.build();
 	}
 }

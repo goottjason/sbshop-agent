@@ -15,13 +15,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * F-PSRC-2: iHerb 소싱에서 일부 URL 크롤 실패가 응답에서 조용히 누락되지 않고
- * 실패 목록(URL + 사유)으로 표면화되는지 검증.
- */
 @ExtendWith(MockitoExtension.class)
 class ProductSourcingUseCasePartialFailureTest {
-
 	@Mock
 	private ProductInfoCrawlerPort crawlerPort;
 	@InjectMocks

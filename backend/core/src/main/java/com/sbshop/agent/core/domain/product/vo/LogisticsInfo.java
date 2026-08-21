@@ -15,7 +15,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class LogisticsInfo {
-
 	@Column(name = "stock", nullable = false)
 	private Integer stock;
 

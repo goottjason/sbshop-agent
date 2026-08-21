@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class ProductSourcingUseCase {
-
 	private final ProductInfoCrawlerPort productInfoCrawlerPort;
 
 	public SourcingCrawlResult sourceFromIherb(List<String> urls) {

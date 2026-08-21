@@ -20,10 +20,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * 완전 상품 삭제(F-PROD-27/28) — CoupangMarketClient.deleteFromMarket 특성화 테스트.
- * 쿠팡 상품 삭제는 seller-products/{sellerProductId} DELETE 경로(발행이 반환·저장하는 식별자)를 호출한다.
- */
 @ExtendWith(MockitoExtension.class)
 class CoupangMarketClientDeleteTest {
 

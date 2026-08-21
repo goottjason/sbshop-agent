@@ -33,17 +33,8 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * F-PSRC-14: 마켓 게시 후 저장 실패 시 조용한 고아 방지.
- * <p>
- * publishToMarket이 되돌릴 수 없는 외부 client.publish() 호출 후 DB save가 실패해도
- * 마켓에 올라간 상품이 DB에서 조용히 사라지지 않아야 한다. 목표 흐름 —
- * PENDING 등록행 선-저장(외부호출 전 상태 확보) → publish → identifiers+SYNCED 갱신.
- * 갱신이 실패해도 PENDING 행이 남아 복구 가능한 미완료 상태가 된다.
- */
 @ExtendWith(MockitoExtension.class)
 class ProductPublishOrphanPreventionTest {
-
 	@Mock
 	private ProductReader productReader;
 	@Mock
@@ -88,7 +79,6 @@ class ProductPublishOrphanPreventionTest {
 
 		useCase.publishToMarket(PRODUCT_ID, MARKET);
 
-		// PENDING 선-저장이 외부 publish보다 먼저, 갱신은 publish 이후여야 한다.
 		InOrder order = inOrder(registrationTxService, client);
 		order.verify(registrationTxService).savePending(PRODUCT_ID, MARKET, "테스트 상품");
 		order.verify(client).publish(eq(product), any());
@@ -102,15 +92,13 @@ class ProductPublishOrphanPreventionTest {
 			.productId(PRODUCT_ID).marketType(MARKET).marketDetailedInfo("{}").build();
 		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품")).thenReturn(pending);
 		when(client.publish(eq(product), any())).thenReturn(Map.of("vendorItemId", "V999"));
-		// 게시 성공 후 갱신 저장에서 예외 주입
+
 		doThrow(new RuntimeException("DB save failed"))
 			.when(registrationTxService).markPublished(any(), anyString());
 
-		// 실패는 조용히 삼켜지지 않고 표면화되어야 한다.
 		assertThatThrownBy(() -> useCase.publishToMarket(PRODUCT_ID, MARKET))
 			.isInstanceOf(RuntimeException.class);
 
-		// 외부 게시는 실제로 일어났고(되돌릴 수 없음), PENDING 행은 선-저장되어 DB에 남는다.
 		verify(client).publish(eq(product), any());
 		verify(registrationTxService).savePending(PRODUCT_ID, MARKET, "테스트 상품");
 	}

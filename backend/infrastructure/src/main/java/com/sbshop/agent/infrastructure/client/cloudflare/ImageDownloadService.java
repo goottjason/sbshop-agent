@@ -16,10 +16,6 @@ import okhttp3.Request;
 import okhttp3.Response;
 import org.springframework.stereotype.Component;
 
-/**
- * {@link ImageDownloadClient}의 단일 구현체. 크롤링 대상 사이트의 Cloudflare 봇 차단을 우회해야 하므로
- * 브라우저 User-Agent 헤더를 실어 OkHttp로 이미지를 내려받는다.
- */
 @Slf4j
 @Component
 public class ImageDownloadService implements ImageDownloadClient {
@@ -35,10 +31,6 @@ public class ImageDownloadService implements ImageDownloadClient {
 		return results;
 	}
 
-	/**
-	 * F-PROD-16(D-092): downloadAndConvert의 다운로드·변환 로직을 공유하되, 개별 URL 실패를 로그만
-	 * 남기고 드롭하지 않고 실패 항목(URL·사유)으로 수집해 성공 파일과 함께 반환한다.
-	 */
 	@Override
 	public ImageProcessResult downloadAndConvertDetailed(List<String> imageUrls) {
 		List<ImageUploadFile> results = new ArrayList<>();
@@ -74,11 +66,6 @@ public class ImageDownloadService implements ImageDownloadClient {
 		}
 
 		return ImageProcessResult.of(results, failures);
-	}
-
-	private String describe(Exception e) {
-		return (e.getMessage() == null || e.getMessage().isBlank())
-			? e.getClass().getSimpleName() : e.getMessage();
 	}
 
 	@Override
@@ -131,5 +118,10 @@ public class ImageDownloadService implements ImageDownloadClient {
 			return path.substring(lastSlashIndex + 1);
 		}
 		return "unknown_image.jpg";
+	}
+
+	private String describe(Exception e) {
+		return (e.getMessage() == null || e.getMessage().isBlank())
+			? e.getClass().getSimpleName() : e.getMessage();
 	}
 }

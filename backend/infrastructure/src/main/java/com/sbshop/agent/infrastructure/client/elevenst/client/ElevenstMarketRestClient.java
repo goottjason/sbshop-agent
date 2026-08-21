@@ -14,25 +14,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-/**
- * 11번가 상품 API REST 클라이언트 (GET/POST/PUT, 원시 문자열 XML, {@link ElevenstProperties}에서 키 주입).
- * 주문 API용 {@link com.sbshop.agent.infrastructure.client.elevenst.ElevenstOrderRestClient}와 구분된다.
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class ElevenstMarketRestClient {
 
 	private static final Charset EUC_KR = Charset.forName("EUC-KR");
-	private final ElevenstProperties properties;
-	// 자격증명 단일 소스: DB(sb_market_credential ELEVEN_STREET.accessKey) 우선, 없으면 env(ElevenstProperties) 폴백.
-	private final MarketCredentialRepository marketCredentialRepository;
 
-	private String resolveApiKey() {
-		MarketCredential c = marketCredentialRepository.findByMarketType(MarketType.ELEVEN_STREET).orElse(null);
-		return (c != null && c.getAccessKey() != null && !c.getAccessKey().isBlank())
-			? c.getAccessKey() : properties.getApiKey();
-	}
+	private final ElevenstProperties properties;
+	private final MarketCredentialRepository marketCredentialRepository;
 
 	public String get(String path) {
 		return sendRequest(properties.getApiUrl() + path, "GET", null);
@@ -79,5 +69,11 @@ public class ElevenstMarketRestClient {
 			if (conn != null)
 				conn.disconnect();
 		}
+	}
+
+	private String resolveApiKey() {
+		MarketCredential c = marketCredentialRepository.findByMarketType(MarketType.ELEVEN_STREET).orElse(null);
+		return (c != null && c.getAccessKey() != null && !c.getAccessKey().isBlank())
+			? c.getAccessKey() : properties.getApiKey();
 	}
 }

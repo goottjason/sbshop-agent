@@ -1,28 +1,24 @@
 package com.sbshop.agent.api.controller;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
-
-import java.util.List;
-
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.sbshop.agent.api.dto.batch.ManualUpdateAllRequest;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.BatchPriceStockService;
 import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
+import java.util.List;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
-/**
- * F-BATCH-A2 / SP-3: 전체필드 배치(manual-update-all)에서 commands와 productIds 길이가
- * 불일치하면 IndexOutOfBounds(500)가 아니라 IllegalArgumentException(400)으로 명확히 거부해야 한다.
- */
 @ExtendWith(MockitoExtension.class)
 class BatchControllerManualUpdateAllValidationTest {
 
@@ -35,7 +31,7 @@ class BatchControllerManualUpdateAllValidationTest {
 
 	private BatchController controller() {
 		return new BatchController(batchPriceStockService, processStatusService, actionLogService,
-			org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
+			Mockito.mock(ApplicationEventPublisher.class));
 	}
 
 	private ProductUpdateCommand emptyCommand() {

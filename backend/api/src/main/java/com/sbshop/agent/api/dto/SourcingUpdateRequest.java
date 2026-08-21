@@ -1,9 +1,8 @@
 package com.sbshop.agent.api.dto;
 
 import com.sbshop.agent.core.application.order.dto.SourcingUpdateCommand;
-
-import lombok.Data;
 import java.math.BigDecimal;
+import lombok.Data;
 
 @Data
 public class SourcingUpdateRequest {

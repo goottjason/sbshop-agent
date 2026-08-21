@@ -15,24 +15,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * 마켓별 판매가 산정의 단일 출처 검증.
- * 동기화 경로(ProductMarketSyncService)와 신규 등록 경로(ProductPublishUseCase)가
- * 같은 계산을 쓰게 하려고 추출한 컴포넌트다.
- */
 @ExtendWith(MockitoExtension.class)
 class MarketSalePriceResolverTest {
-
 	@Mock
 	private MarketFeeService marketFeeService;
 	@Mock
 	private Product product;
 
 	private final MarginCalculator marginCalculator = new MarginCalculator();
-
-	private MarketSalePriceResolver resolver() {
-		return new MarketSalePriceResolver(marginCalculator, marketFeeService);
-	}
 
 	@Test
 	@DisplayName("수수료가 높은 마켓일수록 판매가가 높게 산정된다")
@@ -57,5 +47,9 @@ class MarketSalePriceResolverTest {
 		BigDecimal price = resolver().resolveForProduct(product, MarketType.GMARKET);
 
 		assertThat(price).isEqualByComparingTo("90600");
+	}
+
+	private MarketSalePriceResolver resolver() {
+		return new MarketSalePriceResolver(marginCalculator, marketFeeService);
 	}
 }

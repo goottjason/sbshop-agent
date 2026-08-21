@@ -22,25 +22,15 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.w3c.dom.Element;
 
-/**
- * D-043: 11번가 fetchOrders가 API 실패를 "성공 0건"으로 삼키지 않고 전량 실패 시 예외를 전파하는지 검증.
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ElevenstOrderFetchFailureTest {
-
 	@Mock
 	private ElevenstOrderApiPort elevenstOrderApiPort;
 	@Mock
 	private ElevenstStatusMapper statusMapper;
 	@InjectMocks
 	private ElevenstOrderAdapter adapter;
-
-	private MarketCredential credential() {
-		MarketCredential c = mock(MarketCredential.class);
-		when(c.getAccessKey()).thenReturn("apikey");
-		return c;
-	}
 
 	@Test
 	@DisplayName("전량 실패(모든 chunk API 오류): 빈 리스트가 아니라 예외를 전파")
@@ -64,5 +54,11 @@ class ElevenstOrderFetchFailureTest {
 		when(elevenstOrderApiPort.fetchCompletedDeliveryOrders(any(), any(), any())).thenReturn(empty);
 
 		assertThat(adapter.fetchOrders(credential(), LocalDate.now(), LocalDate.now())).isEmpty();
+	}
+
+	private MarketCredential credential() {
+		MarketCredential c = mock(MarketCredential.class);
+		when(c.getAccessKey()).thenReturn("apikey");
+		return c;
 	}
 }

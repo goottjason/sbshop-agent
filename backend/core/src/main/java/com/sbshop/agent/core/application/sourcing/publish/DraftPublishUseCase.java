@@ -25,36 +25,19 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-/**
- * 검수 완료된 초안 → 상품 생성 → 마켓 등록(S6).
- *
- * <p>흐름은 기존 {@code ProductPublishUseCase}의 규율을 그대로 따른다:
- * <b>PENDING 선-저장 → publish(트랜잭션 밖) → identifiers+SYNCED 갱신</b>.
- * 외부 게시는 되돌릴 수 없으므로, 게시 전에 등록행을 커밋해 두어야 게시 성공 후 DB 쓰기가 실패해도
- * 고아가 아니라 복구 가능한 미완료 상태로 남는다(F-PSRC-14).
- *
- * <p>마켓 하나가 실패해도 나머지는 계속 등록한다 — 4마켓 중 1곳 실패로 전부 롤백하면
- * 사용자가 처음부터 다시 해야 한다. 실패는 {@code MarketDraft.publishError}에 남겨
- * 그 마켓만 재시도할 수 있게 한다.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class DraftPublishUseCase {
-
 	private final ProductCreateUseCase productCreateUseCase;
 	private final MarketClientRouter marketClientRouter;
 	private final MarketRegistrationTxService registrationTxService;
 	private final DraftPublishTxService draftPublishTxService;
 	private final ObjectMapper objectMapper;
 
-	/**
-	 * @throws IllegalStateException 통관 확인이 필요한데 승인되지 않았거나, 등록 가능한 마켓이 없을 때
-	 */
 	public PublishResult publish(Long draftId) {
 		ProductDraft draft = draftPublishTxService.requireDraft(draftId);
 
-		// 통관 REVIEW 미승인 상태로는 등록하지 않는다. 경고만 띄우고 등록을 허용하면 경고가 무의미하다.
 		if (!Boolean.TRUE.equals(draft.getCustomsAck())) {
 			throw new IllegalStateException(
 				"통관 확인이 필요한 상품입니다. 성분을 확인하고 승인한 뒤 등록하세요.");
@@ -70,11 +53,9 @@ public class DraftPublishUseCase {
 
 		draftPublishTxService.markPublishing(draft.getId());
 
-		// 1) 상품 생성 — 기존 대량 생성 경로를 그대로 탄다(SKU 채번·이미지 호스팅 재사용).
 		Product product = createProduct(draft);
 		Long productId = product.getId();
 
-		// 2) 마켓별 게시 — 하나가 실패해도 나머지는 계속한다.
 		List<MarketOutcome> outcomes = new ArrayList<>();
 		for (MarketDraft md : targets) {
 			outcomes.add(publishToMarket(productId, product, md));
@@ -105,7 +86,6 @@ public class DraftPublishUseCase {
 		}
 		MarketRegistration registration = null;
 		try {
-			// 되돌릴 수 없는 외부 게시 전에 PENDING 등록행을 먼저 커밋한다(F-PSRC-14).
 			registration = registrationTxService.savePending(productId, marketType, md.getProductName());
 
 			MarketClient client = marketClientRouter.getClient(marketType);
@@ -115,13 +95,10 @@ public class DraftPublishUseCase {
 			registrationTxService.markPublished(registration, identifiersJson);
 			return MarketOutcome.ok(marketType, identifiersJson);
 		} catch (Exception e) {
-			// 게시가 성공한 뒤 DB 갱신에서 터졌을 수 있다 — 그 경우 PENDING 행이 남아 복구 가능하다.
 			log.error("[초안등록] 마켓 게시 실패 productId={} market={}", productId, marketType, e);
 			return MarketOutcome.failed(marketType, e.getMessage());
 		}
 	}
-
-	// --- 변환 ---
 
 	private ProductCreateCommand toCreateCommand(ProductDraft draft) {
 		return new ProductCreateCommand(
@@ -135,7 +112,7 @@ public class DraftPublishUseCase {
 			draft.getCapacity(),
 			draft.getMeasureUnit() != null ? draft.getMeasureUnit() : MeasureUnit.EA,
 			readList(draft.getSourceImages()),
-			// 이미 R2에 올려 둔 이미지를 넘겨 재업로드를 막는다.
+
 			readList(draft.getHostedImages()),
 			draft.getDetailHtml(),
 			draft.getCategory(),
@@ -193,9 +170,7 @@ public class DraftPublishUseCase {
 		}
 	}
 
-	/** 마켓 1곳의 등록 결과. */
 	public record MarketOutcome(MarketType marketType, boolean ok, String identifiers, String error) {
-
 		static MarketOutcome ok(MarketType m, String identifiers) {
 			return new MarketOutcome(m, true, identifiers, null);
 		}
@@ -207,7 +182,6 @@ public class DraftPublishUseCase {
 
 	public record PublishResult(Long draftId, Long productId, String sbCode,
 		List<MarketOutcome> outcomes) {
-
 		public long successCount() {
 			return outcomes.stream().filter(MarketOutcome::ok).count();
 		}

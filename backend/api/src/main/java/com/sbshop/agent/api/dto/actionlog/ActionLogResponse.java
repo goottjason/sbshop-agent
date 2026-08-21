@@ -3,9 +3,6 @@ package com.sbshop.agent.api.dto.actionlog;
 import com.sbshop.agent.core.domain.actionlog.ActionLog;
 import java.time.LocalDateTime;
 
-/**
- * 액션 로그 응답 DTO (D-042)
- */
 public record ActionLogResponse(
 	Long id,
 	String actionType,

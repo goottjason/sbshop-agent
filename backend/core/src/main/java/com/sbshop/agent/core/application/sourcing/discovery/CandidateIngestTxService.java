@@ -9,6 +9,7 @@ import com.sbshop.agent.core.domain.sourcing.component.VendorProductIdExtractor;
 import com.sbshop.agent.core.domain.sourcing.enums.CandidateStatus;
 import com.sbshop.agent.core.domain.sourcing.repository.SourcingCandidateRepository;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -19,32 +20,19 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 발굴 결과 적재(S0) + 중복·부적격 제외(S1). DB 쓰기만 담당하는 짧은 트랜잭션 빈이다.
- *
- * <p>브라우저 렌더 크롤은 수 분이 걸리므로 {@code SourcingDiscoveryUseCase}가 트랜잭션 밖에서
- * 끝내고, 그 결과만 여기로 넘긴다(기존 {@code ProductCreateUseCase}/{@code ProductPersistTxService}와
- * 같은 패턴 — 외부 I/O를 트랜잭션이 감싸지 않는다).
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CandidateIngestTxService {
-
 	private final SourcingCandidateRepository candidateRepository;
 	private final ProductRepository productRepository;
 
-	/**
-	 * 후보를 upsert하고 자동 제외 규칙을 적용한다.
-	 *
-	 * @return 통관 게이트·스코어링으로 넘길 생존 후보
-	 */
 	@Transactional
 	public IngestResult ingest(List<DiscoveredCandidateDto> discovered, SourcingConfig config) {
 		Set<String> registeredIds = registeredIherbIds();
 		int created = 0, updated = 0, excluded = 0, skippedUserDecided = 0;
 
-		List<SourcingCandidate> survivors = new java.util.ArrayList<>();
+		List<SourcingCandidate> survivors = new ArrayList<>();
 		for (DiscoveredCandidateDto dto : discovered) {
 			if (dto.externalId() == null || dto.sourceUrl() == null)
 				continue;
@@ -66,7 +54,6 @@ public class CandidateIngestTxService {
 				updated++;
 			}
 
-			// 사용자가 이미 판단한 후보(거절/초안/등록완료)는 상태를 되돌리지 않는다.
 			if (candidate.isUserDecided()) {
 				candidateRepository.save(candidate);
 				skippedUserDecided++;
@@ -88,11 +75,6 @@ public class CandidateIngestTxService {
 		return new IngestResult(created, updated, excluded, skippedUserDecided, survivors);
 	}
 
-	/**
-	 * 쿨다운이 지난 거절 후보를 다시 발굴 대상으로 되돌린다.
-	 *
-	 * <p>거절은 "지금은 아니다"이지 영구 차단이 아니다. 가격·경쟁 상황이 바뀌면 다시 볼 가치가 있다.
-	 */
 	@Transactional
 	public int releaseExpiredRejections(SourcingConfig config) {
 		int days = config.getRejectCooldownDays() != null ? config.getRejectCooldownDays() : 90;
@@ -110,9 +92,6 @@ public class CandidateIngestTxService {
 		return expired.size();
 	}
 
-	// --- 제외 규칙 ---
-
-	/** 제외 사유. null이면 통과. */
 	private String disqualify(SourcingCandidate c, Set<String> registeredIds, SourcingConfig config) {
 		if (registeredIds.contains(c.getExternalId()))
 			return "이미 등록된 상품";
@@ -138,7 +117,6 @@ public class CandidateIngestTxService {
 		return null;
 	}
 
-	/** 이미 등록된 상품의 iHerb ID 집합. URL 문자열이 아니라 숫자 ID로 비교해야 한다. */
 	private Set<String> registeredIherbIds() {
 		Set<String> ids = new HashSet<>();
 		for (String url : productRepository.findAllSourceUrls()) {
@@ -181,11 +159,9 @@ public class CandidateIngestTxService {
 		}
 	}
 
-	/** 적재 결과 요약. */
 	public record IngestResult(
 		int created, int updated, int excluded, int skippedUserDecided,
 		List<SourcingCandidate> survivors) {
-
 		public Map<String, Object> toMap() {
 			Map<String, Object> m = new HashMap<>();
 			m.put("created", created);

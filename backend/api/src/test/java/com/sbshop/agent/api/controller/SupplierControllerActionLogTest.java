@@ -22,10 +22,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * F-SUP-3 / F-SUP-CS-5 / F-SUP-UC-5 (R2 관측성): 공급사 생성·환율(통화) 생성이
- * 활동로그를 남기지 않던 결함의 재현/회귀 테스트. 공급사·통화는 마켓 무관이므로 marketType=null.
- */
 @ExtendWith(MockitoExtension.class)
 class SupplierControllerActionLogTest {
 

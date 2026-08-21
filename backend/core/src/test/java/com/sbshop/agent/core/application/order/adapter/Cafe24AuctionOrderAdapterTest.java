@@ -15,7 +15,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class Cafe24AuctionOrderAdapterTest {
-
 	@Mock
 	Cafe24OrderApiPort cafe24OrderApiPort;
 	@Mock

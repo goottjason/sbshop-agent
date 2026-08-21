@@ -27,15 +27,8 @@ import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.CustomsData;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 
-/**
- * SP-8 (F-ORD-23) 주소/통관번호 클리어:
- * - 빈 문자열("") = 클리어(빈 값 저장), null/미전송 = 변경 안 함 시맨틱을 고정한다.
- * - 클리어는 수정이 허용되는 상태(발주확인 후, all-NEW 아님)에서만 가능하며,
- *   all-NEW 상태의 기존 주소보호(수정 차단)는 클리어에도 그대로 적용된다.
- */
 @ExtendWith(MockitoExtension.class)
 class OrderServiceClearFieldsTest {
-
 	@Mock
 	private OrderRepository orderRepository;
 	@Mock
@@ -43,11 +36,6 @@ class OrderServiceClearFieldsTest {
 	@Mock
 	private ShipmentRepository shipmentRepository;
 
-	/**
-	 * D-133: 송장 쓰기 통로는 <b>진짜 객체</b>를 끼운다. 목으로 대체하면 라인아이템 쓰기 자체가
-	 * 사라져 기존 검증이 통과해도 아무것도 증명하지 못한다. {@code shipment_id}가 null인 이
-	 * 테스트들에서는 통로가 배송을 건드리지 않으므로 종전과 동작이 같다 — 그 사실이 회귀 증거다.
-	 */
 	private LineItemShippingWriter shippingWriter() {
 		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
 	}
@@ -62,7 +50,6 @@ class OrderServiceClearFieldsTest {
 			credentialRepository, marketplaceShippingService, shippingWriter());
 	}
 
-	/** 수정이 허용되는(발주확인 후) 상태 = 라인아이템이 all-NEW가 아닌 상태. */
 	private OrderLineItem progressedItem() {
 		return OrderLineItem.builder()
 			.orderId(10L)
@@ -80,11 +67,8 @@ class OrderServiceClearFieldsTest {
 			.build();
 	}
 
-	// ==================== 클리어(빈 문자열) ====================
-
 	@Nested
 	class ClearWithEmptyString {
-
 		@Test
 		@DisplayName("빈 문자열 주소 → 주소가 빈 값으로 클리어된다")
 		void emptyAddress_clearsAddress() {
@@ -112,11 +96,8 @@ class OrderServiceClearFieldsTest {
 		}
 	}
 
-	// ==================== null/미전송 = 변경 안 함 ====================
-
 	@Nested
 	class NullKeepsExisting {
-
 		@Test
 		@DisplayName("주소 null(미전송) → 기존 주소 유지")
 		void nullAddress_keepsExisting() {
@@ -144,11 +125,8 @@ class OrderServiceClearFieldsTest {
 		}
 	}
 
-	// ==================== 주소보호(all-NEW) 보존 ====================
-
 	@Nested
 	class AllNewProtectionPreserved {
-
 		@Test
 		@DisplayName("all-NEW 상태에서 빈 문자열 클리어 시도 → 차단(기존 주소보호 유지)")
 		void allNew_clearBlocked() {

@@ -19,12 +19,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * D-096: 스마트스토어 판매자 즉시할인 일괄 제거 — 순회·집계.
- */
 @ExtendWith(MockitoExtension.class)
 class SmartstoreSellerDiscountRemovalServiceTest {
-
 	@Mock
 	private MarketRegistrationRepository marketRegistrationRepository;
 	@Mock
@@ -37,17 +33,8 @@ class SmartstoreSellerDiscountRemovalServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new SmartstoreSellerDiscountRemovalService(marketRegistrationRepository, marketClientRouter);
-		service.setRetryBackoffMs(0L); // 테스트: 백오프 지연 제거
+		service.setRetryBackoffMs(0L);
 		service.setThrottleMs(0L);
-	}
-
-	private MarketRegistration reg(String originProductNo) {
-		return MarketRegistration.builder()
-			.productId(1L)
-			.marketType(MarketType.SMART_STORE)
-			.marketIdentifiers("{\"originProductNo\":\"" + originProductNo + "\"}")
-			.marketDetailedInfo("{}")
-			.build();
 	}
 
 	@Test
@@ -85,5 +72,14 @@ class SmartstoreSellerDiscountRemovalServiceTest {
 
 		assertThat(summary.get("removed")).isEqualTo(1);
 		assertThat(summary.get("failed")).isEqualTo(0);
+	}
+
+	private MarketRegistration reg(String originProductNo) {
+		return MarketRegistration.builder()
+			.productId(1L)
+			.marketType(MarketType.SMART_STORE)
+			.marketIdentifiers("{\"originProductNo\":\"" + originProductNo + "\"}")
+			.marketDetailedInfo("{}")
+			.build();
 	}
 }

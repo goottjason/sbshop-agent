@@ -8,7 +8,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class CoupangStatusMapperTest {
-
 	private final CoupangStatusMapper mapper = new CoupangStatusMapper();
 
 	@Test

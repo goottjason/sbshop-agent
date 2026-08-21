@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.adapter;
 
+import org.mockito.ArgumentMatchers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -28,14 +29,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * D-041 재현/회귀: 쿠팡 fetchOrders가 API 오류(403 등)를 삼켜 "성공 0건"으로 위장하던 결함을 고정한다.
- * 전량 실패(모든 status 오류)면 상태코드를 담은 예외를 전파해야 하며,
- * 진짜 0건(예외 없는 빈 응답)은 예외 없이 빈 리스트를 반환해야 한다(구분).
- */
 @ExtendWith(MockitoExtension.class)
 class CoupangOrderFetchFailureTest {
-
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	@Mock
@@ -50,21 +45,6 @@ class CoupangOrderFetchFailureTest {
 	private MarketRegistrationRepository marketRegistrationRepository;
 	@InjectMocks
 	private CoupangOrderAdapter adapter;
-
-	private MarketCredential credential() {
-		return mock(MarketCredential.class);
-	}
-
-	/** orderItems 없는 최소 주문 노드 배열 (parseOrderNode가 상품조회 없이 파싱 가능) */
-	private ArrayNode singleOrderArray() {
-		ObjectNode order = MAPPER.createObjectNode();
-		order.put("orderId", "1001");
-		order.put("orderedAt", "2026-07-01T10:00:00");
-		order.putObject("receiver").put("name", "홍길동");
-		ArrayNode arr = MAPPER.createArrayNode();
-		arr.add(order);
-		return arr;
-	}
 
 	@Test
 	@DisplayName("전량 실패(모든 status 403): 빈 리스트가 아니라 상태코드 포함 예외를 전파")
@@ -97,7 +77,7 @@ class CoupangOrderFetchFailureTest {
 		when(coupangOrderApiPort.fetchOrders(any(), any(), any(), eq("ACCEPT")))
 			.thenReturn(singleOrderArray());
 		when(coupangOrderApiPort.fetchOrders(any(), any(), any(),
-			org.mockito.ArgumentMatchers.argThat(s -> !"ACCEPT".equals(s))))
+			ArgumentMatchers.argThat(s -> !"ACCEPT".equals(s))))
 			.thenReturn(MAPPER.createArrayNode());
 
 		List<MarketOrderDto> result = adapter.fetchOrders(credential(),
@@ -113,12 +93,26 @@ class CoupangOrderFetchFailureTest {
 		when(coupangOrderApiPort.fetchOrders(any(), any(), any(), eq("ACCEPT")))
 			.thenReturn(singleOrderArray());
 		when(coupangOrderApiPort.fetchOrders(any(), any(), any(),
-			org.mockito.ArgumentMatchers.argThat(s -> !"ACCEPT".equals(s))))
+			ArgumentMatchers.argThat(s -> !"ACCEPT".equals(s))))
 			.thenThrow(new RuntimeException("쿠팡 API HTTP 오류: 500"));
 
 		List<MarketOrderDto> result = adapter.fetchOrders(credential(),
 			LocalDate.now().minusDays(1), LocalDate.now());
 
 		assertThat(result).hasSize(1);
+	}
+
+	private MarketCredential credential() {
+		return mock(MarketCredential.class);
+	}
+
+	private ArrayNode singleOrderArray() {
+		ObjectNode order = MAPPER.createObjectNode();
+		order.put("orderId", "1001");
+		order.put("orderedAt", "2026-07-01T10:00:00");
+		order.putObject("receiver").put("name", "홍길동");
+		ArrayNode arr = MAPPER.createArrayNode();
+		arr.add(order);
+		return arr;
 	}
 }

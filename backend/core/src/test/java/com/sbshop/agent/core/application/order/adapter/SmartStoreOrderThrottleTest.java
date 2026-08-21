@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.adapter;
 
+import java.time.ZoneOffset;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -23,14 +24,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-/**
- * D-118: 네이버 API 429(TOO_MANY_REQUESTS)로 날짜 청크가 통째로 유실되던 문제.
- * 청크 간 간격을 성공·실패 무관하게 두고, 429는 백오프 재시도로 회수한다.
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SmartStoreOrderThrottleTest {
-
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	@Mock
@@ -42,20 +38,8 @@ class SmartStoreOrderThrottleTest {
 
 	@BeforeEach
 	void speedUpDelays() {
-		// 테스트에서는 실제 대기 없이 재시도 횟수·회수 동작만 검증한다.
 		adapter.chunkDelayMillis = 0L;
 		adapter.retryBackoffMillis = 0L;
-	}
-
-	private MarketCredential credential() {
-		MarketCredential c = mock(MarketCredential.class);
-		when(c.getClientId()).thenReturn("clientId");
-		when(c.getSecretKey()).thenReturn("secret");
-		return c;
-	}
-
-	private LocalDate utcToday() {
-		return LocalDate.now(java.time.ZoneOffset.UTC);
 	}
 
 	@Test
@@ -67,7 +51,6 @@ class SmartStoreOrderThrottleTest {
 
 		adapter.fetchOrders(credential(), utcToday(), utcToday());
 
-		// 최초 1회 + 재시도 1회 = 2회 호출되어야 회수된다(재시도 없으면 1회에 그침).
 		verify(smartStoreOrderApiPort, times(2)).fetchOrders(any(), any(), any(), any());
 	}
 
@@ -103,5 +86,16 @@ class SmartStoreOrderThrottleTest {
 		assertThat(adapter.fetchOrders(credential(), utcToday(), utcToday())).isEmpty();
 
 		verify(smartStoreOrderApiPort, times(1)).fetchOrders(any(), any(), any(), any());
+	}
+
+	private MarketCredential credential() {
+		MarketCredential c = mock(MarketCredential.class);
+		when(c.getClientId()).thenReturn("clientId");
+		when(c.getSecretKey()).thenReturn("secret");
+		return c;
+	}
+
+	private LocalDate utcToday() {
+		return LocalDate.now(ZoneOffset.UTC);
 	}
 }

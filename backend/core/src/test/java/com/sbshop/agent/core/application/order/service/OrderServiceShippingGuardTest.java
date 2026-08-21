@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.service;
 
+import org.assertj.core.api.Assertions;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,16 +31,8 @@ import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 
-/**
- * SP-4 / F-H1·F-H2: 송장은 마켓이 진실 원본이다.
- * - 종료(CANCELED/RETURNED/EXCHANGED) 상태의 라인아이템은 송장 수정 대상이 아니므로
- *   로컬 저장도 하지 않고 차단한다.
- * - 마켓 전송 결과가 terminal(영구 잠금)이면 일시 실패(failed)와 구분되는 전용 메시지로 롤백한다.
- * - PREPARING + trackingNo 있으면 → DISPATCHED 전이 성공 (차단 없음).
- */
 @ExtendWith(MockitoExtension.class)
 class OrderServiceShippingGuardTest {
-
 	@Mock
 	private OrderRepository orderRepository;
 	@Mock
@@ -47,19 +40,75 @@ class OrderServiceShippingGuardTest {
 	@Mock
 	private ShipmentRepository shipmentRepository;
 
-	/**
-	 * D-133: 송장 쓰기 통로는 <b>진짜 객체</b>를 끼운다. 목으로 대체하면 라인아이템 쓰기 자체가
-	 * 사라져 기존 검증이 통과해도 아무것도 증명하지 못한다. {@code shipment_id}가 null인 이
-	 * 테스트들에서는 통로가 배송을 건드리지 않으므로 종전과 동작이 같다 — 그 사실이 회귀 증거다.
-	 */
-	private LineItemShippingWriter shippingWriter() {
-		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
+	@Test
+	@DisplayName("종료상태(CANCELED) 송장수정 → 차단(IllegalStateException), 마켓 전송·로컬 저장 없음")
+	void canceledItem_shippingUpdate_blocked() {
+		OrderLineItem item = itemWithStatus(ShippingStatus.CANCELED);
+		when(orderLineItemRepository.findById(1L)).thenReturn(Optional.of(item));
+
+		assertThatThrownBy(() -> service().updateShippingInfo(1L, command()))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("전송 대상");
+
+		verify(marketplaceShippingService, never()).sendTrackingToMarketplace(same(item), anyBoolean());
+		verify(orderLineItemRepository, never()).save(same(item));
 	}
 
 	@Mock
 	private MarketCredentialRepository credentialRepository;
 	@Mock
 	private MarketplaceShippingService marketplaceShippingService;
+
+	@Test
+	@DisplayName("종료상태(RETURNED) 송장수정 → 차단(IllegalStateException)")
+	void returnedItem_shippingUpdate_blocked() {
+		OrderLineItem item = itemWithStatus(ShippingStatus.RETURNED);
+		when(orderLineItemRepository.findById(2L)).thenReturn(Optional.of(item));
+
+		assertThatThrownBy(() -> service().updateShippingInfo(2L, command()))
+			.isInstanceOf(IllegalStateException.class);
+
+		verify(orderLineItemRepository, never()).save(same(item));
+	}
+
+	@Test
+	@DisplayName("D-125 계약 변경: SHIPPED 송장수정 → 마켓 terminal이어도 로컬 송장은 보존(롤백 없음)")
+	void marketTerminal_preservesLocalTracking() {
+		OrderLineItem item = itemWithStatus(ShippingStatus.SHIPPED);
+		when(orderLineItemRepository.findById(3L)).thenReturn(Optional.of(item));
+		lenient().when(orderRepository.findById(10L))
+			.thenReturn(Optional.of(Order.builder().marketType(MarketType.COUPANG).build()));
+		when(marketplaceShippingService.sendTrackingToMarketplace(same(item), anyBoolean()))
+			.thenReturn(MarketShippingResult.ofTerminal("배송진행상태가 유효하지 않습니다"));
+
+		Assertions
+			.assertThatCode(() -> service().updateShippingInfo(3L, command()))
+			.doesNotThrowAnyException();
+
+		Assertions.assertThat(item.getShippingData().getTrackingNo())
+			.isEqualTo("123456789");
+		Assertions.assertThat(item.getShippingData().getTrackingSentToMarket())
+			.isNotEqualTo(Boolean.TRUE);
+		verify(orderLineItemRepository).save(same(item));
+	}
+
+	@Test
+	@DisplayName("PREPARING + trackingNo 있으면 → DISPATCHED 전이 성공 (차단 없음)")
+	void preparing_with_trackingNo_proceeds() {
+		OrderLineItem item = itemWithStatus(ShippingStatus.PREPARING);
+		when(orderLineItemRepository.findById(4L)).thenReturn(Optional.of(item));
+		lenient().when(orderRepository.findById(10L))
+			.thenReturn(Optional.of(Order.builder().marketType(MarketType.COUPANG).build()));
+		lenient().when(credentialRepository.findByMarketType(any())).thenReturn(Optional.empty());
+		when(marketplaceShippingService.sendTrackingToMarketplace(same(item), anyBoolean()))
+			.thenReturn(MarketShippingResult.ofSkipped("test"));
+
+		assertThatCode(() -> service().updateShippingInfo(4L, command())).doesNotThrowAnyException();
+	}
+
+	private LineItemShippingWriter shippingWriter() {
+		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
+	}
 
 	private OrderService service() {
 		return new OrderService(orderRepository, orderLineItemRepository,
@@ -79,69 +128,5 @@ class OrderServiceShippingGuardTest {
 			.quantity(1)
 			.shippingData(ShippingData.builder().shippingStatus(status).build())
 			.build();
-	}
-
-	@Test
-	@DisplayName("종료상태(CANCELED) 송장수정 → 차단(IllegalStateException), 마켓 전송·로컬 저장 없음")
-	void canceledItem_shippingUpdate_blocked() {
-		OrderLineItem item = itemWithStatus(ShippingStatus.CANCELED);
-		when(orderLineItemRepository.findById(1L)).thenReturn(Optional.of(item));
-
-		assertThatThrownBy(() -> service().updateShippingInfo(1L, command()))
-			.isInstanceOf(IllegalStateException.class)
-			.hasMessageContaining("전송 대상");
-
-		verify(marketplaceShippingService, never()).sendTrackingToMarketplace(same(item), anyBoolean());
-		verify(orderLineItemRepository, never()).save(same(item));
-	}
-
-	@Test
-	@DisplayName("종료상태(RETURNED) 송장수정 → 차단(IllegalStateException)")
-	void returnedItem_shippingUpdate_blocked() {
-		OrderLineItem item = itemWithStatus(ShippingStatus.RETURNED);
-		when(orderLineItemRepository.findById(2L)).thenReturn(Optional.of(item));
-
-		assertThatThrownBy(() -> service().updateShippingInfo(2L, command()))
-			.isInstanceOf(IllegalStateException.class);
-
-		verify(orderLineItemRepository, never()).save(same(item));
-	}
-
-	@Test
-	@DisplayName("D-125 계약 변경: SHIPPED 송장수정 → 마켓 terminal이어도 로컬 송장은 보존(롤백 없음)")
-	void marketTerminal_preservesLocalTracking() {
-		// 종전에는 terminal이면 전용 메시지로 롤백했다. 그 근거였던 "마켓 송장이 동기화로 반영된다"가
-		// ESM+에서 성립하지 않음이 확증돼(D-124), 송장을 기록할 경로가 전부 막히는 문제가 있었다.
-		// 이제 마켓이 거부해도 로컬 기록은 남기고, 미전송은 trackingSentToMarket으로 표현한다.
-		OrderLineItem item = itemWithStatus(ShippingStatus.SHIPPED);
-		when(orderLineItemRepository.findById(3L)).thenReturn(Optional.of(item));
-		lenient().when(orderRepository.findById(10L))
-			.thenReturn(Optional.of(Order.builder().marketType(MarketType.COUPANG).build()));
-		when(marketplaceShippingService.sendTrackingToMarketplace(same(item), anyBoolean()))
-			.thenReturn(MarketShippingResult.ofTerminal("배송진행상태가 유효하지 않습니다"));
-
-		org.assertj.core.api.Assertions
-			.assertThatCode(() -> service().updateShippingInfo(3L, command()))
-			.doesNotThrowAnyException();
-
-		org.assertj.core.api.Assertions.assertThat(item.getShippingData().getTrackingNo())
-			.isEqualTo("123456789");
-		org.assertj.core.api.Assertions.assertThat(item.getShippingData().getTrackingSentToMarket())
-			.isNotEqualTo(Boolean.TRUE);
-		verify(orderLineItemRepository).save(same(item));
-	}
-
-	@Test
-	@DisplayName("PREPARING + trackingNo 있으면 → DISPATCHED 전이 성공 (차단 없음)")
-	void preparing_with_trackingNo_proceeds() {
-		OrderLineItem item = itemWithStatus(ShippingStatus.PREPARING);
-		when(orderLineItemRepository.findById(4L)).thenReturn(Optional.of(item));
-		lenient().when(orderRepository.findById(10L))
-			.thenReturn(Optional.of(Order.builder().marketType(MarketType.COUPANG).build()));
-		lenient().when(credentialRepository.findByMarketType(any())).thenReturn(Optional.empty());
-		when(marketplaceShippingService.sendTrackingToMarketplace(same(item), anyBoolean()))
-			.thenReturn(MarketShippingResult.ofSkipped("test"));
-
-		assertThatCode(() -> service().updateShippingInfo(4L, command())).doesNotThrowAnyException();
 	}
 }

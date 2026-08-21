@@ -15,7 +15,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class PriceInfo {
-
 	@Column(name = "cost_price", precision = 15, scale = 2)
 	private BigDecimal costPrice;
 

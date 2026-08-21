@@ -25,16 +25,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * F-PROD-7: 가격/재고 수정에서 soldOut=null이 조용히 "판매중(IN_STOCK)"으로 처리되던 결함 검증.
- *
- * <p>기존 결함 — soldOut을 넘기지 않고 가격만 수정하려던 요청이 null→false로 붕괴돼 재고상태를
- * IN_STOCK으로 강제 갱신하고, 그 상태를 마켓에까지 전파했다(품절 상품이 조용히 판매재개됨).
- * 수정 후: soldOut=null이면 재고상태를 변경하지 않고(현행 유지), 마켓에도 현재 재고상태를 전파한다.
- */
 @ExtendWith(MockitoExtension.class)
 class ProductManageUseCasePriceStockTest {
-
 	@Mock
 	private ProductReader productReader;
 	@Mock
@@ -64,23 +56,17 @@ class ProductManageUseCasePriceStockTest {
 		when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 	}
 
-	private MarketRepublishResult noMarketResult() {
-		return new MarketRepublishResult(List.of(), List.of(), Map.of());
-	}
-
 	@Test
 	@DisplayName("soldOut=null이면 재고상태를 변경하지 않고, 현재 재고상태를 마켓에 전파한다(판매재개 오전파 방지)")
 	void updatePriceStock_nullSoldOut_keepsCurrentStockStatus() {
-		// 현재 품절 상품 — 가격만 수정하려는 요청(soldOut=null)이 판매중으로 바뀌면 안 됨.
 		when(product.getStockStatus()).thenReturn(StockStatus.OUT_OF_STOCK);
 		when(productMarketSyncService.syncPriceStock(eq(PRODUCT_ID), any(), any()))
 			.thenReturn(noMarketResult());
 
 		useCase.updatePriceStock(PRODUCT_ID, new BigDecimal("10000"), null);
 
-		// 재고상태 강제 변경이 일어나선 안 된다.
 		verify(product, never()).updateStockStatus(any());
-		// 마켓에는 현재(품절) 상태가 전파돼야 한다(판매중으로 뒤집히면 안 됨).
+
 		verify(productMarketSyncService).syncPriceStock(PRODUCT_ID, 10000, StockStatus.OUT_OF_STOCK);
 	}
 
@@ -106,5 +92,9 @@ class ProductManageUseCasePriceStockTest {
 
 		verify(product).updateStockStatus(StockStatus.IN_STOCK);
 		verify(productMarketSyncService).syncPriceStock(PRODUCT_ID, 10000, StockStatus.IN_STOCK);
+	}
+
+	private MarketRepublishResult noMarketResult() {
+		return new MarketRepublishResult(List.of(), List.of(), Map.of());
 	}
 }

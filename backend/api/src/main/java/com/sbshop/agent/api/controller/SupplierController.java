@@ -30,7 +30,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class SupplierController {
 
 	private final SupplierService supplierService;
-	// R2 관측성: 공급사/통화 생성 활동로그 기록 서비스 (F-SUP-3·F-SUP-UC-5)
 	private final ActionLogService actionLogService;
 
 	@GetMapping("/suppliers")
@@ -41,7 +40,6 @@ public class SupplierController {
 	@PostMapping("/suppliers")
 	public ResponseEntity<SupplierResponse> createSupplier(@RequestBody
 	SupplierRequest request) {
-		// F-SUP-3: 공급사 신규 등록 결과 기록(공급사는 마켓 무관 → marketType=null).
 		try {
 			Supplier supplier = supplierService.createSupplier(
 				new CreateSupplierCommand(request.supplierCode(), request.supplierName(), request.currencyCode()));
@@ -63,7 +61,6 @@ public class SupplierController {
 	@PostMapping("/currencies")
 	public ResponseEntity<CurrencyResponse> createCurrency(@RequestBody
 	CurrencyRequest request) {
-		// F-SUP-UC-5: 통화(환율) 신규 등록 결과 기록(통화는 마켓 무관 → marketType=null).
 		try {
 			Currency currency = supplierService.createCurrency(
 				new CreateCurrencyCommand(request.currencyCode(), request.exchangeRate()));

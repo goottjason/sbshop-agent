@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.inOrder;
 
 import com.sbshop.agent.api.dto.product.ImageUploadResponse;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
@@ -27,13 +27,12 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 
-/**
- * SP-C Task 5: 크롤→업로드 원클릭 엔드포인트 {@code POST /{id}/images/crawl-and-upload} 검증.
- */
 @ExtendWith(MockitoExtension.class)
 class ProductControllerCrawlUploadTest {
 
@@ -63,7 +62,7 @@ class ProductControllerCrawlUploadTest {
 	@Test
 	@DisplayName("crawlAndUpload: 정상 경로 — 크롤 URL 목록 downloadAndConvertDetailed 후 updateImagesAndHtml 호출")
 	void crawlAndUpload_happyPath_callsDownloadAndUpdate() {
-		Product product = org.mockito.Mockito.mock(Product.class);
+		Product product = Mockito.mock(Product.class);
 		when(productSearchUseCase.getProductDetail(7L)).thenReturn(product);
 		when(product.getSourcingUrl()).thenReturn("http://iherb/p/7");
 
@@ -82,7 +81,7 @@ class ProductControllerCrawlUploadTest {
 		ResponseEntity<ImageUploadResponse> response = controller().crawlAndUpload(7L);
 
 		assertThat(response.getStatusCode().value()).isEqualTo(200);
-		org.mockito.InOrder inOrderVerify = inOrder(imageDownloadClient, productManageUseCase);
+		InOrder inOrderVerify = inOrder(imageDownloadClient, productManageUseCase);
 		inOrderVerify.verify(imageDownloadClient)
 			.downloadAndConvertDetailed(eq(List.of("http://img/u0.jpg", "http://img/u1.jpg")));
 		inOrderVerify.verify(productManageUseCase).updateImagesAndHtml(eq(7L), eq(files));
@@ -91,7 +90,7 @@ class ProductControllerCrawlUploadTest {
 	@Test
 	@DisplayName("crawlAndUpload: 소싱 URL 없으면 updateImagesAndHtml 미호출, 200 반환")
 	void crawlAndUpload_emptySourceUrl_skipsUpdate() {
-		Product product = org.mockito.Mockito.mock(Product.class);
+		Product product = Mockito.mock(Product.class);
 		when(productSearchUseCase.getProductDetail(7L)).thenReturn(product);
 		when(product.getSourcingUrl()).thenReturn(null);
 
@@ -104,7 +103,7 @@ class ProductControllerCrawlUploadTest {
 	@Test
 	@DisplayName("crawlAndUpload: 크롤 결과 이미지 0개면 updateImagesAndHtml 미호출, 200 반환")
 	void crawlAndUpload_emptyCrawlImages_skipsUpdate() {
-		Product product = org.mockito.Mockito.mock(Product.class);
+		Product product = Mockito.mock(Product.class);
 		when(productSearchUseCase.getProductDetail(7L)).thenReturn(product);
 		when(product.getSourcingUrl()).thenReturn("http://iherb/p/7");
 		when(productInfoCrawlerPort.crawlProductInfoAsDto("http://iherb/p/7"))

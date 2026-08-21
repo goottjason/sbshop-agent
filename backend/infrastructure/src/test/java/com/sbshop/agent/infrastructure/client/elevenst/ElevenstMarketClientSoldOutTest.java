@@ -16,9 +16,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * SP-B Task 2: ElevenstMarketClient soldOut 판매상태 분기 특성화 테스트.
- */
 @ExtendWith(MockitoExtension.class)
 class ElevenstMarketClientSoldOutTest {
 

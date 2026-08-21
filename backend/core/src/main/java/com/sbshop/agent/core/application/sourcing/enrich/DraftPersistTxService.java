@@ -9,17 +9,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 초안 저장 — 초안 1건 단위의 짧은 트랜잭션.
- *
- * <p>{@link DraftEnrichmentUseCase}는 초안마다 상세 크롤·이미지 업로드·LLM 호출을 한다.
- * 전체를 한 트랜잭션으로 묶으면 커넥션을 수 분 점유하고, 마지막 한 건이 터지면 앞서 만든 초안까지
- * 전부 롤백된다(이미 R2에 올라간 이미지는 롤백되지 않아 고아만 남는다).
- */
 @Service
 @RequiredArgsConstructor
 public class DraftPersistTxService {
-
 	private final ProductDraftRepository draftRepository;
 	private final SourcingCandidateRepository candidateRepository;
 

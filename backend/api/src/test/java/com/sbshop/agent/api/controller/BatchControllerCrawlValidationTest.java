@@ -11,12 +11,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
-/**
- * F-BATCH-4: crawl-and-update 요청의 productIds가 null/빈이면 진입부에서 NPE(500) 또는
- * 빈 배치가 조용히 생성된다. 사용자 입력 오류이므로 IllegalArgumentException(400)으로 거부한다.
- */
 @ExtendWith(MockitoExtension.class)
 class BatchControllerCrawlValidationTest {
 
@@ -29,7 +27,7 @@ class BatchControllerCrawlValidationTest {
 
 	private BatchController controller() {
 		return new BatchController(batchPriceStockService, processStatusService, actionLogService,
-			org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
+			Mockito.mock(ApplicationEventPublisher.class));
 	}
 
 	private CrawlAndUpdateRequest requestWith(List<Long> productIds) {

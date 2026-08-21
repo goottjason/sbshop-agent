@@ -9,16 +9,7 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * 어댑터가 마켓 응답을 (주문 / 배송 / 상품주문) 3계층으로 정규화해 넘기기 위한 DTO.
- * 상위 서비스는 이 구조만 보고 마켓을 모른다.
- *
- * <p>정산예정금액을 상품주문에 둔 것은, 11번가 {@code stlPlnAmt}·N스토어
- * {@code expectedSettlementAmount}가 상품주문별로 오기 때문이다. 요율을 곱해 추정하고
- * 분배하는 대신 실측값을 그대로 담을 자리를 미리 만들어 둔다(도입 자체는 별도 항목).
- */
 class MarketShipmentDtoTest {
-
 	@Test
 	@DisplayName("배송 하나에 상품주문 여러 건을 담는다 — 묶음배송의 표현")
 	void holdsMultipleLineItems() {
@@ -44,7 +35,6 @@ class MarketShipmentDtoTest {
 			.build();
 
 		assertThat(shipment.getLineItems()).hasSize(2);
-		// 같은 배송인데 상품주문마다 상태가 갈린다 — 상태를 라인아이템에 두는 이유다.
 		assertThat(shipment.getLineItems())
 			.extracting(MarketLineItemDto::getStatus)
 			.containsExactly(ShippingStatus.NEW, ShippingStatus.SHIPPED);

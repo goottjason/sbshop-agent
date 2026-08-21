@@ -2,12 +2,6 @@ package com.sbshop.agent.api.dto;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.LocalDateTime;
-
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.domain.order.Order;
@@ -21,17 +15,14 @@ import com.sbshop.agent.core.domain.order.vo.CustomsData;
 import com.sbshop.agent.core.domain.order.vo.SettlementData;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import com.sbshop.agent.core.domain.order.vo.SourcingData;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 
-/**
- * SP-5 / F-ORD-7·16·24·28: order 쓰기 응답을 엔티티 → DTO로 바꾸되 JSON 계약을 보존한다.
- *
- * <p>보존 기준: 응답 DTO({@link OrderResponse}/{@link OrderLineItemResponse})를 Spring Boot 기본
- * ObjectMapper로 직렬화한 JSON이, 같은 상태의 엔티티를 직렬화한 JSON과 동일한 트리여야 한다.
- * 이 등가성이 깨지면 프론트 계약이 바뀐 것이므로 실패한다.
- */
 class OrderResponseContractTest {
 
-	/** Spring Boot 웹 계층 기본 매퍼를 복제(파생 getter·enum 문자열·null 포함 규칙 동일). */
 	private final ObjectMapper mapper = Jackson2ObjectMapperBuilder.json().build();
 
 	private Order sampleOrder() {
@@ -51,7 +42,6 @@ class OrderResponseContractTest {
 				.build())
 			.ordererName("김주문")
 			.ordererPhone("010-3333-4444")
-			// 6단계: shipmentBoxId는 주문에서 사라졌다 — 배송박스번호는 배송(sb_shipment)이 갖는다.
 			.marketSpecificData("{\"cafe24_order_id\":\"CF-77\",\"ordPrdSeq\":\"1\"}")
 			.build();
 	}
@@ -64,13 +54,13 @@ class OrderResponseContractTest {
 			.sourcingData(SourcingData.builder()
 				.sourcingAccount("acc@iherb.com")
 				.sourcingOrderNo("IHB-1")
-				.sourcingAmount(new java.math.BigDecimal("12.34"))
-				.logisticsCost(new java.math.BigDecimal("5.00"))
+				.sourcingAmount(new BigDecimal("12.34"))
+				.logisticsCost(new BigDecimal("5.00"))
 				.discountCode("SAVE10")
 				.sourcingVendor("IHERB")
 				.build())
 			.settlementData(SettlementData.builder()
-				.settlementAmount(new java.math.BigDecimal("20000.00"))
+				.settlementAmount(new BigDecimal("20000.00"))
 				.settlementVerified(true)
 				.build())
 			.shippingData(ShippingData.builder()

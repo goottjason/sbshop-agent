@@ -2,8 +2,11 @@ package com.sbshop.agent.core.application.product;
 
 import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
+import com.sbshop.agent.core.application.product.dto.PriceStockItem;
 import com.sbshop.agent.core.application.product.dto.PricingInputs;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
+import com.sbshop.agent.core.application.product.event.BatchCompletedEvent;
+import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
@@ -13,8 +16,8 @@ import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import com.sbshop.agent.core.domain.product.service.MarginCalculator;
-import com.sbshop.agent.core.application.product.event.BatchCompletedEvent;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -27,23 +30,18 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class BatchPriceStockService {
-
 	private final ProductReader productReader;
 	private final ProductWriter productWriter;
 	private final ProductRepository productRepository;
-	// 벤더별 재고 크롤러 라우팅(IHB=iHerb 내부API, FTN=Fortnum&Mason Scrapling 서비스).
+
 	private final StockCrawlerRouter stockCrawlerRouter;
 	private final ProcessStatusService processStatusService;
 	private final MarginCalculator marginCalculator;
 	private final ApplicationEventPublisher eventPublisher;
 	private final ProductMarketSyncService productMarketSyncService;
-	// D-094: 기준가(sb_product.sale_price)를 쿠팡 실수수료로 산정하기 위해 마켓별 수수료를 조회.
+
 	private final MarketFeeService marketFeeService;
 
-	/**
-	 * 크롤 기반 배치에서 상품 간 딜레이(ms). 외부 소싱 사이트 rate-limit 완화용.
-	 * 수동(manual) 경로는 외부 크롤이 없어 이 완충이 없다(의도된 비대칭, F-BATCH-M2).
-	 */
 	private static final long CRAWL_THROTTLE_MS = 500L;
 
 	@Async("productBatchExecutor")
@@ -63,13 +61,11 @@ public class BatchPriceStockService {
 					continue;
 				}
 
-				// 벤더별 크롤러로 재고/원가 조회(F&M은 Scrapling 서비스가 원가를 원화로 산출해 반환).
 				StockCheckResult result = stockCrawlerRouter.checkStockWithDetails(product.getVendor(), sourceUrl);
 				int bundleQty = product.getLogisticsInfo() != null
 					&& product.getLogisticsInfo().getBundleQuantity() != null
 						? product.getLogisticsInfo().getBundleQuantity() : 1;
 
-				// 링크 소멸(404 등) → 가격 재산정 없이 재고만 품절 처리(오가격 방지). 기존 가격/원가 유지.
 				if (result.sourceGone()) {
 					boolean goneChanged = product.getStockStatus() != StockStatus.OUT_OF_STOCK;
 					product.updateStockStatus(StockStatus.OUT_OF_STOCK);
@@ -89,23 +85,17 @@ public class BatchPriceStockService {
 					continue;
 				}
 
-				// buyPrice = 상품원가 + 배송비/묶음수량 (유효단가). 이후 계산이 ×묶음수량 하므로
-				// 결과적으로 (원가×묶음) + 배송비 1회가 된다(배송비는 묶음수량과 무관하게 주문당 1회).
-				// iHerb 등 shippingCost 없는 경로는 원가 그대로(동작 불변).
 				BigDecimal goods = result.costPrice() != null ? result.costPrice() : BigDecimal.ZERO;
 				BigDecimal buyPrice = goods;
 				if (result.shippingCost() != null && result.shippingCost().signum() > 0 && bundleQty > 0) {
 					buyPrice = goods.add(result.shippingCost()
-						.divide(BigDecimal.valueOf(bundleQty), 4, java.math.RoundingMode.HALF_UP));
+						.divide(BigDecimal.valueOf(bundleQty), 4, RoundingMode.HALF_UP));
 				}
-				// F-BATCH-6: 쿠폰율을 실매입가에 반영(구매가 × (1-쿠폰%))한 뒤 판매가를 산정한다.
-				// D-094: 기준가(sb_product.sale_price)는 쿠팡 실수수료 기준으로 산정한다(표시·단건용).
-				// 각 마켓 전송가는 아래 syncPriceStockPerMarket에서 마켓별 실수수료로 따로 재산정한다.
+
 				BigDecimal coupangFee = marketFeeService.feeRate(MarketType.COUPANG);
 				BigDecimal salePrice = marginCalculator.calculateSalePrice(buyPrice, bundleQty, marginRate,
 					couponRate, minMarginPrice, coupangFee);
 
-				// 이전 DB값 대비 실제 변경 여부(가격·판매상태) — 변경 없으면 Cafe24 재전송 스킵 대상.
 				BigDecimal oldSalePrice = product.getSalePrice();
 				StockStatus oldStatus = product.getStockStatus();
 				boolean priceChanged = (salePrice == null) != (oldSalePrice == null)
@@ -123,8 +113,6 @@ public class BatchPriceStockService {
 				product.updateRestockDate(result.restockDate());
 				productWriter.save(product);
 
-				// D-094: 배치 갱신분은 마켓별 실수수료로 가격을 따로 산정해 각 마켓에 반영한다.
-				// changed=false면 Cafe24(직전 성공분)는 재전송 스킵.
 				MarketRepublishResult sync = productMarketSyncService.syncPriceStockPerMarket(
 					productId,
 					new PricingInputs(buyPrice, bundleQty, marginRate, couponRate, minMarginPrice),
@@ -148,9 +136,9 @@ public class BatchPriceStockService {
 
 	@Async("productBatchExecutor")
 	public void manualUpdatePriceStock(String batchId,
-		List<com.sbshop.agent.core.application.product.dto.PriceStockItem> items) {
+		List<PriceStockItem> items) {
 		int failCount = 0;
-		for (com.sbshop.agent.core.application.product.dto.PriceStockItem item : items) {
+		for (PriceStockItem item : items) {
 			Long productId = item.productId();
 			try {
 				Product product = productReader.findById(productId)
@@ -179,7 +167,6 @@ public class BatchPriceStockService {
 				product.updateStockStatus(newStatus);
 				productWriter.save(product);
 
-				// D-060: 배치(수동) 갱신분도 연동 마켓에 반영.
 				MarketRepublishResult sync = productMarketSyncService.syncPriceStock(
 					productId, price != null ? price.intValue() : null, newStatus);
 				processStatusService.markSuccess(batchId, String.valueOf(productId),
@@ -194,13 +181,13 @@ public class BatchPriceStockService {
 			}
 		}
 		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId,
-			com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_MANUAL_UPDATE,
+			ActionLogConstants.BATCH_MANUAL_UPDATE,
 			failCount == 0, failCount == 0 ? "수동 배치 완료" : "수동 배치 완료(실패 " + failCount + "건)"));
 	}
 
 	@Async("productBatchExecutor")
 	public void manualUpdateAllFields(String batchId, List<Long> productIds,
-		List<com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand> commands) {
+		List<ProductUpdateCommand> commands) {
 		int failCount = 0;
 		for (int i = 0; i < productIds.size(); i++) {
 			try {
@@ -208,7 +195,7 @@ public class BatchPriceStockService {
 				Product product = productReader.findById(productId)
 					.orElseThrow(() -> new IllegalArgumentException("상품 없음: " + productId));
 
-				com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand command = commands.get(i);
+				ProductUpdateCommand command = commands.get(i);
 				product.update(command);
 				productWriter.save(product);
 
@@ -221,7 +208,7 @@ public class BatchPriceStockService {
 			}
 		}
 		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId,
-			com.sbshop.agent.core.domain.actionlog.ActionLogConstants.BATCH_MANUAL_UPDATE_ALL,
+			ActionLogConstants.BATCH_MANUAL_UPDATE_ALL,
 			failCount == 0, failCount == 0 ? "전체 필드 배치 완료" : "전체 필드 배치 완료(실패 " + failCount + "건)"));
 	}
 

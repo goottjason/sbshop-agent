@@ -20,16 +20,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-/**
- * SP-5(F-BATCH-S1·F-SYNC-24·F-MREG-4) 계약 보존 특성화 테스트.
- *
- * 각 응답을 도메인 엔티티/내부클래스 → DTO로 전환하되 JSON 계약(직렬화 형태)이 불변임을 증명한다.
- * "엔티티 직접 직렬화 결과"와 "DTO.from(엔티티) 직렬화 결과"가 바이트 동일함을 단언한다.
- * ObjectMapper는 Spring Boot 기본과 동일하게 JavaTimeModule + ISO(타임스탬프 비활성) 구성.
- */
 class ResponseDtoContractTest {
 
-	// Spring Boot 기본 직렬화 구성 재현: JSR-310 ISO, enum → name() 문자열.
 	private final ObjectMapper mapper = new ObjectMapper()
 		.registerModule(new JavaTimeModule())
 		.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);

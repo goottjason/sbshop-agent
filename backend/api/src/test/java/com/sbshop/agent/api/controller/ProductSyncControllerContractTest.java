@@ -3,6 +3,11 @@ package com.sbshop.agent.api.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doThrow;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sbshop.agent.core.application.actionlog.ActionLogService;
+import com.sbshop.agent.core.application.product.ProductSyncService;
+import com.sbshop.agent.core.config.InternalAccessGuard;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,26 +17,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sbshop.agent.core.application.actionlog.ActionLogService;
-import com.sbshop.agent.core.application.product.ProductSyncService;
-import com.sbshop.agent.core.config.InternalAccessGuard;
-
-/**
- * F-MISC-11: POST /api/v1/products/sync/stock 응답을 명시적 타입
- * {@code ResponseEntity<Map<String, Object>>}으로 표현하되 JSON 응답 계약(키·값)을 보존한다.
- *
- * <p>계약 특성화 테스트: 응답 바디를 Spring Boot 웹 계층 기본 ObjectMapper로 직렬화한 JSON 트리가
- * 아래 고정 형태와 정확히 동일해야 한다. {@code ResponseEntity<?>} → {@code ResponseEntity<Map<String,Object>>}
- * 시그니처 명시화로 바디 바이트가 바뀌면 프론트 계약이 깨진 것이므로 실패한다.
- *
- * <p>상태코드·서비스 호출 여부는 {@link ProductSyncControllerGuardTest}가 다룬다. 여기서는 바디 트리 불변에 집중한다.
- */
 @ExtendWith(MockitoExtension.class)
 class ProductSyncControllerContractTest {
 
-	/** Spring Boot 웹 계층 기본 매퍼를 복제(직렬화 규칙 동일). */
 	private final ObjectMapper mapper = Jackson2ObjectMapperBuilder.json().build();
 
 	@Mock

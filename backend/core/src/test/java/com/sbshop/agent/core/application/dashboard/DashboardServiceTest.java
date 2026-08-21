@@ -33,12 +33,6 @@ class DashboardServiceTest {
 		service = new DashboardService(repo);
 	}
 
-	private AggRow row(long orderId, String date, MarketType mk, ShippingStatus st,
-		long settle, long src, long logi, String sb) {
-		return new AggRow(orderId, LocalDateTime.parse(date), mk, st, settle, src, logi,
-			1L, sb, "상품" + sb, "IHB", "IN_STOCK");
-	}
-
 	@Test
 	@DisplayName("summary.period: 주문수는 distinct order, 금액은 lineItem 합산")
 	void summaryAggregates() {
@@ -47,8 +41,8 @@ class DashboardServiceTest {
 			row(1, "2026-07-01T01:00:00", MarketType.COUPANG, ShippingStatus.DELIVERED, 5000, 3000, 500, "B"),
 			row(2, "2026-07-02T01:00:00", MarketType.SMART_STORE, ShippingStatus.SHIPPED, 20000, 12000, 2000, "C")));
 		var s = service.summary(LocalDateTime.parse("2026-07-01T00:00:00"), LocalDateTime.parse("2026-07-31T23:59:59"));
-		assertThat(s.period().orderCount()).isEqualTo(2);          // distinct order 1,2
-		assertThat(s.period().settlementSum()).isEqualTo(35000);   // 10000+5000+20000
+		assertThat(s.period().orderCount()).isEqualTo(2);
+		assertThat(s.period().settlementSum()).isEqualTo(35000);
 		assertThat(s.period().profitSum()).isEqualTo(35000 - 21000 - 3500);
 	}
 
@@ -62,7 +56,7 @@ class DashboardServiceTest {
 		assertThat(ts).hasSize(3);
 		assertThat(ts.get(0).bucketStart()).isEqualTo("2026-07-01");
 		assertThat(ts.get(0).orderCount()).isEqualTo(1);
-		assertThat(ts.get(1).orderCount()).isEqualTo(0);   // 07-02 빈 구간
+		assertThat(ts.get(1).orderCount()).isEqualTo(0);
 		assertThat(ts.get(2).orderCount()).isEqualTo(0);
 	}
 
@@ -93,5 +87,11 @@ class DashboardServiceTest {
 		assertThat(a.outOfStock()).isEqualTo(2);
 		assertThat(a.delayed()).isEqualTo(5);
 		assertThat(a.returnCancel()).isEqualTo(4);
+	}
+
+	private AggRow row(long orderId, String date, MarketType mk, ShippingStatus st,
+		long settle, long src, long logi, String sb) {
+		return new AggRow(orderId, LocalDateTime.parse(date), mk, st, settle, src, logi,
+			1L, sb, "상품" + sb, "IHB", "IN_STOCK");
 	}
 }

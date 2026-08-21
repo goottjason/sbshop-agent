@@ -5,13 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * D-119: 마켓 동기화가 송장을 반영할 때 쓰는 "의미 있는 값" 판정.
- * D-107/108의 isMeaningfulPii와 같은 취지 — 마켓이 빈 값/자리표시자를 주는 경우
- * 그 값으로 우리 실값을 덮어쓰면 안 된다.
- */
 class ShippingDataTrackingGuardTest {
-
 	@Test
 	@DisplayName("정상 송장번호는 의미 있는 값")
 	void realTrackingNumber_isMeaningful() {

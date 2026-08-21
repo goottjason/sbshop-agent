@@ -31,14 +31,8 @@ import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 
-/**
- * SP-4 / F-ORD-29: 발송 진입 상태 가드 — 이미 발송(SHIPPED)·배송완료(DELIVERED)·종료 상태의
- * 라인아이템은 재발송하지 않는다(스킵). F-ORD-31로 주문 1건 발송 로직이 {@link OrderShipProcessor}로
- * 이동했으므로 가드 검증도 여기서 수행한다(로직 불변).
- */
 @ExtendWith(MockitoExtension.class)
 class OrderShipServiceGuardTest {
-
 	@Mock
 	private OrderRepository orderRepository;
 	@Mock
@@ -48,37 +42,6 @@ class OrderShipServiceGuardTest {
 	@Mock
 	private ShipmentRepository shipmentRepository;
 
-	/**
-	 * D-133: 송장 쓰기 통로는 <b>진짜 객체</b>를 끼운다. 목으로 대체하면 라인아이템 쓰기 자체가
-	 * 사라져 기존 검증이 통과해도 아무것도 증명하지 못한다. {@code shipment_id}가 null인 이
-	 * 테스트들에서는 통로가 배송을 건드리지 않으므로 종전과 동작이 같다 — 그 사실이 회귀 증거다.
-	 */
-	private LineItemShippingWriter shippingWriter() {
-		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
-	}
-
-	@Mock
-	private MarketplaceShippingService marketplaceShippingService;
-	@Mock
-	private MarketOrderPort port;
-
-	private OrderShipProcessor processor() {
-		return new OrderShipProcessor(orderRepository, credentialRepository,
-			orderLineItemRepository, marketplaceShippingService, shippingWriter());
-	}
-
-	private OrderLineItem itemWith(ShippingStatus status) {
-		return OrderLineItem.builder()
-			.orderId(1L)
-			.quantity(1)
-			.shippingData(ShippingData.builder()
-				.shippingStatus(status)
-				.trackingNo("TRK-1")
-				.shippingCarrier(ShippingCarrier.CJ_LOGISTICS)
-				.build())
-			.build();
-	}
-
 	@Test
 	@DisplayName("이미 SHIPPED인 라인아이템은 재발송하지 않는다(port.shipOrder 미호출)")
 	void shippedItem_notReshipped() {
@@ -87,14 +50,17 @@ class OrderShipServiceGuardTest {
 		when(credentialRepository.findByMarketType(MarketType.COUPANG))
 			.thenReturn(Optional.of(MarketCredential.builder().marketType(MarketType.COUPANG).build()));
 		when(orderLineItemRepository.findByOrderId(1L)).thenReturn(List.of(itemWith(ShippingStatus.SHIPPED)));
-		// 가드가 없으면 현행 코드는 trackingNo가 있는 SHIPPED 라인을 재발송하려 port.shipOrder를 호출한다 —
-		// getPort를 실 mock에 연결해 그 호출을 관측 가능하게 한다(가드가 있으면 애초에 getPort조차 안 탄다).
 		lenient().when(marketplaceShippingService.getPort(MarketType.COUPANG)).thenReturn(port);
 
 		processor().shipSingleOrder(1L);
 
 		verify(port, never()).shipOrder(any(), any(), any(), anyString(), any());
 	}
+
+	@Mock
+	private MarketplaceShippingService marketplaceShippingService;
+	@Mock
+	private MarketOrderPort port;
 
 	@Test
 	@DisplayName("PREPARING 라인아이템은 발송한다(port.shipOrder 호출)")
@@ -125,5 +91,26 @@ class OrderShipServiceGuardTest {
 		processor().shipSingleOrder(3L);
 
 		verify(port, never()).shipOrder(any(), any(), any(), anyString(), any());
+	}
+
+	private LineItemShippingWriter shippingWriter() {
+		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
+	}
+
+	private OrderShipProcessor processor() {
+		return new OrderShipProcessor(orderRepository, credentialRepository,
+			orderLineItemRepository, marketplaceShippingService, shippingWriter());
+	}
+
+	private OrderLineItem itemWith(ShippingStatus status) {
+		return OrderLineItem.builder()
+			.orderId(1L)
+			.quantity(1)
+			.shippingData(ShippingData.builder()
+				.shippingStatus(status)
+				.trackingNo("TRK-1")
+				.shippingCarrier(ShippingCarrier.CJ_LOGISTICS)
+				.build())
+			.build();
 	}
 }

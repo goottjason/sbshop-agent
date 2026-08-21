@@ -13,22 +13,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-/**
- * G마켓/옥션(Cafe24 연동) 주문의 송장을 Cafe24 주문 API로 역전송한다.
- * POST /admin/orders/{order_id}/shipments — tracking_no, shipping_company_code, status, order_item_code.
- * 택배사 코드는 몰별이라 GET /admin/carriers로 조회해 우리 ShippingCarrier 라벨과 매칭한다.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class Cafe24ShipmentService {
-
 	private final Cafe24OrderApiPort cafe24OrderApiPort;
 
-	// 몰 택배사(이름→코드) 캐시. 최초 1회 /carriers 조회.
 	private volatile Map<String, String> carrierNameToCode;
 
-	/** 송장 등록. Cafe24 order_id는 order.getCafe24OrderId()(marketSpecific의 cafe24_order_id, 없으면 marketOrderNo 폴백)로 타깃한다. */
 	public void ship(Order order, String trackingNo, ShippingCarrier carrier) {
 		String orderId = order.getCafe24OrderId();
 		if (orderId == null || orderId.isBlank()) {
@@ -39,16 +31,11 @@ public class Cafe24ShipmentService {
 		}
 		String companyCode = resolveCarrierCode(carrier);
 
-		// D-151: 이미 배송건이 있는 주문에는 새 배송건을 만들 수 없다
-		// (라이브 2026-08-08: 422 "You cannot change to that order state" — 주문이 배송중 N1이고
-		// 배송건 D-...-00이 더미 송장 00000000으로 이미 등록돼 있었다). 11번가·네이버와 달리
-		// Cafe24에는 수정 경로가 있으므로 그 배송건의 송장을 고친다.
 		String existingCode = resolveExistingShipmentCode(orderId);
 		if (existingCode != null) {
 			Map<String, Object> patch = new LinkedHashMap<>();
 			patch.put("tracking_no", trackingNo);
 			patch.put("shipping_company_code", companyCode);
-			// status는 싣지 않는다 — 이미 배송중인 주문에 상태를 다시 보내면 같은 422를 부른다.
 			cafe24OrderApiPort.updateShipment(orderId, existingCode,
 				Map.of("shop_no", 1, "request", patch));
 			log.info("[Cafe24 송장] 배송건 수정 완료: orderId={}, shippingCode={}, tracking={}, carrierCode={}",
@@ -71,22 +58,11 @@ public class Cafe24ShipmentService {
 			orderId, trackingNo, companyCode, itemCodes.size());
 	}
 
-	/**
-	 * 이미 등록된 배송건의 {@code shipping_code}. 없으면 {@code null}(신규 등록 경로로 간다).
-	 *
-	 * <p>여러 개면 <b>추측하지 않고 실패</b>한다 — 엉뚱한 배송건의 송장을 고치면 되돌리기 어렵고,
-	 * 어느 배송건이 이 상품주문의 것인지 판단할 근거가 여기에는 없다(D-127과 같은 규율).
-	 */
 	private String resolveExistingShipmentCode(String orderId) {
 		JsonNode shipments = cafe24OrderApiPort.fetchShipments(orderId);
 		if (shipments == null || !shipments.isArray() || shipments.isEmpty()) {
 			return null;
 		}
-		// 배송건의 "존재"가 아니라 <b>마켓이 실송장을 들고 있는지</b>가 수정/등록을 가른다.
-		// Cafe24는 발송 전에도 배송건 D-...-00을 미리 만들어 둔다(2026-08-08 라이브 확인:
-		// 아직 우리가 송장을 보내지 않은 20260807-0000011에도 배송건이 있었다). 존재만 보고
-		// 수정으로 보내면 최초 전송이 전부 수정 경로로 새고, 마켓플레이스 주문은 수정이
-		// 거부되므로(D-154) 송장이 영영 마켓에 못 들어간다.
 		List<String> editable = new ArrayList<>();
 		for (JsonNode s : shipments) {
 			String code = text(s, "shipping_code");
@@ -105,12 +81,19 @@ public class Cafe24ShipmentService {
 		return editable.get(0);
 	}
 
+	private String text(JsonNode node, String field) {
+		if (node == null) {
+			return null;
+		}
+		JsonNode v = node.path(field);
+		return v.isMissingNode() || v.isNull() ? null : v.asText(null);
+	}
+
 	private List<String> extractItemCodes(JsonNode orderDetail) {
 		List<String> codes = new ArrayList<>();
 		if (orderDetail != null) {
 			for (JsonNode it : orderDetail.path("items")) {
 				String c = text(it, "order_item_code");
-				// 취소/반품(status_code C*/R*)은 제외, 정상(N*)만 배송 등록
 				String statusCode = text(it, "status_code");
 				boolean shippable = statusCode == null || statusCode.toUpperCase().startsWith("N");
 				if (c != null && !c.isBlank() && shippable) {
@@ -121,13 +104,12 @@ public class Cafe24ShipmentService {
 		return codes;
 	}
 
-	/** ShippingCarrier 라벨(예: "CJ대한통운")을 몰 등록 택배사명과 매칭해 코드 반환. */
 	private String resolveCarrierCode(ShippingCarrier carrier) {
 		Map<String, String> map = carrierMap();
 		if (map.isEmpty()) {
 			throw new IllegalStateException("Cafe24 몰에 등록된 택배사가 없습니다(관리자에서 택배사 등록 필요).");
 		}
-		String label = carrier != null ? carrier.getLabel() : null; // "CJ대한통운" 등
+		String label = carrier != null ? carrier.getLabel() : null;
 		if (label != null) {
 			String key = normalize(label);
 			for (Map.Entry<String, String> e : map.entrySet()) {
@@ -161,18 +143,6 @@ public class Cafe24ShipmentService {
 		return m;
 	}
 
-	private String normalize(String s) {
-		return s == null ? "" : s.replaceAll("[\\s()택배로지스틱스대한통운]", "").toUpperCase();
-	}
-
-	private String text(JsonNode node, String field) {
-		if (node == null) {
-			return null;
-		}
-		JsonNode v = node.path(field);
-		return v.isMissingNode() || v.isNull() ? null : v.asText(null);
-	}
-
 	private String firstText(JsonNode node, String... fields) {
 		for (String f : fields) {
 			String v = text(node, f);
@@ -181,5 +151,9 @@ public class Cafe24ShipmentService {
 			}
 		}
 		return null;
+	}
+
+	private String normalize(String s) {
+		return s == null ? "" : s.replaceAll("[\\s()택배로지스틱스대한통운]", "").toUpperCase();
 	}
 }

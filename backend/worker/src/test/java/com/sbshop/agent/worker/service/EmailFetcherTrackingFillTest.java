@@ -30,11 +30,6 @@ import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * D-121: 발송메일이 도착했을 때 라인아이템 상태가 PREPARING이 아니면 송장을 통째로 버리던 문제.
- * 옥션 실사례 — 배송완료(DELIVERED)로 넘어간 주문에 송장이 영원히 비어 있었다.
- * 송장은 기록하되, 마켓이 받아주지 않는 상태에서는 마켓 전송을 시도하지 않는다.
- */
 @ExtendWith(MockitoExtension.class)
 class EmailFetcherTrackingFillTest {
 
@@ -55,12 +50,6 @@ class EmailFetcherTrackingFillTest {
 	@Mock
 	ShipmentRepository shipmentRepository;
 
-	/**
-	 * D-133: 송장 쓰기 통로는 <b>진짜 객체</b>를 끼운다. {@code @InjectMocks}가 목을 넣거나 null로
-	 * 남기면 라인아이템 쓰기 자체가 사라져, 검증이 통과해도 아무것도 증명하지 못한다.
-	 * 이 테스트들의 라인아이템은 {@code shipment_id}가 null이므로 통로는 배송을 건드리지 않는다 —
-	 * 종전과 동작이 같다는 사실이 곧 회귀 증거다.
-	 */
 	@BeforeEach
 	void injectRealShippingWriter() {
 		ReflectionTestUtils.setField(service, "shippingWriter",
@@ -69,24 +58,6 @@ class EmailFetcherTrackingFillTest {
 
 	@Captor
 	ArgumentCaptor<OrderLineItem> savedItemCaptor;
-
-	private OrderLineItem itemWithStatus(ShippingStatus status) {
-		return OrderLineItem.builder()
-			.orderId(1L)
-			.quantity(1)
-			.sourcingData(SourcingData.builder().sourcingOrderNo("IHERB-1").build())
-			.shippingData(ShippingData.builder().shippingStatus(status).build())
-			.build();
-	}
-
-	private OrderEmailParser.IherbShipmentData shipment() {
-		return OrderEmailParser.IherbShipmentData.builder()
-			.orderNo("IHERB-1")
-			.trackingNo("424437727991")
-			.carrier("CJGLS")
-			.emailAccount("test@iherb")
-			.build();
-	}
 
 	@Test
 	@DisplayName("D-121: DELIVERED 주문도 송장을 기록한다 — 마켓 전송은 생략")
@@ -101,9 +72,7 @@ class EmailFetcherTrackingFillTest {
 		ShippingData saved = savedItemCaptor.getValue().getShippingData();
 		assertThat(saved.getTrackingNo()).isEqualTo("424437727991");
 		assertThat(saved.getShippingCarrier()).isEqualTo(ShippingCarrier.CJ_LOGISTICS);
-		// 배송상태는 마켓이 진실 원본 — 이메일이 건드리지 않는다.
 		assertThat(saved.getShippingStatus()).isEqualTo(ShippingStatus.DELIVERED);
-		// 배송완료 주문에 송장 등록을 시도하면 마켓이 거부한다 — 전송하지 않는다.
 		verify(marketplaceShippingService, never()).sendTrackingToMarketplace(any(), anyBoolean());
 	}
 
@@ -122,5 +91,23 @@ class EmailFetcherTrackingFillTest {
 		assertThat(savedItemCaptor.getValue().getShippingData().getShippingStatus())
 			.isEqualTo(ShippingStatus.NEW);
 		verify(marketplaceShippingService, never()).sendTrackingToMarketplace(any(), anyBoolean());
+	}
+
+	private OrderLineItem itemWithStatus(ShippingStatus status) {
+		return OrderLineItem.builder()
+			.orderId(1L)
+			.quantity(1)
+			.sourcingData(SourcingData.builder().sourcingOrderNo("IHERB-1").build())
+			.shippingData(ShippingData.builder().shippingStatus(status).build())
+			.build();
+	}
+
+	private OrderEmailParser.IherbShipmentData shipment() {
+		return OrderEmailParser.IherbShipmentData.builder()
+			.orderNo("IHERB-1")
+			.trackingNo("424437727991")
+			.carrier("CJGLS")
+			.emailAccount("test@iherb")
+			.build();
 	}
 }

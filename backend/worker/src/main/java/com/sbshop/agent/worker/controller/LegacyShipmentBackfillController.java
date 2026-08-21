@@ -16,13 +16,6 @@ import com.sbshop.agent.core.config.InternalAccessGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * 내부 전용 트리거: 배송에 속하지 않은 옛 라인아이템에 배송을 만들어 연결한다(6단계 전제).
- * nginx 미노출. 마켓 API를 부르지 않아 수백 건도 즉시 끝나므로 동기 실행하고 결과를 바로 돌려준다.
- *
- * <p>운영 호출:
- * {@code docker exec projects-sbshop-api-1 curl -s -X POST localhost:8080/internal/backfill/legacy-shipments}
- */
 @Slf4j
 @RestController
 @RequestMapping("/internal/backfill")

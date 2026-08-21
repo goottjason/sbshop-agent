@@ -28,17 +28,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-/**
- * 5단계: 주문 키가 {@code orderId}로 바뀌면 <b>발송처리·발주확인·취소가 쓰던 값이 더는 주문번호가
- * 아니다.</b> 네이버의 이 세 API는 전부 <b>상품주문 단위</b>({@code productOrderId})다.
- *
- * <p>주문번호로 폴백하지 않는 것이 핵심이다 — 11번가 D-127에서 배운 것과 같다. 잘못된 식별자를
- * 보내면 마켓 거부가 <b>마켓의 상태 잠금처럼 보여</b> 원인 추적을 어렵게 만든다.
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SmartStoreDispatchKeyTest {
-
 	@Mock
 	private SmartStoreOrderApiPort apiPort;
 	@Mock
@@ -53,25 +45,6 @@ class SmartStoreDispatchKeyTest {
 		credential = mock(MarketCredential.class);
 		when(credential.getClientId()).thenReturn("clientId");
 		when(credential.getSecretKey()).thenReturn("secret");
-	}
-
-	/** 5단계 이후의 주문 — 주문번호는 orderId이고, 상품주문번호는 marketSpecificData/라인아이템에 있다. */
-	private Order orderWithProductOrderIds(String... productOrderIds) {
-		Order order = Order.builder()
-			.marketType(MarketType.SMART_STORE)
-			.marketOrderNo("2026072134143761")
-			.build();
-		order.setMarketSpecificDataFromMap(
-			Map.of("productOrderIds", String.join("|", productOrderIds)));
-		return order;
-	}
-
-	private OrderLineItem lineItem(String marketLineItemNo) {
-		return OrderLineItem.builder()
-			.orderId(1L)
-			.quantity(1)
-			.marketLineItemNo(marketLineItemNo)
-			.build();
 	}
 
 	@Test
@@ -113,9 +86,6 @@ class SmartStoreDispatchKeyTest {
 	@Test
 	@DisplayName("전환 전 저장된 주문은 주문번호가 곧 상품주문번호다 — 그 경우에만 주문번호로 발송한다")
 	void legacyOrder_shipsWithMarketOrderNo() {
-		// 전환 전 marketOrderNo는 productOrderId였다. 이 행들은 라인아이템 키도 marketSpecificData도
-		// 없으므로, 그때의 의미대로 주문번호를 상품주문번호로 쓴다. 전환 후 주문은 productOrderIds를
-		// 반드시 갖게 되므로 이 경로로 들어오지 않는다.
 		Order legacy = Order.builder()
 			.marketType(MarketType.SMART_STORE)
 			.marketOrderNo("2026072251442781")
@@ -150,7 +120,6 @@ class SmartStoreDispatchKeyTest {
 	@Test
 	@DisplayName("상품주문번호를 모르는 레거시 주문은 주문번호로 폴백한다(전환 전 저장분)")
 	void legacyOrderWithoutProductOrderIds_fallsBackToMarketOrderNo() {
-		// 전환 전에는 marketOrderNo 자체가 productOrderId였다. 그 행들은 marketSpecificData가 비어 있다.
 		Order legacy = Order.builder()
 			.marketType(MarketType.SMART_STORE)
 			.marketOrderNo("2026072251442781")
@@ -161,5 +130,23 @@ class SmartStoreDispatchKeyTest {
 		@SuppressWarnings("unchecked") ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
 		verify(apiPort).confirmOrders(eq("clientId"), eq("secret"), captor.capture());
 		assertThat(captor.getValue()).containsExactly("2026072251442781");
+	}
+
+	private Order orderWithProductOrderIds(String... productOrderIds) {
+		Order order = Order.builder()
+			.marketType(MarketType.SMART_STORE)
+			.marketOrderNo("2026072134143761")
+			.build();
+		order.setMarketSpecificDataFromMap(
+			Map.of("productOrderIds", String.join("|", productOrderIds)));
+		return order;
+	}
+
+	private OrderLineItem lineItem(String marketLineItemNo) {
+		return OrderLineItem.builder()
+			.orderId(1L)
+			.quantity(1)
+			.marketLineItemNo(marketLineItemNo)
+			.build();
 	}
 }

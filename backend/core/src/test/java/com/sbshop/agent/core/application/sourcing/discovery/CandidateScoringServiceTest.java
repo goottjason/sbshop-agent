@@ -1,53 +1,19 @@
 package com.sbshop.agent.core.application.sourcing.discovery;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import com.sbshop.agent.core.domain.product.service.MarginCalculator;
 import com.sbshop.agent.core.domain.sourcing.SourcingCandidate;
 import com.sbshop.agent.core.domain.sourcing.SourcingConfig;
 import java.math.BigDecimal;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 스코어링 규칙을 고정한다.
- *
- * <p>가장 중요한 성질 두 가지:
- * <ol>
- *   <li><b>결측 신호는 0점이 아니다.</b> 네이버 자격증명이 없으면 검색량 신호가 없는데,
- *       이를 0점으로 치면 <i>모든</i> 후보가 같은 만큼 깎여 순위는 그대로여야 정상이다.
- *       0점 처리하면 신호가 있는 후보/없는 후보를 섞을 때 순위가 신호 가용성에 좌우된다.</li>
- *   <li><b>수익성은 점수가 아니라 탈락 조건이다.</b> 아무리 인기 있어도 마진 미달이면 뺀다.</li>
- * </ol>
- */
 class CandidateScoringServiceTest {
-
 	private final CandidateScoringService service = new CandidateScoringService(new MarginCalculator(),
 		new ObjectMapper());
-
-	private SourcingConfig config() {
-		return SourcingConfig.createDefault();
-	}
-
-	private SourcingCandidate candidate(BigDecimal price, Integer sales, Integer reviews,
-		BigDecimal rating, Integer rank) {
-		return SourcingCandidate.builder()
-			.vendor(VendorType.IHB)
-			.externalId("1")
-			.sourceUrl("https://kr.iherb.com/pr/x/1")
-			.brand("Test Brand")
-			.nameKo("테스트 상품")
-			.discountPrice(price)
-			.listPrice(price)
-			.discountPct(0)
-			.sales30d(sales)
-			.reviewCount(reviews)
-			.rating(rating)
-			.rankPosition(rank)
-			.build();
-	}
 
 	@Test
 	@DisplayName("신호가 갖춰진 인기 상품은 높은 점수를 받는다")
@@ -65,7 +31,6 @@ class CandidateScoringServiceTest {
 	@Test
 	@DisplayName("결측 신호는 가중치에서 빠진다 — 0점으로 깎지 않는다")
 	void missingSignalsAreExcludedFromWeightNotZeroed() {
-		// 동일한 iHerb 신호. 한쪽만 국내 수요 신호가 없다.
 		SourcingCandidate withDemand = candidate(new BigDecimal("20000"), 50000, 34000,
 			new BigDecimal("4.8"), 1);
 		withDemand.applyDemandSignals(30000, 500, new BigDecimal("35000"), new BigDecimal("40000"), "테스트");
@@ -76,11 +41,10 @@ class CandidateScoringServiceTest {
 		service.score(withDemand, config(), SalesHistorySnapshot.empty());
 		service.score(withoutDemand, config(), SalesHistorySnapshot.empty());
 
-		// 신호가 없다고 점수가 반토막 나면 안 된다(0점 처리라면 40점 가까이 벌어진다).
 		double gap = Math.abs(withDemand.getTotalScore().doubleValue()
 			- withoutDemand.getTotalScore().doubleValue());
 		assertThat(gap).isLessThan(25);
-		// 결측 항목은 근거에 남아야 사용자가 "왜 이 점수인지" 알 수 있다.
+
 		assertThat(withoutDemand.getScoreBreakdown()).contains("missing");
 		assertThat(withoutDemand.getScoreBreakdown()).contains("searchVolume");
 	}
@@ -106,7 +70,7 @@ class CandidateScoringServiceTest {
 	void rejectsWhenPricedAboveDomesticFloor() {
 		SourcingCandidate c = candidate(new BigDecimal("50000"), 50000, 34000,
 			new BigDecimal("4.8"), 1);
-		// 국내 시세(중앙값) 20,000원 — 우리 판매가는 배송비·수수료 포함이라 훨씬 높아진다.
+
 		c.applyDemandSignals(30000, 500, new BigDecimal("15000"), new BigDecimal("20000"), "테스트");
 
 		String reject = service.score(c, config(), SalesHistorySnapshot.empty());
@@ -158,7 +122,7 @@ class CandidateScoringServiceTest {
 	@DisplayName("자사 판매 이력이 있는 브랜드는 가점을 받는다")
 	void brandHistoryAddsScore() {
 		SalesHistorySnapshot history = SalesHistorySnapshot.of(
-			java.util.Map.of("test brand", 100L, "other", 10L), java.util.Map.of());
+			Map.of("test brand", 100L, "other", 10L), Map.of());
 
 		SourcingCandidate known = candidate(new BigDecimal("20000"), 10000, 5000,
 			new BigDecimal("4.5"), 10);
@@ -167,7 +131,7 @@ class CandidateScoringServiceTest {
 
 		service.score(known, config(), history);
 		service.score(unknown, config(),
-			SalesHistorySnapshot.of(java.util.Map.of("someone else", 100L), java.util.Map.of()));
+			SalesHistorySnapshot.of(Map.of("someone else", 100L), Map.of()));
 
 		assertThat(known.getTotalScore().doubleValue())
 			.isGreaterThan(unknown.getTotalScore().doubleValue());
@@ -176,8 +140,6 @@ class CandidateScoringServiceTest {
 	@Test
 	@DisplayName("가격 가드는 최저가가 아니라 중앙값을 기준으로 한다")
 	void priceGuardUsesMedianNotLowest() {
-		// 실측 사례: "비타민D3" 최저가 250원(소용량·샘플)에 걸려 240정 제품이 전멸했다.
-		// 중앙값이 있으면 그쪽을 써야 한다.
 		SourcingCandidate c = candidate(new BigDecimal("20000"), 10000, 5000,
 			new BigDecimal("4.5"), 10);
 		c.applyDemandSignals(10000, 500, new BigDecimal("250"), new BigDecimal("45000"), "비타민D3");
@@ -191,7 +153,7 @@ class CandidateScoringServiceTest {
 	void fallsBackToLowestWhenMedianMissing() {
 		SourcingCandidate c = candidate(new BigDecimal("50000"), 10000, 5000,
 			new BigDecimal("4.5"), 10);
-		// 원가 50,000 대비 40% — 오매칭으로 보기엔 가깝고, 실제로 경쟁이 안 되는 구간이다.
+
 		c.applyDemandSignals(10000, 500, new BigDecimal("20000"), null, "키워드");
 
 		assertThat(service.score(c, config(), SalesHistorySnapshot.empty()))
@@ -201,7 +163,6 @@ class CandidateScoringServiceTest {
 	@Test
 	@DisplayName("240정 제품이 소용량 시세에 걸리는 실측 케이스도 걸러진다")
 	void skipsGuardForCapacityMismatch() {
-		// 실측: "비타민D3" 중앙값 2,820원 vs 원가 12,763원(=0.22배) — 소용량 제품과 비교된 것.
 		SourcingCandidate c = candidate(new BigDecimal("12763"), 10000, 5000,
 			new BigDecimal("4.5"), 10);
 		c.applyDemandSignals(5990, 20068, new BigDecimal("250"), new BigDecimal("2820"), "비타민D3");
@@ -212,7 +173,6 @@ class CandidateScoringServiceTest {
 	@Test
 	@DisplayName("같은 상품군 시세(원가 수준)면 가드를 정상 적용한다")
 	void appliesGuardWhenBenchmarkComparable() {
-		// 실측: "Neuro-Mag" 중앙값 43,000원 vs 원가 42,327원(=1.02배) — 같은 상품군이다.
 		SourcingCandidate c = candidate(new BigDecimal("42327"), 10000, 5000,
 			new BigDecimal("4.5"), 10);
 		c.applyDemandSignals(25, 500, new BigDecimal("36800"), new BigDecimal("43000"), "Neuro-Mag");
@@ -224,13 +184,12 @@ class CandidateScoringServiceTest {
 	@Test
 	@DisplayName("시세가 매입원가보다 낮으면 신호를 믿지 않고 가격 가드를 적용하지 않는다")
 	void skipsGuardWhenBenchmarkBelowCost() {
-		// 실측: 키워드 "Gold"가 중앙값 10원을 돌려줬다 — 다른 상품군을 본 것이다.
 		SourcingCandidate c = candidate(new BigDecimal("23172"), 10000, 5000,
 			new BigDecimal("4.5"), 10);
 		c.applyDemandSignals(2170, 500, new BigDecimal("1"), new BigDecimal("10"), "Gold");
 
 		assertThat(service.score(c, config(), SalesHistorySnapshot.empty())).isNull();
-		// 못 믿는 신호는 채점에서도 빠져야 한다(0점으로 깎으면 안 된다).
+
 		assertThat(c.getScoreBreakdown()).contains("\"missing\"").contains("priceEdge");
 	}
 
@@ -245,5 +204,27 @@ class CandidateScoringServiceTest {
 		assertThat(c.getScoreBreakdown())
 			.contains("parts").contains("sales30d").contains("contribution")
 			.contains("estimatedSalePrice");
+	}
+
+	private SourcingConfig config() {
+		return SourcingConfig.createDefault();
+	}
+
+	private SourcingCandidate candidate(BigDecimal price, Integer sales, Integer reviews,
+		BigDecimal rating, Integer rank) {
+		return SourcingCandidate.builder()
+			.vendor(VendorType.IHB)
+			.externalId("1")
+			.sourceUrl("https://kr.iherb.com/pr/x/1")
+			.brand("Test Brand")
+			.nameKo("테스트 상품")
+			.discountPrice(price)
+			.listPrice(price)
+			.discountPct(0)
+			.sales30d(sales)
+			.reviewCount(reviews)
+			.rating(rating)
+			.rankPosition(rank)
+			.build();
 	}
 }

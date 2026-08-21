@@ -10,24 +10,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * 소싱 자동화 API의 요청·응답 DTO 모음.
- *
- * <p>파일을 하나로 묶은 이유: 전부 이 기능 전용 얕은 매핑이라 파일당 20줄짜리 레코드가
- * 10개 넘게 흩어지는 것보다 한곳에서 계약을 보는 편이 읽기 쉽다.
- */
 public final class SourcingDtos {
 
 	private SourcingDtos() {}
 
-	// ── 후보 ────────────────────────────────────────────────────────────────
-
-	/**
-	 * 추천 목록의 한 줄.
-	 *
-	 * @param scoreBreakdown 점수 근거 JSON 원문. 프론트가 "왜 추천됐는지"를 펼쳐 보여준다.
-	 * @param customsReason  통관 판정 사유. REVIEW면 사용자가 읽고 판단해야 한다.
-	 */
 	public record CandidateResponse(
 		Long id, String vendor, String externalId, String sourceUrl,
 		String brand, String nameKo, String categorySlug, String imageUrl,
@@ -71,8 +57,6 @@ public final class SourcingDtos {
 				s.customsBlocked(), s.customsReview(), s.cooldownReleased(), s.warnings());
 		}
 	}
-
-	// ── 초안 ────────────────────────────────────────────────────────────────
 
 	public record CreateDraftsRequest(List<Long> candidateIds) {
 	}
@@ -122,7 +106,6 @@ public final class SourcingDtos {
 	public record DraftFailure(Long candidateId, String name, String reason) {
 	}
 
-	/** 검수 수정 요청. null 필드는 "변경 없음"이다(부분 수정). */
 	public record UpdateDraftRequest(
 		String baseNameKo, Integer bundleQty, BigDecimal marginRate, BigDecimal costPrice,
 		String origin, String hsCode, String barcode, BigDecimal weightG, BigDecimal capacity,
@@ -154,8 +137,6 @@ public final class SourcingDtos {
 				o.error());
 		}
 	}
-
-	// ── 설정 ────────────────────────────────────────────────────────────────
 
 	public record ConfigResponse(
 		Integer recommendCount, String categories, Integer pagesPerCategory, String scoreWeights,

@@ -3,10 +3,6 @@ package com.sbshop.agent.api.dto.product;
 import com.sbshop.agent.core.application.product.dto.BulkProductCreateResult;
 import java.util.List;
 
-/**
- * 상품 일괄 등록 응답(F-PSRC-6). 성공 항목(요청 index + 생성 productId + sbCode)과
- * 실패 항목(요청 index + 식별자 + 사유)을 함께 반환해 요청↔결과 매핑을 가능하게 한다.
- */
 public record BulkProductCreateResponse(
 	List<Success> succeeded,
 	List<Failure> failed) {

@@ -9,14 +9,15 @@ import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.api.dto.product.MarketBadgeState;
 import com.sbshop.agent.api.dto.product.ProductListResponse;
+import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.product.ProductManageUseCase;
 import com.sbshop.agent.core.application.product.ProductSearchUseCase;
+import com.sbshop.agent.core.application.product.port.ProductInfoCrawlerPort;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
-import com.sbshop.agent.core.application.product.port.ProductInfoCrawlerPort;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -29,14 +30,6 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 
-/**
- * 상품 목록의 마켓 배지 상태 맵(마켓명 → {@link MarketBadgeState}) 조립 검증.
- * - 응답 키가 프론트 소비 키(MarketType.name())와 일치.
- * - 값은 status(SYNCED/PENDING)+url(등록됐으나 링크식별자 미확보면 null).
- * - G마켓/옥션은 Cafe24 등록행에 백필된 식별자에서 파생.
- * - CAFE24도 자신의 키로 노출(G마켓/옥션 배지 선행조건 판정용).
- * - N+1(row별 findByProductId) 대신 배치 조회(findByProductIdIn) 사용.
- */
 @ExtendWith(MockitoExtension.class)
 class ProductControllerMarketMapTest {
 
@@ -51,7 +44,7 @@ class ProductControllerMarketMapTest {
 	@Mock
 	private MarketRegistrationRepository marketRegistrationRepository;
 	@Mock
-	private com.sbshop.agent.core.application.actionlog.ActionLogService actionLogService;
+	private ActionLogService actionLogService;
 
 	@Mock
 	private Product product1;
@@ -80,9 +73,7 @@ class ProductControllerMarketMapTest {
 		when(productSearchUseCase.searchProducts(any(), any())).thenReturn(page);
 		when(marketRegistrationRepository.findByProductIdIn(List.of(1L, 2L)))
 			.thenReturn(List.of(
-				// 쿠팡: productId 있음 → 상품페이지 URL(vendorItemId 부가)
 				reg(1L, MarketType.COUPANG, "{\"productId\":\"9334584158\",\"vendorItemId\":\"73567246734\"}"),
-				// 스토어: channelProductNo 없음 → 등록됐으나 링크 미확보(빈 문자열)
 				reg(2L, MarketType.SMART_STORE, "{}")));
 
 		ResponseEntity<Page<ProductListResponse>> res =
@@ -92,10 +83,8 @@ class ProductControllerMarketMapTest {
 		assertThat(content).hasSize(2);
 		assertThat(content.get(0).marketRegistrations().get(MarketType.COUPANG.name()).url())
 			.isEqualTo("https://www.coupang.com/vp/products/9334584158?vendorItemId=73567246734");
-		// channelProductNo 없으면 배지는 표시하되 링크 없음(null)
 		assertThat(content.get(1).marketRegistrations().get(MarketType.SMART_STORE.name()).url()).isNull();
 
-		// N+1 제거: 배치 조회 1회, 개별 조회 0회
 		verify(marketRegistrationRepository).findByProductIdIn(List.of(1L, 2L));
 		verify(marketRegistrationRepository, never()).findByProductId(anyLong());
 	}
@@ -117,7 +106,6 @@ class ProductControllerMarketMapTest {
 		assertThat(links.get("GMARKET").url()).isEqualTo("http://item.gmarket.co.kr/Item?goodscode=3490122824");
 		assertThat(links.get("AUCTION").url())
 			.isEqualTo("http://itempage3.auction.co.kr/DetailView.aspx?ItemNo=D888857683");
-		// 카페24 자체도 배지 키로 노출된다(프론트 선행조건 판정용) — getProducts_includesCafe24Key에서 별도 검증
 		assertThat(links).containsKey(MarketType.CAFE24.name());
 	}
 
@@ -158,8 +146,6 @@ class ProductControllerMarketMapTest {
 	@Test
 	@DisplayName("식별자가 있으면 isSynced가 false여도 SYNCED — 레거시 임포트 행을 거짓 미완료로 경고하지 않는다")
 	void getProducts_syncedWhenIdentifiersPresentDespiteUnsyncedFlag() {
-		// 운영 실측(2026-08-14): is_synced=false인 등록행 2,594건이 전부 식별자를 갖고 있었다.
-		// is_synced로 판정하면 정상 등록된 상품 절반이 미완료 경고를 달게 된다.
 		when(product1.getId()).thenReturn(1L);
 		Page<Product> page = new PageImpl<>(List.of(product1), PageRequest.of(0, 50), 1);
 		when(productSearchUseCase.searchProducts(any(), any())).thenReturn(page);

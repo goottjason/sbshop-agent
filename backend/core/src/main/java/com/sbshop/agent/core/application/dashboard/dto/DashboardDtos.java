@@ -4,24 +4,22 @@ import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import java.time.LocalDateTime;
 
-/** 대시보드 집계 DTO 모음. */
 public final class DashboardDtos {
 	private DashboardDtos() {}
 
-	/** 리포지토리가 기간 내 주문×라인아이템×상품을 평면 행으로 투영한 것. 서비스가 Java 집계. */
 	public record AggRow(
 		Long orderId,
-		LocalDateTime orderDate, // zone 없는 UTC 벽시계값(KST 변환 대상)
+		LocalDateTime orderDate,
 		MarketType marketType,
 		ShippingStatus shippingStatus,
-		long settlementAmount, // null→0 로 매핑됨
+		long settlementAmount,
 		long sourcingAmount,
 		long logisticsCost,
 		Long productId,
 		String sbCode,
 		String productName,
 		String sourcingVendor,
-		String stockStatus) { // Product.stockStatus enum name (IN_STOCK/OUT_OF_STOCK) or null
+		String stockStatus) {
 		public long profit() {
 			return settlementAmount - sourcingAmount - logisticsCost;
 		}
@@ -46,6 +44,7 @@ public final class DashboardDtos {
 	public enum Unit {
 		DAY, WEEK, MONTH
 	}
+
 	public enum Dimension {
 		MARKET, STATUS, PRODUCT, VENDOR
 	}

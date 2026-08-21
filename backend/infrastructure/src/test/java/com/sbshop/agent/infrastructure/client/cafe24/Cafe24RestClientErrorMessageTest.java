@@ -18,15 +18,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * D-152: Cafe24 클라이언트의 POST/PUT/DELETE가 응답 본문을 버려 원인 추적이 막혔다.
- *
- * <p>2026-08-08 G마켓 2건이 한 달간 "Cafe24 API POST 호출 실패"로만 기록돼 원인 불명이었다.
- * 실제 사유는 {@code 422 You cannot change to that order state}였고, GET에만 있던 enrich가
- * 다른 동사에는 없어 액션로그·화면까지 사유가 도달하지 못했다.
- *
- * <p>실제 HTTP 경로를 타야 의미가 있으므로 JDK 내장 서버로 422를 돌려준다.
- */
 class Cafe24RestClientErrorMessageTest {
 
 	private static final String ERROR_BODY = "{\"error\":{\"code\":422,\"message\":\"You cannot change to that order state.\"}}";

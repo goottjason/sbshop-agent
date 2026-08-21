@@ -12,7 +12,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class ProductTest {
-
 	@Test
 	@DisplayName("ProductCreateCommand로 상품을 생성하면 모든 필드가 올바르게 설정된다")
 	void create_fromCommand_setsAllFields() {

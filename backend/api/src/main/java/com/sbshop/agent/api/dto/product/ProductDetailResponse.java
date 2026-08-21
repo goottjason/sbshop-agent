@@ -13,11 +13,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * F-PROD-6: GET /products/{id} 상세 응답. 도메인 VO(PriceInfo/LogisticsInfo/ProductSpec/SourcingInfo)를
- * 직접 노출하지 않고 API 소유의 중첩 DTO(record)로 래핑한다. 도메인 VO에 필드가 추가돼도 API 계약(직렬화
- * 형태)에 자동으로 새지 않도록 매핑 지점을 이 DTO에 고정한다. 현재 JSON 형태(중첩 구조·필드명)는 그대로 보존.
- */
 public record ProductDetailResponse(
 	Long id,
 	String sbCode,
@@ -39,7 +34,6 @@ public record ProductDetailResponse(
 	StockStatus stockStatus,
 	LocalDate restockDate) {
 
-	/** PriceInfo VO 미러. 필드명·순서 보존(costPrice, exchangeRate, deliveryFee, marginRate, salePrice). */
 	public record PriceInfoDto(
 		BigDecimal costPrice,
 		BigDecimal exchangeRate,
@@ -60,7 +54,6 @@ public record ProductDetailResponse(
 		}
 	}
 
-	/** LogisticsInfo VO 미러. 필드명·순서 보존(stock, weight, bundleQuantity). */
 	public record LogisticsInfoDto(
 		Integer stock,
 		BigDecimal weight,
@@ -74,7 +67,6 @@ public record ProductDetailResponse(
 		}
 	}
 
-	/** ProductSpec VO 미러. 필드명·순서 보존(barcode, capacity, measureUnit). */
 	public record ProductSpecDto(
 		String barcode,
 		BigDecimal capacity,
@@ -88,7 +80,6 @@ public record ProductDetailResponse(
 		}
 	}
 
-	/** SourcingInfo VO 미러. 필드명·순서 보존(vendor, sourceUrl, manufacturer, origin, hsCode). */
 	public record SourcingInfoDto(
 		VendorType vendor,
 		String sourceUrl,

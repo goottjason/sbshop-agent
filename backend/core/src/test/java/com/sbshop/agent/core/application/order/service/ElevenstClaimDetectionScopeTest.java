@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.service;
 
+import org.mockito.ArgumentMatchers;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -40,23 +41,9 @@ import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 
-/**
- * D-160(11번가 확장): 클레임 감지의 <b>사정거리</b>를 고정한다.
- *
- * <p>쿠팡에서 실제 피해를 낸 구조가 11번가에도 그대로 있었다 — {@code postSyncProcess}가 조회 구간을
- * 무시하고 언제나 {@code now-30d}를 판정 대상으로 삼는다. 11번가는 {@code detectClaims}가
- * <b>단건 상세조회로 확증</b>하므로 거짓 취소로 번지지는 않았다(D-099). 그래서 피해는 없었다.
- *
- * <p>그러나 근거 없는 판정 자체는 공짜가 아니다. 백필이 4월 구간을 걸을 때마다 <b>그 응답에 없는
- * 최근 주문 전부</b>에 단건 상세조회를 때린다 — 11번가는 레이트리밋 때문에 백필이 구간 사이에
- * 쉬어야 하는 마켓이다. 확증 단계가 그 비용을 치르고 있을 뿐, 판정을 시도해선 안 되는 범위다.
- *
- * <p>규율은 쿠팡과 같다: 조회한 구간 안에서 · 조회가 온전했을 때 · 상태 판정 권한이 있는 호출에서만.
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ElevenstClaimDetectionScopeTest {
-
 	@Mock
 	private MarketCredentialRepository credentialRepository;
 	@Mock
@@ -97,25 +84,10 @@ class ElevenstClaimDetectionScopeTest {
 			.thenReturn(Optional.of(credential));
 		when(adapter.fetchOrdersWithOutcome(any(), any(), any()))
 			.thenReturn(MarketFetchOutcome.complete(List.of()));
-		// 조회 구간 밖(오늘)에 있는 종결 전 주문 하나 — 백필이 과거 구간을 걸을 때의 상황이다.
 		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET))
 			.thenReturn(List.of(recentLiveOrder()));
 		when(orderLineItemRepository.findByOrderId(any()))
 			.thenReturn(List.of(nonTerminalItem()));
-	}
-
-	private Order recentLiveOrder() {
-		Order o = Order.builder().marketType(MarketType.ELEVEN_STREET)
-			.marketOrderNo("20260809000000001")
-			.orderDate(LocalDateTime.now().minusDays(1)).build();
-		ReflectionTestUtils.setField(o, "id", 900L);
-		return o;
-	}
-
-	private OrderLineItem nonTerminalItem() {
-		return OrderLineItem.builder().orderId(900L).quantity(1)
-			.shippingData(ShippingData.builder().shippingStatus(ShippingStatus.PREPARING).build())
-			.build();
 	}
 
 	@Test
@@ -154,7 +126,7 @@ class ElevenstClaimDetectionScopeTest {
 		service.syncElevenstOrders(LocalDate.now().minusDays(30), LocalDate.now());
 
 		verify(adapter).resolveMissingOrderState(anyString(),
-			org.mockito.ArgumentMatchers.eq("20260809000000001"));
+			ArgumentMatchers.eq("20260809000000001"));
 	}
 
 	@Test
@@ -166,5 +138,19 @@ class ElevenstClaimDetectionScopeTest {
 		service.syncElevenstOrders(LocalDate.now().minusDays(30), LocalDate.now());
 
 		verify(terminalSettlementService).zeroSettlementForRefunded(MarketType.ELEVEN_STREET);
+	}
+
+	private Order recentLiveOrder() {
+		Order o = Order.builder().marketType(MarketType.ELEVEN_STREET)
+			.marketOrderNo("20260809000000001")
+			.orderDate(LocalDateTime.now().minusDays(1)).build();
+		ReflectionTestUtils.setField(o, "id", 900L);
+		return o;
+	}
+
+	private OrderLineItem nonTerminalItem() {
+		return OrderLineItem.builder().orderId(900L).quantity(1)
+			.shippingData(ShippingData.builder().shippingStatus(ShippingStatus.PREPARING).build())
+			.build();
 	}
 }

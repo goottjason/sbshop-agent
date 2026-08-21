@@ -15,16 +15,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-/**
- * G마켓(GMARKET) 주문 어댑터 — Cafe24 주문 API 기반(ESM+ Selenium 대체).
- * 조회는 Cafe24OrderSyncService가 담당하므로 fetchOrders는 미사용(빈 리스트).
- * 발주확인/취소는 Cafe24 주문상태 API, 송장은 Cafe24 shipments API.
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class Cafe24GmarketOrderAdapter implements MarketOrderPort {
-
 	private final Cafe24OrderApiPort cafe24OrderApiPort;
 	private final Cafe24ShipmentService cafe24ShipmentService;
 
@@ -35,7 +29,6 @@ public class Cafe24GmarketOrderAdapter implements MarketOrderPort {
 
 	@Override
 	public List<MarketOrderDto> fetchOrders(MarketCredential credential, LocalDate fromDate, LocalDate toDate) {
-		// G마켓 조회는 Cafe24OrderSyncService(order_place_id=gmarket)가 담당 — 여기선 미사용.
 		return List.of();
 	}
 

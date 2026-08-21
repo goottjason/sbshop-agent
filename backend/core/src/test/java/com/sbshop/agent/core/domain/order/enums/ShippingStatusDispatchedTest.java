@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 class ShippingStatusDispatchedTest {
-
 	@Test
 	void dispatched_존재하고_order_2이며_label은_배송지시() {
 		assertThat(ShippingStatus.DISPATCHED).isNotNull();

@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
@@ -27,40 +28,47 @@ public class SmartstoreRestClient {
 
 	private final SmartstoreProperties properties;
 	private final ObjectMapper objectMapper;
-	// 자격증명 단일 소스: DB(sb_market_credential SMART_STORE) 우선, 없으면 env(SmartstoreProperties) 폴백.
 	private final MarketCredentialRepository marketCredentialRepository;
 	private final RestClient restClient = RestClient.create();
-
 	private String accessToken;
-	// 토큰 만료 시각. Naver 커머스 토큰은 ~3시간 후 만료되는데, 과거엔 accessToken이 null일 때만
-	// 재발급해 만료된 토큰을 계속 재사용 → 재시작 전까지 상품 API가 401 GW.AUTHN을 반환했다.
 	private volatile Instant tokenExpiresAt = Instant.EPOCH;
 
-	private static boolean blank(String s) {
-		return s == null || s.isBlank();
-	}
-
-	private String resolveClientId() {
-		MarketCredential c = marketCredentialRepository.findByMarketType(MarketType.SMART_STORE).orElse(null);
-		return (c != null && !blank(c.getClientId())) ? c.getClientId() : properties.getClientId();
-	}
-
-	private String resolveClientSecret() {
-		MarketCredential c = marketCredentialRepository.findByMarketType(MarketType.SMART_STORE).orElse(null);
-		return (c != null && !blank(c.getSecretKey())) ? c.getSecretKey() : properties.getClientSecret();
-	}
-
 	public synchronized String getValidAccessToken() {
-		// 미발급이거나 만료(버퍼 포함)면 재발급 — 만료 토큰 재사용으로 인한 401을 방지한다.
 		if (accessToken == null || Instant.now().isAfter(tokenExpiresAt)) {
 			fetchAccessToken();
 		}
 		return accessToken;
 	}
 
-	private synchronized void invalidateToken() {
-		accessToken = null;
-		tokenExpiresAt = Instant.EPOCH;
+	public String get(String path) {
+		return request("GET", path, null);
+	}
+
+	public String post(String path, Object body) {
+		return request("POST", path, body);
+	}
+
+	public String put(String path, Object body) {
+		return request("PUT", path, body);
+	}
+
+	public String delete(String path) {
+		return request("DELETE", path, null);
+	}
+
+	public JsonNode uploadImages(MultiValueMap<String, Object> body) {
+		try {
+			return restClient.post()
+				.uri(properties.getApiUrl() + "/v1/product-images/upload")
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + getValidAccessToken())
+				.contentType(MediaType.MULTIPART_FORM_DATA)
+				.body(body)
+				.retrieve()
+				.body(JsonNode.class);
+		} catch (Exception e) {
+			log.error("[Smartstore] 이미지 업로드 실패: {}", e.getMessage());
+			throw new RuntimeException("Smartstore 이미지 업로드 실패", e);
+		}
 	}
 
 	private void fetchAccessToken() {
@@ -86,7 +94,6 @@ public class SmartstoreRestClient {
 				.body(String.class);
 			JsonNode node = objectMapper.readTree(response);
 			accessToken = node.path("access_token").asText();
-			// expires_in(초) - 60초 버퍼로 만료 시각 계산. 응답에 없으면 3시간 기본.
 			long expiresIn = node.path("expires_in").asLong(10800);
 			tokenExpiresAt = Instant.now().plusSeconds(Math.max(60, expiresIn - 60));
 			log.info("[Smartstore] OAuth2 토큰 발급 완료 (만료 {}s 후)", expiresIn);
@@ -96,27 +103,24 @@ public class SmartstoreRestClient {
 		}
 	}
 
-	public String get(String path) {
-		return request("GET", path, null);
+	private String resolveClientId() {
+		MarketCredential c = marketCredentialRepository.findByMarketType(MarketType.SMART_STORE).orElse(null);
+		return (c != null && !blank(c.getClientId())) ? c.getClientId() : properties.getClientId();
 	}
 
-	public String post(String path, Object body) {
-		return request("POST", path, body);
+	private String resolveClientSecret() {
+		MarketCredential c = marketCredentialRepository.findByMarketType(MarketType.SMART_STORE).orElse(null);
+		return (c != null && !blank(c.getSecretKey())) ? c.getSecretKey() : properties.getClientSecret();
 	}
 
-	public String put(String path, Object body) {
-		return request("PUT", path, body);
-	}
-
-	public String delete(String path) {
-		return request("DELETE", path, null);
+	private static boolean blank(String s) {
+		return s == null || s.isBlank();
 	}
 
 	private String request(String method, String path, Object body) {
 		try {
 			return doRequest(method, path, body);
 		} catch (HttpClientErrorException e) {
-			// 401(GW.AUTHN): 만료/무효 토큰일 수 있으므로 토큰을 무효화하고 1회 재발급 재시도한다.
 			if (e.getStatusCode().value() == 401) {
 				log.warn("[Smartstore] 401 인증 실패 — 토큰 재발급 후 1회 재시도: {} {}", method, path);
 				invalidateToken();
@@ -135,8 +139,13 @@ public class SmartstoreRestClient {
 		}
 	}
 
+	private synchronized void invalidateToken() {
+		accessToken = null;
+		tokenExpiresAt = Instant.EPOCH;
+	}
+
 	private String doRequest(String method, String path, Object body) {
-		var spec = restClient.method(org.springframework.http.HttpMethod.valueOf(method))
+		var spec = restClient.method(HttpMethod.valueOf(method))
 			.uri(properties.getApiUrl() + path)
 			.header(HttpHeaders.AUTHORIZATION, "Bearer " + getValidAccessToken())
 			.header("X-Time-Stamp", String.valueOf(Instant.now().toEpochMilli()));
@@ -144,25 +153,5 @@ public class SmartstoreRestClient {
 			spec.contentType(MediaType.APPLICATION_JSON).body(body);
 		}
 		return spec.retrieve().body(String.class);
-	}
-
-	/**
-	 * D-092: 네이버 커머스 이미지 업로드(멀티파트). 네이버는 외부 URL을 대표이미지로 거부("올바른 이미지 파일이
-	 * 아닙니다")하므로, 이미지를 네이버 서버에 직접 업로드하고 반환된 네이버 URL로 등록해야 한다.
-	 * 요청: POST /v1/product-images/upload (multipart, field=imageFiles). 응답: {"images":[{"url":...}]}.
-	 */
-	public JsonNode uploadImages(MultiValueMap<String, Object> body) {
-		try {
-			return restClient.post()
-				.uri(properties.getApiUrl() + "/v1/product-images/upload")
-				.header(HttpHeaders.AUTHORIZATION, "Bearer " + getValidAccessToken())
-				.contentType(MediaType.MULTIPART_FORM_DATA)
-				.body(body)
-				.retrieve()
-				.body(JsonNode.class);
-		} catch (Exception e) {
-			log.error("[Smartstore] 이미지 업로드 실패: {}", e.getMessage());
-			throw new RuntimeException("Smartstore 이미지 업로드 실패", e);
-		}
 	}
 }

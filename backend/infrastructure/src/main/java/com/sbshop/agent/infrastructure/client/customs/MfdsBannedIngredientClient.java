@@ -17,30 +17,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/**
- * 식품안전나라 「해외직구 국내 반입차단 원료·성분」 목록 클라이언트.
- *
- * <p>공공데이터포털(data.go.kr 15132686)의 같은 데이터는 서비스키 발급이 필요한 반면,
- * 식품안전나라 포털이 화면에서 쓰는 이 JSON 엔드포인트는 <b>인증 없이</b> 전량을 준다
- * (2026-07 실측: 314건). 자격증명 없이도 통관 게이트가 도는 게 중요해서 이쪽을 1차 원천으로 쓴다.
- *
- * <p>응답 필드:
- * <pre>
- *   raw_irdnt_nm      한글 원료·성분명   raw_irdnt_eng_nm  영문명
- *   appn_rels_dvs     Y=지정(차단중) / N=해제
- *   appn_dt/appn_rsn  지정일/지정사유    rels_dt/rels_rsn  해제일/해제사유
- * </pre>
- *
- * <p>이 원천은 기타명칭(별칭)을 주지 않는다 — 별칭 보강은
- * {@code IngredientAliasSeed}가 담당한다.
- */
 @Slf4j
 @Component
 public class MfdsBannedIngredientClient implements BannedIngredientSourcePort {
 
 	private static final String LIST_PATH = "/ajax/fooddanger/selectFoodDirectImportBlockRawIrdntList.do";
 	private static final String REFERER = "https://www.foodsafetykorea.go.kr/portal/fooddanger/foodDirectImportBlockRawIrdnt.do";
-	/** 전량이 300여 건이라 한 번에 받는다. 여유를 둬 상한을 크게 잡는다. */
 	private static final int PAGE_SIZE = 2000;
 	private static final DateTimeFormatter DASH = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -84,7 +66,6 @@ public class MfdsBannedIngredientClient implements BannedIngredientSourcePort {
 				throw new IllegalStateException("식약처 목록 HTTP " + response.statusCode());
 			}
 			JsonNode root = objectMapper.readTree(response.body());
-			// 원문 오타 그대로: 성공 응답의 resultStat 값이 "seccess"다.
 			String stat = root.path("resultStat").asText("");
 			if (!"seccess".equals(stat) && !"success".equals(stat)) {
 				throw new IllegalStateException("식약처 목록 응답 실패: resultStat=" + stat);
@@ -114,11 +95,9 @@ public class MfdsBannedIngredientClient implements BannedIngredientSourcePort {
 
 		boolean designated = "Y".equalsIgnoreCase(n.path("appn_rels_dvs").asText("Y"));
 		LocalDate designatedOn = parseDate(text(n, "appn_dt"));
-		// 해제 건은 rels_dt/rels_rsn을 별도 필드로 준다.
 		LocalDate releasedOn = designated ? null : parseDate(text(n, "rels_dt"));
 		String reason = designated ? text(n, "appn_rsn") : text(n, "rels_rsn");
 
-		// 해제인데 해제일이 없으면 날짜 비교로 "차단중"이 되어버린다 → 과거 날짜로 고정해 확실히 해제 처리.
 		if (!designated && releasedOn == null)
 			releasedOn = LocalDate.of(1900, 1, 1);
 

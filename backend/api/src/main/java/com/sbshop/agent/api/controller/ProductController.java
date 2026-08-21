@@ -7,12 +7,14 @@ import com.sbshop.agent.api.dto.product.ProductDetailResponse;
 import com.sbshop.agent.api.dto.product.ProductListResponse;
 import com.sbshop.agent.api.dto.product.ProductUpdateRequest;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
-import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
-import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
-import com.sbshop.agent.core.application.product.ProductManageUseCase;
 import com.sbshop.agent.core.application.product.MarketRepublishResult;
 import com.sbshop.agent.core.application.product.ProductDeleteResult;
+import com.sbshop.agent.core.application.product.ProductManageUseCase;
 import com.sbshop.agent.core.application.product.ProductSearchUseCase;
+import com.sbshop.agent.core.application.product.port.ProductInfoCrawlerPort;
+import com.sbshop.agent.core.application.sourcing.dto.ScrapedProductDto;
+import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
+import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -20,14 +22,14 @@ import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
 import com.sbshop.agent.core.domain.product.client.dto.ImageProcessResult;
 import com.sbshop.agent.core.domain.product.client.dto.ImageUploadFile;
-import com.sbshop.agent.core.application.product.port.ProductInfoCrawlerPort;
-import com.sbshop.agent.core.application.sourcing.dto.ScrapedProductDto;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -57,17 +59,12 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*")
 public class ProductController {
-
-	// F-PROD-22: 크롤로 수집한 소스이미지 다운로드 개수 상한. 소스 페이지가 제공하는 이미지는
-	// 사용자 입력이 아니라 제어 불가하므로, 전량 거부(사용자 작업 좌절) 대신 상한 초과분을 절단하고 로그를 남긴다.
 	static final int MAX_CRAWL_IMAGES = 30;
-
 	private final ProductSearchUseCase productSearchUseCase;
 	private final ProductManageUseCase productManageUseCase;
 	private final ImageDownloadClient imageDownloadClient;
 	private final ProductInfoCrawlerPort productInfoCrawlerPort;
 	private final MarketRegistrationRepository marketRegistrationRepository;
-	// D-076: 사용자 액션 활동로그 기록 서비스
 	private final ActionLogService actionLogService;
 
 	@GetMapping
@@ -84,14 +81,12 @@ public class ProductController {
 			boolean registered = !marketFilter.startsWith("!");
 			String marketName = registered ? marketFilter : marketFilter.substring(1);
 			MarketType marketType = MarketType.valueOf(marketName.toUpperCase());
-			// F-PROD-1: 마켓 필터와 키워드가 둘 다 오면 배타 처리(keyword 무시) 대신 AND로 결합한다.
 			products = hasKeyword
 				? productSearchUseCase.searchByMarketAndKeyword(marketType, registered, keyword, pageable)
 				: productSearchUseCase.searchByMarket(marketType, registered, pageable);
 		} else {
 			products = productSearchUseCase.searchProducts(keyword, pageable);
 		}
-		// D-047: 페이지 상품 전체의 마켓 등록정보를 한 번에 배치 조회(N+1 제거).
 		Map<Long, List<MarketRegistration>> registrationsByProduct = loadRegistrations(products.getContent());
 		return ResponseEntity.ok(products.map(
 			p -> ProductListResponse.from(p,
@@ -105,20 +100,48 @@ public class ProductController {
 		return ResponseEntity.ok(ProductDetailResponse.from(product));
 	}
 
+	@PutMapping("/{id}")
+	public ResponseEntity<Void> updateProduct(
+		@PathVariable
+		Long id,
+		@RequestBody
+		ProductUpdateRequest request) {
+		validateNonNegative(request);
+		try {
+			productManageUseCase.updateProduct(id, request.toCommand());
+			actionLogService.record(ActionLogConstants.PRODUCT_UPDATE, null,
+				ActionStatus.SUCCESS, "상품정보 수정 성공 (상품 " + id + ")");
+			return ResponseEntity.ok().build();
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.PRODUCT_UPDATE, null,
+				ActionStatus.FAILED, "상품정보 수정 실패 (상품 " + id + "): " + e.getMessage());
+			throw e;
+		}
+	}
+
+	@DeleteMapping("/{id}")
+	public ResponseEntity<ProductDeleteResult> deleteProduct(@PathVariable
+	Long id) {
+		try {
+			ProductDeleteResult result = productManageUseCase.deleteProduct(id);
+			return ResponseEntity.ok(result);
+		} catch (Exception e) {
+			actionLogService.record(ActionLogConstants.PRODUCT_DELETE, null,
+				ActionStatus.FAILED, "상품 삭제 실패 (상품 " + id + "): " + e.getMessage());
+			throw e;
+		}
+	}
+
 	@PutMapping("/{id}/price-stock")
 	public ResponseEntity<MarketRepublishResult> updatePriceStock(
 		@PathVariable
 		Long id,
 		@RequestBody
 		PriceStockUpdateRequest request) {
-		// D-060: 자사 DB 갱신 + 연동 마켓 가격/재고 반영 결과(성공/스킵/실패 마켓) 반환.
-		// D-076: 가격/재고 수정 — 결과만 기록(다마켓 동시 반영이므로 marketType null).
-		// F-PROD-8: 음수 가격은 잘못된 입력 → 400으로 거부(마켓에 음수 가격이 전파되지 않도록 진입부에서 차단).
 		if (request.price() != null && request.price().signum() < 0) {
 			throw new IllegalArgumentException("가격은 0 이상이어야 합니다: " + request.price());
 		}
 		try {
-			// F-PROD-7: soldOut을 nullable 그대로 전달 — null이면 재고상태 미변경(판매재개 오전파 방지).
 			MarketRepublishResult result = productManageUseCase.updatePriceStock(id, request.price(),
 				request.soldOut());
 			actionLogService.record(ActionLogConstants.PRODUCT_PRICE_STOCK_UPDATE, null,
@@ -137,8 +160,6 @@ public class ProductController {
 		Long id,
 		@RequestPart("images")
 		List<MultipartFile> images) {
-		// F-PROD-12: 개별 이미지 리사이즈 실패를 조용히 드롭하지 않고 집계해 응답에 표면화.
-		// F-PROD-15: 이미지 등록 3경로 공통 흐름(업로드→집계→응답+로그)은 uploadPreparedImages로 통합.
 		ImageProcessResult prepared = prepareImageFiles(images);
 		return uploadPreparedImages(id, prepared,
 			ActionLogConstants.PRODUCT_IMAGE_UPDATE, "이미지 저장 완료", "이미지 수정 실패");
@@ -150,11 +171,9 @@ public class ProductController {
 		Long id,
 		@RequestBody
 		List<String> imageUrls) {
-		// F-PROD-11: 이미지 URL이 없으면(누락/빈 목록) 처리할 대상이 없다 → 400으로 명확히 거부.
 		if (imageUrls == null || imageUrls.isEmpty()) {
 			throw new IllegalArgumentException("등록할 이미지 URL이 최소 1개 필요합니다.");
 		}
-		// F-PROD-16: 개별 URL 다운로드 실패를 조용히 드롭하지 않고 집계해 응답에 표면화.
 		ImageProcessResult downloaded = imageDownloadClient.downloadAndConvertDetailed(imageUrls);
 		return uploadPreparedImages(id, downloaded,
 			ActionLogConstants.PRODUCT_IMAGE_UPDATE, "이미지 저장 완료", "이미지 수정 실패");
@@ -163,9 +182,6 @@ public class ProductController {
 	@GetMapping("/{id}/images/crawl")
 	public ResponseEntity<List<String>> crawlSourceImages(@PathVariable
 	Long id) {
-		// D-078: 소스이미지 크롤 활동로그 배선. 마켓 무관(소싱 크롤)이므로 marketType null.
-		// 빈결과(소싱 URL 없음/스크랩 null)도 "왜 비었는지" 사용자에게 보이도록 결과 기록.
-		// F-PROD-19: 크롤 앞단(상품조회→URL 가드→크롤→sourceImages 추출)은 crawlSourceImageUrls로 공유.
 		try {
 			CrawlResult crawl = crawlSourceImageUrls(id);
 			if (crawl.noSourcingUrl()) {
@@ -188,10 +204,6 @@ public class ProductController {
 	@PostMapping("/{id}/images/crawl-and-upload")
 	public ResponseEntity<ImageUploadResponse> crawlAndUpload(@PathVariable
 	Long id) {
-		// F-PROD-19: 크롤 앞단은 crawlSourceImageUrls로 공유. F-PROD-20: 뒷단(업로드→집계→응답)은
-		// uploadPreparedImages로 공유. crawl-and-upload 고유 부분(빈 URL/빈 결과 처리)만 여기 남긴다.
-		// 동작 보존: 크롤·다운로드·저장 어느 단계에서 실패하든 SOURCE_IMAGE_CRAWL FAILED 로그를 정확히
-		// 한 번만 남긴다(uploadPreparedImages의 실패 로그와 겹치지 않도록 crawl-and-upload 실패 프리픽스로 위임).
 		String failedMsgPrefix = "소스이미지 크롤·업로드 실패";
 		ImageProcessResult downloaded;
 		int imageCount;
@@ -211,133 +223,59 @@ public class ProductController {
 					new MarketRepublishResult(List.of(), List.of(), Map.of())));
 			}
 			imageCount = images.size();
-			// F-PROD-16: 개별 URL 다운로드 실패를 조용히 드롭하지 않고 집계해 응답에 표면화.
 			downloaded = imageDownloadClient.downloadAndConvertDetailed(images);
 		} catch (Exception e) {
-			// 크롤·다운로드 단계의 예외(개별 URL 실패는 결과에 집계됨, 여기선 던져진 예외만)를 한 번 기록.
 			actionLogService.record(ActionLogConstants.SOURCE_IMAGE_CRAWL, null,
 				ActionStatus.FAILED, failedMsgPrefix + " (상품 " + id + "): " + e.getMessage());
 			throw e;
 		}
-		// F-PROD-20: 저장·집계·응답 단계는 3경로 공통 헬퍼로 위임(실패 로그는 헬퍼가 동일 프리픽스로 기록).
 		return uploadPreparedImages(id, downloaded, ActionLogConstants.SOURCE_IMAGE_CRAWL,
 			"소스이미지 " + imageCount + "개 크롤·업로드", failedMsgPrefix);
 	}
 
-	/**
-	 * F-PROD-15·F-PROD-20: 이미지 등록 3경로의 공통 뒷단을 통합한다. 입력 소스(multipart 리사이즈 /
-	 * URL 다운로드 / 크롤 다운로드)만 다를 뿐, 준비된 {@link ImageProcessResult}를 받아
-	 * 저장(updateImagesAndHtml)→응답 조립(부분실패 집계 포함)→활동로그 기록의 흐름은 동일하다.
-	 *
-	 * <p>동작 보존: 성공 시 {@code succeededMsgPrefix}로 마켓·이미지 결과 메시지를 조립해
-	 * {@code logType}으로 SUCCESS 기록하고, 실패 시 {@code failedMsgPrefix}로 FAILED 기록 후 예외를 재던진다.
-	 * 각 경로의 로그 타입·메시지 프리픽스는 호출부가 넘긴 값을 그대로 사용해 기존 로그 계약을 유지한다.
-	 */
-	private ResponseEntity<ImageUploadResponse> uploadPreparedImages(
-		Long id, ImageProcessResult prepared, String logType,
-		String succeededMsgPrefix, String failedMsgPrefix) {
-		List<ImageUploadFile> uploadFiles = prepared.succeeded();
-		// D-076: 이미지/HTML 수정 — 결과만 기록.
-		try {
-			MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, uploadFiles);
-			actionLogService.record(logType, null,
-				ActionStatus.SUCCESS, buildImageResultMessage(id, succeededMsgPrefix, result, prepared));
-			return ResponseEntity.ok(ImageUploadResponse.from(result, prepared, uploadFiles.size()));
-		} catch (Exception e) {
-			actionLogService.record(logType, null,
-				ActionStatus.FAILED, failedMsgPrefix + " (상품 " + id + "): " + e.getMessage());
-			throw e;
+	private Map<Long, List<MarketRegistration>> loadRegistrations(List<Product> products) {
+		List<Long> productIds = products.stream().map(Product::getId).toList();
+		if (productIds.isEmpty()) {
+			return Collections.emptyMap();
 		}
+		return marketRegistrationRepository.findByProductIdIn(productIds).stream()
+			.collect(Collectors.groupingBy(MarketRegistration::getProductId));
 	}
 
-	/**
-	 * F-PROD-19: 크롤 두 경로(GET /images/crawl, POST /images/crawl-and-upload)의 공통 앞단이다.
-	 * 상품 조회 → 소싱 URL 가드 → 크롤 → sourceImages 추출까지를 담당하고, 소싱 URL 부재와
-	 * 이미지 목록을 {@link CrawlResult}로 구분해 반환한다(각 경로의 빈-결과 로그/응답은 호출부가 처리).
-	 */
-	private CrawlResult crawlSourceImageUrls(Long id) {
-		Product product = productSearchUseCase.getProductDetail(id);
-		String sourcingUrl = product.getSourcingUrl();
-		if (sourcingUrl == null || sourcingUrl.isEmpty()) {
-			return new CrawlResult(true, List.of());
+	private Map<String, MarketBadgeState> buildMarketMap(List<MarketRegistration> registrations) {
+		if (registrations.isEmpty()) {
+			return Collections.emptyMap();
 		}
-		ScrapedProductDto scraped = productInfoCrawlerPort.crawlProductInfoAsDto(sourcingUrl);
-		List<String> rawImages = (scraped == null || scraped.sourceImages() == null)
-			? List.of() : scraped.sourceImages();
-		return new CrawlResult(false, sanitizeCrawledImageUrls(id, rawImages));
-	}
-
-	/**
-	 * F-PROD-18: 크롤된 소스이미지 URL을 정제한다 — http(s) 형식만 통과시키고(잘못된/빈/null URL 제거),
-	 * 중복은 순서를 보존하며 제거한다. F-PROD-22: 정제 후 개수가 {@link #MAX_CRAWL_IMAGES}를 넘으면
-	 * 상한까지 절단하고 절단 사실을 로그로 남긴다(소스 페이지 이미지는 제어 불가 → 거부 대신 절단).
-	 */
-	private List<String> sanitizeCrawledImageUrls(Long id, List<String> rawImages) {
-		java.util.LinkedHashSet<String> valid = new java.util.LinkedHashSet<>();
-		for (String url : rawImages) {
-			if (url == null) {
-				continue;
-			}
-			String trimmed = url.trim();
-			if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-				valid.add(trimmed);
+		Map<String, MarketBadgeState> marketMap = new HashMap<>();
+		for (MarketRegistration reg : registrations) {
+			boolean synced = reg.hasIdentifiers();
+			switch (reg.getMarketType()) {
+				case COUPANG:
+				case SMART_STORE:
+				case ELEVEN_STREET: {
+					marketMap.put(reg.getMarketType().name(),
+						MarketBadgeState.of(synced, reg.buildMarketUrl()));
+					break;
+				}
+				case CAFE24: {
+					marketMap.put("CAFE24", MarketBadgeState.of(synced, null));
+					String gUrl = reg.buildGmarketUrl();
+					if (gUrl != null) {
+						marketMap.put("GMARKET", MarketBadgeState.of(true, gUrl));
+					}
+					String aUrl = reg.buildAuctionUrl();
+					if (aUrl != null) {
+						marketMap.put("AUCTION", MarketBadgeState.of(true, aUrl));
+					}
+					break;
+				}
+				default:
+					break;
 			}
 		}
-		List<String> result = new ArrayList<>(valid);
-		if (result.size() > MAX_CRAWL_IMAGES) {
-			log.warn("소스이미지 크롤 개수 상한({}) 초과 — {}개 중 {}개로 절단 (상품 {})",
-				MAX_CRAWL_IMAGES, result.size(), MAX_CRAWL_IMAGES, id);
-			return new ArrayList<>(result.subList(0, MAX_CRAWL_IMAGES));
-		}
-		return result;
+		return marketMap;
 	}
 
-	/** F-PROD-19: 크롤 앞단 결과 — 소싱 URL 부재 여부와 수집된 소스이미지 URL 목록. */
-	private record CrawlResult(boolean noSourcingUrl, List<String> images) {
-	}
-
-	@PutMapping("/{id}")
-	public ResponseEntity<Void> updateProduct(
-		@PathVariable
-		Long id,
-		@RequestBody
-		ProductUpdateRequest request) {
-		// F-PROD-23: 전체수정에 금액·수량 음수 검증이 전무했다 → 음수 금액/재고를 진입부에서 400으로 거부.
-		validateNonNegative(request);
-		// D-076: 상품 정보 수정 — 결과만 기록.
-		try {
-			productManageUseCase.updateProduct(id, request.toCommand());
-			actionLogService.record(ActionLogConstants.PRODUCT_UPDATE, null,
-				ActionStatus.SUCCESS, "상품정보 수정 성공 (상품 " + id + ")");
-			return ResponseEntity.ok().build();
-		} catch (Exception e) {
-			actionLogService.record(ActionLogConstants.PRODUCT_UPDATE, null,
-				ActionStatus.FAILED, "상품정보 수정 실패 (상품 " + id + "): " + e.getMessage());
-			throw e;
-		}
-	}
-
-	@DeleteMapping("/{id}")
-	public ResponseEntity<ProductDeleteResult> deleteProduct(@PathVariable
-	Long id) {
-		// F-PROD-27/28: 완전 상품 삭제 — 연동 마켓 리스팅까지 삭제하고 삭제/스킵/실패 리포트를 바디로 반환.
-		// best-effort(C)라 일부 마켓 실패도 Product는 삭제되므로 항상 200 + 리포트. ActionLog(PRODUCT_DELETE,
-		// 삭제/스킵/실패 마켓+marketItemId 포함)는 오케스트레이터(deleteProduct)가 기록한다(이중기록 방지).
-		// 상품 미존재(404) 등 오케스트레이션 진입 전 실패만 여기서 FAILED로 기록한다.
-		try {
-			ProductDeleteResult result = productManageUseCase.deleteProduct(id);
-			return ResponseEntity.ok(result);
-		} catch (Exception e) {
-			actionLogService.record(ActionLogConstants.PRODUCT_DELETE, null,
-				ActionStatus.FAILED, "상품 삭제 실패 (상품 " + id + "): " + e.getMessage());
-			throw e;
-		}
-	}
-
-	/**
-	 * F-PROD-23: 전체수정 요청의 금액·수량 필드가 음수가 아닌지 검증한다(null은 미변경 → 통과).
-	 * 음수는 잘못된 입력이므로 {@link IllegalArgumentException}으로 던져 400으로 매핑한다.
-	 */
 	private void validateNonNegative(ProductUpdateRequest request) {
 		requireNonNegative("원가(costPrice)", request.costPrice());
 		requireNonNegative("환율(exchangeRate)", request.exchangeRate());
@@ -350,7 +288,7 @@ public class ProductController {
 		requireNonNegative("묶음수량(bundleQuantity)", request.bundleQuantity());
 	}
 
-	private void requireNonNegative(String label, java.math.BigDecimal value) {
+	private void requireNonNegative(String label, BigDecimal value) {
 		if (value != null && value.signum() < 0) {
 			throw new IllegalArgumentException(label + "는 0 이상이어야 합니다: " + value);
 		}
@@ -362,25 +300,61 @@ public class ProductController {
 		}
 	}
 
-	/**
-	 * D-047: 페이지에 담긴 상품들의 마켓 등록정보를 배치 조회(findByProductIdIn)하여 productId로 그룹화한다.
-	 * 기존 row별 findByProductId(N+1) 대비 쿼리 1회로 축소(성능 회귀 예방).
-	 */
-	private Map<Long, List<MarketRegistration>> loadRegistrations(List<Product> products) {
-		List<Long> productIds = products.stream().map(Product::getId).toList();
-		if (productIds.isEmpty()) {
-			return Collections.emptyMap();
+	private ImageProcessResult prepareImageFiles(List<MultipartFile> images) {
+		List<ImageUploadFile> uploadFiles = new ArrayList<>();
+		List<ImageProcessResult.ImageFailure> failures = new ArrayList<>();
+		for (MultipartFile mf : images) {
+			try {
+				byte[] rawBytes = mf.getBytes();
+				ByteArrayOutputStream os = new ByteArrayOutputStream();
+				Thumbnails.of(new ByteArrayInputStream(rawBytes))
+					.size(1000, 1000)
+					.outputFormat("jpg")
+					.outputQuality(0.8)
+					.toOutputStream(os);
+				byte[] optimizedBytes = os.toByteArray();
+				InputStream stream = new ByteArrayInputStream(optimizedBytes);
+				uploadFiles.add(new ImageUploadFile(
+					mf.getOriginalFilename(),
+					"image/jpeg",
+					stream,
+					optimizedBytes.length));
+			} catch (Exception e) {
+				log.error("이미지 리사이즈 실패: {}", mf.getOriginalFilename(), e);
+				String reason = (e.getMessage() == null || e.getMessage().isBlank())
+					? e.getClass().getSimpleName() : e.getMessage();
+				failures.add(new ImageProcessResult.ImageFailure(mf.getOriginalFilename(), reason));
+			}
 		}
-		return marketRegistrationRepository.findByProductIdIn(productIds).stream()
-			.collect(Collectors.groupingBy(MarketRegistration::getProductId));
+		return ImageProcessResult.of(uploadFiles, failures);
 	}
 
-	/**
-	 * D-077: 마켓별 상세 활동로그 메시지를 조립한다.
-	 * "{prefix} | 쿠팡 {번호} 성공, 스마트스토어 {번호} 실패(사유), G마켓 스킵" 형태.
-	 * 마켓 라벨은 한글(MarketType.getLabel()), 상품번호는 extractMarketCode()(없으면 생략).
-	 * 실패 사유는 50자로 절단(전체 message 1000자는 ActionLogService.truncate가 처리).
-	 */
+	private ResponseEntity<ImageUploadResponse> uploadPreparedImages(
+		Long id, ImageProcessResult prepared, String logType,
+		String succeededMsgPrefix, String failedMsgPrefix) {
+		List<ImageUploadFile> uploadFiles = prepared.succeeded();
+		try {
+			MarketRepublishResult result = productManageUseCase.updateImagesAndHtml(id, uploadFiles);
+			actionLogService.record(logType, null,
+				ActionStatus.SUCCESS, buildImageResultMessage(id, succeededMsgPrefix, result, prepared));
+			return ResponseEntity.ok(ImageUploadResponse.from(result, prepared, uploadFiles.size()));
+		} catch (Exception e) {
+			actionLogService.record(logType, null,
+				ActionStatus.FAILED, failedMsgPrefix + " (상품 " + id + "): " + e.getMessage());
+			throw e;
+		}
+	}
+
+	private String buildImageResultMessage(
+		Long productId, String prefix, MarketRepublishResult result, ImageProcessResult images) {
+		int failed = images.failed().size();
+		if (failed == 0) {
+			return buildMarketResultMessage(productId, prefix, result);
+		}
+		String imgPrefix = prefix + " (이미지 " + images.succeeded().size() + "장 성공, " + failed + "장 실패)";
+		return buildMarketResultMessage(productId, imgPrefix, result);
+	}
+
 	private String buildMarketResultMessage(Long productId, String prefix, MarketRepublishResult result) {
 		Map<MarketType, String> codes = new HashMap<>();
 		for (MarketRegistration reg : marketRegistrationRepository.findByProductId(productId)) {
@@ -417,96 +391,38 @@ public class ProductController {
 		return reason.length() > 50 ? reason.substring(0, 50) : reason;
 	}
 
-	/**
-	 * 마켓 배지 상태 맵을 조립한다. 키는 프론트 소비 키(MarketType.name()),
-	 * 값은 {@link MarketBadgeState}. 키가 없으면 그 마켓은 미등록이다.
-	 *
-	 * <p>CAFE24는 자신도 키로 내보낸다 — 프론트가 G마켓/옥션 배지의 선행조건(카페24 등록 여부)을
-	 * 판정해야 하기 때문이다. G마켓/옥션은 여전히 Cafe24 등록행에 백필된 식별자에서 파생한다.
-	 */
-	private Map<String, MarketBadgeState> buildMarketMap(List<MarketRegistration> registrations) {
-		if (registrations.isEmpty()) {
-			return Collections.emptyMap();
+	private CrawlResult crawlSourceImageUrls(Long id) {
+		Product product = productSearchUseCase.getProductDetail(id);
+		String sourcingUrl = product.getSourcingUrl();
+		if (sourcingUrl == null || sourcingUrl.isEmpty()) {
+			return new CrawlResult(true, List.of());
 		}
-		Map<String, MarketBadgeState> marketMap = new HashMap<>();
-		for (MarketRegistration reg : registrations) {
-			// 등록 완료 판정은 is_synced가 아니라 "마켓이 돌려준 식별자를 가졌는가"로 한다.
-			// 레거시 임포트 행은 실제로 정상 등록돼 있어도 is_synced=false라, 그걸 쓰면
-			// 배지 절반이 거짓 미완료 경고로 뜬다(운영 실측 2026-08-14).
-			// 자세한 근거는 MarketRegistration.hasIdentifiers() 주석 참조.
-			boolean synced = reg.hasIdentifiers();
-			switch (reg.getMarketType()) {
-				case COUPANG:
-				case SMART_STORE:
-				case ELEVEN_STREET: {
-					marketMap.put(reg.getMarketType().name(),
-						MarketBadgeState.of(synced, reg.buildMarketUrl()));
-					break;
-				}
-				case CAFE24: {
-					marketMap.put("CAFE24", MarketBadgeState.of(synced, null));
-					// ESM(지마켓/옥션)은 Cafe24 경유 연동 → Cafe24 등록행에 백필된 코드에서 링크 파생.
-					String gUrl = reg.buildGmarketUrl();
-					if (gUrl != null) {
-						marketMap.put("GMARKET", MarketBadgeState.of(true, gUrl));
-					}
-					String aUrl = reg.buildAuctionUrl();
-					if (aUrl != null) {
-						marketMap.put("AUCTION", MarketBadgeState.of(true, aUrl));
-					}
-					break;
-				}
-				default:
-					break;
-			}
-		}
-		return marketMap;
+		ScrapedProductDto scraped = productInfoCrawlerPort.crawlProductInfoAsDto(sourcingUrl);
+		List<String> rawImages = (scraped == null || scraped.sourceImages() == null)
+			? List.of() : scraped.sourceImages();
+		return new CrawlResult(false, sanitizeCrawledImageUrls(id, rawImages));
 	}
 
-	/**
-	 * F-PROD-12: 개별 이미지 리사이즈 실패를 조용히 드롭하지 않고, 성공 파일과 실패 항목(파일명·사유)을
-	 * {@link ImageProcessResult}로 함께 반환한다. 실패는 응답의 imagesFailed로 표면화된다.
-	 */
-	private ImageProcessResult prepareImageFiles(List<MultipartFile> images) {
-		List<ImageUploadFile> uploadFiles = new ArrayList<>();
-		List<ImageProcessResult.ImageFailure> failures = new ArrayList<>();
-		for (MultipartFile mf : images) {
-			try {
-				byte[] rawBytes = mf.getBytes();
-				ByteArrayOutputStream os = new ByteArrayOutputStream();
-				Thumbnails.of(new ByteArrayInputStream(rawBytes))
-					.size(1000, 1000)
-					.outputFormat("jpg")
-					.outputQuality(0.8)
-					.toOutputStream(os);
-				byte[] optimizedBytes = os.toByteArray();
-				InputStream stream = new ByteArrayInputStream(optimizedBytes);
-				uploadFiles.add(new ImageUploadFile(
-					mf.getOriginalFilename(),
-					"image/jpeg",
-					stream,
-					optimizedBytes.length));
-			} catch (Exception e) {
-				log.error("이미지 리사이즈 실패: {}", mf.getOriginalFilename(), e);
-				String reason = (e.getMessage() == null || e.getMessage().isBlank())
-					? e.getClass().getSimpleName() : e.getMessage();
-				failures.add(new ImageProcessResult.ImageFailure(mf.getOriginalFilename(), reason));
+	private List<String> sanitizeCrawledImageUrls(Long id, List<String> rawImages) {
+		LinkedHashSet<String> valid = new LinkedHashSet<>();
+		for (String url : rawImages) {
+			if (url == null) {
+				continue;
+			}
+			String trimmed = url.trim();
+			if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+				valid.add(trimmed);
 			}
 		}
-		return ImageProcessResult.of(uploadFiles, failures);
+		List<String> result = new ArrayList<>(valid);
+		if (result.size() > MAX_CRAWL_IMAGES) {
+			log.warn("소스이미지 크롤 개수 상한({}) 초과 — {}개 중 {}개로 절단 (상품 {})",
+				MAX_CRAWL_IMAGES, result.size(), MAX_CRAWL_IMAGES, id);
+			return new ArrayList<>(result.subList(0, MAX_CRAWL_IMAGES));
+		}
+		return result;
 	}
 
-	/**
-	 * F-PROD-12·F-PROD-16: 마켓 재게시 메시지에 개별 이미지 부분 실패(성공 N/실패 M)를 덧붙인다.
-	 * 이미지 실패가 없으면 기존 마켓 메시지를 그대로 반환한다.
-	 */
-	private String buildImageResultMessage(
-		Long productId, String prefix, MarketRepublishResult result, ImageProcessResult images) {
-		int failed = images.failed().size();
-		if (failed == 0) {
-			return buildMarketResultMessage(productId, prefix, result);
-		}
-		String imgPrefix = prefix + " (이미지 " + images.succeeded().size() + "장 성공, " + failed + "장 실패)";
-		return buildMarketResultMessage(productId, imgPrefix, result);
+	private record CrawlResult(boolean noSourcingUrl, List<String> images) {
 	}
 }

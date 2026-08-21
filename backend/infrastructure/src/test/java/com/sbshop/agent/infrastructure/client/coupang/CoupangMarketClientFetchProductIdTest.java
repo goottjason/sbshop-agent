@@ -26,12 +26,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * backfill Coupang productId 회귀 가드: CoupangMarketClient.fetchProductId.
- * - seller-products GET 응답의 data.productId 를 문자열로 반환.
- * - productId 부재/blank 입력/예외 시 best-effort 로 Optional.empty() 반환(throw 금지).
- * objectMapper 는 @Mock 이며 readTree 를 실제 ObjectMapper 로 위임(ImagesTest 패턴 미러).
- */
 @ExtendWith(MockitoExtension.class)
 class CoupangMarketClientFetchProductIdTest {
 

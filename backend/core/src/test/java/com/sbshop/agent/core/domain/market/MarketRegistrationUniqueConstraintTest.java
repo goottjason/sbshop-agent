@@ -13,18 +13,6 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.test.context.ContextConfiguration;
 
-/**
- * F-PSRC-13 / R3 멱등성 하드가드.
- * <p>
- * 마켓 게시 재호출(동시 재호출 포함)로 같은 (product_id, market_type) 조합의
- * MarketRegistration이 <b>중복 생성</b>되는 것을 DB 레벨에서 막는다.
- * {@link com.sbshop.agent.core.application.product.MarketRegistrationTxService#savePending}의
- * findByProductIdAndMarketType 재사용은 순차 재호출에는 멱등이지만, 두 트랜잭션이 동시에
- * "행 없음"을 관측하면 둘 다 insert하는 경쟁이 남는다. 이 경쟁을 유니크 제약으로 하드 차단한다.
- * <p>
- * 이 테스트는 같은 product+market으로 두 행을 flush하면 제약 위반이 발생함을 검증한다.
- * (유니크 제약이 없으면 두 insert가 모두 성공해 실패한다 — Red.)
- */
 @DataJpaTest
 @ContextConfiguration(classes = MarketRegistrationUniqueConstraintTest.TestApp.class)
 class MarketRegistrationUniqueConstraintTest {
@@ -45,8 +33,6 @@ class MarketRegistrationUniqueConstraintTest {
 		em.persist(buildRegistration(productId, market));
 		em.flush();
 
-		// GenerationType.IDENTITY 엔티티는 persist 시점에 즉시 INSERT되어 ID를 얻으므로,
-		// 유니크 제약 위반이 persist(+flush) 경로에서 표면화된다.
 		MarketRegistration duplicate = buildRegistration(productId, market);
 		assertThatThrownBy(() -> {
 			em.persist(duplicate);

@@ -7,6 +7,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Base64;
 import org.junit.jupiter.api.DisplayName;
@@ -14,8 +15,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.web.client.RestClient;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
 
 class Cafe24OAuthTokenHttpClientTest {
 
@@ -41,7 +42,7 @@ class Cafe24OAuthTokenHttpClientTest {
 		assertThat(resp.accessToken()).isEqualTo("AT1");
 		assertThat(resp.refreshToken()).isEqualTo("RT2");
 		assertThat(resp.expiresAt())
-			.isEqualTo(java.time.LocalDateTime.of(2026, 7, 11, 15, 0, 0)
+			.isEqualTo(LocalDateTime.of(2026, 7, 11, 15, 0, 0)
 				.atZone(ZoneId.of("Asia/Seoul")).toInstant());
 		server.verify();
 	}

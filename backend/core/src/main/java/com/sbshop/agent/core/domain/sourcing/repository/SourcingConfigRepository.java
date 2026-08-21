@@ -5,6 +5,5 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface SourcingConfigRepository extends JpaRepository<SourcingConfig, Long> {
-
 	Optional<SourcingConfig> findFirstByOrderByIdAsc();
 }

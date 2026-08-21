@@ -1,5 +1,7 @@
 package com.sbshop.agent.core.application.order.adapter;
 
+import com.sbshop.agent.core.domain.order.Shipment;
+import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -21,26 +23,19 @@ import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 
-/**
- * D-E5 회귀: 쿠팡은 롯데택배를 구 현대택배 코드 "HYUNDAI"로 식별한다.
- * "LOTTE" 전송 시 라이브에서 400 "Delivery company code not supported" 발생 → HYUNDAI로 교정.
- */
 class CoupangOrderAdapterCarrierCodeTest {
-
 	@Test
 	void updateTracking_롯데택배는_쿠팡_HYUNDAI_코드로_전송된다() {
-		// given
 		CoupangOrderApiPort apiPort = mock(CoupangOrderApiPort.class);
 		MarketRegistrationRepository regRepo = mock(MarketRegistrationRepository.class);
 		MarketRegistration reg = mock(MarketRegistration.class);
 		when(reg.extractVendorItemId()).thenReturn("999");
 		when(regRepo.findByProductIdAndMarketType(any(), any())).thenReturn(Optional.of(reg));
 
-		// 6단계: 배송박스번호는 배송에서만 온다(주문 컬럼 폴백 제거) — 라인아이템이 속한 배송을 끼운다.
-		com.sbshop.agent.core.domain.order.repository.ShipmentRepository shipmentRepo = mock(
-			com.sbshop.agent.core.domain.order.repository.ShipmentRepository.class);
+		ShipmentRepository shipmentRepo = mock(
+			ShipmentRepository.class);
 		when(shipmentRepo.findById(900L)).thenReturn(Optional.of(
-			com.sbshop.agent.core.domain.order.Shipment.builder()
+			Shipment.builder()
 				.orderId(1L).marketShipmentNo("708248067784723").build()));
 
 		CoupangOrderAdapter adapter = new CoupangOrderAdapter(apiPort, null, null, null, regRepo, shipmentRepo);
@@ -54,10 +49,8 @@ class CoupangOrderAdapterCarrierCodeTest {
 		OrderLineItem item = OrderLineItem.builder().productId(2500L).build();
 		item.assignShipmentId(900L);
 
-		// when
 		adapter.updateTracking(cred, order, item, "315398790560", ShippingCarrier.LOTTE_LOGISTICS);
 
-		// then
 		ArgumentCaptor<CoupangUpdateInvoiceRequest> captor = ArgumentCaptor.forClass(CoupangUpdateInvoiceRequest.class);
 		verify(apiPort).updateTracking(any(), captor.capture());
 		String code = captor.getValue().orderSheetInvoiceApplyDtos().get(0).deliveryCompanyCode();

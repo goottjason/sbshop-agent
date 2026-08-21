@@ -12,9 +12,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * D-042: SyncCompletedEvent 리스너가 성공/실패를 SUCCESS/FAILED로 올바르게 기록하는지 검증.
- */
 @ExtendWith(MockitoExtension.class)
 class ActionLogSyncListenerTest {
 

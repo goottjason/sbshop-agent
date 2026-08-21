@@ -8,7 +8,11 @@ import com.sbshop.agent.core.domain.process.repository.ProcessStatusRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -152,8 +156,6 @@ class ProcessStatusServiceTest {
 	@Test
 	@DisplayName("getAllBatchIds는 리포지토리의 최신순 정렬 순서를 그대로 보존한다(F-BATCH-ST2 최신순)")
 	void getAllBatchIds_preservesLatestFirstOrder() {
-		// 리포지토리 쿼리가 max(startedAt) desc로 최신순을 보장하므로(F-BATCH-ST2),
-		// 서비스는 그 순서를 재정렬 없이 그대로 통과시켜야 한다.
 		when(repository.findDistinctBatchIds())
 			.thenReturn(List.of("latest", "middle", "oldest"));
 
@@ -195,8 +197,6 @@ class ProcessStatusServiceTest {
 	@Test
 	@DisplayName("getBatchStatus(status 필터)도 미존재 batchId(전체 행 없음)면 404를 던진다(R1 404 동작 보존)")
 	void getBatchStatus_withFilter_unknownBatchId_throwsNotFound() {
-		// 미존재 판정은 전체 행 기준(빈 배치 = 미존재)이어야 한다. 필터 결과가 비었다고 404를 던지면
-		// "FAILED 없음(정상 배치)"과 "미존재 배치"를 혼동하므로, 미존재는 total로 판정한다.
 		when(repository.countByBatchId("nope")).thenReturn(0L);
 
 		assertThatThrownBy(() -> service.getBatchStatus("nope", ProcessStatusType.FAILED))
@@ -216,17 +216,13 @@ class ProcessStatusServiceTest {
 		assertThat(result).isEmpty();
 	}
 
-	// --- F-BATCH-1: 동시 배치 중복 실행 가드(jobType별, in-JVM) ---
-
 	@Test
 	@DisplayName("F-BATCH-1: 같은 jobType 배치가 진행 중이면 두 번째 startBatch는 IllegalStateException으로 거부한다")
 	void startBatch_sameJobTypeAlreadyRunning_rejectsSecondStart() {
 		when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-		// 1차 시작: 성공 — 진행 중 상태로 진입(해제 이벤트 없음).
 		service.startBatch(JobType.CRAWL_AND_UPDATE_PRICE_STOCK, List.of("P001"));
 
-		// 2차 시작(동일 jobType, 진행 중): 거부되어야 한다.
 		assertThatThrownBy(() ->
 			service.startBatch(JobType.CRAWL_AND_UPDATE_PRICE_STOCK, List.of("P002")))
 			.isInstanceOf(IllegalStateException.class);
@@ -251,10 +247,8 @@ class ProcessStatusServiceTest {
 
 		String b1 = service.startBatch(JobType.CRAWL_AND_UPDATE_PRICE_STOCK, List.of("P001"));
 
-		// 배치 완료 → 가드 해제(BatchCompletedEvent 리스너가 호출하는 지점).
 		service.releaseBatch(b1);
 
-		// 해제 후 동일 jobType 재시작 허용.
 		assertThat(service.startBatch(JobType.CRAWL_AND_UPDATE_PRICE_STOCK, List.of("P002")))
 			.isNotBlank();
 	}
@@ -263,6 +257,5 @@ class ProcessStatusServiceTest {
 	@DisplayName("F-BATCH-1: 미등록 batchId로 releaseBatch를 호출해도 예외 없이 무시된다(멱등)")
 	void releaseBatch_unknownBatchId_isNoOp() {
 		service.releaseBatch("no-such-batch");
-		// 예외 없이 통과하면 성공.
 	}
 }

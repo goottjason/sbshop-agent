@@ -15,21 +15,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * F-SYNC-5 구조 리팩토링 회귀 방지: DTO 기반 주문 sync 3서비스(쿠팡/스마트스토어/11번가)가 공유하는
- * "주문 목록을 순회하며 marketOrderNo로 기존/신규를 판정해 update-or-create로 분기"하는 골격을
- * {@link MarketOrderUpsertDispatcher}로 추출했다. 이 헬퍼는 상태를 갖지 않으며, 분기 결정만 수행하고
- * 실제 update/create는 각 서비스의 콜백에 위임한다(마켓별 파싱·필드 매핑은 통합하지 않음).
- */
 @ExtendWith(MockitoExtension.class)
 class MarketOrderUpsertDispatcherTest {
-
 	@Mock
 	private OrderRepository orderRepository;
-
-	private MarketOrderDto dto(String orderNo) {
-		return MarketOrderDto.builder().marketOrderNo(orderNo).build();
-	}
 
 	@Test
 	@DisplayName("기존 주문이 있으면 update 콜백에 (기존 Order, dto)로 위임한다")
@@ -87,5 +76,9 @@ class MarketOrderUpsertDispatcherTest {
 
 		assertThat(updated).containsExactly(existing);
 		assertThat(created).containsExactly(b);
+	}
+
+	private MarketOrderDto dto(String orderNo) {
+		return MarketOrderDto.builder().marketOrderNo(orderNo).build();
 	}
 }

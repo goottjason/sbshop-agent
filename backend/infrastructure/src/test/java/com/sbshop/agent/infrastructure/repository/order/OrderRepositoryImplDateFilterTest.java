@@ -7,10 +7,6 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * F-ORD-2: 주문 조회 기간필터가 startDate/endDate 한쪽만 오면 조용히 전체기간 조회하던 결함.
- * 한쪽만 와도 그 경계(>= start 또는 <= end)는 적용되어야 한다.
- */
 class OrderRepositoryImplDateFilterTest {
 
 	private final OrderRepositoryImpl repo = new OrderRepositoryImpl(null, null, null);

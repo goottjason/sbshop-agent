@@ -1,5 +1,8 @@
 package com.sbshop.agent.core.application.order.service;
 
+import com.sbshop.agent.core.application.order.dto.MarketFetchOutcome;
+import com.sbshop.agent.core.application.order.mapper.CoupangStatusMapper;
+import org.mockito.ArgumentMatchers;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -32,22 +35,9 @@ import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 
-/**
- * D-160: <b>취소 감지의 사정거리</b>를 고정한다.
- *
- * <p>2026-08-08 라이브 사고: D-159 백필이 30일 구간을 오래된 쪽부터 걸으며 구간마다 동기화를
- * 호출했는데, 사후처리가 조회 구간을 무시하고 <b>언제나 최근 30일</b>을 취소 판정 대상으로 삼았다.
- * 그래서 4월 구간을 조회한 결과에 최근 주문이 없는 것을 "마켓에서 사라졌다"로 읽어
- * 종결 전 쿠팡 주문을 전부 CANCELED로 만들었고, 뒤이어 정산액이 0으로 내려갔다.
- * 상태는 다음 구간이 복원했지만 <b>정산액을 되돌리는 주체가 없어</b> 0이 영구히 남았다.
- *
- * <p>부재(absence)로 상태를 단정하는 판정은 그 근거가 성립하는 범위에서만 유효하다 —
- * 조회한 구간 안, 조회가 온전했을 때, 그리고 상태 판정 권한이 있는 호출에서만.
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class CoupangCancelDetectionScopeTest {
-
 	@Mock
 	private MarketCredentialRepository credentialRepository;
 	@Mock
@@ -63,7 +53,7 @@ class CoupangCancelDetectionScopeTest {
 	@Mock
 	private CoupangOrderAdapter adapter;
 	@Mock
-	private com.sbshop.agent.core.application.order.mapper.CoupangStatusMapper statusMapper;
+	private CoupangStatusMapper statusMapper;
 	@Mock
 	private SyncStatusService syncStatusService;
 	@Mock
@@ -92,7 +82,7 @@ class CoupangCancelDetectionScopeTest {
 			.thenReturn(Optional.of(credential));
 		when(orderRepository.findByMarketType(MarketType.COUPANG)).thenReturn(List.of());
 		when(adapter.fetchOrdersWithOutcome(any(), any(), any()))
-			.thenReturn(new com.sbshop.agent.core.application.order.dto.MarketFetchOutcome(List.of(), true));
+			.thenReturn(new MarketFetchOutcome(List.of(), true));
 	}
 
 	@Test
@@ -103,10 +93,8 @@ class CoupangCancelDetectionScopeTest {
 
 		service.syncCoupangOrders(from, to);
 
-		// 4월 구간을 조회했으면 4월만 판정한다. 조회하지 않은 최근 30일을 판정 대상에 넣는 순간
-		// "응답에 없다 = 취소됐다"는 근거가 무너진다.
-		verify(adapter).detectCancellations(any(), org.mockito.ArgumentMatchers.eq(from),
-			org.mockito.ArgumentMatchers.eq(to));
+		verify(adapter).detectCancellations(any(), ArgumentMatchers.eq(from),
+			ArgumentMatchers.eq(to));
 	}
 
 	@Test
@@ -121,7 +109,7 @@ class CoupangCancelDetectionScopeTest {
 	@DisplayName("[D-160] 부분 조회 실패면 취소 감지를 건너뛴다 — 못 본 것을 사라진 것으로 읽지 않는다")
 	void skipsCancellationDetectionOnPartialFetch() {
 		when(adapter.fetchOrdersWithOutcome(any(), any(), any()))
-			.thenReturn(new com.sbshop.agent.core.application.order.dto.MarketFetchOutcome(List.of(), false));
+			.thenReturn(new MarketFetchOutcome(List.of(), false));
 
 		service.syncCoupangOrders(LocalDate.now().minusDays(30), LocalDate.now());
 
@@ -140,7 +128,7 @@ class CoupangCancelDetectionScopeTest {
 	@DisplayName("[D-160] 조회가 온전하지 않아도 정산0 정규화는 계속 돈다 — DB에서 파생되는 판정이다")
 	void terminalSettlementRunsRegardlessOfFetchCompleteness() {
 		when(adapter.fetchOrdersWithOutcome(any(), any(), any()))
-			.thenReturn(new com.sbshop.agent.core.application.order.dto.MarketFetchOutcome(List.of(), false));
+			.thenReturn(new MarketFetchOutcome(List.of(), false));
 
 		service.syncCoupangOrders(LocalDate.now().minusDays(30), LocalDate.now());
 

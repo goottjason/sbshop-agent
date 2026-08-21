@@ -10,10 +10,6 @@ import org.junit.jupiter.api.Test;
 import com.sbshop.agent.infrastructure.client.coupang.CoupangInvoiceResponse.InvoiceResult;
 import com.sbshop.agent.infrastructure.client.coupang.CoupangInvoiceResponse.ResponseData;
 
-/**
- * 쿠팡 송장 응답의 항목별(succeed) 검사 계약을 고정한다.
- * 봉투(code=200)만 성공이던 종전 판정이 항목 거부(succeed=false)를 성공으로 오인하던 결함을 방지한다.
- */
 class CoupangInvoiceResponseTest {
 
 	private InvoiceResult result(boolean succeed, String msg) {

@@ -5,6 +5,7 @@ import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,38 +14,22 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-/**
- * 상품 그리드 마켓 링크에 필요한 부가 식별자를 마켓 API로 조회해 market_identifiers에 백필한다.
- * <ul>
- *   <li>쿠팡: sellerProductId → productId (상품페이지 링크용)</li>
- *   <li>스토어: originProductNo → channelProductNo (상품페이지 링크용)</li>
- * </ul>
- * 대상 키가 이미 있으면 스킵(멱등). 조회 실패 건은 다음 실행에서 재시도된다(best-effort).
- * G마켓/옥션은 ESM 엑셀로 Cafe24 등록행에 이미 백필됨(이 서비스 범위 밖).
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class MarketLinkIdentifierBackfillService {
-
 	private final MarketRegistrationRepository marketRegistrationRepository;
 	private final MarketClientRouter marketClientRouter;
 
-	/** 마켓별: (조회 소스 키, 백필 대상 키, 배치 크기, 배치/페이지 간 지연ms, 전체스캔 여부). */
 	private record Spec(String sourceKey, String targetKey, int batchSize, long throttleMs, boolean bulkScan) {
 	}
 
 	private static final Map<MarketType, Spec> SPECS = Map.of(
-		// 쿠팡: seller-products GET은 단건 API → batch=1, 요청 간 100ms.
+
 		MarketType.COUPANG, new Spec("sellerProductId", "productId", 1, 100L, false),
-		// 스토어: 상품검색 API가 originProductNos 필터를 무시하고 전체를 반환(라이브 확인) →
-		//         전체 페이지 순회로 origin→channel 맵을 한 번에 구축(bulkScan), 페이지 간 500ms.
+
 		MarketType.SMART_STORE, new Spec("originProductNo", "channelProductNo", 100, 500L, true));
 
-	/**
-	 * 전 마켓 백필 1회 실행. 마켓별 처리 결과 요약을 반환한다.
-	 * @param limit 마켓별 최대 처리 건수(0 이하=무제한). 대량 호출 시 rate limit 조절용.
-	 */
 	public Map<String, Object> backfillAll(int limit) {
 		Map<String, Object> summary = new LinkedHashMap<>();
 		for (Map.Entry<MarketType, Spec> e : SPECS.entrySet()) {
@@ -53,10 +38,6 @@ public class MarketLinkIdentifierBackfillService {
 		return summary;
 	}
 
-	/**
-	 * 백그라운드 실행 진입점. 수천 건 × 마켓 API 지연으로 수분~십수분 걸리므로 호출 스레드를 막지 않는다.
-	 * @param onDone 완료 시 running 플래그 해제 등 후처리 콜백(실패해도 반드시 호출).
-	 */
 	@Async
 	public void backfillAllAsync(int limit, Runnable onDone) {
 		try {
@@ -83,7 +64,6 @@ public class MarketLinkIdentifierBackfillService {
 		MarketClient client = marketClientRouter.getClient(marketType);
 		List<MarketRegistration> regs = marketRegistrationRepository.findByMarketType(marketType);
 
-		// 처리 대상만 수집: 대상 키 미보유 + 소스 키 보유. (source → registration 매핑)
 		Map<String, MarketRegistration> pending = new LinkedHashMap<>();
 		for (MarketRegistration reg : regs) {
 			scanned++;
@@ -99,10 +79,9 @@ public class MarketLinkIdentifierBackfillService {
 			pending.put(source, reg);
 		}
 
-		List<String> sources = new java.util.ArrayList<>(pending.keySet());
+		List<String> sources = new ArrayList<>(pending.keySet());
 
 		if (spec.bulkScan()) {
-			// 전체 스캔: 마켓 전 상품의 (소스→링크식별자) 맵을 한 번 구축한 뒤 pending을 매칭.
 			Map<String, String> all = client.fetchAllLinkIdentifiers(spec.throttleMs());
 			if (all == null) {
 				all = Map.of();
@@ -147,7 +126,7 @@ public class MarketLinkIdentifierBackfillService {
 				failed += chunk.size();
 				log.warn("[링크식별자 백필] {} 배치 조회 실패 ({}건): {}", marketType, chunk.size(), ex.getMessage());
 			}
-			// 배치 간 지연으로 rate limit 회피.
+
 			if (spec.throttleMs() > 0 && i + spec.batchSize() < sources.size()) {
 				try {
 					Thread.sleep(spec.throttleMs());

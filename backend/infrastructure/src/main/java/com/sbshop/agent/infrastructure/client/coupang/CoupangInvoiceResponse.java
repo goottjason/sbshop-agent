@@ -1,8 +1,8 @@
 package com.sbshop.agent.infrastructure.client.coupang;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.util.List;
+import java.util.stream.Collectors;
 
 public record CoupangInvoiceResponse(
 	@JsonProperty("code")
@@ -41,7 +41,7 @@ public record CoupangInvoiceResponse(
 		if (data != null && data.responseList() != null && !data.responseList().isEmpty()) {
 			return data.responseList().stream().allMatch(InvoiceResult::succeed);
 		}
-		return true; // 항목 결과가 없으면 봉투 성공으로 간주
+		return true;
 	}
 
 	public String failureReason() {
@@ -50,7 +50,7 @@ public record CoupangInvoiceResponse(
 				.filter(r -> !r.succeed())
 				.map(InvoiceResult::resultMessage)
 				.filter(m -> m != null && !m.isBlank())
-				.collect(java.util.stream.Collectors.joining("; "));
+				.collect(Collectors.joining("; "));
 			if (!itemMsgs.isBlank()) {
 				return itemMsgs;
 			}

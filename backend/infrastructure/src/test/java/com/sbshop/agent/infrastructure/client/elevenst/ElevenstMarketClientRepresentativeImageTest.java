@@ -21,11 +21,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * D-092: 11번가 대표이미지/상세HTML 재게시 테스트(buying-agent 라운드트립 이식).
- * 신규상품조회(/rest/prodmarketservice/prodmarket/{prdNo})로 전체 전문 GET → 이미지/HTML 치환 +
- * 필수 승격 필드(택배사·원재료·원산지·배송/반품·출고지 주소코드) 주입 → 상품수정 PUT.
- */
 @ExtendWith(MockitoExtension.class)
 class ElevenstMarketClientRepresentativeImageTest {
 
@@ -35,7 +30,6 @@ class ElevenstMarketClientRepresentativeImageTest {
 	private ElevenstMarketClient client;
 	private Map<String, Object> raw;
 
-	// 신규상품조회 GET이 돌려주는 현재 상품 전문(대표이미지·상세·기존 주소코드 포함).
 	private static final String CURRENT_XML = "<?xml version=\"1.0\" encoding=\"euc-kr\"?>"
 		+ "<Product><prdNo>PRD9</prdNo><prdNm>기존상품</prdNm>"
 		+ "<prdImage01>http://old/rep.jpg</prdImage01>"
@@ -64,11 +58,9 @@ class ElevenstMarketClientRepresentativeImageTest {
         assertThat(sent).contains("<prdImage01><![CDATA[http://new/rep.jpg]]></prdImage01>");
         assertThat(sent).contains("<![CDATA[<p>새상세</p>]]>");
         assertThat(sent).doesNotContain("http://old/rep.jpg");
-        // 판매자 실계정 주소코드로 교체(기존 99/88 제거)
         assertThat(sent).contains("<addrSeqOut>5</addrSeqOut>");
         assertThat(sent).contains("<addrSeqIn>3</addrSeqIn>");
         assertThat(sent).doesNotContain("<addrSeqOut>99</addrSeqOut>");
-        // 조회 메타태그 제거(파서 에러 방지)
         assertThat(sent).doesNotContain("<message>");
     }
 

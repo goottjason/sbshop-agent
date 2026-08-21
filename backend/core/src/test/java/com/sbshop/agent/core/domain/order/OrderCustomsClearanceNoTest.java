@@ -10,24 +10,11 @@ import com.sbshop.agent.core.domain.order.enums.VerifiedPerson;
 import com.sbshop.agent.core.domain.order.vo.CustomsData;
 
 class OrderCustomsClearanceNoTest {
-
-	private Order orderWithCustoms(String no, CustomsStatus status, VerifiedPerson person) {
-		return Order.builder()
-			.customsData(CustomsData.builder()
-				.customsClearanceNo(no)
-				.customsStatus(status)
-				.verifiedPerson(person)
-				.build())
-			.build();
-	}
-
 	@Test
 	@DisplayName("같은 통관번호 재하달 시 사용자 검증상태(VALID/RECIPIENT)를 유지한다 — D-073")
 	void sameNumberPreservesVerification() {
-		// 사용자가 수기로 검증한 상태
 		Order order = orderWithCustoms("P123456789012", CustomsStatus.VALID, VerifiedPerson.RECIPIENT);
 
-		// 마켓 동기화가 같은 번호를 재하달
 		order.updateCustomsClearanceNo("P123456789012");
 
 		assertThat(order.getCustomsData().getCustomsClearanceNo()).isEqualTo("P123456789012");
@@ -50,7 +37,6 @@ class OrderCustomsClearanceNoTest {
 	@Test
 	@DisplayName("최초 통관번호 세팅(기존 번호 없음) 시 미검증(PENDING/NONE)으로 저장한다")
 	void firstTimeSetIsPending() {
-		// 기존 번호 없는 신규 주문
 		Order order = orderWithCustoms(null, CustomsStatus.PENDING, VerifiedPerson.NONE);
 
 		order.updateCustomsClearanceNo("P123456789012");
@@ -58,5 +44,15 @@ class OrderCustomsClearanceNoTest {
 		assertThat(order.getCustomsData().getCustomsClearanceNo()).isEqualTo("P123456789012");
 		assertThat(order.getCustomsData().getCustomsStatus()).isEqualTo(CustomsStatus.PENDING);
 		assertThat(order.getCustomsData().getVerifiedPerson()).isEqualTo(VerifiedPerson.NONE);
+	}
+
+	private Order orderWithCustoms(String no, CustomsStatus status, VerifiedPerson person) {
+		return Order.builder()
+			.customsData(CustomsData.builder()
+				.customsClearanceNo(no)
+				.customsStatus(status)
+				.verifiedPerson(person)
+				.build())
+			.build();
 	}
 }

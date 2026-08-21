@@ -5,11 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * 실구매가(sourcing_amount) 미기록 iHerb 라인아이템 조회 조건.
- * 기존 findIherbItemsNeedingEmailProcessing 은 배송 큐(PREPARING/미동기 DISPATCHED·SHIPPED) 전용이라
- * 배송이 끝난 주문은 확인메일 검색 대상에서 영구 제외됐다 — 실구매가 조회는 별도 조건이어야 한다.
- */
 class OrderLineItemRepositoryImplPurchaseAmountTest {
 
 	private final OrderLineItemRepositoryImpl repo = new OrderLineItemRepositoryImpl(null);

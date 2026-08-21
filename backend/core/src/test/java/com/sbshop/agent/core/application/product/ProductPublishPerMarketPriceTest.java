@@ -25,13 +25,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * 신규 등록도 마켓별 실수수료 반영가로 올라가야 한다.
- * 기준가(쿠팡 기준)로 등록하면 다음 재가격 배치까지 그 마켓은 틀린 가격으로 팔린다.
- */
 @ExtendWith(MockitoExtension.class)
 class ProductPublishPerMarketPriceTest {
-
 	private static final Long PRODUCT_ID = 1L;
 
 	@Mock
