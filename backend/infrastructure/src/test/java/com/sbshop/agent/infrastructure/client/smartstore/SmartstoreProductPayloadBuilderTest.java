@@ -107,8 +107,76 @@ class SmartstoreProductPayloadBuilderTest {
 
 		@SuppressWarnings("unchecked") Map<String, Object> notice = (Map<String, Object>)attr
 			.get("productInfoProvidedNotice");
-		assertThat(notice.get("productInfoProvidedNoticeType")).isEqualTo("HEALTH_FUNCTIONAL_FOOD");
-		assertThat(notice).containsKey("healthFunctionalFood");
+		assertThat(notice.get("productInfoProvidedNoticeType")).isEqualTo("DIET_FOOD");
+		assertThat(notice).containsKey("dietFood");
+	}
+
+	@SuppressWarnings("unchecked")
+	private Map<String, Object> notice(Map<String, Object> body) {
+		Map<String, Object> attr = (Map<String, Object>)originProduct(body).get("detailAttribute");
+		return (Map<String, Object>)attr.get("productInfoProvidedNotice");
+	}
+
+	private MarketPublishContext processedFoodContext() {
+		Map<String, String> notice = new LinkedHashMap<>();
+		notice.put("noticeType", "PROCESSED_FOOD");
+		notice.put("productName", "곡물 시리얼");
+		notice.put("producer", "제조사A");
+		notice.put("capacity", "500g");
+		notice.put("customerServiceNumber", "010-2597-2480");
+		return new MarketPublishContext("50000456", "식품 > 시리얼",
+			new BigDecimal("19900"), List.of("시리얼"), notice, context().extraFields());
+	}
+
+	@Test
+	@DisplayName("건강기능식품 고시는 DIET_FOOD/dietFood 스키마로 나간다 — 구세대 HEALTH_FUNCTIONAL_FOOD는 현행 API가 NotValidEnum으로 거부한다(라이브 실측)")
+	void healthFunctionalNoticeUsesDietFoodSchema() {
+		Map<String, Object> notice = notice(builder.build(product(), context()));
+
+		assertThat(notice.get("productInfoProvidedNoticeType")).isEqualTo("DIET_FOOD");
+		assertThat(notice).containsKey("dietFood").doesNotContainKey("healthFunctionalFood");
+
+		@SuppressWarnings("unchecked") Map<String, Object> diet = (Map<String, Object>)notice.get("dietFood");
+		assertThat(diet).containsKeys("productName", "manufacturer", "weight", "ingredients",
+			"nutritionFacts", "intakeMethod", "consumptionDateText", "customerServicePhoneNumber",
+			"geneticallyModified", "cautionAndSideEffect", "storageMethod", "specification",
+			"funtionalInfo", "noMedicinePhrase", "importDeclarationCheck");
+		assertThat(diet).doesNotContainKeys("rawMaterial", "nutritionInfo", "gmoInfo",
+			"customerServiceNumber", "capacity", "expirationDate");
+		assertThat(diet.get("productName")).isEqualTo("비타민D3 K2");
+		assertThat(diet.get("manufacturer")).isEqualTo("California Gold Nutrition");
+		assertThat(diet.get("ingredients")).isEqualTo("비타민D3, 비타민K2");
+		assertThat(diet.get("nutritionFacts")).isEqualTo("상세설명 참조");
+		assertThat(diet.get("storageMethod")).isEqualTo("상세설명 참조");
+	}
+
+	@Test
+	@DisplayName("고시 boolean 필드는 Boolean 타입으로 나간다 — 문자열이면 네이버가 역직렬화를 거부한다")
+	void noticeBooleanFieldsAreBooleanTyped() {
+		Map<String, Object> notice = notice(builder.build(product(), context()));
+
+		@SuppressWarnings("unchecked") Map<String, Object> diet = (Map<String, Object>)notice.get("dietFood");
+		assertThat(diet.get("noMedicinePhrase")).isInstanceOf(Boolean.class).isEqualTo(true);
+		assertThat(diet.get("importDeclarationCheck")).isInstanceOf(Boolean.class).isEqualTo(true);
+	}
+
+	@Test
+	@DisplayName("일반식품 고시는 FOOD/food 블록에 필수 9필드를 모두 채운다")
+	void processedFoodNoticeUsesFoodSchema() {
+		Map<String, Object> notice = notice(builder.build(product(), processedFoodContext()));
+
+		assertThat(notice.get("productInfoProvidedNoticeType")).isEqualTo("FOOD");
+		assertThat(notice).containsKey("food").doesNotContainKey("processedFood");
+
+		@SuppressWarnings("unchecked") Map<String, Object> food = (Map<String, Object>)notice.get("food");
+		assertThat(food).containsKeys("amount", "producer", "weight", "keep", "adCaution",
+			"foodItem", "productComposition", "size", "customerServicePhoneNumber");
+		assertThat(food.get("weight")).isEqualTo("500g");
+		assertThat(food.get("amount")).isEqualTo("500g");
+		assertThat(food.get("producer")).isEqualTo("제조사A");
+		assertThat(food.get("customerServicePhoneNumber")).isEqualTo("010-2597-2480");
+		assertThat(food.get("keep")).isEqualTo("상세설명 참조");
+		assertThat(food.values()).allSatisfy(v -> assertThat(String.valueOf(v)).isNotBlank());
 	}
 
 	@Test

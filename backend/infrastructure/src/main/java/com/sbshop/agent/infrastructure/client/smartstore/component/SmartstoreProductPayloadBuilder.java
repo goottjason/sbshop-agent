@@ -13,8 +13,10 @@ public class SmartstoreProductPayloadBuilder {
 
 	private static final int IN_STOCK_QUANTITY = Product.DEFAULT_IN_STOCK_QUANTITY;
 
-	private static final String NOTICE_TYPE_HEALTH = "HEALTH_FUNCTIONAL_FOOD";
-	private static final String NOTICE_TYPE_PROCESSED = "PROCESSED_FOOD";
+	private static final String NOTICE_TYPE_DIET_FOOD = "DIET_FOOD";
+	private static final String NOTICE_TYPE_FOOD = "FOOD";
+	private static final String SOURCE_NOTICE_PROCESSED = "PROCESSED_FOOD";
+	private static final String SEE_DETAIL = "상세설명 참조";
 
 	public Map<String, Object> build(Product product, MarketPublishContext context) {
 		String leafCategoryId = require(context.categoryId(), "스마트스토어 리프 카테고리(leafCategoryId)");
@@ -125,40 +127,77 @@ public class SmartstoreProductPayloadBuilder {
 	private Map<String, Object> productInfoProvidedNotice(Product product,
 		MarketPublishContext context) {
 		Map<String, String> notice = context.noticeFields();
-		String noticeType = NOTICE_TYPE_HEALTH.equals(notice.get("noticeType"))
-			|| notice.get("noticeType") == null ? NOTICE_TYPE_HEALTH : NOTICE_TYPE_PROCESSED;
-
-		Map<String, Object> detail = new LinkedHashMap<>();
-		detail.put("returnCostReason", "상세설명 참조");
-		detail.put("noRefundReason", "상세설명 참조");
-		detail.put("qualityAssuranceStandard", "상세설명 참조");
-		detail.put("compensationProcedure", "상세설명 참조");
-		detail.put("troubleShootingContents", "상세설명 참조");
-		detail.put("itemName", pick(notice, "productName", product.getBaseName()));
-		detail.put("foodType", pick(notice, "foodType", "건강기능식품"));
-		detail.put("producer", pick(notice, "producer", nz(product.getBrand())));
-		detail.put("capacity", pick(notice, "capacity", "상세설명 참조"));
-		detail.put("expirationDate", pick(notice, "expirationDate", "상세설명 참조"));
-		detail.put("rawMaterial", pick(notice, "ingredients", "상세설명 참조"));
-		detail.put("nutritionInfo", pick(notice, "nutrition", "상세설명 참조"));
-		detail.put("intakeMethod", pick(notice, "intakeMethod", "상세설명 참조"));
-		detail.put("customerServiceNumber", pick(notice, "customerServiceNumber", "상세설명 참조"));
-		detail.put("gmoInfo", pick(notice, "gmoInfo", "상세설명 참조"));
-		detail.put("importDeclarationCheck",
-			pick(notice, "importDeclaration", "「식품위생법」에 따른 수입신고를 필함(구매대행)"));
+		String source = notice.get("noticeType");
+		boolean generalFood = SOURCE_NOTICE_PROCESSED.equals(source)
+			|| NOTICE_TYPE_FOOD.equals(source);
 
 		Map<String, Object> block = new LinkedHashMap<>();
-		block.put("productInfoProvidedNoticeType", noticeType);
-		block.put(noticeType.equals(NOTICE_TYPE_HEALTH) ? "healthFunctionalFood" : "processedFood",
-			detail);
+		block.put("productInfoProvidedNoticeType",
+			generalFood ? NOTICE_TYPE_FOOD : NOTICE_TYPE_DIET_FOOD);
+		block.put(generalFood ? "food" : "dietFood",
+			generalFood ? foodDetail(product, notice) : dietFoodDetail(product, notice));
 		return block;
+	}
+
+	private Map<String, Object> dietFoodDetail(Product product, Map<String, String> notice) {
+		Map<String, Object> detail = commonNoticeDetail();
+		detail.put("productName", pick(notice, "productName", product.getBaseName()));
+		detail.put("manufacturer", pick(notice, "producer", manufacturer(product)));
+		detail.put("weight", pick(notice, "capacity", SEE_DETAIL));
+		detail.put("ingredients", pick(notice, "ingredients", SEE_DETAIL));
+		detail.put("nutritionFacts", pick(notice, "nutrition", SEE_DETAIL));
+		detail.put("intakeMethod", pick(notice, "intakeMethod", SEE_DETAIL));
+		detail.put("consumptionDateText", pick(notice, "expirationDate", SEE_DETAIL));
+		detail.put("customerServicePhoneNumber", pick(notice, "customerServiceNumber", SEE_DETAIL));
+		detail.put("geneticallyModified", pick(notice, "gmoInfo", SEE_DETAIL));
+		detail.put("cautionAndSideEffect", pick(notice, "caution", SEE_DETAIL));
+		detail.put("storageMethod", pick(notice, "storageMethod", SEE_DETAIL));
+		detail.put("specification", pick(notice, "specification", SEE_DETAIL));
+		detail.put("funtionalInfo", pick(notice, "functionalInfo", SEE_DETAIL));
+		detail.put("noMedicinePhrase", true);
+		detail.put("importDeclarationCheck", true);
+		return detail;
+	}
+
+	private Map<String, Object> foodDetail(Product product, Map<String, String> notice) {
+		String capacity = pick(notice, "capacity", SEE_DETAIL);
+		Map<String, Object> detail = commonNoticeDetail();
+		detail.put("amount", capacity);
+		detail.put("weight", capacity);
+		detail.put("producer", pick(notice, "producer", manufacturer(product)));
+		detail.put("keep", pick(notice, "storageMethod", SEE_DETAIL));
+		detail.put("adCaution", pick(notice, "adCaution", SEE_DETAIL));
+		detail.put("foodItem", pick(notice, "foodType", SEE_DETAIL));
+		detail.put("productComposition", pick(notice, "productComposition", SEE_DETAIL));
+		detail.put("size", pick(notice, "size", SEE_DETAIL));
+		detail.put("customerServicePhoneNumber", pick(notice, "customerServiceNumber", SEE_DETAIL));
+		return detail;
+	}
+
+	private Map<String, Object> commonNoticeDetail() {
+		Map<String, Object> detail = new LinkedHashMap<>();
+		detail.put("returnCostReason", SEE_DETAIL);
+		detail.put("noRefundReason", SEE_DETAIL);
+		detail.put("qualityAssuranceStandard", SEE_DETAIL);
+		detail.put("compensationProcedure", SEE_DETAIL);
+		detail.put("troubleShootingContents", SEE_DETAIL);
+		return detail;
+	}
+
+	private String manufacturer(Product product) {
+		if (product.getSourcingInfo() != null) {
+			String value = product.getSourcingInfo().getManufacturer();
+			if (value != null && !value.isBlank())
+				return value;
+		}
+		return nz(product.getBrand(), SEE_DETAIL);
 	}
 
 	private String originContent(Product product) {
 		if (product.getSourcingInfo() == null)
-			return "상세설명 참조";
+			return SEE_DETAIL;
 		String origin = product.getSourcingInfo().getOrigin();
-		return origin == null || origin.isBlank() ? "상세설명 참조" : origin;
+		return origin == null || origin.isBlank() ? SEE_DETAIL : origin;
 	}
 
 	private String require(String value, String label) {
@@ -180,7 +219,7 @@ public class SmartstoreProductPayloadBuilder {
 	private String pick(Map<String, String> notice, String key, String fallback) {
 		String v = notice.get(key);
 		return v == null || v.isBlank() ? (fallback == null || fallback.isBlank()
-			? "상세설명 참조" : fallback) : v;
+			? SEE_DETAIL : fallback) : v;
 	}
 
 	private String nz(String s) {

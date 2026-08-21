@@ -3220,3 +3220,9 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 증상: 상품 766 등록 시도 → "쇼핑몰 분류 목록 조회 실패(분류 0개 또는 API 오류)로 자동 매칭도 폴백도 불가" 거부. 오류 메시지가 안내하는 `market.cafe24.default-category-no` 설정도 미구성 상태.
 - 종합: **D-185~187로 배지 클릭 신규 등록이 3마켓 전부 현재 불능** — 기존 상품 재게시·가격재고 동기화는 정상(금일 라이브 확인)이며 신규 등록 파이프라인만 고장. 마켓 측 API 스펙 변경이 공통 원인 후보.
 - 상태: 발견
+
+### D-188: 스토어 상품고시 페이로드가 구세대 스키마 — enum·하위 블록 전면 불일치 (2026-08-22, D-186 라이브 검증 중 발견)
+
+- 심각도: P1(스토어 신규 등록 불능의 2단계 원인 — D-186 주소록 해소 후 드러남) | 위치: `backend/infrastructure/.../smartstore/component/SmartstoreProductPayloadBuilder` 고시 블록
+- 증상: POST /v2/products 400 `productInfoProvidedNoticeType NotValidEnum`. 라이브 오라클 실측(필수 결핍 미니 페이로드로 enum 유효성만 판별): `HEALTH_FUNCTIONAL_FOOD`·`PROCESSED_FOOD` **무효**, `DIET_FOOD`(건강기능식품)·`FOOD`(일반식품)·`ETC` 유효. 하위 블록도 키·필드명 전면 상이 — dietFood{weight, ingredients, nutritionFacts, cautionAndSideEffect, storageMethod, intakeMethod, consumptionDateText, customerServicePhoneNumber, geneticallyModified, noMedicinePhrase(bool), importDeclarationCheck(bool), ...} 필드셋으로 실측 통과, food{amount, producer, weight, keep, adCaution, foodItem, productComposition, size, customerServicePhoneNumber} 필수 확정. boolean 필드에 문자열 넣으면 역직렬화 거부(커뮤니티 사례 일치).
+- 상태: 검증통과 (2026-08-22, `_workspace/verify/D-188_verdict.md`) — Red 4건 실측 재현 후 Green, 전 모듈 1178테스트 0실패, 라우팅 3경로(빈 notice/건기식/grocery) 직렬화 실측으로 오라우팅 없음 확인, 고시 외 페이로드 정규화 비교 완전 동일. **라이브 POST /v2/products 실호출은 미검증 — 최종 확인은 실제 등록 1건 필요.**
