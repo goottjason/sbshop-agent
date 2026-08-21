@@ -3164,7 +3164,8 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 검증(2026-08-21, qa-verifier **PASS**): Red를 수정 전 코드(`git archive HEAD` 전개 + 테스트 이식)에 실측 — 행위 변경 2건만 FAILED, 보존 가드 2건은 전후 모두 Green(가짜 Red 아님). `:infrastructure:test --rerun` **144 tests / failures 0**, XML에 신규 4 testcase 실행 기록 확인. 호출부 1곳(`ProductManageUseCase:170`)·인터페이스·타 마켓 어댑터 무변경, D-181 봉투 검사 무영향, `:api:/:worker:compileJava`·`spotlessCheck` 통과, 신규 주석 0·FQN 0. 반환 rawData가 DB에 저장되므로 2회차 재게시는 정화값 그대로 통과(멱등). 판정서: `_workspace/verify/D-182_verdict.md`
 - 잔여 리스크(라이브): ① 단위 접미사가 카테고리 `usableUnits` 미대조 고정 매핑 — 다른 카테고리에서 재거부 가능 ② 자리표시 문구 집합이 실측 2종+유추 4종 ③ `포장단위="개"`처럼 단일 토큰이 정상값인 속성은 드롭될 수 있음(실데이터 미확인). 오탐 파급은 "이미 거부되던 엔트리" 한정이라 신규 회귀는 아님.
 - 후속 후보(분리 등재 제안): `CoupangMetaService.extractMandatoryAttributes`(최초 등록 경로)와 신규 `refillAttributeValue`(재게시 경로)의 **산식이 상이** — 수량 계열 `capacity*bundleQuantity`(600) vs `bundleQuantity+"개"`(3개), `캡슐`·`정` 타입의 수량/용량 분기가 반대, 단위 선택이 `findProperUnit(usableUnits)` vs 고정 switch. 라이브 수락된 쪽은 신규 sanitize라 D-182 반려 사유는 아니나 두 경로 통일 필요. 덧: `CoupangMetaService.java:51` Integer 언박싱 NPE 여지(기존 코드).
-- 상태: **검증통과** (커밋·배포 후 상품 3110 재게시 라이브 재확인 권장)
+- 라이브 검증(2026-08-21 19:55 KST, 배포 커밋 57694b6 · 상품 3133 NU00111 재게시 실측): 수정 전 100% 자리표시 속성(36/36)이던 상품에서 쿠팡 PUT **`code=SUCCESS, data=10621199335`** — `synced=[CAFE24, COUPANG, SMART_STORE], failed=[]` 완전 성공, DB 3마켓 모두 is_synced=t·rawData 정상 갱신. 잔여 경고("'개당 용량/중량/정' 유효하지 않은 구매 옵션" — 수락은 되나 병합 라벨이 비정규명)는 [[D-183]] 산식·정규명 통일에서 해소 예정.
+- 상태: **검증통과 (라이브 검증 완료)**
 
 ### D-183: 쿠팡 최초 등록과 재게시의 속성값 산식이 서로 다르다 + 등록 경로 언박싱 NPE 여지 (2026-08-21, D-182 검증 중 발견)
 
