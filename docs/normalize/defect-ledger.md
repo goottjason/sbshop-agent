@@ -3190,4 +3190,5 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 재현: `PUT /api/v1/products/2334/images/by-url` → failed=[SMART_STORE]. 3회 연속 동일 실패 실측.
 - 수정(2026-08-21, fixer-d184): `syncImagesAndHtml`에 `applyUnitPrice(originProduct, product)` 1행 추가 — 가격/재고 경로(`syncPriceAndStock`)가 이미 쓰는 검증된 헬퍼 재사용. 헬퍼·타 경로 불변. Red: `SmartstoreMarketClientImagesTest` 신규 3케이스(수정 전 unitCapacity 미포함 실측 실패).
 - 검증(2026-08-21, qa-verifier — 기능 4항 PASS + 포맷 반려 1회 교정 후 spotlessCheck 그린): Red 실측(git archive 이식), 헬퍼 3종 diff 0·syncPriceAndStock 무영향·detailAttribute 타 키 보존·D-092 함정 저촉 없음. `:infrastructure:test --rerun-tasks` 178 그린, 리더 전 모듈 회귀 1,154 그린. 주의(비차단): `applyUnitPrice`는 라이브 unitCapacity를 상품 스펙으로 **전면 교체**(가격/재고 경로와 동일 거동 — 신규 위험 아님). 2334는 스펙 보유(28·G·b4) DB 실측 → unitPriceYn=true 경로. 판정서: `_workspace/verify/D-184_verdict.md`
-- 상태: 검증통과 (라이브 검증 대기)
+- 라이브 검증 완료(2026-08-21 21:37 KST, 배포 커밋 9ee9056 · 상품 2334 재게시 실측): 스마트스토어 PUT 200 정상 응답(originProductNo 4824226277) — 3회 연속 400이던 경로 해소. **`synced=[CAFE24, COUPANG, SMART_STORE], failed=[]` 3마켓 완전 성공**, DB 3마켓 is_synced=t. 잔여 참고: `applyUnitPrice`는 라이브 unitCapacity를 스펙으로 전면 교체(가격/재고 경로와 동일 거동) — 수동 설정 사용 시 유의.
+- 상태: **검증통과 (라이브 검증 완료)**
