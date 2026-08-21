@@ -3243,3 +3243,9 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 상태: 검증통과 (2026-08-22, `_workspace/verify/D-188_verdict.md` D-190 절) — 빌더 내 `floorToTenWon` 단일 지점 라운딩(컨텍스트·폴백 공통). Red 2건 실측 재현(51912→51910, 23912→23910) 후 Green, 전 모듈 1187테스트 0실패. 라운딩은 스토어 빌더 파일 밖으로 새지 않음(전역 grep + `git diff --stat` 확인, 타 마켓·계산기·재게시 무변경). null→0은 구 코드와 완전 동치이며 `0 % 10 == 0`이라 단위 위반 아님. **라이브 미검증 — 위 등록 한도 초과 해소 후 D-186·188·189·190을 실등록 1건으로 함께 닫아야 한다.**
 - 후속 후보(검증 중 발견) ①: **가격 동기화(PUT) 경로에는 10원 단위 라운딩이 없다** — `SmartstoreMarketClient.syncPriceAndStock:145`가 `priceResolver`가 준 Integer를 그대로 `salePrice`에 넣고, core 전역에 10원 라운딩 코드가 없다. 등록(POST)만 흡수되고 수정(PUT)은 1원 단위로 나갈 수 있다. PUT에도 `NumberUnit`이 적용되는지는 라이브 확인 필요.
 - 후속 후보(검증 중 발견) ②: **판매가 fail-fast 부재** — 빌더 `require()`와 core `MarketRequiredFieldValidator` 어디에도 salePrice 검증이 없어, 가격 없는 상품이 `salePrice=0`으로 조립돼 네이버 400으로만 드러난다(구 코드부터 동일). 카테고리·주소ID·A/S전화가 한국어 메시지로 즉시 실패하는 것과 대비.
+
+### D-191: 스토어 등록 payload의 KC 면제대상(kcExemptionType) 설정이 카테고리 조건부 거부 (2026-08-22, D-190 라이브 검증 중 발견)
+
+- 심각도: P2(스토어 신규 등록 5단계 원인) | 위치: `SmartstoreProductPayloadBuilder` certificationTargetExcludeContent 블록의 `kcExemptionType: "OVERSEAS"`
+- 증상: 실등록에서 `kcExemptionType Exist "KC 면제대상 항목은 설정하실 수 없습니다."` 거부. 오라클 실측 — 독립 미니 페이로드에선 현행 블록 통과(무조건 거부 아님, **카테고리/맥락 조건부**), `kcExemptionType` 제거형·블록 생략형 모두 통과, `kcCertifiedProductExclusionYn`은 문자열 "TRUE"가 정답(bool은 역직렬화 거부).
+- 상태: 검증통과 (2026-08-22, `_workspace/verify/D-188_verdict.md` D-191 절) — Map 엔트리 1개 제거(빌더 -1줄). Red 1건 실측 재현(전송 블록에 `kcExemptionType="OVERSEAS"` 포함 확인) 후 Green, 전 모듈 1188테스트 0실패. `kcExemptionType`은 프로덕션 코드 전역에서 소멸(재게시 PUT은 네이버 저장값 왕복이라 무관). 잔여 2필드는 타입 단언으로 잠김 — Boolean `true` / 문자열 `"TRUE"` 비대칭이 오타로 보여 "정리" 리팩토링에 당하기 쉬운 지점을 보호한다. **라이브 미검증이며 거부가 카테고리 조건부라 단위 테스트는 "그 키를 안 보낸다"만 보장한다 — 등록 한도 해소 후 D-186·188·189·190·191을 실등록 1건으로 함께 닫아야 한다.**

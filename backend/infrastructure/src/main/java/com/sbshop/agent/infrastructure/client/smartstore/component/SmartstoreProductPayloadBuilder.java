@@ -127,7 +127,6 @@ public class SmartstoreProductPayloadBuilder {
 		attr.put("productInfoProvidedNotice", productInfoProvidedNotice(product, context));
 		attr.put("certificationTargetExcludeContent", Map.of(
 			"childCertifiedProductExclusionYn", true,
-			"kcExemptionType", "OVERSEAS",
 			"kcCertifiedProductExclusionYn", "TRUE"));
 		attr.put("taxType", "TAX");
 		return attr;

@@ -234,6 +234,20 @@ class SmartstoreProductPayloadBuilderTest {
 	}
 
 	@Test
+	@DisplayName("KC 인증제외 블록에 kcExemptionType을 넣지 않는다 — 카테고리에 따라 'KC 면제대상 항목은 설정하실 수 없습니다'로 거부된다(라이브 실측)")
+	void certificationExcludeContentOmitsKcExemptionType() {
+		Map<String, Object> origin = originProduct(builder.build(product(), context()));
+
+		@SuppressWarnings("unchecked") Map<String, Object> attr = (Map<String, Object>)origin.get("detailAttribute");
+		@SuppressWarnings("unchecked") Map<String, Object> exclude = (Map<String, Object>)attr
+			.get("certificationTargetExcludeContent");
+
+		assertThat(exclude).doesNotContainKey("kcExemptionType");
+		assertThat(exclude.get("childCertifiedProductExclusionYn")).isInstanceOf(Boolean.class).isEqualTo(true);
+		assertThat(exclude.get("kcCertifiedProductExclusionYn")).isInstanceOf(String.class).isEqualTo("TRUE");
+	}
+
+	@Test
 	@DisplayName("판매가는 10원 단위로 내려서 보낸다 — 네이버는 1원 단위 판매가를 NumberUnit으로 거부한다(라이브 실측)")
 	void salePriceIsFlooredToTenWon() {
 		Map<String, Object> origin = originProduct(
