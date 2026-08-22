@@ -4,7 +4,7 @@ import {
   Alert, Button, Card, Checkbox, Drawer, Empty, Space, Spin, Table, Tag, Tooltip, Typography, message,
 } from 'antd';
 import {
-  AlertTriangle, CheckCircle2, RefreshCw, ShieldAlert, Sparkles,
+  AlertTriangle, CheckCircle2, ClipboardList, RefreshCw, ShieldAlert, Sparkles,
 } from 'lucide-react';
 import {
   parseJsonField,
@@ -146,7 +146,8 @@ const DiscoveryPage = () => {
       } else {
         message.success(`${drafts.length}건 초안을 만들었습니다`);
       }
-      if (drafts.length > 0) navigate(`/sourcing/drafts/${drafts[0].id}`);
+      if (drafts.length === 1) navigate(`/sourcing/drafts/${drafts[0].id}`);
+      else if (drafts.length > 1) navigate('/sourcing/drafts');
     } catch {
       message.error('초안 생성에 실패했습니다');
     } finally {
@@ -265,6 +266,12 @@ const DiscoveryPage = () => {
           </Text>
         </div>
         <Space>
+          <Button
+            icon={<ClipboardList size={14} style={{ verticalAlign: -2 }} />}
+            onClick={() => navigate('/sourcing/drafts')}
+          >
+            등록 초안
+          </Button>
           <Button onClick={() => void openBlocked()}>통관 차단 목록</Button>
           <Button onClick={() => navigate('/sourcing/settings')}>설정</Button>
           <Button

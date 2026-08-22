@@ -190,7 +190,10 @@ export const sourcingDiscoveryApi = {
       failures: { candidateId: number; name: string; reason: string }[];
     }>(`${BASE}/drafts`, { candidateIds }),
   drafts: (status?: string[]) =>
-    apiClient.get<Draft[]>(`${BASE}/drafts`, { params: { status } }),
+    apiClient.get<Draft[]>(`${BASE}/drafts`, {
+      params: { status },
+      paramsSerializer: { indexes: null },
+    }),
   draft: (id: number) => apiClient.get<Draft>(`${BASE}/drafts/${id}`),
   updateDraft: (id: number, patch: DraftPatch) =>
     apiClient.patch<Draft>(`${BASE}/drafts/${id}`, patch),

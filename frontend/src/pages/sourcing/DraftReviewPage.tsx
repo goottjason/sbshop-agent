@@ -160,7 +160,10 @@ const DraftReviewPage = () => {
                 </div>
               ))}
             </Space>,
-            <Button key="back" type="primary" onClick={() => navigate('/sourcing')}>
+            <Button key="drafts" type="primary" onClick={() => navigate('/sourcing/drafts')}>
+              초안 목록으로
+            </Button>,
+            <Button key="back" onClick={() => navigate('/sourcing')}>
               추천 목록으로
             </Button>,
           ]}
@@ -171,6 +174,13 @@ const DraftReviewPage = () => {
   const hostedImages = parseJsonField<string[]>(draft.hostedImages, []);
   return (
     <div style={{ padding: 24, paddingBottom: 96 }}>
+      <Button
+        type="link"
+        style={{ paddingLeft: 0 }}
+        onClick={() => navigate('/sourcing/drafts')}
+      >
+        ← 초안 목록
+      </Button>
       <Title level={3} style={{ marginBottom: 4 }}>
         등록 검수
       </Title>
