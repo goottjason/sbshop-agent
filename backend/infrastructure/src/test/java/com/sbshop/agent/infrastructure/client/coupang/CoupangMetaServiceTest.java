@@ -156,6 +156,35 @@ class CoupangMetaServiceTest {
 	}
 
 	@Test
+	@DisplayName("D-195: 메타의 exposed 값을 그대로 전달한다 — 필수 구매옵션은 EXPOSED")
+	void exposedAttribute_keepsMetaValue() throws Exception {
+		String json = "{\"code\":\"SUCCESS\",\"data\":{\"attributes\":["
+			+ "{\"required\":\"MANDATORY\",\"attributeTypeName\":\"수량\",\"dataType\":\"NUMBER\","
+			+ "\"exposed\":\"EXPOSED\",\"usableUnits\":[\"개\"]},"
+			+ "{\"required\":\"MANDATORY\",\"attributeTypeName\":\"브랜드\",\"dataType\":\"STRING\","
+			+ "\"exposed\":\"NONE\",\"usableUnits\":[]}],"
+			+ "\"noticeCategories\":[]}}";
+		stubMeta(json);
+
+		CategoryMetaResult result = metaService.getCategoryMeta(73134L,
+			product(new BigDecimal("200"), MeasureUnit.ML, 3));
+
+		assertThat(exposedOf(result, "수량")).isEqualTo("EXPOSED");
+		assertThat(exposedOf(result, "브랜드")).isEqualTo("NONE");
+	}
+
+	@Test
+	@DisplayName("D-195: exposed 필드가 없는 속성은 NONE 으로 폴백한다")
+	void missingExposed_fallsBackToNone() throws Exception {
+		stubMeta(metaJson("수량", "NUMBER", "\"개\""));
+
+		CategoryMetaResult result = metaService.getCategoryMeta(73134L,
+			product(new BigDecimal("200"), MeasureUnit.ML, 3));
+
+		assertThat(exposedOf(result, "수량")).isEqualTo("NONE");
+	}
+
+	@Test
 	@DisplayName("D-185: usableUnits 맵은 신 응답 형상에서도 속성명 기준으로 추출한다")
 	void usableUnits_extractedFromCurrentShape() throws Exception {
 		stubMeta(metaJson("총 용량", "NUMBER", "\"ml\",\"L\""));
@@ -179,6 +208,14 @@ class CoupangMetaServiceTest {
 		return result.attributes().stream()
 			.filter(attribute -> typeName.equals(attribute.attributeTypeName()))
 			.map(Attribute::attributeValueName)
+			.findFirst()
+			.orElse(null);
+	}
+
+	private String exposedOf(CategoryMetaResult result, String typeName) {
+		return result.attributes().stream()
+			.filter(attribute -> typeName.equals(attribute.attributeTypeName()))
+			.map(Attribute::exposed)
 			.findFirst()
 			.orElse(null);
 	}

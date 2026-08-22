@@ -70,7 +70,8 @@ public class CoupangMetaService {
 						.resolveWithNumberDefault(typeName, product, extractUsableUnits(attr));
 				}
 				attributes.add(Attribute.builder()
-					.attributeTypeName(typeName).attributeValueName(valueName).exposed("NONE").build());
+					.attributeTypeName(typeName).attributeValueName(valueName)
+					.exposed(attr.path("exposed").asText("NONE")).build());
 			}
 		}
 		return attributes;
