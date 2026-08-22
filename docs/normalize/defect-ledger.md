@@ -3304,11 +3304,13 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 심각도: P2(스토어 신규 등록 최종 계층 — limitOver는 사용자 정리로 소멸) | 위치: `SmartstoreProductPayloadBuilder` detailAttribute (재게시 경로 `applyCustomsTaxType`=INCLUDED는 존재, 빌더만 누락 — D-184·189와 동일 패턴)
 - 증상: 400 `customsTaxType.required.overseas "출고지가 해외 주소인 경우 ... 관부가세 입력이 필수"` (라이브 실측). D-092 salvage 기록 재확인 사례.
 - 수정(2026-08-22, fixer-d188): 빌더 detailAttribute에 customsTaxType=INCLUDED 1행(재게시와 동일 값). Red 실측 후 Green, 전 모듈 회귀 그린.
-- 상태: 수정완료 (라이브 재시도로 검증)
+- 라이브 검증 완료(2026-08-22): 상품 2270 스토어 실등록 **SYNCED** — channelProductNo 13730401497. 상태: **검증통과 (라이브 검증 완료)**
 
 ### D-198: 스토어 신규 등록 빌더에 가격표시제 단위용량(unitCapacity) 누락 (2026-08-22, fixer 선제 발견)
 
 - 심각도: P2(D-184의 등록측 누락 — "재게시엔 있고 빌더엔 없는" 4번째 패턴) | 위치: `SmartstoreProductPayloadBuilder` detailAttribute (재게시 `applyUnitPrice`는 존재)
 - 증상(예상): 가격표시제 대상 상품 신규 등록 시 unitPriceYn 400 또는 단위가격 미표기 등록. 등록/재게시 불일치.
 - 수정(2026-08-22, fixer-d188): 산출 규칙을 `SmartstoreUnitCapacity.of(Product)` 정적 유틸로 추출해 어댑터·빌더 공유(재게시 산출 불변은 기존 테스트로 고정). Red 실측 후 Green, 전 모듈 회귀 그린.
-- 상태: 수정완료 (라이브 재시도로 검증)
+- 라이브 검증 완료(2026-08-22): 상품 2270 스토어 실등록 **SYNCED** — channelProductNo 13730401497. 상태: **검증통과 (라이브 검증 완료)**
+
+> **2026-08-22 스토어 실등록 완주(리더)**: limitOver 사용자 정리 후 D-197(관부가세)·D-198(단위용량 — 빌더/재게시 공유화) 해소로 **상품 2270 실등록 성공(https://smartstore.naver.com/shouldbe_shop/products/13730401497)**. 스토어 체인 총 7계층(D-186·188·189·190·191·197·198) 소진 — "재게시엔 있고 등록 빌더엔 없는" 패턴 4종 전부 공유화로 해소. **3마켓 실등록 완주 달성**(쿠팡 3194·스토어 2270·카페24 POST 실증). 쿠팡 심사: 4건 심사중, 2334만 승인반려(사유는 API 미노출 — WING 확인 필요). 다음 대기: P3 묶음(D-176~180)·D-175.
