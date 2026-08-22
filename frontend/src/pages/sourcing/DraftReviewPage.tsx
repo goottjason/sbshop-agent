@@ -13,15 +13,9 @@ import {
   type MarketDraft,
   type PublishResult,
 } from '../../api/sourcingDiscoveryApi';
+import { marketLabel } from '../../utils/marketLabels';
 
 const { Title, Text, Paragraph } = Typography;
-
-const MARKET_LABELS: Record<string, string> = {
-  COUPANG: '쿠팡',
-  SMART_STORE: '스마트스토어',
-  ELEVEN_STREET: '11번가',
-  CAFE24: 'Cafe24',
-};
 
 const NAME_LIMITS: Record<string, number> = {
   COUPANG: 100,
@@ -155,7 +149,7 @@ const DraftReviewPage = () => {
               {result.outcomes.map((o) => (
                 <div key={o.marketType}>
                   <Tag color={o.ok ? 'green' : 'red'}>{o.ok ? '성공' : '실패'}</Tag>
-                  {MARKET_LABELS[o.marketType] ?? o.marketType}
+                  {marketLabel(o.marketType)}
                   {o.error ? ` — ${o.error}` : ''}
                 </div>
               ))}
@@ -292,7 +286,7 @@ const DraftReviewPage = () => {
             key: md.marketType,
             label: (
               <Space size={4}>
-                {MARKET_LABELS[md.marketType] ?? md.marketType}
+                {marketLabel(md.marketType)}
                 {md.valid ? (
                   <CheckCircle2 size={13} color="#52c41a" style={{ verticalAlign: -2 }} />
                 ) : (
