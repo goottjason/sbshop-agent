@@ -57,24 +57,64 @@ public class CoupangMetaService {
 	}
 
 	private List<Attribute> extractMandatoryAttributes(JsonNode dataNode, Product product) {
-		List<Attribute> attributes = new ArrayList<>();
-		JsonNode attributesNode = dataNode.path("attributes");
-		for (JsonNode attr : attributesNode) {
+		List<JsonNode> mandatoryNodes = new ArrayList<>();
+		for (JsonNode attr : dataNode.path("attributes")) {
 			if ("MANDATORY".equals(attr.path("required").asText())) {
-				String typeName = attr.path("attributeTypeName").asText();
-				String dataType = attr.path("dataType").asText();
-				String valueName = "상세페이지 참조";
-
-				if ("NUMBER".equals(dataType)) {
-					valueName = attributeValueResolver
-						.resolveWithNumberDefault(typeName, product, extractUsableUnits(attr));
-				}
-				attributes.add(Attribute.builder()
-					.attributeTypeName(typeName).attributeValueName(valueName)
-					.exposed(attr.path("exposed").asText("NONE")).build());
+				mandatoryNodes.add(attr);
 			}
 		}
+
+		Map<String, JsonNode> chosenByGroup = chooseOnePerGroup(mandatoryNodes, product);
+		List<Attribute> attributes = new ArrayList<>();
+		for (JsonNode attr : mandatoryNodes) {
+			String groupKey = groupKey(attr);
+			if (groupKey != null && chosenByGroup.get(groupKey) != attr) {
+				continue;
+			}
+			attributes.add(toAttribute(attr, product));
+		}
 		return attributes;
+	}
+
+	private Map<String, JsonNode> chooseOnePerGroup(List<JsonNode> mandatoryNodes, Product product) {
+		Map<String, JsonNode> chosenByGroup = new LinkedHashMap<>();
+		for (JsonNode attr : mandatoryNodes) {
+			String groupKey = groupKey(attr);
+			if (groupKey == null) {
+				continue;
+			}
+			JsonNode chosen = chosenByGroup.get(groupKey);
+			if (chosen == null || (!supportsUnitFamily(chosen, product) && supportsUnitFamily(attr, product))) {
+				chosenByGroup.put(groupKey, attr);
+			}
+		}
+		return chosenByGroup;
+	}
+
+	private boolean supportsUnitFamily(JsonNode attributeNode, Product product) {
+		return attributeValueResolver
+			.supportsUnitFamily(attributeNode.path("attributeTypeName").asText(), product);
+	}
+
+	private String groupKey(JsonNode attributeNode) {
+		if (!"EXPOSED".equals(attributeNode.path("exposed").asText("NONE"))) {
+			return null;
+		}
+		String groupNumber = attributeNode.path("groupNumber").asText("");
+		return groupNumber.isBlank() || "NONE".equalsIgnoreCase(groupNumber) ? null : groupNumber;
+	}
+
+	private Attribute toAttribute(JsonNode attributeNode, Product product) {
+		String typeName = attributeNode.path("attributeTypeName").asText();
+		String valueName = "상세페이지 참조";
+
+		if ("NUMBER".equals(attributeNode.path("dataType").asText())) {
+			valueName = attributeValueResolver
+				.resolveWithNumberDefault(typeName, product, extractUsableUnits(attributeNode));
+		}
+		return Attribute.builder()
+			.attributeTypeName(typeName).attributeValueName(valueName)
+			.exposed(attributeNode.path("exposed").asText("NONE")).build();
 	}
 
 	private List<String> extractUsableUnits(JsonNode attributeNode) {

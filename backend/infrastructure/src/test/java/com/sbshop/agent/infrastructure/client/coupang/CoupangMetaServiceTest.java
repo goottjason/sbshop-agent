@@ -185,6 +185,77 @@ class CoupangMetaServiceTest {
 	}
 
 	@Test
+	@DisplayName("D-196: 같은 그룹의 필수 구매옵션은 택1 — 정제 상품은 '개당 캡슐/정'만 남는다")
+	void groupedAttributes_pickUnitFamilyMatch_forTablet() throws Exception {
+		stubMeta(groupedMeta());
+
+		CategoryMetaResult result = metaService.getCategoryMeta(73134L,
+			product(new BigDecimal("30"), MeasureUnit.TABLET, 3));
+
+		assertThat(result.attributes()).extracting(Attribute::attributeTypeName)
+			.containsExactly("개당 캡슐/정", "수량");
+	}
+
+	@Test
+	@DisplayName("D-196: 액상 상품이면 같은 그룹에서 '개당 용량'이 선택된다")
+	void groupedAttributes_pickUnitFamilyMatch_forVolume() throws Exception {
+		stubMeta(groupedMeta());
+
+		CategoryMetaResult result = metaService.getCategoryMeta(73134L,
+			product(new BigDecimal("200"), MeasureUnit.ML, 3));
+
+		assertThat(result.attributes()).extracting(Attribute::attributeTypeName)
+			.containsExactly("개당 용량", "수량");
+	}
+
+	@Test
+	@DisplayName("D-196: 단위 계열이 맞는 항목이 없으면 그룹 첫 항목을 남긴다 — 등록 필수라 드롭 불가")
+	void groupedAttributes_fallBackToFirst() throws Exception {
+		String json = metaOf(
+			attrJson("개당 용량", "1", "\"ml\""),
+			attrJson("개당 캡슐/정", "1", "\"정\""));
+		stubMeta(json);
+
+		CategoryMetaResult result = metaService.getCategoryMeta(73134L,
+			product(new BigDecimal("500"), MeasureUnit.G, 3));
+
+		assertThat(result.attributes()).extracting(Attribute::attributeTypeName)
+			.containsExactly("개당 용량");
+	}
+
+	@Test
+	@DisplayName("D-196: 그룹이 없는 항목은 EXPOSED 여도 전부 유지한다")
+	void ungroupedAttributes_allKept() throws Exception {
+		String json = metaOf(
+			attrJson("개당 용량", "", "\"ml\""),
+			attrJson("개당 중량", "NONE", "\"g\""));
+		stubMeta(json);
+
+		CategoryMetaResult result = metaService.getCategoryMeta(73134L,
+			product(new BigDecimal("200"), MeasureUnit.ML, 3));
+
+		assertThat(result.attributes()).extracting(Attribute::attributeTypeName)
+			.containsExactly("개당 용량", "개당 중량");
+	}
+
+	@Test
+	@DisplayName("D-196: 그룹이 달라도 그룹마다 하나씩은 남는다")
+	void separateGroups_keepOneEach() throws Exception {
+		String json = metaOf(
+			attrJson("개당 용량", "1", "\"ml\""),
+			attrJson("개당 중량", "1", "\"g\""),
+			attrJson("총 용량", "2", "\"ml\""),
+			attrJson("총 중량", "2", "\"g\""));
+		stubMeta(json);
+
+		CategoryMetaResult result = metaService.getCategoryMeta(73134L,
+			product(new BigDecimal("200"), MeasureUnit.ML, 3));
+
+		assertThat(result.attributes()).extracting(Attribute::attributeTypeName)
+			.containsExactly("개당 용량", "총 용량");
+	}
+
+	@Test
 	@DisplayName("D-185: usableUnits 맵은 신 응답 형상에서도 속성명 기준으로 추출한다")
 	void usableUnits_extractedFromCurrentShape() throws Exception {
 		stubMeta(metaJson("총 용량", "NUMBER", "\"ml\",\"L\""));
@@ -210,6 +281,25 @@ class CoupangMetaServiceTest {
 			.map(Attribute::attributeValueName)
 			.findFirst()
 			.orElse(null);
+	}
+
+	private String groupedMeta() {
+		return metaOf(
+			attrJson("개당 캡슐/정", "1", "\"정\",\"캡슐\""),
+			attrJson("개당 중량", "1", "\"g\",\"mg\""),
+			attrJson("개당 용량", "1", "\"ml\",\"L\""),
+			attrJson("수량", "NONE", "\"개\""));
+	}
+
+	private String attrJson(String typeName, String groupNumber, String units) {
+		return "{\"required\":\"MANDATORY\",\"attributeTypeName\":\"" + typeName
+			+ "\",\"dataType\":\"NUMBER\",\"exposed\":\"EXPOSED\",\"groupNumber\":\"" + groupNumber
+			+ "\",\"usableUnits\":[" + units + "]}";
+	}
+
+	private String metaOf(String... attrs) {
+		return "{\"code\":\"SUCCESS\",\"data\":{\"attributes\":[" + String.join(",", attrs) + "],"
+			+ "\"noticeCategories\":[]}}";
 	}
 
 	private String exposedOf(CategoryMetaResult result, String typeName) {
