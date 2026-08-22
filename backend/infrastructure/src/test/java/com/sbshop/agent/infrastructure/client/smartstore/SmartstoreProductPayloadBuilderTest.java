@@ -57,6 +57,16 @@ class SmartstoreProductPayloadBuilderTest {
 		return Product.create("250726IHB001", command);
 	}
 
+	private Product productWithSpec(BigDecimal capacity, MeasureUnit measureUnit) {
+		ProductCreateCommand command = new ProductCreateCommand(
+			"https://kr.iherb.com/pr/x/1", new BigDecimal("20000"), "비타민D3 K2",
+			"Vitamin D3 K2", "California Gold Nutrition", "미국",
+			new BigDecimal("60"), capacity, measureUnit,
+			List.of("https://src/1.jpg"), List.of("https://cdn/1.jpg", "https://cdn/2.jpg"),
+			"<div>본문</div>", "보충제", true, 1, new BigDecimal("20"), VendorType.IHB);
+		return Product.create("250726IHB001", command);
+	}
+
 	private MarketPublishContext contextWithSalePrice(BigDecimal salePrice) {
 		MarketPublishContext base = context();
 		return new MarketPublishContext(base.categoryId(), base.categoryPath(), salePrice,
@@ -231,6 +241,46 @@ class SmartstoreProductPayloadBuilderTest {
 		assertThatThrownBy(() -> builder.build(product(), bare))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("출고지 주소ID");
+	}
+
+	@Test
+	@DisplayName("가격표시제 품목은 신규 등록 페이로드에도 unitCapacity가 들어간다 — 재게시 경로와 동일 산출")
+	void detailAttributeIncludesUnitCapacityForUnitPriceProduct() {
+		Map<String, Object> origin = originProduct(
+			builder.build(productWithSpec(new BigDecimal("28"), MeasureUnit.G), context()));
+
+		@SuppressWarnings("unchecked") Map<String, Object> attr = (Map<String, Object>)origin.get("detailAttribute");
+		@SuppressWarnings("unchecked") Map<String, Object> unitCapacity = (Map<String, Object>)attr
+			.get("unitCapacity");
+
+		assertThat(unitCapacity).isNotNull();
+		assertThat(unitCapacity.get("unitPriceYn")).isEqualTo(true);
+		assertThat(unitCapacity.get("totalCapacityValue")).isEqualTo(new BigDecimal("28"));
+		assertThat(unitCapacity.get("unitCapacity")).isEqualTo(100);
+		assertThat(unitCapacity.get("indicationUnit")).isEqualTo("g");
+	}
+
+	@Test
+	@DisplayName("용량 스펙이 없는 상품은 unitPriceYn=false로 채워 보낸다")
+	void detailAttributeSetsUnitPriceYnFalseWithoutSpec() {
+		Map<String, Object> origin = originProduct(
+			builder.build(productWithSpec(null, null), context()));
+
+		@SuppressWarnings("unchecked") Map<String, Object> attr = (Map<String, Object>)origin.get("detailAttribute");
+		@SuppressWarnings("unchecked") Map<String, Object> unitCapacity = (Map<String, Object>)attr
+			.get("unitCapacity");
+
+		assertThat(unitCapacity.get("unitPriceYn")).isEqualTo(false);
+		assertThat(unitCapacity).doesNotContainKey("totalCapacityValue");
+	}
+
+	@Test
+	@DisplayName("해외 출고지 상품은 detailAttribute에 customsTaxType을 넣는다 — 없으면 customsTaxType.required.overseas로 거부된다(라이브 실측)")
+	void detailAttributeIncludesCustomsTaxType() {
+		Map<String, Object> origin = originProduct(builder.build(product(), context()));
+
+		@SuppressWarnings("unchecked") Map<String, Object> attr = (Map<String, Object>)origin.get("detailAttribute");
+		assertThat(attr.get("customsTaxType")).isEqualTo("INCLUDED");
 	}
 
 	@Test

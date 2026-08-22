@@ -8,12 +8,11 @@ import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
-import com.sbshop.agent.core.domain.product.enums.MeasureUnit;
-import com.sbshop.agent.core.domain.product.vo.ProductSpec;
 import com.sbshop.agent.infrastructure.client.smartstore.client.SmartstoreRestClient;
 import com.sbshop.agent.infrastructure.client.smartstore.component.SmartstoreAddressBookResolver;
 import com.sbshop.agent.infrastructure.client.smartstore.component.SmartstoreCategoryResolver;
 import com.sbshop.agent.infrastructure.client.smartstore.component.SmartstoreProductPayloadBuilder;
+import com.sbshop.agent.infrastructure.client.smartstore.component.SmartstoreUnitCapacity;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.net.URL;
@@ -392,53 +391,8 @@ public class SmartstoreMarketClient implements MarketClient {
 		Object da = originProduct.get("detailAttribute");
 		Map<String, Object> detailAttribute = (da instanceof Map)
 			? (Map<String, Object>)da : new HashMap<>();
-
-		ProductSpec spec = product != null ? product.getProductSpec() : null;
-		BigDecimal capacity = spec != null ? spec.getCapacity() : null;
-		String unit = spec != null ? indicationUnit(spec.getMeasureUnit()) : null;
-
-		Map<String, Object> unitCapacity = new HashMap<>();
-		if (capacity != null && capacity.signum() > 0 && unit != null) {
-			unitCapacity.put("unitPriceYn", true);
-			unitCapacity.put("totalCapacityValue", capacity);
-			unitCapacity.put("unitCapacity", ("g".equals(unit) || "ml".equals(unit)) ? 100 : 1);
-			unitCapacity.put("indicationUnit", unit);
-		} else {
-			unitCapacity.put("unitPriceYn", false);
-		}
-		detailAttribute.put("unitCapacity", unitCapacity);
+		detailAttribute.put("unitCapacity", SmartstoreUnitCapacity.of(product));
 		originProduct.put("detailAttribute", detailAttribute);
-	}
-
-	private String indicationUnit(MeasureUnit unit) {
-		if (unit == null) {
-			return null;
-		}
-		switch (unit) {
-			case G:
-				return "g";
-			case KG:
-				return "kg";
-			case ML:
-				return "ml";
-			case L:
-				return "L";
-			case TABLET:
-				return "정";
-			case CAPSULE:
-				return "캡슐";
-			case T_BAG:
-				return "포";
-			case EA:
-			case COUNT:
-			case PIECE:
-			case PACK:
-			case BOX:
-			case BOTTLE:
-				return "개";
-			default:
-				return null;
-		}
 	}
 
 	private List<String> uploadImagesToNaver(List<String> hostedImages) {

@@ -129,6 +129,8 @@ public class SmartstoreProductPayloadBuilder {
 			"childCertifiedProductExclusionYn", true,
 			"kcCertifiedProductExclusionYn", "TRUE"));
 		attr.put("taxType", "TAX");
+		attr.put("customsTaxType", "INCLUDED");
+		attr.put("unitCapacity", SmartstoreUnitCapacity.of(product));
 		return attr;
 	}
 

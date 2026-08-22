@@ -3298,3 +3298,17 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 상태: **검증통과 (라이브 검증 완료)**
 
 > **2026-08-22 쿠팡 신규 등록 체인 종합(리더)**: D-185(카테고리 메타 현행 경로+required 필드)→D-194(가격 10원 내림)→D-195(exposed 메타값)→D-196(그룹당 택1 — supportsUnitFamily 재사용) 4계층 순차 해소, **상품 3194 실등록 성공(sellerProductId 16355149484)**. 등록 상품 실측: 판매가 47,200(D-166 정책 계산가 — 쿠폰 20% 반영, 기준가 50,400 대비 인하 = **D-166 이월 실등록 실측 완성**), 속성 수량=1개·개당 캡슐/정=60정(D-183 등록 산식 라이브 실증), 이미지 3장, 심사중. **이로써 3마켓 신규 등록 파이프라인 전부 복구**: 쿠팡 완주 / 카페24 등록 POST 실증(이미지는 데이터 문제) / 스토어 코드 완주(계정 limitOver만 잔여). 배지 클릭 등록 기능 정상화.
+
+### D-197: 스토어 신규 등록 빌더에 관부가세(customsTaxType) 누락 (2026-08-22, limitOver 해소 후 발견)
+
+- 심각도: P2(스토어 신규 등록 최종 계층 — limitOver는 사용자 정리로 소멸) | 위치: `SmartstoreProductPayloadBuilder` detailAttribute (재게시 경로 `applyCustomsTaxType`=INCLUDED는 존재, 빌더만 누락 — D-184·189와 동일 패턴)
+- 증상: 400 `customsTaxType.required.overseas "출고지가 해외 주소인 경우 ... 관부가세 입력이 필수"` (라이브 실측). D-092 salvage 기록 재확인 사례.
+- 수정(2026-08-22, fixer-d188): 빌더 detailAttribute에 customsTaxType=INCLUDED 1행(재게시와 동일 값). Red 실측 후 Green, 전 모듈 회귀 그린.
+- 상태: 수정완료 (라이브 재시도로 검증)
+
+### D-198: 스토어 신규 등록 빌더에 가격표시제 단위용량(unitCapacity) 누락 (2026-08-22, fixer 선제 발견)
+
+- 심각도: P2(D-184의 등록측 누락 — "재게시엔 있고 빌더엔 없는" 4번째 패턴) | 위치: `SmartstoreProductPayloadBuilder` detailAttribute (재게시 `applyUnitPrice`는 존재)
+- 증상(예상): 가격표시제 대상 상품 신규 등록 시 unitPriceYn 400 또는 단위가격 미표기 등록. 등록/재게시 불일치.
+- 수정(2026-08-22, fixer-d188): 산출 규칙을 `SmartstoreUnitCapacity.of(Product)` 정적 유틸로 추출해 어댑터·빌더 공유(재게시 산출 불변은 기존 테스트로 고정). Red 실측 후 Green, 전 모듈 회귀 그린.
+- 상태: 수정완료 (라이브 재시도로 검증)
