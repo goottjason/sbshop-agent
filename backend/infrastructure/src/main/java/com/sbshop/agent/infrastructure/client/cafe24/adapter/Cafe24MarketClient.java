@@ -12,6 +12,8 @@ import com.sbshop.agent.core.domain.product.enums.ProductCategory;
 import com.sbshop.agent.infrastructure.client.cafe24.client.Cafe24RestClient;
 import com.sbshop.agent.infrastructure.client.cafe24.component.Cafe24CategoryResolver;
 import com.sbshop.agent.infrastructure.client.common.util.HtmlImageExtractor;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -53,6 +55,11 @@ public class Cafe24MarketClient implements MarketClient {
 			productData.put("product_name", product.getProductName());
 			productData.put("custom_product_code", product.getSbCode());
 			productData.put("price", String.valueOf(salePrice));
+			BigDecimal costPrice = product.getCostPrice();
+			int supplyPrice = costPrice != null && costPrice.signum() > 0
+				? costPrice.setScale(0, RoundingMode.FLOOR).intValue()
+				: salePrice;
+			productData.put("supply_price", String.valueOf(supplyPrice));
 			productData.put("supply_quantity", product.getStock() != null
 				? String.valueOf(product.getStock()) : "0");
 			productData.put("display", "T");
