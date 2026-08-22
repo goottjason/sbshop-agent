@@ -3139,19 +3139,35 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 
 - 심각도: P3 | 위치: `frontend/src/pages/OrderGrid.tsx` 기본 날짜 범위, `pages/dashboard/AttentionPanel.tsx` `todayMinus`
 - 증상: `toISOString().split('T')[0]`은 UTC 날짜. `utils/datetime.ts`의 Asia/Seoul 규칙과 불일치.
-- 상세: `docs/normalize/refactor-20260821/bugs-frontend.md` B2 | 상태: 발견
+- 수정(2026-08-22, fixer-d176-177): `utils/datetime.ts`에 Asia/Seoul 기준 헬퍼 2종 신설 — `kstDateString(base?)`(KST 오늘 YYYY-MM-DD), `kstDateStringOffset({days?,months?}, base?)`(KST 오늘 기준 상대 날짜). `Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).formatToParts`로 KST 연·월·일을 뽑아 `Date.UTC`로 재구성 후 `setUTCMonth/setUTCDate`로 연산 — 로컬 타임존 오염과 UTC 환산을 모두 배제하고, JS 월말 오버플로(3/31 -1M → 3/3) 의미는 기존과 동일 보존. 치환 5지점 — `OrderGrid.tsx` 필터패널 기본값(구 `fmt`/`today`/`oneMonthAgo` 제거), `handlePeriod` 프리셋(1주·1개월·3개월 — **원 보고에 없던 4번째 UTC 지점, 타입게이트가 검출**), 그리드 `defaultStart`·`defaultEnd`, `AttentionPanel.todayMinus`. `toKstDate`/`formatKst`는 무변경.
+- 게이트(2026-08-22 실측): `npx tsc -p tsconfig.app.json --noEmit` exit 0, `npm run build` exit 0(error 0건). Red 실증 — KST 2026-08-22 07:00(=UTC 08-21 22:00)에서 현행 `defaultEnd`가 `2026-08-21`을 반환(당일 주문이 기본 필터에서 통째 누락)함을 node로 재현. Green — 실소스 모듈을 `node --experimental-strip-types`로 import해 KST 00:30·07:00·09:00·23:59 4경계 전부 `2026-08-22` 반환 확인. 요지: `_workspace/fixes/D-176_177_fix.md`
+- 라이브 검증(2026-08-22 17:22 KST, 배포 7b25758): 주문그리드 날짜 기본 범위 07.22~08.22(KST 오늘 종료) 표시 확인. 00~09시 구간 행위는 검증자 경계 19케이스 실행으로 갈음.
+- 상세: `docs/normalize/refactor-20260821/bugs-frontend.md` B2 | 상태: **검증통과 (라이브 검증 완료)**
 
 ### D-177: 마켓 라벨 맵 3벌의 키 불일치 — CAFE24·AUCTION 라벨 누락, 화면/엑셀 표기 상이 (2026-08-21)
 
 - 심각도: P3 | 위치: `OrderGrid.tsx` `marketLabels`(6키) vs `ProcessStatusPage.tsx`(8키) vs `orderExcelExport.ts`(6키)
 - 증상: 해당 마켓에서 원문 코드 노출 가능, 같은 주문이 화면/엑셀에서 다른 이름. G마켓/옥션 통합 여부는 사용자 판정 필요.
-- 상세: `docs/normalize/refactor-20260821/bugs-frontend.md` B3·B4 | 상태: 발견
+- 사용자 판정: **G마켓·옥션 각각 표기**(통합 표기 금지). 정본은 백엔드 `MarketType` enum 라벨과 일치.
+- 수정(2026-08-22, fixer-d176-177): 공용 모듈 `frontend/src/utils/marketLabels.ts` 신설 — `MARKET_LABELS`(정본: COUPANG 쿠팡 / SMART_STORE N스토어 / ELEVEN_STREET 11번가 / **GMARKET G마켓** / **AUCTION 옥션** / CAFE24 카페24 / UNKNOWN 알 수 없음 + 소스계열 EMAIL 이메일 · COUPANG_SETTLEMENT 쿠팡 정산), `marketLabel(code)`(미정의 키는 원문 코드 폴백 — 기존 각 파일 동작 보존), `ORDER_MARKET_CODES`. 로컬 맵 3벌 전부 삭제하고 소비처 치환 — `OrderGrid.tsx`(SSE 실패 토스트·마켓채널 체크박스 목록), `ProcessStatusPage.tsx`(`renderMarketType`), `orderExcelExport.ts`(엑셀 '마켓' 컬럼). 그리드 마켓 셀은 원래부터 서버 공통코드(`getCommonLabel('marketType', …)`) 경유라 이미 정본과 일치 — 이제 엑셀·화면 표기가 동일.
+- 설계 판단(계약 보강): `OrderGrid.tsx`의 구 `marketLabels`는 **라벨 맵이 아니라 동기화 상태 점(dot) 행의 키 목록**을 겸하고 있었다(`Object.entries(marketLabels)`로 순회하며 `syncStatuses[key]` 조회). ESM+ 동기화는 백엔드가 `GMARKET` 한 키로 G마켓·옥션 양쪽을 기록하므로(`OrderSyncController` `GMARKET_SYNC`), 이 지점만 정본 라벨을 쓰면 옥션 동기화 상태가 표기에서 사라진다. 따라서 공용 모듈에 **동기화 채널 전용** `SYNC_SOURCE_KEYS`(6키)·`SYNC_SOURCE_LABELS`(GMARKET만 'G마켓/옥션'으로 오버라이드)를 분리 신설하고, 점 행·SSE 토스트·`ProcessStatusPage.renderActionType`의 `{코드}_SYNC` 파생 라벨 3곳에만 적용 — **주문의 마켓 라벨(정본)과 동기화 채널 라벨(통합)을 개념 분리**. 점 행 키·순서·문구는 수정 전과 완전 동일(행위 무변경).
+- 게이트(2026-08-22 실측): `npx tsc -p tsconfig.app.json --noEmit` exit 0, `npm run build` exit 0(error 0건). Red 상당물 — 수정 전 3벌 맵의 키 불일치를 `_workspace/fixes/D-176_177_baseline.txt`에 원문 채증. Green — 로컬 맵 잔존 0건·소비처 3곳 전부 공용 모듈 import를 grep 실증, 실소스 import로 `marketLabel('GMARKET')='G마켓'`·`('AUCTION')='옥션'`·미정의 키 원문 폴백 확인. eslint 잔여 5건(exhaustive-deps 3·incompatible-library 1·set-state-in-effect 1)은 전부 미접촉 영역의 선존 항목. 요지: `_workspace/fixes/D-176_177_fix.md`
+- 후속 후보(미수정, 담당 외 영역 — 2026-08-22 verifier-p3a 지적으로 교정): 주문 도메인 4파일 밖에 마켓 라벨 중복처가 **2곳** 더 있다.
+  - `frontend/src/pages/product/productGridShared.tsx:13-19`(`MARKET_FILTER_OPTIONS`)·`:29-34`(`MARKET_BADGES`) — 4번째 중복처. 값은 정본과 일치(N스토어·카페24·G마켓·옥션 분리)라 **표기 불일치는 없음**. 순수 중복 제거 대상.
+  - `frontend/src/pages/sourcing/DraftReviewPage.tsx:19-24` — 5번째 중복처이며 **값이 정본과 불일치**: `SMART_STORE: '스마트스토어'`(정본 'N스토어'), `CAFE24: 'Cafe24'`(정본 '카페24'). GMARKET·AUCTION·UNKNOWN 3키가 아예 없어 소비처 `:158`·`:295`의 `?? o.marketType` 폴백으로 **원문 코드가 그대로 노출**된다. 즉 D-177이 잡으려던 표기 불일치가 초안 검수 화면에 실제로 남아 있음. 해당 파일은 fixer-p3-drafts 담당 영역이라 이번 사이클에서 불가침 준수로 미수정. → **처리 완료(2026-08-22, fixer-d178 소사이클)**: 로컬 `MARKET_LABELS` 삭제, 소비처 2곳을 정본 `marketLabel()`로 치환(폴백 동작 동일 — 정본 함수가 `MARKET_LABELS[code] ?? code`). 이제 초안 검수 화면도 N스토어·카페24 표기, GMARKET·AUCTION 원문 코드 노출 해소. 게이트 tsc exit 0·build 성공 실측. 상세: `_workspace/fixes/D-178_fix.md` 부록.
+- 비차단 관찰(2026-08-22 verifier-p3a → **리더 판정: 현행 유지**): `ProcessStatusPage.renderMarketType`(액션로그 marketType 컬럼)에 정본을 적용했는데, 이 컬럼에는 `OrderSyncController:108/118`의 `record("GMARKET_SYNC","GMARKET",…)`가 남긴 **동기화 채널 값도 섞여 들어온다**. 그 결과 ESM 동기화 로그 한 행에서 actionType은 'G마켓/옥션 동기화', marketType은 'G마켓'으로 갈린다(수정 전엔 둘 다 'G마켓/옥션'). 기능 영향 없음 — actionType이 채널 통합 표기를 이미 전달하므로 marketType 컬럼은 정본 유지가 맞다고 판정, 4번째 동기화 적용점으로 확장하지 않음.
+- 후속: 점 행 CUSTOMS 미렌더는 [[D-200]]으로 등재.
+- 라이브 검증(2026-08-22 17:22 KST, 배포 7b25758): 주문그리드 행 배지 '옥션' 개별 표기, 헤더·동기화 버튼 'G마켓/옥션'(채널 통합) 유지, 진행 현황 활동 로그 한 행에서 액션 'G마켓/옥션 동기화'+마켓 'G마켓' — 리더 판정 그대로 렌더. DraftReviewPage 5번째 중복 맵도 정본 치환 배포됨(7b25758).
+- 상세: `docs/normalize/refactor-20260821/bugs-frontend.md` B3·B4 | 상태: **검증통과 (라이브 검증 완료)**
 
 ### D-178: 소싱 초안 목록 화면 부재 — 2건 이상 생성 시 나머지 초안 접근 불가 (2026-08-21)
 
 - 심각도: P2(기능 공백) | 위치: `frontend/src/api/sourcingDiscoveryApi.ts` `drafts`(호출부 0) / `DiscoveryPage.handleCreateDrafts`(첫 건만 navigate)
 - 증상: 이전 세션의 미처리 초안에 UI로 도달 불가. 백엔드 목록 API는 존재.
-- 상세: `docs/normalize/refactor-20260821/bugs-frontend.md` B5·§C | 상태: 발견
+- 수정(2026-08-22, fixer-d178): 초안 목록 화면 `frontend/src/pages/sourcing/DraftListPage.tsx` 신설(기존 sourcing 페이지의 antd Table 결 준수) — `drafts(status?)` 첫 호출부, `DraftStatus` 5종 다중 상태 필터, id 내림차순(DTO에 생성일 없음), 컬럼은 상품·상태(enrichNote Tooltip)·마켓 준비(enabled 대비 valid)·매입가·마진율·등록 결과(productId), 행 클릭 → `/sourcing/drafts/{id}`. 라우트 `sourcing/drafts` 추가. 진입 경로 — DiscoveryPage 헤더 "등록 초안" 버튼, DraftReviewPage 상단 "← 초안 목록"·등록 완료 Result "초안 목록으로". `handleCreateDrafts`는 1건이면 직행·2건 이상이면 목록으로 분기. 부수 교정 — `sourcingDiscoveryApi.drafts`가 axios 기본 직렬화로 `status[]=`를 보내 Spring `@RequestParam List<String>`에 바인딩되지 않던 것을 `paramsSerializer: { indexes: null }`로 교정(`productApi.ts:119` 선례). 백엔드 무변경.
+- 게이트(2026-08-22 실측): `npx tsc -p tsconfig.app.json --noEmit` exit 0, `npm run build` 성공(DraftListPage 청크 3.99 kB). Red 상당물 — 수정 전 `sourcingDiscoveryApi.drafts(` 호출부 0건 grep 실증. 잔여: 신규 파일의 `react-hooks/set-state-in-effect` 1건은 sibling 페이지와 동일 패턴으로 D-180 묶음 편입 후보. 요지: `_workspace/fixes/D-178_fix.md`
+- 라이브 검증(2026-08-22 17:22 KST, 배포 7b25758): /sourcing/drafts 라우트 렌더 정상(상태 필터·컬럼·빈 상태 문구). 운영 sb_product_draft 0건·API 200 `[]` 교차 확인 — 빈 상태가 올바른 동작. 실초안 있는 흐름은 다음 초안 생성 시 자연 검증.
+- 상세: `docs/normalize/refactor-20260821/bugs-frontend.md` B5·§C | 상태: **검증통과 (라이브 검증 완료)**
 
 ### D-179: 죽은 추상화·오도성 코드 정리 후보 묶음 (2026-08-21, P3 일괄)
 
@@ -3161,7 +3177,9 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 ### D-180: 계약 일관성·프론트 품질 잔부채 묶음 (2026-08-21, P3 일괄)
 
 - 배치 트리거 4종 응답 키셋 비대칭(`count` 유무) / `requireNonNegative` 헬퍼 2중 + 인라인 반복 / eslint `react-hooks/set-state-in-effect` 5건(useEffect 수동 페칭 6파일이 근본 원인) / 스타일 4방식·페칭 3패턴·toast 이중화·라벨/색상 다중 정의 등 구조 부채 목록 / `OrderGrid.tsx` 2,065줄 분해(독립 사이클 권장) / `productMockApi.ts` 파일명 정정(rename → productBulkApi)
-- 상세: `docs/normalize/refactor-20260821/bugs-api.md` B-API-5·BL-API-3, `bugs-frontend.md` B8·D | 상태: 발견
+- **D-180a(배치 트리거 응답 키셋 비대칭) 수정완료(검증대기)** (2026-08-22, fixer-d180a): 가산 변경 — `crawl-and-update`·`manual-update-price-stock`·`manual-update-all` 세 트리거 응답에 `count`(문자열, 대상 건수) 추가로 4종 전부 `{batchId, count, message}` 공통 보장. 기존 키 제거·개명·값 변경 0, `by-supplier` 무변경. count는 각 트리거가 이미 액션로그 "N건"·`BatchStartedEvent(total)`에 쓰던 `productCodes.size()` 재사용(신규 계산 없음) — 제외 트리거 없음. Red: 신규 `BatchControllerTriggerKeysetContractTest` 6케이스를 수정 전 코드에 실행 → **4 failed**(전부 `count` 부재), by-supplier 2건은 보존 가드로 통과. Green: `:api:test --rerun-tasks` **181 tests/0 failures**, 4모듈 컴파일·`:api:spotlessCheck` 통과. 특성화 테스트는 단언 무충돌(`containsEntry` 기반)이라 `@DisplayName` 문구만 신규 키셋으로 갱신. FE 소비처 3곳(`BatchUpdatePage.tsx:134·147`, `ProductGrid.tsx:166`) 읽기 조사 결과 전부 `batchId`/`count`만 구조적으로 읽어 무영향, `manual-update-*` FE 소비처는 0건. `_workspace/fixes/D-180a_fix.md`
+- D-180a(배치 응답 키셋) 라이브: 실배치 트리거는 운영 비용 문제로 미실행 — MockMvc 계약 테스트 6건·verifier Red 독립 재현으로 갈음, 배포됨(400b6b1).
+- 상세: `docs/normalize/refactor-20260821/bugs-api.md` B-API-5·BL-API-3, `bugs-frontend.md` B8·D | 상태: 발견 (묶음 — **D-180a 검증통과·배포 완료**, 나머지 미착수)
 
 ### D-181: 쿠팡 어댑터가 이미지·상세 수정 PUT 응답의 마켓 레벨 오류코드를 검사하지 않음 — 거짓 성공 여지 (2026-08-21, D-167 검증 중 발견)
 
@@ -3328,5 +3346,25 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 증상(예상): 가격표시제 대상 상품 신규 등록 시 unitPriceYn 400 또는 단위가격 미표기 등록. 등록/재게시 불일치.
 - 수정(2026-08-22, fixer-d188): 산출 규칙을 `SmartstoreUnitCapacity.of(Product)` 정적 유틸로 추출해 어댑터·빌더 공유(재게시 산출 불변은 기존 테스트로 고정). Red 실측 후 Green, 전 모듈 회귀 그린.
 - 라이브 검증 완료(2026-08-22): 상품 2270 스토어 실등록 **SYNCED** — channelProductNo 13730401497. 상태: **검증통과 (라이브 검증 완료)**
+
+### D-199: KST 날짜 헬퍼의 월말 오버플로 — 대상 월이 짧으면 시작일이 당월로 밀린다 (2026-08-22, verifier-p3a 등재 권고)
+
+- 심각도: P4(선존 부채, D-176 회귀 아님 — 수정 전 `setMonth`와 동작 동일) | 위치: `frontend/src/utils/datetime.ts` `kstDateStringOffset`의 `setUTCMonth`
+- 증상: JS `setMonth` 시맨틱상 존재하지 않는 날짜가 다음 달로 넘어간다. 그 결과 `{months:-n}` 시작일이 대상 월이 아니라 **당월 1~3일**로 밀린다. 트리거는 "31일"이 아니라 **대상 월 말일 < 원래 일자** — 2월이 대상이 되는 3/29·3/30도 포함된다.
+- 실측(2026-08-22, 실소스 import — **2026년 전 캘린더일 스윕**, fixer·verifier 독립 2회 일치): 손실일 = 실제 시작일 − 의도 시작일(대상 월 말일로 클램프한 값).
+  - `-1M` **연 7일**: `03-29→03-01`(1일) · `03-30→03-02`(2일) · `03-31→03-03`(**3일, 최대**) · `05-31→05-01`(1일) · `07-31→07-01`(1일) · `10-31→10-01`(1일) · `12-31→12-01`(1일)
+  - `-3M` **연 5일**: `05-29→03-01`(1일) · `05-30→03-02`(2일) · `05-31→03-03`(3일) · `07-31→05-01`(1일) · `12-31→10-01`(1일)
+  - 윤년은 2월이 하루 길어 3월 트리거가 3일→2일로 줄고 최대 손실도 2일(2028: `03-30→03-01` 1일 · `03-31→03-02` 2일)
+  - `{days:-n}`(1주 프리셋·`todayMinus`)은 월 연산이 아니라 **해당 없음**. 그 외 날짜 정상(`2026-08-22 → 2026-07-22`).
+- 영향 범위(정정 2회): ① 판정서 초안의 "며칠짜리로 좁아짐"은 과대 표현 — 시작일이 당월 1~3일로 밀릴 뿐 범위는 29~31일로 유지되므로 실제 손실은 **1~3일**(verifier 재측정으로 수용). ② fixer의 "연 5일, 31일에만"은 과소 집계 — 트리거가 일자가 아니라 대상 월 길이라 **`-1M` 연 7일 · `-3M` 연 5일**이 맞다(verifier 지적으로 수용). 손실 1~3일 규모와 P4 판정은 양쪽 정정 후에도 유지 — 기본 조회 범위가 하루~사흘 짧아지는 수준으로 주문 누락 같은 체감 증상은 없다.
+- 수정 방향(미착수): 대상 월 말일로 클램프(`min(원래 일, 대상 월 말일)`)하거나 "N개월 전"의 업무 정의를 명시적으로 정하고 헬퍼에 반영. 정의 확정이 선행 과제. 수정 시 회귀 테스트는 위 스윕(전 캘린더일 × `-1M`/`-3M` × 평년·윤년)을 그대로 쓰면 된다.
+- 상태: 발견(미착수)
+
+### D-200: 동기화 상태 점 행에 CUSTOMS 채널이 렌더되지 않는다 (2026-08-22, verifier-p3a 등재 권고)
+
+- 심각도: P4(선존 공백, D-177 회귀 아님 — 구 `marketLabels`도 6키였음) | 위치: `frontend/src/utils/marketLabels.ts` `SYNC_SOURCE_KEYS`(6키) vs `backend/core/.../application/sync/SyncMarketKeys`(7키)
+- 증상: 백엔드 `SyncMarketKeys`는 EMAIL·COUPANG·SMART_STORE·ELEVEN_STREET·GMARKET·COUPANG_SETTLEMENT·**CUSTOMS** 7키이고 `CustomsOrderSyncService:26`이 `markRunning(SyncMarketKeys.CUSTOMS)`로 상태를 기록한다(`CustomsSyncTransactionBoundaryTest:72-73`이 검증). 그런데 프론트 점 행은 6키만 순회해 **통관 동기화 상태가 화면에 표시되지 않는다**.
+- 수정 방향(미착수): `SYNC_SOURCE_KEYS`에 `CUSTOMS` 추가 + 라벨('통관' 등) 정의. 점 행 폭·순서 영향 확인 필요.
+- 상태: 발견(미착수)
 
 > **2026-08-22 스토어 실등록 완주(리더)**: limitOver 사용자 정리 후 D-197(관부가세)·D-198(단위용량 — 빌더/재게시 공유화) 해소로 **상품 2270 실등록 성공(https://smartstore.naver.com/shouldbe_shop/products/13730401497)**. 스토어 체인 총 7계층(D-186·188·189·190·191·197·198) 소진 — "재게시엔 있고 등록 빌더엔 없는" 패턴 4종 전부 공유화로 해소. **3마켓 실등록 완주 달성**(쿠팡 3194·스토어 2270·카페24 POST 실증). 쿠팡 심사: 4건 심사중, 2334만 승인반려(사유는 API 미노출 — WING 확인 필요). 다음 대기: P3 묶음(D-176~180)·D-175.
