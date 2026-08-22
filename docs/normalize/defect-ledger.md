@@ -3261,10 +3261,14 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 심각도: P2(카페24 신규 등록 후속 계층 — 분류 가드·토큰 해소 후 드러남) | 위치: `Cafe24MarketClient.publish` 페이로드 (supply_price 미전송)
 - 증상: POST /admin/products 422 `"[Product supply price] can only contain integers and should be in strings. (parameter.supply_price)"` — 현행 API에서 supply_price(공급가)가 정수 문자열로 필수화된 것으로 보임(우리는 미전송).
 - 수정(2026-08-22, fixer-d187): productData에 `supply_price` 정수 문자열 추가 — costPrice 내림(공급가=원가), null/0 이하 시 salePrice 폴백. Red 실측 후 Green, 전 모듈 회귀 그린.
-- 상태: 수정완료 (라이브 재시도로 검증)
+- 라이브 검증(2026-08-22): 재시도에서 supply_price 422 소멸 — 등록이 다음 계층(이미지)으로 진행. 상태: **검증통과 (라이브 검증 완료)**
 
 ### D-193: 카페24 신규 등록이 외부 이미지 URL 직접 전송으로 422 거부 (2026-08-22, D-192 라이브 검증 중 발견)
 
 - 심각도: P2(카페24 신규 등록 후속 계층) | 위치: `Cafe24MarketClient.publish` — `list_image`/`detail_image`에 외부 URL(esmplus/R2) 직접 전송
 - 증상: POST /admin/products 422 `"[Product image] Wrong image path"`. 재게시 경로(`syncImagesAndHtml`)는 이미 **외부 이미지 다운로드→base64→POST /admin/products/{no}/images** 방식으로 검증돼 있음(D-092) — 신규 등록만 미적용. 스토어 D-189와 동일 구조의 누락.
-- 상태: 발견
+- 수정(2026-08-22, fixer-d187): 재게시의 base64 업로드를 `uploadMainImage` 헬퍼로 추출해 등록 성공 직후 호출(양 경로 공유·복제 없음), 등록 페이로드에서 외부 URL 제거, 이미지 실패 시 product_no 포함 전파. 전 모듈 1,199 tests 그린.
+- 라이브 검증(2026-08-22): "Wrong image path" 422 소멸, **등록 POST 성공 — product_no=22019(P000BGOX) 실발급**. 이미지 단계는 소스 URL(esmplus) 자체가 404라 의도된 실패 전파로 정지 — 코드 정상, 상품 766의 이미지 데이터 부패가 원인. 부산물: 카페24에 이미지 없는 고아 상품 22019 잔존(등록행 미저장 — markPublished 미도달), 정리 필요.
+- 상태: **검증통과 (등록 파이프라인 라이브 실증 — 이미지까지의 완주는 살아있는 이미지 보유 상품으로 잔여)**
+
+> **2026-08-22 카페24 신규 등록 체인 종합(리더)**: D-187(분류 권한 스코프+개발자센터 등록+재인증)→분류 가드(default-category-no=23, 기존 관행 실측 일치)→토큰 401(리더 프로브의 RT 회전 부작용 — 만료 강제로 복구, 이후 프로브는 RT 되쓰기 패턴)→D-192(supply_price 정수 문자열)→D-193(이미지 base64 업로드 공유화) 순차 해소. **등록 POST 성공(product_no 22019 발급)으로 파이프라인 라이브 실증** — 잔여는 상품 데이터(소스 이미지 404) 문제로, 카페24 미등록+생존 이미지 상품이 사실상 없어(전수 조회) 완주 대상 부재. 고아 22019 정리 대기. 관찰(후보): 카페24 클라이언트가 401에서 토큰 자동 재갱신 안 함.
