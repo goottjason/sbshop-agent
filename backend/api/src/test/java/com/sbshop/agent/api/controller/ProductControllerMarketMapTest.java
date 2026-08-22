@@ -56,6 +56,10 @@ class ProductControllerMarketMapTest {
 			imageDownloadClient, productInfoCrawlerPort, marketRegistrationRepository, actionLogService);
 	}
 
+	private ResponseEntity<Page<ProductListResponse>> listAll() {
+		return controller().getProducts(null, null, null, null, null, null, false, PageRequest.of(0, 50));
+	}
+
 	private MarketRegistration reg(Long productId, MarketType type, String identifiersJson) {
 		return MarketRegistration.builder()
 			.productId(productId)
@@ -77,7 +81,7 @@ class ProductControllerMarketMapTest {
 				reg(2L, MarketType.SMART_STORE, "{}")));
 
 		ResponseEntity<Page<ProductListResponse>> res =
-			controller().getProducts(null, null, PageRequest.of(0, 50));
+			listAll();
 
 		List<ProductListResponse> content = res.getBody().getContent();
 		assertThat(content).hasSize(2);
@@ -100,7 +104,7 @@ class ProductControllerMarketMapTest {
 				"{\"product_no\":\"10615\",\"gmarket_goodsNo\":\"3490122824\",\"auction_goodsNo\":\"D888857683\"}")));
 
 		ResponseEntity<Page<ProductListResponse>> res =
-			controller().getProducts(null, null, PageRequest.of(0, 50));
+			listAll();
 
 		var links = res.getBody().getContent().get(0).marketRegistrations();
 		assertThat(links.get("GMARKET").url()).isEqualTo("http://item.gmarket.co.kr/Item?goodscode=3490122824");
@@ -119,7 +123,7 @@ class ProductControllerMarketMapTest {
 			.thenReturn(List.of(reg(1L, MarketType.CAFE24, "{\"cafe24ProductNo\":\"77\"}")));
 
 		ResponseEntity<Page<ProductListResponse>> res =
-			controller().getProducts(null, null, PageRequest.of(0, 50));
+			listAll();
 
 		Map<String, MarketBadgeState> map = res.getBody().getContent().get(0).marketRegistrations();
 		assertThat(map).containsKey("CAFE24");
@@ -136,7 +140,7 @@ class ProductControllerMarketMapTest {
 			.thenReturn(List.of(reg(1L, MarketType.COUPANG, "{}")));
 
 		ResponseEntity<Page<ProductListResponse>> res =
-			controller().getProducts(null, null, PageRequest.of(0, 50));
+			listAll();
 
 		MarketBadgeState state = res.getBody().getContent().get(0).marketRegistrations().get("COUPANG");
 		assertThat(state.status()).isEqualTo("PENDING");
@@ -154,7 +158,7 @@ class ProductControllerMarketMapTest {
 				"{\"productId\":\"123\",\"vendorItemId\":\"456\"}")));
 
 		ResponseEntity<Page<ProductListResponse>> res =
-			controller().getProducts(null, null, PageRequest.of(0, 50));
+			listAll();
 
 		MarketBadgeState state = res.getBody().getContent().get(0).marketRegistrations().get("COUPANG");
 		assertThat(state.status()).isEqualTo("SYNCED");

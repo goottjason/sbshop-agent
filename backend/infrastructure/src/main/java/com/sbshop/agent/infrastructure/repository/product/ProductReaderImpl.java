@@ -2,8 +2,10 @@ package com.sbshop.agent.infrastructure.repository.product;
 
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
+import com.sbshop.agent.core.domain.product.ProductSpecifications;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
-import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.product.dto.ProductSearchCondition;
+import com.sbshop.agent.core.domain.product.enums.ProductCategory;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -28,28 +30,13 @@ public class ProductReaderImpl implements ProductReader {
 	}
 
 	@Override
-	public Page<Product> search(String keyword, Pageable pageable) {
-		if (keyword == null || keyword.isBlank()) {
-			return productRepository.findAll(pageable);
-		}
-		return productRepository.searchByKeyword(keyword, pageable);
+	public Page<Product> search(ProductSearchCondition condition, Pageable pageable) {
+		return productRepository.findAll(ProductSpecifications.matching(condition), pageable);
 	}
 
 	@Override
-	public Page<Product> findByMarketRegistration(MarketType marketType, boolean registered, Pageable pageable) {
-		if (registered) {
-			return productRepository.findRegisteredByMarket(marketType, pageable);
-		}
-		return productRepository.findUnregisteredByMarket(marketType, pageable);
-	}
-
-	@Override
-	public Page<Product> findByMarketRegistrationAndKeyword(
-		MarketType marketType, boolean registered, String keyword, Pageable pageable) {
-		if (registered) {
-			return productRepository.findRegisteredByMarketAndKeyword(marketType, keyword, pageable);
-		}
-		return productRepository.findUnregisteredByMarketAndKeyword(marketType, keyword, pageable);
+	public List<ProductCategory> findDistinctCategories() {
+		return productRepository.findDistinctCategories();
 	}
 
 	@Override

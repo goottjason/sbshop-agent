@@ -1,16 +1,15 @@
 package com.sbshop.agent.core.domain.product;
 
-import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.product.enums.ProductCategory;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface ProductRepository extends JpaRepository<Product, Long> {
+public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product> {
 	Product save(Product product);
 
 	Optional<Product> findBySbCode(String sbCode);
@@ -33,38 +32,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 		+ "WHERE p.sourcingInfo.sourceUrl IS NOT NULL AND p.sourcingInfo.sourceUrl <> ''")
 	List<String> findAllSourceUrls();
 
-	@Query("SELECT p FROM Product p WHERE " +
-		"LOWER(p.productName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-		"LOWER(p.sbCode) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-		"LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%'))")
-	Page<Product> searchByKeyword(@Param("keyword")
-	String keyword, Pageable pageable);
-
-	@Query("SELECT p FROM Product p WHERE p.id NOT IN " +
-		"(SELECT r.productId FROM MarketRegistration r WHERE r.marketType = :marketType)")
-	Page<Product> findUnregisteredByMarket(@Param("marketType")
-	MarketType marketType, Pageable pageable);
-
-	@Query("SELECT p FROM Product p WHERE p.id IN " +
-		"(SELECT r.productId FROM MarketRegistration r WHERE r.marketType = :marketType)")
-	Page<Product> findRegisteredByMarket(@Param("marketType")
-	MarketType marketType, Pageable pageable);
-
-	@Query("SELECT p FROM Product p WHERE p.id NOT IN " +
-		"(SELECT r.productId FROM MarketRegistration r WHERE r.marketType = :marketType) AND (" +
-		"LOWER(p.productName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-		"LOWER(p.sbCode) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-		"LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%')))")
-	Page<Product> findUnregisteredByMarketAndKeyword(@Param("marketType")
-	MarketType marketType, @Param("keyword")
-	String keyword, Pageable pageable);
-
-	@Query("SELECT p FROM Product p WHERE p.id IN " +
-		"(SELECT r.productId FROM MarketRegistration r WHERE r.marketType = :marketType) AND (" +
-		"LOWER(p.productName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-		"LOWER(p.sbCode) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-		"LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%')))")
-	Page<Product> findRegisteredByMarketAndKeyword(@Param("marketType")
-	MarketType marketType, @Param("keyword")
-	String keyword, Pageable pageable);
+	@Query("SELECT DISTINCT p.category FROM Product p WHERE p.category IS NOT NULL")
+	List<ProductCategory> findDistinctCategories();
 }

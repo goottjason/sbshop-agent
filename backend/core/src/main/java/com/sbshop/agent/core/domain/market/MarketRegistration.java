@@ -29,6 +29,9 @@ import org.hibernate.annotations.JdbcTypeCode;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MarketRegistration extends BaseEntity {
 
+	public static final String GMARKET_IDENTIFIER_KEY = "gmarket_goodsNo";
+	public static final String AUCTION_IDENTIFIER_KEY = "auction_goodsNo";
+
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	@Column(name = "product_id", nullable = false)
@@ -217,12 +220,12 @@ public class MarketRegistration extends BaseEntity {
 	}
 
 	public String buildGmarketUrl() {
-		String goods = identifier("gmarket_goodsNo");
+		String goods = identifier(GMARKET_IDENTIFIER_KEY);
 		return goods != null ? "http://item.gmarket.co.kr/Item?goodscode=" + goods : null;
 	}
 
 	public String buildAuctionUrl() {
-		String item = identifier("auction_goodsNo");
+		String item = identifier(AUCTION_IDENTIFIER_KEY);
 		return item != null ? "http://itempage3.auction.co.kr/DetailView.aspx?ItemNo=" + item : null;
 	}
 

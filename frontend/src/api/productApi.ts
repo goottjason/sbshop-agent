@@ -24,6 +24,24 @@ export interface MarketBadgeState {
   url: string | null;
 }
 
+export interface ProductPage<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+}
+
+export interface ProductQuery {
+  page: number;
+  size: number;
+  keyword?: string;
+  categories?: string[];
+  vendors?: string[];
+  stockStatuses?: string[];
+  markets?: string[];
+  inStockOnly?: boolean;
+}
+
 export interface ProductDetail {
   id: number;
   sbCode: string;
@@ -95,8 +113,14 @@ interface MarketPlusHandoff {
 }
 
 export const productApi = {
-  fetchProducts: (page: number, size: number, keyword?: string) =>
-    apiClient.get('/api/v1/products', { params: { page, size, keyword } }),
+  fetchProducts: (query: ProductQuery) =>
+    apiClient.get<ProductPage<ProductList>>('/api/v1/products', {
+      params: query,
+      paramsSerializer: { indexes: null },
+    }),
+
+  fetchCategories: () =>
+    apiClient.get<string[]>('/api/v1/products/categories'),
 
   fetchProductDetail: (id: number) =>
     apiClient.get(`/api/v1/products/${id}`),

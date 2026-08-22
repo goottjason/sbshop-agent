@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import {
   useReactTable, getCoreRowModel, flexRender, createColumnHelper,
   type RowSelectionState,
@@ -7,9 +7,9 @@ import {
 import { toast } from 'react-toastify';
 import { Modal as AntModal, Pagination, InputNumber } from 'antd';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/Table';
-import { productApi, type ProductList } from '../../api/productApi';
+import { productApi, type ProductList, type ProductQuery } from '../../api/productApi';
 import { batchApi } from '../../api/batchApi';
-import { MARKET_FILTER_OPTIONS } from './productGridShared';
+import { MARKET_FILTER_OPTIONS, VENDOR_OPTIONS } from './productGridShared';
 import { MarketBadgeCell } from './MarketBadgeCell';
 import { ProductFilterPanel, type ProductFilters } from './ProductFilterPanel';
 import { ProductDetailModal } from './ProductDetailModal';
@@ -25,22 +25,15 @@ function stockBadge(soldOut: boolean): React.CSSProperties {
   return { fontSize: 11, fontWeight: 600, padding: '2px 10px', borderRadius: 4, background: c.bg, color: c.text };
 }
 
-function applyClientFilters(rows: ProductList[], f: ProductFilters): ProductList[] {
-  return rows.filter((r) => {
-    if (f.categories.length > 0 && !(r.category && f.categories.includes(r.category))) return false;
-    if (f.vendors.length > 0 && !(r.vendor && f.vendors.includes(r.vendor))) return false;
-    if (f.stockStatuses.length > 0) {
-      const st = r.stockStatus ?? (r.stock > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK');
-      if (!f.stockStatuses.includes(st)) return false;
-    }
-    if (f.inStockOnly && !(r.stock > 0)) return false;
-    if (f.markets.length > 0 && f.markets.length < MARKET_FILTER_OPTIONS.length) {
-      const regs = r.marketRegistrations ?? {};
-      const hit = f.markets.some((m) => regs[m] !== undefined);
-      if (!hit) return false;
-    }
-    return true;
-  });
+function toQuery(page: number, size: number, keyword: string, f: ProductFilters): ProductQuery {
+  const q: ProductQuery = { page, size };
+  if (keyword) q.keyword = keyword;
+  if (f.categories.length > 0) q.categories = f.categories;
+  if (f.vendors.length > 0 && f.vendors.length < VENDOR_OPTIONS.length) q.vendors = f.vendors;
+  if (f.stockStatuses.length === 1) q.stockStatuses = f.stockStatuses;
+  if (f.markets.length > 0 && f.markets.length < MARKET_FILTER_OPTIONS.length) q.markets = f.markets;
+  if (f.inStockOnly) q.inStockOnly = true;
+  return q;
 }
 
 export default function ProductGrid() {
@@ -56,26 +49,26 @@ export default function ProductGrid() {
   const [couponRate, setCouponRate] = useState<number | null>(20);
   const [minMarginPrice, setMinMarginPrice] = useState<number | null>(5000);
 
+  const query = useMemo(() => toQuery(page, pageSize, keyword, filters), [page, pageSize, keyword, filters]);
+
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['products', keyword],
-    queryFn: async () => {
-      const res = await productApi.fetchProducts(0, 500, keyword || undefined);
-      return (res.data.content ?? []) as ProductList[];
-    },
+    queryKey: ['products', query],
+    queryFn: async () => (await productApi.fetchProducts(query)).data,
+    placeholderData: keepPreviousData,
   });
 
-  const allRows = useMemo(() => data ?? [], [data]);
-  const rows = useMemo(() => applyClientFilters(allRows, filters), [allRows, filters]);
-  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-  const safePage = Math.min(page, pageCount - 1);
-  const pageRows = useMemo(
-    () => rows.slice(safePage * pageSize, safePage * pageSize + pageSize),
-    [rows, safePage, pageSize],
-  );
-  const categoryOptions = useMemo(
-    () => Array.from(new Set(allRows.map((r) => r.category).filter((c): c is string => !!c))).sort(),
-    [allRows],
-  );
+  const { data: categoryOptions = [] } = useQuery({
+    queryKey: ['product-categories'],
+    queryFn: async () => (await productApi.fetchCategories()).data,
+  });
+
+  const rows = useMemo(() => data?.content ?? [], [data]);
+  const totalElements = data?.totalElements ?? 0;
+  const pageCount = Math.max(1, data?.totalPages ?? 1);
+
+  useEffect(() => {
+    if (data && page > 0 && page >= pageCount) setPage(pageCount - 1);
+  }, [data, page, pageCount]);
 
   const handleSearch = (f: ProductFilters) => { setKeyword(f.keyword); setFilters(f); setPage(0); };
 
@@ -138,7 +131,7 @@ export default function ProductGrid() {
   ], [refetch]);
 
   const table = useReactTable({
-    data: pageRows,
+    data: rows,
     columns,
     state: { rowSelection },
     enableRowSelection: true,
@@ -201,7 +194,7 @@ export default function ProductGrid() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: '19px', fontWeight: 800, color: 'var(--product-primary)', letterSpacing: -0.2 }}>상품 관리</h2>
           <span style={{ fontSize: 12, color: '#64748b', background: '#eef2f7', borderRadius: 999, padding: '3px 10px', fontWeight: 600 }}>
-            표시 {rows.length.toLocaleString()} · 로드 {allRows.length.toLocaleString()}
+            전체 {totalElements.toLocaleString()}건
           </span>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -217,11 +210,6 @@ export default function ProductGrid() {
           )}
           <button onClick={() => refetch()} style={{ padding: '8px 16px', backgroundColor: '#fff', color: '#475569', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>새로고침</button>
         </div>
-      </div>
-
-      <div style={{ fontSize: 11.5, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6, padding: '0 2px', marginBottom: 10 }}>
-        <span style={{ display: 'inline-flex', width: 14, height: 14, borderRadius: 999, background: '#e2e8f0', color: '#64748b', fontSize: 10, fontWeight: 700, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>i</span>
-        고급필터는 로드된 500건 대상 클라이언트 필터입니다. 카테고리는 목록 API 확장 후 활성화됩니다.
       </div>
 
       <ProductFilterPanel categoryOptions={categoryOptions} onSearch={handleSearch} />
@@ -267,12 +255,12 @@ export default function ProductGrid() {
             onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}>
             {[20, 50, 100, 200].map((n) => <option key={n} value={n}>{n}개씩 보기</option>)}
           </select>
-          <span style={{ fontSize: 12, color: '#94a3b8' }}>표시 {rows.length.toLocaleString()}건 · {safePage + 1}/{pageCount} 페이지</span>
+          <span style={{ fontSize: 12, color: '#94a3b8' }}>전체 {totalElements.toLocaleString()}건 · {page + 1}/{pageCount} 페이지</span>
         </div>
         <Pagination
-          current={safePage + 1}
+          current={page + 1}
           pageSize={pageSize}
-          total={rows.length}
+          total={totalElements}
           showSizeChanger={false}
           size="small"
           onChange={(p) => setPage(p - 1)}

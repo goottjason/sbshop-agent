@@ -22,6 +22,10 @@ import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
 import com.sbshop.agent.core.domain.product.client.dto.ImageProcessResult;
 import com.sbshop.agent.core.domain.product.client.dto.ImageUploadFile;
+import com.sbshop.agent.core.domain.product.dto.ProductSearchCondition;
+import com.sbshop.agent.core.domain.product.enums.ProductCategory;
+import com.sbshop.agent.core.domain.product.enums.StockStatus;
+import com.sbshop.agent.core.domain.product.enums.VendorType;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -73,24 +77,30 @@ public class ProductController {
 		String keyword,
 		@RequestParam(required = false)
 		String marketFilter,
+		@RequestParam(required = false)
+		List<ProductCategory> categories,
+		@RequestParam(required = false)
+		List<VendorType> vendors,
+		@RequestParam(required = false)
+		List<StockStatus> stockStatuses,
+		@RequestParam(required = false)
+		List<MarketType> markets,
+		@RequestParam(defaultValue = "false")
+		boolean inStockOnly,
 		@PageableDefault(size = 50)
 		Pageable pageable) {
-		Page<Product> products;
-		boolean hasKeyword = keyword != null && !keyword.isBlank();
-		if (marketFilter != null && !marketFilter.isBlank()) {
-			boolean registered = !marketFilter.startsWith("!");
-			String marketName = registered ? marketFilter : marketFilter.substring(1);
-			MarketType marketType = MarketType.valueOf(marketName.toUpperCase());
-			products = hasKeyword
-				? productSearchUseCase.searchByMarketAndKeyword(marketType, registered, keyword, pageable)
-				: productSearchUseCase.searchByMarket(marketType, registered, pageable);
-		} else {
-			products = productSearchUseCase.searchProducts(keyword, pageable);
-		}
+		ProductSearchCondition condition = buildSearchCondition(keyword, marketFilter, categories,
+			vendors, stockStatuses, markets, inStockOnly);
+		Page<Product> products = productSearchUseCase.searchProducts(condition, pageable);
 		Map<Long, List<MarketRegistration>> registrationsByProduct = loadRegistrations(products.getContent());
 		return ResponseEntity.ok(products.map(
 			p -> ProductListResponse.from(p,
 				buildMarketMap(registrationsByProduct.getOrDefault(p.getId(), List.of())))));
+	}
+
+	@GetMapping("/categories")
+	public ResponseEntity<List<String>> getCategories() {
+		return ResponseEntity.ok(productSearchUseCase.getCategoryNames());
 	}
 
 	@GetMapping("/{id}")
@@ -231,6 +241,29 @@ public class ProductController {
 		}
 		return uploadPreparedImages(id, downloaded, ActionLogConstants.SOURCE_IMAGE_CRAWL,
 			"소스이미지 " + imageCount + "개 크롤·업로드", failedMsgPrefix);
+	}
+
+	private ProductSearchCondition buildSearchCondition(
+		String keyword, String marketFilter, List<ProductCategory> categories,
+		List<VendorType> vendors, List<StockStatus> stockStatuses, List<MarketType> markets,
+		boolean inStockOnly) {
+		MarketType marketFilterType = null;
+		boolean registered = false;
+		if (marketFilter != null && !marketFilter.isBlank()) {
+			registered = !marketFilter.startsWith("!");
+			String marketName = registered ? marketFilter : marketFilter.substring(1);
+			marketFilterType = MarketType.valueOf(marketName.toUpperCase());
+		}
+		return ProductSearchCondition.builder()
+			.keyword(keyword)
+			.marketFilterType(marketFilterType)
+			.marketFilterRegistered(registered)
+			.categories(categories)
+			.vendors(vendors)
+			.stockStatuses(stockStatuses)
+			.markets(markets)
+			.inStockOnly(inStockOnly)
+			.build();
 	}
 
 	private Map<Long, List<MarketRegistration>> loadRegistrations(List<Product> products) {

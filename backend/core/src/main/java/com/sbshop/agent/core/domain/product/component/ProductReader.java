@@ -1,7 +1,8 @@
 package com.sbshop.agent.core.domain.product.component;
 
 import com.sbshop.agent.core.domain.product.Product;
-import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.product.dto.ProductSearchCondition;
+import com.sbshop.agent.core.domain.product.enums.ProductCategory;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -12,12 +13,9 @@ public interface ProductReader {
 
 	Optional<Product> findBySbCode(String sbCode);
 
-	Page<Product> search(String keyword, Pageable pageable);
+	Page<Product> search(ProductSearchCondition condition, Pageable pageable);
 
-	Page<Product> findByMarketRegistration(MarketType marketType, boolean registered, Pageable pageable);
-
-	Page<Product> findByMarketRegistrationAndKeyword(
-		MarketType marketType, boolean registered, String keyword, Pageable pageable);
+	List<ProductCategory> findDistinctCategories();
 
 	List<Product> findAllByIds(List<Long> ids);
 

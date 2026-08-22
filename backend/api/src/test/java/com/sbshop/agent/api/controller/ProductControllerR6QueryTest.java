@@ -2,9 +2,7 @@ package com.sbshop.agent.api.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -21,6 +19,7 @@ import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
 import com.sbshop.agent.core.domain.product.client.dto.ImageProcessResult;
+import com.sbshop.agent.core.domain.product.dto.ProductSearchCondition;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +57,17 @@ class ProductControllerR6QueryTest {
 			imageDownloadClient, productInfoCrawlerPort, marketRegistrationRepository, actionLogService);
 	}
 
+	private void stubEmptyPage() {
+		Page<Product> page = new PageImpl<>(List.of(), PageRequest.of(0, 50), 0);
+		when(productSearchUseCase.searchProducts(any(), any())).thenReturn(page);
+	}
+
+	private ProductSearchCondition captureCondition() {
+		ArgumentCaptor<ProductSearchCondition> captor = ArgumentCaptor.forClass(ProductSearchCondition.class);
+		verify(productSearchUseCase).searchProducts(captor.capture(), any());
+		return captor.getValue();
+	}
+
 	private MarketRepublishResult noMarketResult() {
 		return new MarketRepublishResult(List.of(), List.of(), Map.of());
 	}
@@ -65,43 +75,43 @@ class ProductControllerR6QueryTest {
 	@Test
 	@DisplayName("getProducts: marketFilter와 keyword가 둘 다 오면 마켓 필터 AND 키워드 검색을 함께 적용한다")
 	void getProducts_marketFilterAndKeyword_appliesBoth() {
-		Page<Product> page = new PageImpl<>(List.of(), PageRequest.of(0, 50), 0);
-		when(productSearchUseCase.searchByMarketAndKeyword(
-			eq(MarketType.COUPANG), eq(true), eq("shampoo"), any())).thenReturn(page);
+		stubEmptyPage();
 
 		ResponseEntity<Page<ProductListResponse>> res = controller().getProducts("shampoo", "COUPANG",
-			PageRequest.of(0, 50));
+			null, null, null, null, false, PageRequest.of(0, 50));
 
 		assertThat(res.getStatusCode().value()).isEqualTo(200);
-		verify(productSearchUseCase).searchByMarketAndKeyword(MarketType.COUPANG, true, "shampoo",
-			PageRequest.of(0, 50));
-		verify(productSearchUseCase, never()).searchByMarket(any(), anyBoolean(), any());
-		verify(productSearchUseCase, never()).searchProducts(any(), any());
+		ProductSearchCondition condition = captureCondition();
+		assertThat(condition.keyword()).isEqualTo("shampoo");
+		assertThat(condition.marketFilterType()).isEqualTo(MarketType.COUPANG);
+		assertThat(condition.marketFilterRegistered()).isTrue();
 	}
 
 	@Test
-	@DisplayName("getProducts: marketFilter만 오면(키워드 없음) 기존 마켓 단독 조회를 사용한다")
+	@DisplayName("getProducts: marketFilter만 오면(키워드 없음) 키워드 없이 마켓 조건만 적용한다")
 	void getProducts_marketFilterOnly_usesMarketSearch() {
-		Page<Product> page = new PageImpl<>(List.of(), PageRequest.of(0, 50), 0);
-		when(productSearchUseCase.searchByMarket(eq(MarketType.COUPANG), eq(true), any())).thenReturn(page);
+		stubEmptyPage();
 
-		controller().getProducts(null, "COUPANG", PageRequest.of(0, 50));
+		controller().getProducts(null, "COUPANG", null, null, null, null, false, PageRequest.of(0, 50));
 
-		verify(productSearchUseCase).searchByMarket(MarketType.COUPANG, true, PageRequest.of(0, 50));
-		verify(productSearchUseCase, never()).searchByMarketAndKeyword(any(), anyBoolean(), any(), any());
+		ProductSearchCondition condition = captureCondition();
+		assertThat(condition.keyword()).isNull();
+		assertThat(condition.marketFilterType()).isEqualTo(MarketType.COUPANG);
+		assertThat(condition.marketFilterRegistered()).isTrue();
 	}
 
 	@Test
 	@DisplayName("getProducts: 미등록(!) 마켓 필터와 keyword가 둘 다 오면 registered=false로 결합 조회한다")
 	void getProducts_unregisteredMarketFilterAndKeyword_appliesBoth() {
-		Page<Product> page = new PageImpl<>(List.of(), PageRequest.of(0, 50), 0);
-		when(productSearchUseCase.searchByMarketAndKeyword(
-			eq(MarketType.COUPANG), eq(false), eq("shampoo"), any())).thenReturn(page);
+		stubEmptyPage();
 
-		controller().getProducts("shampoo", "!COUPANG", PageRequest.of(0, 50));
-
-		verify(productSearchUseCase).searchByMarketAndKeyword(MarketType.COUPANG, false, "shampoo",
+		controller().getProducts("shampoo", "!COUPANG", null, null, null, null, false,
 			PageRequest.of(0, 50));
+
+		ProductSearchCondition condition = captureCondition();
+		assertThat(condition.keyword()).isEqualTo("shampoo");
+		assertThat(condition.marketFilterType()).isEqualTo(MarketType.COUPANG);
+		assertThat(condition.marketFilterRegistered()).isFalse();
 	}
 
 	@Test
