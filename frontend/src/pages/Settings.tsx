@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchCredentials, saveCredential, getCafe24Status, issueCafe24Token } from '../api/marketApi';
 import type { MarketCredential } from '../api/marketApi';
@@ -79,22 +79,26 @@ const Settings = () => {
     retry: false,
   });
 
-  useEffect(() => {
-    if (credentials) {
-      const cred = credentials.find((c) => c.marketType === activeTab);
-      if (cred) {
-        setFormData({ ...cred });
-      } else {
-        setFormData({
-          marketType: activeTab,
-          clientId: '',
-          accessKey: '',
-          secretKey: '',
-          redirectUri: '',
-        });
-      }
-    }
-  }, [credentials, activeTab]);
+  const [seedSource, setSeedSource] = useState<{
+    credentials: MarketCredential[] | undefined;
+    tab: string;
+  }>({ credentials: undefined, tab: activeTab });
+
+  if (credentials && (seedSource.credentials !== credentials || seedSource.tab !== activeTab)) {
+    setSeedSource({ credentials, tab: activeTab });
+    const cred = credentials.find((c) => c.marketType === activeTab);
+    setFormData(
+      cred
+        ? { ...cred }
+        : {
+            marketType: activeTab,
+            clientId: '',
+            accessKey: '',
+            secretKey: '',
+            redirectUri: '',
+          },
+    );
+  }
 
   const mutation = useMutation({
     mutationFn: (data: Partial<MarketCredential>) => saveCredential(activeTab, data),

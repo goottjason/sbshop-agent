@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Input, Button, Table, message, Card, Typography, Tag, Space, Modal } from 'antd';
 import { batchApi } from '../api/batchApi';
 import { actionLogApi, type ActionLogItem } from '../api/actionLogApi';
@@ -77,33 +78,32 @@ const ProcessStatusPage = () => {
   const [data, setData] = useState<ProcessStatusItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const [actionLogs, setActionLogs] = useState<ActionLogItem[]>([]);
-  const [logLoading, setLogLoading] = useState(false);
+  const {
+    data: actionLogs = [],
+    isFetching: logLoading,
+    error: logError,
+    refetch: refetchActionLogs,
+  } = useQuery<ActionLogItem[]>({
+    queryKey: ['action-logs'],
+    queryFn: async () => {
+      const res = await actionLogApi.getActionLogs(100);
+      return res.data || [];
+    },
+    retry: false,
+  });
 
   const [messageModal, setMessageModal] = useState<{ open: boolean; content: string }>({
     open: false,
     content: '',
   });
 
-  const loadActionLogs = useCallback(async () => {
-    setLogLoading(true);
-    try {
-      const res = await actionLogApi.getActionLogs(100);
-      setActionLogs(res.data || []);
-    } catch {
-      message.error('활동 로그 조회 실패');
-    } finally {
-      setLogLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    loadActionLogs();
-  }, [loadActionLogs]);
+    if (logError) message.error('활동 로그 조회 실패');
+  }, [logError]);
 
   useEffect(() => {
     const eventSource = new EventSource('/sbshop-agent/api/v1/notifications/subscribe');
-    const onBatch = () => { loadActionLogs(); };
+    const onBatch = () => { void refetchActionLogs(); };
     eventSource.addEventListener('BATCH_COMPLETED', onBatch);
     eventSource.addEventListener('BATCH_FAILED', onBatch);
     eventSource.onerror = () => {
@@ -112,7 +112,7 @@ const ProcessStatusPage = () => {
       }
     };
     return () => eventSource.close();
-  }, [loadActionLogs]);
+  }, [refetchActionLogs]);
 
   const handleSearch = async () => {
     if (!batchId) {
@@ -195,7 +195,7 @@ const ProcessStatusPage = () => {
       <Card style={{ marginTop: 24 }}>
         <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
           <Title level={4} style={{ margin: 0 }}>활동 로그</Title>
-          <Button onClick={loadActionLogs} loading={logLoading}>새로고침</Button>
+          <Button onClick={() => void refetchActionLogs()} loading={logLoading}>새로고침</Button>
         </Space>
         <Table<ActionLogItem>
           rowKey="id"

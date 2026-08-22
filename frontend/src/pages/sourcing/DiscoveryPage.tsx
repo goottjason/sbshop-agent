@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert, Button, Card, Checkbox, Drawer, Empty, Space, Spin, Table, Tag, Tooltip, Typography, message,
 } from 'antd';
@@ -60,67 +61,49 @@ const CustomsBadge = ({ verdict, reason }: { verdict: string | null; reason: str
 
 const DiscoveryPage = () => {
   const navigate = useNavigate();
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const queryClient = useQueryClient();
   const [blocked, setBlocked] = useState<Candidate[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
-  const [status, setStatus] = useState<DiscoveryStatus | null>(null);
-  const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [showBlocked, setShowBlocked] = useState(false);
   const [includeReview, setIncludeReview] = useState(true);
-  const pollRef = useRef<number | null>(null);
-  const loadCandidates = useCallback(async () => {
-    try {
-      const res = await sourcingDiscoveryApi.candidates(undefined, includeReview);
-      setCandidates(res.data);
-    } catch {
-      message.error('추천 목록을 불러오지 못했습니다');
-    } finally {
-      setLoading(false);
-    }
-  }, [includeReview]);
-  const loadStatus = useCallback(async () => {
-    try {
-      const res = await sourcingDiscoveryApi.discoveryStatus();
-      setStatus(res.data);
-      return res.data.running;
-    } catch {
-      return false;
-    }
-  }, []);
+  const candidatesKey = ['sourcing-candidates', includeReview];
+  const {
+    data: candidates = [],
+    isLoading: loading,
+    error: candidatesError,
+    refetch: refetchCandidates,
+  } = useQuery<Candidate[]>({
+    queryKey: candidatesKey,
+    queryFn: async () => (await sourcingDiscoveryApi.candidates(undefined, includeReview)).data,
+    placeholderData: keepPreviousData,
+    retry: false,
+  });
   useEffect(() => {
-    void loadCandidates();
-    void loadStatus();
-  }, [loadCandidates, loadStatus]);
+    if (candidatesError) message.error('추천 목록을 불러오지 못했습니다');
+  }, [candidatesError]);
+  const { data: status, refetch: refetchStatus } = useQuery<DiscoveryStatus>({
+    queryKey: ['sourcing-discovery-status'],
+    queryFn: async () => (await sourcingDiscoveryApi.discoveryStatus()).data,
+    retry: false,
+  });
 
   useEffect(() => {
-    if (!status?.running) {
-      if (pollRef.current) {
-        window.clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-      return;
-    }
-    if (pollRef.current) return;
-    pollRef.current = window.setInterval(async () => {
-      const stillRunning = await loadStatus();
-      if (!stillRunning) {
-        await loadCandidates();
+    if (!status?.running) return;
+    const timer = window.setInterval(async () => {
+      const polled = await refetchStatus();
+      if (polled.isError || !polled.data?.running) {
+        await refetchCandidates();
         message.success('발굴이 완료되어 추천 목록을 갱신했습니다');
       }
     }, POLL_INTERVAL_MS);
-    return () => {
-      if (pollRef.current) {
-        window.clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
-  }, [status?.running, loadStatus, loadCandidates]);
+    return () => window.clearInterval(timer);
+  }, [status?.running, refetchStatus, refetchCandidates]);
   const handleRun = async () => {
     try {
       await sourcingDiscoveryApi.runDiscovery();
       message.info('발굴을 시작했습니다. 수 분 걸립니다.');
-      await loadStatus();
+      await refetchStatus();
     } catch (e) {
       const err = e as { response?: { status?: number; data?: { message?: string } } };
       message.warning(err.response?.data?.message ?? '발굴을 시작하지 못했습니다');
@@ -128,7 +111,9 @@ const DiscoveryPage = () => {
   };
   const handleReject = async (id: number) => {
     await sourcingDiscoveryApi.reject(id);
-    setCandidates((prev) => prev.filter((c) => c.id !== id));
+    queryClient.setQueryData<Candidate[]>(candidatesKey, (prev) =>
+      (prev ?? []).filter((c) => c.id !== id),
+    );
     setSelected((prev) => prev.filter((s) => s !== id));
     message.success('거절했습니다. 쿨다운 기간 동안 재추천되지 않습니다.');
   };

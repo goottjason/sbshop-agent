@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Form, Input, InputNumber, Button, Radio, message, Card, Progress, Space, Typography, Select, ConfigProvider } from 'antd';
 import { batchApi } from '../api/batchApi';
 import { VENDOR_OPTIONS } from './product/productGridShared';
@@ -26,68 +27,52 @@ const BatchUpdatePage = () => {
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
 
-  const [batchId, setBatchId] = useState<string | null>(null);
-  const [summary, setSummary] = useState<BatchSummary | null>(null);
+  const [batchId, setBatchId] = useState<string | null>(() => localStorage.getItem(ACTIVE_BATCH_KEY));
 
   const mountedRef = useRef(true);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const batchIdRef = useRef<string | null>(null);
+  const batchIdRef = useRef<string | null>(batchId);
   useEffect(() => {
     batchIdRef.current = batchId;
   }, [batchId]);
 
-  const clearPoll = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const stopTracking = useCallback(() => {
-    clearPoll();
     localStorage.removeItem(ACTIVE_BATCH_KEY);
     if (mountedRef.current) {
       setBatchId(null);
-      setSummary(null);
     }
-  }, [clearPoll]);
+  }, []);
 
-  const fetchSummary = useCallback(async (id: string) => {
-    try {
-      const res = await batchApi.getBatchSummary(id);
-      const data = res.data as BatchSummary;
-      if (!mountedRef.current) return;
-      setSummary(data);
-      if (data.total > 0 && data.done >= data.total) {
-        clearPoll();
+  const { data: summary = null, refetch: refetchSummary } = useQuery<BatchSummary | null>({
+    queryKey: ['batch-summary', batchId],
+    queryFn: async () => {
+      try {
+        const res = await batchApi.getBatchSummary(batchId as string);
+        return res.data as BatchSummary;
+      } catch {
+        stopTracking();
+        return null;
       }
-    } catch {
-      stopTracking();
-    }
-  }, [clearPoll, stopTracking]);
+    },
+    enabled: !!batchId,
+    gcTime: 0,
+    retry: false,
+    refetchIntervalInBackground: true,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data && data.total > 0 && data.done >= data.total ? false : POLL_INTERVAL_MS;
+    },
+  });
 
   const startTracking = useCallback((id: string) => {
     localStorage.setItem(ACTIVE_BATCH_KEY, id);
     setBatchId(id);
-    setSummary(null);
-    clearPoll();
-    void fetchSummary(id);
-    intervalRef.current = setInterval(() => {
-      void fetchSummary(id);
-    }, POLL_INTERVAL_MS);
-  }, [clearPoll, fetchSummary]);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    const saved = localStorage.getItem(ACTIVE_BATCH_KEY);
-    if (saved) {
-      startTracking(saved);
-    }
-    return () => {
-      mountedRef.current = false;
-      clearPoll();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -101,7 +86,7 @@ const BatchUpdatePage = () => {
     const onCompleted = (e: Event) => {
       const completedId = String((e as MessageEvent).data).split('|')[0];
       if (completedId && completedId === batchIdRef.current) {
-        void fetchSummary(completedId);
+        void refetchSummary();
       }
     };
     es.addEventListener('BATCH_STARTED', onStarted);
@@ -113,7 +98,7 @@ const BatchUpdatePage = () => {
       }
     };
     return () => es.close();
-  }, [startTracking, fetchSummary]);
+  }, [startTracking, refetchSummary]);
 
   const handleSubmit = async (values: {
     supplierCode?: string;
@@ -209,7 +194,7 @@ const BatchUpdatePage = () => {
           title={<span style={{ color: GREEN, fontWeight: 700 }}>배치 진행현황</span>}
           style={{ marginTop: 16, borderRadius: 10 }}
           extra={
-            <Button size="small" onClick={() => void fetchSummary(batchId)}>새로고침</Button>
+            <Button size="small" onClick={() => void refetchSummary()}>새로고침</Button>
           }
         >
           <Space direction="vertical" style={{ width: '100%' }} size="middle">

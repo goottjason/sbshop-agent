@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   Alert, Button, Card, Checkbox, Col, Descriptions, Divider, Input, InputNumber, Result, Row,
   Space, Spin, Tabs, Tag, Typography, message,
@@ -32,7 +33,6 @@ const DraftReviewPage = () => {
   const navigate = useNavigate();
   const draftId = Number(id);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [result, setResult] = useState<PublishResult | null>(null);
@@ -52,20 +52,26 @@ const DraftReviewPage = () => {
     setCustomsAck(d.customsAck);
     setMarketEdits({});
   }, []);
-  const load = useCallback(async () => {
-    try {
-      const res = await sourcingDiscoveryApi.draft(draftId);
-      applyDraft(res.data);
-    } catch {
-      message.error('초안을 불러오지 못했습니다');
-    } finally {
-      setLoading(false);
-    }
-  }, [draftId, applyDraft]);
+  const {
+    data: fetchedDraft,
+    isLoading,
+    error: fetchError,
+  } = useQuery<Draft>({
+    queryKey: ['sourcing-draft', draftId],
+    queryFn: async () => (await sourcingDiscoveryApi.draft(draftId)).data,
+    enabled: Number.isFinite(draftId),
+    gcTime: 0,
+    retry: false,
+  });
   useEffect(() => {
-    if (!Number.isFinite(draftId)) return;
-    void load();
-  }, [draftId, load]);
+    if (fetchError) message.error('초안을 불러오지 못했습니다');
+  }, [fetchError]);
+  const [seedSource, setSeedSource] = useState<Draft | undefined>(undefined);
+  if (fetchedDraft && fetchedDraft !== seedSource) {
+    setSeedSource(fetchedDraft);
+    applyDraft(fetchedDraft);
+  }
+  const loading = !Number.isFinite(draftId) || isLoading;
   const patch = (): DraftPatch => ({
     baseNameKo,
     bundleQty,

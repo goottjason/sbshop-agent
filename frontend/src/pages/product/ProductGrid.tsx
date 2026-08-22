@@ -13,7 +13,7 @@ import { MARKET_FILTER_OPTIONS, VENDOR_OPTIONS } from './productGridShared';
 import { MarketBadgeCell } from './MarketBadgeCell';
 import { ProductFilterPanel, type ProductFilters } from './ProductFilterPanel';
 import { ProductDetailModal } from './ProductDetailModal';
-import { bulkDeleteProducts } from './productMockApi';
+import { bulkDeleteProducts } from './productBulkApi';
 
 const columnHelper = createColumnHelper<ProductList>();
 const DEFAULT_FILTERS: ProductFilters = {

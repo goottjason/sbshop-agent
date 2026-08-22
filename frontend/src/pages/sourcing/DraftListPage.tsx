@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Button, Empty, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
 import { ClipboardList, RefreshCw, Sparkles } from 'lucide-react';
 import { sourcingDiscoveryApi, type Draft } from '../../api/sourcingDiscoveryApi';
@@ -29,27 +30,23 @@ const won = (v: number | null | undefined) =>
 
 const DraftListPage = () => {
   const navigate = useNavigate();
-  const [drafts, setDrafts] = useState<Draft[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data: drafts = [], isFetching, error, refetch } = useQuery({
+    queryKey: ['sourcing-drafts', statusFilter],
+    queryFn: async () => {
       const res = await sourcingDiscoveryApi.drafts(
         statusFilter.length > 0 ? statusFilter : undefined,
       );
-      setDrafts([...res.data].sort((a, b) => b.id - a.id));
-    } catch {
-      message.error('초안 목록을 불러오지 못했습니다');
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter]);
+      return [...res.data].sort((a, b) => b.id - a.id);
+    },
+    placeholderData: keepPreviousData,
+    retry: false,
+  });
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (error) message.error('초안 목록을 불러오지 못했습니다');
+  }, [error]);
 
   const columns = [
     {
@@ -153,7 +150,7 @@ const DraftListPage = () => {
           </Button>
           <Button
             icon={<RefreshCw size={14} style={{ verticalAlign: -2 }} />}
-            onClick={() => void load()}
+            onClick={() => void refetch()}
           >
             새로고침
           </Button>
@@ -174,7 +171,7 @@ const DraftListPage = () => {
 
       <Table<Draft>
         rowKey="id"
-        loading={loading}
+        loading={isFetching}
         columns={columns}
         dataSource={drafts}
         size="small"
