@@ -96,7 +96,7 @@ market:
     addr-seq-in: ${MARKET_ELEVENST_ADDR_SEQ_IN:3}
   cafe24:
     # default-category-no: 미설정 시 쇼핑몰 분류 목록에서 자동 매칭
-    default-category-no: ${MARKET_CAFE24_CATEGORY_NO:}
+    default-category-no: ${MARKET_CAFE24_CATEGORY_NO:23}
 
 # 식약처 해외직구 반입차단 원료·성분 목록(통관 게이트) — 인증키 불필요.
 customs:
