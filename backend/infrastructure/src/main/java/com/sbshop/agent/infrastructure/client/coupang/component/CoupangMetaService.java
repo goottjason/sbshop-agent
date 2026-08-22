@@ -21,7 +21,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class CoupangMetaService {
 
-	private static final String CATEGORY_META_PATH = "/v2/providers/openapi/apis/api/v2/products/category-meta/";
+	private static final String CATEGORY_META_PATH = "/v2/providers/seller_api/apis/api/v1/marketplace/meta/category-related-metas/display-category-codes/";
 
 	private final CoupangRestClient restClient;
 	private final ObjectMapper objectMapper;
@@ -60,7 +60,7 @@ public class CoupangMetaService {
 		List<Attribute> attributes = new ArrayList<>();
 		JsonNode attributesNode = dataNode.path("attributes");
 		for (JsonNode attr : attributesNode) {
-			if ("MANDATORY".equals(attr.path("basicRequired").asText())) {
+			if ("MANDATORY".equals(attr.path("required").asText())) {
 				String typeName = attr.path("attributeTypeName").asText();
 				String dataType = attr.path("dataType").asText();
 				String valueName = "상세페이지 참조";

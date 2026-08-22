@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,6 +21,7 @@ import com.sbshop.agent.infrastructure.client.coupang.component.CoupangMetaServi
 import com.sbshop.agent.infrastructure.client.coupang.dto.CategoryMetaResult;
 import com.sbshop.agent.infrastructure.client.coupang.dto.CoupangProductPayload.Item.Attribute;
 import java.math.BigDecimal;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -100,10 +103,10 @@ class CoupangMetaServiceTest {
 	@Test
 	@DisplayName("NUMBER 가 아닌 필수 속성은 '상세페이지 참조', MANDATORY 아닌 속성은 제외한다")
 	void nonNumberAndOptionalAttributes_unchanged() throws Exception {
-		String json = "{\"data\":{\"attributes\":["
-			+ "{\"basicRequired\":\"MANDATORY\",\"attributeTypeName\":\"브랜드\",\"dataType\":\"STRING\","
+		String json = "{\"code\":\"SUCCESS\",\"data\":{\"attributes\":["
+			+ "{\"required\":\"MANDATORY\",\"attributeTypeName\":\"브랜드\",\"dataType\":\"STRING\","
 			+ "\"usableUnits\":[]},"
-			+ "{\"basicRequired\":\"OPTIONAL\",\"attributeTypeName\":\"원산지\",\"dataType\":\"STRING\","
+			+ "{\"required\":\"OPTIONAL\",\"attributeTypeName\":\"원산지\",\"dataType\":\"STRING\","
 			+ "\"usableUnits\":[]}],"
 			+ "\"noticeCategories\":[{\"noticeCategoryName\":\"건강기능식품\",\"noticeCategoryDetailNames\":"
 			+ "[{\"noticeCategoryDetailName\":\"제품명\"}]}]}}";
@@ -121,12 +124,52 @@ class CoupangMetaServiceTest {
 		assertThat(result.notices().get(0).content()).isEqualTo("상품상세페이지 참조");
 	}
 
+	@Test
+	@DisplayName("D-185: 카테고리 메타는 현행 seller_api 경로로 조회한다")
+	void categoryMeta_requestsCurrentSellerApiPath() throws Exception {
+		stubMeta(metaJson("수량", "NUMBER", "\"개\""));
+
+		metaService.getCategoryMeta(73134L, product(new BigDecimal("200"), MeasureUnit.ML, 3));
+
+		verify(restClient).requestWithBody(eq("GET"),
+			eq("/v2/providers/seller_api/apis/api/v1/marketplace/meta"
+				+ "/category-related-metas/display-category-codes/73134"),
+			isNull());
+	}
+
+	@Test
+	@DisplayName("D-185: 신 응답은 basicRequired 없이 required=MANDATORY 로 필수 여부를 표시한다")
+	void mandatoryAttributes_readRequiredField() throws Exception {
+		String json = "{\"code\":\"SUCCESS\",\"data\":{\"attributes\":["
+			+ "{\"required\":\"MANDATORY\",\"attributeTypeName\":\"브랜드\",\"dataType\":\"STRING\","
+			+ "\"inputType\":\"INPUT\",\"groupNumber\":\"NONE\",\"exposed\":\"EXPOSED\",\"usableUnits\":[]},"
+			+ "{\"required\":\"OPTIONAL\",\"attributeTypeName\":\"원산지\",\"dataType\":\"STRING\","
+			+ "\"inputType\":\"INPUT\",\"groupNumber\":\"NONE\",\"exposed\":\"EXPOSED\",\"usableUnits\":[]}],"
+			+ "\"noticeCategories\":[],\"certifications\":[],\"allowedOfferConditions\":[]}}";
+		stubMeta(json);
+
+		CategoryMetaResult result = metaService.getCategoryMeta(73134L,
+			product(new BigDecimal("200"), MeasureUnit.ML, 3));
+
+		assertThat(result.attributes()).hasSize(1);
+		assertThat(result.attributes().get(0).attributeTypeName()).isEqualTo("브랜드");
+	}
+
+	@Test
+	@DisplayName("D-185: usableUnits 맵은 신 응답 형상에서도 속성명 기준으로 추출한다")
+	void usableUnits_extractedFromCurrentShape() throws Exception {
+		stubMeta(metaJson("총 용량", "NUMBER", "\"ml\",\"L\""));
+
+		assertThat(metaService.getUsableUnits(73134L)).containsEntry("총 용량", List.of("ml", "L"));
+	}
+
 	private void stubMeta(String json) {
 		when(restClient.requestWithBody(eq("GET"), anyString(), any())).thenReturn(json);
 	}
 
 	private String metaJson(String typeName, String dataType, String units) {
-		return "{\"data\":{\"attributes\":[{\"basicRequired\":\"MANDATORY\",\"attributeTypeName\":\"" + typeName
+		return "{\"code\":\"SUCCESS\",\"data\":{\"attributes\":["
+			+ "{\"required\":\"MANDATORY\",\"attributeTypeName\":\"" + typeName
 			+ "\",\"dataType\":\"" + dataType + "\",\"usableUnits\":[" + units + "]}],"
 			+ "\"noticeCategories\":[{\"noticeCategoryName\":\"건강기능식품\",\"noticeCategoryDetailNames\":"
 			+ "[{\"noticeCategoryDetailName\":\"제품명\"}]}]}}";
