@@ -34,10 +34,6 @@ public class CoupangRestClient {
 		return request("PUT", path, body);
 	}
 
-	public void delete(String path) {
-		request("DELETE", path, null);
-	}
-
 	public String requestWithBody(String method, String path, Object body) {
 		return request(method, path, body);
 	}

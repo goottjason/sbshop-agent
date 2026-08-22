@@ -74,7 +74,8 @@ class ProductControllerInputValidationTest {
 		PriceStockUpdateRequest req = new PriceStockUpdateRequest(new BigDecimal("-1"), Boolean.FALSE);
 
 		assertThatThrownBy(() -> controller().updatePriceStock(1L, req))
-			.isInstanceOf(IllegalArgumentException.class);
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("가격은 0 이상이어야 합니다: -1");
 
 		verify(productManageUseCase, never()).updatePriceStock(anyLong(), any(), any());
 	}
@@ -129,7 +130,8 @@ class ProductControllerInputValidationTest {
 		ProductUpdateRequest req = updateRequestWith(new BigDecimal("-100"), 10, null);
 
 		assertThatThrownBy(() -> controller().updateProduct(1L, req))
-			.isInstanceOf(IllegalArgumentException.class);
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("판매가(salePrice)는 0 이상이어야 합니다: -100");
 
 		verify(productManageUseCase, never()).updateProduct(anyLong(), any());
 	}
@@ -140,7 +142,8 @@ class ProductControllerInputValidationTest {
 		ProductUpdateRequest req = updateRequestWith(new BigDecimal("100"), -5, null);
 
 		assertThatThrownBy(() -> controller().updateProduct(1L, req))
-			.isInstanceOf(IllegalArgumentException.class);
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("재고(stock)는 0 이상이어야 합니다: -5");
 
 		verify(productManageUseCase, never()).updateProduct(anyLong(), any());
 	}
@@ -151,7 +154,8 @@ class ProductControllerInputValidationTest {
 		ProductUpdateRequest req = updateRequestWith(new BigDecimal("100"), 10, new BigDecimal("-1"));
 
 		assertThatThrownBy(() -> controller().updateProduct(1L, req))
-			.isInstanceOf(IllegalArgumentException.class);
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("원가(costPrice)는 0 이상이어야 합니다: -1");
 
 		verify(productManageUseCase, never()).updateProduct(anyLong(), any());
 	}

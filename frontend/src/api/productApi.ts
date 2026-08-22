@@ -114,10 +114,7 @@ interface MarketPlusHandoff {
 
 export const productApi = {
   fetchProducts: (query: ProductQuery) =>
-    apiClient.get<ProductPage<ProductList>>('/api/v1/products', {
-      params: query,
-      paramsSerializer: { indexes: null },
-    }),
+    apiClient.get<ProductPage<ProductList>>('/api/v1/products', { params: query }),
 
   fetchCategories: () =>
     apiClient.get<string[]>('/api/v1/products/categories'),
@@ -142,20 +139,8 @@ export const productApi = {
   deleteProduct: (id: number) =>
     apiClient.delete(`/api/v1/products/${id}`),
 
-  crawlSourceImages: (id: number) =>
-    apiClient.get(`/api/v1/products/${id}/images/crawl`),
-
   crawlAndUpload: (id: number) =>
     apiClient.post(`/api/v1/products/${id}/images/crawl-and-upload`),
-
-  getMarketRegistrations: (id: number) =>
-    apiClient.get(`/api/v1/products/${id}/markets`),
-
-  getLocalMarketData: (id: number, marketType: string) =>
-    apiClient.get(`/api/v1/products/${id}/markets/${marketType}/local`),
-
-  syncMarketLive: (id: number, marketType: string) =>
-    apiClient.post(`/api/v1/products/${id}/markets/${marketType}/sync`),
 
   getMarketPlusHandoff: (id: number, marketType: string) =>
     apiClient.get<MarketPlusHandoff>(`/api/v1/products/${id}/markets/${marketType}/handoff`),

@@ -12,12 +12,6 @@ public final class CoupangHmacUtil {
 
 	private CoupangHmacUtil() {}
 
-	public static String generateSignature(String method, String path, String accessKey, String secretKey) {
-		String datetime = ZonedDateTime.now(ZoneId.of("Asia/Seoul"))
-			.format(DateTimeFormatter.ofPattern("yyMMddHHmmss"));
-		return buildAuth(method, path, "", datetime, accessKey, secretKey);
-	}
-
 	public static String generateSignatureUtc(String method, String url, String accessKey, String secretKey) {
 		String path = url;
 		String query = "";
@@ -44,10 +38,5 @@ public final class CoupangHmacUtil {
 		} catch (Exception e) {
 			throw new RuntimeException("Coupang HMAC 서명 생성 실패", e);
 		}
-	}
-
-	public static String generateDatetime() {
-		return ZonedDateTime.now(ZoneId.of("Asia/Seoul"))
-			.format(DateTimeFormatter.ofPattern("yyMMddHHmmss"));
 	}
 }

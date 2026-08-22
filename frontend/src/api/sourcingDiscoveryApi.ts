@@ -180,7 +180,6 @@ export const sourcingDiscoveryApi = {
 
   candidates: (limit?: number, includeReview = true) =>
     apiClient.get<Candidate[]>(`${BASE}/candidates`, { params: { limit, includeReview } }),
-  candidate: (id: number) => apiClient.get<Candidate>(`${BASE}/candidates/${id}`),
   customsBlocked: () => apiClient.get<Candidate[]>(`${BASE}/candidates/customs-blocked`),
   reject: (id: number) => apiClient.post<Candidate>(`${BASE}/candidates/${id}/reject`),
 
@@ -190,10 +189,7 @@ export const sourcingDiscoveryApi = {
       failures: { candidateId: number; name: string; reason: string }[];
     }>(`${BASE}/drafts`, { candidateIds }),
   drafts: (status?: string[]) =>
-    apiClient.get<Draft[]>(`${BASE}/drafts`, {
-      params: { status },
-      paramsSerializer: { indexes: null },
-    }),
+    apiClient.get<Draft[]>(`${BASE}/drafts`, { params: { status } }),
   draft: (id: number) => apiClient.get<Draft>(`${BASE}/drafts/${id}`),
   updateDraft: (id: number, patch: DraftPatch) =>
     apiClient.patch<Draft>(`${BASE}/drafts/${id}`, patch),

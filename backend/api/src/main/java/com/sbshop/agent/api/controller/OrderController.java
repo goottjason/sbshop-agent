@@ -1,5 +1,7 @@
 package com.sbshop.agent.api.controller;
 
+import static com.sbshop.agent.api.validation.NonNegativeValidator.requireNonNegative;
+
 import com.sbshop.agent.api.dto.OrderIdsRequest;
 import com.sbshop.agent.api.dto.OrderLineItemResponse;
 import com.sbshop.agent.api.dto.OrderLineItemUpdateRequest;
@@ -23,7 +25,6 @@ import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
-import java.math.BigDecimal;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -275,12 +276,6 @@ public class OrderController {
 	private void validateSourcingAmounts(SourcingUpdateRequest request) {
 		requireNonNegative("소싱금액(sourcingAmount)", request.getSourcingAmount());
 		requireNonNegative("물류비(logisticsCost)", request.getLogisticsCost());
-	}
-
-	private void requireNonNegative(String label, BigDecimal value) {
-		if (value != null && value.signum() < 0) {
-			throw new IllegalArgumentException(label + "는 0 이상이어야 합니다: " + value);
-		}
 	}
 
 }

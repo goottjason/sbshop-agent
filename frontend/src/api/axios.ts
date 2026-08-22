@@ -7,6 +7,7 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  paramsSerializer: { indexes: null },
 });
 
 export const setAdminAuth = (token: string | null) => {

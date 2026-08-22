@@ -47,7 +47,8 @@ class OrderControllerSourcingValidationTest {
 	@DisplayName("소싱금액(sourcingAmount) 음수: 400(IllegalArgumentException)으로 거부하고 서비스 호출 안 함")
 	void updateSourcingInfo_rejectsNegativeSourcingAmount() {
 		assertThatThrownBy(() -> controller().updateSourcingInfo(11L, request(new BigDecimal("-1"), null)))
-			.isInstanceOf(IllegalArgumentException.class);
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("소싱금액(sourcingAmount)는 0 이상이어야 합니다: -1");
 
 		verify(orderService, never()).updateSourcingInfo(anyLong(), any());
 	}
@@ -56,7 +57,8 @@ class OrderControllerSourcingValidationTest {
 	@DisplayName("물류비(logisticsCost) 음수: 400(IllegalArgumentException)으로 거부하고 서비스 호출 안 함")
 	void updateSourcingInfo_rejectsNegativeLogisticsCost() {
 		assertThatThrownBy(() -> controller().updateSourcingInfo(11L, request(null, new BigDecimal("-0.01"))))
-			.isInstanceOf(IllegalArgumentException.class);
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("물류비(logisticsCost)는 0 이상이어야 합니다: -0.01");
 
 		verify(orderService, never()).updateSourcingInfo(anyLong(), any());
 	}

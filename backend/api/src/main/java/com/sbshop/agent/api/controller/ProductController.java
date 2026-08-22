@@ -1,5 +1,7 @@
 package com.sbshop.agent.api.controller;
 
+import static com.sbshop.agent.api.validation.NonNegativeValidator.requireNonNegative;
+
 import com.sbshop.agent.api.dto.product.ImageUploadResponse;
 import com.sbshop.agent.api.dto.product.MarketBadgeState;
 import com.sbshop.agent.api.dto.product.PriceStockUpdateRequest;
@@ -29,7 +31,6 @@ import com.sbshop.agent.core.domain.product.enums.VendorType;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -319,18 +320,6 @@ public class ProductController {
 		requireNonNegative("용량(capacity)", request.capacity());
 		requireNonNegative("재고(stock)", request.stock());
 		requireNonNegative("묶음수량(bundleQuantity)", request.bundleQuantity());
-	}
-
-	private void requireNonNegative(String label, BigDecimal value) {
-		if (value != null && value.signum() < 0) {
-			throw new IllegalArgumentException(label + "는 0 이상이어야 합니다: " + value);
-		}
-	}
-
-	private void requireNonNegative(String label, Integer value) {
-		if (value != null && value < 0) {
-			throw new IllegalArgumentException(label + "는 0 이상이어야 합니다: " + value);
-		}
 	}
 
 	private ImageProcessResult prepareImageFiles(List<MultipartFile> images) {

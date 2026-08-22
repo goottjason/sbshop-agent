@@ -1,7 +1,5 @@
 package com.sbshop.agent.core.config;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -63,21 +61,4 @@ public class MarketRegistrationDefaults {
 
 	@Value("${market.common.origin:미국}")
 	private String defaultOrigin;
-
-	public Map<String, String> unconfigured() {
-		Map<String, String> missing = new LinkedHashMap<>();
-		putIfBlank(missing, "market.coupang.outbound-shipping-place-code",
-			coupangOutboundShippingPlaceCode);
-		putIfBlank(missing, "market.coupang.return-center-code", coupangReturnCenterCode);
-		putIfBlank(missing, "market.smartstore.after-service-telephone",
-			smartstoreAfterServiceTelephone);
-		putIfBlank(missing, "market.elevenst.addr-seq-out", elevenstAddrSeqOut);
-		putIfBlank(missing, "market.elevenst.addr-seq-in", elevenstAddrSeqIn);
-		return missing;
-	}
-
-	private void putIfBlank(Map<String, String> target, String key, String value) {
-		if (value == null || value.isBlank())
-			target.put(key, "미설정");
-	}
 }
