@@ -57,7 +57,7 @@ class BatchControllerTriggerCharacterizationTest {
 	}
 
 	@Test
-	@DisplayName("crawl-and-update: CRAWL_AND_UPDATE_PRICE_STOCK jobType + STARTED 로그 + {batchId, message}")
+	@DisplayName("crawl-and-update: CRAWL_AND_UPDATE_PRICE_STOCK jobType + STARTED 로그 + {batchId, count, message}")
 	void crawlAndUpdate_characterization() {
 		when(processStatusService.startBatch(eq(JobType.CRAWL_AND_UPDATE_PRICE_STOCK), any()))
 			.thenReturn("batch-1");
@@ -74,7 +74,7 @@ class BatchControllerTriggerCharacterizationTest {
 	}
 
 	@Test
-	@DisplayName("manual-update-price-stock: MANUAL_UPDATE_PRICE_STOCK jobType + STARTED 로그 + {batchId, message}")
+	@DisplayName("manual-update-price-stock: MANUAL_UPDATE_PRICE_STOCK jobType + STARTED 로그 + {batchId, count, message}")
 	void manualUpdate_characterization() {
 		when(processStatusService.startBatch(eq(JobType.MANUAL_UPDATE_PRICE_STOCK), any()))
 			.thenReturn("batch-2");
@@ -94,7 +94,7 @@ class BatchControllerTriggerCharacterizationTest {
 	}
 
 	@Test
-	@DisplayName("manual-update-all: MANUAL_UPDATE_ALL_FIELDS jobType + STARTED 로그 + {batchId, message}")
+	@DisplayName("manual-update-all: MANUAL_UPDATE_ALL_FIELDS jobType + STARTED 로그 + {batchId, count, message}")
 	void manualUpdateAll_characterization() {
 		when(processStatusService.startBatch(eq(JobType.MANUAL_UPDATE_ALL_FIELDS), any()))
 			.thenReturn("batch-3");

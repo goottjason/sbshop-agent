@@ -64,7 +64,10 @@ public class BatchController {
 			request.couponRate() != null ? request.couponRate() : new BigDecimal("20"),
 			request.minMarginPrice() != null ? request.minMarginPrice() : new BigDecimal("5000"),
 			ActionLogConstants.BATCH_CRAWL_UPDATE);
-		return ResponseEntity.ok(Map.of("batchId", batchId, "message", "크롤 기반 일괄 업데이트가 시작되었습니다."));
+		return ResponseEntity.ok(Map.of(
+			"batchId", batchId,
+			"count", String.valueOf(productCodes.size()),
+			"message", "크롤 기반 일괄 업데이트가 시작되었습니다."));
 	}
 
 	@PostMapping("/manual-update-price-stock")
@@ -79,7 +82,10 @@ public class BatchController {
 			productCodes, ActionLogConstants.BATCH_MANUAL_UPDATE,
 			id -> "수동 일괄 업데이트 시작 (batchId=" + id + ", " + productCodes.size() + "건)");
 		batchPriceStockService.manualUpdatePriceStock(batchId, items);
-		return ResponseEntity.ok(Map.of("batchId", batchId, "message", "수동 일괄 업데이트가 시작되었습니다."));
+		return ResponseEntity.ok(Map.of(
+			"batchId", batchId,
+			"count", String.valueOf(productCodes.size()),
+			"message", "수동 일괄 업데이트가 시작되었습니다."));
 	}
 
 	@PostMapping("/manual-update-all")
@@ -100,7 +106,10 @@ public class BatchController {
 			productCodes, ActionLogConstants.BATCH_MANUAL_UPDATE_ALL,
 			id -> "전체필드 일괄 업데이트 시작 (batchId=" + id + ", " + productCodes.size() + "건)");
 		batchPriceStockService.manualUpdateAllFields(batchId, request.productIds(), request.commands());
-		return ResponseEntity.ok(Map.of("batchId", batchId, "message", "전체 필드 일괄 업데이트가 시작되었습니다."));
+		return ResponseEntity.ok(Map.of(
+			"batchId", batchId,
+			"count", String.valueOf(productCodes.size()),
+			"message", "전체 필드 일괄 업데이트가 시작되었습니다."));
 	}
 
 	@PostMapping("/by-supplier")
