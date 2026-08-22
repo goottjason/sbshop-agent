@@ -46,8 +46,7 @@ services:
       # 마켓 등록 계정 고정값. 기본값을 application.yml과 똑같이 둔다 —
       # 빈 값을 넘기면(기본값 없는 치환) Spring이 그 빈 문자열을 채택해 yml 기본값이 무시된다.
       MARKET_SMARTSTORE_AS_TEL: ${MARKET_SMARTSTORE_AS_TEL:-010-2597-2480}
-      # Cafe24 분류번호는 미설정이 정상(자동 조회) — yml 기본값도 비어 있어 그대로 둔다.
-      MARKET_CAFE24_CATEGORY_NO: ${MARKET_CAFE24_CATEGORY_NO:-}
+      MARKET_CAFE24_CATEGORY_NO: ${MARKET_CAFE24_CATEGORY_NO:-23}
     depends_on:
       - sbshop-selenium
     networks:
