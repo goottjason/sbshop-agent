@@ -13,6 +13,7 @@ import com.sbshop.agent.core.domain.order.enums.MarketType;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.DisplayName;
@@ -159,5 +160,36 @@ class Cafe24TokenManagerTest {
 		manager.refreshProactively();
 
 		verify(tokenClient).exchange(any(), any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("인증 URL scope에 분류(category) 읽기·쓰기 권한이 포함된다")
+	void authorizationUrlIncludesCategoryScopes() {
+		MarketCredential c = credential("AT", LocalDateTime.now().plusHours(1), "RT1");
+
+		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);
+
+		assertThat(scopesOf(manager.generateAuthorizationUrl(c)))
+			.contains("mall.read_category", "mall.write_category");
+	}
+
+	@Test
+	@DisplayName("인증 URL scope는 기존 권한 10종을 그대로 유지한다")
+	void authorizationUrlKeepsExistingScopes() {
+		MarketCredential c = credential("AT", LocalDateTime.now().plusHours(1), "RT1");
+
+		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);
+
+		assertThat(scopesOf(manager.generateAuthorizationUrl(c)))
+			.contains("mall.read_application", "mall.write_application",
+				"mall.read_product", "mall.write_product",
+				"mall.read_collection", "mall.write_collection",
+				"mall.read_order", "mall.write_order",
+				"mall.read_shipping", "mall.write_shipping");
+	}
+
+	private List<String> scopesOf(String authorizationUrl) {
+		String scope = authorizationUrl.substring(authorizationUrl.indexOf("&scope=") + "&scope=".length());
+		return List.of(scope.split(","));
 	}
 }

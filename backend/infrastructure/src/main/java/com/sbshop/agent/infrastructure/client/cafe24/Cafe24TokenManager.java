@@ -93,6 +93,7 @@ public class Cafe24TokenManager implements Cafe24TokenRefreshPort {
 		String scope = "mall.read_application,mall.write_application,"
 			+ "mall.read_product,mall.write_product,"
 			+ "mall.read_collection,mall.write_collection,"
+			+ "mall.read_category,mall.write_category,"
 			+ "mall.read_order,mall.write_order,"
 			+ "mall.read_shipping,mall.write_shipping";
 		return String.format(
