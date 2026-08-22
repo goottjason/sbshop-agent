@@ -3262,3 +3262,9 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 증상: POST /admin/products 422 `"[Product supply price] can only contain integers and should be in strings. (parameter.supply_price)"` — 현행 API에서 supply_price(공급가)가 정수 문자열로 필수화된 것으로 보임(우리는 미전송).
 - 수정(2026-08-22, fixer-d187): productData에 `supply_price` 정수 문자열 추가 — costPrice 내림(공급가=원가), null/0 이하 시 salePrice 폴백. Red 실측 후 Green, 전 모듈 회귀 그린.
 - 상태: 수정완료 (라이브 재시도로 검증)
+
+### D-193: 카페24 신규 등록이 외부 이미지 URL 직접 전송으로 422 거부 (2026-08-22, D-192 라이브 검증 중 발견)
+
+- 심각도: P2(카페24 신규 등록 후속 계층) | 위치: `Cafe24MarketClient.publish` — `list_image`/`detail_image`에 외부 URL(esmplus/R2) 직접 전송
+- 증상: POST /admin/products 422 `"[Product image] Wrong image path"`. 재게시 경로(`syncImagesAndHtml`)는 이미 **외부 이미지 다운로드→base64→POST /admin/products/{no}/images** 방식으로 검증돼 있음(D-092) — 신규 등록만 미적용. 스토어 D-189와 동일 구조의 누락.
+- 상태: 발견

@@ -60,6 +60,11 @@ class Cafe24MarketClientSupplyPriceTest {
 		return new MarketPublishContext("77", "건강기능식품", salePrice, List.of(), Map.of(), Map.of());
 	}
 
+	private void stubCreateAndImageUpload() {
+		when(cafe24RestClient.post(eq("/admin/products"), any())).thenReturn(OK_RESPONSE);
+		when(cafe24RestClient.getExternalImageBytes(any())).thenReturn(new byte[] {1, 2, 3});
+	}
+
 	@SuppressWarnings("unchecked")
 	private Map<String, Object> capturedRequest() {
 		ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
@@ -70,7 +75,7 @@ class Cafe24MarketClientSupplyPriceTest {
 	@Test
 	@DisplayName("등록 페이로드는 supply_price를 원가의 정수 문자열로 담는다")
 	void sendsSupplyPriceAsIntegerStringFromCostPrice() {
-		when(cafe24RestClient.post(eq("/admin/products"), any())).thenReturn(OK_RESPONSE);
+		stubCreateAndImageUpload();
 
 		client.publish(product(new BigDecimal("19889.50")), context(null));
 
@@ -80,7 +85,7 @@ class Cafe24MarketClientSupplyPriceTest {
 	@Test
 	@DisplayName("원가가 없으면 supply_price는 판매가 정수 문자열로 폴백한다")
 	void fallsBackToSalePriceWhenCostPriceMissing() {
-		when(cafe24RestClient.post(eq("/admin/products"), any())).thenReturn(OK_RESPONSE);
+		stubCreateAndImageUpload();
 		Product product = product(new BigDecimal("19889.50"));
 		product.updateCostPrice(null);
 
@@ -92,7 +97,7 @@ class Cafe24MarketClientSupplyPriceTest {
 	@Test
 	@DisplayName("원가가 0 이하이면 supply_price는 판매가 정수 문자열로 폴백한다")
 	void fallsBackToSalePriceWhenCostPriceNotPositive() {
-		when(cafe24RestClient.post(eq("/admin/products"), any())).thenReturn(OK_RESPONSE);
+		stubCreateAndImageUpload();
 
 		client.publish(product(BigDecimal.ZERO), context(new BigDecimal("25000")));
 
@@ -102,7 +107,7 @@ class Cafe24MarketClientSupplyPriceTest {
 	@Test
 	@DisplayName("supply_price 추가가 기존 price 필드를 바꾸지 않는다")
 	void keepsSalePriceFieldUnchanged() {
-		when(cafe24RestClient.post(eq("/admin/products"), any())).thenReturn(OK_RESPONSE);
+		stubCreateAndImageUpload();
 
 		client.publish(product(new BigDecimal("19889.50")), context(new BigDecimal("25000")));
 

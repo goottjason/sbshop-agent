@@ -63,6 +63,7 @@ class Cafe24MarketClientCategoryTest {
 		when(categoryResolver.resolve(any(), any(), any()))
 			.thenReturn(new MarketCategory("55", "건강기능식품 > 비타민", true));
 		when(cafe24RestClient.post(eq("/admin/products"), any())).thenReturn(OK_RESPONSE);
+		when(cafe24RestClient.getExternalImageBytes(any())).thenReturn(new byte[] {1, 2, 3});
 
 		client.publish(product(), MarketPublishContext.empty());
 
@@ -98,6 +99,7 @@ class Cafe24MarketClientCategoryTest {
 	@DisplayName("컨텍스트에 카테고리가 이미 있으면 자동 해석을 건너뛴다(초안 등록 경로 회귀 방지)")
 	void contextHasCategory_skipsResolver() {
 		when(cafe24RestClient.post(eq("/admin/products"), any())).thenReturn(OK_RESPONSE);
+		when(cafe24RestClient.getExternalImageBytes(any())).thenReturn(new byte[] {1, 2, 3});
 		MarketPublishContext context =
 			new MarketPublishContext("77", "건강기능식품", null, List.of(), Map.of(), Map.of());
 
