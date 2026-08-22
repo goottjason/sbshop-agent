@@ -36,6 +36,8 @@ public record CoupangProductPayload(
 	Boolean requested,
 	List<Item> items) {
 
+	private static final int SALE_PRICE_UNIT = 10;
+
 	@Builder
 	public record Item(
 		String itemName,
@@ -128,8 +130,8 @@ public record CoupangProductPayload(
 
 		Item item = Item.builder()
 			.itemName(bundleQty + "개")
-			.originalPrice((int)(salePrice * 1.33))
-			.salePrice(salePrice)
+			.originalPrice(floorToTenWon((int)(salePrice * 1.33)))
+			.salePrice(floorToTenWon(salePrice))
 			.maximumBuyCount(999)
 			.maximumBuyForPerson(safeMaxBuyForPerson)
 			.maximumBuyForPersonPeriod(1)
@@ -180,6 +182,10 @@ public record CoupangProductPayload(
 			.requested(true)
 			.items(List.of(item))
 			.build();
+	}
+
+	private static int floorToTenWon(int price) {
+		return price / SALE_PRICE_UNIT * SALE_PRICE_UNIT;
 	}
 
 	@Builder
