@@ -1,4 +1,5 @@
 import type { OrderGridDto } from '../api/orderApi';
+import { marketLabel } from './marketLabels';
 
 interface ColumnSpec {
   header: string;
@@ -18,15 +19,6 @@ const CARRIER_LABELS: Record<string, string> = {
   ROCKET: '쿠팡로켓',
 };
 
-const MARKET_LABELS: Record<string, string> = {
-  COUPANG: '쿠팡',
-  SMART_STORE: 'N스토어',
-  ELEVEN_STREET: '11번가',
-  CAFE24: '카페24',
-  GMARKET: 'G마켓',
-  AUCTION: '옥션',
-};
-
 const PURCHASE_STATUS_LABELS: Record<string, string> = {
   NOT_PURCHASED: '미구매',
   PURCHASED: '구매완료',
@@ -39,7 +31,7 @@ const STOCK_STATUS_LABELS: Record<string, string> = {
 };
 
 const COLUMNS: ColumnSpec[] = [
-  { header: '마켓', width: 10, value: r => MARKET_LABELS[r.order?.marketType || ''] || r.order?.marketType || '' },
+  { header: '마켓', width: 10, value: r => marketLabel(r.order?.marketType) },
   { header: '마켓 주문번호', width: 20, text: true, value: r => r.order?.marketOrderNo || '' },
   { header: '주문일시', width: 17, value: r => formatDateTime(r.order?.orderDate) },
   { header: '주문상태', width: 10, value: (r, label) => {

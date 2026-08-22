@@ -3,6 +3,7 @@ import { Input, Button, Table, message, Card, Typography, Tag, Space, Modal } fr
 import { batchApi } from '../api/batchApi';
 import { actionLogApi, type ActionLogItem } from '../api/actionLogApi';
 import { formatKst } from '../utils/datetime';
+import { SYNC_SOURCE_LABELS, marketLabel } from '../utils/marketLabels';
 
 interface ProcessStatusItem {
   id: number;
@@ -21,17 +22,6 @@ const actionStatusColor: Record<string, string> = {
   STARTED: 'blue',
   SUCCESS: 'green',
   FAILED: 'red',
-};
-
-const marketTypeLabels: Record<string, string> = {
-  COUPANG: '쿠팡',
-  SMART_STORE: 'N스토어',
-  ELEVEN_STREET: '11번가',
-  GMARKET: 'G마켓/옥션',
-  AUCTION: '옥션',
-  CAFE24: '카페24',
-  EMAIL: '이메일',
-  COUPANG_SETTLEMENT: '쿠팡 정산',
 };
 
 const actionTypeLabels: Record<string, string> = {
@@ -67,7 +57,7 @@ const actionTypeLabels: Record<string, string> = {
 
 const renderMarketType = (v: string | null): string => {
   if (!v) return '-';
-  return marketTypeLabels[v] || v;
+  return marketLabel(v);
 };
 
 const renderActionType = (v: string): string => {
@@ -76,7 +66,7 @@ const renderActionType = (v: string): string => {
   if (explicit) return explicit;
   if (v.endsWith('_SYNC')) {
     const code = v.slice(0, -'_SYNC'.length);
-    const label = marketTypeLabels[code];
+    const label = SYNC_SOURCE_LABELS[code];
     if (label) return `${label} 동기화`;
   }
   return v;

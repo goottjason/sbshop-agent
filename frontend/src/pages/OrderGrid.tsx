@@ -10,7 +10,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchOrders, updateOrder, updateOrderLineItem, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, syncProductStock, fetchSyncStatus, updatePurchaseStatus } from '../api/orderApi';
 import type { OrderGridDto, ProductDto, OrderDto, OrderLineItemDto, OrderDetailResponseDto, PageResponse, ShipmentDto } from '../api/orderApi';
 import { formatPhone } from '../utils/phone';
-import { toKstDate } from '../utils/datetime';
+import { toKstDate, kstDateString, kstDateStringOffset } from '../utils/datetime';
+import { ORDER_MARKET_CODES, SYNC_SOURCE_KEYS, marketLabel, syncSourceLabel } from '../utils/marketLabels';
 import { toast } from 'react-toastify';
 import { useSearchParams } from 'react-router-dom';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
@@ -525,7 +526,7 @@ const OrderTableRow = React.memo(function OrderTableRow({ row, isOrderBoundary, 
 );
 
 function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: string[], statuses: string[], startDate: string, endDate: string, purchaseStatuses: string[], stockStatuses: string[], vendors: string[]) => void }) {
-   const allMarkets = ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'];
+  const allMarkets = ORDER_MARKET_CODES;
   const allStatuses = ALL_STATUSES;
   const allPurchaseStatuses = ['NOT_PURCHASED', 'PURCHASED', 'WAITING_STOCK'];
   const allStockStatuses = ['IN_STOCK', 'OUT_OF_STOCK'];
@@ -536,12 +537,8 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
   const [selectedStockStatuses, setSelectedStockStatuses] = useState<string[]>(allStockStatuses);
   const [selectedVendors, setSelectedVendors] = useState<string[]>(allVendors);
   const [keyword, setKeyword] = useState('');
-  const today = new Date();
-  const oneMonthAgo = new Date(today);
-  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-  const fmt = (d: Date) => d.toISOString().split('T')[0];
-  const [startDate, setStartDate] = useState(fmt(oneMonthAgo));
-  const [endDate, setEndDate] = useState(fmt(today));
+  const [startDate, setStartDate] = useState(kstDateStringOffset({ months: -1 }));
+  const [endDate, setEndDate] = useState(kstDateString());
   const [activePeriod, setActivePeriod] = useState(2);
 
   const [open, setOpen] = useState(() => localStorage.getItem(FILTER_OPEN_KEY) === '1');
@@ -561,13 +558,10 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
   };
   const handlePeriod = (idx: number) => {
     setActivePeriod(idx);
-    const end = new Date();
-    const start = new Date();
-    if (idx === 1) { start.setDate(start.getDate() - 7); }
-    else if (idx === 2) { start.setMonth(start.getMonth() - 1); }
-    else if (idx === 3) { start.setMonth(start.getMonth() - 3); }
-    setStartDate(fmt(start));
-    setEndDate(fmt(end));
+    const days = idx === 1 ? -7 : 0;
+    const months = idx === 2 ? -1 : idx === 3 ? -3 : 0;
+    setStartDate(kstDateStringOffset({ days, months }));
+    setEndDate(kstDateString());
   };
   const toggleMarket = (val: string) => setSelectedMarkets(prev => prev.includes(val) ? prev.filter(m => m !== val) : [...prev, val]);
   const toggleStatus = (val: string) => setSelectedStatuses(prev => prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]);
@@ -653,17 +647,10 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
               <input type="checkbox" checked={isAllMarketsSelected} onChange={() => setSelectedMarkets(isAllMarketsSelected ? [] : allMarkets)} style={{ marginRight: '6px', accentColor: 'var(--primary-color)', width: '16px', height: '16px', cursor: 'pointer' }} />
               전체
             </label>
-            {[
-              { id: 'COUPANG', label: '쿠팡' },
-              { id: 'SMART_STORE', label: 'N스토어' },
-               { id: 'ELEVEN_STREET', label: '11번가' },
-               { id: 'CAFE24', label: '카페24' },
-               { id: 'GMARKET', label: 'G마켓' },
-               { id: 'AUCTION', label: '옥션' }
-            ].map(market => (
-              <label key={market.id} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#333' }}>
-                <input type="checkbox" checked={selectedMarkets.includes(market.id)} onChange={() => toggleMarket(market.id)} style={{ marginRight: '6px', accentColor: 'var(--primary-color)', width: '16px', height: '16px', cursor: 'pointer' }} />
-                {market.label}
+            {ORDER_MARKET_CODES.map(code => (
+              <label key={code} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#333' }}>
+                <input type="checkbox" checked={selectedMarkets.includes(code)} onChange={() => toggleMarket(code)} style={{ marginRight: '6px', accentColor: 'var(--primary-color)', width: '16px', height: '16px', cursor: 'pointer' }} />
+                {marketLabel(code)}
               </label>
             ))}
           </div>
@@ -811,14 +798,6 @@ const OrderGrid: React.FC = () => {
     if (hours < 24) return `${hours}시간 전`;
     return `${Math.floor(hours / 24)}일 전`;
   };
-  const marketLabels: Record<string, string> = {
-    COUPANG: '쿠팡',
-    SMART_STORE: 'N스토어',
-    ELEVEN_STREET: '11번가',
-    GMARKET: 'G마켓/옥션',
-    EMAIL: '이메일',
-    COUPANG_SETTLEMENT: '쿠팡 정산',
-  };
   const syncDotColor = (status: string): string => {
     switch (status) {
       case 'COMPLETED': return '#4caf50';
@@ -829,8 +808,8 @@ const OrderGrid: React.FC = () => {
   };
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const queryClient = useQueryClient();
-  const defaultStart = (() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().split('T')[0]; })();
-  const defaultEnd = new Date().toISOString().split('T')[0];
+  const defaultStart = kstDateStringOffset({ months: -1 });
+  const defaultEnd = kstDateString();
   const [searchParams] = useSearchParams();
   const initialFromUrl = useMemo(() => {
     const getAll = (k: string) => searchParams.getAll(k);
@@ -952,8 +931,7 @@ const OrderGrid: React.FC = () => {
       const parts = event.data.split('|');
       const marketType = parts[0] || '';
       const errorMsg = parts[2] || '동기화 중 오류가 발생했습니다.';
-      const marketLabel = marketLabels[marketType] || marketType;
-      toast.error(`${marketLabel} 동기화 실패: ${errorMsg}`);
+      toast.error(`${syncSourceLabel(marketType)} 동기화 실패: ${errorMsg}`);
     });
     eventSource.onerror = () => {
       if (eventSource.readyState === EventSource.CLOSED) {
@@ -1630,7 +1608,8 @@ const OrderGrid: React.FC = () => {
           <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--primary-color)', letterSpacing: -0.2, whiteSpace: 'nowrap' }}>통합 주문 관리</h2>
           {syncStatuses && (
             <div style={{ display: 'flex', gap: '9px', alignItems: 'center', flexWrap: 'wrap' }}>
-              {Object.entries(marketLabels).map(([key, label]) => {
+              {SYNC_SOURCE_KEYS.map((key) => {
+                const label = syncSourceLabel(key);
                 const s = syncStatuses[key];
                 return (
                   <span key={key} style={{ fontSize: '11px', color: '#666', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>

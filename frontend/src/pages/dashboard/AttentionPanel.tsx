@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import type { Attention } from './dashboardApi';
 import { buildOrderGridUrl } from './drilldown';
+import { kstDateStringOffset } from '../../utils/datetime';
 
 const CUSTOMS = ['PENDING', 'INVALID_PCCC', 'INVALID_PHONE', 'INVALID_ZIPCODE'];
-const todayMinus = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+const todayMinus = (n: number) => kstDateStringOffset({ days: -n });
 
 export function AttentionPanel({ data }: { data?: Attention }) {
   const nav = useNavigate();
