@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert, Button, Card, Checkbox, Drawer, Empty, Space, Spin, Table, Tag, Tooltip, Typography, message,
+  Alert, Button, Card, Checkbox, Drawer, Empty, Space, Spin, Table, Tag, Tooltip, Typography,
 } from 'antd';
 import {
   AlertTriangle, CheckCircle2, ClipboardList, RefreshCw, ShieldAlert, Sparkles,
@@ -15,6 +15,7 @@ import {
   type ScoreBreakdown,
 } from '../../api/sourcingDiscoveryApi';
 import ScoreBreakdownPanel from './ScoreBreakdownPanel';
+import { notify } from '../../utils/notify';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -80,7 +81,7 @@ const DiscoveryPage = () => {
     retry: false,
   });
   useEffect(() => {
-    if (candidatesError) message.error('추천 목록을 불러오지 못했습니다');
+    if (candidatesError) notify.error('추천 목록을 불러오지 못했습니다');
   }, [candidatesError]);
   const { data: status, refetch: refetchStatus } = useQuery<DiscoveryStatus>({
     queryKey: ['sourcing-discovery-status'],
@@ -94,7 +95,7 @@ const DiscoveryPage = () => {
       const polled = await refetchStatus();
       if (polled.isError || !polled.data?.running) {
         await refetchCandidates();
-        message.success('발굴이 완료되어 추천 목록을 갱신했습니다');
+        notify.success('발굴이 완료되어 추천 목록을 갱신했습니다');
       }
     }, POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
@@ -102,11 +103,11 @@ const DiscoveryPage = () => {
   const handleRun = async () => {
     try {
       await sourcingDiscoveryApi.runDiscovery();
-      message.info('발굴을 시작했습니다. 수 분 걸립니다.');
+      notify.info('발굴을 시작했습니다. 수 분 걸립니다.');
       await refetchStatus();
     } catch (e) {
       const err = e as { response?: { status?: number; data?: { message?: string } } };
-      message.warning(err.response?.data?.message ?? '발굴을 시작하지 못했습니다');
+      notify.warning(err.response?.data?.message ?? '발굴을 시작하지 못했습니다');
     }
   };
   const handleReject = async (id: number) => {
@@ -115,11 +116,11 @@ const DiscoveryPage = () => {
       (prev ?? []).filter((c) => c.id !== id),
     );
     setSelected((prev) => prev.filter((s) => s !== id));
-    message.success('거절했습니다. 쿨다운 기간 동안 재추천되지 않습니다.');
+    notify.success('거절했습니다. 쿨다운 기간 동안 재추천되지 않습니다.');
   };
   const handleCreateDrafts = async () => {
     if (selected.length === 0) {
-      message.warning('상품을 선택하세요');
+      notify.warning('상품을 선택하세요');
       return;
     }
     setCreating(true);
@@ -127,14 +128,14 @@ const DiscoveryPage = () => {
       const res = await sourcingDiscoveryApi.createDrafts(selected);
       const { drafts, failures } = res.data;
       if (failures.length > 0) {
-        message.warning(`${drafts.length}건 초안 생성, ${failures.length}건 실패`);
+        notify.warning(`${drafts.length}건 초안 생성, ${failures.length}건 실패`);
       } else {
-        message.success(`${drafts.length}건 초안을 만들었습니다`);
+        notify.success(`${drafts.length}건 초안을 만들었습니다`);
       }
       if (drafts.length === 1) navigate(`/sourcing/drafts/${drafts[0].id}`);
       else if (drafts.length > 1) navigate('/sourcing/drafts');
     } catch {
-      message.error('초안 생성에 실패했습니다');
+      notify.error('초안 생성에 실패했습니다');
     } finally {
       setCreating(false);
     }
@@ -145,7 +146,7 @@ const DiscoveryPage = () => {
       const res = await sourcingDiscoveryApi.customsBlocked();
       setBlocked(res.data);
     } catch {
-      message.error('통관 차단 목록을 불러오지 못했습니다');
+      notify.error('통관 차단 목록을 불러오지 못했습니다');
     }
   };
   const lastRun = status?.lastRun && 'crawled' in status.lastRun ? status.lastRun : null;

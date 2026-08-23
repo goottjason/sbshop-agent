@@ -1,6 +1,5 @@
 import { useState, type CSSProperties } from 'react';
 import { Modal as AntModal, InputNumber } from 'antd';
-import { toast } from 'react-toastify';
 import { productApi, type ProductList } from '../../api/productApi';
 import { sourcingApi } from '../../api/sourcingApi';
 import { fetchPricePolicy } from '../../api/pricePolicyApi';
@@ -8,6 +7,7 @@ import {
   MARKET_BADGES, badgeVisual, ESM_MARKET_KEYS,
   DEFAULT_MARKET_MARGIN_RATE, DEFAULT_MARKET_COUPON_RATE, DEFAULT_MARKET_MIN_MARGIN_PRICE,
 } from './productGridShared';
+import { notify } from '../../utils/notify';
 
 const baseStyle: CSSProperties = {
   fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, lineHeight: 1.5,
@@ -61,13 +61,13 @@ export function MarketBadgeCell({ product, onPublished }:
         couponRate: couponRate ?? DEFAULT_MARKET_COUPON_RATE,
         minMarginPrice: minMarginPrice ?? DEFAULT_MARKET_MIN_MARGIN_PRICE,
       });
-      toast.success(`${label} 등록 완료 — ${product.sbCode}`);
+      notify.success(`${label} 등록 완료 — ${product.sbCode}`);
       setPublishTarget(null);
       onPublished();
     } catch (e) {
       const msg = extractError(e);
       setFailed((f) => ({ ...f, [marketKey]: msg }));
-      toast.error(`${label} 등록 실패 — ${msg}`);
+      notify.error(`${label} 등록 실패 — ${msg}`);
       setPublishTarget(null);
     } finally {
       setPublishing(null);
@@ -89,17 +89,17 @@ export function MarketBadgeCell({ product, onPublished }:
           window.open(data.marketplusUrl, '_blank', 'noopener');
           if (copied) {
             copied
-              .then(() => toast.info(`상품코드 ${data.cafe24ProductCode} 를 복사했습니다.`))
-              .catch(() => toast.warning(`복사하지 못했습니다 — 상품코드 ${data.cafe24ProductCode}`));
+              .then(() => notify.info(`상품코드 ${data.cafe24ProductCode} 를 복사했습니다.`))
+              .catch(() => notify.warning(`복사하지 못했습니다 — 상품코드 ${data.cafe24ProductCode}`));
           } else {
-            toast.warning(`복사하지 못했습니다 — 상품코드 ${data.cafe24ProductCode}`);
+            notify.warning(`복사하지 못했습니다 — 상품코드 ${data.cafe24ProductCode}`);
           }
         },
       });
     } catch (e) {
       const msg = extractError(e);
       setFailed((f) => ({ ...f, [marketKey]: msg }));
-      toast.error(`${label} 전송 준비 실패 — ${msg}`);
+      notify.error(`${label} 전송 준비 실패 — ${msg}`);
     } finally {
       setPublishing(null);
     }

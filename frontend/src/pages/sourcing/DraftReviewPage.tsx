@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   Alert, Button, Card, Checkbox, Col, Descriptions, Divider, Input, InputNumber, Result, Row,
-  Space, Spin, Tabs, Tag, Typography, message,
+  Space, Spin, Tabs, Tag, Typography,
 } from 'antd';
 import { AlertTriangle, CheckCircle2, Save, Upload } from 'lucide-react';
 import {
@@ -15,6 +15,7 @@ import {
   type PublishResult,
 } from '../../api/sourcingDiscoveryApi';
 import { marketLabel } from '../../utils/marketLabels';
+import { notify } from '../../utils/notify';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -64,7 +65,7 @@ const DraftReviewPage = () => {
     retry: false,
   });
   useEffect(() => {
-    if (fetchError) message.error('초안을 불러오지 못했습니다');
+    if (fetchError) notify.error('초안을 불러오지 못했습니다');
   }, [fetchError]);
   const [seedSource, setSeedSource] = useState<Draft | undefined>(undefined);
   if (fetchedDraft && fetchedDraft !== seedSource) {
@@ -92,9 +93,9 @@ const DraftReviewPage = () => {
     try {
       const res = await sourcingDiscoveryApi.updateDraft(draftId, patch());
       applyDraft(res.data);
-      message.success('검수 내용을 저장했습니다');
+      notify.success('검수 내용을 저장했습니다');
     } catch {
-      message.error('저장에 실패했습니다');
+      notify.error('저장에 실패했습니다');
     } finally {
       setSaving(false);
     }
@@ -107,9 +108,9 @@ const DraftReviewPage = () => {
       const res = await sourcingDiscoveryApi.publishDraft(draftId);
       setResult(res.data);
       if (res.data.successCount === res.data.totalCount) {
-        message.success(`${res.data.totalCount}개 마켓 등록 완료`);
+        notify.success(`${res.data.totalCount}개 마켓 등록 완료`);
       } else {
-        message.warning(
+        notify.warning(
           `${res.data.successCount}/${res.data.totalCount}개 마켓 등록 — 실패 마켓을 확인하세요`,
         );
       }
@@ -119,7 +120,7 @@ const DraftReviewPage = () => {
         typeof err.response?.data === 'object'
           ? err.response?.data?.message
           : (err.response?.data as string);
-      message.error(reason ?? '등록에 실패했습니다');
+      notify.error(reason ?? '등록에 실패했습니다');
     } finally {
       setPublishing(false);
     }

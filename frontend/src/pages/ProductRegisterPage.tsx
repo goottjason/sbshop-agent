@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Input, Button, Table, Space, message, Typography, Steps, InputNumber, Select, Result, Tag, Alert } from 'antd';
+import { Input, Button, Table, Space, Typography, Steps, InputNumber, Select, Result, Tag, Alert } from 'antd';
 import { sourcingApi, type SourcingResult, type IherbSourcingResponse, type BulkProductCreateResponse } from '../api/sourcingApi';
+import { notify } from '../utils/notify';
 
 interface EditableRow extends SourcingResult {
   origin?: string;
@@ -35,7 +36,7 @@ const ProductRegisterPage = () => {
 
   const handleCrawl = async () => {
     const urlList = urls.split('\n').map((u) => u.trim()).filter(Boolean);
-    if (urlList.length === 0) { message.warning('URL을 입력하세요'); return; }
+    if (urlList.length === 0) { notify.warning('URL을 입력하세요'); return; }
     setLoading(true);
     try {
       const res = await sourcingApi.sourceFromIherb(urlList);
@@ -45,10 +46,10 @@ const ProductRegisterPage = () => {
       setRows(scraped.map((s) => ({ ...s, bundleQuantity: 1, marginRate: 20, vendor: 'IHB' })));
       setSelectedRowKeys(scraped.map((_, i) => i));
       setCrawlFailures(failed);
-      if (failed.length > 0) message.warning(`${scraped.length}개 크롤링 완료, ${failed.length}개 실패`);
-      else message.success(`${scraped.length}개 상품 크롤링 완료`);
+      if (failed.length > 0) notify.warning(`${scraped.length}개 크롤링 완료, ${failed.length}개 실패`);
+      else notify.success(`${scraped.length}개 상품 크롤링 완료`);
       if (scraped.length > 0) setCurrent(1);
-    } catch { message.error('크롤링 실패'); }
+    } catch { notify.error('크롤링 실패'); }
     finally { setLoading(false); }
   };
 
@@ -58,7 +59,7 @@ const ProductRegisterPage = () => {
 
   const handleSave = async () => {
     const selected = rows.filter((_, i) => selectedRowKeys.includes(i));
-    if (selected.length === 0) { message.warning('저장할 상품을 선택하세요'); return; }
+    if (selected.length === 0) { notify.warning('저장할 상품을 선택하세요'); return; }
     setLoading(true);
     try {
       const res = await sourcingApi.saveProductsBulk(
@@ -77,15 +78,15 @@ const ProductRegisterPage = () => {
       const ids = succeeded.map((s) => s.productId);
       setSavedIds(ids);
       setSaveFailures(failed);
-      if (failed.length > 0) message.warning(`${ids.length}개 저장 완료, ${failed.length}개 실패`);
-      else message.success(`${ids.length}개 상품 저장 완료`);
+      if (failed.length > 0) notify.warning(`${ids.length}개 저장 완료, ${failed.length}개 실패`);
+      else notify.success(`${ids.length}개 상품 저장 완료`);
       setCurrent(2);
-    } catch { message.error('저장 실패'); }
+    } catch { notify.error('저장 실패'); }
     finally { setLoading(false); }
   };
 
   const handlePublish = async () => {
-    if (selectedMarkets.length === 0) { message.warning('등록할 마켓을 선택하세요'); return; }
+    if (selectedMarkets.length === 0) { notify.warning('등록할 마켓을 선택하세요'); return; }
     setLoading(true);
     const results: PublishOutcome[] = [];
     for (const id of savedIds) {
@@ -105,8 +106,8 @@ const ProductRegisterPage = () => {
     setOutcomes(results);
     setLoading(false);
     const failed = results.filter((r) => !r.ok).length;
-    if (failed === 0) message.success('모든 마켓 등록 완료');
-    else message.warning(`${failed}개 조합 등록 실패 — 결과를 확인하세요`);
+    if (failed === 0) notify.success('모든 마켓 등록 완료');
+    else notify.warning(`${failed}개 조합 등록 실패 — 결과를 확인하세요`);
     setCurrent(3);
   };
 

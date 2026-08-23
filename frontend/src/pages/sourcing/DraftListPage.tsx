@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Button, Empty, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
+import { Button, Empty, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import { ClipboardList, RefreshCw, Sparkles } from 'lucide-react';
 import { sourcingDiscoveryApi, type Draft } from '../../api/sourcingDiscoveryApi';
+import { notify } from '../../utils/notify';
 
 const { Title, Text } = Typography;
 
@@ -45,7 +46,7 @@ const DraftListPage = () => {
   });
 
   useEffect(() => {
-    if (error) message.error('초안 목록을 불러오지 못했습니다');
+    if (error) notify.error('초안 목록을 불러오지 못했습니다');
   }, [error]);
 
   const columns = [

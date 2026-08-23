@@ -4,7 +4,6 @@ import {
   useReactTable, getCoreRowModel, flexRender, createColumnHelper,
   type RowSelectionState,
 } from '@tanstack/react-table';
-import { toast } from 'react-toastify';
 import { Modal as AntModal, Pagination, InputNumber } from 'antd';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/Table';
 import { productApi, type ProductList, type ProductQuery } from '../../api/productApi';
@@ -14,6 +13,7 @@ import { MarketBadgeCell } from './MarketBadgeCell';
 import { ProductFilterPanel, type ProductFilters } from './ProductFilterPanel';
 import { ProductDetailModal } from './ProductDetailModal';
 import { bulkDeleteProducts } from './productBulkApi';
+import { notify } from '../../utils/notify';
 
 const columnHelper = createColumnHelper<ProductList>();
 const DEFAULT_FILTERS: ProductFilters = {
@@ -144,15 +144,15 @@ export default function ProductGrid() {
   const selectedIds = Object.keys(rowSelection).filter((k) => rowSelection[k]).map(Number);
 
   const handleBulkDelete = () => {
-    if (selectedIds.length === 0) { toast.warning('삭제할 상품을 선택하세요.'); return; }
+    if (selectedIds.length === 0) { notify.warning('삭제할 상품을 선택하세요.'); return; }
     AntModal.confirm({
       title: `상품 ${selectedIds.length}개 삭제`,
       content: '선택한 상품을 삭제합니다. 되돌릴 수 없습니다. 진행할까요?',
       okText: '삭제', okType: 'danger', cancelText: '취소',
       onOk: async () => {
         const { deleted, failed } = await bulkDeleteProducts(selectedIds);
-        if (failed.length === 0) toast.success(`${deleted}개 삭제 완료`);
-        else toast.warn(`${deleted}개 삭제, ${failed.length}개 실패`);
+        if (failed.length === 0) notify.success(`${deleted}개 삭제 완료`);
+        else notify.warning(`${deleted}개 삭제, ${failed.length}개 실패`);
         setRowSelection({});
         refetch();
       },
@@ -160,16 +160,16 @@ export default function ProductGrid() {
   };
 
   const handleBulkUpdate = async () => {
-    if (selectedIds.length === 0) { toast.warning('업데이트할 상품을 선택하세요.'); return; }
+    if (selectedIds.length === 0) { notify.warning('업데이트할 상품을 선택하세요.'); return; }
     setBulkSubmitting(true);
     try {
       const res = await batchApi.crawlAndUpdate(selectedIds, marginRate ?? 15, couponRate ?? 20, minMarginPrice ?? 5000);
       const batchId = (res.data as Record<string, string> | undefined)?.batchId;
-      toast.success(`가격/재고 업데이트 배치 시작 (${selectedIds.length}건${batchId ? ` · ${batchId}` : ''}). 진행 현황에서 결과를 확인하세요.`);
+      notify.success(`가격/재고 업데이트 배치 시작 (${selectedIds.length}건${batchId ? ` · ${batchId}` : ''}). 진행 현황에서 결과를 확인하세요.`);
       setBulkOpen(false);
       setRowSelection({});
     } catch {
-      toast.error('배치 시작 실패 — 소싱 URL이 없는 상품이 포함됐을 수 있습니다.');
+      notify.error('배치 시작 실패 — 소싱 URL이 없는 상품이 포함됐을 수 있습니다.');
     } finally {
       setBulkSubmitting(false);
     }

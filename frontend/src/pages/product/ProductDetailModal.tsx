@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Image, Collapse, message, Tooltip, Popconfirm } from 'antd';
+import { Modal, Image, Collapse, Tooltip, Popconfirm } from 'antd';
 import { UploadOutlined, LinkOutlined, CloudDownloadOutlined } from '@ant-design/icons';
 import { productApi, type ProductDetail, type ImageUploadResult, type ProductEditFields } from '../../api/productApi';
+import { notify } from '../../utils/notify';
 
 type Fields = Partial<ProductEditFields>;
 
@@ -144,7 +145,7 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
         setFields(f);
         setBaseline(f);
       })
-      .catch(() => message.error('상품 상세 조회에 실패했습니다.'))
+      .catch(() => notify.error('상품 상세 조회에 실패했습니다.'))
       .finally(() => setLoading(false));
   }, [open, productId]);
 
@@ -160,7 +161,7 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
       setDetail(res.data as ProductDetail);
       setFields(f);
       setBaseline(f);
-    } catch { message.error('상세 정보 갱신 실패'); }
+    } catch { notify.error('상세 정보 갱신 실패'); }
   };
 
   const handleSave = async () => {
@@ -173,11 +174,11 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
       }
       const { productName, ...rest } = fields;
       await productApi.updateProduct(productId, { ...rest, name: productName });
-      message.success('상품 정보가 저장되었습니다.');
+      notify.success('상품 정보가 저장되었습니다.');
       onSaved();
       onClose();
     } catch (e) {
-      message.error(`상품 정보 저장 실패: ${extractErrorMessage(e)}`);
+      notify.error(`상품 정보 저장 실패: ${extractErrorMessage(e)}`);
     } finally {
       setSaving(false);
     }
@@ -191,10 +192,10 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
     try {
       const res = await productApi.uploadImages(productId, fd);
       const r = res.data as ImageUploadResult;
-      message.success(`${r.imagesSucceeded}장 업로드 완료`);
+      notify.success(`${r.imagesSucceeded}장 업로드 완료`);
       await refreshDetail();
     } catch {
-      message.error('이미지 업로드 실패 — 서버 스토리지(R2) 설정을 확인하세요.');
+      notify.error('이미지 업로드 실패 — 서버 스토리지(R2) 설정을 확인하세요.');
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -204,30 +205,30 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
   const handleUploadByUrl = async () => {
     if (productId == null) return;
     const urls = urlInput.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
-    if (urls.length === 0) { message.warning('이미지 URL을 입력하세요.'); return; }
+    if (urls.length === 0) { notify.warning('이미지 URL을 입력하세요.'); return; }
     setUploading(true);
     try {
       await productApi.uploadImagesByUrl(productId, urls);
-      message.success(`${urls.length}개 이미지 등록 완료`);
+      notify.success(`${urls.length}개 이미지 등록 완료`);
       setUrlInput('');
       await refreshDetail();
     } catch {
-      message.error('이미지 업로드 실패 — 서버 스토리지(R2) 설정을 확인하세요.');
+      notify.error('이미지 업로드 실패 — 서버 스토리지(R2) 설정을 확인하세요.');
     } finally { setUploading(false); }
   };
 
   const handleCrawl = async () => {
     if (productId == null) return;
     if (detail?.sourcingInfo?.vendor !== 'IHB') {
-      message.warning('이 벤더는 아직 소스이미지 크롤을 지원하지 않습니다 (현재 iHerb 상품만 지원).');
+      notify.warning('이 벤더는 아직 소스이미지 크롤을 지원하지 않습니다 (현재 iHerb 상품만 지원).');
       return;
     }
     setUploading(true);
     try {
       await productApi.crawlAndUpload(productId);
-      message.success('소스이미지 크롤·업로드 완료');
+      notify.success('소스이미지 크롤·업로드 완료');
       await refreshDetail();
-    } catch { message.error('소스 이미지 크롤·업로드에 실패했습니다.'); }
+    } catch { notify.error('소스 이미지 크롤·업로드에 실패했습니다.'); }
     finally { setUploading(false); }
   };
 

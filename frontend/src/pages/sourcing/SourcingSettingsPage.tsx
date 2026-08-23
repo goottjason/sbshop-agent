@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   Alert, Button, Card, Checkbox, Col, Divider, Input, InputNumber, Row, Slider, Space, Spin,
-  Typography, message,
+  Typography,
 } from 'antd';
 import { RefreshCw, Save } from 'lucide-react';
 import { sourcingDiscoveryApi, type SourcingConfig } from '../../api/sourcingDiscoveryApi';
+import { notify } from '../../utils/notify';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -46,7 +47,7 @@ const SourcingSettingsPage = () => {
           setWeights({});
         }
       } catch {
-        message.error('설정을 불러오지 못했습니다');
+        notify.error('설정을 불러오지 못했습니다');
       } finally {
         setLoading(false);
       }
@@ -72,9 +73,9 @@ const SourcingSettingsPage = () => {
         scoreWeights: JSON.stringify(weights),
       });
       setConfig(res.data);
-      message.success('설정을 저장했습니다');
+      notify.success('설정을 저장했습니다');
     } catch {
-      message.error('저장에 실패했습니다');
+      notify.error('저장에 실패했습니다');
     } finally {
       setSaving(false);
     }
@@ -85,14 +86,14 @@ const SourcingSettingsPage = () => {
     try {
       const res = await sourcingDiscoveryApi.syncBannedIngredients();
       if (res.data.ok) {
-        message.success(
+        notify.success(
           `반입차단 성분 동기화 완료 — 신규 ${res.data.created} · 갱신 ${res.data.updated} · 현재 차단중 ${res.data.activeCount}건`,
         );
       } else {
-        message.error(`동기화 실패(기존 ${res.data.activeCount}건 유지): ${res.data.error}`);
+        notify.error(`동기화 실패(기존 ${res.data.activeCount}건 유지): ${res.data.error}`);
       }
     } catch {
-      message.error('동기화 요청에 실패했습니다');
+      notify.error('동기화 요청에 실패했습니다');
     } finally {
       setSyncing(false);
     }

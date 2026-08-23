@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Input, Button, Table, message, Card, Typography, Tag, Space, Modal } from 'antd';
+import { Input, Button, Table, Card, Typography, Tag, Space, Modal } from 'antd';
 import { batchApi } from '../api/batchApi';
 import { actionLogApi, type ActionLogItem } from '../api/actionLogApi';
 import { formatKst } from '../utils/datetime';
 import { SYNC_SOURCE_LABELS, marketLabel } from '../utils/marketLabels';
+import { notify } from '../utils/notify';
 
 interface ProcessStatusItem {
   id: number;
@@ -98,7 +99,7 @@ const ProcessStatusPage = () => {
   });
 
   useEffect(() => {
-    if (logError) message.error('활동 로그 조회 실패');
+    if (logError) notify.error('활동 로그 조회 실패');
   }, [logError]);
 
   useEffect(() => {
@@ -116,7 +117,7 @@ const ProcessStatusPage = () => {
 
   const handleSearch = async () => {
     if (!batchId) {
-      message.warning('batchId를 입력하세요');
+      notify.warning('batchId를 입력하세요');
       return;
     }
     setLoading(true);
@@ -124,7 +125,7 @@ const ProcessStatusPage = () => {
       const res = await batchApi.getBatchStatus(batchId);
       setData(res.data || []);
     } catch {
-      message.error('조회 실패');
+      notify.error('조회 실패');
     } finally {
       setLoading(false);
     }

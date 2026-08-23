@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Form, Input, InputNumber, Button, Radio, message, Card, Progress, Space, Typography, Select, ConfigProvider } from 'antd';
+import { Form, Input, InputNumber, Button, Radio, Card, Progress, Space, Typography, Select, ConfigProvider } from 'antd';
 import { batchApi } from '../api/batchApi';
+import { notify } from '../utils/notify';
 import { VENDOR_OPTIONS } from './product/productGridShared';
 
 interface BatchSummary {
@@ -118,26 +119,26 @@ const BatchUpdatePage = () => {
         );
         const data = res.data as { batchId?: string; count?: string; message?: string };
         if (data.batchId) {
-          message.success(`배치 시작: ${data.count}개 상품 (batchId: ${data.batchId})`);
+          notify.success(`배치 시작: ${data.count}개 상품 (batchId: ${data.batchId})`);
           startTracking(data.batchId);
         } else {
-          message.info(data.message || '해당 소싱업체의 상품이 없습니다.');
+          notify.info(data.message || '해당 소싱업체의 상품이 없습니다.');
         }
       } else {
         const ids = (values.productIds || '').split(',').map((s) => parseInt(s.trim())).filter((n) => !isNaN(n));
         if (ids.length === 0) {
-          message.warning('상품 ID를 입력하세요');
+          notify.warning('상품 ID를 입력하세요');
           return;
         }
         const res = await batchApi.crawlAndUpdate(ids, values.marginRate, values.couponRate, values.minMarginPrice);
         const startedId = (res.data as { batchId?: string }).batchId;
-        message.success(`배치 시작 (batchId: ${startedId})`);
+        notify.success(`배치 시작 (batchId: ${startedId})`);
         if (startedId) {
           startTracking(startedId);
         }
       }
     } catch {
-      message.error('배치 시작 실패');
+      notify.error('배치 시작 실패');
     } finally {
       setLoading(false);
     }
