@@ -3,7 +3,7 @@ import { ConfigProvider } from 'antd';
 import { lazy, Suspense } from 'react';
 import MainLayout from './layouts/MainLayout';
 import Dashboard from './pages/Dashboard';
-import OrderGrid from './pages/OrderGrid';
+import OrderGrid from './pages/order/OrderGrid';
 import Settings from './pages/Settings';
 
 import { ToastContainer } from 'react-toastify';
