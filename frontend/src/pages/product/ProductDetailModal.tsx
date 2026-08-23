@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Modal, Image, Collapse, Tooltip, Popconfirm } from 'antd';
 import { UploadOutlined, LinkOutlined, CloudDownloadOutlined } from '@ant-design/icons';
 import { productApi, type ProductDetail, type ImageUploadResult, type ProductEditFields } from '../../api/productApi';
+import { MarketLiveCompare } from './MarketLiveCompare';
 import { notify } from '../../utils/notify';
 
 type Fields = Partial<ProductEditFields>;
@@ -389,6 +390,11 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
               </button>
             </div>
           </div>
+
+          <Collapse style={{ marginTop: 14 }} items={[{
+            key: 'marketCompare', label: '마켓 실제값 대조 (로컬 DB ↔ 마켓 API)',
+            children: <MarketLiveCompare key={d.id} productId={d.id} detail={d} />,
+          }]} />
 
           {d.detailHtml && (
             <Collapse style={{ marginTop: 14 }} items={[{

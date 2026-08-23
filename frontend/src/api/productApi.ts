@@ -106,6 +106,38 @@ export interface ImageUploadResult {
   imagesFailed: ImageProcessFailure[];
 }
 
+export interface MarketItemInfo {
+  isMasterData: boolean;
+  mappingKey: string | null;
+  marketIdentifiers: Record<string, string> | null;
+  name: string | null;
+  originalName: string | null;
+  salePrice: number | null;
+  stock: number | null;
+  detailHtml: string | null;
+  images: string[] | null;
+  brand: string | null;
+  manufacturer: string | null;
+  barcode: string | null;
+  generalProductName: string | null;
+  rawData: Record<string, unknown> | null;
+}
+
+export interface MarketRegistrationRecord {
+  id: number;
+  status: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  productId: number;
+  sbProductId: number | null;
+  marketType: string;
+  marketProductName: string | null;
+  marketIdentifiers: Record<string, unknown>;
+  marketDetailedInfo: Record<string, unknown>;
+  isSynced: boolean | null;
+  lastSyncedAt: string | null;
+}
+
 interface MarketPlusHandoff {
   market: string;
   cafe24ProductCode: string;
@@ -145,4 +177,13 @@ export const productApi = {
 
   getMarketPlusHandoff: (id: number, marketType: string) =>
     apiClient.get<MarketPlusHandoff>(`/api/v1/products/${id}/markets/${marketType}/handoff`),
+
+  getMarketRegistrations: (id: number) =>
+    apiClient.get<MarketRegistrationRecord[]>(`/api/v1/products/${id}/markets`),
+
+  getLocalMarketData: (id: number, marketType: string) =>
+    apiClient.get<MarketRegistrationRecord>(`/api/v1/products/${id}/markets/${marketType}/local`),
+
+  syncMarketLive: (id: number, marketType: string) =>
+    apiClient.post<MarketItemInfo>(`/api/v1/products/${id}/markets/${marketType}/sync`),
 };
