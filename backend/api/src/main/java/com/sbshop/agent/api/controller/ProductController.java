@@ -88,10 +88,12 @@ public class ProductController {
 		List<MarketType> markets,
 		@RequestParam(defaultValue = "false")
 		boolean inStockOnly,
+		@RequestParam(defaultValue = "false")
+		boolean includeUncategorized,
 		@PageableDefault(size = 50)
 		Pageable pageable) {
 		ProductSearchCondition condition = buildSearchCondition(keyword, marketFilter, categories,
-			vendors, stockStatuses, markets, inStockOnly);
+			vendors, stockStatuses, markets, inStockOnly, includeUncategorized);
 		Page<Product> products = productSearchUseCase.searchProducts(condition, pageable);
 		Map<Long, List<MarketRegistration>> registrationsByProduct = loadRegistrations(products.getContent());
 		return ResponseEntity.ok(products.map(
@@ -247,7 +249,7 @@ public class ProductController {
 	private ProductSearchCondition buildSearchCondition(
 		String keyword, String marketFilter, List<ProductCategory> categories,
 		List<VendorType> vendors, List<StockStatus> stockStatuses, List<MarketType> markets,
-		boolean inStockOnly) {
+		boolean inStockOnly, boolean includeUncategorized) {
 		MarketType marketFilterType = null;
 		boolean registered = false;
 		if (marketFilter != null && !marketFilter.isBlank()) {
@@ -264,6 +266,7 @@ public class ProductController {
 			.stockStatuses(stockStatuses)
 			.markets(markets)
 			.inStockOnly(inStockOnly)
+			.includeUncategorized(includeUncategorized)
 			.build();
 	}
 

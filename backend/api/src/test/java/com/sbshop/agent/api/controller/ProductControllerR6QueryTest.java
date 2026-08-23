@@ -78,7 +78,7 @@ class ProductControllerR6QueryTest {
 		stubEmptyPage();
 
 		ResponseEntity<Page<ProductListResponse>> res = controller().getProducts("shampoo", "COUPANG",
-			null, null, null, null, false, PageRequest.of(0, 50));
+			null, null, null, null, false, false, PageRequest.of(0, 50));
 
 		assertThat(res.getStatusCode().value()).isEqualTo(200);
 		ProductSearchCondition condition = captureCondition();
@@ -92,7 +92,7 @@ class ProductControllerR6QueryTest {
 	void getProducts_marketFilterOnly_usesMarketSearch() {
 		stubEmptyPage();
 
-		controller().getProducts(null, "COUPANG", null, null, null, null, false, PageRequest.of(0, 50));
+		controller().getProducts(null, "COUPANG", null, null, null, null, false, false, PageRequest.of(0, 50));
 
 		ProductSearchCondition condition = captureCondition();
 		assertThat(condition.keyword()).isNull();
@@ -105,7 +105,7 @@ class ProductControllerR6QueryTest {
 	void getProducts_unregisteredMarketFilterAndKeyword_appliesBoth() {
 		stubEmptyPage();
 
-		controller().getProducts("shampoo", "!COUPANG", null, null, null, null, false,
+		controller().getProducts("shampoo", "!COUPANG", null, null, null, null, false, false,
 			PageRequest.of(0, 50));
 
 		ProductSearchCondition condition = captureCondition();

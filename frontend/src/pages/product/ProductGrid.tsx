@@ -17,7 +17,7 @@ import { bulkDeleteProducts } from './productBulkApi';
 
 const columnHelper = createColumnHelper<ProductList>();
 const DEFAULT_FILTERS: ProductFilters = {
-  keyword: '', categories: [], markets: [], vendors: [], stockStatuses: [], inStockOnly: false,
+  keyword: '', categories: [], includeUncategorized: false, markets: [], vendors: [], stockStatuses: [], inStockOnly: false,
 };
 
 function stockBadge(soldOut: boolean): React.CSSProperties {
@@ -29,6 +29,7 @@ function toQuery(page: number, size: number, keyword: string, f: ProductFilters)
   const q: ProductQuery = { page, size };
   if (keyword) q.keyword = keyword;
   if (f.categories.length > 0) q.categories = f.categories;
+  if (f.includeUncategorized) q.includeUncategorized = true;
   if (f.vendors.length > 0 && f.vendors.length < VENDOR_OPTIONS.length) q.vendors = f.vendors;
   if (f.stockStatuses.length === 1) q.stockStatuses = f.stockStatuses;
   if (f.markets.length > 0 && f.markets.length < MARKET_FILTER_OPTIONS.length) q.markets = f.markets;

@@ -29,7 +29,7 @@ public final class ProductSpecifications {
 			addKeyword(predicates, condition, root, cb);
 			addMarketFilter(predicates, condition, root, query, cb);
 			addMarkets(predicates, condition, root, query, cb);
-			addCategories(predicates, condition, root);
+			addCategories(predicates, condition, root, cb);
 			addVendors(predicates, condition, root);
 			addStockStatuses(predicates, condition, root, cb);
 			addInStockOnly(predicates, condition, root, cb);
@@ -98,11 +98,20 @@ public final class ProductSpecifications {
 	}
 
 	private static void addCategories(List<Predicate> predicates, ProductSearchCondition condition,
-		Root<Product> root) {
-		if (condition.categories().isEmpty()) {
+		Root<Product> root, CriteriaBuilder cb) {
+		boolean hasCategories = !condition.categories().isEmpty();
+		if (!hasCategories && !condition.includeUncategorized()) {
 			return;
 		}
-		predicates.add(root.get("category").in(condition.categories()));
+		Path<?> categoryPath = root.get("category");
+		if (!hasCategories) {
+			predicates.add(cb.isNull(categoryPath));
+			return;
+		}
+		Predicate inCategories = categoryPath.in(condition.categories());
+		predicates.add(condition.includeUncategorized()
+			? cb.or(inCategories, cb.isNull(categoryPath))
+			: inCategories);
 	}
 
 	private static void addVendors(List<Predicate> predicates, ProductSearchCondition condition,

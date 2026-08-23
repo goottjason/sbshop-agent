@@ -272,6 +272,66 @@ class ProductSearchSpecificationTest {
 			.containsExactlyInAnyOrder(ProductCategory.SUPPLEMENT, ProductCategory.FOOD);
 	}
 
+	@Test
+	@DisplayName("categories + includeUncategorized: 두 조건을 OR로 묶어 미분류까지 함께 반환한다")
+	void categoriesOrUncategorized() {
+		save("SB001", ProductCategory.FOOD);
+		save("SB002", ProductCategory.UNKNOWN);
+		save("SB003", ProductCategory.FOOD);
+		clearCategory("SB003");
+
+		assertThat(sbCodesOf(ProductSearchCondition.builder()
+			.categories(List.of(ProductCategory.FOOD))
+			.includeUncategorized(true).build()))
+			.containsExactlyInAnyOrder("SB001", "SB003");
+		assertThat(sbCodesOf(ProductSearchCondition.builder()
+			.categories(List.of(ProductCategory.FOOD, ProductCategory.UNKNOWN))
+			.includeUncategorized(true).build()))
+			.containsExactlyInAnyOrder("SB001", "SB002", "SB003");
+	}
+
+	@Test
+	@DisplayName("includeUncategorized 단독: category가 null인 상품만 반환한다")
+	void uncategorizedOnly() {
+		save("SB001", ProductCategory.FOOD);
+		save("SB002", ProductCategory.UNKNOWN);
+		save("SB003", ProductCategory.FOOD);
+		clearCategory("SB003");
+
+		assertThat(sbCodesOf(ProductSearchCondition.builder().includeUncategorized(true).build()))
+			.containsExactlyInAnyOrder("SB003");
+	}
+
+	@Test
+	@DisplayName("includeUncategorized=false면 categories 단독·미지정 동작이 기존과 같다")
+	void uncategorizedFlagOffKeepsLegacyBehaviour() {
+		save("SB001", ProductCategory.FOOD);
+		save("SB002", ProductCategory.UNKNOWN);
+		save("SB003", ProductCategory.FOOD);
+		clearCategory("SB003");
+
+		assertThat(sbCodesOf(ProductSearchCondition.builder()
+			.categories(List.of(ProductCategory.FOOD)).build()))
+			.containsExactlyInAnyOrder("SB001");
+		assertThat(sbCodesOf(ProductSearchCondition.none()))
+			.containsExactlyInAnyOrder("SB001", "SB002", "SB003");
+	}
+
+	@Test
+	@DisplayName("includeUncategorized는 다른 필터축과 AND로 결합한다")
+	void uncategorizedCombinesWithOtherFiltersAsAnd() {
+		saveNamed("SB001", "Vitamin C", ProductCategory.FOOD);
+		saveNamed("SB002", "Vitamin D", ProductCategory.FOOD);
+		saveNamed("SB003", "오메가3", ProductCategory.FOOD);
+		clearCategory("SB002");
+		clearCategory("SB003");
+
+		assertThat(sbCodesOf(ProductSearchCondition.builder()
+			.keyword("vitamin")
+			.includeUncategorized(true).build()))
+			.containsExactlyInAnyOrder("SB002");
+	}
+
 	private List<String> sbCodesOf(ProductSearchCondition condition) {
 		Page<Product> page = productRepository.findAll(ProductSpecifications.matching(condition), FIRST_PAGE);
 		return page.getContent().stream().map(Product::getSbCode).toList();

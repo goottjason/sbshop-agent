@@ -4,6 +4,7 @@ import { MARKET_FILTER_OPTIONS, VENDOR_OPTIONS, STOCK_STATUS_OPTIONS } from './p
 export interface ProductFilters {
   keyword: string;
   categories: string[];
+  includeUncategorized: boolean;
   markets: string[];
   vendors: string[];
   stockStatuses: string[];
@@ -22,6 +23,7 @@ export function ProductFilterPanel({ categoryOptions, onSearch }: { categoryOpti
 
   const [keyword, setKeyword] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
+  const [includeUncategorized, setIncludeUncategorized] = useState(false);
   const [markets, setMarkets] = useState<string[]>(allMarkets);
   const [vendors, setVendors] = useState<string[]>(allVendors);
   const [stockStatuses, setStockStatuses] = useState<string[]>(allStock);
@@ -30,12 +32,18 @@ export function ProductFilterPanel({ categoryOptions, onSearch }: { categoryOpti
   const toggle = (list: string[], set: (v: string[]) => void, val: string) =>
     set(list.includes(val) ? list.filter((x) => x !== val) : [...list, val]);
 
-  const handleSearch = () => onSearch({ keyword, categories, markets, vendors, stockStatuses, inStockOnly });
+  const handleSearch = () =>
+    onSearch({ keyword, categories, includeUncategorized, markets, vendors, stockStatuses, inStockOnly });
 
   const isAllMarkets = markets.length === allMarkets.length;
   const isAllVendors = vendors.length === allVendors.length;
   const isAllStock = stockStatuses.length === allStock.length;
-  const isAllCategories = categoryOptions.length > 0 && categories.length === categoryOptions.length;
+  const isAllCategories = categories.length === categoryOptions.length && includeUncategorized;
+
+  const toggleAllCategories = () => {
+    setCategories(isAllCategories ? [] : [...categoryOptions]);
+    setIncludeUncategorized(!isAllCategories);
+  };
 
   return (
     <div style={{ backgroundColor: '#fff', borderTop: '2px solid var(--product-primary)', border: '1px solid #e5e7eb', borderTopColor: 'var(--product-primary)', borderTopWidth: 2, borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', padding: '14px 20px', marginBottom: '14px', fontSize: '13px' }}>
@@ -56,16 +64,20 @@ export function ProductFilterPanel({ categoryOptions, onSearch }: { categoryOpti
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <label style={optLabelStyle}>
               <input type="checkbox" checked={isAllCategories}
-                onChange={() => setCategories(isAllCategories ? [] : [...categoryOptions])} style={checkboxStyle} />
+                onChange={toggleAllCategories} style={checkboxStyle} />
               전체
             </label>
-            {categoryOptions.length === 0 && <span style={{ color: '#aaa', fontSize: 13 }}>(로드된 상품 없음)</span>}
             {categoryOptions.map((c) => (
               <label key={c} style={optLabelStyle}>
                 <input type="checkbox" checked={categories.includes(c)} onChange={() => toggle(categories, setCategories, c)} style={checkboxStyle} />
                 {c}
               </label>
             ))}
+            <label style={optLabelStyle}>
+              <input type="checkbox" checked={includeUncategorized}
+                onChange={() => setIncludeUncategorized((v) => !v)} style={checkboxStyle} />
+              미분류
+            </label>
           </div>
         </div>
       </div>

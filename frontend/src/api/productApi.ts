@@ -36,6 +36,7 @@ export interface ProductQuery {
   size: number;
   keyword?: string;
   categories?: string[];
+  includeUncategorized?: boolean;
   vendors?: string[];
   stockStatuses?: string[];
   markets?: string[];

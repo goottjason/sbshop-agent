@@ -16,7 +16,8 @@ public record ProductSearchCondition(
 	List<VendorType> vendors,
 	List<StockStatus> stockStatuses,
 	List<MarketType> markets,
-	boolean inStockOnly) {
+	boolean inStockOnly,
+	boolean includeUncategorized) {
 
 	public ProductSearchCondition {
 		keyword = blankToNull(keyword);

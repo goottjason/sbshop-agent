@@ -89,6 +89,32 @@ class ProductControllerFilterParamTest {
 	}
 
 	@Test
+	@DisplayName("GET /api/v1/products: includeUncategorized=true가 검색 조건으로 전달된다")
+	void includeUncategorizedParamReachesSearchCondition() throws Exception {
+		stubEmptyPage();
+
+		mockMvc.perform(get("/api/v1/products")
+			.param("categories", "FOOD")
+			.param("includeUncategorized", "true"))
+			.andExpect(status().isOk());
+
+		ProductSearchCondition condition = captureCondition();
+		assertThat(condition.categories()).containsExactly(ProductCategory.FOOD);
+		assertThat(condition.includeUncategorized()).isTrue();
+	}
+
+	@Test
+	@DisplayName("GET /api/v1/products: includeUncategorized 미전송 시 기본값 false다")
+	void includeUncategorizedDefaultsToFalse() throws Exception {
+		stubEmptyPage();
+
+		mockMvc.perform(get("/api/v1/products").param("categories", "FOOD"))
+			.andExpect(status().isOk());
+
+		assertThat(captureCondition().includeUncategorized()).isFalse();
+	}
+
+	@Test
 	@DisplayName("GET /api/v1/products: 파라미터가 하나도 없으면 빈 조건 + 기본 페이지 크기 50으로 조회한다")
 	void noParamsKeepsLegacyBehaviour() throws Exception {
 		stubEmptyPage();
