@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Form, Input, InputNumber, Button, Radio, Card, Progress, Space, Typography, Select,
-  ConfigProvider, Alert, Modal as AntModal,
+  ConfigProvider, Alert, App as AntApp,
 } from 'antd';
 import { batchApi } from '../api/batchApi';
 import { notify } from '../utils/notify';
@@ -122,6 +122,7 @@ const describeItem = (item: ManualItem) => {
 };
 
 const BatchUpdatePage = () => {
+  const { modal } = AntApp.useApp();
   const [mode, setMode] = useState<BatchMode>('supplier');
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
@@ -221,7 +222,7 @@ const BatchUpdatePage = () => {
     const priceCount = items.filter((item) => item.price !== null).length;
     const stockCount = items.filter((item) => item.stock !== null).length;
     const preview = items.slice(0, PREVIEW_LIMIT);
-    AntModal.confirm({
+    modal.confirm({
       title: `입력한 값을 ${items.length}개 상품에 적용`,
       width: 560,
       okText: '적용',

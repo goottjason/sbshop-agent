@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react';
-import { Modal as AntModal, InputNumber } from 'antd';
+import { App as AntApp, Modal as AntModal, InputNumber } from 'antd';
 import { productApi, type ProductList } from '../../api/productApi';
 import { sourcingApi } from '../../api/sourcingApi';
 import { fetchPricePolicy } from '../../api/pricePolicyApi';
@@ -25,6 +25,7 @@ function extractError(e: unknown): string {
 
 export function MarketBadgeCell({ product, onPublished }:
   { product: ProductList; onPublished: () => void }) {
+  const { modal } = AntApp.useApp();
   const regs = product.marketRegistrations ?? {};
   const [publishing, setPublishing] = useState<string | null>(null);
   const [failed, setFailed] = useState<Record<string, string>>({});
@@ -80,7 +81,7 @@ export function MarketBadgeCell({ product, onPublished }:
     setFailed((f) => { const next = { ...f }; delete next[marketKey]; return next; });
     try {
       const { data } = await productApi.getMarketPlusHandoff(product.id, marketKey);
-      AntModal.confirm({
+      modal.confirm({
         title: `${label} 전송 (마켓플러스)`,
         content: `${label}는 상품등록 API가 없어 마켓플러스에서 직접 보내야 합니다. ${data.guide}`,
         okText: '마켓플러스 열기', cancelText: '취소',

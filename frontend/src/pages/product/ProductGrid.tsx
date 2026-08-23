@@ -4,7 +4,7 @@ import {
   useReactTable, getCoreRowModel, flexRender, createColumnHelper,
   type RowSelectionState,
 } from '@tanstack/react-table';
-import { Modal as AntModal, Pagination, InputNumber } from 'antd';
+import { App as AntApp, Modal as AntModal, Pagination, InputNumber } from 'antd';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/Table';
 import { productApi, type ProductList, type ProductQuery } from '../../api/productApi';
 import { batchApi } from '../../api/batchApi';
@@ -38,6 +38,7 @@ function toQuery(page: number, size: number, keyword: string, f: ProductFilters)
 }
 
 export default function ProductGrid() {
+  const { modal } = AntApp.useApp();
   const [filters, setFilters] = useState<ProductFilters>(DEFAULT_FILTERS);
   const [keyword, setKeyword] = useState('');
   const [detailId, setDetailId] = useState<number | null>(null);
@@ -145,7 +146,7 @@ export default function ProductGrid() {
 
   const handleBulkDelete = () => {
     if (selectedIds.length === 0) { notify.warning('삭제할 상품을 선택하세요.'); return; }
-    AntModal.confirm({
+    modal.confirm({
       title: `상품 ${selectedIds.length}개 삭제`,
       content: '선택한 상품을 삭제합니다. 되돌릴 수 없습니다. 진행할까요?',
       okText: '삭제', okType: 'danger', cancelText: '취소',
