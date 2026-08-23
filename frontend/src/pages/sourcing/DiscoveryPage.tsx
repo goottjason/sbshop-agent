@@ -15,6 +15,7 @@ import {
   type ScoreBreakdown,
 } from '../../api/sourcingDiscoveryApi';
 import ScoreBreakdownPanel from './ScoreBreakdownPanel';
+import CandidateDetailDrawer from './CandidateDetailDrawer';
 import { notify } from '../../utils/notify';
 
 const { Title, Text, Paragraph } = Typography;
@@ -67,6 +68,7 @@ const DiscoveryPage = () => {
   const [selected, setSelected] = useState<number[]>([]);
   const [creating, setCreating] = useState(false);
   const [showBlocked, setShowBlocked] = useState(false);
+  const [detailId, setDetailId] = useState<number | null>(null);
   const [includeReview, setIncludeReview] = useState(true);
   const candidatesKey = ['sourcing-candidates', includeReview];
   const {
@@ -110,12 +112,15 @@ const DiscoveryPage = () => {
       notify.warning(err.response?.data?.message ?? '발굴을 시작하지 못했습니다');
     }
   };
-  const handleReject = async (id: number) => {
-    await sourcingDiscoveryApi.reject(id);
+  const removeCandidate = (id: number) => {
     queryClient.setQueryData<Candidate[]>(candidatesKey, (prev) =>
       (prev ?? []).filter((c) => c.id !== id),
     );
     setSelected((prev) => prev.filter((s) => s !== id));
+  };
+  const handleReject = async (id: number) => {
+    await sourcingDiscoveryApi.reject(id);
+    removeCandidate(id);
     notify.success('거절했습니다. 쿨다운 기간 동안 재추천되지 않습니다.');
   };
   const handleCreateDrafts = async () => {
@@ -228,11 +233,16 @@ const DiscoveryPage = () => {
     },
     {
       title: '',
-      width: 64,
+      width: 108,
       render: (_: unknown, c: Candidate) => (
-        <Button size="small" danger type="text" onClick={() => void handleReject(c.id)}>
-          거절
-        </Button>
+        <Space size={0}>
+          <Button size="small" type="text" onClick={() => setDetailId(c.id)}>
+            상세
+          </Button>
+          <Button size="small" danger type="text" onClick={() => void handleReject(c.id)}>
+            거절
+          </Button>
+        </Space>
       ),
     },
   ];
@@ -325,6 +335,14 @@ const DiscoveryPage = () => {
           selectedRowKeys: selected,
           onChange: (keys) => setSelected(keys as number[]),
         }}
+        onRow={(c) => ({
+          style: { cursor: 'pointer' },
+          onClick: (e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('a, button, input, .ant-table-selection-column')) return;
+            setDetailId(c.id);
+          },
+        })}
         expandable={{
           expandedRowRender: (c) => {
             const bd = parseJsonField<ScoreBreakdown | null>(c.scoreBreakdown, null);
@@ -412,6 +430,12 @@ const DiscoveryPage = () => {
           ))
         )}
       </Drawer>
+      <CandidateDetailDrawer
+        candidateId={detailId}
+        fallback={candidates.find((c) => c.id === detailId) ?? null}
+        onClose={() => setDetailId(null)}
+        onRejected={removeCandidate}
+      />
     </div>
   );
 };

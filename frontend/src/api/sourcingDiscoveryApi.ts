@@ -181,6 +181,7 @@ export const sourcingDiscoveryApi = {
   candidates: (limit?: number, includeReview = true) =>
     apiClient.get<Candidate[]>(`${BASE}/candidates`, { params: { limit, includeReview } }),
   customsBlocked: () => apiClient.get<Candidate[]>(`${BASE}/candidates/customs-blocked`),
+  candidate: (id: number) => apiClient.get<Candidate>(`${BASE}/candidates/${id}`),
   reject: (id: number) => apiClient.post<Candidate>(`${BASE}/candidates/${id}/reject`),
 
   createDrafts: (candidateIds: number[]) =>
