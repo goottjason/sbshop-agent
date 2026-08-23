@@ -8,6 +8,7 @@ export const MARKET_LABELS: Record<string, string> = {
   UNKNOWN: '알 수 없음',
   EMAIL: '이메일',
   COUPANG_SETTLEMENT: '쿠팡 정산',
+  CUSTOMS: '통관',
 };
 
 export const ORDER_MARKET_CODES: string[] = [
@@ -20,7 +21,7 @@ export function marketLabel(code?: string | null): string {
 }
 
 export const SYNC_SOURCE_KEYS: string[] = [
-  'COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'GMARKET', 'EMAIL', 'COUPANG_SETTLEMENT',
+  'COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'GMARKET', 'EMAIL', 'COUPANG_SETTLEMENT', 'CUSTOMS',
 ];
 
 export const SYNC_SOURCE_LABELS: Record<string, string> = {

@@ -9,8 +9,9 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchOrders, updateOrder, updateOrderLineItem, updateSourcingInfo, updateShippingInfo, shipOrders, syncCustomsStatus, syncCoupangOrders, syncSmartStoreOrders, syncElevenStreetOrders, syncEsmplusOrders, fetchCommonCodes, confirmOrdersBatch, cancelOrder, syncProductStock, fetchSyncStatus, updatePurchaseStatus } from '../api/orderApi';
 import type { OrderGridDto, ProductDto, OrderDto, OrderLineItemDto, OrderDetailResponseDto, PageResponse, ShipmentDto } from '../api/orderApi';
+import type { KstPeriodRange } from '../utils/datetime';
 import { formatPhone } from '../utils/phone';
-import { toKstDate, kstDateString, kstDateStringOffset } from '../utils/datetime';
+import { toKstDate, kstDateString, kstDateStringOffset, kstPeriodRanges } from '../utils/datetime';
 import { ORDER_MARKET_CODES, SYNC_SOURCE_KEYS, marketLabel, syncSourceLabel } from '../utils/marketLabels';
 import { toast } from 'react-toastify';
 import { useSearchParams } from 'react-router-dom';
@@ -525,6 +526,11 @@ const OrderTableRow = React.memo(function OrderTableRow({ row, isOrderBoundary, 
   && prev.colCount === next.colCount,
 );
 
+const PERIOD_DEFAULT = 'DEFAULT';
+const PERIOD_CUSTOM = 'CUSTOM';
+const PERIOD_FIXED_LABELS: Record<string, string> = { TODAY: '오늘', THIS_WEEK: '이번주' };
+const periodLabel = (preset: KstPeriodRange) => PERIOD_FIXED_LABELS[preset.id] ?? `${preset.month}월`;
+
 function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: string[], statuses: string[], startDate: string, endDate: string, purchaseStatuses: string[], stockStatuses: string[], vendors: string[]) => void }) {
   const allMarkets = ORDER_MARKET_CODES;
   const allStatuses = ALL_STATUSES;
@@ -539,7 +545,16 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
   const [keyword, setKeyword] = useState('');
   const [startDate, setStartDate] = useState(kstDateStringOffset({ months: -1 }));
   const [endDate, setEndDate] = useState(kstDateString());
-  const [activePeriod, setActivePeriod] = useState(2);
+  const [activePeriod, setActivePeriod] = useState<string>(PERIOD_DEFAULT);
+  const [today, setToday] = useState(kstDateString);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = kstDateString();
+      setToday(prev => prev === now ? prev : now);
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+  const periodPresets = useMemo(() => kstPeriodRanges(today), [today]);
 
   const [open, setOpen] = useState(() => localStorage.getItem(FILTER_OPEN_KEY) === '1');
   useEffect(() => { localStorage.setItem(FILTER_OPEN_KEY, open ? '1' : '0'); }, [open]);
@@ -556,12 +571,12 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
     const vendorFilter = isAllVendorsSelected ? [] : selectedVendors;
     onSearch(keyword, selectedMarkets, selectedStatuses, startDate, endDate, selectedPurchaseStatuses, stockFilter, vendorFilter);
   };
-  const handlePeriod = (idx: number) => {
-    setActivePeriod(idx);
-    const days = idx === 1 ? -7 : 0;
-    const months = idx === 2 ? -1 : idx === 3 ? -3 : 0;
-    setStartDate(kstDateStringOffset({ days, months }));
-    setEndDate(kstDateString());
+  const handlePeriod = (id: string) => {
+    const preset = kstPeriodRanges().find(p => p.id === id);
+    if (!preset) return;
+    setActivePeriod(id);
+    setStartDate(preset.start);
+    setEndDate(preset.end);
   };
   const toggleMarket = (val: string) => setSelectedMarkets(prev => prev.includes(val) ? prev.filter(m => m !== val) : [...prev, val]);
   const toggleStatus = (val: string) => setSelectedStatuses(prev => prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]);
@@ -570,7 +585,7 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
   const toggleVendor = (val: string) => setSelectedVendors(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
 
   const chips: { label: string; active: boolean }[] = [
-    { label: `${startDate.slice(5).replace('-', '.')} ~ ${endDate.slice(5).replace('-', '.')}`, active: activePeriod !== 2 },
+    { label: `${startDate.slice(5).replace('-', '.')} ~ ${endDate.slice(5).replace('-', '.')}`, active: activePeriod !== PERIOD_DEFAULT },
     { label: `마켓 ${isAllMarketsSelected ? '전체' : selectedMarkets.length}`, active: !isAllMarketsSelected },
     {
       label: `상태 ${isAllStatusesSelected ? '전체' : isDefaultStatuses ? '기본' : selectedStatuses.length}`,
@@ -624,15 +639,15 @@ function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: s
         <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
           <span style={{ width: '120px', fontWeight: 600, color: '#555', flexShrink: 0 }}>조회기간 (주문일)</span>
           <div style={{ display: 'flex', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden', marginRight: '12px', flexShrink: 0 }}>
-            {['오늘', '1주일', '1개월', '3개월'].map((label, idx) => (
-              <button key={label} onClick={() => handlePeriod(idx)} style={{ padding: '6px 12px', border: 'none', background: activePeriod === idx ? 'var(--primary-color)' : '#f8f9fa', borderLeft: idx === 0 ? 'none' : '1px solid #ccc', color: activePeriod === idx ? '#fff' : '#333', fontWeight: activePeriod === idx ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                {label}
+            {periodPresets.map((preset, idx) => (
+              <button key={preset.id} onClick={() => handlePeriod(preset.id)} style={{ padding: '6px 12px', border: 'none', background: activePeriod === preset.id ? 'var(--primary-color)' : '#f8f9fa', borderLeft: idx === 0 ? 'none' : '1px solid #ccc', color: activePeriod === preset.id ? '#fff' : '#333', fontWeight: activePeriod === preset.id ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                {periodLabel(preset)}
               </button>
             ))}
           </div>
-          <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setActivePeriod(-1); }} style={{ padding: '5px', border: '1px solid #ccc', flexShrink: 0 }} />
+          <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setActivePeriod(PERIOD_CUSTOM); }} style={{ padding: '5px', border: '1px solid #ccc', flexShrink: 0 }} />
           <span style={{ margin: '0 8px', flexShrink: 0 }}>~</span>
-          <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setActivePeriod(-1); }} style={{ padding: '5px', border: '1px solid #ccc', flexShrink: 0 }} />
+          <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setActivePeriod(PERIOD_CUSTOM); }} style={{ padding: '5px', border: '1px solid #ccc', flexShrink: 0 }} />
         </div>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
           <span style={{ width: '120px', fontWeight: 600, color: '#555' }}>통합 검색</span>
