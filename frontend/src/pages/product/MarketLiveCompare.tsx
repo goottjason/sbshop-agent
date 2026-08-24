@@ -202,6 +202,7 @@ export function MarketLiveCompare({ productId, detail }: { productId: number; de
         const error = errors[reg.marketType];
         const rows = result ? buildRows(detail, result.local, result.live) : [];
         const diffCount = rows.filter((r) => r.state === 'diff').length;
+        const comparedCount = rows.filter((r) => r.state !== 'na').length;
         return (
           <div key={reg.marketType} style={{ marginBottom: 12, border: '1px solid #eef2f7', borderRadius: 10, padding: 12, background: '#fff' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -234,8 +235,12 @@ export function MarketLiveCompare({ productId, detail }: { productId: number; de
             {result && (
               <>
                 <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                  <span style={{ fontWeight: 700, color: diffCount > 0 ? DIFF : GREEN }}>
-                    {diffCount > 0 ? `다른 항목 ${diffCount}개` : '대조 가능한 항목 모두 일치'}
+                  <span style={{ fontWeight: 700, color: comparedCount === 0 || diffCount > 0 ? DIFF : GREEN }}>
+                    {comparedCount === 0
+                      ? '마켓이 값을 주지 않아 대조할 항목이 없습니다'
+                      : diffCount > 0
+                        ? `다른 항목 ${diffCount}개`
+                        : `대조한 ${comparedCount}개 항목 모두 일치`}
                   </span>
                   <span style={{ color: '#9ca3af' }}>조회 {result.fetchedAt}</span>
                 </div>

@@ -43,9 +43,14 @@ public class MarketRegistrationService {
 			.findByProductIdAndMarketType(productId, type)
 			.orElseThrow(() -> new IllegalArgumentException("마켓 등록 정보 없음: " + marketType));
 
-		String marketItemId = reg.extractVendorItemId();
-		if (marketItemId == null || marketItemId.isEmpty()) {
-			marketItemId = String.valueOf(reg.getProductId());
+		String[] lookupKeys = MarketRegistration.liveLookupKeys(type);
+		if (lookupKeys.length == 0) {
+			throw new IllegalStateException(type.getLabel() + " 실시간 조회를 지원하지 않는 마켓입니다");
+		}
+		String marketItemId = reg.extractLiveLookupId();
+		if (marketItemId == null) {
+			throw new IllegalStateException(type.getLabel() + " 상품번호(" + String.join(" 또는 ", lookupKeys)
+				+ ")가 등록 정보에 없습니다 — 등록 정보를 먼저 동기화하세요: productId=" + productId);
 		}
 
 		MarketClient client = marketClientRouter.getClient(type);

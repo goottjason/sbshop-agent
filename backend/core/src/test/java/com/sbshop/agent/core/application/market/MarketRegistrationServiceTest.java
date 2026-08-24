@@ -3,6 +3,7 @@ package com.sbshop.agent.core.application.market;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.domain.market.MarketRegistration;
@@ -82,34 +83,87 @@ class MarketRegistrationServiceTest {
 	}
 
 	@Test
-	@DisplayName("sync → vendorItemId 있으면 그대로 사용해 extractMarketItem 호출")
-	void syncMarketLive_usesVendorItemId() {
-		MarketRegistration reg = mock(MarketRegistration.class);
-		when(reg.extractVendorItemId()).thenReturn("VI-123");
-		when(marketRegistrationRepository.findByProductIdAndMarketType(1L, MarketType.COUPANG))
-			.thenReturn(Optional.of(reg));
-		MarketClient client = mock(MarketClient.class);
-		when(marketClientRouter.getClient(MarketType.COUPANG)).thenReturn(client);
-		MarketItemInfo info = mock(MarketItemInfo.class);
-		when(client.extractMarketItem("VI-123")).thenReturn(info);
+	@DisplayName("[D-206] sync → 쿠팡은 sellerProductId로 조회(로컬 PK 아님)")
+	void syncMarketLive_coupang_usesSellerProductId() {
+		MarketItemInfo info = stubLive(MarketType.COUPANG,
+			"{\"sellerProductId\":\"14813281569\",\"vendorItemId\":\"89379432362\"}",
+			"14813281569");
 
-		assertThat(service().syncMarketLive(1L, "coupang")).isSameAs(info);
+		assertThat(service().syncMarketLive(1592L, "coupang")).isSameAs(info);
 	}
 
 	@Test
-	@DisplayName("sync → vendorItemId 비면 productId로 폴백(기존 분기 보존)")
-	void syncMarketLive_fallbackToProductId() {
-		MarketRegistration reg = mock(MarketRegistration.class);
-		when(reg.extractVendorItemId()).thenReturn("");
-		when(reg.getProductId()).thenReturn(77L);
-		when(marketRegistrationRepository.findByProductIdAndMarketType(1L, MarketType.COUPANG))
-			.thenReturn(Optional.of(reg));
-		MarketClient client = mock(MarketClient.class);
-		when(marketClientRouter.getClient(MarketType.COUPANG)).thenReturn(client);
-		MarketItemInfo info = mock(MarketItemInfo.class);
-		when(client.extractMarketItem("77")).thenReturn(info);
+	@DisplayName("[D-206] sync → 스마트스토어는 originProductNo로 조회(로컬 PK 아님)")
+	void syncMarketLive_smartstore_usesOriginProductNo() {
+		MarketItemInfo info = stubLive(MarketType.SMART_STORE,
+			"{\"originProductNo\":\"6321468668\",\"channelProductNo\":\"6351684748\"}",
+			"6321468668");
 
-		assertThat(service().syncMarketLive(1L, "coupang")).isSameAs(info);
+		assertThat(service().syncMarketLive(1592L, "smart_store")).isSameAs(info);
+	}
+
+	@Test
+	@DisplayName("[D-206] sync → 11번가는 prdNo로 조회(로컬 PK 아님)")
+	void syncMarketLive_elevenst_usesPrdNo() {
+		MarketItemInfo info = stubLive(MarketType.ELEVEN_STREET,
+			"{\"sellerPrdCd\":\"220227IHB052\",\"prdNo\":\"4193852605\"}",
+			"4193852605");
+
+		assertThat(service().syncMarketLive(1592L, "eleven_street")).isSameAs(info);
+	}
+
+	@Test
+	@DisplayName("[D-206] sync → 카페24는 product_no로 조회(로컬 PK 아님)")
+	void syncMarketLive_cafe24_usesProductNo() {
+		MarketItemInfo info = stubLive(MarketType.CAFE24,
+			"{\"product_no\":\"17624\",\"product_code\":\"P000BABW\"}",
+			"17624");
+
+		assertThat(service().syncMarketLive(1592L, "cafe24")).isSameAs(info);
+	}
+
+	@Test
+	@DisplayName("[D-206] sync → 식별자 부재 시 로컬 PK 폴백 없이 IllegalStateException")
+	void syncMarketLive_missingIdentifier_throwsInsteadOfLocalPkFallback() {
+		registration(MarketType.SMART_STORE, "{\"channelProductNo\":\"6351684748\"}");
+
+		assertThatThrownBy(() -> service().syncMarketLive(1592L, "smart_store"))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("originProductNo");
+
+		verifyNoInteractions(marketClientRouter);
+	}
+
+	@Test
+	@DisplayName("[D-206] sync → 실시간 조회 미지원 마켓(G마켓)은 명확한 예외")
+	void syncMarketLive_unsupportedMarket_throws() {
+		registration(MarketType.GMARKET, "{\"gmarket_goodsNo\":\"G777\"}");
+
+		assertThatThrownBy(() -> service().syncMarketLive(1592L, "gmarket"))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("실시간 조회");
+
+		verifyNoInteractions(marketClientRouter);
+	}
+
+	private MarketRegistration registration(MarketType type, String identifiers) {
+		MarketRegistration reg = MarketRegistration.builder()
+			.productId(1592L)
+			.marketType(type)
+			.marketIdentifiers(identifiers)
+			.build();
+		when(marketRegistrationRepository.findByProductIdAndMarketType(1592L, type))
+			.thenReturn(Optional.of(reg));
+		return reg;
+	}
+
+	private MarketItemInfo stubLive(MarketType type, String identifiers, String expectedLookupId) {
+		registration(type, identifiers);
+		MarketClient client = mock(MarketClient.class);
+		when(marketClientRouter.getClient(type)).thenReturn(client);
+		MarketItemInfo info = mock(MarketItemInfo.class);
+		when(client.extractMarketItem(expectedLookupId)).thenReturn(info);
+		return info;
 	}
 
 	private MarketRegistrationService service() {

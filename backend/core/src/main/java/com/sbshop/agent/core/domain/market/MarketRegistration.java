@@ -32,6 +32,12 @@ public class MarketRegistration extends BaseEntity {
 	public static final String GMARKET_IDENTIFIER_KEY = "gmarket_goodsNo";
 	public static final String AUCTION_IDENTIFIER_KEY = "auction_goodsNo";
 
+	public static final String COUPANG_LOOKUP_KEY = "sellerProductId";
+	public static final String SMART_STORE_LOOKUP_KEY = "originProductNo";
+	public static final String ELEVEN_STREET_LOOKUP_KEY = "prdNo";
+	public static final String ELEVEN_STREET_LOOKUP_FALLBACK_KEY = "elevenstId";
+	public static final String CAFE24_LOOKUP_KEY = "product_no";
+
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	@Column(name = "product_id", nullable = false)
@@ -104,6 +110,34 @@ public class MarketRegistration extends BaseEntity {
 			log.warn("vendorItemId 파싱 실패: productId={}, error={}", productId, e.getMessage());
 			return null;
 		}
+	}
+
+	public static String[] liveLookupKeys(MarketType marketType) {
+		if (marketType == null) {
+			return new String[] {};
+		}
+		switch (marketType) {
+			case COUPANG:
+				return new String[] {COUPANG_LOOKUP_KEY};
+			case SMART_STORE:
+				return new String[] {SMART_STORE_LOOKUP_KEY};
+			case ELEVEN_STREET:
+				return new String[] {ELEVEN_STREET_LOOKUP_KEY, ELEVEN_STREET_LOOKUP_FALLBACK_KEY};
+			case CAFE24:
+				return new String[] {CAFE24_LOOKUP_KEY};
+			default:
+				return new String[] {};
+		}
+	}
+
+	public String extractLiveLookupId() {
+		for (String key : liveLookupKeys(marketType)) {
+			String value = identifier(key);
+			if (value != null) {
+				return value;
+			}
+		}
+		return null;
 	}
 
 	public String extractMarketCode() {
