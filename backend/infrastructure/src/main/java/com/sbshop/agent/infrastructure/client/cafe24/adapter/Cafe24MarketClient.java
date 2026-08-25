@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.sourcing.dto.MarketCategory;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
+import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -14,6 +15,7 @@ import com.sbshop.agent.infrastructure.client.cafe24.component.Cafe24CategoryRes
 import com.sbshop.agent.infrastructure.client.common.util.HtmlImageExtractor;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +33,13 @@ public class Cafe24MarketClient implements MarketClient {
 	private final Cafe24RestClient cafe24RestClient;
 	private final HtmlImageExtractor imageExtractor;
 	private final Cafe24CategoryResolver categoryResolver;
+
+	private static final int CATALOG_LIMIT = 100;
+	private static final int CATALOG_OFFSET_CAP = 5000;
+	private static final int CATALOG_MAX_PAGES = 1000;
+	private static final int CATALOG_RATE_LIMIT_RETRIES = 3;
+	private static final long CATALOG_BACKOFF_MS = 1000L;
+	private static final String CATALOG_FIELDS = "product_no,product_code,custom_product_code,display,selling";
 
 	@Override
 	public MarketType getSupportedMarket() {
@@ -232,6 +241,129 @@ public class Cafe24MarketClient implements MarketClient {
 			currentRawData.put("description", newDetailHtml);
 		}
 		return currentRawData;
+	}
+
+	@Override
+	public List<MarketCatalogEntry> fetchCatalog(long throttleMs) {
+		List<MarketCatalogEntry> entries = new ArrayList<>();
+		int offset = 0;
+		long cursor = 0L;
+		long maxProductNo = 0L;
+		boolean reachedLastPage = false;
+		for (int page = 0; page < CATALOG_MAX_PAGES; page++) {
+			String path = cursor > 0L
+				? "/admin/products?limit=" + CATALOG_LIMIT + "&since_product_no=" + cursor
+					+ "&fields=" + CATALOG_FIELDS
+				: "/admin/products?limit=" + CATALOG_LIMIT + "&offset=" + offset
+					+ "&fields=" + CATALOG_FIELDS;
+			JsonNode products = fetchCatalogPage(path, entries.size());
+			int count = 0;
+			for (JsonNode product : products) {
+				MarketCatalogEntry entry = toCatalogEntry(product);
+				if (entry != null) {
+					entries.add(entry);
+				}
+				maxProductNo = Math.max(maxProductNo, product.path("product_no").asLong(0L));
+				count++;
+			}
+			log.info("[카페24] 카탈로그 스캔 누적 {}건 (이번 페이지 {}건)", entries.size(), count);
+			if (count < CATALOG_LIMIT) {
+				reachedLastPage = true;
+				break;
+			}
+			if (cursor > 0L) {
+				cursor = maxProductNo;
+			} else {
+				offset += CATALOG_LIMIT;
+				if (offset >= CATALOG_OFFSET_CAP) {
+					cursor = maxProductNo;
+				}
+			}
+			sleepQuietly(throttleMs);
+		}
+		if (!reachedLastPage) {
+			throw new RuntimeException("[카페24] 전체 상품 조회 실패 — 페이지 상한(" + CATALOG_MAX_PAGES
+				+ ")을 소진했는데 마지막 페이지에 닿지 못했다 (누적 " + entries.size()
+				+ "건). 잘린 카탈로그는 대조에서 '마켓에 없는 상품'으로 오독되므로 반환하지 않는다.");
+		}
+		return entries;
+	}
+
+	private JsonNode fetchCatalogPage(String path, int collectedSoFar) {
+		RuntimeException lastRateLimit = null;
+		for (int attempt = 1; attempt <= CATALOG_RATE_LIMIT_RETRIES; attempt++) {
+			try {
+				String response = cafe24RestClient.get(path);
+				return objectMapper.readTree(response).path("products");
+			} catch (RuntimeException e) {
+				if (!isRateLimited(e)) {
+					throw new RuntimeException("[카페24] 전체 상품 조회 실패 (누적 " + collectedSoFar + "건, path="
+						+ path + "): " + e.getMessage(), e);
+				}
+				lastRateLimit = e;
+				log.warn("[카페24] 호출 한도 초과 — {}ms 후 재시도 {}/{}", CATALOG_BACKOFF_MS * attempt,
+					attempt, CATALOG_RATE_LIMIT_RETRIES);
+				sleepQuietly(CATALOG_BACKOFF_MS * attempt);
+			} catch (Exception e) {
+				throw new RuntimeException("[카페24] 전체 상품 조회 실패 — 응답 파싱 불가 (path=" + path + "): "
+					+ e.getMessage(), e);
+			}
+		}
+		throw new RuntimeException("[카페24] 전체 상품 조회 실패 — 호출 한도 초과가 "
+			+ CATALOG_RATE_LIMIT_RETRIES + "회 재시도 후에도 계속됨 (누적 " + collectedSoFar + "건)", lastRateLimit);
+	}
+
+	private MarketCatalogEntry toCatalogEntry(JsonNode product) {
+		String productNo = text(product, "product_no");
+		if (productNo.isEmpty()) {
+			return null;
+		}
+		Map<String, String> identifiers = new HashMap<>();
+		identifiers.put("product_no", productNo);
+		String productCode = text(product, "product_code");
+		if (!productCode.isEmpty()) {
+			identifiers.put("product_code", productCode);
+		}
+		String display = text(product, "display");
+		String selling = text(product, "selling");
+		String status = display.isEmpty() && selling.isEmpty()
+			? null
+			: "display=" + display + ",selling=" + selling;
+		return new MarketCatalogEntry(blankToNull(text(product, "custom_product_code")), identifiers, status);
+	}
+
+	private static String text(JsonNode node, String field) {
+		String value = node.path(field).asText("");
+		return value == null ? "" : value.trim();
+	}
+
+	private static boolean isRateLimited(RuntimeException e) {
+		for (Throwable t = e; t != null; t = t.getCause()) {
+			String message = t.getMessage();
+			if (message != null && (message.contains("429") || message.contains("Too many"))) {
+				return true;
+			}
+			if (t.getCause() == t) {
+				break;
+			}
+		}
+		return false;
+	}
+
+	private static String blankToNull(String value) {
+		return value == null || value.isBlank() ? null : value;
+	}
+
+	private void sleepQuietly(long millis) {
+		if (millis <= 0) {
+			return;
+		}
+		try {
+			Thread.sleep(millis);
+		} catch (InterruptedException ie) {
+			Thread.currentThread().interrupt();
+			throw new RuntimeException("[카페24] 전체 상품 조회 실패 — 중단됨", ie);
+		}
 	}
 
 	@Override

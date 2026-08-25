@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
+import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -37,6 +38,10 @@ import org.springframework.stereotype.Component;
 public class CoupangMarketClient implements MarketClient {
 
 	private static final Set<String> PLACEHOLDER_ATTRIBUTE_VALUES = Set.of("수량", "용량", "중량", "정", "개", "캡슐");
+
+	private static final String CATALOG_BASE = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
+	private static final int CATALOG_PAGE_SIZE = 100;
+	private static final int CATALOG_MAX_PAGES = 1000;
 
 	private final CoupangProperties properties;
 	private final ObjectMapper objectMapper;
@@ -252,6 +257,124 @@ public class CoupangMarketClient implements MarketClient {
 		verifyEnvelopeStrict(putResp, "[쿠팡] 상품수정(이미지/상세)");
 		log.info("[쿠팡] 이미지/HTML 동기화 완료(requested=true 자동승인요청): {}", marketItemId);
 		return rawData;
+	}
+
+	@Override
+	public List<MarketCatalogEntry> fetchCatalog(long throttleMs) {
+		List<MarketCatalogEntry> entries = new ArrayList<>();
+		String vendorId = restClient.resolveVendorId();
+		String nextToken = "";
+		boolean reachedLastPage = false;
+		for (int page = 0; page < CATALOG_MAX_PAGES; page++) {
+			String path = CATALOG_BASE + "?vendorId=" + vendorId
+				+ "&maxPerPage=" + CATALOG_PAGE_SIZE + "&nextToken=" + nextToken;
+			String response;
+			try {
+				response = restClient.get(path);
+			} catch (Exception e) {
+				throw new RuntimeException("[쿠팡] 전체 상품 조회 실패 (누적 " + entries.size() + "건, nextToken="
+					+ nextToken + "): " + e.getMessage(), e);
+			}
+			verifyEnvelopeStrict(response, "[쿠팡] 전체 상품 조회");
+			JsonNode root = readEnvelope(response);
+			for (JsonNode item : root.path("data")) {
+				MarketCatalogEntry entry = toCatalogEntry(item, null);
+				if (entry != null) {
+					entries.add(entry);
+				}
+			}
+			nextToken = root.path("nextToken").asText("");
+			log.info("[쿠팡] 카탈로그 스캔 누적 {}건 (nextToken={})", entries.size(), nextToken);
+			if (nextToken.isBlank()) {
+				reachedLastPage = true;
+				break;
+			}
+			sleepQuietly(throttleMs);
+		}
+		if (!reachedLastPage) {
+			throw new RuntimeException("[쿠팡] 전체 상품 조회 실패 — 페이지 상한(" + CATALOG_MAX_PAGES
+				+ ")을 소진했는데 nextToken이 비지 않았다 (누적 " + entries.size()
+				+ "건). 잘린 카탈로그는 대조에서 '마켓에 없는 상품'으로 오독되므로 반환하지 않는다.");
+		}
+		return entries;
+	}
+
+	@Override
+	public boolean supportsSingleLookup() {
+		return true;
+	}
+
+	@Override
+	public Optional<MarketCatalogEntry> fetchBySellerCode(String sellerCode) {
+		if (sellerCode == null || sellerCode.isBlank()) {
+			return Optional.empty();
+		}
+		String code = sellerCode.trim();
+		String response;
+		try {
+			response = restClient.get(CATALOG_BASE + "/external-vendor-sku-codes/" + code);
+		} catch (RuntimeException e) {
+			if (isNotFound(e)) {
+				log.info("[쿠팡] SB코드 미등록: externalVendorSku={}", code);
+				return Optional.empty();
+			}
+			throw new RuntimeException("[쿠팡] SB코드 단건 조회 실패 (externalVendorSku=" + code + "): "
+				+ e.getMessage(), e);
+		}
+		verifyEnvelopeStrict(response, "[쿠팡] SB코드 단건 조회");
+		JsonNode data = readEnvelope(response).path("data");
+		JsonNode item = data.isArray() ? (data.isEmpty() ? null : data.get(0)) : (data.isObject() ? data : null);
+		if (item == null) {
+			return Optional.empty();
+		}
+		return Optional.ofNullable(toCatalogEntry(item, code));
+	}
+
+	private MarketCatalogEntry toCatalogEntry(JsonNode item, String sellerCode) {
+		String sellerProductId = text(item, "sellerProductId");
+		if (sellerProductId.isEmpty()) {
+			return null;
+		}
+		Map<String, String> identifiers = new LinkedHashMap<>();
+		identifiers.put("sellerProductId", sellerProductId);
+		putIfPresent(identifiers, item, "productId");
+		putIfPresent(identifiers, item, "vendorItemId");
+		String status = text(item, "statusName");
+		return new MarketCatalogEntry(sellerCode, identifiers, status.isEmpty() ? null : status);
+	}
+
+	private static void putIfPresent(Map<String, String> identifiers, JsonNode item, String field) {
+		String value = text(item, field);
+		if (!value.isEmpty() && !"0".equals(value)) {
+			identifiers.put(field, value);
+		}
+	}
+
+	private static String text(JsonNode node, String field) {
+		String value = node.path(field).asText("");
+		return value == null ? "" : value.trim();
+	}
+
+	private static boolean isNotFound(RuntimeException e) {
+		for (Throwable t = e; t != null && t != t.getCause(); t = t.getCause()) {
+			String message = t.getMessage();
+			if (message != null && (message.contains("404") || message.contains("NOT_FOUND"))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private void sleepQuietly(long throttleMs) {
+		if (throttleMs <= 0) {
+			return;
+		}
+		try {
+			Thread.sleep(throttleMs);
+		} catch (InterruptedException ie) {
+			Thread.currentThread().interrupt();
+			throw new RuntimeException("[쿠팡] 전체 상품 조회 실패 — 중단됨", ie);
+		}
 	}
 
 	@Override

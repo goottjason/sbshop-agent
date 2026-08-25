@@ -1,15 +1,19 @@
 package com.sbshop.agent.infrastructure.client.elevenst.adapter;
 
 import com.sbshop.agent.core.domain.market.client.MarketClient;
+import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.infrastructure.client.elevenst.client.ElevenstMarketRestClient;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -20,6 +24,15 @@ import org.springframework.stereotype.Component;
 public class ElevenstMarketClient implements MarketClient {
 
 	private final ElevenstMarketRestClient restClient;
+
+	private static final String CATALOG_PATH = "/rest/prodmarketservice/prodmarket";
+	private static final int CATALOG_LIMIT = 100;
+	private static final int CATALOG_MAX_PAGES = 1000;
+	private static final Pattern CATALOG_RECORD = Pattern.compile("(?s)<(Product|product)>.*?</\\1>");
+	private static final Set<String> CATALOG_SUCCESS_CODES = Set.of("200", "0");
+	private static final boolean CATALOG_ENABLED = false;
+	private static final String CATALOG_DISABLED_REASON = "11번가 전체 상품 조회는 엔드포인트·HTTP 동사·요청 본문 스키마가 실호출로 확정될 때까지 비활성입니다 "
+		+ "(D-208 인증 거부로 미검증 — 컬렉션 POST의 쓰기 위험을 배제할 수 없습니다)";
 
 	@Override
 	public MarketType getSupportedMarket() {
@@ -67,6 +80,129 @@ public class ElevenstMarketClient implements MarketClient {
 			.mappingKey(extractXmlValue(response, "prdNo"))
 			.rawData(Map.of("xmlResponse", response))
 			.build();
+	}
+
+	@Override
+	public List<MarketCatalogEntry> fetchCatalog(long throttleMs) {
+		if (!CATALOG_ENABLED) {
+			return null;
+		}
+		return scanCatalog(throttleMs);
+	}
+
+	@Override
+	public String catalogUnsupportedReason() {
+		return CATALOG_ENABLED ? null : CATALOG_DISABLED_REASON;
+	}
+
+	public List<MarketCatalogEntry> scanCatalog(long throttleMs) {
+		List<MarketCatalogEntry> entries = new ArrayList<>();
+		int start = 1;
+		boolean reachedLastPage = false;
+		for (int page = 0; page < CATALOG_MAX_PAGES; page++) {
+			int end = start + CATALOG_LIMIT - 1;
+			String response;
+			try {
+				response = restClient.post(CATALOG_PATH, catalogRequestXml(start, end));
+			} catch (Exception e) {
+				throw new RuntimeException("[Elevenst] 전체 상품 조회 실패 (누적 " + entries.size() + "건, start="
+					+ start + "): " + e.getMessage(), e);
+			}
+			verifyCatalogEnvelope(response, entries.size());
+			List<String> records = extractProductRecords(response);
+			for (String record : records) {
+				MarketCatalogEntry entry = toCatalogEntry(record);
+				if (entry != null) {
+					entries.add(entry);
+				}
+			}
+			log.info("[Elevenst] 카탈로그 스캔 start={} 누적 {}건 (이번 페이지 {}건)", start, entries.size(), records.size());
+			if (records.size() < CATALOG_LIMIT) {
+				reachedLastPage = true;
+				break;
+			}
+			start += CATALOG_LIMIT;
+			sleepQuietly(throttleMs);
+		}
+		if (!reachedLastPage) {
+			throw new RuntimeException("[Elevenst] 전체 상품 조회 실패 — 페이지 상한(" + CATALOG_MAX_PAGES
+				+ ")을 소진했는데 마지막 페이지에 닿지 못했다 (누적 " + entries.size()
+				+ "건). 잘린 카탈로그는 대조에서 '마켓에 없는 상품'으로 오독되므로 반환하지 않는다.");
+		}
+		return entries;
+	}
+
+	private String catalogRequestXml(int start, int end) {
+		return "<?xml version=\"1.0\" encoding=\"euc-kr\"?>\n<SearchProduct>\n"
+			+ "  <limit>" + CATALOG_LIMIT + "</limit>\n"
+			+ "  <start>" + start + "</start>\n"
+			+ "  <end>" + end + "</end>\n"
+			+ "</SearchProduct>";
+	}
+
+	private void verifyCatalogEnvelope(String response, int collectedSoFar) {
+		if (response == null || response.isBlank()) {
+			throw new RuntimeException("[Elevenst] 전체 상품 조회 실패 — 빈 응답 (누적 " + collectedSoFar + "건)");
+		}
+		String resultCode = extractXmlValue(response, "resultCode");
+		if (CATALOG_SUCCESS_CODES.contains(resultCode)) {
+			return;
+		}
+		String message = extractXmlValue(response, "resultMessage");
+		if (message.isEmpty()) {
+			message = extractXmlValue(response, "message");
+		}
+		throw new RuntimeException("[Elevenst] 전체 상품 조회 실패 — resultCode="
+			+ (resultCode.isEmpty() ? "(없음)" : resultCode) + ", message=" + message
+			+ ", 누적 " + collectedSoFar + "건, 응답=" + response.substring(0, Math.min(response.length(), 300)));
+	}
+
+	private List<String> extractProductRecords(String xml) {
+		List<String> records = new ArrayList<>();
+		Matcher matcher = CATALOG_RECORD.matcher(xml);
+		while (matcher.find()) {
+			records.add(matcher.group(0));
+		}
+		return records;
+	}
+
+	private MarketCatalogEntry toCatalogEntry(String record) {
+		String prdNo = unwrapCdata(extractXmlValue(record, "prdNo"));
+		if (prdNo.isEmpty()) {
+			return null;
+		}
+		Map<String, String> identifiers = new HashMap<>();
+		identifiers.put("prdNo", prdNo);
+		String status = unwrapCdata(extractXmlValue(record, "selStatNm"));
+		if (status.isEmpty()) {
+			status = unwrapCdata(extractXmlValue(record, "selStatCd"));
+		}
+		String sellerCode = unwrapCdata(extractXmlValue(record, "sellerPrdCd"));
+		return new MarketCatalogEntry(sellerCode.isEmpty() ? null : sellerCode, identifiers,
+			status.isEmpty() ? null : status);
+	}
+
+	private static String unwrapCdata(String value) {
+		if (value == null) {
+			return "";
+		}
+		String trimmed = value.trim();
+		if (trimmed.startsWith("<![CDATA[") && trimmed.endsWith("]]>")) {
+			return trimmed.substring(9, trimmed.length() - 3).trim();
+		}
+		return trimmed;
+	}
+
+	private void sleepQuietly(long throttleMs) {
+		if (throttleMs <= 0) {
+			return;
+		}
+		try {
+			Thread.sleep(throttleMs);
+		} catch (InterruptedException ie) {
+			Thread.currentThread().interrupt();
+			throw new RuntimeException("[Elevenst] 전체 상품 조회 실패 — 중단됨", ie);
+		}
 	}
 
 	@Override

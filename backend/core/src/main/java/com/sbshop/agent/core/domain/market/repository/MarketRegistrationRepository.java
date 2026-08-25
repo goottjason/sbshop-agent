@@ -24,4 +24,10 @@ public interface MarketRegistrationRepository extends JpaRepository<MarketRegist
 	List<MarketRegistration> findByMarketTypeAndIdentifiersContaining(@Param("marketType")
 	MarketType marketType, @Param("value")
 	String value);
+
+	@Query("SELECT r.productId AS productId, p.sbCode AS sbCode, r.marketIdentifiers AS marketIdentifiers "
+		+ "FROM MarketRegistration r LEFT JOIN Product p ON p.id = r.productId "
+		+ "WHERE r.marketType = :marketType")
+	List<MarketRegistrationSyncRow> findSyncRowsByMarketType(@Param("marketType")
+	MarketType marketType);
 }

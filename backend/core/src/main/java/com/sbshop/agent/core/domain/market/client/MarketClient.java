@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.domain.market.client;
 
+import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -69,6 +70,22 @@ public interface MarketClient {
 
 	default Map<String, String> fetchAllLinkIdentifiers(long throttleMs) {
 		return null;
+	}
+
+	default List<MarketCatalogEntry> fetchCatalog(long throttleMs) {
+		return null;
+	}
+
+	default String catalogUnsupportedReason() {
+		return null;
+	}
+
+	default boolean supportsSingleLookup() {
+		return false;
+	}
+
+	default Optional<MarketCatalogEntry> fetchBySellerCode(String sellerCode) {
+		return Optional.empty();
 	}
 
 	default Optional<String> removeSellerImmediateDiscount(String marketItemId, boolean dryRun) {

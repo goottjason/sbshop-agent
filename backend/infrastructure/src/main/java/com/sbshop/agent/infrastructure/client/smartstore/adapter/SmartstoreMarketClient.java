@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.config.MarketRegistrationDefaults;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
+import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -41,6 +42,8 @@ public class SmartstoreMarketClient implements MarketClient {
 	private final ObjectMapper objectMapper;
 
 	private static final int MAX_PUBLISH_IMAGES = 10;
+	private static final int CATALOG_PAGE_SIZE = 500;
+	private static final int CATALOG_MAX_PAGES = 200;
 
 	@Override
 	public MarketType getSupportedMarket() {
@@ -262,6 +265,95 @@ public class SmartstoreMarketClient implements MarketClient {
 	@Override
 	public Map<String, String> fetchAllLinkIdentifiers(long throttleMs) {
 		return fetchAllChannelProductNos(throttleMs);
+	}
+
+	@Override
+	public List<MarketCatalogEntry> fetchCatalog(long throttleMs) {
+		List<MarketCatalogEntry> entries = new ArrayList<>();
+		int page = 1;
+		boolean reachedLastPage = false;
+		while (page <= CATALOG_MAX_PAGES) {
+			String response;
+			try {
+				Map<String, Object> body = new HashMap<>();
+				body.put("page", page);
+				body.put("size", CATALOG_PAGE_SIZE);
+				response = restClient.post("/v1/products/search", body);
+			} catch (Exception e) {
+				throw new RuntimeException(
+					"[Smartstore] 전체 상품 조회 실패 page=" + page + " (누적 " + entries.size() + "건): " + e.getMessage(), e);
+			}
+			JsonNode root;
+			try {
+				root = objectMapper.readTree(response);
+			} catch (Exception e) {
+				throw new RuntimeException(
+					"[Smartstore] 전체 상품 조회 실패 — 응답 파싱 불가 page=" + page + ": " + e.getMessage(), e);
+			}
+			JsonNode contents = root.path("contents");
+			for (JsonNode content : contents) {
+				MarketCatalogEntry entry = toCatalogEntry(content);
+				if (entry != null) {
+					entries.add(entry);
+				}
+			}
+			boolean last = root.path("last").asBoolean(true) || !contents.isArray() || contents.isEmpty();
+			log.info("[Smartstore] 카탈로그 스캔 page={} 누적 {}건 (last={})", page, entries.size(), last);
+			if (last) {
+				reachedLastPage = true;
+				break;
+			}
+			page++;
+			sleepQuietly(throttleMs);
+		}
+		if (!reachedLastPage) {
+			throw new RuntimeException("[Smartstore] 전체 상품 조회 실패 — 페이지 상한("
+				+ CATALOG_MAX_PAGES + ")을 소진했는데 마지막 페이지에 닿지 못했다 (누적 " + entries.size()
+				+ "건). 잘린 카탈로그는 대조에서 '마켓에 없는 상품'으로 오독되므로 반환하지 않는다.");
+		}
+		return entries;
+	}
+
+	private MarketCatalogEntry toCatalogEntry(JsonNode content) {
+		String originNo = text(content, "originProductNo");
+		if (originNo.isEmpty()) {
+			return null;
+		}
+		Map<String, String> identifiers = new HashMap<>();
+		identifiers.put("originProductNo", originNo);
+		JsonNode channel = pickChannelProduct(content.path("channelProducts"));
+		String sellerCode = null;
+		String status = null;
+		if (channel != null) {
+			String ch = text(channel, "channelProductNo");
+			if (!ch.isEmpty()) {
+				identifiers.put("channelProductNo", ch);
+			}
+			sellerCode = blankToNull(text(channel, "sellerManagementCode"));
+			status = blankToNull(text(channel, "statusType"));
+		}
+		return new MarketCatalogEntry(sellerCode, identifiers, status);
+	}
+
+	private static String text(JsonNode node, String field) {
+		String value = node.path(field).asText("");
+		return value == null ? "" : value.trim();
+	}
+
+	private static String blankToNull(String value) {
+		return value == null || value.isBlank() ? null : value;
+	}
+
+	private void sleepQuietly(long throttleMs) {
+		if (throttleMs <= 0) {
+			return;
+		}
+		try {
+			Thread.sleep(throttleMs);
+		} catch (InterruptedException ie) {
+			Thread.currentThread().interrupt();
+			throw new RuntimeException("[Smartstore] 전체 상품 조회 실패 — 중단됨", ie);
+		}
 	}
 
 	public Map<String, String> fetchAllChannelProductNos(long throttleMs) {
@@ -487,16 +579,7 @@ public class SmartstoreMarketClient implements MarketClient {
 	}
 
 	private String pickChannelProductNo(JsonNode channelProducts) {
-		JsonNode chosen = null;
-		for (JsonNode cp : channelProducts) {
-			if ("STOREFARM".equals(cp.path("channelServiceType").asText())) {
-				chosen = cp;
-				break;
-			}
-			if (chosen == null) {
-				chosen = cp;
-			}
-		}
+		JsonNode chosen = pickChannelProduct(channelProducts);
 		if (chosen != null) {
 			String ch = chosen.path("channelProductNo").asText("");
 			if (!ch.isBlank()) {
@@ -504,5 +587,18 @@ public class SmartstoreMarketClient implements MarketClient {
 			}
 		}
 		return null;
+	}
+
+	private JsonNode pickChannelProduct(JsonNode channelProducts) {
+		JsonNode chosen = null;
+		for (JsonNode cp : channelProducts) {
+			if ("STOREFARM".equals(cp.path("channelServiceType").asText())) {
+				return cp;
+			}
+			if (chosen == null) {
+				chosen = cp;
+			}
+		}
+		return chosen;
 	}
 }

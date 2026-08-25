@@ -38,6 +38,10 @@ public class CoupangRestClient {
 		return request(method, path, body);
 	}
 
+	public String resolveVendorId() {
+		return resolveCredentials()[2];
+	}
+
 	private String request(String method, String path, Object body) {
 		try {
 			String[] cred = resolveCredentials();

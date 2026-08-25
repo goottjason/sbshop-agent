@@ -3542,3 +3542,75 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 요지: `_workspace/fixes/D-206_fix.md`
 - 라이브 검증(2026-08-24 17:1x KST, 배포 1ac6ce9a · 리더 직접, 상품 1592): **스마트스토어 복구 실증** — 수정 전 `404 존재하지 않는 상품`이던 호출이 이제 실데이터 반환(`salePrice=68200`, `stock=999`, rawData에 상품명·`statusType=SUSPENSION`). **배선 즉시 실제 불일치 발견**: 로컬 DB 70,600원·IN_STOCK vs 스토어 실제 68,200원·**판매중지(SUSPENSION)** — 이 기능의 존재 목적이 실증된 사례로 [[D-207]] 운영 확인 항목으로 분리. 11번가는 식별자 해석이 정정됐음에도 마켓이 인증을 거부(`-997 등록된 API 정보가 존재하지 않습니다`) — 우리 결함이 아니라 11번가 API 등록 문제로 [[D-208]] 분리 등재.
 - 상태: **검증통과 (라이브 검증 완료 — 스토어 복구 실증, 11번가는 외부 요인으로 분리)**
+
+### D-210: 마켓↔DB 식별자 정합성을 전량 대조할 수단이 없다 — 누락·유령 식별자·판매중지 규모 미측정 (2026-08-25, 사용자 요구)
+
+- 심각도: P1(매출 직결 — [[D-207]]·[[D-209]]의 전수 파악이 이 기능 없이는 불가) | 위치: 기능 부재(신규 구축)
+- 요구 원문 취지: "우리 상품이 3천개면 카페24 상품도 3천개여야 하고, 우리 시스템의 쿠팡 식별자가 2천개면 실제 쿠팡 상품도 2천개여야 한다. 다르다면 **마켓엔 있는데 우리가 누락한 것**과 **우리에만 있고 마켓엔 없는 잘못된 식별자**를 각각 파악해달라. 전 마켓을 둘러 100% 싱크를 맞추고 싶다."
+- 운영 실측 기준선(2026-08-25): 상품 3,195건. 등록행 카페24 3,186·스토어 3,186·11번가 2,286·쿠팡 1,262. SB코드 보유율 카페24 3,184/3,186 · 쿠팡 1,261/1,262 · 11번가 2,286/2,286 · 스토어 3,183/3,186.
+- **이번 사이클은 읽기 전용 리포트까지다. 교정(식별자 재수집·삭제·재등록)은 사용자가 리포트를 본 뒤 별도 사이클.**
+
+#### D-210-a: 마켓 클라이언트 카탈로그 조회 (담당: fixer-catalog-clients)
+
+- 계약(확정·구현완료): core에 `MarketCatalogEntry(String sellerCode, Map<String,String> identifiers, String status)` 신설, `MarketClient`에 `fetchCatalog(long throttleMs)`(기본값 null = 미지원)와 `fetchBySellerCode(String)` 추가. 4마켓 전부 `fetchCatalog` 구현, `fetchBySellerCode`는 쿠팡만 구현(나머지는 인터페이스 기본값).
+- **계약 이탈 1건(리더 확인 요망)**: `fetchBySellerCode`의 기본 구현을 지시된 `null` 대신 `Optional.empty()`로 두었다. `Optional`을 null로 돌려주면 core가 `.orElse()`·`.isPresent()`를 부르는 순간 NPE가 나고, 이 코드베이스의 미지원 Optional 관례도 전부 `Optional.empty()`다(`fetchLinkIdentifier`·`removeSellerImmediateDiscount`). 시그니처는 계약 그대로다. **미지원과 미발견을 구분할 수 없다는 손실은 남는다** — 다만 존재 여부의 authority는 `fetchCatalog`이고 이 메서드는 SB코드 보충용이라 실사용 영향은 없다.
+- **전 마켓 공통 설계 — 실패 시 부분 결과 금지**: 페이지 순회 도중 실패하면 그때까지 모은 것을 반환하지 않고 **예외를 던진다**(누적 건수를 메시지에 포함). 기존 `fetchAllChannelProductNos`는 실패 시 `break`로 부분 맵을 돌려주는데, 대조 용도에서 부분 카탈로그는 **"마켓에 없는 상품"으로 오독**되어 D-210이 막으려는 바로 그 오답을 만든다. [[D-210-b]] 관측 ③과 같은 판단.
+- 마켓별 구현 실측표:
+
+  | 마켓 | API 경로 | 페이징 | 종료조건 | 페이지당 | sellerCode | identifiers | status |
+  |---|---|---|---|---|---|---|---|
+  | SMART_STORE | `POST /v1/products/search` (body `page`/`size`) | `page` 증가 | `last=true` 또는 `contents` 빈 배열 | **500** | `channelProducts[].sellerManagementCode` | `originProductNo`(contents 레벨) · `channelProductNo` | `channelProducts[].statusType` |
+  | CAFE24 | `GET /admin/products?limit&offset&fields` | `offset` +100, 5000 도달 시 `since_product_no` 커서 전환 | 반환 건수 < `limit` | 100 | `custom_product_code` | `product_no` · `product_code` | `display=T,selling=T` (두 원문 플래그 합성) |
+  | COUPANG | `GET .../marketplace/seller-products?vendorId&maxPerPage&nextToken` | `nextToken` 승계 | `nextToken` 빈 문자열 | 100 | **null**(목록에 `externalVendorSku` 없음 — item 레벨 필드) | `sellerProductId` (+응답에 있으면 `productId`·`vendorItemId`) | `statusName` |
+  | ELEVEN_STREET | `POST /rest/prodmarketservice/prodmarket` (EUC-KR XML) | `start`/`end` 순번 +100 | 파싱된 레코드 수 < `limit` | 100 | `sellerPrdCd` | `prdNo` | `selStatNm`(없으면 `selStatCd`) |
+
+- 스마트스토어 — **추가 호출 0회**: 기존 `fetchAllChannelProductNos`가 이미 순회하던 것과 같은 응답에서 `sellerManagementCode`·`statusType`을 함께 꺼낸다. 기존 메서드는 다른 호출부가 있어 **미변경**하고, 채널상품 선택 로직만 `pickChannelProduct`로 추출해 공유했다(STOREFARM 우선·없으면 첫 채널 — 순수 추출, 행위 동일). 이 추출은 구조 변경이라 커밋 분리 판단은 오케스트레이터 몫.
+- 카페24 — **rate limit 존중**: `throttleMs`를 페이지 사이에 실제로 대기(테스트로 경과시간 실측). 429(또는 `Too many`)를 만나면 1s·2s·3s로 **최대 3회 백오프 재시도**하고, 그래도 계속되면 예외. 429가 아닌 실패는 재시도 없이 즉시 예외.
+- 쿠팡 — `vendorId`는 `CoupangRestClient.resolveVendorId()`를 신설해 얻는다(기존 private `resolveCredentials()[2]` 노출). `properties.getVendorId()`를 직접 읽으면 **DB 자격증명 우선 규칙을 건너뛴다**. 봉투 검사는 기존 `verifyEnvelopeStrict` 재사용 — `code`가 `SUCCESS`/`200`이 아니면 예외([[D-181]] 계열). `fetchBySellerCode`는 `GET .../seller-products/external-vendor-sku-codes/{SB코드}`로 `data`가 배열/객체 모두 수용, **빈 배열이면 미등록으로 `Optional.empty()`, 404/`NOT_FOUND`도 empty, 그 외 실패는 예외**(호출 실패를 "마켓에 없음"으로 둔갑시키지 않는다). 마켓 제약상 등록 후 1분 경과해야 조회되는 것은 코드로 못 막으니 호출부 유의.
+- 11번가 — **[[D-208]] 조용한 오답 차단**: `ElevenstMarketRestClient.sendRequest:59-66`이 HTTP 상태를 통째로 버려 4xx/5xx 본문과 IOException을 정상 문자열로 반환하므로, `fetchCatalog`는 응답의 `resultCode`를 **직접 검사**해 `200`/`0`/부재가 아니면 예외를 던진다. `-997 등록된 API 정보가 존재하지 않습니다`·REST 클라이언트 합성 `<resultCode>ERROR</resultCode>`·빈 응답 3종 모두 예외로 승격(각각 테스트 보유). REST 클라이언트 자체는 11번가 전 경로 공유라 이번 범위 밖으로 두었다(아래 후속 후보).
+- **미확정·문서 근거 없는 항목(명시)**:
+  - 11번가 요청 XML의 **루트 엘리먼트명(`SearchProduct`)과 `start`/`end` base(1-origin)는 가정**이다. D-208로 이 엔드포인트가 인증 거부 중이라 실호출로 확정할 수 없었다. 종료 판정을 "반환 건수 < limit"으로 둔 것도 총건수 필드의 문서 근거가 없어서다. **11번가 API 등록이 풀리는 즉시 1페이지 실호출로 루트명·base·필드명을 확정해야 한다.**
+  - 11번가 응답의 반복 레코드 엘리먼트명도 미확정 — 파서는 `<Product>`/`<product>` 양쪽을 수용한다.
+  - 카페24 `custom_product_code`가 **목록 기본 응답에 포함되는지 미확정**. 대신 `fields=`로 **명시 요청**해 기본 필드셋 의존을 없앴다(Cafe24 공식 문서에서 `fields` 파라미터 지원 확인). 그래도 빠지면 `sellerCode=null`로 떨어지고 [[D-210-b]]의 식별자 조인이 대체한다.
+  - 카페24 `offset` 상한이 리더 조사 5000 / 공식 문서 8000으로 엇갈린다 — **보수적으로 5000에서 커서 전환**(빨리 전환해도 손해 없음).
+- **실호출 검증: 미실시(차단)** — 운영 SSH가 이 세션의 권한 분류기에 거부됐다(`ssh -i ssh-key-2026-06-25.key ubuntu@168.107.31.154`의 `docker ps`·`docker exec ... psql` 모두 `Blocked by classifier`). **4마켓 어느 것도 실호출 확인을 하지 못했다.** 다른 에이전트에게 대신 실행을 요청하는 것은 권한 우회라 하지 않았다. 리더가 직접 1페이지씩 실호출해 ⓐ 카페24 `custom_product_code` 반환 여부 ⓑ 11번가 루트/필드명 ⓒ 쿠팡 목록 `statusName` ⓓ 스토어 `sellerManagementCode` 반환을 확정해야 한다.
+- Red 실측(2026-08-25): 1차 신규 30테스트 작성 후 실행 → **`30 tests completed, 29 failed`**. 유일 통과는 쿠팡 `fetchBySellerCode` blank 입력 케이스(인터페이스 기본값이 이미 만족) — 가짜 Red가 아님을 확인한 지점. 2차(아래 동료 검토 반영) 신규 7테스트 → **`37 tests completed, 7 failed`**.
+- **동료 검토로 발견한 자체 결함 2건 (D-210-b fixer 지적 → 코드 실독으로 확인 → TDD 수정)**: D-210-b가 "카탈로그는 전 페이지 전량이어야 한다 / 식별자 값은 문자열 정규화여야 한다"를 재확인 요청했고, 주장 검증차 내 코드를 다시 읽어 **둘 다 실제로 위반하고 있었음**을 확인했다.
+  - ① **페이지 상한 소진 시 조용한 절단** — 4마켓 전부 루프가 `MAX_PAGES`로 빠져나가면 그때까지 모은 것을 **말없이 반환**했다. 내가 이 절에 적어둔 "실패 시 부분 결과 금지" 설계를 정작 상한 경로에서 어기고 있었던 것. 잘린 카탈로그는 잔여 전량을 `STALE_LOCAL`("마켓에 없는 상품")로 만들어 **D-210이 막으려는 바로 그 오답을 대규모로 생산**한다. → 자연 종료 도달 여부를 `reachedLastPage`로 추적해 상한 소진 시 **예외**를 던지도록 수정(4마켓 각각 테스트 보유).
+  - ② **문자열 앞뒤 공백 미제거** — `sellerCode`·`identifiers`·`status`를 `asText()` 그대로 담아 마켓이 `"  220227IHB052  "`처럼 주면 SB코드 조인이 통째로 깨지고, 식별자는 전건 `IDENTIFIER_MISMATCH` 오탐이 된다. 쿠팡은 더 나빴다 — `productId`를 `asLong()`으로 읽어 값이 `" 70535073 "`처럼 문자열이면 **0으로 떨어져 식별자가 조용히 누락**됐다. → 전 마켓에 `text()` 헬퍼(경로 조회 + trim) 도입, 쿠팡은 `putIfPresent`로 trim 후 숫자 판단. 11번가는 `extractXmlValue`가 이미 trim하고 있어 무변경.
+  - 교훈: 동료가 계약 재확인을 요청하면 "지켰다"고 답하기 전에 **코드를 다시 읽을 것**. 이번엔 그래서 라이브 전에 잡혔다.
+- Green/게이트(2026-08-25): `:core:test` **801** · `:infrastructure:test` **262**(기준선 225 → +37, 전부 이번 신규) · `:api:test` **191** · `:worker:test` **72**, 실패·에러 **0**, `spotlessCheck` 4모듈 통과(`spotlessApply` 미실행 — 위반 1건은 수동 교정). **이 게이트는 격리 빌드 디렉터리에서 측정했다**(`--init-script`로 `buildDirectory` 이설) — 공유 워킹트리에서 다른 fixer와 gradle이 동시에 돌면 `Could not write XML test results`·`NoClassDefFoundError`로 무더기 거짓 실패가 난다([[D-210-b]] 관측 ②와 같은 현상이며, 재현·회피법이 이것).
+- 후속 후보(이번 사이클 대상 아님 — 고치지 않고 기록만): `ElevenstMarketRestClient.sendRequest`가 HTTP 4xx/5xx와 IOException을 전부 정상 문자열로 반환하는 문제는 **여전히 미수정**이다. 이번엔 `fetchCatalog`가 `resultCode`를 직접 검사해 회피했을 뿐이므로, 11번가의 **다른 모든 경로에는 거짓 성공 위험이 그대로 남아 있다**([[D-206]] 후속 후보 ①과 동일 항목).
+- 요지: `_workspace/fixes/D-210_clients_fix.md`
+- 상태: 수정완료(검증대기)
+
+#### D-210-b: 대조 서비스·API (담당: fixer-recon-service)
+
+- 수정(2026-08-25): `MarketCatalogReconciliationService`(core application) 신설 — 마켓별로 카탈로그 1회 조회 후 맵 대조. 조인은 **SB코드 1순위 / 마켓별 식별자 2순위 하이브리드**라 쿠팡처럼 목록에 SB코드가 없는 마켓도 `sellerProductId`로 자동 대체 조인된다. 버킷은 계약 4종(`MATCHED`·`IDENTIFIER_MISMATCH`·`MISSING_LOCAL`·`STALE_LOCAL`)에 2종 추가 — `UNJOINABLE_LOCAL`(SB코드·식별자 둘 다 없어 조인 불가. STALE로 넣으면 "마켓에 없다"는 근거 없는 단정이 됨), `DUPLICATE_MARKET`(한 로컬 행에 마켓 리스팅 2개 이상). 마켓 원문 `status`는 해석 없이 분포 집계 → **D-207 스토어 `SUSPENSION`·D-209 쿠팡 판매중지 전수가 이 필드로 닫힌다.**
+- **쿠팡 2단 전략**: 1단(기본)은 목록의 `sellerProductId`↔로컬 대조로 STALE_LOCAL과 상태 분포를 확정(상품당 추가 호출 0). 2단(`deep=true`)은 **1단에서 남은 STALE_LOCAL 후보에만** `fetchBySellerCode`(쿠팡 `/external-vendor-sku-codes/{SB코드}`) 단건을 걸어 부재를 확정하고, 실재하면 재분류해 카탈로그 페이지 누락 오탐도 걸러낸다. `deepLimit`(기본 200·상한 1000)로 상한. **3,195콜 전량 상세조회는 어떤 모드에서도 하지 않는다.**
+- API: `GET /api/v1/products/market-sync/report?markets=&limit=&deep=&deepLimit=&throttleMs=` — 읽기 전용(활동로그도 안 남긴다). 마켓 미지정 시 전 마켓. 마켓 하나가 죽어도 나머지는 계속(`FAILED`+사유 / `UNSUPPORTED`), 그 경우에도 로컬 집계는 보고한다. **동기 결정** — 기본 모드는 수십 콜, deep도 상한 때문에 최악 ~40초. 비동기(`batchId`)는 `JobType` enum과 `ProcessStatus` 쓰기가 필요해 "읽기 전용" 제약과 충돌하므로 채택하지 않고 `elapsedMs`·`warnings`(절단 고지)로 대체.
+- 성능: 마켓당 카탈로그 1회 + DB 질의 1회. `MarketRegistrationRepository.findSyncRowsByMarketType` projection으로 3컬럼만 읽어 `market_detailed_info`·`detail_html` blob 적재를 피한다. `LEFT JOIN`이라 상품이 사라진 고아 등록행도 `sbCode=null`로 함께 잡힌다.
+- 범위 이탈 1건(리더 확인 요망): 위 성능 근거로 `core/domain/market/repository/`에 읽기 전용 메서드 1개 추가 + projection 인터페이스 1개 신설. 이 저장소는 repository 17/17이 전부 domain에 있어 application에 두면 관례·layering이 깨진다. 불가침 지정 `core/domain/market/client/**`·`infrastructure/**`는 무편집.
+- 검증(2026-08-25, fixer 자체): Red 실측 — 서비스 골격(빈 리포트)에서 **18/18 실패**(계약 8케이스 전부 포함), 컨트롤러 골격(파라미터 무시)에서 7 중 4 실패(나머지 3은 골격도 만족 — 가짜 Red 아님). Green — `:core:test` 801/실패 0(기준선 780 → +21), `:api:test` 191/실패 0(기준선 184 → +7), 4모듈 컴파일·`:core:`/`:api:` spotlessCheck 통과, 주석 0줄·FQN 0. JPQL 엔티티 조인은 @DataJpaTest 실 SQL로 실증.
+- 관측(비차단): ① `:infrastructure:spotlessCheck`가 `Cafe24MarketClient.java` 포맷 위반으로 실패 — 병렬 fixer 작업 파일이라 미편집·메시지 전달(이후 그쪽에서 수동 교정 완료). ② 여러 에이전트가 같은 워킹트리에서 gradle 동시 실행 시 `build/classes`·`test-results` 레이스로 **전 테스트가 `NoClassDefFoundError`로 무더기 실패**하거나 결과 XML이 0바이트로 남을 수 있다(재실행하면 그린) — **대량 실패를 결함으로 판정하기 전에 1회 재실행으로 판별할 것**. 격리 측정이 필요하면 `--init-script`로 buildDirectory를 스크래치패드에 이설하는 방법이 있다(fixer-catalog-clients 제보). ③ 프론트는 이번 범위 밖.
+- **계약 오탐 조건 3건 — 제기 후 실제 위반 2건 확인·해소(2026-08-25)**: ⓐ 문자열 정규화 위반 실재(4마켓 trim 누락, **쿠팡은 `productId`를 `asLong()`으로 읽어 공백 섞이면 `0`으로 떨어져 식별자가 조용히 누락**) ⓑ 전량 보장 위반 실재(4마켓 전부 `MAX_PAGES` 상한 소진 시 **말없이 부분 반환** — 잔여가 전부 STALE_LOCAL로 잡히는 경로가 실재했다) ⓒ 인증 거부는 예외 처리 확인. ⓐⓑ는 fixer-catalog-clients가 TDD로 수정(`text()` 헬퍼 + `reachedLastPage` 상한 예외). **부분 카탈로그 리턴 경로는 이제 없다.** — 서비스 계층이 클라이언트에 요구사항을 명시 전달한 것이 실제 결함 2건을 끌어낸 사례.
+- 카페24 `status`만 합성 문자열이다(`display=T,selling=F`) — 노출/판매가 별도 플래그 2개라 손실 없이 담으려는 의도. **카페24 판매중지 = `selling=F` 포함 키의 합**으로 읽어야 한다(다른 마켓은 `SALE`·`SUSPENSION`·`APPROVED`·`DELETED` 단일 문자열).
+- **신규 결함 후보(고치지 않고 기록만 — 리더 번호 배정 요망): 11번가에만 우리 SB코드가 심겨 있지 않다.** 마켓별 sellerCode 출처를 우리 등록 경로와 교차 확인한 결과 — 카페24 `custom_product_code`←`Cafe24MarketClient:65`, 스토어 `sellerManagementCode`←`SmartstoreProductPayloadBuilder:124`, 쿠팡 `externalVendorSku`←`CoupangProductPayload:145`는 전부 `product.getSbCode()`로 일치하는데, **11번가 등록 XML에는 `sellerPrdCd` 태그 자체가 없다**(`getSbCode()`가 로그 `:44`와 에러 메시지 `:309`에만 등장). 오탐은 없다(sellerCode=null이면 `prdNo` 식별자 조인으로 폴백하고 sellerCode 차이를 기록하지 않는다). 다만 **11번가만 SB코드 축 대조가 구조적으로 불가능**해져 `marketWithSellerCode=0`·`matchedBySbCode=0`이 정상 출력이 되고, 마켓에만 있는 11번가 상품의 SB코드를 영영 알 수 없다(prdNo만 남음) — 사용자 요구인 "전 마켓 100% 싱크"가 11번가만 반쪽이 된다. 교정 방향: 등록 XML에 `sellerPrdCd` 추가 + 기존 2,286건 상품수정 API 백필. 연관 [[D-208]](11번가 인증 거부는 별개 엔드포인트 문제).
+- 요지: `_workspace/fixes/D-210_recon_fix.md`
+- 상태: 수정완료(검증대기) — 라이브 실행으로 실제 버킷 건수를 뽑는 것이 이 기능의 진짜 검증
+
+#### D-210-c: 검증 반려 4건 수정 (담당: tdd-fixer, 2026-08-25)
+
+판정서 `_workspace/verify/D-210_verdict.md`가 D-210-a·b를 **부분 판정·배포 보류**로 반려했다(A.1·A.4·B.7 FAIL). 반려 4건을 TDD로 해소했다. 전 항목이 겨냥한 것은 하나 — **STALE_LOCAL 오탐 차단**. 다음 사이클이 이 버킷을 근거로 식별자를 교정하므로 오탐 1건은 곧 멀쩡한 식별자 삭제 1건이다.
+
+- **① 11번가 봉투 검사를 거부 목록 → 허용 목록으로 뒤집음.** `verifyCatalogEnvelope`가 `resultCode`가 **아예 없는 본문**(게이트웨이 HTML 오류 페이지 등)을 정상 통과시켰다 → 레코드 0건 → `records.size() < CATALOG_LIMIT`로 자연 종료 → 빈 카탈로그가 `COMPLETED` → 11번가 로컬 **2,286행 전량 STALE_LOCAL**. `CATALOG_SUCCESS_CODES = Set.of("200","0")` 화이트리스트로 전환해 **부재도 실패**로 처리한다(같은 파일 `syncImagesAndHtml`의 PUT 200/210 화이트리스트와 같은 패턴). 이 저장소가 반복한 계열 사고다 — [[D-181]] 쿠팡 봉투, [[D-212]] 11번가 삭제 블랙리스트 구멍.
+- **② 서비스 빈 카탈로그 2차 방어(4마켓 공통).** `marketTotal == 0 && localTotal > 0`이면 분류하지 않고 `FAILED`로 종결한다(사유를 `failureReason`·`warnings` 양쪽에). ①이 막는 구멍뿐 아니라 **아직 발견되지 않은 동류 구멍까지 마켓 무관하게** 막는다. 로컬 0 + 마켓 0은 정상이므로 `COMPLETED` — 과발동하지 않음을 별도 테스트로 고정했다.
+- **③ deep 모드의 미지원·실패·부재 3상태 분리.** `fetchSingle`이 모든 예외를 `Optional.empty()`로 삼켜 실패와 부재가 같은 버킷·같은 문구로 붕괴했고, `fetchBySellerCode` 구현체가 **쿠팡뿐**이라 나머지 3마켓에 `deep=true`를 걸면 **마켓 호출 0회인데** 전건에 "단건 조회에도 없습니다"가 붙고 `deepLookups`가 헛증가하고 후보당 `throttleMs`씩 잠들고 경고가 한 줄도 안 남았다. → `MarketClient.supportsSingleLookup()`(default false, 쿠팡만 true) 명시 신호를 신설해 미지원이면 **루프를 아예 돌지 않고** 경고 1회. `SingleLookup(entry, failed)` 3상태로 note를 갈랐다 — 미지원/deep=false는 `마켓 카탈로그에 없습니다`, 실패는 `… — 단건 확인이 실패해 미확정입니다`(+경고에 사유), **성공·부재일 때만** `마켓 카탈로그에도 단건 조회에도 없습니다`. 반환값만으로는 미지원과 미발견을 구분할 수 없다는 것이 명시 신호를 택한 이유다.
+- **④ 11번가 카탈로그 비활성화(코드는 보존).** `fetchCatalog`가 컬렉션 URL에 **POST**했다 — 같은 클래스가 이 리소스의 읽기에는 GET을 쓰고(`syncImagesAndHtml`), 요청 XML 루트명(`SearchProduct`)·`start`/`end` base도 문서 근거 없는 가정이며, D-208로 실호출 확인이 불가능하다. 즉 **읽기 전용 리포트가 검증되지 않은 쓰기 후보를 라이브 판매자 API에 발사**한다. → `CATALOG_ENABLED = false` 스위치로 `fetchCatalog`가 `null`(UNSUPPORTED)을 반환하고 `restClient`를 **전혀 건드리지 않는다**(`verifyNoInteractions`로 고정). 순회 구현 전체는 `scanCatalog(long)`으로 **보존**했고 기존 테스트 8건이 그대로 검증한다(삭제 0). 비활성 사유는 코드가 아니라 리포트로 — `MarketClient.catalogUnsupportedReason()`(default null, 11번가만 오버라이드)을 서비스가 `failureReason`·`warnings`에 싣는다. 11번가는 D-208로 어차피 조회가 거부되므로 **비활성화로 잃는 것이 없다.**
+- **재활성화 조건(`CATALOG_ENABLED = true` 전에 전부 확정):** ⓐ D-208 해소 ⓑ 전체 상품 조회의 정식 엔드포인트·HTTP 동사 문서 확인(컬렉션 POST가 조회가 아니면 경로 교체 — **미확인 상태에서 POST 재개 금지**) ⓒ 요청 본문 루트 엘리먼트명·`limit`/`start`/`end` base ⓓ **성공 봉투의 `resultCode` 실측값을 `CATALOG_SUCCESS_CODES`에 추가** — ①로 인해 성공 코드가 화이트리스트에 없으면 전 페이지가 예외로 떨어진다(조용한 오답보다 요란한 실패가 낫다는 선택이지만 재활성화 필수 항목) ⓔ 응답 레코드 엘리먼트명 ⓕ 소량 1회 실호출 후 **마켓에 변경이 남지 않았음**을 관리자 화면으로 확인. 절차 전문: `_workspace/fixes/D-210_reject_fix.md`.
+- **기존 테스트 조정 4건(약화 아님)**: ②로 인해 "빈 카탈로그 + 로컬행"으로 STALE/UNJOINABLE을 세팅하던 3건(`staleLocal_whenLocalOnly`·`unjoinableLocal_whenNoSbCodeAndNoIdentifier`·`fetchesCatalogOnlyOnce`)에 **조인되지 않는 마켓 엔트리 1건**을 넣어 카탈로그를 비우지 않도록 바꿨다(단언 의도 불변). `deepModeConfirmsStaleLocalOnly`에는 `supportsSingleLookup()=true` 스텁을 추가 — Mockito 목은 default 메서드도 목킹해 false를 돌려주므로 명시가 필요하다.
+- Red 실측: 계약 표면만 먼저 추가해 컴파일을 통과시킨 뒤 **행위 미구현 상태에서** 측정(컴파일 에러가 아니라 단언 실패로 Red를 확인). core 3 실패 + infrastructure 4 실패 = **신규 9건 중 7건 Red**. 나머지 2건(`completed_whenBothSidesEmpty`, `deepLookupMissRecordsConfirmedAbsence`)은 기존 행위가 이미 만족하는 **회귀 고정용 가드**이며 가짜 Red로 세지 않았다.
+- Green/게이트(2026-08-25, 격리 빌드): `:core:test` **806**(801 → +5) · `:infrastructure:test` **266**(262 → +4) · `:api:test` **191** · `:worker:test` **72**, 실패·에러 **0**, `spotlessCheck` 4모듈 통과(`spotlessApply` 미실행 — 위반 2건 수동 교정). 증가분 9 = 신규 테스트 9와 정확히 일치.
+- 미수정(의도적): 판정서 **요구 5**(쿠팡 `UNJOINABLE_LOCAL` 판정이 `sbCode != null`에 의존 — 쿠팡 카탈로그는 `sellerCode`를 주지 않으므로 sbCode는 조인 키가 아니다)는 비차단·운영 노출 **0행**이고 리더 지시 4건에 없어 손대지 않았다. 스토어 `asBoolean(true)`·카페24 offset→cursor 정렬 가정·`ElevenstMarketRestClient.sendRequest`의 4xx/5xx 정상 반환도 그대로다.
+- 요지: `_workspace/fixes/D-210_reject_fix.md`
+- 상태: 수정완료(검증대기) — 반려 4건 해소. 11번가는 리포트에서 `UNSUPPORTED`로 정직하게 표시되며, 라이브 실행 검증은 여전히 남아 있다.
