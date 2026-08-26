@@ -12,6 +12,7 @@ import com.sbshop.agent.core.domain.product.enums.MeasureUnit;
 import com.sbshop.agent.core.domain.product.enums.ProductCategory;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
+import com.sbshop.agent.core.domain.product.service.BarcodeValidator;
 import com.sbshop.agent.core.domain.product.vo.ImageInfo;
 import com.sbshop.agent.core.domain.product.vo.LogisticsInfo;
 import com.sbshop.agent.core.domain.product.vo.PriceInfo;
@@ -26,9 +27,11 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.hibernate.annotations.JdbcTypeCode;
 import java.sql.Types;
 
+@Slf4j
 @Entity
 @Table(name = "sb_product")
 @Getter
@@ -137,7 +140,7 @@ public class Product extends BaseEntity {
 
 		PriceInfo priceInfo = createPriceInfo(command);
 		LogisticsInfo logisticsInfo = createLogisticsInfo(command, bundleQty);
-		ProductSpec productSpec = createProductSpec(cap, unit);
+		ProductSpec productSpec = createProductSpec(cap, unit, command.barcode(), sbCode);
 		ImageInfo imageInfo = createImageInfo(command);
 		SourcingInfo sourcingInfo = createSourcingInfo(command, safeBrand, hsCode);
 
@@ -282,12 +285,25 @@ public class Product extends BaseEntity {
 		ProductSpec.ProductSpecBuilder builder = this.productSpec != null
 			? this.productSpec.toBuilder() : ProductSpec.builder();
 		if (command.barcode() != null)
-			builder.barcode(command.barcode());
+			applyBarcode(builder, command.barcode());
 		if (command.capacity() != null)
 			builder.capacity(command.capacity());
 		if (command.measureUnit() != null)
 			builder.measureUnit(command.measureUnit());
 		this.productSpec = builder.build();
+	}
+
+	private void applyBarcode(ProductSpec.ProductSpecBuilder builder, String rawBarcode) {
+		BarcodeValidator.Result checked = BarcodeValidator.validate(rawBarcode);
+		if (checked.valid()) {
+			builder.barcode(checked.normalized());
+			return;
+		}
+		if (checked.absent()) {
+			builder.barcode("");
+			return;
+		}
+		log.warn("[바코드] 수정 시 형식 위반으로 기존 값 유지 sbCode={} 사유={}", this.sbCode, checked.reason());
 	}
 
 	private void updateSourcingInfo(ProductUpdateCommand command) {
@@ -361,9 +377,14 @@ public class Product extends BaseEntity {
 			.build();
 	}
 
-	private static ProductSpec createProductSpec(BigDecimal cap, MeasureUnit unit) {
+	private static ProductSpec createProductSpec(BigDecimal cap, MeasureUnit unit,
+		String rawBarcode, String sbCode) {
+		BarcodeValidator.Result checked = BarcodeValidator.validate(rawBarcode);
+		if (!checked.valid() && !checked.absent()) {
+			log.warn("[바코드] 생성 시 형식 위반으로 저장하지 않음 sbCode={} 사유={}", sbCode, checked.reason());
+		}
 		return ProductSpec.builder()
-			.barcode("")
+			.barcode(checked.valid() ? checked.normalized() : "")
 			.capacity(cap)
 			.measureUnit(unit)
 			.build();

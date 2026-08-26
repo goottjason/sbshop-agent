@@ -2,6 +2,9 @@ package com.sbshop.agent.core.application.market;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sbshop.agent.core.application.market.dto.MarketLiveInventoryReport;
+import com.sbshop.agent.core.application.market.dto.MarketLivePriceSample;
+import com.sbshop.agent.core.application.market.dto.MarketLiveStatus;
 import com.sbshop.agent.core.application.market.dto.MarketSyncBucket;
 import com.sbshop.agent.core.application.market.dto.MarketSyncIdentifierDiff;
 import com.sbshop.agent.core.application.market.dto.MarketSyncMarketReport;
@@ -13,9 +16,14 @@ import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
+import com.sbshop.agent.core.domain.market.client.dto.MarketDraftPrice;
+import com.sbshop.agent.core.domain.market.client.dto.MarketDraftPriceMiss;
+import com.sbshop.agent.core.domain.market.client.dto.MarketLiveOption;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationSyncRow;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,9 +51,17 @@ public class MarketCatalogReconciliationService {
 	private static final String MATCH_BY_SB_CODE = "SB_CODE";
 	private static final String STATUS_ABSENT = "(없음)";
 	private static final String SELLER_CODE_KEY = "sellerCode";
+	private static final String OPTION_IDENTIFIER_KEY = "vendorItemId";
+	private static final int LIVE_PROGRESS_EVERY = 50;
+	private static final int DRAFT_UNRELIABLE_RATIO_DENOMINATOR = 10;
+	private static final String DRAFT_UNDERSTATED_WARNING = "초안가 미상이 있어 draftAboveLive 는 실제 위험의 하한값입니다 — 0 이어도 '롤백 위험 없음'이 아닙니다";
+	private static final String DRAFT_UNRELIABLE_WARNING = "초안가 측정 신뢰 불가 — draftAboveLive 를 '위험 없음'으로 읽지 말 것";
 	private static final String NOTE_ABSENT_IN_CATALOG = "마켓 카탈로그에 없습니다";
 	private static final String NOTE_ABSENT_CONFIRMED = "마켓 카탈로그에도 단건 조회에도 없습니다";
 	private static final String NOTE_DEEP_UNCONFIRMED = "마켓 카탈로그에 없습니다 — 단건 확인이 실패해 미확정입니다";
+	private static final String LIVE_NOTE_NO_OPTION_ID = "미판정 — 로컬에 옵션ID(vendorItemId)가 없어 조회하지 못했습니다";
+	private static final String LIVE_NOTE_OPTION_ABSENT = "미판정 — 마켓이 이 옵션을 알지 못합니다(삭제·무효 옵션ID)";
+	private static final String LIVE_NOTE_LOOKUP_FAILED = "미판정 — 옵션 조회가 실패했습니다";
 
 	private final MarketRegistrationRepository marketRegistrationRepository;
 	private final MarketClientRouter marketClientRouter;
@@ -229,12 +245,13 @@ public class MarketCatalogReconciliationService {
 			warnings.add("단건 확인이 deepLimit(" + request.deepLimit() + ")에서 중단되었습니다 — 잔여 후보는 미확인 상태입니다");
 		}
 		bucketer.appendTruncationWarnings(warnings);
+		MarketLiveInventoryReport live = liveInventory(market, localRows, client, request, warnings);
 
 		return new MarketSyncMarketReport(market.name(), market.getLabel(), MarketSyncOutcome.COMPLETED, null,
 			localRows.size(), localWithSbCode, localWithoutIdentifiers, entries.size(), marketWithSellerCode,
 			matchedBySbCode, matchedByIdentifier, bucketer.counts(), sortByCountDesc(statusCounts),
 			bucketer.samples(), deepLookups, deepTruncated, System.currentTimeMillis() - started,
-			List.copyOf(warnings));
+			List.copyOf(warnings), live);
 	}
 
 	private SingleLookup fetchSingle(MarketClient client, String sbCode, List<String> warnings) {
@@ -278,7 +295,7 @@ public class MarketCatalogReconciliationService {
 		}
 		return new MarketSyncMarketReport(market.name(), market.getLabel(), outcome, reason,
 			localRows.size(), withSbCode, withoutIdentifiers, 0, 0, 0, 0, bucketer.counts(), Map.of(),
-			bucketer.samples(), 0, false, System.currentTimeMillis() - started, List.copyOf(warnings));
+			bucketer.samples(), 0, false, System.currentTimeMillis() - started, List.copyOf(warnings), null);
 	}
 
 	private List<LocalRow> loadLocalRows(MarketType market) {
@@ -290,7 +307,7 @@ public class MarketCatalogReconciliationService {
 		int index = 0;
 		for (MarketRegistrationSyncRow row : rows) {
 			localRows.add(new LocalRow(index++, row.getProductId(), normalize(row.getSbCode()),
-				parseIdentifiers(row.getMarketIdentifiers())));
+				parseIdentifiers(row.getMarketIdentifiers()), row.getLocalSalePrice()));
 		}
 		return localRows;
 	}
@@ -407,7 +424,209 @@ public class MarketCatalogReconciliationService {
 		return trimmed.isEmpty() ? null : trimmed;
 	}
 
-	private record LocalRow(int index, Long productId, String sbCode, Map<String, String> identifiers) {
+	private MarketLiveInventoryReport liveInventory(MarketType market, List<LocalRow> localRows,
+		MarketClient client, MarketSyncReportRequest request, List<String> marketWarnings) {
+		if (!request.liveInventory()) {
+			return null;
+		}
+		if (!client.supportsLiveOptionLookup()) {
+			marketWarnings.add(market.getLabel() + " 클라이언트가 옵션 실판매 조회를 지원하지 않아 실판매 판별을 건너뜁니다");
+			return null;
+		}
+		long started = System.currentTimeMillis();
+		log.info("[마켓대조][실판매] 시작: market={}, 후보={}건, liveLimit={}, throttleMs={}",
+			market, localRows.size(), request.liveLimit(), request.throttleMs());
+		LiveTally tally = new LiveTally(request.sampleLimit());
+		int examined = 0;
+		boolean truncated = false;
+		for (LocalRow row : localRows) {
+			if (examined >= request.liveLimit()) {
+				truncated = true;
+				break;
+			}
+			examined++;
+			tally.record(client, row, request.throttleMs());
+			if (examined % LIVE_PROGRESS_EVERY == 0) {
+				log.info("[마켓대조][실판매] 진행 {}/{} — 판매중 {} · 판매중지 {} · 미판정 {}",
+					examined, Math.min(localRows.size(), request.liveLimit()),
+					tally.statusCounts.get(MarketLiveStatus.ON_SALE),
+					tally.statusCounts.get(MarketLiveStatus.NOT_ON_SALE),
+					tally.statusCounts.get(MarketLiveStatus.UNDETERMINED));
+			}
+		}
+		log.info("[마켓대조][실판매] 완료: market={}, 조회 {}건, 판매중 {} · 판매중지 {} · 미판정 {}(옵션ID없음 {} · 조회실패 {} · 옵션부재 {})",
+			market, examined, tally.statusCounts.get(MarketLiveStatus.ON_SALE),
+			tally.statusCounts.get(MarketLiveStatus.NOT_ON_SALE),
+			tally.statusCounts.get(MarketLiveStatus.UNDETERMINED),
+			tally.noOptionId, tally.lookupFailed, tally.optionAbsent);
+		if (truncated) {
+			tally.warn("liveLimit(" + request.liveLimit() + ")에서 중단했습니다 — 잔여 "
+				+ (localRows.size() - examined) + "건은 조회하지 않았고 미노출로 단정하지 않습니다");
+		}
+		return tally.toReport(localRows.size(), examined, truncated, System.currentTimeMillis() - started);
+	}
+
+	private final class LiveTally {
+
+		private final int sampleLimit;
+		private final Map<MarketLiveStatus, Integer> statusCounts = new EnumMap<>(MarketLiveStatus.class);
+		private final List<MarketLivePriceSample> samples = new ArrayList<>();
+		private final List<String> warnings = new ArrayList<>();
+		private int noOptionId;
+		private int lookupFailed;
+		private int optionAbsent;
+		private int priceComparable;
+		private int priceAllEqual;
+		private int priceDiverged;
+		private int localVsLiveDiverged;
+		private int draftVsLiveDiverged;
+		private int draftAboveLive;
+		private int draftBelowLive;
+		private int draftUnknown;
+		private final Map<MarketDraftPriceMiss, Integer> draftMissReasons = new EnumMap<>(MarketDraftPriceMiss.class);
+		private int localPriceUnknown;
+
+		private LiveTally(int sampleLimit) {
+			this.sampleLimit = sampleLimit;
+			for (MarketLiveStatus status : MarketLiveStatus.values()) {
+				statusCounts.put(status, 0);
+			}
+		}
+
+		private void warn(String message) {
+			warnings.add(message);
+		}
+
+		private void record(MarketClient client, LocalRow row, long throttleMs) {
+			String sellerProductId = row.identifiers().get(MarketRegistration.COUPANG_LOOKUP_KEY);
+			String optionId = row.identifiers().get(OPTION_IDENTIFIER_KEY);
+
+			Integer draftPrice = null;
+			MarketDraftPriceMiss draftMiss = MarketDraftPriceMiss.NO_SELLER_PRODUCT_ID;
+			if (sellerProductId != null) {
+				try {
+					MarketDraftPrice found = client.fetchDraftSalePrice(sellerProductId);
+					if (found == null) {
+						draftMiss = MarketDraftPriceMiss.LOOKUP_FAILED;
+					} else if (found.isPresent()) {
+						draftPrice = found.salePrice();
+						draftMiss = null;
+					} else {
+						draftMiss = found.miss() != null ? found.miss() : MarketDraftPriceMiss.LOOKUP_FAILED;
+					}
+				} catch (Exception e) {
+					draftMiss = MarketDraftPriceMiss.LOOKUP_FAILED;
+					warnings.add("초안가 조회 실패: sellerProductId=" + sellerProductId + " — " + describe(e));
+				}
+				throttle(throttleMs);
+			}
+			if (draftMiss != null) {
+				draftUnknown++;
+				draftMissReasons.merge(draftMiss, 1, Integer::sum);
+			}
+
+			MarketLiveStatus status;
+			Integer livePrice = null;
+			Integer liveStock = null;
+			String note = null;
+			if (optionId == null) {
+				status = MarketLiveStatus.UNDETERMINED;
+				noOptionId++;
+				note = LIVE_NOTE_NO_OPTION_ID;
+			} else {
+				try {
+					Optional<MarketLiveOption> found = client.fetchLiveOption(optionId);
+					MarketLiveOption option = found == null ? null : found.orElse(null);
+					if (option == null) {
+						status = MarketLiveStatus.UNDETERMINED;
+						optionAbsent++;
+						note = LIVE_NOTE_OPTION_ABSENT;
+					} else {
+						livePrice = option.salePrice();
+						liveStock = option.stock();
+						status = Boolean.TRUE.equals(option.onSale())
+							? MarketLiveStatus.ON_SALE : MarketLiveStatus.NOT_ON_SALE;
+					}
+				} catch (Exception e) {
+					status = MarketLiveStatus.UNDETERMINED;
+					lookupFailed++;
+					note = LIVE_NOTE_LOOKUP_FAILED + ": " + describe(e);
+				}
+				throttle(throttleMs);
+			}
+			statusCounts.merge(status, 1, Integer::sum);
+
+			BigDecimal localPrice = row.localSalePrice();
+			if (localPrice == null) {
+				localPriceUnknown++;
+			}
+			Integer localAsInt = localPrice == null ? null : localPrice.setScale(0, RoundingMode.HALF_UP).intValue();
+			boolean diverged = false;
+			if (localAsInt != null && livePrice != null && !localAsInt.equals(livePrice)) {
+				localVsLiveDiverged++;
+				diverged = true;
+			}
+			if (draftPrice != null && livePrice != null && !draftPrice.equals(livePrice)) {
+				draftVsLiveDiverged++;
+				diverged = true;
+				if (draftPrice > livePrice) {
+					draftAboveLive++;
+				} else {
+					draftBelowLive++;
+				}
+			}
+			if (localAsInt != null && draftPrice != null && !localAsInt.equals(draftPrice)) {
+				diverged = true;
+			}
+			if (localAsInt != null && draftPrice != null && livePrice != null) {
+				priceComparable++;
+				if (diverged) {
+					priceDiverged++;
+				} else {
+					priceAllEqual++;
+				}
+			}
+			if ((diverged || status != MarketLiveStatus.ON_SALE) && samples.size() < sampleLimit) {
+				samples.add(new MarketLivePriceSample(row.sbCode(), row.productId(), sellerProductId, optionId,
+					status, localPrice, draftPrice, livePrice, liveStock, note));
+			}
+		}
+
+		private MarketLiveInventoryReport toReport(int candidates, int examined, boolean truncated, long elapsedMs) {
+			boolean understated = draftUnknown > 0;
+			boolean unreliable = draftUnknown > 0 && (priceComparable == 0
+				|| draftUnknown * DRAFT_UNRELIABLE_RATIO_DENOMINATOR >= examined);
+			if (understated) {
+				warnings.add("초안가 미상 " + draftUnknown + "/" + examined + "건 (사유: "
+					+ describeDraftMisses() + ")");
+				warnings.add(DRAFT_UNDERSTATED_WARNING + " — 현재 draftAboveLive=" + draftAboveLive);
+			}
+			if (unreliable) {
+				warnings.add(DRAFT_UNRELIABLE_WARNING + " — 미상 " + draftUnknown + "건 / 3값 대조 성립 "
+					+ priceComparable + "건. 초안가가 계통적으로 안 읽히는 상태이므로 일괄 실행 판단 근거로 쓸 수 없습니다");
+			}
+			return new MarketLiveInventoryReport(candidates, examined, truncated,
+				Collections.unmodifiableMap(new EnumMap<>(statusCounts)), noOptionId, lookupFailed, optionAbsent,
+				priceComparable, priceAllEqual, priceDiverged, localVsLiveDiverged, draftVsLiveDiverged,
+				draftAboveLive, draftBelowLive, draftUnknown,
+				Collections.unmodifiableMap(new EnumMap<>(draftMissReasons)), understated, unreliable,
+				localPriceUnknown, elapsedMs, List.copyOf(samples), List.copyOf(warnings));
+		}
+
+		private String describeDraftMisses() {
+			StringBuilder out = new StringBuilder();
+			for (Map.Entry<MarketDraftPriceMiss, Integer> entry : draftMissReasons.entrySet()) {
+				if (!out.isEmpty()) {
+					out.append(", ");
+				}
+				out.append(entry.getKey().name()).append('=').append(entry.getValue());
+			}
+			return out.toString();
+		}
+	}
+
+	private record LocalRow(int index, Long productId, String sbCode, Map<String, String> identifiers,
+		BigDecimal localSalePrice) {
 	}
 
 	private record SingleLookup(MarketCatalogEntry entry, boolean failed) {

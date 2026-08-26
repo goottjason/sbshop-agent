@@ -40,7 +40,7 @@ class ProductCreateUseCaseTest {
 			"url", new BigDecimal("25"), "Magnesium", "Mag 400mg", "KAL", "US",
 			BigDecimal.ONE, new BigDecimal("400"), MeasureUnit.TABLET,
 			List.of("https://img.iherb.com/1.jpg"), null, "html", "비타민",
-			true, 2, new BigDecimal("20"), VendorType.IHB);
+			true, 2, new BigDecimal("20"), VendorType.IHB, null);
 
 		when(productReader.getNextSbCodeSequence(any()))
 			.thenReturn("260707IHB001");
@@ -65,7 +65,7 @@ class ProductCreateUseCaseTest {
 			"url", new BigDecimal("25"), "Magnesium", "Mag", "KAL", "US",
 			BigDecimal.ONE, new BigDecimal("400"), MeasureUnit.TABLET,
 			List.of("https://img.iherb.com/1.jpg"), null, "html", "비타민",
-			true, 1, new BigDecimal("20"), VendorType.IHB);
+			true, 1, new BigDecimal("20"), VendorType.IHB, null);
 
 		when(productReader.getNextSbCodeSequence(any()))
 			.thenReturn("260707IHB001");

@@ -76,6 +76,6 @@ class ProductCreateBulkPartialFailureTest {
 			"url", new BigDecimal("25"), name, name, "Brand", "KR",
 			BigDecimal.ONE, new BigDecimal("500"), MeasureUnit.TABLET,
 			null, null, "html", "카테고리",
-			true, 1, new BigDecimal("20"), VendorType.IHB);
+			true, 1, new BigDecimal("20"), VendorType.IHB, null);
 	}
 }

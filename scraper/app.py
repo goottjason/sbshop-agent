@@ -20,6 +20,7 @@ from scrapers.base import VendorScraper
 from scrapers.fortnum import FortnumScraper
 from scrapers import iherb as iherb_mod
 from scrapers.iherb import IherbScraper
+from scrapers import vitabiotics as vtb_mod
 from pricing import landed_cost_krw
 
 # 벤더 스크래퍼 레지스트리 — supports(url)로 첫 매칭 사용(Java SourcingAgentFactory와 대칭).
@@ -113,10 +114,12 @@ def discover_bestsellers(req: DiscoverRequest) -> DiscoverResult:
 @app.post("/scrape/product-detail", response_model=ProductDetail)
 def scrape_product_detail(req: ScrapeRequest) -> ProductDetail:
     """상품 상세 크롤 — 성분(통관 게이트) · 중량 · UPC · 이미지 · 사용법/주의사항."""
-    if not iherb_mod.IherbScraper().supports(req.url):
-        return ProductDetail(
-            ok=False, status="error", sourceUrl=req.url,
-            error="상세 크롤을 지원하지 않는 URL입니다(현재 iHerb만 지원).",
-            scrapedAt=datetime.now(timezone.utc).isoformat(),
-        )
-    return iherb_mod.fetch_detail(req.url)
+    if iherb_mod.IherbScraper().supports(req.url):
+        return iherb_mod.fetch_detail(req.url)
+    if vtb_mod.supports(req.url):
+        return vtb_mod.fetch_detail(req.url)
+    return ProductDetail(
+        ok=False, status="error", sourceUrl=req.url,
+        error="상세 크롤을 지원하지 않는 URL입니다(현재 iHerb·vitabiotics만 지원).",
+        scrapedAt=datetime.now(timezone.utc).isoformat(),
+    )

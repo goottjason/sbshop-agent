@@ -1,7 +1,10 @@
 package com.sbshop.agent.core.domain.market.client;
 
 import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
+import com.sbshop.agent.core.domain.market.client.dto.MarketDraftPrice;
+import com.sbshop.agent.core.domain.market.client.dto.MarketDraftPriceMiss;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
+import com.sbshop.agent.core.domain.market.client.dto.MarketLiveOption;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
@@ -90,5 +93,17 @@ public interface MarketClient {
 
 	default Optional<String> removeSellerImmediateDiscount(String marketItemId, boolean dryRun) {
 		return Optional.empty();
+	}
+
+	default boolean supportsLiveOptionLookup() {
+		return false;
+	}
+
+	default Optional<MarketLiveOption> fetchLiveOption(String optionId) {
+		return Optional.empty();
+	}
+
+	default MarketDraftPrice fetchDraftSalePrice(String marketItemId) {
+		return MarketDraftPrice.missing(MarketDraftPriceMiss.UNSUPPORTED);
 	}
 }

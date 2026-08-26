@@ -358,7 +358,7 @@ class ProductSearchSpecificationTest {
 		Product product = Product.create(sbCode, new ProductCreateCommand(
 			"http://source/" + sbCode, BigDecimal.TEN, "기본명", "original", "테스트브랜드", "KR",
 			BigDecimal.ONE, BigDecimal.ONE, MeasureUnit.UNKNOWN, List.of(), List.of(),
-			"", null, true, 1, BigDecimal.ZERO, VendorType.IHB));
+			"", null, true, 1, BigDecimal.ZERO, VendorType.IHB, null));
 		product.update(command);
 		product.updateStockStatus(stockStatus);
 		Product saved = productRepository.saveAndFlush(product);

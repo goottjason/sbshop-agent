@@ -78,7 +78,7 @@ class MarketRegistrationSyncRowQueryTest {
 	private Product persistProduct(String sbCode) {
 		Product product = Product.create(sbCode, new ProductCreateCommand(
 			null, null, "대조 테스트 상품", null, null, null, null, null, null, null, null, null, null,
-			true, null, null, null));
+			true, null, null, null, null));
 		em.persist(product);
 		em.flush();
 		return product;

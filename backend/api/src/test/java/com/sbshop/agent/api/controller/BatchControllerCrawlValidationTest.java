@@ -6,6 +6,7 @@ import com.sbshop.agent.api.dto.batch.CrawlAndUpdateRequest;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.BatchPriceStockService;
+import com.sbshop.agent.core.application.product.ProductBarcodeBackfillService;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,7 +28,8 @@ class BatchControllerCrawlValidationTest {
 
 	private BatchController controller() {
 		return new BatchController(batchPriceStockService, processStatusService, actionLogService,
-			Mockito.mock(ApplicationEventPublisher.class));
+			Mockito.mock(ApplicationEventPublisher.class),
+			Mockito.mock(ProductBarcodeBackfillService.class));
 	}
 
 	private CrawlAndUpdateRequest requestWith(List<Long> productIds) {

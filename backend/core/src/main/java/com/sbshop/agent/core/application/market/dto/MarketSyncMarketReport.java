@@ -21,5 +21,6 @@ public record MarketSyncMarketReport(
 	int deepLookups,
 	boolean deepTruncated,
 	long elapsedMs,
-	List<String> warnings) {
+	List<String> warnings,
+	MarketLiveInventoryReport liveInventory) {
 }

@@ -28,6 +28,6 @@ public record ProductSaveRequest(
 		return new ProductCreateCommand(
 			sourceUrl, costPrice, baseName, originalName, brand, origin,
 			weight, capacity, measureUnit, sourceImages, null, rawSourceHtml,
-			rawCategory, isAvailable, bundleQuantity, marginRate, vendor);
+			rawCategory, isAvailable, bundleQuantity, marginRate, vendor, null);
 	}
 }

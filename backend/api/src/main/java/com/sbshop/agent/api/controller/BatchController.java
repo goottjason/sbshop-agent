@@ -1,5 +1,6 @@
 package com.sbshop.agent.api.controller;
 
+import com.sbshop.agent.api.dto.batch.BarcodeBackfillRequest;
 import com.sbshop.agent.api.dto.batch.CrawlAndUpdateRequest;
 import com.sbshop.agent.api.dto.batch.ManualUpdateAllRequest;
 import com.sbshop.agent.api.dto.batch.ManualUpdateRequest;
@@ -9,6 +10,7 @@ import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.process.BatchSummary;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.BatchPriceStockService;
+import com.sbshop.agent.core.application.product.ProductBarcodeBackfillService;
 import com.sbshop.agent.core.application.product.dto.PriceStockItem;
 import com.sbshop.agent.core.application.product.event.BatchStartedEvent;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
@@ -44,6 +46,7 @@ public class BatchController {
 	private final ProcessStatusService processStatusService;
 	private final ActionLogService actionLogService;
 	private final ApplicationEventPublisher eventPublisher;
+	private final ProductBarcodeBackfillService productBarcodeBackfillService;
 
 	@PostMapping("/crawl-and-update")
 	public ResponseEntity<Map<String, String>> crawlAndUpdate(@RequestBody
@@ -140,6 +143,31 @@ public class BatchController {
 			"batchId", batchId,
 			"count", String.valueOf(productIds.size()),
 			"message", "소싱업체별 일괄 업데이트가 시작되었습니다."));
+	}
+
+	@PostMapping("/backfill-barcode")
+	public ResponseEntity<Map<String, String>> backfillBarcode(@RequestBody
+	BarcodeBackfillRequest request) {
+		VendorType vendor = request.supplierCode() == null || request.supplierCode().isBlank()
+			? null : VendorType.valueOf(request.supplierCode().toUpperCase());
+		int limit = request.limit() != null ? request.limit() : 0;
+		List<Long> productIds = productBarcodeBackfillService.findTargets(vendor, limit);
+		if (productIds.isEmpty()) {
+			return ResponseEntity.ok(Map.of(
+				"batchId", "", "count", "0", "message", "바코드 미보유 대상이 없습니다."));
+		}
+		List<String> productCodes = productIds.stream().map(String::valueOf).toList();
+		String batchId = startBatchWithLog(
+			JobType.BACKFILL_BARCODE,
+			productCodes, ActionLogConstants.BATCH_BACKFILL_BARCODE,
+			id -> "바코드 백필 배치 시작 (" + (vendor == null ? "전체" : vendor.name())
+				+ ", batchId=" + id + ", " + productCodes.size() + "건)");
+		productBarcodeBackfillService.backfillBarcodes(
+			batchId, productIds, ActionLogConstants.BATCH_BACKFILL_BARCODE);
+		return ResponseEntity.ok(Map.of(
+			"batchId", batchId,
+			"count", String.valueOf(productIds.size()),
+			"message", "바코드 백필 배치가 시작되었습니다."));
 	}
 
 	@GetMapping("/status")

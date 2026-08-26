@@ -57,6 +57,6 @@ class ProductSoldOutCreateTest {
 			isAvailable,
 			1,
 			new BigDecimal("20"),
-			VendorType.IHB);
+			VendorType.IHB, null);
 	}
 }

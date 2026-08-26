@@ -84,7 +84,7 @@ public class ProductCreateUseCase {
 				command.weight(), command.capacity(), command.measureUnit(),
 				command.sourceImages(), hostedImages, command.rawSourceHtml(),
 				command.rawCategory(), command.isAvailable(), command.bundleQuantity(),
-				command.marginRate(), command.vendor());
+				command.marginRate(), command.vendor(), command.barcode());
 		} catch (Exception e) {
 			log.warn("이미지 업로드 실패, 원본 이미지로 진행: {}", e.getMessage());
 			return command;

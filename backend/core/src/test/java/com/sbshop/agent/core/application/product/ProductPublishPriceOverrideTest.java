@@ -107,7 +107,7 @@ class ProductPublishPriceOverrideTest {
 				MeasureUnit.EA,
 				List.of("https://src/1.jpg"), List.of("https://cdn/1.jpg"),
 				"<div>본문</div>", "보충제", true, 1, new BigDecimal("15"),
-				VendorType.IHB));
+				VendorType.IHB, null));
 
 		BigDecimal withoutOverride = resolver.resolveForProduct(realProduct, MARKET);
 		BigDecimal withOverride = resolver.resolveForProduct(realProduct, MARKET,

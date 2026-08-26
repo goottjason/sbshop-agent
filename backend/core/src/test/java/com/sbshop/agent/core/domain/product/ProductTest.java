@@ -32,7 +32,7 @@ class ProductTest {
 			true,
 			2,
 			new BigDecimal("20"),
-			VendorType.IHB);
+			VendorType.IHB, null);
 
 		Product product = Product.create("260707IHB001", command);
 
@@ -60,7 +60,7 @@ class ProductTest {
 			"url", new BigDecimal("10"), "base", "orig", "brand", "US",
 			BigDecimal.ONE, BigDecimal.TEN, MeasureUnit.TABLET,
 			List.of(), List.of("https://r2.dev/img.jpg"), "html", "비타민",
-			true, 1, BigDecimal.ZERO, VendorType.IHB);
+			true, 1, BigDecimal.ZERO, VendorType.IHB, null);
 		Product product = Product.create("260707IHB002", createCmd);
 
 		BigDecimal originalCost = product.getPriceInfo().getCostPrice();
@@ -89,7 +89,7 @@ class ProductTest {
 			BigDecimal.ONE, BigDecimal.TEN, MeasureUnit.TABLET,
 			List.of("https://img.iherb.com/1.jpg"), List.of("https://r2.dev/img.jpg"),
 			"html", "비타민",
-			true, 1, BigDecimal.ZERO, VendorType.IHB);
+			true, 1, BigDecimal.ZERO, VendorType.IHB, null);
 		Product product = Product.create("260707IHB003", createCmd);
 		assertThat(product.getSourceImages()).hasSize(1);
 		assertThat(product.getHostedImages()).hasSize(1);
@@ -115,7 +115,7 @@ class ProductTest {
 			BigDecimal.ONE, BigDecimal.TEN, MeasureUnit.TABLET,
 			List.of("https://img.iherb.com/1.jpg"), List.of("https://r2.dev/img.jpg"),
 			"html", "비타민",
-			true, 1, BigDecimal.ZERO, VendorType.IHB);
+			true, 1, BigDecimal.ZERO, VendorType.IHB, null);
 		Product product = Product.create("260707IHB004", createCmd);
 
 		ProductUpdateCommand keepImages = new ProductUpdateCommand(

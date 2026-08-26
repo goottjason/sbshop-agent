@@ -22,5 +22,6 @@ public record ProductCreateCommand(
 	boolean isAvailable,
 	Integer bundleQuantity,
 	BigDecimal marginRate,
-	VendorType vendor) {
+	VendorType vendor,
+	String barcode) {
 }

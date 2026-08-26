@@ -37,11 +37,16 @@ public class MarketSyncReportController {
 		@RequestParam(required = false)
 		Integer deepLimit,
 		@RequestParam(required = false)
-		Long throttleMs) {
+		Long throttleMs,
+		@RequestParam(required = false)
+		Boolean liveInventory,
+		@RequestParam(required = false)
+		Integer liveLimit) {
 		MarketSyncReportRequest request = MarketSyncReportRequest.of(parseMarkets(markets), limit, deep, deepLimit,
-			throttleMs);
-		log.info("[마켓대조] 리포트 시작: markets={}, limit={}, deep={}, deepLimit={}",
-			request.markets(), request.sampleLimit(), request.deep(), request.deepLimit());
+			throttleMs, liveInventory, liveLimit);
+		log.info("[마켓대조] 리포트 시작: markets={}, limit={}, deep={}, deepLimit={}, liveInventory={}, liveLimit={}",
+			request.markets(), request.sampleLimit(), request.deep(), request.deepLimit(),
+			request.liveInventory(), request.liveLimit());
 		MarketSyncReport report = marketCatalogReconciliationService.reconcile(request);
 		log.info("[마켓대조] 리포트 완료: {}ms", report.elapsedMs());
 		return ResponseEntity.ok(report);

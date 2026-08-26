@@ -34,4 +34,18 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
 	@Query("SELECT DISTINCT p.category FROM Product p WHERE p.category IS NOT NULL")
 	List<ProductCategory> findDistinctCategories();
+
+	@Query("SELECT p.id FROM Product p "
+		+ "WHERE (p.productSpec.barcode IS NULL OR p.productSpec.barcode = '') "
+		+ "AND p.sourcingInfo.sourceUrl IS NOT NULL AND p.sourcingInfo.sourceUrl <> '' "
+		+ "ORDER BY p.id")
+	List<Long> findBarcodeBackfillTargetIds();
+
+	@Query("SELECT p.id FROM Product p "
+		+ "WHERE p.sourcingInfo.vendor = :vendor "
+		+ "AND (p.productSpec.barcode IS NULL OR p.productSpec.barcode = '') "
+		+ "AND p.sourcingInfo.sourceUrl IS NOT NULL AND p.sourcingInfo.sourceUrl <> '' "
+		+ "ORDER BY p.id")
+	List<Long> findBarcodeBackfillTargetIds(@Param("vendor")
+	VendorType vendor);
 }

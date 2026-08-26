@@ -53,7 +53,7 @@ class Cafe24MarketClientCategoryTest {
 			"Vitamin D3 K2", "California Gold Nutrition", "미국",
 			new BigDecimal("60"), new BigDecimal("180"), MeasureUnit.EA,
 			List.of("https://src/1.jpg"), List.of("https://cdn/1.jpg"),
-			"<div>본문</div>", "보충제", true, 1, new BigDecimal("20"), VendorType.IHB);
+			"<div>본문</div>", "보충제", true, 1, new BigDecimal("20"), VendorType.IHB, null);
 		return Product.create("250726IHB001", command);
 	}
 

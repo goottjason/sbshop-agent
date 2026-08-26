@@ -22,6 +22,7 @@ import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationSyncRow;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -474,6 +475,11 @@ class MarketCatalogReconciliationServiceTest {
 			@Override
 			public String getMarketIdentifiers() {
 				return identifiers;
+			}
+
+			@Override
+			public BigDecimal getLocalSalePrice() {
+				return null;
 			}
 		};
 	}

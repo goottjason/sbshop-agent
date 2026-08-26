@@ -1,5 +1,7 @@
 package com.sbshop.agent.core.domain.market.repository;
 
+import java.math.BigDecimal;
+
 public interface MarketRegistrationSyncRow {
 
 	Long getProductId();
@@ -7,4 +9,6 @@ public interface MarketRegistrationSyncRow {
 	String getSbCode();
 
 	String getMarketIdentifiers();
+
+	BigDecimal getLocalSalePrice();
 }

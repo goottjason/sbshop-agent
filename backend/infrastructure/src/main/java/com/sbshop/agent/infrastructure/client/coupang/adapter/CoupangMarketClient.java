@@ -5,7 +5,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
+import com.sbshop.agent.core.domain.market.client.dto.MarketDraftPrice;
+import com.sbshop.agent.core.domain.market.client.dto.MarketDraftPriceMiss;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
+import com.sbshop.agent.core.domain.market.client.dto.MarketLiveOption;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
@@ -40,6 +43,9 @@ public class CoupangMarketClient implements MarketClient {
 	private static final Set<String> PLACEHOLDER_ATTRIBUTE_VALUES = Set.of("수량", "용량", "중량", "정", "개", "캡슐");
 
 	private static final String CATALOG_BASE = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
+	private static final String VENDOR_ITEM_BASE = "/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/";
+	private static final Set<String> OPTION_ABSENT_MESSAGES = Set.of("유효한 옵션이 없습니다",
+		"유효하지 않은 ID가 입력되었습니다");
 	private static final int CATALOG_PAGE_SIZE = 100;
 	private static final int CATALOG_MAX_PAGES = 1000;
 
@@ -297,6 +303,108 @@ public class CoupangMarketClient implements MarketClient {
 				+ "건). 잘린 카탈로그는 대조에서 '마켓에 없는 상품'으로 오독되므로 반환하지 않는다.");
 		}
 		return entries;
+	}
+
+	@Override
+	public boolean supportsLiveOptionLookup() {
+		return true;
+	}
+
+	@Override
+	public Optional<MarketLiveOption> fetchLiveOption(String optionId) {
+		if (optionId == null || optionId.isBlank()) {
+			return Optional.empty();
+		}
+		String id = optionId.trim();
+		String response;
+		try {
+			response = restClient.get(VENDOR_ITEM_BASE + id + "/inventories");
+		} catch (RuntimeException e) {
+			if (isNotFound(e) || isOptionAbsent(e)) {
+				log.info("[쿠팡] 옵션 부재: vendorItemId={}", id);
+				return Optional.empty();
+			}
+			throw new RuntimeException("[쿠팡] 옵션 실판매 조회 실패 (vendorItemId=" + id + "): " + e.getMessage(), e);
+		}
+		verifyEnvelopeStrict(response, "[쿠팡] 옵션 실판매 조회");
+		JsonNode data = readEnvelope(response).path("data");
+		if (data.isMissingNode() || data.isNull() || !data.isObject()) {
+			throw new RuntimeException("[쿠팡] 옵션 실판매 조회 실패 — 데이터 없음 (vendorItemId=" + id + "): "
+				+ envelopeSnippet(response));
+		}
+		String sellerItemId = text(data, "sellerItemId");
+		return Optional.of(new MarketLiveOption(sellerItemId.isEmpty() ? id : sellerItemId,
+			intOrNull(data, "salePrice"), intOrNull(data, "amountInStock"), boolOrNull(data, "onSale")));
+	}
+
+	@Override
+	public MarketDraftPrice fetchDraftSalePrice(String marketItemId) {
+		if (marketItemId == null || marketItemId.isBlank()) {
+			return MarketDraftPrice.missing(MarketDraftPriceMiss.NO_SELLER_PRODUCT_ID);
+		}
+		String id = marketItemId.trim();
+		String response;
+		try {
+			response = restClient.get(CATALOG_BASE + "/" + id);
+		} catch (RuntimeException e) {
+			if (isNotFound(e)) {
+				return MarketDraftPrice.missing(MarketDraftPriceMiss.PRODUCT_ABSENT);
+			}
+			throw new RuntimeException("[쿠팡] 등록상품 초안가 조회 실패 (sellerProductId=" + id + "): "
+				+ e.getMessage(), e);
+		}
+		verifyEnvelopeStrict(response, "[쿠팡] 등록상품 초안가 조회");
+		JsonNode items = readEnvelope(response).path("data").path("items");
+		if (!items.isArray()) {
+			log.warn("[쿠팡] 초안가 미상 — 응답에 items 배열이 없다 (sellerProductId={}): {}",
+				id, envelopeSnippet(response));
+			return MarketDraftPrice.missing(MarketDraftPriceMiss.NO_ITEMS_FIELD);
+		}
+		if (items.isEmpty()) {
+			log.warn("[쿠팡] 초안가 미상 — items 가 빈 배열이다 (sellerProductId={})", id);
+			return MarketDraftPrice.missing(MarketDraftPriceMiss.EMPTY_ITEMS);
+		}
+		Integer salePrice = intOrNull(items.get(0), "salePrice");
+		if (salePrice == null) {
+			log.warn("[쿠팡] 초안가 미상 — items[0].salePrice 를 읽을 수 없다 (sellerProductId={})", id);
+			return MarketDraftPrice.missing(MarketDraftPriceMiss.NO_PRICE_FIELD);
+		}
+		return MarketDraftPrice.of(salePrice);
+	}
+
+	private static Integer intOrNull(JsonNode node, String field) {
+		JsonNode value = node.path(field);
+		if (value.isMissingNode() || value.isNull()) {
+			return null;
+		}
+		if (value.isNumber()) {
+			return value.asInt();
+		}
+		try {
+			return Integer.valueOf(value.asText("").trim());
+		} catch (NumberFormatException e) {
+			return null;
+		}
+	}
+
+	private static Boolean boolOrNull(JsonNode node, String field) {
+		JsonNode value = node.path(field);
+		return value.isMissingNode() || value.isNull() ? null : value.asBoolean();
+	}
+
+	private static boolean isOptionAbsent(RuntimeException e) {
+		for (Throwable t = e; t != null && t != t.getCause(); t = t.getCause()) {
+			String message = t.getMessage();
+			if (message == null || !message.contains("400")) {
+				continue;
+			}
+			for (String marker : OPTION_ABSENT_MESSAGES) {
+				if (message.contains(marker)) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	@Override

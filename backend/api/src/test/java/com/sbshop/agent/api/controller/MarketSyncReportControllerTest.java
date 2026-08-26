@@ -101,6 +101,34 @@ class MarketSyncReportControllerTest {
 	}
 
 	@Test
+	@DisplayName("기본 throttleMs 는 250 — 상품당 2콜이라 200 이면 쿠팡 초당 5회 한도에 여유가 0이다")
+	void defaultThrottleLeavesHeadroom() throws Exception {
+		mockMvc.perform(get("/api/v1/products/market-sync/report")).andExpect(status().isOk());
+
+		assertThat(captureRequest().throttleMs()).isEqualTo(250L);
+		assertThat(MarketSyncReportRequest.DEFAULT_THROTTLE_MS).isEqualTo(250L);
+	}
+
+	@Test
+	@DisplayName("liveInventory·liveLimit 은 기본 꺼짐이고 파라미터로만 켜진다")
+	void liveInventoryOffByDefault() throws Exception {
+		mockMvc.perform(get("/api/v1/products/market-sync/report")).andExpect(status().isOk());
+		assertThat(captureRequest().liveInventory()).isFalse();
+	}
+
+	@Test
+	@DisplayName("liveInventory=true·liveLimit 이 서비스 요청으로 전달되고 상한으로 잘린다")
+	void forwardsLiveInventoryParams() throws Exception {
+		mockMvc.perform(get("/api/v1/products/market-sync/report")
+			.param("liveInventory", "true")
+			.param("liveLimit", "999999")).andExpect(status().isOk());
+
+		MarketSyncReportRequest request = captureRequest();
+		assertThat(request.liveInventory()).isTrue();
+		assertThat(request.liveLimit()).isEqualTo(MarketSyncReportRequest.MAX_LIVE_LIMIT);
+	}
+
+	@Test
 	@DisplayName("limit 상한을 넘기면 상한값으로 잘라 무한 응답을 막는다")
 	void clampsLimit() throws Exception {
 		mockMvc.perform(get("/api/v1/products/market-sync/report").param("limit", "99999"))
@@ -150,11 +178,11 @@ class MarketSyncReportControllerTest {
 			1262, 1261, 1, 1200, 0, 0, 1197,
 			Map.of(MarketSyncBucket.MATCHED, 1197, MarketSyncBucket.STALE_LOCAL, 3),
 			Map.of("APPROVED", 1198, "DELETED", 2),
-			Map.of(), 0, false, 12L, List.of());
+			Map.of(), 0, false, 12L, List.of(), null);
 		MarketSyncMarketReport eleven = new MarketSyncMarketReport(
 			MarketType.ELEVEN_STREET.name(), MarketType.ELEVEN_STREET.getLabel(), MarketSyncOutcome.FAILED,
 			"-997 등록된 API 정보가 존재하지 않습니다", 2286, 2286, 0, 0, 0, 0, 0,
-			Map.of(), Map.of(), Map.of(), 0, false, 3L, List.of());
+			Map.of(), Map.of(), Map.of(), 0, false, 3L, List.of(), null);
 		return new MarketSyncReport(LocalDateTime.now(), 20, false, 15L, List.of(coupang, eleven));
 	}
 }

@@ -27,7 +27,7 @@ class ProductValidatorTest {
 			"url", BigDecimal.TEN, "base", "orig", "brand", "US",
 			BigDecimal.ONE, BigDecimal.TEN, MeasureUnit.TABLET,
 			List.of(), List.of(), "html", "비타민",
-			true, 1, BigDecimal.ZERO, VendorType.IHB));
+			true, 1, BigDecimal.ZERO, VendorType.IHB, null));
 		assertThatThrownBy(() -> validator.validateForPublish(product))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("이미지");
@@ -40,7 +40,7 @@ class ProductValidatorTest {
 			"url", BigDecimal.ZERO, "base", "orig", "brand", "US",
 			BigDecimal.ONE, BigDecimal.TEN, MeasureUnit.TABLET,
 			List.of("img"), List.of("hosted"), "html", "비타민",
-			true, 1, BigDecimal.ZERO, VendorType.IHB));
+			true, 1, BigDecimal.ZERO, VendorType.IHB, null));
 		assertThatThrownBy(() -> validator.validateForPublish(product))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("판매가");
@@ -51,6 +51,6 @@ class ProductValidatorTest {
 			"url", new BigDecimal("25"), "base", "orig", "brand", "US",
 			BigDecimal.ONE, BigDecimal.TEN, MeasureUnit.TABLET,
 			List.of("src"), List.of("hosted"), "html", "비타민",
-			true, 1, new BigDecimal("20"), VendorType.IHB));
+			true, 1, new BigDecimal("20"), VendorType.IHB, null));
 	}
 }

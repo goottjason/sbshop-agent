@@ -9,14 +9,18 @@ public record MarketSyncReportRequest(
 	int sampleLimit,
 	boolean deep,
 	int deepLimit,
-	long throttleMs) {
+	long throttleMs,
+	boolean liveInventory,
+	int liveLimit) {
 
 	public static final int DEFAULT_SAMPLE_LIMIT = 20;
 	public static final int MAX_SAMPLE_LIMIT = 500;
 	public static final int DEFAULT_DEEP_LIMIT = 200;
 	public static final int MAX_DEEP_LIMIT = 1000;
-	public static final long DEFAULT_THROTTLE_MS = 200L;
+	public static final long DEFAULT_THROTTLE_MS = 250L;
 	public static final long MAX_THROTTLE_MS = 5000L;
+	public static final int DEFAULT_LIVE_LIMIT = 50;
+	public static final int MAX_LIVE_LIMIT = 5000;
 
 	public static final List<MarketType> DEFAULT_MARKETS = List.of(
 		MarketType.COUPANG,
@@ -28,12 +32,20 @@ public record MarketSyncReportRequest(
 
 	public static MarketSyncReportRequest of(
 		List<MarketType> markets, Integer sampleLimit, Boolean deep, Integer deepLimit, Long throttleMs) {
+		return of(markets, sampleLimit, deep, deepLimit, throttleMs, null, null);
+	}
+
+	public static MarketSyncReportRequest of(
+		List<MarketType> markets, Integer sampleLimit, Boolean deep, Integer deepLimit, Long throttleMs,
+		Boolean liveInventory, Integer liveLimit) {
 		return new MarketSyncReportRequest(
 			resolveMarkets(markets),
 			clamp(sampleLimit, DEFAULT_SAMPLE_LIMIT, 0, MAX_SAMPLE_LIMIT),
 			Boolean.TRUE.equals(deep),
 			clamp(deepLimit, DEFAULT_DEEP_LIMIT, 0, MAX_DEEP_LIMIT),
-			clamp(throttleMs, DEFAULT_THROTTLE_MS, 0L, MAX_THROTTLE_MS));
+			clamp(throttleMs, DEFAULT_THROTTLE_MS, 0L, MAX_THROTTLE_MS),
+			Boolean.TRUE.equals(liveInventory),
+			clamp(liveLimit, DEFAULT_LIVE_LIMIT, 0, MAX_LIVE_LIMIT));
 	}
 
 	private static List<MarketType> resolveMarkets(List<MarketType> requested) {

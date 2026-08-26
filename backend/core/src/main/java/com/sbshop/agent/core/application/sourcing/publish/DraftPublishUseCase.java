@@ -119,7 +119,8 @@ public class DraftPublishUseCase {
 			true,
 			draft.getBundleQty() != null ? draft.getBundleQty() : 1,
 			draft.getMarginRate() != null ? draft.getMarginRate() : BigDecimal.ZERO,
-			parseVendor(draft.getVendor()));
+			parseVendor(draft.getVendor()),
+			draft.getBarcode());
 	}
 
 	private MarketPublishContext toContext(MarketDraft md) {

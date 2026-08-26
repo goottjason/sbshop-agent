@@ -140,7 +140,16 @@ KO_LOCALE = "ko-KR"
 KO_HEADERS = {"Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8"}
 
 
-def _fetch(url: str, *, wait: int = 1500, timeout: int = 60000):
+DETAIL_WAIT_SELECTOR = "#product-specs-list"
+SELECTOR_TIMEOUT_MS = 40000
+
+
+def _fetch(url: str, *, wait: int = 1500, timeout: int = 60000, wait_selector: str | None = None):
+    if wait_selector:
+        return DynamicFetcher.fetch(url, headless=True, network_idle=False, wait=0,
+                                    wait_selector=wait_selector, wait_selector_state="attached",
+                                    timeout=SELECTOR_TIMEOUT_MS, locale=KO_LOCALE,
+                                    extra_headers=KO_HEADERS)
     return DynamicFetcher.fetch(url, headless=True, network_idle=True, wait=wait,
                                 timeout=timeout, locale=KO_LOCALE, extra_headers=KO_HEADERS)
 
@@ -358,7 +367,7 @@ def fetch_detail(url: str) -> ProductDetail:
     now = datetime.now(timezone.utc).isoformat()
     external_id = extract_product_id(url)
     try:
-        p = _fetch(url, wait=2000)
+        p = _fetch(url, wait_selector=DETAIL_WAIT_SELECTOR)
     except Exception as e:  # noqa: BLE001
         return ProductDetail(ok=False, status="error", sourceUrl=url, externalId=external_id,
                              error=f"fetch error: {e}", scrapedAt=now)
