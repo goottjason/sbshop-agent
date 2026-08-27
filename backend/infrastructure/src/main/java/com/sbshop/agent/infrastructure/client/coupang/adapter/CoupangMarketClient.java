@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
+import com.sbshop.agent.core.domain.market.client.dto.MarketApprovalResult;
 import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
 import com.sbshop.agent.core.domain.market.client.dto.MarketDraftPrice;
 import com.sbshop.agent.core.domain.market.client.dto.MarketDraftPriceMiss;
@@ -46,6 +47,9 @@ public class CoupangMarketClient implements MarketClient {
 	private static final String VENDOR_ITEM_BASE = "/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/";
 	private static final Set<String> OPTION_ABSENT_MESSAGES = Set.of("유효한 옵션이 없습니다",
 		"유효하지 않은 ID가 입력되었습니다");
+	private static final Set<String> APPROVAL_ELIGIBLE_STATUSES = Set.of("임시저장", "승인반려", "부분승인완료");
+	private static final String APPROVAL_RETRY_MARKER = "등록/수정 중";
+	private static final String APPROVAL_RETRY_NOTE = "쿠팡이 이 상품을 등록/수정 중입니다 — 10분 뒤 같은 ID로 다시 요청하세요(자동 재시도 없음)";
 	private static final int CATALOG_PAGE_SIZE = 100;
 	private static final int CATALOG_MAX_PAGES = 1000;
 
@@ -370,6 +374,87 @@ public class CoupangMarketClient implements MarketClient {
 			return MarketDraftPrice.missing(MarketDraftPriceMiss.NO_PRICE_FIELD);
 		}
 		return MarketDraftPrice.of(salePrice);
+	}
+
+	@Override
+	public boolean supportsApprovalRequest() {
+		return true;
+	}
+
+	@Override
+	public MarketApprovalResult requestApproval(String marketItemId) {
+		if (marketItemId == null || marketItemId.isBlank()) {
+			return MarketApprovalResult.failed(marketItemId, null, false, null, null,
+				"sellerProductId 가 비어 있습니다 — 호출하지 않았습니다");
+		}
+		String id = marketItemId.trim();
+		String statusName;
+		try {
+			String statusResponse = restClient.get(CATALOG_BASE + "/" + id);
+			verifyEnvelopeStrict(statusResponse, "[쿠팡] 승인요청 전 상태 조회");
+			statusName = text(readEnvelope(statusResponse).path("data"), "statusName");
+		} catch (RuntimeException e) {
+			if (isNotFound(e)) {
+				log.info("[쿠팡] 승인요청 건너뜀 — 쿠팡에 없는 상품: sellerProductId={}", id);
+				return MarketApprovalResult.skipped(id, null, "쿠팡에 없는 상품입니다(404) — 호출하지 않았습니다");
+			}
+			log.warn("[쿠팡] 승인요청 전 상태 조회 실패: sellerProductId={}, msg={}", id, e.getMessage());
+			return MarketApprovalResult.failed(id, null, false, null, exceptionMessage(e),
+				"승인요청 전 상태 조회에 실패해 호출하지 않았습니다");
+		}
+		if (statusName.isEmpty()) {
+			log.warn("[쿠팡] 승인요청 건너뜀 — statusName 부재: sellerProductId={}", id);
+			return MarketApprovalResult.skipped(id, null, "상태를 확인하지 못했습니다(statusName 부재) — 호출하지 않았습니다");
+		}
+		if (!APPROVAL_ELIGIBLE_STATUSES.contains(statusName)) {
+			log.info("[쿠팡] 승인요청 건너뜀 — 대상 상태 아님: sellerProductId={}, statusName={}", id, statusName);
+			return MarketApprovalResult.skipped(id, statusName,
+				"'" + statusName + "' 은 승인 요청 대상이 아닙니다(대상: 임시저장·승인반려·부분승인완료) — 호출하지 않았습니다");
+		}
+
+		String response;
+		try {
+			response = restClient.requestWithBody("PUT", CATALOG_BASE + "/" + id + "/approvals", null);
+		} catch (RuntimeException e) {
+			String failureMessage = exceptionMessage(e);
+			if (failureMessage.contains(APPROVAL_RETRY_MARKER)) {
+				log.info("[쿠팡] 승인요청 재시도 대상: sellerProductId={}, msg={}", id, failureMessage);
+				return MarketApprovalResult.retryable(id, statusName, null, failureMessage, APPROVAL_RETRY_NOTE);
+			}
+			log.warn("[쿠팡] 승인요청 실패: sellerProductId={}, msg={}", id, failureMessage);
+			return MarketApprovalResult.failed(id, statusName, true, null, failureMessage, "승인 요청 호출이 실패했습니다");
+		}
+
+		JsonNode root = readEnvelope(response);
+		String code = root == null ? "" : root.path("code").asText("");
+		String message = root == null ? envelopeSnippet(response) : root.path("message").asText("");
+		if ("SUCCESS".equalsIgnoreCase(code) || "200".equals(code)) {
+			log.info("[쿠팡] 승인요청 성공: sellerProductId={}, 이전상태={}", id, statusName);
+			return MarketApprovalResult.requested(id, statusName, code, message);
+		}
+		if (message.contains(APPROVAL_RETRY_MARKER)) {
+			log.info("[쿠팡] 승인요청 재시도 대상: sellerProductId={}, msg={}", id, message);
+			return MarketApprovalResult.retryable(id, statusName, code.isEmpty() ? null : code, message,
+				APPROVAL_RETRY_NOTE);
+		}
+		log.warn("[쿠팡] 승인요청 실패 — 성공 봉투 아님: sellerProductId={}, code={}, msg={}", id, code, message);
+		return MarketApprovalResult.failed(id, statusName, true, code.isEmpty() ? null : code,
+			message.isEmpty() ? envelopeSnippet(response) : message,
+			"성공 봉투(code=SUCCESS·200)가 아닙니다");
+	}
+
+	private static String exceptionMessage(RuntimeException e) {
+		StringBuilder joined = new StringBuilder();
+		for (Throwable t = e; t != null && t != t.getCause(); t = t.getCause()) {
+			if (t.getMessage() == null) {
+				continue;
+			}
+			if (joined.length() > 0) {
+				joined.append(" / ");
+			}
+			joined.append(t.getMessage());
+		}
+		return joined.toString();
 	}
 
 	private static Integer intOrNull(JsonNode node, String field) {

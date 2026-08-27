@@ -21,6 +21,7 @@ public final class ActionLogConstants {
 	public static final String PRODUCT_IMAGE_UPDATE = "PRODUCT_IMAGE_UPDATE";
 	public static final String PRODUCT_UPDATE = "PRODUCT_UPDATE";
 	public static final String PRODUCT_DELETE = "PRODUCT_DELETE";
+	public static final String PRODUCT_APPROVAL_REQUEST = "PRODUCT_APPROVAL_REQUEST";
 	public static final String SOURCE_IMAGE_CRAWL = "SOURCE_IMAGE_CRAWL";
 
 	public static final String STOCK_SYNC = "STOCK_SYNC";

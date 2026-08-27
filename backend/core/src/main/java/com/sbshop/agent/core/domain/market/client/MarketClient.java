@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.domain.market.client;
 
+import com.sbshop.agent.core.domain.market.client.dto.MarketApprovalResult;
 import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
 import com.sbshop.agent.core.domain.market.client.dto.MarketDraftPrice;
 import com.sbshop.agent.core.domain.market.client.dto.MarketDraftPriceMiss;
@@ -105,5 +106,13 @@ public interface MarketClient {
 
 	default MarketDraftPrice fetchDraftSalePrice(String marketItemId) {
 		return MarketDraftPrice.missing(MarketDraftPriceMiss.UNSUPPORTED);
+	}
+
+	default boolean supportsApprovalRequest() {
+		return false;
+	}
+
+	default MarketApprovalResult requestApproval(String marketItemId) {
+		throw new UnsupportedOperationException(getSupportedMarket() + " 승인 요청 API 미지원");
 	}
 }

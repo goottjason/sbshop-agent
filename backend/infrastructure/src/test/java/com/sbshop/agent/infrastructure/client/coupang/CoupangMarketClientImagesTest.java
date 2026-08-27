@@ -85,6 +85,7 @@ class CoupangMarketClientImagesTest {
 
 		verify(restClient).put(eq(BASE_PATH), any());
 		verify(restClient, never()).put(eq(BASE_PATH + "/305/approvals"), any());
+		verify(restClient, never()).requestWithBody(anyString(), eq(BASE_PATH + "/305/approvals"), any());
 	}
 
 	@Test
@@ -133,6 +134,7 @@ class CoupangMarketClientImagesTest {
 		order.verify(restClient).get(eq(GET_PATH));
 		order.verify(restClient).put(eq(BASE_PATH), any());
 		verify(restClient, never()).put(eq(BASE_PATH + "/305/approvals"), any());
+		verify(restClient, never()).requestWithBody(anyString(), eq(BASE_PATH + "/305/approvals"), any());
 	}
 
 	@Test
@@ -147,6 +149,7 @@ class CoupangMarketClientImagesTest {
 		verify(restClient).get(eq(GET_PATH));
 		verify(restClient).put(eq(BASE_PATH), any());
 		verify(restClient, never()).put(eq(BASE_PATH + "/305/approvals"), any());
+		verify(restClient, never()).requestWithBody(anyString(), eq(BASE_PATH + "/305/approvals"), any());
 	}
 
 	@Test
