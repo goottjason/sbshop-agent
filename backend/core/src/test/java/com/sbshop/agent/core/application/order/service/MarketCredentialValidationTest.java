@@ -1,7 +1,7 @@
 package com.sbshop.agent.core.application.order.service;
 
+import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
-import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import org.mockito.Mockito;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -88,7 +88,7 @@ class MarketCredentialValidationTest {
 				.mock(MarketLineItemSyncDispatcher.class),
 			Mockito.mock(ShipmentRepository.class),
 			Mockito
-				.mock(MarketRegistrationRepository.class));
+				.mock(MarketRegistrationLookup.class));
 		service.syncElevenstOrders();
 
 		assertIncompleteCredentialFailure(capturedEvents());

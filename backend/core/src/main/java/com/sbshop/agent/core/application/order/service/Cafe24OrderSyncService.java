@@ -10,7 +10,7 @@ import com.sbshop.agent.core.application.sync.SyncMarketKeys;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.domain.common.RootCauseExtractor;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
-import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
+import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.application.fee.MarketFeeService;
@@ -48,7 +48,7 @@ public class Cafe24OrderSyncService {
 	private final Cafe24OrderApiPort cafe24OrderApiPort;
 	private final OrderRepository orderRepository;
 	private final OrderLineItemRepository orderLineItemRepository;
-	private final MarketRegistrationRepository marketRegistrationRepository;
+	private final MarketRegistrationLookup marketRegistrationLookup;
 	private final ApplicationEventPublisher eventPublisher;
 	private final SyncStatusService syncStatusService;
 	private final MarketFeeService marketFeeService;
@@ -387,17 +387,20 @@ public class Cafe24OrderSyncService {
 		if (data == null) {
 			return null;
 		}
-		for (String key : new String[] {"product_no", "product_code"}) {
+		String[] keys = {MarketRegistration.CAFE24_LOOKUP_KEY, MarketRegistration.CAFE24_PRODUCT_CODE_KEY};
+		for (String key : keys) {
 			Object raw = data.get(key);
 			if (raw == null || String.valueOf(raw).isBlank()) {
 				continue;
 			}
-			List<MarketRegistration> regs = marketRegistrationRepository
-				.findByMarketTypeAndIdentifiersContaining(MarketType.CAFE24, String.valueOf(raw));
-			if (!regs.isEmpty()) {
-				return regs.get(0).getSbProductId();
+			Optional<MarketRegistration> reg = marketRegistrationLookup
+				.findUnique(MarketType.CAFE24, key, String.valueOf(raw));
+			if (reg.isPresent()) {
+				return reg.get().getSbProductId();
 			}
 		}
+		log.warn("[CAFE24] sb_market_registration에서 productId를 찾을 수 없음: product_no={}, product_code={}",
+			data.get(MarketRegistration.CAFE24_LOOKUP_KEY), data.get(MarketRegistration.CAFE24_PRODUCT_CODE_KEY));
 		return null;
 	}
 

@@ -20,8 +20,9 @@ public interface MarketRegistrationRepository extends JpaRepository<MarketRegist
 
 	Optional<MarketRegistration> findByProductIdAndMarketType(Long productId, MarketType marketType);
 
-	@Query("SELECT r FROM MarketRegistration r WHERE r.marketType = :marketType AND r.marketIdentifiers LIKE CONCAT('%', :value, '%')")
-	List<MarketRegistration> findByMarketTypeAndIdentifiersContaining(@Param("marketType")
+	@Query("SELECT r FROM MarketRegistration r WHERE r.marketType = :marketType "
+		+ "AND r.marketIdentifiers LIKE CONCAT('%', :value, '%') ORDER BY r.id ASC")
+	List<MarketRegistration> findIdentifierCandidates(@Param("marketType")
 	MarketType marketType, @Param("value")
 	String value);
 

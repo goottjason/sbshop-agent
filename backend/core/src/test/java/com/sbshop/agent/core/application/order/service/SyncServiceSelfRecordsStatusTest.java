@@ -11,6 +11,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
 import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
@@ -48,7 +49,8 @@ class SyncServiceSelfRecordsStatusTest {
 	@BeforeEach
 	void setUp() {
 		service = new Cafe24OrderSyncService(cafe24OrderApiPort, orderRepository,
-			orderLineItemRepository, marketRegistrationRepository, eventPublisher, syncStatusService,
+			orderLineItemRepository, new MarketRegistrationLookup(marketRegistrationRepository),
+			eventPublisher, syncStatusService,
 			marketFeeService,
 			Mockito.mock(TerminalSettlementService.class),
 			Mockito.mock(Cafe24ShipmentTrackingLookup.class),

@@ -33,10 +33,12 @@ public class MarketRegistration extends BaseEntity {
 	public static final String AUCTION_IDENTIFIER_KEY = "auction_goodsNo";
 
 	public static final String COUPANG_LOOKUP_KEY = "sellerProductId";
+	public static final String COUPANG_VENDOR_ITEM_KEY = "vendorItemId";
 	public static final String SMART_STORE_LOOKUP_KEY = "originProductNo";
 	public static final String ELEVEN_STREET_LOOKUP_KEY = "prdNo";
 	public static final String ELEVEN_STREET_LOOKUP_FALLBACK_KEY = "elevenstId";
 	public static final String CAFE24_LOOKUP_KEY = "product_no";
+	public static final String CAFE24_PRODUCT_CODE_KEY = "product_code";
 
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 

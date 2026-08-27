@@ -22,6 +22,7 @@ import com.sbshop.agent.core.domain.fee.repository.FeePolicyRepository;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
+import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -92,7 +93,8 @@ class CoupangOrderProductMappingTest {
 		lenient().when(orderLineItemRepository.findByShipmentId(any())).thenReturn(List.of());
 
 		service = new CoupangOrderSyncService(credentialRepository, orderRepository,
-			orderLineItemRepository, productRepository, marketRegistrationRepository, eventPublisher,
+			orderLineItemRepository, productRepository, marketRegistrationRepository,
+			new MarketRegistrationLookup(marketRegistrationRepository), eventPublisher,
 			coupangOrderAdapter, statusMapper, syncStatusService, marketFeeService,
 			terminalSettlementService, actionLogService,
 			new MarketLineItemSyncDispatcher(orderLineItemRepository,
@@ -109,14 +111,14 @@ class CoupangOrderProductMappingTest {
 		stubCredentialAndFetch(dto);
 
 		when(marketRegistrationRepository
-			.findByMarketTypeAndIdentifiersContaining(MarketType.COUPANG, VENDOR_ITEM_ID))
+			.findIdentifierCandidates(MarketType.COUPANG, VENDOR_ITEM_ID))
 			.thenReturn(List.of());
 		MarketRegistration reg = MarketRegistration.builder()
 			.productId(99L).sbProductId(99L).marketType(MarketType.COUPANG)
 			.marketIdentifiers("{\"sellerProductId\":\"" + SELLER_PRODUCT_ID + "\"}")
 			.build();
 		when(marketRegistrationRepository
-			.findByMarketTypeAndIdentifiersContaining(MarketType.COUPANG, SELLER_PRODUCT_ID))
+			.findIdentifierCandidates(MarketType.COUPANG, SELLER_PRODUCT_ID))
 			.thenReturn(List.of(reg));
 
 		service.syncCoupangOrders();
@@ -141,7 +143,7 @@ class CoupangOrderProductMappingTest {
 				+ "\",\"vendorItemId\":\"" + VENDOR_ITEM_ID + "\"}")
 			.build();
 		when(marketRegistrationRepository
-			.findByMarketTypeAndIdentifiersContaining(MarketType.COUPANG, VENDOR_ITEM_ID))
+			.findIdentifierCandidates(MarketType.COUPANG, VENDOR_ITEM_ID))
 			.thenReturn(List.of(reg));
 
 		service.syncCoupangOrders();
@@ -151,7 +153,7 @@ class CoupangOrderProductMappingTest {
 		assertThat(captor.getValue().getProductId()).isEqualTo(77L);
 
 		verify(marketRegistrationRepository, never())
-			.findByMarketTypeAndIdentifiersContaining(eq(MarketType.COUPANG), eq(SELLER_PRODUCT_ID));
+			.findIdentifierCandidates(eq(MarketType.COUPANG), eq(SELLER_PRODUCT_ID));
 		verify(marketRegistrationRepository, never()).save(any(MarketRegistration.class));
 	}
 

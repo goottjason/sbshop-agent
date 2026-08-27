@@ -4,9 +4,9 @@ import com.sbshop.agent.core.application.order.dto.MarketFetchOutcome;
 import com.sbshop.agent.core.application.sync.SyncMarketKeys;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.domain.market.MarketCredential;
+import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
-import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.Shipment;
@@ -31,6 +31,7 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -57,7 +58,7 @@ public class ElevenstOrderSyncService {
 	private final TerminalSettlementService terminalSettlementService;
 	private final MarketLineItemSyncDispatcher lineItemSyncDispatcher;
 	private final ShipmentRepository shipmentRepository;
-	private final MarketRegistrationRepository marketRegistrationRepository;
+	private final MarketRegistrationLookup marketRegistrationLookup;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -369,13 +370,13 @@ public class ElevenstOrderSyncService {
 		if (prdNo == null || prdNo.isBlank()) {
 			return null;
 		}
-		List<MarketRegistration> regs = marketRegistrationRepository
-			.findByMarketTypeAndIdentifiersContaining(MarketType.ELEVEN_STREET, prdNo);
-		if (regs.isEmpty()) {
+		Optional<MarketRegistration> reg = marketRegistrationLookup.findUnique(
+			MarketType.ELEVEN_STREET, MarketRegistration.ELEVEN_STREET_LOOKUP_KEY, prdNo);
+		if (reg.isEmpty()) {
 			log.warn("[ELEVEN_STREET] prdNo로도 상품을 찾지 못했다: prdNo={}", prdNo);
 			return null;
 		}
-		Long sbProductId = regs.get(0).getSbProductId();
+		Long sbProductId = reg.get().getSbProductId();
 		log.info("[ELEVEN_STREET] prdNo 폴백으로 productId 해석: prdNo={}, sbProductId={}", prdNo, sbProductId);
 		return sbProductId;
 	}

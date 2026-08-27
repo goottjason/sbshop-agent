@@ -24,6 +24,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
 import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter;
 import com.sbshop.agent.core.application.order.dto.MarketFetchOutcome;
@@ -76,7 +77,8 @@ class ElevenstClaimDetectionScopeTest {
 		service = new ElevenstOrderSyncService(credentialRepository, orderRepository,
 			orderLineItemRepository, productRepository, eventPublisher, adapter,
 			syncStatusService, marketFeeService, terminalSettlementService,
-			lineItemSyncDispatcher, shipmentRepository, marketRegistrationRepository);
+			lineItemSyncDispatcher, shipmentRepository,
+			new MarketRegistrationLookup(marketRegistrationRepository));
 
 		MarketCredential credential = mock(MarketCredential.class);
 		when(credential.getAccessKey()).thenReturn("api-key");

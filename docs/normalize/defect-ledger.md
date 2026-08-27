@@ -3730,3 +3730,21 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 미수정(의도적): 판정서 **요구 5**(쿠팡 `UNJOINABLE_LOCAL` 판정이 `sbCode != null`에 의존 — 쿠팡 카탈로그는 `sellerCode`를 주지 않으므로 sbCode는 조인 키가 아니다)는 비차단·운영 노출 **0행**이고 리더 지시 4건에 없어 손대지 않았다. 스토어 `asBoolean(true)`·카페24 offset→cursor 정렬 가정·`ElevenstMarketRestClient.sendRequest`의 4xx/5xx 정상 반환도 그대로다.
 - 요지: `_workspace/fixes/D-210_reject_fix.md`
 - 상태: 수정완료(검증대기) — 반려 4건 해소. 11번가는 리포트에서 `UNSUPPORTED`로 정직하게 표시되며, 라이브 실행 검증은 여전히 남아 있다.
+
+### D-218: 마켓 주문 상품매칭이 식별자 JSON 부분 문자열로 조회해 엉뚱한 상품 배송 (2026-08-27, 실제 오배송 발생)
+
+- 심각도: **P0(실제 고객 오배송 발생)** | 위치: `MarketRegistrationRepository:23` + 3개 마켓 sync 서비스
+- 실증(운영): G마켓 주문 `4477134670`(2026-08-07). ESM 기준 실판매 상품은 `230806IHB130`(카페24 `product_no=20082`)인데 시스템은 `200828TE001`(사클라 칠리 페스토)로 매칭해 그대로 발송(현재 `EXCHANGED`).
+- 원인: `findByMarketTypeAndIdentifiersContaining`이 `market_identifiers` **JSON 덩어리 전체를 `LIKE '%값%'`으로 부분 검색**하고 호출부가 `ORDER BY` 없이 `regs.get(0)`을 집는다. 카페24 `product_no`는 4~5자리 숫자라 날짜로 시작하는 SB코드(`200828TE001`) 안에 파묻힌다.
+- **운영 실측 blast radius**(2026-08-27, 읽기 전용 조회): `product_no` 3,185건 중 **696건이 부분 문자열 충돌**(최악 후보 104건), 그중 **413건은 id 순 첫 후보가 오답**. 즉 카페24 상품의 **13%가 오배송 후보**였다.
+- **결정적 관측**: 카페24 3,186행 중 **2,428행이 공백 포함 JSON**(`{"product_no": "20082", ...}`), 758행이 압축 JSON. → `LIKE '%"product_no":"20082"%'` 같은 **SQL 문자열 패턴 해법은 76%를 조용히 놓친다.** 정확 일치는 SQL이 아니라 JSON 파싱으로 판정해야 한다.
+- 수정(2026-08-27): 정확 일치 판정을 **SQL이 아니라 Java JSON 파싱으로** 옮겼다. `MarketRegistrationLookup`(core/application/market) 신설 — 기존 `LIKE '%값%'`은 **후보 전치 필터**로만 남기고(+`ORDER BY r.id`), 후보 각각의 `identifier(key)`를 파싱해 **지정한 키의 값이 정확히 같은 것만** 남긴다. 구 메서드 `findByMarketTypeAndIdentifiersContaining`은 참조 0이 되어 삭제, `findIdentifierCandidates`로 대체.
+- **왜 SQL 패턴이 아니라 Java 파싱인가**: 위 관측대로 카페24 76%가 공백 포함 JSON이라 `LIKE '%"product_no":"20082"%'`는 절반 이상을 놓친다. Java 파싱은 압축·공백·숫자값 표기를 모두 동일하게 읽고, **SQL에는 방언 의존 구문이 하나도 남지 않아** Postgres/H2 의미 차이가 원천적으로 생기지 않는다([[D-206]] 계열 사고 예방). 실증 — Postgres `LIKE '%20082%'` 7행 = H2 동일 시드 `findIdentifierCandidates` 7건, 그중 정확 일치 1건.
+- **다건이면 매칭하지 않는다**: 정확 일치 2건 이상이면 첫 건을 집지 않고 `Optional.empty()` + WARN(`상품 매칭 중단 — {키}={값} 인 등록행이 N건이라 … 잘못 배송하지 않도록 매칭하지 않는다: sbProductId 후보=[…]`). 0건은 호출부의 기존/신설 WARN(`productId를 찾을 수 없음`)으로 문구가 완전히 갈린다.
+- **마켓별 조회 키 확정(코드 실독)**: 카페24 `product_no`·`product_code`(`Cafe24LineItemMapper:104-105`가 저장 키와 동일명으로 담는다) / 쿠팡 `marketProductCode`→**`vendorItemId`**·`sellerProductId`→`sellerProductId`(`CoupangOrderAdapter:603-604`) / 11번가 `sellerProductId`→**`prdNo`**(`ElevenstOrderAdapter:673`). 11번가 `marketProductCode`는 SB코드라 `findBySbCode` 경로 — 무변경.
+- Red 실측: 신규 `MarketRegistrationLookupTest` 10건을 **구 의미 골격**(부분 문자열+첫 건)으로 측정 → `10 tests completed, 5 failed`. 대표 실패가 곧 이번 사고다 — **`expected: "230806IHB130" but was: "200828TE001"`**. 통과 5건은 기존 행위가 이미 만족하는 회귀 가드(가짜 Red로 세지 않음). 주문 경로 전체를 도는 `Cafe24OrderSyncServiceTest` 신규 2건도 원본 의미 복원 후 `18 tests completed, 2 failed` 확인 후 Green 복원.
+- **운영 전수 시뮬레이션(읽기 전용 덤프 9,920행)**: 새 알고리즘으로 카페24 `product_no` 3,185 / `product_code` 3,184 / 쿠팡 `vendorItemId` 1,261 / `sellerProductId` 1,262 / 11번가 `prdNo` 2,286 **전부 자기 자신으로 정확 해석, 모호 0 · 미해석 0**. 즉 **회귀 0건이면서 413건의 오배송 경로만 닫힌다.**
+- 게이트(격리 빌드): `:core:test` **885**(기준선 873 → +12 = 신규 12) · `:infrastructure:test` **313** · `:api:test` **202** · `:worker:test` **72**, 실패·에러 **0**. 4모듈 `compileJava`·`compileTestJava`·`spotlessCheck` 통과(`spotlessApply` 미실행 — 미사용 import 3건 수동 교정). 주석 0줄·FQN 0·DB/마켓 쓰기 0.
+- 후속 후보(고치지 않고 기록만): ① 카페24 라인아이템에는 `custom_product_code`(우리 SB코드)도 온다(`Cafe24LineItemMapper:106`) — `product_no`보다 안정적인 조인 키인데 매칭 경로가 안 쓴다. ② **이미 잘못 매칭돼 저장된 과거 주문 라인아이템의 교정 배치는 이번 범위 밖**(운영 쓰기 금지 상태라 미착수). 별건 필요.
+- 요지: `_workspace/fixes/D-218_match_fix.md`
+- 상태: 수정완료(검증대기)

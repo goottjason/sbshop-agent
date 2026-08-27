@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.service;
 
+import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
 import com.sbshop.agent.core.application.order.dto.MarketFetchOutcome;
 import com.sbshop.agent.core.application.order.mapper.CoupangStatusMapper;
 import org.mockito.ArgumentMatchers;
@@ -71,6 +72,7 @@ class CoupangCancelDetectionScopeTest {
 	void setUp() {
 		service = new CoupangOrderSyncService(credentialRepository, orderRepository,
 			orderLineItemRepository, productRepository, marketRegistrationRepository,
+			new MarketRegistrationLookup(marketRegistrationRepository),
 			eventPublisher, adapter, statusMapper, syncStatusService, marketFeeService,
 			terminalSettlementService, actionLogService, lineItemSyncDispatcher);
 

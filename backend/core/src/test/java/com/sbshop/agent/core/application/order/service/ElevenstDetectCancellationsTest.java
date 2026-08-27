@@ -1,8 +1,8 @@
 package com.sbshop.agent.core.application.order.service;
 
+import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
 import com.sbshop.agent.core.application.order.dto.MarketFetchOutcome;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
-import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import java.util.Map;
 import java.util.Optional;
@@ -165,7 +165,7 @@ class ElevenstDetectCancellationsTest {
 			Mockito
 				.mock(MarketLineItemSyncDispatcher.class),
 			shipmentRepository, Mockito
-				.mock(MarketRegistrationRepository.class));
+				.mock(MarketRegistrationLookup.class));
 	}
 
 	private void stubCredentialAndEmptyApi() {

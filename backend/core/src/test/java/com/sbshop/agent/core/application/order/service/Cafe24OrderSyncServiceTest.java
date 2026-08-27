@@ -24,6 +24,8 @@ import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.order.event.SyncCompletedEvent;
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
 import com.sbshop.agent.core.domain.fee.repository.FeePolicyRepository;
+import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
+import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
@@ -69,7 +71,8 @@ class Cafe24OrderSyncServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new Cafe24OrderSyncService(cafe24OrderApiPort, orderRepository,
-			orderLineItemRepository, marketRegistrationRepository, eventPublisher, syncStatusService,
+			orderLineItemRepository, new MarketRegistrationLookup(marketRegistrationRepository),
+			eventPublisher, syncStatusService,
 			marketFeeService,
 			Mockito.mock(TerminalSettlementService.class),
 			Mockito.mock(Cafe24ShipmentTrackingLookup.class),
@@ -82,7 +85,7 @@ class Cafe24OrderSyncServiceTest {
 			.thenAnswer(inv -> inv.getArgument(0));
 		lenient().when(orderLineItemRepository.findByShipmentId(
 			ArgumentMatchers.any())).thenReturn(List.of());
-		lenient().when(marketRegistrationRepository.findByMarketTypeAndIdentifiersContaining(
+		lenient().when(marketRegistrationRepository.findIdentifierCandidates(
 			ArgumentMatchers.any(), anyString())).thenReturn(List.of());
 	}
 
@@ -288,6 +291,49 @@ class Cafe24OrderSyncServiceTest {
 		ShippingData shipping = lastOf(itemCaptor).getShippingData();
 		assertThat(shipping.getTrackingNo()).isNull();
 		assertThat(shipping.getTrackingSentToMarket()).isNull();
+	}
+
+	@Test
+	@DisplayName("[D-218] G마켓 주문 4477134670 재현: product_no가 SB코드 안에 파묻힌 다른 상품을 집지 않는다")
+	void resolvesLineItemProductByExactProductNoNotSubstring() throws Exception {
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0))).thenReturn(ordersJson());
+		when(orderRepository.findByMarketOrderNo("GM123")).thenReturn(Optional.empty());
+		when(marketRegistrationRepository.findIdentifierCandidates(MarketType.CAFE24, "7034"))
+			.thenReturn(List.of(
+				registration(999L, "{\"product_no\":\"20\",\"custom_product_code\":\"200828TE7034\"}"),
+				registration(500L, "{\"product_no\": \"7034\", \"custom_product_code\": \"230806IHB130\"}")));
+
+		service.fetchAndPersist(LocalDate.now().minusDays(7), LocalDate.now());
+
+		ArgumentCaptor<OrderLineItem> itemCaptor = ArgumentCaptor.forClass(OrderLineItem.class);
+		verify(orderLineItemRepository, atLeastOnce()).save(itemCaptor.capture());
+		assertThat(lastOf(itemCaptor).getProductId()).isEqualTo(500L);
+	}
+
+	@Test
+	@DisplayName("[D-218] 같은 product_no를 가진 등록행이 2건이면 상품을 붙이지 않고 비워 둔다")
+	void leavesProductUnresolvedWhenProductNoIsAmbiguous() throws Exception {
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0))).thenReturn(ordersJson());
+		when(orderRepository.findByMarketOrderNo("GM123")).thenReturn(Optional.empty());
+		when(marketRegistrationRepository.findIdentifierCandidates(MarketType.CAFE24, "7034"))
+			.thenReturn(List.of(
+				registration(601L, "{\"product_no\":\"7034\"}"),
+				registration(602L, "{\"product_no\": \"7034\"}")));
+
+		service.fetchAndPersist(LocalDate.now().minusDays(7), LocalDate.now());
+
+		ArgumentCaptor<OrderLineItem> itemCaptor = ArgumentCaptor.forClass(OrderLineItem.class);
+		verify(orderLineItemRepository, atLeastOnce()).save(itemCaptor.capture());
+		assertThat(lastOf(itemCaptor).getProductId()).isNull();
+	}
+
+	private MarketRegistration registration(Long sbProductId, String identifiers) {
+		return MarketRegistration.builder()
+			.productId(sbProductId)
+			.sbProductId(sbProductId)
+			.marketType(MarketType.CAFE24)
+			.marketIdentifiers(identifiers)
+			.build();
 	}
 
 	private JsonNode ordersJson() throws Exception {

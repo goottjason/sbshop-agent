@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.service;
 
+import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.order.dto.MarketFetchOutcome;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
@@ -130,7 +131,8 @@ class OrderAddressProtectionTest {
 
 		CoupangOrderSyncService service = new CoupangOrderSyncService(credentialRepository,
 			orderRepository, orderLineItemRepository, productRepository,
-			marketRegistrationRepository, eventPublisher, coupangOrderAdapter, coupangStatusMapper,
+			marketRegistrationRepository, new MarketRegistrationLookup(marketRegistrationRepository),
+			eventPublisher, coupangOrderAdapter, coupangStatusMapper,
 			syncStatusService, marketFeeService,
 			Mockito.mock(TerminalSettlementService.class),
 			Mockito.mock(ActionLogService.class),

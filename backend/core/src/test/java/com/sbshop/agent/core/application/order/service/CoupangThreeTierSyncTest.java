@@ -36,6 +36,7 @@ import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.application.order.mapper.CoupangStatusMapper;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.domain.market.MarketCredential;
+import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
@@ -94,7 +95,8 @@ class CoupangThreeTierSyncTest {
 		MarketLineItemSyncDispatcher syncDispatcher = new MarketLineItemSyncDispatcher(orderLineItemRepository,
 			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
 		service = new CoupangOrderSyncService(credentialRepository, orderRepository,
-			orderLineItemRepository, productRepository, marketRegistrationRepository, eventPublisher,
+			orderLineItemRepository, productRepository, marketRegistrationRepository,
+			new MarketRegistrationLookup(marketRegistrationRepository), eventPublisher,
 			adapter, new CoupangStatusMapper(), syncStatusService, marketFeeService,
 			terminalSettlementService, actionLogService, syncDispatcher);
 
@@ -265,9 +267,13 @@ class CoupangThreeTierSyncTest {
 	}
 
 	private void stubRegistration(String vendorItemId, Long sbProductId) {
-		MarketRegistration reg = mock(MarketRegistration.class);
-		when(reg.getSbProductId()).thenReturn(sbProductId);
-		when(marketRegistrationRepository.findByMarketTypeAndIdentifiersContaining(
+		MarketRegistration reg = MarketRegistration.builder()
+			.productId(sbProductId)
+			.sbProductId(sbProductId)
+			.marketType(MarketType.COUPANG)
+			.marketIdentifiers("{\"vendorItemId\":\"" + vendorItemId + "\"}")
+			.build();
+		when(marketRegistrationRepository.findIdentifierCandidates(
 			MarketType.COUPANG, vendorItemId)).thenReturn(List.of(reg));
 	}
 

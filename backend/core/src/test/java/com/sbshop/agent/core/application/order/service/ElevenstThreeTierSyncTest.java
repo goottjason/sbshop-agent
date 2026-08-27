@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.order.service;
 
 import com.sbshop.agent.core.application.order.dto.MarketFetchOutcome;
+import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import java.util.HashMap;
@@ -96,7 +97,7 @@ class ElevenstThreeTierSyncTest {
 			orderLineItemRepository, productRepository, eventPublisher, adapter,
 			syncStatusService, marketFeeService, terminalSettlementService, syncDispatcher,
 			Mockito.mock(ShipmentRepository.class),
-			marketRegistrationRepository);
+			new MarketRegistrationLookup(marketRegistrationRepository));
 
 		MarketCredential credential = mock(MarketCredential.class);
 		when(credential.getAccessKey()).thenReturn("api-key");
@@ -383,7 +384,7 @@ class ElevenstThreeTierSyncTest {
 
 		assertThat(saved("1").getProductId()).isEqualTo(312L);
 		Mockito.verify(marketRegistrationRepository, Mockito.never())
-			.findByMarketTypeAndIdentifiersContaining(any(), anyString());
+			.findIdentifierCandidates(any(), anyString());
 	}
 
 	@Test
@@ -457,10 +458,13 @@ class ElevenstThreeTierSyncTest {
 	}
 
 	private void stubRegistration(String prdNo, Long productId) {
-		MarketRegistration reg = mock(
-			MarketRegistration.class);
-		when(reg.getSbProductId()).thenReturn(productId);
-		when(marketRegistrationRepository.findByMarketTypeAndIdentifiersContaining(
+		MarketRegistration reg = MarketRegistration.builder()
+			.productId(productId)
+			.sbProductId(productId)
+			.marketType(MarketType.ELEVEN_STREET)
+			.marketIdentifiers("{\"prdNo\":\"" + prdNo + "\"}")
+			.build();
+		when(marketRegistrationRepository.findIdentifierCandidates(
 			MarketType.ELEVEN_STREET, prdNo)).thenReturn(List.of(reg));
 	}
 }

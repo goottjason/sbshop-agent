@@ -1,8 +1,8 @@
 package com.sbshop.agent.core.application.order.service;
 
+import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
 import com.sbshop.agent.core.application.order.dto.MarketFetchOutcome;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
-import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import java.util.Optional;
 import org.mockito.Mockito;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -137,7 +137,7 @@ class ElevenstMissingOrderStateTest {
 			productRepository, eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService,
 			mock(TerminalSettlementService.class), mock(MarketLineItemSyncDispatcher.class),
 			shipmentRepository, Mockito
-				.mock(MarketRegistrationRepository.class));
+				.mock(MarketRegistrationLookup.class));
 	}
 
 	private void stubCredentialAndEmptyApi() {

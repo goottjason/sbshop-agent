@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.service;
 
+import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
@@ -87,7 +88,8 @@ class OrderSyncEventEmissionTest {
 		when(credentialRepository.findByMarketType(MarketType.COUPANG)).thenReturn(Optional.empty());
 		CoupangOrderSyncService service = new CoupangOrderSyncService(
 			credentialRepository, orderRepository, orderLineItemRepository, productRepository,
-			marketRegistrationRepository, eventPublisher, coupangOrderAdapter, coupangStatusMapper,
+			marketRegistrationRepository, new MarketRegistrationLookup(marketRegistrationRepository),
+			eventPublisher, coupangOrderAdapter, coupangStatusMapper,
 			syncStatusService, marketFeeService,
 			Mockito.mock(TerminalSettlementService.class),
 			Mockito.mock(ActionLogService.class),
@@ -109,7 +111,7 @@ class OrderSyncEventEmissionTest {
 			eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService,
 			Mockito.mock(TerminalSettlementService.class),
 			Mockito.mock(MarketLineItemSyncDispatcher.class),
-			Mockito.mock(ShipmentRepository.class), Mockito.mock(MarketRegistrationRepository.class));
+			Mockito.mock(ShipmentRepository.class), Mockito.mock(MarketRegistrationLookup.class));
 
 		service.syncElevenstOrders();
 

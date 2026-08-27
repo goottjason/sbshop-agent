@@ -8,6 +8,7 @@ import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
+import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
@@ -31,6 +32,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +50,7 @@ public class CoupangOrderSyncService {
 	private final OrderLineItemRepository orderLineItemRepository;
 	private final ProductRepository productRepository;
 	private final MarketRegistrationRepository marketRegistrationRepository;
+	private final MarketRegistrationLookup marketRegistrationLookup;
 	private final ApplicationEventPublisher eventPublisher;
 	private final CoupangOrderAdapter coupangOrderAdapter;
 	private final CoupangStatusMapper statusMapper;
@@ -321,10 +324,10 @@ public class CoupangOrderSyncService {
 
 	private Long coupangResolveProductId(MarketLineItemDto dto) {
 		if (dto.getMarketProductCode() != null) {
-			List<MarketRegistration> regs = marketRegistrationRepository
-				.findByMarketTypeAndIdentifiersContaining(MarketType.COUPANG, dto.getMarketProductCode());
-			if (!regs.isEmpty()) {
-				Long sbProductId = regs.get(0).getSbProductId();
+			Optional<MarketRegistration> byVendorItem = marketRegistrationLookup.findUnique(
+				MarketType.COUPANG, MarketRegistration.COUPANG_VENDOR_ITEM_KEY, dto.getMarketProductCode());
+			if (byVendorItem.isPresent()) {
+				Long sbProductId = byVendorItem.get().getSbProductId();
 				log.info("[COUPANG] sb_market_registration에서 productId 조회: vendorItemId={}, sbProductId={}",
 					dto.getMarketProductCode(), sbProductId);
 				return sbProductId;
@@ -332,12 +335,12 @@ public class CoupangOrderSyncService {
 		}
 
 		if (dto.getSellerProductId() != null && !dto.getSellerProductId().isEmpty()) {
-			List<MarketRegistration> regsBySeller = marketRegistrationRepository
-				.findByMarketTypeAndIdentifiersContaining(MarketType.COUPANG, dto.getSellerProductId());
-			if (!regsBySeller.isEmpty()) {
-				MarketRegistration reg = regsBySeller.get(0);
+			Optional<MarketRegistration> bySeller = marketRegistrationLookup.findUnique(
+				MarketType.COUPANG, MarketRegistration.COUPANG_LOOKUP_KEY, dto.getSellerProductId());
+			if (bySeller.isPresent()) {
+				MarketRegistration reg = bySeller.get();
 				if (dto.getMarketProductCode() != null && !dto.getMarketProductCode().isEmpty()) {
-					reg.enrichIdentifier("vendorItemId", dto.getMarketProductCode());
+					reg.enrichIdentifier(MarketRegistration.COUPANG_VENDOR_ITEM_KEY, dto.getMarketProductCode());
 					marketRegistrationRepository.save(reg);
 				}
 				log.info("[COUPANG] sellerProductId 역조회로 productId 매칭·vendorItemId 보강: "
