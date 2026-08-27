@@ -3281,7 +3281,18 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
   - 포트: `MarketClient.supportsApprovalRequest()`(default false)·`requestApproval()`(default 미지원 예외), 쿠팡만 구현. **[[D-092]] 회귀 가드 보존·강화** — `CoupangMarketClientImagesTest` 의 "재게시는 `/approvals` 미호출" 3건에 `requestWithBody("PUT", …)` never 를 덧붙였다(승인 요청이 `put()` 이 아닌 `requestWithBody()` 로 나가므로 덧붙이지 않으면 기존 단언이 자동 참이 된다).
   - 게이트(격리 빌드): core **873**(862→+11) · infra **306**(284→+22) · api **202**(198→+4) · worker **72**, 실패·에러 0, 4모듈 `compileJava`·`spotlessCheck` 통과(`spotlessApply` 미실행, 위반 2건 수동 교정).
   - 요지·표본 실행 예시: `_workspace/fixes/D-215_approval_fix.md`
-- 상태: **④ 도구 수정완료(검증대기)** — 해소 경로 확정. 실제 1,029건 해소는 표본 실행 결과 확인 후 판단하며, [[D-216]] ②(PUT 바디를 현재 정책값으로 덮어쓰기)는 여전히 미착수다.
+- **⑤ 라이브 1차 실행과 411 전건 실패 → 전송 결함 수정(2026-08-27, 리더 실행 + tdd-fixer 수정)**
+  - 리더 실측(배포 `4293edf4`): 임시저장으로 저장된 6건 중 **라이브 실상태는 심사중 3·승인완료 3**이라 도구가 전부 정확히 건너뛰었고, 임시저장 확인된 4건(`14813282340`·`14813282123`·`14813282110`·`14813282095`)은 사전 상태 조회 4/4 정상 후 호출 4회 전부 `FAILED | code=null | 411 Length Required: "<HTML><HEAD>...`. **쿠팡이 거부한 게 아니라 우리 요청이 게이트웨이 앞단에서 끊긴 것.**
+  - **부수 확인**: 저장된 `statusName`은 낡았다 — **표본 선정은 저장값이 아니라 라이브 카탈로그 기준**으로 해야 한다. 그리고 ④의 사전 상태 게이트·봉투 검사는 설계대로 동작했다(대상 아닌 상태 호출 0회 차단, 411을 성공으로 삼키지 않고 FAILED 보고).
+  - **원인 정정 — `body == null`이라 Content-Length가 안 붙는 것이 아니다.** 실측 반증: 빈 본문(`new byte[0]`·`+application/json`·`""`) **세 형태 전부 411 그대로**. 진짜 실패 조건은 **HTTP/2 + 본문 길이 0인 PUT** — JDK `HttpClient`가 HTTP/2로는 길이 0 본문에 `content-length`를 싣지 않고 Akamai edge가 411로 끊는다. 평문 HTTP/1.1 로컬 서버·MockRestServiceServer로는 **재현 불가**(HTTP/1.1에서는 수정 전에도 `Content-Length: 0`이 붙는다).
+  - **영향 범위 실측(미인증 호출로 판별 — 자격증명 없어 쓰기 불성립)**: GET 본문없음 통과 / **DELETE 본문없음 통과**([[D-181]] 전환분 무사) / 본문 있는 POST·PUT 통과(라이브 등록 성공 이력과 일치) / **본문 없는 PUT만 411**. 대상 호출부는 승인 요청 `CoupangMarketClient:417` 하나뿐.
+  - 수정: `CoupangRestClient`에 **HTTP/1.1 고정 `RestClient`(`bodilessWriteClient`)** 를 두고 `body == null && method ∈ {POST,PUT,PATCH}`일 때만 사용. 그 외 경로는 전부 무변경. **전역 HTTP/1.1 전환은 하지 않았다** — 본문 있는 요청은 HTTP/1.1에서 chunked로 나가 잘 도는 등록 경로의 전송 형태가 바뀌기 때문. `{}` 같은 비어있지 않은 본문을 넣는 우회도 411은 뚫지만, 쿠팡이 "본문 없음"으로 문서화한 엔드포인트에 문서 밖 본문을 넣는 것이라 채택하지 않았다.
+  - **HMAC 무영향**: `generateSignatureUtc(method, url, accessKey, secretKey)`는 본문 인자가 없고 서명 문자열이 `datetime+method+path+query`뿐(`CoupangHmacUtil:31`). 미인증 실측이 `Specified key is not registered.`(키 미등록)로 답한 것 = 서명 파싱 정상.
+  - **Red/Green 라이브 실측(동일 클래스, 미인증, 존재하지 않는 id `0`)**: 수정 전 `PUT null → 411 Length Required`, 수정 후 `PUT null → 401 Specified key is not registered.` = edge 통과. 단위 Red는 `Upgrade: h2c` 유무로 고정(`expected: null but was: "h2c"`, 7건 중 2건 실패 → 수정 후 7/7).
+  - 신규 회귀 `CoupangRestClientWireTest`(7건) — 로컬 HTTP 서버로 **실제 나간 요청 헤더·본문**을 검사한다(목 호출 횟수 세기 아님). DELETE·본문 있는 POST/PUT·GET의 전송 형태 무변경을 함께 고정.
+  - 게이트(격리 빌드): core **873** · infra **306→313**(+7) · api **202** · worker **72**, 실패·에러 0, 4모듈 `compileJava`·`spotlessCheck` 통과(`spotlessApply` 미실행, 위반 2건 수동 교정).
+  - 요지: `_workspace/fixes/D-215_411_fix.md`
+- 상태: **④ 도구 수정완료 + ⑤ 411 전송 결함 수정완료(검증대기)** — 해소 경로 확정. **배포 후 표본 재시도가 첫 실검증**(411이 아니라 쿠팡 봉투 `code`가 돌아와야 한다). 실제 1,029건 해소는 그 결과를 보고 판단하며, [[D-216]] ②(PUT 바디를 현재 정책값으로 덮어쓰기)는 여전히 미착수다.
 
 ### D-216: 쿠팡 승인필요 PUT이 레거시 초안 전문을 되돌려 가격 롤백 위험 (2026-08-26, 바코드 계획 검토 중 발견)
 
