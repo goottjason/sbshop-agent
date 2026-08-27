@@ -3342,6 +3342,17 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 미확인(잔여): 쿠팡 공지 원문(필수 강제 시점·조건) / 스토어·11번가·카페24의 바코드 요구 여부 / 스크래퍼 동시 실행 상한(병렬화 검토 시)
 - 상태: **검증 조건부 PASS → 후속 ① 반영 완료(재검증 대기)** — 산출물 `_workspace/fixes/D-217_barcode_fix.md`. 게이트(후속 ① 반영 후 재측정, BUILD SUCCESSFUL 4m30s): core 862 · infra 284 · api 197 · worker 72 전부 failures 0, 4모듈 compileJava·spotlessCheck 통과(공유 트리에 타 fixer 변경 혼재 — 증분 내역은 산출물 참조). **④ 쿠팡 페이로드(barcode/emptyBarcode/emptyBarcodeReason)는 이번 범위 밖** — [[D-216]] 해소 후 별건.
 
+### D-218: 주문 상품매칭이 부분 문자열로 엉뚱한 상품을 찾아 실제 오배송 발생 (2026-08-27, 사용자 신고 → P0)
+
+- 심각도: **P0(고객 오배송 실발생)** | 위치: `MarketRegistrationRepository`의 LIKE 질의 + 주문 동기화 3경로
+- **실제 사고**: G마켓 주문 `4477134670`(2026-08-07). ESM 실판매는 `230806IHB130`(닥터베스트 멀티비타민, 카페24 `product_no=20082`)인데 우리는 `200828TE001`(사클라 칠리 페스토)로 매칭·발송 → `EXCHANGED` 처리됨.
+- **원인**: `findByMarketTypeAndIdentifiersContaining`가 `market_identifiers` **JSON 덩어리 전체**를 `LIKE '%값%'`으로 훑고, 호출부 3곳이 **`ORDER BY` 없이 `regs.get(0)`**을 채택. 카페24 `product_no`가 4~5자리라 날짜로 시작하는 SB코드(`200828TE001`) 안에 파묻힌다 — `20082` 조회 시 7건이 걸리고 정답은 4번째.
+- **피해 범위(실측)**: 이 경로 주문은 총 16건(G마켓 13·옥션 3). 순서 무관 판정법(매칭된 상품의 식별자 안에 남의 `product_no`가 들어 있는지)으로 7건은 **안전 증명**, 9건이 확인 대상이었고 사용자 ESM 대조 결과 **오배송은 1건 확정**. 쿠팡·11번가는 식별자가 10~11자리라 운영 충돌 0건이었으나 같은 코드 경로라 잠재 위험은 동일했다.
+- **수정(2026-08-27, 커밋 `f462ff89`)**: ① SQL LIKE는 **후보 전치 필터**로만 쓰고 **정확 일치 판정을 Java JSON 파싱(Jackson)으로** 이관 — 운영 카페24 3,186행 중 **2,428행이 공백 포함 JSON**(`{"product_no": "20082", …}`), 758행이 압축이라 **SQL 문자열 패턴 해법은 76%를 조용히 놓친다**(D-206과 동일 계열 함정). ② **후보 다건이면 첫 건 채택 금지** → 매칭 실패로 두고 경고(0건 `찾을 수 없음` / 다건 `매칭 중단` 문구 분리). ③ 카페24(`product_no`·`product_code`)·쿠팡(`marketProductCode`→`vendorItemId`, `sellerProductId`→`sellerProductId`)·11번가(`sellerProductId`→`prdNo`) 3경로 전환. 구 메서드 → `findIdentifierCandidates`(ORDER BY id 추가), 잔존 호출부 0.
+- **검증(2026-08-27, verifier-match **PASS**, 롤백 불필요)**: Red를 `git archive HEAD~1` + 운영 7행 시드로 재현(`expected "230806IHB130" but was "200828TE001"`). **회귀 위험 데이터로 0 확인** — 5개 (마켓×키) 전부 고유값수=행수, 다건 0건이라 "전 주문 미매칭" 시나리오가 운영 데이터상 불가능. 공백/압축 양쪽 고정, 식별자 11,178개 값에 LIKE 와일드카드·이스케이프·앞뒤공백 0건. 조회 키 5행 독립 확인(어댑터 실독 + DB 커버리지). 안전장치 발견: `MarketLineItemSyncDispatcher.applyLineItem:95`가 productId=null이면 **기존 값을 지우지 않아** 미매칭 증가가 기존 매핑을 소거하지 않는다. 게이트 core 885·infra 313·api 202·worker 72 전부 그린, `@Test` +12/-0.
+- **잔여(별건)**: ① **사고 주문 `4477134670`이 지금도 틀린 상품(2320)을 가리킨다** — 카페24 조회 창 안 주문은 다음 동기화에서 `applyLineItem`이 자동 교정하나 창 밖(08-07)은 안 된다. 교정 필요. ② `custom_product_code`(SB코드)가 `product_no`보다 안정적 조인 키인데 매칭 경로가 미사용 — 폴백 후보. ③ 라이브 동기화 후 `상품 매칭 중단` WARN 0건 확인이 남음. ④ 부수 확인: `210121IHB002`는 구 코드에서 후보 2건이라 **잠재 오배송 후보였고** 이번 수정으로 1건 확정됐다.
+- 상태: **검증통과** (배포·사후검증 완료)
+
 ### D-181: 쿠팡 어댑터가 이미지·상세 수정 PUT 응답의 마켓 레벨 오류코드를 검사하지 않음 — 거짓 성공 여지 (2026-08-21, D-167 검증 중 발견)
 
 - 심각도: P2(추정 — 응답 포맷 확인 필요) | 위치: `backend/infrastructure/.../coupang/adapter/CoupangMarketClient.syncImagesAndHtml` 계열
