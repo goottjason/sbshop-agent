@@ -38,11 +38,11 @@ public class SecurityConfig {
 			.csrf(csrf -> csrf.disable())
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 			.authorizeHttpRequests(auth -> auth
-				.requestMatchers("/api/v1/market-credentials/**").authenticated()
-				.requestMatchers("/api/v1/**").permitAll()
-				.requestMatchers("/api/admin/**").permitAll()
+				.requestMatchers("/api/v1/notifications/subscribe").permitAll()
 				.requestMatchers("/internal/**").permitAll()
 				.requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+				.requestMatchers("/api/v1/**").authenticated()
+				.requestMatchers("/api/admin/**").authenticated()
 				.anyRequest().authenticated())
 			.httpBasic(Customizer.withDefaults());
 		return http.build();

@@ -17,6 +17,15 @@ export const setAdminAuth = (token: string | null) => {
 
 export const getAdminAuth = (): string | null => sessionStorage.getItem(ADMIN_AUTH_KEY);
 
+let authExpiredHandler: (() => void) | null = null;
+
+export const onAuthExpired = (handler: () => void) => {
+  authExpiredHandler = handler;
+  return () => {
+    if (authExpiredHandler === handler) authExpiredHandler = null;
+  };
+};
+
 apiClient.interceptors.request.use((config) => {
   const token = getAdminAuth();
   if (token) {
@@ -25,3 +34,14 @@ apiClient.interceptors.request.use((config) => {
   }
   return config;
 });
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      setAdminAuth(null);
+      authExpiredHandler?.();
+    }
+    return Promise.reject(error);
+  },
+);

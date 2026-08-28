@@ -1,6 +1,8 @@
 import { Routes, Route } from 'react-router-dom';
 import { App as AntApp, ConfigProvider } from 'antd';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { getAdminAuth, onAuthExpired } from './api/axios';
+import LoginPage from './pages/LoginPage';
 import MainLayout from './layouts/MainLayout';
 import Dashboard from './pages/Dashboard';
 import OrderGrid from './pages/order/OrderGrid';
@@ -21,6 +23,21 @@ const SourcingSettingsPage = lazy(() => import('./pages/sourcing/SourcingSetting
 const Loading = () => <div style={{ padding: 24, textAlign: 'center' }}>로딩 중...</div>;
 
 function App() {
+  const [authed, setAuthed] = useState<boolean>(!!getAdminAuth());
+
+  useEffect(() => onAuthExpired(() => setAuthed(false)), []);
+
+  if (!authed) {
+    return (
+      <ConfigProvider theme={{ token: { colorPrimary: '#000000' } }}>
+        <AntApp component={false}>
+          <LoginPage onSuccess={() => setAuthed(true)} />
+          <ToastContainer position="bottom-right" autoClose={3000} />
+        </AntApp>
+      </ConfigProvider>
+    );
+  }
+
   return (
     <ConfigProvider theme={{ token: { colorPrimary: '#000000' } }}>
       <AntApp component={false}>
