@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.service;
 
+import com.sbshop.agent.core.application.sync.SyncCounts;
 import com.sbshop.agent.core.application.sync.SyncMarketKeys;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.domain.market.MarketCredential;
@@ -73,17 +74,20 @@ public class SmartStoreOrderSyncService {
 
 		syncStatusService.markRunning(SyncMarketKeys.SMART_STORE);
 		boolean success = false;
+		SyncCounts completedCounts = SyncCounts.none();
 		try {
 			MarketCredential credential = loadAndValidateCredential();
 			List<MarketOrderDto> orders = smartStoreOrderAdapter.fetchOrders(
 				credential, fromDate, toDate);
 
-			processOrders(orders, credential, createMissing);
+			SyncCounts counts = processOrders(orders, credential, createMissing);
 			postSyncProcess(orders);
 
-			log.info("[SMART_STORE] 주문 동기화 완료: {}건 처리", orders.size());
+			log.info("[SMART_STORE] 주문 동기화 완료: 처리 {}건, 신규 {}건",
+				counts.processed(), counts.created());
 			success = true;
-			syncStatusService.markCompleted(SyncMarketKeys.SMART_STORE);
+			completedCounts = counts;
+			syncStatusService.markCompleted(SyncMarketKeys.SMART_STORE, counts.processed(), counts.created());
 		} catch (Exception e) {
 			log.error("[SMART_STORE] 주문 동기화 실패: {}", e.getMessage(), e);
 			syncStatusService.markFailed(
@@ -93,7 +97,8 @@ public class SmartStoreOrderSyncService {
 		} finally {
 			isSyncing.set(false);
 			if (success) {
-				eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.SMART_STORE));
+				eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.SMART_STORE,
+					completedCounts.processed(), completedCounts.created()));
 			}
 		}
 	}
@@ -109,23 +114,27 @@ public class SmartStoreOrderSyncService {
 		return credential;
 	}
 
-	private void processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential,
+	private SyncCounts processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential,
 		boolean createMissing) {
 		marketOrders = marketOrders.stream().map(MarketOrderNormalizer::normalize).toList();
+		SyncCounts counts = SyncCounts.none();
 		for (MarketOrderDto dto : marketOrders) {
 			log.info("[SMART_STORE] 처리 중: orderNo={}, status={}", dto.getMarketOrderNo(), dto.getStatus());
 			Order existing = findExistingOrder(dto);
 			if (existing != null) {
 				log.info("[SMART_STORE] 기존 주문 발견: id={}, orderNo={}", existing.getId(), dto.getMarketOrderNo());
 				updateExistingOrder(existing, dto);
+				counts = counts.plusProcessed(false);
 			} else if (createMissing) {
 				log.info("[SMART_STORE] 신규 주문 생성 시도: orderNo={}", dto.getMarketOrderNo());
 				createNewOrder(dto);
+				counts = counts.plusProcessed(true);
 			} else {
 				log.debug("[SMART_STORE] 갱신 전용 모드 — 없는 주문은 만들지 않는다: orderNo={}",
 					dto.getMarketOrderNo());
 			}
 		}
+		return counts;
 	}
 
 	private Order findExistingOrder(MarketOrderDto dto) {

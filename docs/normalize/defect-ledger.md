@@ -3785,3 +3785,34 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 후속 후보(고치지 않고 기록만): ① 카페24 라인아이템에는 `custom_product_code`(우리 SB코드)도 온다(`Cafe24LineItemMapper:106`) — `product_no`보다 안정적인 조인 키인데 매칭 경로가 안 쓴다. ② **이미 잘못 매칭돼 저장된 과거 주문 라인아이템의 교정 배치는 이번 범위 밖**(운영 쓰기 금지 상태라 미착수). 별건 필요.
 - 요지: `_workspace/fixes/D-218_match_fix.md`
 - 상태: 수정완료(검증대기)
+
+### D-220: 마켓 주문동기화가 처리 0건도 "성공"으로만 기록해 유입 단절이 8일간 무증상 (2026-08-28)
+
+- 심각도: **표준(운영 관측성)** | 위치: `Cafe24OrderSyncService:84-89` 외 4개 마켓 동기화 + `ActionLogSyncListener` + `MarketSyncStatus`
+- 실증(운영, 2026-08-28 브라우저·DB 실측): G마켓/옥션 주문이 **08-20 이후 8일간 0건 유입**인데 `sb_action_log`에는 30분 간격 `GMARKET_SYNC / 동기화 성공`만 쌓였다. ESM+ 주문통합검색에는 같은 창에 실주문 10건이 있었고 그중 **`4483756643`(G마켓 08-27 16:46)·`2569176234`(옥션 08-24 18:15) 2건이 DB에 없었다**(count=0 확인). 단절 지점은 우리 코드가 아니라 **Cafe24 마켓플러스**였다(마켓플러스 주문수집이력 810회 스캔 → 실수집 마지막 `2026-08-20 15:46:13`, 이후 전 회차 "0건 성공/0건 실패", 수집실패 사유 0건).
+- 원인: `markCompleted`·`SyncCompletedEvent`·`ActionLogSyncListener` 어디에도 **건수가 실리지 않는다.** 성공/실패 두 값만 남으므로 "정상인데 안 팔림"과 "유입이 끊김"이 로그상 완전히 같다. 5개 마켓 동기화 전부 동일 패턴. **이 결함 때문에 실제 사고를 8일 늦게 발견했다.**
+- 수정(2026-08-28):
+  - `MarketSyncStatus` + `processed_count`·`new_count`·`last_new_at`. `markCompleted(at, processed, newCount)`는 **신규 0건 회차에서 `lastNewAt`을 갱신하지 않는다** — 공백 측정의 기준선이라 덮으면 경고가 영원히 안 뜬다. 건수 없는 기존 1-arg `markCompleted`는 기존 건수를 **지우지 않는다**(쿠팡 정산 경로가 이 오버로드를 쓴다).
+  - 처리/신규 분리: `SyncCounts(processed, created)` 신설. `MarketOrderUpsertDispatcher.dispatch`가 반환(쿠팡·11번가 공용), 스토어는 자체 루프에서 누적, 카페24는 `persistOrder`의 boolean을 `PersistOutcome{CREATED,UPDATED,SKIPPED}` 3상태로 갈라 누적. **갱신 전용 모드에서 건너뛴 주문은 처리 건수에도 신규 건수에도 세지 않는다**(false 성공 방지).
+  - `SyncCompletedEvent` + `processedCount`·`newCount`, 미측정은 `UNMEASURED=-1`로 명시(기존 2-arg 생성자 보존 → 호출부 무변경).
+  - `ActionLogSyncListener` 성공 메시지가 `동기화 성공 — 처리 N건, 신규 M건`으로 바뀐다. **신규 0건일 때만** `SyncStatusService.lastNewAt`을 조회해 임계 초과 시 `{MARKET}_SYNC_STALE` + `ActionStatus.WARNING` 레코드와 `log.warn`을 남긴다.
+  - `SyncFreshnessPolicy` — 마켓별 임계: G마켓/옥션 **10일**(저volume, 역대 최대 공백 8일보다 넉넉히), 쿠팡·스토어 2일, 11번가 7일, 기본 7일. **`lastNewAt`이 null이면 경고하지 않는다** — 신규 유입 이력이 없으면 측정 근거가 없다.
+- **왜 임계를 마켓별로 갈랐나**: G마켓/옥션은 전체 16건뿐인 저volume 채널이라 단일 임계(예 2일)로는 정상 무판매에도 상시 경고가 뜬다. 경고가 상시면 아무도 안 본다 — 이번 사고의 재발 방지가 목적이므로 **오경보를 내지 않는 선에서 가장 짧은 임계**를 마켓별로 잡았다.
+- 알려진 한계(기록만): G마켓과 옥션은 카페24 한 경로로 들어와 `SyncMarketKeys.GMARKET` 한 키를 공유하므로 **옥션만 끊긴 경우는 이 경고로 잡히지 않는다.** 이번 사고는 두 마켓이 함께 끊겨 무관했다. 마켓별 분리가 필요하면 별건.
+- Red 실측: 구현을 넣은 뒤 **행위만 되돌려**(성공 메시지 상수화 + stale 조기 return + created 카운트를 false로) 측정 → `11 tests completed, 3 failed` (`처리 건수와 신규 건수가 남는다`·`임계 넘긴 경고`·`dispatch 건수 분리`). 컴파일 에러가 아니라 단언 실패로 확인했다.
+- 스키마(수동 DDL 필요 — Flyway 제거 체제):
+  ```sql
+  ALTER TABLE sb_market_sync_status ADD COLUMN IF NOT EXISTS processed_count integer;
+  ALTER TABLE sb_market_sync_status ADD COLUMN IF NOT EXISTS new_count integer;
+  ALTER TABLE sb_market_sync_status ADD COLUMN IF NOT EXISTS last_new_at timestamp;
+  ```
+  `sb_action_log.action_status`에 `WARNING` 값이 새로 들어간다(varchar라 DDL 불필요).
+- 상태: 수정완료(검증대기) — 배포 전 위 DDL 선행 필수.
+
+### D-221: ESM 난수 관리코드 미매칭 — 카페24 주문의 productId 해석 실패 (2026-08-28, 미착수)
+
+- 심각도: **경량** | 위치: `Cafe24OrderSyncService.cafe24ResolveProductId`
+- 실증: 운영 로그 `[CAFE24] sb_market_registration에서 productId를 찾을 수 없음: product_no=-99999, product_code=2005125893`
+- 원인: 조회 키로 `product_no`·`product_code`만 쓰고 **`market_custom_variant_code`(ESM+ 판매자 관리코드)를 쓰지 않는다.** ESM 난수 관리코드로 등록된 건은 영영 해석되지 않는다.
+- 근거 문서: `docs/normalize/esm-ghost-listings-20260812.md`의 미완 조치.
+- 상태: 발견

@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.order.service;
 
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
+import com.sbshop.agent.core.application.sync.SyncCounts;
 import com.sbshop.agent.core.application.sync.SyncMarketKeys;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
@@ -86,17 +87,20 @@ public class CoupangOrderSyncService {
 
 		syncStatusService.markRunning(SyncMarketKeys.COUPANG);
 		boolean success = false;
+		SyncCounts completedCounts = SyncCounts.none();
 		try {
 			MarketCredential credential = loadAndValidateCredential();
 			MarketFetchOutcome outcome = coupangOrderAdapter.fetchOrdersWithOutcome(
 				credential, fromDate, toDate);
 			List<MarketOrderDto> orders = outcome.orders();
-			processOrders(orders, credential, createMissing);
+			SyncCounts counts = processOrders(orders, credential, createMissing);
 			postSyncProcess(orders, credential, fromDate, toDate, createMissing, outcome.complete());
 
-			log.info("[COUPANG] 주문 동기화 완료: {}건 처리", orders.size());
+			log.info("[COUPANG] 주문 동기화 완료: 처리 {}건, 신규 {}건",
+				counts.processed(), counts.created());
 			success = true;
-			syncStatusService.markCompleted(SyncMarketKeys.COUPANG);
+			completedCounts = counts;
+			syncStatusService.markCompleted(SyncMarketKeys.COUPANG, counts.processed(), counts.created());
 		} catch (Exception e) {
 			log.error("[COUPANG] 주문 동기화 실패: {}", e.getMessage(), e);
 			syncStatusService.markFailed(
@@ -106,7 +110,8 @@ public class CoupangOrderSyncService {
 		} finally {
 			isSyncing.set(false);
 			if (success) {
-				eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.COUPANG));
+				eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.COUPANG,
+					completedCounts.processed(), completedCounts.created()));
 			}
 		}
 	}
@@ -195,10 +200,10 @@ public class CoupangOrderSyncService {
 		return credential;
 	}
 
-	private void processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential,
+	private SyncCounts processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential,
 		boolean createMissing) {
 		marketOrders = marketOrders.stream().map(MarketOrderNormalizer::normalize).toList();
-		MarketOrderUpsertDispatcher.dispatch(
+		return MarketOrderUpsertDispatcher.dispatch(
 			marketOrders, orderRepository, "COUPANG", this::updateExistingOrder, this::createNewOrder,
 			createMissing);
 	}

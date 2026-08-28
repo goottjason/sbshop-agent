@@ -29,6 +29,15 @@ public class MarketSyncStatus extends BaseEntity {
 	@Column(name = "error_message", columnDefinition = "text")
 	private String errorMessage;
 
+	@Column(name = "processed_count")
+	private Integer processedCount;
+
+	@Column(name = "new_count")
+	private Integer newCount;
+
+	@Column(name = "last_new_at")
+	private LocalDateTime lastNewAt;
+
 	@Builder
 	public MarketSyncStatus(String marketType, String syncStatus, LocalDateTime lastSyncAt,
 		String errorMessage) {
@@ -47,6 +56,15 @@ public class MarketSyncStatus extends BaseEntity {
 		this.syncStatus = "COMPLETED";
 		this.lastSyncAt = completedAt;
 		this.errorMessage = null;
+	}
+
+	public void markCompleted(LocalDateTime completedAt, int processedCount, int newCount) {
+		markCompleted(completedAt);
+		this.processedCount = processedCount;
+		this.newCount = newCount;
+		if (newCount > 0) {
+			this.lastNewAt = completedAt;
+		}
 	}
 
 	public void markFailed(LocalDateTime failedAt, String errorMessage) {

@@ -27,6 +27,7 @@ import com.sbshop.agent.core.domain.fee.repository.FeePolicyRepository;
 import com.sbshop.agent.core.application.market.MarketRegistrationLookup;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
+import com.sbshop.agent.core.application.sync.SyncCounts;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -87,6 +88,38 @@ class Cafe24OrderSyncServiceTest {
 			ArgumentMatchers.any())).thenReturn(List.of());
 		lenient().when(marketRegistrationRepository.findIdentifierCandidates(
 			ArgumentMatchers.any(), anyString())).thenReturn(List.of());
+	}
+
+	@Test
+	@DisplayName("신규 생성 건수를 처리 건수와 갈라서 돌려준다 — 유입 단절을 0건 성공과 구분한다")
+	void countsCreatedSeparatelyFromProcessed() throws Exception {
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
+			.thenReturn(ordersJson());
+		when(orderRepository.findByMarketOrderNo("GM123")).thenReturn(Optional.empty());
+
+		SyncCounts counts = service.fetchAndPersistWithCounts(
+			LocalDate.now().minusDays(7), LocalDate.now(), true);
+
+		assertThat(counts.processed()).isEqualTo(1);
+		assertThat(counts.created()).isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("이미 있는 주문만 갱신한 회차는 처리 1건·신규 0건이다")
+	void existingOrderCountsAsProcessedNotCreated() throws Exception {
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
+			.thenReturn(ordersJson());
+		Order existing = Order.builder()
+			.marketType(MarketType.GMARKET)
+			.marketOrderNo("GM123")
+			.build();
+		when(orderRepository.findByMarketOrderNo("GM123")).thenReturn(Optional.of(existing));
+
+		SyncCounts counts = service.fetchAndPersistWithCounts(
+			LocalDate.now().minusDays(7), LocalDate.now(), true);
+
+		assertThat(counts.processed()).isEqualTo(1);
+		assertThat(counts.created()).isZero();
 	}
 
 	@Test

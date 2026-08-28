@@ -67,7 +67,7 @@ class SyncServiceSelfRecordsStatusTest {
 
 		InOrder inOrder = inOrder(syncStatusService);
 		inOrder.verify(syncStatusService).markRunning("GMARKET");
-		inOrder.verify(syncStatusService).markCompleted("GMARKET");
+		inOrder.verify(syncStatusService).markCompleted("GMARKET", 0, 0);
 	}
 
 	@Test

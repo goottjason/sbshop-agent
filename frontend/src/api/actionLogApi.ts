@@ -4,7 +4,7 @@ export interface ActionLogItem {
   id: number;
   actionType: string;
   marketType: string | null;
-  actionStatus: 'STARTED' | 'SUCCESS' | 'FAILED';
+  actionStatus: 'STARTED' | 'SUCCESS' | 'FAILED' | 'WARNING';
   message: string;
   createdAt: string;
 }

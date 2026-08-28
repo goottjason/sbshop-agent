@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.order.service;
 
 import com.sbshop.agent.core.application.order.dto.MarketFetchOutcome;
+import com.sbshop.agent.core.application.sync.SyncCounts;
 import com.sbshop.agent.core.application.sync.SyncMarketKeys;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.domain.market.MarketCredential;
@@ -85,18 +86,21 @@ public class ElevenstOrderSyncService {
 
 		syncStatusService.markRunning(SyncMarketKeys.ELEVEN_STREET);
 		boolean success = false;
+		SyncCounts completedCounts = SyncCounts.none();
 		try {
 			MarketCredential credential = loadAndValidateCredential();
 			MarketFetchOutcome outcome = elevenstOrderAdapter
 				.fetchOrdersWithOutcome(credential, fromDate, toDate);
 			List<MarketOrderDto> orders = outcome.orders();
 
-			processOrders(orders, credential, createMissing);
+			SyncCounts counts = processOrders(orders, credential, createMissing);
 			postSyncProcess(orders, credential, fromDate, toDate, createMissing, outcome.complete());
 
-			log.info("[ELEVEN_STREET] 주문 동기화 완료: {}건 처리", orders.size());
+			log.info("[ELEVEN_STREET] 주문 동기화 완료: 처리 {}건, 신규 {}건",
+				counts.processed(), counts.created());
 			success = true;
-			syncStatusService.markCompleted(SyncMarketKeys.ELEVEN_STREET);
+			completedCounts = counts;
+			syncStatusService.markCompleted(SyncMarketKeys.ELEVEN_STREET, counts.processed(), counts.created());
 		} catch (Exception e) {
 			log.error("[ELEVEN_STREET] 주문 동기화 실패: {}", e.getMessage(), e);
 			syncStatusService.markFailed(
@@ -106,7 +110,8 @@ public class ElevenstOrderSyncService {
 		} finally {
 			isSyncing.set(false);
 			if (success) {
-				eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.ELEVEN_STREET));
+				eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.ELEVEN_STREET,
+					completedCounts.processed(), completedCounts.created()));
 			}
 		}
 	}
@@ -121,10 +126,10 @@ public class ElevenstOrderSyncService {
 		return credential;
 	}
 
-	private void processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential,
+	private SyncCounts processOrders(List<MarketOrderDto> marketOrders, MarketCredential credential,
 		boolean createMissing) {
 		marketOrders = marketOrders.stream().map(MarketOrderNormalizer::normalize).toList();
-		MarketOrderUpsertDispatcher.dispatch(
+		return MarketOrderUpsertDispatcher.dispatch(
 			marketOrders, orderRepository, "ELEVEN_STREET", this::updateExistingOrder, this::createNewOrder,
 			createMissing);
 	}

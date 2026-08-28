@@ -5,6 +5,7 @@ import com.sbshop.agent.core.domain.sync.repository.MarketSyncStatusRepository;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -57,6 +58,22 @@ public class SyncStatusService {
 				.build());
 		entity.markCompleted(LocalDateTime.now());
 		repository.save(entity);
+	}
+
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	public void markCompleted(String marketType, int processedCount, int newCount) {
+		MarketSyncStatus entity = repository.findByMarketType(marketType)
+			.orElseGet(() -> MarketSyncStatus.builder()
+				.marketType(marketType)
+				.syncStatus("COMPLETED")
+				.build());
+		entity.markCompleted(LocalDateTime.now(), processedCount, newCount);
+		repository.save(entity);
+	}
+
+	@Transactional(readOnly = true)
+	public Optional<LocalDateTime> lastNewAt(String marketType) {
+		return repository.findByMarketType(marketType).map(MarketSyncStatus::getLastNewAt);
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)

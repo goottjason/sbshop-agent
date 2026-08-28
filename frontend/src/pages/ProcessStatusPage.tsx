@@ -24,6 +24,7 @@ const actionStatusColor: Record<string, string> = {
   STARTED: 'blue',
   SUCCESS: 'green',
   FAILED: 'red',
+  WARNING: 'orange',
 };
 
 const actionTypeLabels: Record<string, string> = {

@@ -6,6 +6,7 @@ import com.sbshop.agent.core.application.order.dto.MarketLineItemDto;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
+import com.sbshop.agent.core.application.sync.SyncCounts;
 import com.sbshop.agent.core.application.sync.SyncMarketKeys;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.domain.common.RootCauseExtractor;
@@ -80,13 +81,17 @@ public class Cafe24OrderSyncService {
 		}
 		syncStatusService.markRunning(SyncMarketKeys.GMARKET);
 		boolean success = false;
+		SyncCounts completedCounts = SyncCounts.none();
 		try {
-			int count = fetchAndPersist(fromDate, toDate, createMissing);
+			SyncCounts counts = fetchAndPersistWithCounts(fromDate, toDate, createMissing);
 			terminalSettlementService.zeroSettlementForRefunded(MarketType.GMARKET);
 			terminalSettlementService.zeroSettlementForRefunded(MarketType.AUCTION);
-			log.info("[CAFE24-ORDER] G마켓/옥션 주문 동기화 완료: {}건", count);
+			log.info("[CAFE24-ORDER] G마켓/옥션 주문 동기화 완료: 처리 {}건, 신규 {}건",
+				counts.processed(), counts.created());
 			success = true;
-			syncStatusService.markCompleted(SyncMarketKeys.GMARKET);
+			completedCounts = counts;
+			syncStatusService.markCompleted(
+				SyncMarketKeys.GMARKET, counts.processed(), counts.created());
 		} catch (Exception e) {
 			String reason = failureReason(e);
 			log.error("[CAFE24-ORDER] 동기화 실패: {}", reason, e);
@@ -95,7 +100,8 @@ public class Cafe24OrderSyncService {
 		} finally {
 			isSyncing.set(false);
 			if (success) {
-				eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.GMARKET));
+				eventPublisher.publishEvent(new SyncCompletedEvent(this, MarketType.GMARKET,
+					completedCounts.processed(), completedCounts.created()));
 			}
 		}
 	}
@@ -106,18 +112,23 @@ public class Cafe24OrderSyncService {
 	}
 
 	public int fetchAndPersist(LocalDate from, LocalDate to, boolean createMissing) {
+		return fetchAndPersistWithCounts(from, to, createMissing).processed();
+	}
+
+	public SyncCounts fetchAndPersistWithCounts(LocalDate from, LocalDate to, boolean createMissing) {
 		String start = from.format(CAFE24_DT);
 		String end = to.format(CAFE24_DT);
 		int offset = 0;
-		int processed = 0;
+		SyncCounts counts = SyncCounts.none();
 		while (offset <= 15000) {
 			JsonNode orders = cafe24OrderApiPort.fetchOrders(start, end, PAGE, offset);
 			if (orders == null || !orders.isArray() || orders.isEmpty()) {
 				break;
 			}
 			for (JsonNode o : orders) {
-				if (persistOrder(o, createMissing)) {
-					processed++;
+				PersistOutcome outcome = persistOrder(o, createMissing);
+				if (outcome != PersistOutcome.SKIPPED) {
+					counts = counts.plusProcessed(outcome == PersistOutcome.CREATED);
 				}
 			}
 			if (orders.size() < PAGE) {
@@ -125,7 +136,11 @@ public class Cafe24OrderSyncService {
 			}
 			offset += PAGE;
 		}
-		return processed;
+		return counts;
+	}
+
+	private enum PersistOutcome {
+		CREATED, UPDATED, SKIPPED
 	}
 
 	private String failureReason(Throwable e) {
@@ -137,25 +152,26 @@ public class Cafe24OrderSyncService {
 		return top;
 	}
 
-	private boolean persistOrder(JsonNode o, boolean createMissing) {
+	private PersistOutcome persistOrder(JsonNode o, boolean createMissing) {
 		MarketType marketType = mapMarket(o.path("order_place_id").asText(""));
 		if (marketType == null) {
-			return false;
+			return PersistOutcome.SKIPPED;
 		}
 		String marketOrderNo = resolveMarketOrderNo(o);
 		if (marketOrderNo.isBlank()) {
-			return false;
+			return PersistOutcome.SKIPPED;
 		}
 		Optional<Order> existing = orderRepository.findByMarketOrderNo(marketOrderNo);
 		if (existing.isPresent()) {
 			updateOrder(existing.get(), o, marketType);
-		} else if (createMissing) {
-			createOrder(o, marketType);
-		} else {
-			log.debug("[CAFE24-ORDER] 갱신 전용 모드 — 없는 주문은 만들지 않는다: orderNo={}", marketOrderNo);
-			return false;
+			return PersistOutcome.UPDATED;
 		}
-		return true;
+		if (createMissing) {
+			createOrder(o, marketType);
+			return PersistOutcome.CREATED;
+		}
+		log.debug("[CAFE24-ORDER] 갱신 전용 모드 — 없는 주문은 만들지 않는다: orderNo={}", marketOrderNo);
+		return PersistOutcome.SKIPPED;
 	}
 
 	private void createOrder(JsonNode o, MarketType marketType) {

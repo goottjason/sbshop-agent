@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
+import com.sbshop.agent.core.application.sync.SyncCounts;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import java.util.ArrayList;
@@ -76,6 +77,38 @@ class MarketOrderUpsertDispatcherTest {
 
 		assertThat(updated).containsExactly(existing);
 		assertThat(created).containsExactly(b);
+	}
+
+	@Test
+	@DisplayName("처리 건수와 신규 건수를 갈라서 돌려준다 — 0건 성공을 구분할 수 있어야 한다")
+	void returnsProcessedAndCreatedCounts() {
+		Order existing = Order.builder().marketOrderNo("O-A").build();
+		when(orderRepository.findByMarketOrderNo("O-A")).thenReturn(Optional.of(existing));
+		when(orderRepository.findByMarketOrderNo("O-B")).thenReturn(Optional.empty());
+		when(orderRepository.findByMarketOrderNo("O-C")).thenReturn(Optional.empty());
+
+		SyncCounts counts = MarketOrderUpsertDispatcher.dispatch(
+			List.of(dto("O-A"), dto("O-B"), dto("O-C")), orderRepository, "TEST",
+			(order, dtoArg) -> {},
+			d -> {});
+
+		assertThat(counts.processed()).isEqualTo(3);
+		assertThat(counts.created()).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("갱신 전용 모드에서 없는 주문은 처리 건수에도 신규 건수에도 세지 않는다")
+	void updateOnlyMode_doesNotCountSkipped() {
+		when(orderRepository.findByMarketOrderNo("O-A")).thenReturn(Optional.empty());
+
+		SyncCounts counts = MarketOrderUpsertDispatcher.dispatch(
+			List.of(dto("O-A")), orderRepository, "TEST",
+			(order, dtoArg) -> {},
+			d -> {},
+			false);
+
+		assertThat(counts.processed()).isZero();
+		assertThat(counts.created()).isZero();
 	}
 
 	private MarketOrderDto dto(String orderNo) {
