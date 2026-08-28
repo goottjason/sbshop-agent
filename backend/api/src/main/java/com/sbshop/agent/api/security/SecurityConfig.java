@@ -1,15 +1,16 @@
 package com.sbshop.agent.api.security;
 
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -44,8 +45,13 @@ public class SecurityConfig {
 				.requestMatchers("/api/v1/**").authenticated()
 				.requestMatchers("/api/admin/**").authenticated()
 				.anyRequest().authenticated())
-			.httpBasic(Customizer.withDefaults());
+			.httpBasic(basic -> basic.authenticationEntryPoint(noBrowserPromptEntryPoint()))
+			.exceptionHandling(ex -> ex.authenticationEntryPoint(noBrowserPromptEntryPoint()));
 		return http.build();
+	}
+
+	private AuthenticationEntryPoint noBrowserPromptEntryPoint() {
+		return (request, response, authException) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
 	}
 
 	@Bean

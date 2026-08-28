@@ -1,6 +1,7 @@
 package com.sbshop.agent.api.security;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
@@ -94,5 +95,22 @@ class AdminGateTest {
 	@DisplayName("내부 트리거 경로는 인증 없이 유지된다 — nginx가 외부로 노출하지 않는다")
 	void internal_staysOpen() throws Exception {
 		mockMvc.perform(get("/internal/ping")).andExpect(status().isOk());
+	}
+
+	@Test
+	@DisplayName("401에 WWW-Authenticate를 실지 않는다 — 브라우저 기본 로그인 팝업 대신 우리 로그인 화면이 떠야 한다")
+	void unauthorized_hasNoBrowserChallenge() throws Exception {
+		mockMvc.perform(get("/api/v1/orders"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(header().doesNotExist(HttpHeaders.WWW_AUTHENTICATE));
+	}
+
+	@Test
+	@DisplayName("틀린 자격증명에도 브라우저 팝업을 유발하지 않는다")
+	void wrongCredentials_hasNoBrowserChallenge() throws Exception {
+		mockMvc.perform(get("/api/v1/orders")
+			.header(HttpHeaders.AUTHORIZATION, basic("tester", "wrong")))
+			.andExpect(status().isUnauthorized())
+			.andExpect(header().doesNotExist(HttpHeaders.WWW_AUTHENTICATE));
 	}
 }
