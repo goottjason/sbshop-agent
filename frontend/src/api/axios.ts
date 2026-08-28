@@ -19,6 +19,11 @@ export const getAdminAuth = (): string | null => sessionStorage.getItem(ADMIN_AU
 
 let authExpiredHandler: (() => void) | null = null;
 
+export const logout = () => {
+  setAdminAuth(null);
+  authExpiredHandler?.();
+};
+
 export const onAuthExpired = (handler: () => void) => {
   authExpiredHandler = handler;
   return () => {

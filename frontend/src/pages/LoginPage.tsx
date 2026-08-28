@@ -30,8 +30,8 @@ const LoginPage = ({ onSuccess }: Props) => {
 
   return (
     <div style={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: '#f5f5f5', padding: 24,
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+      paddingTop: 48,
     }}>
       <div className="card" style={{
         width: '100%', maxWidth: 360, padding: 32,

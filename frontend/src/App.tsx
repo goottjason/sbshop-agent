@@ -31,7 +31,9 @@ function App() {
     return (
       <ConfigProvider theme={{ token: { colorPrimary: '#000000' } }}>
         <AntApp component={false}>
-          <LoginPage onSuccess={() => setAuthed(true)} />
+          <MainLayout locked>
+            <LoginPage onSuccess={() => setAuthed(true)} />
+          </MainLayout>
           <ToastContainer position="bottom-right" autoClose={3000} />
         </AntApp>
       </ConfigProvider>

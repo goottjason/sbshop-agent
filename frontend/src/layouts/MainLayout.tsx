@@ -1,7 +1,14 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Table, Settings, Package, PlusCircle, RefreshCw, List, Sparkles } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { LayoutDashboard, Table, Settings, Package, PlusCircle, RefreshCw, List, Sparkles, LogOut } from 'lucide-react';
+import { logout } from '../api/axios';
 
-const MainLayout = () => {
+interface Props {
+  locked?: boolean;
+  children?: ReactNode;
+}
+
+const MainLayout = ({ locked = false, children }: Props) => {
   const location = useLocation();
 
   const navItems = [
@@ -43,12 +50,25 @@ const MainLayout = () => {
           <div className="topbar-search">
             <input type="text" placeholder="통합 검색..." />
           </div>
-          <div className="user-profile">JA</div>
+          {!locked && (
+            <>
+              <div className="user-profile">JA</div>
+              <button type="button" onClick={logout} title="로그아웃"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8,
+                  background: 'transparent', border: '1px solid #d9d9d9', borderRadius: 6,
+                  padding: '6px 10px', cursor: 'pointer', fontSize: 13, color: '#333',
+                }}>
+                <LogOut size={14} />
+                <span>로그아웃</span>
+              </button>
+            </>
+          )}
         </div>
       </header>
       <main className="main-content">
         <div className="page-content">
-          <Outlet />
+          {children ?? <Outlet />}
         </div>
       </main>
     </div>
