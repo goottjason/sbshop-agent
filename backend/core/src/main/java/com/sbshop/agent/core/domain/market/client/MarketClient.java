@@ -62,7 +62,7 @@ public interface MarketClient {
 			getSupportedMarket() + " 바코드 전송 미지원");
 	}
 
-	default boolean repairProductNotice(String marketItemId) {
+	default boolean repairProductNotice(Product product, String marketItemId) {
 		throw new UnsupportedOperationException(
 			getSupportedMarket() + " 고시정보 보정 미지원");
 	}

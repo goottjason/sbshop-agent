@@ -5,6 +5,8 @@ import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.product.Product;
+import com.sbshop.agent.core.domain.product.ProductRepository;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,6 +21,7 @@ import org.springframework.stereotype.Service;
 public class MarketNoticeRepairUseCase {
 
 	private final MarketRegistrationRepository marketRegistrationRepository;
+	private final ProductRepository productRepository;
 	private final MarketClientRouter marketClientRouter;
 
 	public record Report(int examined, int repaired, int alreadyOk, int skipped, int failed,
@@ -68,7 +71,8 @@ public class MarketNoticeRepairUseCase {
 				continue;
 			}
 			try {
-				if (client.repairProductNotice(marketItemId)) {
+				Product product = productRepository.findById(reg.getProductId()).orElse(null);
+				if (client.repairProductNotice(product, marketItemId)) {
 					repaired++;
 					repairedIds.add(marketItemId);
 				} else {

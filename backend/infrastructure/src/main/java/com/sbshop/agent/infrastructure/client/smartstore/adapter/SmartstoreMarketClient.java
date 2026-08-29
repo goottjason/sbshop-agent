@@ -238,6 +238,7 @@ public class SmartstoreMarketClient implements MarketClient {
 			.computeIfAbsent("sellerCodeInfo", k -> new HashMap<String, Object>());
 		sellerCodeInfo.put("sellerBarcode", barcode);
 		backfillConsumptionDate(attr);
+		backfillUnitPriceYn(attr, product);
 
 		Map<String, Object> requestBody = new HashMap<>();
 		requestBody.put("originProduct", originProduct);
@@ -247,7 +248,7 @@ public class SmartstoreMarketClient implements MarketClient {
 
 	@Override
 	@SuppressWarnings("unchecked")
-	public boolean repairProductNotice(String marketItemId) {
+	public boolean repairProductNotice(Product product, String marketItemId) {
 		String path = "/v2/products/origin-products/" + marketItemId;
 		Map<String, Object> originProduct;
 		try {
@@ -267,10 +268,25 @@ public class SmartstoreMarketClient implements MarketClient {
 		if (!backfillConsumptionDate(attr)) {
 			return false;
 		}
+		backfillUnitPriceYn(attr, product);
 		Map<String, Object> requestBody = new HashMap<>();
 		requestBody.put("originProduct", originProduct);
 		restClient.put(path, requestBody);
 		log.info("[스토어] 고시정보 보정 완료: {}", marketItemId);
+		return true;
+	}
+
+	@SuppressWarnings("unchecked")
+	private static boolean backfillUnitPriceYn(Map<String, Object> detailAttribute, Product product) {
+		Object raw = detailAttribute.get("unitCapacity");
+		Map<String, Object> unitCapacity = (raw instanceof Map)
+			? (Map<String, Object>)raw : new HashMap<>();
+		if (unitCapacity.get("unitPriceYn") != null) {
+			return false;
+		}
+		unitCapacity.putAll(SmartstoreUnitCapacity.of(product));
+		detailAttribute.put("unitCapacity", unitCapacity);
+		log.info("[스토어] 단위가격 사용여부 미선택 보정: unitPriceYn={}", unitCapacity.get("unitPriceYn"));
 		return true;
 	}
 
