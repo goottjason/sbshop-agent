@@ -257,14 +257,14 @@ public class SmartstoreMarketClient implements MarketClient {
 				continue;
 			}
 			Map<String, Object> block = (Map<String, Object>)entry.getValue();
-			Object current = block.get("consumptionDate");
+			Object current = block.get("consumptionDateText");
 			if (current != null && !String.valueOf(current).isBlank()) {
 				continue;
 			}
 			Object expiration = block.get("expirationDateText");
 			String filled = (expiration != null && !String.valueOf(expiration).isBlank())
 				? String.valueOf(expiration) : "상세설명 참조";
-			block.put("consumptionDate", filled);
+			block.put("consumptionDateText", filled);
 			log.info("[스토어] 소비기한 미입력 고시정보 보정: block={} value={}", entry.getKey(), filled);
 		}
 	}

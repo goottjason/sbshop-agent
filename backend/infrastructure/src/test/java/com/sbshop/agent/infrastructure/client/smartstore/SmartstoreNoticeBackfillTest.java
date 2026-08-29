@@ -55,8 +55,8 @@ class SmartstoreNoticeBackfillTest {
 	}
 
 	@Test
-	@DisplayName("소비기한이 없는 옛 고시정보는 유통기한 값으로 채워 PUT 이 거부되지 않게 한다")
-	void backfillsConsumptionDateFromExpiration() {
+	@DisplayName("소비기한 텍스트가 없는 옛 고시정보는 유통기한 값으로 채운다 — consumptionDate 는 날짜 필드라 텍스트를 못 받는다")
+	void backfillsConsumptionDateTextFromExpiration() {
 		when(restClient.get(PATH)).thenReturn("{\"originProduct\":{\"detailAttribute\":{"
 			+ "\"productInfoProvidedNotice\":{\"productInfoProvidedNoticeType\":\"GENERAL_FOOD\","
 			+ "\"generalFood\":{\"expirationDateText\":\"상품 상세설명 참조\","
@@ -64,7 +64,7 @@ class SmartstoreNoticeBackfillTest {
 
 		client.syncBarcode(product(), "5583740567", new HashMap<>());
 
-		assertThat(captureNoticeBlock()).containsEntry("consumptionDate", "상품 상세설명 참조");
+		assertThat(captureNoticeBlock()).containsEntry("consumptionDateText", "상품 상세설명 참조");
 	}
 
 	@Test
@@ -76,18 +76,18 @@ class SmartstoreNoticeBackfillTest {
 
 		client.syncBarcode(product(), "5583740567", new HashMap<>());
 
-		assertThat(captureNoticeBlock()).containsEntry("consumptionDate", "상세설명 참조");
+		assertThat(captureNoticeBlock()).containsEntry("consumptionDateText", "상세설명 참조");
 	}
 
 	@Test
 	@DisplayName("이미 소비기한이 있으면 덮어쓰지 않는다")
-	void keepsExistingConsumptionDate() {
+	void keepsExistingConsumptionDateText() {
 		when(restClient.get(PATH)).thenReturn("{\"originProduct\":{\"detailAttribute\":{"
 			+ "\"productInfoProvidedNotice\":{\"productInfoProvidedNoticeType\":\"GENERAL_FOOD\","
-			+ "\"generalFood\":{\"consumptionDate\":\"2027-01-01\"}}}}}");
+			+ "\"generalFood\":{\"consumptionDateText\":\"제품 표기일 참조\"}}}}}");
 
 		client.syncBarcode(product(), "5583740567", new HashMap<>());
 
-		assertThat(captureNoticeBlock()).containsEntry("consumptionDate", "2027-01-01");
+		assertThat(captureNoticeBlock()).containsEntry("consumptionDateText", "제품 표기일 참조");
 	}
 }
