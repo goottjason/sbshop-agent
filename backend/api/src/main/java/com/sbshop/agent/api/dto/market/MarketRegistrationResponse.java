@@ -18,7 +18,8 @@ public record MarketRegistrationResponse(
 	@JsonRawValue
 	String marketDetailedInfo,
 	Boolean isSynced,
-	LocalDateTime lastSyncedAt) {
+	LocalDateTime lastSyncedAt,
+	String unsyncReason) {
 
 	public static MarketRegistrationResponse from(MarketRegistration r) {
 		return new MarketRegistrationResponse(
@@ -33,6 +34,7 @@ public record MarketRegistrationResponse(
 			r.getMarketIdentifiers(),
 			r.getMarketDetailedInfo(),
 			r.getIsSynced(),
-			r.getLastSyncedAt());
+			r.getLastSyncedAt(),
+			r.getUnsyncReason() != null ? r.getUnsyncReason().name() : null);
 	}
 }

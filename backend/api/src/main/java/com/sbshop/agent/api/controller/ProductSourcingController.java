@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -108,11 +109,13 @@ public class ProductSourcingController {
 		@PathVariable
 		String marketType,
 		@RequestBody(required = false)
-		MarketPublishPriceRequest priceRequest) {
+		MarketPublishPriceRequest priceRequest,
+		@RequestParam(defaultValue = "false")
+		boolean force) {
 		MarketType type = MarketType.valueOf(marketType.toUpperCase());
 		try {
 			MarketPublishOutcome outcome = productPublishUseCase.publishToMarket(
-				id, type, priceRequest == null ? null : priceRequest.toOverrides());
+				id, type, priceRequest == null ? null : priceRequest.toOverrides(), force);
 			String url = marketRegistrationRepository.findByProductIdAndMarketType(id, type)
 				.map(MarketRegistration::buildMarketUrl)
 				.orElse(null);

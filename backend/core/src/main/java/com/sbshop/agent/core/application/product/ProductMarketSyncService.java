@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.product.dto.PricingInputs;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
+import com.sbshop.agent.core.domain.market.UnsyncReasonClassifier;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
@@ -98,11 +99,11 @@ public class ProductMarketSyncService {
 				synced.add(marketType);
 				log.info("[가격재고동기화] 성공: productId={}, market={}, marketItemId={}", productId, marketType, marketItemId);
 			} catch (Exception e) {
-				reg.markSyncFailed();
+				reg.markSyncFailed(UnsyncReasonClassifier.classify(e));
 				marketRegistrationRepository.save(reg);
 				failed.put(marketType, rootMessage(e));
-				log.error("[가격재고동기화] 실패(부분 실패로 수집, 롤백하지 않음): productId={}, market={}, error={}",
-					productId, marketType, rootMessage(e), e);
+				log.error("[가격재고동기화] 실패(부분 실패로 수집, 롤백하지 않음): productId={}, market={}, 사유={}, error={}",
+					productId, marketType, reg.getUnsyncReason(), rootMessage(e), e);
 			}
 		}
 

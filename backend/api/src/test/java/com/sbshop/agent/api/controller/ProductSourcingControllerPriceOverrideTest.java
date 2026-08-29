@@ -49,28 +49,28 @@ class ProductSourcingControllerPriceOverrideTest {
 		Long productId = 1L;
 		MarketPublishPriceRequest body = new MarketPublishPriceRequest(new BigDecimal("15"), new BigDecimal("20"),
 			new BigDecimal("5000"));
-		when(productPublishUseCase.publishToMarket(eq(productId), eq(MarketType.ELEVEN_STREET), any()))
+		when(productPublishUseCase.publishToMarket(eq(productId), eq(MarketType.ELEVEN_STREET), any(), eq(false)))
 			.thenReturn(new MarketPublishOutcome(MarketType.ELEVEN_STREET, Map.of("elevenstId", "1"), true));
 		when(marketRegistrationRepository.findByProductIdAndMarketType(productId, MarketType.ELEVEN_STREET))
 			.thenReturn(Optional.empty());
 
-		controller().publishToMarket(productId, "eleven_street", body);
+		controller().publishToMarket(productId, "eleven_street", body, false);
 
 		verify(productPublishUseCase).publishToMarket(productId, MarketType.ELEVEN_STREET,
-			new MarketSalePriceOverrides(new BigDecimal("15"), new BigDecimal("20"), new BigDecimal("5000")));
+			new MarketSalePriceOverrides(new BigDecimal("15"), new BigDecimal("20"), new BigDecimal("5000")), false);
 	}
 
 	@Test
 	@DisplayName("가격 바디가 없으면(null) 오버라이드 없이 넘긴다 — 기존 호출부 비파괴")
 	void publishToMarket_withoutPriceBody_passesNull() {
 		Long productId = 2L;
-		when(productPublishUseCase.publishToMarket(eq(productId), eq(MarketType.CAFE24), isNull()))
+		when(productPublishUseCase.publishToMarket(eq(productId), eq(MarketType.CAFE24), isNull(), eq(false)))
 			.thenReturn(new MarketPublishOutcome(MarketType.CAFE24, Map.of("product_no", "1"), true));
 		when(marketRegistrationRepository.findByProductIdAndMarketType(productId, MarketType.CAFE24))
 			.thenReturn(Optional.empty());
 
-		controller().publishToMarket(productId, "cafe24", null);
+		controller().publishToMarket(productId, "cafe24", null, false);
 
-		verify(productPublishUseCase).publishToMarket(productId, MarketType.CAFE24, null);
+		verify(productPublishUseCase).publishToMarket(productId, MarketType.CAFE24, null, false);
 	}
 }

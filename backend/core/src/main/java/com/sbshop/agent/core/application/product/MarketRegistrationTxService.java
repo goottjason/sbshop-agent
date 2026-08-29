@@ -24,7 +24,7 @@ public class MarketRegistrationTxService {
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void markPublished(MarketRegistration registration, String identifiersJson) {
-		registration.updateMarketIdentifiers(identifiersJson);
+		registration.replaceIdentifiersArchivingPrevious(identifiersJson);
 		registration.markSynced();
 		marketRegistrationRepository.save(registration);
 	}

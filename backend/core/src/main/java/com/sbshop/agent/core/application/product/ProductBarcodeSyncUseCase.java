@@ -3,6 +3,7 @@ package com.sbshop.agent.core.application.product;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
+import com.sbshop.agent.core.domain.market.UnsyncReasonClassifier;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
@@ -79,8 +80,10 @@ public class ProductBarcodeSyncUseCase {
 			try {
 				results.add(push(product, reg, market, marketItemId));
 			} catch (Exception e) {
-				log.error("[바코드전송] 실패: productId={}, market={}, error={}", productId, market,
-					e.getMessage(), e);
+				reg.markSyncFailed(UnsyncReasonClassifier.classify(e));
+				marketRegistrationRepository.save(reg);
+				log.error("[바코드전송] 실패: productId={}, market={}, 사유={}, error={}", productId, market,
+					reg.getUnsyncReason(), e.getMessage(), e);
 				results.add(new MarketOutcome(market, "FAILED", e.getMessage()));
 			}
 		}
@@ -97,6 +100,8 @@ public class ProductBarcodeSyncUseCase {
 			return new MarketOutcome(market, "UNSUPPORTED", unsupported.getMessage());
 		}
 		reg.updateMarketDetailedInfo(objectMapper.writeValueAsString(rawData));
+		reg.enrichIdentifier("barcode", product.getProductSpec() == null
+			? null : product.getProductSpec().getBarcode());
 		reg.markSynced();
 		marketRegistrationRepository.save(reg);
 		return new MarketOutcome(market, "SENT", marketItemId);

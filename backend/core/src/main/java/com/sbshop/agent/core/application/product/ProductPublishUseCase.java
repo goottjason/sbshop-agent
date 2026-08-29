@@ -3,7 +3,9 @@ package com.sbshop.agent.core.application.product;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.product.dto.MarketPublishOutcome;
 import com.sbshop.agent.core.application.product.dto.MarketSalePriceOverrides;
+import com.sbshop.agent.core.application.product.exception.DuplicatePublishException;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
+import com.sbshop.agent.core.domain.market.UnsyncReason;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
@@ -37,6 +39,11 @@ public class ProductPublishUseCase {
 
 	public MarketPublishOutcome publishToMarket(Long productId, MarketType marketType,
 		MarketSalePriceOverrides pricingOverrides) {
+		return publishToMarket(productId, marketType, pricingOverrides, false);
+	}
+
+	public MarketPublishOutcome publishToMarket(Long productId, MarketType marketType,
+		MarketSalePriceOverrides pricingOverrides, boolean force) {
 		Product product = productReader.findById(productId)
 			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
 
@@ -57,6 +64,10 @@ public class ProductPublishUseCase {
 		MarketRegistration registration = registrationTxService.savePending(productId, marketType,
 			product.getProductName());
 
+		if (!force) {
+			guardAgainstDuplicatePublish(registration, productId, marketType);
+		}
+
 		BigDecimal salePrice = pricingOverrides == null
 			? marketSalePriceResolver.resolveForProduct(product, marketType)
 			: marketSalePriceResolver.resolveForProduct(product, marketType, pricingOverrides);
@@ -75,6 +86,27 @@ public class ProductPublishUseCase {
 
 		log.info("상품 마켓 등록 완료: productId={}, market={}, identifiers={}", productId, marketType, identifiers);
 		return new MarketPublishOutcome(marketType, identifiers, true);
+	}
+
+	private void guardAgainstDuplicatePublish(MarketRegistration registration, Long productId,
+		MarketType marketType) {
+		String existingId = registration.extractLiveLookupId();
+		if (existingId == null) {
+			return;
+		}
+		if (registration.getUnsyncReason() == UnsyncReason.DELETED_ON_MARKET) {
+			log.info("[게시-가드] 마켓에서 삭제된 등록이라 재등록을 허용한다: productId={}, market={}, 이전식별자={}",
+				productId, marketType, existingId);
+			return;
+		}
+		if (Boolean.TRUE.equals(registration.getIsSynced())) {
+			throw new DuplicatePublishException(
+				marketType + "에 이미 등록된 상품이다(식별자 " + existingId + "). "
+					+ "그대로 게시하면 마켓에 중복 리스팅이 생기고 기존 리스팅을 추적할 수 없게 된다. "
+					+ "수정하려면 재게시 경로를 쓰고, 그래도 새로 등록해야 하면 force=true 로 명시하라.");
+		}
+		log.warn("[게시-가드] 미동기 등록에 재등록을 진행한다 — 사유={}, productId={}, market={}, 이전식별자={}",
+			registration.getUnsyncReason(), productId, marketType, existingId);
 	}
 
 	private String toJson(Map<String, String> identifiers) {

@@ -40,6 +40,8 @@ public class MarketRegistration extends BaseEntity {
 	public static final String CAFE24_LOOKUP_KEY = "product_no";
 	public static final String CAFE24_PRODUCT_CODE_KEY = "product_code";
 
+	public static final String PREVIOUS_IDENTIFIERS_KEY = "previousIdentifiers";
+
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	@Column(name = "product_id", nullable = false)
@@ -70,6 +72,11 @@ public class MarketRegistration extends BaseEntity {
 	@Column(name = "last_synced_at")
 	private LocalDateTime lastSyncedAt;
 
+	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(Types.VARCHAR)
+	@Column(name = "unsync_reason", length = 32)
+	private UnsyncReason unsyncReason;
+
 	@Builder
 	public MarketRegistration(Long productId, Long sbProductId, MarketType marketType, String marketProductName,
 		String marketIdentifiers, String marketDetailedInfo) {
@@ -94,10 +101,50 @@ public class MarketRegistration extends BaseEntity {
 	public void markSynced() {
 		this.isSynced = true;
 		this.lastSyncedAt = LocalDateTime.now();
+		this.unsyncReason = null;
 	}
 
 	public void markSyncFailed() {
+		markSyncFailed(UnsyncReason.TRANSIENT_ERROR);
+	}
+
+	public void markSyncFailed(UnsyncReason reason) {
 		this.isSynced = false;
+		this.unsyncReason = (reason == null) ? UnsyncReason.TRANSIENT_ERROR : reason;
+	}
+
+	public void replaceIdentifiersArchivingPrevious(String newIdentifiersJson) {
+		if (!hasIdentifiers()) {
+			this.marketIdentifiers = newIdentifiersJson;
+			return;
+		}
+		try {
+			JsonNode previous = MAPPER.readTree(marketIdentifiers);
+			JsonNode incoming = isValidJson(newIdentifiersJson)
+				? MAPPER.readTree(newIdentifiersJson)
+				: MAPPER.createObjectNode();
+			if (!incoming.isObject()) {
+				this.marketIdentifiers = newIdentifiersJson;
+				return;
+			}
+			com.fasterxml.jackson.databind.node.ObjectNode next = (com.fasterxml.jackson.databind.node.ObjectNode)incoming;
+			com.fasterxml.jackson.databind.node.ArrayNode archive = (previous.has(PREVIOUS_IDENTIFIERS_KEY)
+				&& previous.get(PREVIOUS_IDENTIFIERS_KEY).isArray())
+					? ((com.fasterxml.jackson.databind.node.ArrayNode)previous.get(PREVIOUS_IDENTIFIERS_KEY)).deepCopy()
+					: MAPPER.createArrayNode();
+			com.fasterxml.jackson.databind.node.ObjectNode snapshot = ((com.fasterxml.jackson.databind.node.ObjectNode)previous)
+				.deepCopy();
+			snapshot.remove(PREVIOUS_IDENTIFIERS_KEY);
+			snapshot.put("archivedAt", LocalDateTime.now().toString());
+			archive.add(snapshot);
+			next.set(PREVIOUS_IDENTIFIERS_KEY, archive);
+			this.marketIdentifiers = MAPPER.writeValueAsString(next);
+			log.info("[식별자보존] 이전 마켓 식별자를 보관했다: productId={}, market={}, previous={}",
+				productId, marketType, snapshot);
+		} catch (Exception e) {
+			log.warn("[식별자보존] 실패 — 새 식별자로 대체한다: productId={}, error={}", productId, e.getMessage());
+			this.marketIdentifiers = newIdentifiersJson;
+		}
 	}
 
 	public String extractVendorItemId() {

@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
+import com.sbshop.agent.core.application.product.exception.DuplicatePublishException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +31,14 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
 			"success", false,
 			"message", Objects.requireNonNullElse(e.getMessage(), "요청한 리소스를 찾을 수 없습니다.")));
+	}
+
+	@ExceptionHandler(DuplicatePublishException.class)
+	public ResponseEntity<Map<String, Object>> handleDuplicatePublish(DuplicatePublishException e) {
+		log.warn("중복 게시 거부: {}", e.getMessage());
+		return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+			"success", false,
+			"message", Objects.requireNonNullElse(e.getMessage(), "이미 마켓에 등록된 상품입니다.")));
 	}
 
 	@ExceptionHandler(IllegalStateException.class)
