@@ -100,8 +100,9 @@ public class ProductBarcodeSyncUseCase {
 		String marketItemId) throws Exception {
 		MarketClient client = marketClientRouter.getClient(market);
 		Map<String, Object> rawData = parseRawData(reg.getMarketDetailedInfo());
+		boolean written;
 		try {
-			client.syncBarcode(product, marketItemId, rawData);
+			written = client.syncBarcode(product, marketItemId, rawData);
 		} catch (UnsupportedOperationException unsupported) {
 			return new MarketOutcome(market, "UNSUPPORTED", unsupported.getMessage());
 		}
@@ -110,7 +111,7 @@ public class ProductBarcodeSyncUseCase {
 			? null : product.getProductSpec().getBarcode());
 		reg.markSynced();
 		marketRegistrationRepository.save(reg);
-		return new MarketOutcome(market, "SENT", marketItemId);
+		return new MarketOutcome(market, written ? "SENT" : "ALREADY", marketItemId);
 	}
 
 	private Map<String, Object> parseRawData(String json) {

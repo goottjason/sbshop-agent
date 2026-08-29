@@ -3877,6 +3877,17 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 테스트: `MarketPresenceCheckTest` 4건 (Red 3건 확인 후 구현)
 - 상태: **수정완료(검증대기 — 배포 후 재프로브 필요)** 2026-08-29
 
+### D-233: 바코드 재전송이 멱등하지 않다 — 이미 같은 값인데 PUT 해서 승인 상품을 심사중으로 되돌린다 (2026-08-29)
+
+- 심각도: **표준(재실행이 해를 끼침)** | 위치: `CoupangMarketClient.syncBarcode` · `SmartstoreMarketClient.syncBarcode`
+- 증상: `syncBarcode` 는 마켓의 현재 바코드를 보지 않고 무조건 PUT 했다. **쿠팡은 PUT 성공이 곧 심사중 전환**이므로([[coupang-republish-attributes]]), 이미 바코드가 들어간 상품에 재전송하면 **멀쩡한 승인 상품을 심사중으로 되돌린다.**
+- 재집계를 막고 있던 문제: `market_identifiers.barcode` 는 [[D-228]] 이후에만 채워지므로, 그 이전에 성공한 것들도 전부 공백으로 보여 "미전송"으로 오인된다. 그 상태로 전량 재실행하면 오늘 성공한 866건이 전부 심사중으로 돌아간다.
+- 실측: `is_synced=true` 쿠팡 60건 표본 중 **59건이 심사중** — 오늘 바코드 PUT 의 결과다.
+- 수정: `syncBarcode` 가 `boolean` 을 반환한다(전송했나). 신선 GET 후 **마켓 값이 이미 같으면 PUT 없이 `false` 반환**. 유스케이스는 `SENT` 와 `ALREADY` 를 구분해 보고하고, 두 경우 모두 [[D-228]] 식별자 기록과 `markSynced()` 를 수행한다(GET 성공 = 존재 확인).
+- 효과: 재실행이 **안전하고 싸진다**. 이미 반영된 것은 GET 한 번으로 끝나고 마켓 상태를 건드리지 않는다.
+- 테스트: `CoupangBarcodeIdempotenceTest` 5건(멱등·차이시전송·공백시전송 + [[D-232]] 존재판정 2건), `ProductBarcodeSyncIdentifierTest` 에 `ALREADY` 1건 추가
+- 상태: **수정완료(검증대기 — 배포 후 재집계 실행)** 2026-08-29
+
 ### D-229: 쿠팡 상품 조회 경로의 vendorId 가 항상 비어 있다 (2026-08-29, 프로브 로그에서 발견)
 
 - 심각도: 경량(현재 무해) | 위치: `CoupangMarketClient.extractMarketItem`

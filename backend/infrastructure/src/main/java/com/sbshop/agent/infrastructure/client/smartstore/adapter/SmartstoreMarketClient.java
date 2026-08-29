@@ -215,11 +215,11 @@ public class SmartstoreMarketClient implements MarketClient {
 
 	@Override
 	@SuppressWarnings("unchecked")
-	public void syncBarcode(Product product, String marketItemId, Map<String, Object> currentRawData) {
+	public boolean syncBarcode(Product product, String marketItemId, Map<String, Object> currentRawData) {
 		String barcode = (product.getProductSpec() == null) ? null : product.getProductSpec().getBarcode();
 		if (barcode == null || barcode.isBlank()) {
 			log.info("[스토어] 바코드 없음 — 전송 생략: {}", marketItemId);
-			return;
+			return false;
 		}
 		String path = "/v2/products/origin-products/" + marketItemId;
 		Map<String, Object> originProduct;
@@ -236,6 +236,11 @@ public class SmartstoreMarketClient implements MarketClient {
 			.computeIfAbsent("detailAttribute", k -> new HashMap<String, Object>());
 		Map<String, Object> sellerCodeInfo = (Map<String, Object>)attr
 			.computeIfAbsent("sellerCodeInfo", k -> new HashMap<String, Object>());
+		Object currentBarcode = sellerCodeInfo.get("sellerBarcode");
+		if (currentBarcode != null && barcode.equals(String.valueOf(currentBarcode).trim())) {
+			log.info("[스토어] 바코드가 이미 마켓과 같다 — PUT 생략: {} barcode={}", marketItemId, barcode);
+			return false;
+		}
 		sellerCodeInfo.put("sellerBarcode", barcode);
 		backfillConsumptionDate(attr);
 		backfillUnitPriceYn(attr, product);
@@ -245,6 +250,7 @@ public class SmartstoreMarketClient implements MarketClient {
 		requestBody.put("originProduct", originProduct);
 		restClient.put(path, requestBody);
 		log.info("[스토어] 바코드 전송 완료: {} barcode={}", marketItemId, barcode);
+		return true;
 	}
 
 	@Override

@@ -68,7 +68,7 @@ public interface MarketClient {
 			getSupportedMarket() + " 삭제 API 미구현");
 	}
 
-	default void syncBarcode(Product product, String marketItemId, Map<String, Object> currentRawData) {
+	default boolean syncBarcode(Product product, String marketItemId, Map<String, Object> currentRawData) {
 		throw new UnsupportedOperationException(
 			getSupportedMarket() + " 바코드 전송 미지원");
 	}

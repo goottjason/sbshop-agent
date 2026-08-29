@@ -72,9 +72,23 @@ class ProductBarcodeSyncIdentifierTest {
 	void successfulPush_recordsBarcodeInIdentifiers() {
 		product();
 		MarketRegistration reg = registration();
+		when(client.syncBarcode(any(), anyString(), any())).thenReturn(true);
 
 		useCase().sync(List.of(1L), false);
 
+		assertThat(reg.identifier("barcode")).isEqualTo(BARCODE);
+	}
+
+	@Test
+	@DisplayName("D-233: 마켓에 이미 반영돼 있으면 ALREADY 로 보고한다 — 성공과 구분되어야 재집계가 의미를 갖는다")
+	void alreadyOnMarket_reportedSeparately() {
+		product();
+		MarketRegistration reg = registration();
+		when(client.syncBarcode(any(), anyString(), any())).thenReturn(false);
+
+		java.util.List<ProductBarcodeSyncUseCase.ProductOutcome> out = useCase().sync(List.of(1L), false);
+
+		assertThat(out.get(0).markets()).anySatisfy(m -> assertThat(m.result()).isEqualTo("ALREADY"));
 		assertThat(reg.identifier("barcode")).isEqualTo(BARCODE);
 	}
 

@@ -135,11 +135,11 @@ public class Cafe24MarketClient implements MarketClient {
 	}
 
 	@Override
-	public void syncBarcode(Product product, String marketItemId, Map<String, Object> currentRawData) {
+	public boolean syncBarcode(Product product, String marketItemId, Map<String, Object> currentRawData) {
 		String barcode = (product.getProductSpec() == null) ? null : product.getProductSpec().getBarcode();
 		if (barcode == null || barcode.isBlank()) {
 			log.info("[카페24] 바코드 없음 — 전송 생략: {}", marketItemId);
-			return;
+			return false;
 		}
 		if (!hasOption(marketItemId)) {
 			throw new UnsupportedOperationException(
@@ -161,6 +161,7 @@ public class Cafe24MarketClient implements MarketClient {
 			localVariant.put("gtin", barcode);
 		}
 		log.info("[카페24] 바코드 전송 완료: {} variant={} gtin={}", marketItemId, variantCode, barcode);
+		return true;
 	}
 
 	private boolean hasOption(String marketItemId) {

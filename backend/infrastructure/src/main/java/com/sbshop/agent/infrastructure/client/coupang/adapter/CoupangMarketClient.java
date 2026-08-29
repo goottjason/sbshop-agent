@@ -235,11 +235,11 @@ public class CoupangMarketClient implements MarketClient {
 	}
 
 	@Override
-	public void syncBarcode(Product product, String marketItemId, Map<String, Object> currentRawData) {
+	public boolean syncBarcode(Product product, String marketItemId, Map<String, Object> currentRawData) {
 		String barcode = (product.getProductSpec() == null) ? null : product.getProductSpec().getBarcode();
 		if (barcode == null || barcode.isBlank()) {
 			log.info("[쿠팡] 바코드 없음 — 전송 생략: {}", marketItemId);
-			return;
+			return false;
 		}
 		if (marketItemId == null || marketItemId.isBlank()) {
 			throw new IllegalStateException("쿠팡 sellerProductId 없음 — 바코드 전송 불가");
@@ -261,6 +261,11 @@ public class CoupangMarketClient implements MarketClient {
 		if (items == null || items.isEmpty()) {
 			throw new IllegalStateException("쿠팡 상품에 items 없음 — 바코드 전송 불가: " + marketItemId);
 		}
+		if (allItemsHaveBarcode(items, barcode)) {
+			log.info("[쿠팡] 바코드가 이미 마켓과 같다 — PUT 생략(심사중 전환 방지): {} barcode={}",
+				marketItemId, barcode);
+			return false;
+		}
 		for (Map<String, Object> item : items) {
 			item.put("barcode", barcode);
 			item.put("emptyBarcode", false);
@@ -270,6 +275,17 @@ public class CoupangMarketClient implements MarketClient {
 		rawData.put("requested", true);
 		verifyEnvelopeStrict(restClient.put(base, rawData), "[쿠팡] 바코드 전송");
 		log.info("[쿠팡] 바코드 전송 완료(심사중 전환): {} barcode={}", marketItemId, barcode);
+		return true;
+	}
+
+	private static boolean allItemsHaveBarcode(List<Map<String, Object>> items, String barcode) {
+		for (Map<String, Object> item : items) {
+			Object current = item.get("barcode");
+			if (current == null || !barcode.equals(String.valueOf(current).trim())) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	@Override
