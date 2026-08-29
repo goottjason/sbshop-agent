@@ -3849,8 +3849,11 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 수정: `unsync_reason VARCHAR(32)` 컬럼 신설(운영 DB 수동 DDL 완료) + `UnsyncReason` enum + `UnsyncReasonClassifier`. 실패를 잡는 두 경로(`ProductMarketSyncService`·`ProductBarcodeSyncUseCase`)가 예외의 **원인 사슬 전체**를 훑어 분류·기록한다. `markSynced()` 가 성공 시 사유를 소거한다. `MarketRegistrationResponse.unsyncReason` 으로 API 에도 노출 — [[D-222]] 배지 분리의 재료가 준비됐다.
 - 분류 기울기: 매칭 실패 시 `TRANSIENT_ERROR`(재시도해도 안전)로 떨어진다. 마켓이 문구를 바꾸면 삭제 감지를 놓치는 방향이지, 살아있는 상품을 삭제로 오판하는 방향이 아니다.
 - 백필: `is_synced=false` 2,024건 중 **확실히 판별 가능한 3건만** `NEVER_SYNCED` 로 채웠다(식별자 없음 + 동기화 이력 없음). 나머지 **2,021건은 NULL 유지** — 틀린 사유는 사유 없음보다 나쁘다(오판 시 [[D-223]] 가드가 중복 등록을 허용해 버린다). 채우는 경로는 [[D-227]].
-- 테스트: `UnsyncReasonClassifierTest` 6건
-- 상태: **수정완료(검증통과)** 2026-08-29
+- **라이브 검증 중 자책 결함 발견·수정(2026-08-29)**: 최초 구현이 바코드 전송 실패 시 사유와 무관하게 `is_synced=false` 로 뒤집었다. 쿠팡 `"심사가 진행중입니다"` 는 상품이 **마켓에 멀쩡히 있다는** 뜻인데도 8건이 미동기로 전환됐다. 파급이 컸다 — ① 배지 미등록 표시 ② [[D-225]] 스킵 로직이 영구 제외 ③ **[[D-223]] 가드 무력화**(미동기는 통과하므로 유령 리스팅 생성 가능). 즉, 방금 만든 가드를 스스로 뚫었다.
+- 수정: 바코드 경로에서 `is_synced` 를 뒤집는 것은 `DELETED_ON_MARKET`(마켓에 없다는 증거가 있을 때) **뿐**이다. 검증 실패·일시 오류는 응답·로그로만 보고한다. 훼손된 8건은 `is_synced=true`, `unsync_reason=NULL` 로 복구 완료.
+- 교훈: **사유 기록과 상태 전환은 별개다.** "왜 실패했나" 를 남기는 것과 "마켓에 없다고 판정하는 것" 을 같이 묶으면 판정이 오염된다.
+- 테스트: `UnsyncReasonClassifierTest` 6건 + `ProductBarcodeSyncIdentifierTest` 의 비전환 회귀 2건(심사중·검증실패)
+- 상태: **수정완료(라이브 검증)** 2026-08-29
 
 ### D-225: 죽은 등록(is_synced=false)에도 마켓 전송을 시도한다 (2026-08-29, 바코드 확대 중 실측)
 

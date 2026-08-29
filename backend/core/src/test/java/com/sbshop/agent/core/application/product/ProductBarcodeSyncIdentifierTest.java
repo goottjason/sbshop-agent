@@ -90,7 +90,35 @@ class ProductBarcodeSyncIdentifierTest {
 	}
 
 	@Test
-	@DisplayName("D-224: 바코드 전송이 '이미 삭제된 상품'으로 실패하면 DELETED_ON_MARKET 을 기록한다")
+	@DisplayName("D-224: 바코드 전송이 '심사중'으로 실패해도 is_synced 를 뒤집지 않는다 — 상품은 마켓에 멀쩡히 있다")
+	void transientFailure_doesNotFlipIsSynced() {
+		product();
+		MarketRegistration reg = registration();
+		doThrow(new IllegalStateException("해당 상품은 심사가 진행중입니다."))
+			.when(client).syncBarcode(any(), anyString(), any());
+
+		useCase().sync(List.of(1L), false);
+
+		assertThat(reg.getIsSynced()).isTrue();
+		assertThat(reg.getUnsyncReason()).isNull();
+	}
+
+	@Test
+	@DisplayName("D-224: 검증 실패도 is_synced 를 뒤집지 않는다 — 데이터가 틀린 것이지 상품이 없는 게 아니다")
+	void validationFailure_doesNotFlipIsSynced() {
+		product();
+		MarketRegistration reg = registration();
+		doThrow(new IllegalStateException("유효하지 않은 구매 옵션 값입니다"))
+			.when(client).syncBarcode(any(), anyString(), any());
+
+		useCase().sync(List.of(1L), false);
+
+		assertThat(reg.getIsSynced()).isTrue();
+		assertThat(reg.getUnsyncReason()).isNull();
+	}
+
+	@Test
+	@DisplayName("D-224: 바코드 전송이 '이미 삭제된 상품'으로 실패하면 DELETED_ON_MARKET 을 기록한다 — 이때만 뒤집는다")
 	void deletedOnMarketFailure_recordsUnsyncReason() {
 		product();
 		MarketRegistration reg = registration();

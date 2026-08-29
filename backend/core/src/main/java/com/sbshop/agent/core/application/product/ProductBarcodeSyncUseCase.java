@@ -3,6 +3,7 @@ package com.sbshop.agent.core.application.product;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
+import com.sbshop.agent.core.domain.market.UnsyncReason;
 import com.sbshop.agent.core.domain.market.UnsyncReasonClassifier;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
@@ -80,10 +81,13 @@ public class ProductBarcodeSyncUseCase {
 			try {
 				results.add(push(product, reg, market, marketItemId));
 			} catch (Exception e) {
-				reg.markSyncFailed(UnsyncReasonClassifier.classify(e));
-				marketRegistrationRepository.save(reg);
-				log.error("[바코드전송] 실패: productId={}, market={}, 사유={}, error={}", productId, market,
-					reg.getUnsyncReason(), e.getMessage(), e);
+				UnsyncReason reason = UnsyncReasonClassifier.classify(e);
+				if (reason == UnsyncReason.DELETED_ON_MARKET) {
+					reg.markSyncFailed(reason);
+					marketRegistrationRepository.save(reg);
+				}
+				log.error("[바코드전송] 실패: productId={}, market={}, 사유={}, 등록상태변경={}, error={}",
+					productId, market, reason, reason == UnsyncReason.DELETED_ON_MARKET, e.getMessage(), e);
 				results.add(new MarketOutcome(market, "FAILED", e.getMessage()));
 			}
 		}
