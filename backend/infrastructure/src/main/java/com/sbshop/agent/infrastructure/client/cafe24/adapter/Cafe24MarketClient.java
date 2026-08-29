@@ -141,6 +141,11 @@ public class Cafe24MarketClient implements MarketClient {
 			log.info("[카페24] 바코드 없음 — 전송 생략: {}", marketItemId);
 			return;
 		}
+		if (!hasOption(marketItemId)) {
+			throw new UnsupportedOperationException(
+				"카페24 바코드 전송 미지원 — 옵션 없는 단일 상품은 variants 수정이 차단된다(422): "
+					+ marketItemId);
+		}
 		String variantCode = fetchVariantCode(marketItemId);
 		if (variantCode == null) {
 			throw new IllegalStateException(
@@ -156,6 +161,17 @@ public class Cafe24MarketClient implements MarketClient {
 			localVariant.put("gtin", barcode);
 		}
 		log.info("[카페24] 바코드 전송 완료: {} variant={} gtin={}", marketItemId, variantCode, barcode);
+	}
+
+	private boolean hasOption(String marketItemId) {
+		try {
+			JsonNode root = objectMapper.readTree(
+				cafe24RestClient.get("/admin/products/" + marketItemId + "/options"));
+			return "T".equalsIgnoreCase(root.path("option").path("has_option").asText(""));
+		} catch (Exception e) {
+			throw new IllegalStateException(
+				"카페24 옵션 여부 조회 실패: marketItemId=" + marketItemId, e);
+		}
 	}
 
 	private String fetchVariantCode(String marketItemId) {

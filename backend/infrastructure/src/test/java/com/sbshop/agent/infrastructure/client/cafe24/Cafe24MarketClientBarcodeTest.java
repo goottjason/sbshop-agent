@@ -66,6 +66,8 @@ class Cafe24MarketClientBarcodeTest {
 	@Test
 	@DisplayName("variant_code 를 라이브 GET 으로 조달한다 — 저장된 rawData 에는 variants 가 없다")
 	void fetchesVariantCodeLive() {
+		when(cafe24RestClient.get("/admin/products/22016/options"))
+			.thenReturn("{\"option\":{\"has_option\":\"T\"}}");
 		when(cafe24RestClient.get("/admin/products/22016/variants"))
 			.thenReturn("{\"variants\":[{\"variant_code\":\"P000BDTF000A\"}]}");
 
@@ -77,6 +79,8 @@ class Cafe24MarketClientBarcodeTest {
 	@Test
 	@DisplayName("바코드를 variants 의 gtin 으로 PUT 한다 — 카페24는 상품 레벨에 바코드 필드가 없다")
 	void putsGtinOnVariant() {
+		when(cafe24RestClient.get("/admin/products/22016/options"))
+			.thenReturn("{\"option\":{\"has_option\":\"T\"}}");
 		when(cafe24RestClient.get("/admin/products/22016/variants"))
 			.thenReturn("{\"variants\":[{\"variant_code\":\"P000BDTF000A\"}]}");
 
@@ -102,6 +106,8 @@ class Cafe24MarketClientBarcodeTest {
 	@Test
 	@DisplayName("variant_code 를 못 찾으면 조용히 넘어가지 않고 실패로 알린다")
 	void failsWhenVariantMissing() {
+		when(cafe24RestClient.get("/admin/products/22016/options"))
+			.thenReturn("{\"option\":{\"has_option\":\"T\"}}");
 		when(cafe24RestClient.get("/admin/products/22016/variants")).thenReturn("{\"variants\":[]}");
 
 		assertThatThrownBy(() -> client.syncBarcode(product("9400501001116"), "22016", new HashMap<>()))
@@ -114,6 +120,8 @@ class Cafe24MarketClientBarcodeTest {
 	@Test
 	@DisplayName("전송 후 로컬 rawData 의 gtin 도 갱신해 다음 비교가 어긋나지 않게 한다")
 	void updatesLocalRawData() {
+		when(cafe24RestClient.get("/admin/products/22016/options"))
+			.thenReturn("{\"option\":{\"has_option\":\"T\"}}");
 		when(cafe24RestClient.get("/admin/products/22016/variants"))
 			.thenReturn("{\"variants\":[{\"variant_code\":\"P000BDTF000A\"}]}");
 		Map<String, Object> raw = rawDataWithVariant("P000BDTF000A");
@@ -123,5 +131,19 @@ class Cafe24MarketClientBarcodeTest {
 		@SuppressWarnings("unchecked") List<Map<String, Object>> variants = (List<Map<String, Object>>)raw
 			.get("variants");
 		assertThat(variants.get(0)).containsEntry("gtin", "9400501001116");
+	}
+
+	@Test
+	@DisplayName("옵션 없는 단일 상품은 미지원으로 알린다 — 카페24가 variants 수정을 막는다(422)")
+	void singleProductUnsupported() {
+		when(cafe24RestClient.get("/admin/products/22016/options"))
+			.thenReturn("{\"option\":{\"has_option\":\"F\"}}");
+
+		assertThatThrownBy(
+			() -> client.syncBarcode(product("9400501001116"), "22016", new HashMap<>()))
+			.isInstanceOf(UnsupportedOperationException.class)
+			.hasMessageContaining("단일 상품");
+
+		verify(cafe24RestClient, never()).put(any(), any());
 	}
 }

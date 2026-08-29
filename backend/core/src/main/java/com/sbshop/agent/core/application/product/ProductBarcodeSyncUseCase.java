@@ -87,23 +87,15 @@ public class ProductBarcodeSyncUseCase {
 		String marketItemId) throws Exception {
 		MarketClient client = marketClientRouter.getClient(market);
 		Map<String, Object> rawData = parseRawData(reg.getMarketDetailedInfo());
-		Map<String, Object> updated;
-		String how;
 		try {
 			client.syncBarcode(product, marketItemId, rawData);
-			updated = rawData;
-			how = "전용 전송";
 		} catch (UnsupportedOperationException unsupported) {
-			updated = client.syncImagesAndHtml(product, marketItemId, rawData,
-				product.getHostedImages(), product.getDetailHtml());
-			how = "재게시 경유";
+			return new MarketOutcome(market, "UNSUPPORTED", unsupported.getMessage());
 		}
-		if (updated != null) {
-			reg.updateMarketDetailedInfo(objectMapper.writeValueAsString(updated));
-		}
+		reg.updateMarketDetailedInfo(objectMapper.writeValueAsString(rawData));
 		reg.markSynced();
 		marketRegistrationRepository.save(reg);
-		return new MarketOutcome(market, "SENT", how + " (" + marketItemId + ")");
+		return new MarketOutcome(market, "SENT", marketItemId);
 	}
 
 	private Map<String, Object> parseRawData(String json) {
