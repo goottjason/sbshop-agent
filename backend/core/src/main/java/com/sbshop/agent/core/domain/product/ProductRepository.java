@@ -32,17 +32,19 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 		+ "WHERE p.sourcingInfo.sourceUrl IS NOT NULL AND p.sourcingInfo.sourceUrl <> ''")
 	List<String> findAllSourceUrls();
 
-	@Query("SELECT DISTINCT p.category FROM Product p WHERE p.category IS NOT NULL")
+	@Query("SELECT DISTINCT p.category FROM Product p WHERE p.deletedAt IS NULL AND p.category IS NOT NULL")
 	List<ProductCategory> findDistinctCategories();
 
 	@Query("SELECT p.id FROM Product p "
-		+ "WHERE (p.productSpec.barcode IS NULL OR p.productSpec.barcode = '') "
+		+ "WHERE p.deletedAt IS NULL "
+		+ "AND (p.productSpec.barcode IS NULL OR p.productSpec.barcode = '') "
 		+ "AND p.sourcingInfo.sourceUrl IS NOT NULL AND p.sourcingInfo.sourceUrl <> '' "
 		+ "ORDER BY p.id")
 	List<Long> findBarcodeBackfillTargetIds();
 
 	@Query("SELECT p.id FROM Product p "
-		+ "WHERE p.sourcingInfo.vendor = :vendor "
+		+ "WHERE p.deletedAt IS NULL "
+		+ "AND p.sourcingInfo.vendor = :vendor "
 		+ "AND (p.productSpec.barcode IS NULL OR p.productSpec.barcode = '') "
 		+ "AND p.sourcingInfo.sourceUrl IS NOT NULL AND p.sourcingInfo.sourceUrl <> '' "
 		+ "ORDER BY p.id")

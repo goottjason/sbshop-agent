@@ -42,6 +42,9 @@ public class Product extends BaseEntity {
 	@Column(name = "sb_code", unique = true, nullable = false, length = 50)
 	private String sbCode;
 
+	@Column(name = "deleted_at")
+	private java.time.LocalDateTime deletedAt;
+
 	@Column(name = "brand", length = 100)
 	private String brand;
 
@@ -347,6 +350,16 @@ public class Product extends BaseEntity {
 			return ProductCategory.SUPPLEMENT;
 		}
 		return ProductCategory.UNKNOWN;
+	}
+
+	public boolean isDeleted() {
+		return deletedAt != null;
+	}
+
+	public void markDeleted() {
+		if (deletedAt == null) {
+			this.deletedAt = java.time.LocalDateTime.now();
+		}
 	}
 
 	private static String determineHsCode(ProductCategory category) {

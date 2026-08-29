@@ -54,6 +54,11 @@ public class ProductBarcodeSyncUseCase {
 					List.of(new MarketOutcome(null, "SKIPPED", "상품 없음"))));
 				continue;
 			}
+			if (product.isDeleted()) {
+				outcomes.add(new ProductOutcome(productId, product.getSbCode(), null,
+					List.of(new MarketOutcome(null, "SKIPPED", "폐기된 상품 — 전송 대상 아님"))));
+				continue;
+			}
 			String barcode = product.getProductSpec() == null ? null : product.getProductSpec().getBarcode();
 			if (barcode == null || barcode.isBlank()) {
 				outcomes.add(new ProductOutcome(productId, product.getSbCode(), null,

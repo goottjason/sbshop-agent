@@ -26,6 +26,7 @@ public final class ProductSpecifications {
 	public static Specification<Product> matching(ProductSearchCondition condition) {
 		return (root, query, cb) -> {
 			List<Predicate> predicates = new ArrayList<>();
+			predicates.add(cb.isNull(root.get("deletedAt")));
 			addKeyword(predicates, condition, root, cb);
 			addMarketFilter(predicates, condition, root, query, cb);
 			addMarkets(predicates, condition, root, query, cb);
@@ -33,7 +34,7 @@ public final class ProductSpecifications {
 			addVendors(predicates, condition, root);
 			addStockStatuses(predicates, condition, root, cb);
 			addInStockOnly(predicates, condition, root, cb);
-			return predicates.isEmpty() ? null : cb.and(predicates.toArray(new Predicate[0]));
+			return cb.and(predicates.toArray(new Predicate[0]));
 		};
 	}
 

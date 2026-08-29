@@ -3908,7 +3908,14 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 
 - 409 를 택한 이유: 프론트 일괄삭제가 **예외로 실패를 센다**(`productBulkApi.ts`). 409 면 기존 화면이 **수정 없이** 올바르게 동작한다.
 - 원칙: **되돌리기 어려운 쪽을 나중에 한다.** 마켓 삭제는 우리가 되돌릴 수 없고(재등록은 새 리스팅), DB 삭제는 우리가 통제한다.
-- 미착수(8b): `deleted_at` 소프트 삭제. **진짜 비용은 조회 필터**다 — 모든 상품 조회에 `deleted_at IS NULL` 을 걸어야 하고 하나만 빠뜨려도 삭제된 상품이 화면에 돌아온다. 착수 전 조회 경로 조사 필요.
+- **8b 완료(2026-08-30)**: `deleted_at` 소프트 삭제. 조회 경로를 전수 조사한 결과 **설계가 바뀌었다** — 아래 참조.
+  - 조사 결과: 코드베이스에 **네이티브 SQL 이 하나도 없고**(`nativeQuery = true` 0건), `@Query` 6개가 전부 JPQL, 상품 조회가 전부 `ProductReader` → `ProductRepository` 를 거친다. **QueryDSL 은 대시보드 2곳에서 상품을 조인**한다.
+  - **`@SQLRestriction`(엔티티 전역 필터)을 버렸다.** 한 줄로 끝나지만, 대시보드가 `leftJoin(p)`·`join(p)` 로 주문↔상품을 조인하므로 **폐기 상품이 주문 조회에서도 사라진다.** 소프트 삭제를 하는 이유가 바로 주문 추적 보존인데 **가장 쉬운 구현이 목적을 스스로 무너뜨린다.** 내부 조인 쪽(`countOutOfStock`)은 주문 행 자체가 집계에서 빠진다.
+  - 대신 **상품 관리 경로에만 명시적으로** 걸었다: `ProductSpecifications.matching`(그리드) · `findDistinctCategories` · `findBarcodeBackfillTargetIds` 2종. **주문·대시보드 조인은 건드리지 않았다** — 폐기 상품도 과거 주문에서 이름이 나온다.
+  - 쓰기 가드: 폐기 상품에 **게시는 거부**(`IllegalStateException`), **바코드 전송은 SKIPPED**.
+  - `ProductDeleteTxService.deleteWithRegistrations` → `markDeleted()` + save. **등록행은 보존**([[D-222]] 원칙 ②). 하드 삭제는 `purge(...)` 로 분리해 남겼다.
+  - 스키마: `ALTER TABLE sb_product ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;` 적용(활성 3,195 / 폐기 0).
+  - 테스트: `ProductSoftDeleteTest` 5건 (Red 확인 후 구현)
 - 미착수(8c): purge. **보존기간을 지금 정하지 않기로 했다** — 상품 3,186건·주문품목 272건이라 보존 비용이 사실상 0이고, "언제 지워도 안전한가"는 정산 대사 주기를 알아야 답할 수 있다. 근거 없는 숫자를 규칙으로 굳히지 않는다.
 - 테스트: `ProductDeleteDisposalGuardTest` 4건(Red 3건 확인 후 구현) + 기존 특성화 2건을 새 결정으로 갱신
 - 상태: **수정완료(8a)** 2026-08-30

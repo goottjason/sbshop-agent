@@ -47,6 +47,11 @@ public class ProductPublishUseCase {
 		Product product = productReader.findById(productId)
 			.orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
 
+		if (product.isDeleted()) {
+			throw new IllegalStateException(
+				"폐기된 상품은 마켓에 게시할 수 없다: " + productId + " — 되살리려면 폐기를 먼저 해제해야 한다");
+		}
+
 		if (marketType == MarketType.GMARKET || marketType == MarketType.AUCTION) {
 			throw new IllegalStateException(
 				"G마켓·옥션은 API 등록을 지원하지 않습니다 — 마켓플러스에서 전송해야 합니다");
