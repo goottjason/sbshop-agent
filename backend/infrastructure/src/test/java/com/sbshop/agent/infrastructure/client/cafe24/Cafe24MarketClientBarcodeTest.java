@@ -8,6 +8,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.domain.product.Product;
@@ -63,8 +64,22 @@ class Cafe24MarketClientBarcodeTest {
 	}
 
 	@Test
+	@DisplayName("variant_code 를 라이브 GET 으로 조달한다 — 저장된 rawData 에는 variants 가 없다")
+	void fetchesVariantCodeLive() {
+		when(cafe24RestClient.get("/admin/products/22016/variants"))
+			.thenReturn("{\"variants\":[{\"variant_code\":\"P000BDTF000A\"}]}");
+
+		client.syncBarcode(product("9400501001116"), "22016", new HashMap<>());
+
+		verify(cafe24RestClient).put(eq("/admin/products/22016/variants/P000BDTF000A"), any());
+	}
+
+	@Test
 	@DisplayName("바코드를 variants 의 gtin 으로 PUT 한다 — 카페24는 상품 레벨에 바코드 필드가 없다")
 	void putsGtinOnVariant() {
+		when(cafe24RestClient.get("/admin/products/22016/variants"))
+			.thenReturn("{\"variants\":[{\"variant_code\":\"P000BDTF000A\"}]}");
+
 		client.syncBarcode(product("9400501001116"), "22016", rawDataWithVariant("P000BDTF000A"));
 
 		ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
@@ -87,6 +102,8 @@ class Cafe24MarketClientBarcodeTest {
 	@Test
 	@DisplayName("variant_code 를 못 찾으면 조용히 넘어가지 않고 실패로 알린다")
 	void failsWhenVariantMissing() {
+		when(cafe24RestClient.get("/admin/products/22016/variants")).thenReturn("{\"variants\":[]}");
+
 		assertThatThrownBy(() -> client.syncBarcode(product("9400501001116"), "22016", new HashMap<>()))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("variant");
@@ -97,6 +114,8 @@ class Cafe24MarketClientBarcodeTest {
 	@Test
 	@DisplayName("전송 후 로컬 rawData 의 gtin 도 갱신해 다음 비교가 어긋나지 않게 한다")
 	void updatesLocalRawData() {
+		when(cafe24RestClient.get("/admin/products/22016/variants"))
+			.thenReturn("{\"variants\":[{\"variant_code\":\"P000BDTF000A\"}]}");
 		Map<String, Object> raw = rawDataWithVariant("P000BDTF000A");
 
 		client.syncBarcode(product("9400501001116"), "22016", raw);

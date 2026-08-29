@@ -214,6 +214,37 @@ public class SmartstoreMarketClient implements MarketClient {
 	}
 
 	@Override
+	@SuppressWarnings("unchecked")
+	public void syncBarcode(Product product, String marketItemId, Map<String, Object> currentRawData) {
+		String barcode = (product.getProductSpec() == null) ? null : product.getProductSpec().getBarcode();
+		if (barcode == null || barcode.isBlank()) {
+			log.info("[스토어] 바코드 없음 — 전송 생략: {}", marketItemId);
+			return;
+		}
+		String path = "/v2/products/origin-products/" + marketItemId;
+		Map<String, Object> originProduct;
+		try {
+			JsonNode originNode = objectMapper.readTree(restClient.get(path)).path("originProduct");
+			originProduct = objectMapper.convertValue(originNode, Map.class);
+		} catch (Exception e) {
+			throw new IllegalStateException("스토어 상품 조회 실패 — 바코드 전송 중단: " + marketItemId, e);
+		}
+		if (originProduct == null || originProduct.isEmpty()) {
+			throw new IllegalStateException("스토어 상품 조회 응답에 originProduct 없음: " + marketItemId);
+		}
+		Map<String, Object> attr = (Map<String, Object>)originProduct
+			.computeIfAbsent("detailAttribute", k -> new HashMap<String, Object>());
+		Map<String, Object> sellerCodeInfo = (Map<String, Object>)attr
+			.computeIfAbsent("sellerCodeInfo", k -> new HashMap<String, Object>());
+		sellerCodeInfo.put("sellerBarcode", barcode);
+
+		Map<String, Object> requestBody = new HashMap<>();
+		requestBody.put("originProduct", originProduct);
+		restClient.put(path, requestBody);
+		log.info("[스토어] 바코드 전송 완료: {} barcode={}", marketItemId, barcode);
+	}
+
+	@Override
 	public Map<String, Object> syncImagesAndHtml(Product product,
 		String marketItemId, Map<String, Object> currentRawData,
 		List<String> hostedImages, String newDetailHtml) {

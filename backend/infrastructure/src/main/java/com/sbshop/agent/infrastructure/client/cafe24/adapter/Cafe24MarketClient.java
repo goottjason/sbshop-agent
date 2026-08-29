@@ -141,9 +141,8 @@ public class Cafe24MarketClient implements MarketClient {
 			log.info("[카페24] 바코드 없음 — 전송 생략: {}", marketItemId);
 			return;
 		}
-		Map<String, Object> variant = firstVariant(currentRawData);
-		String variantCode = variant == null ? null : String.valueOf(variant.get("variant_code"));
-		if (variantCode == null || variantCode.isBlank() || "null".equals(variantCode)) {
+		String variantCode = fetchVariantCode(marketItemId);
+		if (variantCode == null) {
 			throw new IllegalStateException(
 				"카페24 바코드 전송 불가 — variant_code 를 찾을 수 없다: marketItemId=" + marketItemId);
 		}
@@ -152,8 +151,27 @@ public class Cafe24MarketClient implements MarketClient {
 		request.put("gtin", barcode);
 		cafe24RestClient.put("/admin/products/" + marketItemId + "/variants/" + variantCode,
 			Map.of("request", request));
-		variant.put("gtin", barcode);
+		Map<String, Object> localVariant = firstVariant(currentRawData);
+		if (localVariant != null) {
+			localVariant.put("gtin", barcode);
+		}
 		log.info("[카페24] 바코드 전송 완료: {} variant={} gtin={}", marketItemId, variantCode, barcode);
+	}
+
+	private String fetchVariantCode(String marketItemId) {
+		try {
+			JsonNode root = objectMapper.readTree(
+				cafe24RestClient.get("/admin/products/" + marketItemId + "/variants"));
+			JsonNode variants = root.path("variants");
+			if (!variants.isArray() || variants.isEmpty()) {
+				return null;
+			}
+			String code = variants.get(0).path("variant_code").asText("");
+			return code.isBlank() ? null : code;
+		} catch (Exception e) {
+			throw new IllegalStateException(
+				"카페24 variants 조회 실패: marketItemId=" + marketItemId, e);
+		}
 	}
 
 	@SuppressWarnings("unchecked")

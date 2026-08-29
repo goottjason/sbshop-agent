@@ -209,6 +209,44 @@ public class CoupangMarketClient implements MarketClient {
 	}
 
 	@Override
+	public void syncBarcode(Product product, String marketItemId, Map<String, Object> currentRawData) {
+		String barcode = (product.getProductSpec() == null) ? null : product.getProductSpec().getBarcode();
+		if (barcode == null || barcode.isBlank()) {
+			log.info("[쿠팡] 바코드 없음 — 전송 생략: {}", marketItemId);
+			return;
+		}
+		if (marketItemId == null || marketItemId.isBlank()) {
+			throw new IllegalStateException("쿠팡 sellerProductId 없음 — 바코드 전송 불가");
+		}
+		String base = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
+		Map<String, Object> rawData;
+		try {
+			JsonNode root = objectMapper.readTree(restClient.get(base + "/" + marketItemId));
+			rawData = objectMapper.convertValue(root.path("data"),
+				new TypeReference<Map<String, Object>>() {});
+		} catch (Exception e) {
+			throw new IllegalStateException("쿠팡 상품 조회 실패 — 바코드 전송 중단: " + marketItemId, e);
+		}
+		if (rawData == null || rawData.isEmpty()) {
+			throw new IllegalStateException("쿠팡 상품 조회 응답에 data 없음: " + marketItemId);
+		}
+		@SuppressWarnings("unchecked") List<Map<String, Object>> items = (List<Map<String, Object>>)rawData
+			.get("items");
+		if (items == null || items.isEmpty()) {
+			throw new IllegalStateException("쿠팡 상품에 items 없음 — 바코드 전송 불가: " + marketItemId);
+		}
+		for (Map<String, Object> item : items) {
+			item.put("barcode", barcode);
+			item.put("emptyBarcode", false);
+			item.put("emptyBarcodeReason", null);
+		}
+		sanitizeItemAttributes(items, product, rawData);
+		rawData.put("requested", true);
+		verifyEnvelopeStrict(restClient.put(base, rawData), "[쿠팡] 바코드 전송");
+		log.info("[쿠팡] 바코드 전송 완료(심사중 전환): {} barcode={}", marketItemId, barcode);
+	}
+
+	@Override
 	public Map<String, Object> syncImagesAndHtml(Product product,
 		String marketItemId, Map<String, Object> currentRawData,
 		List<String> hostedImages, String newDetailHtml) {
