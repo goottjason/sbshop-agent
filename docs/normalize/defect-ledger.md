@@ -3888,6 +3888,18 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 테스트: `CoupangBarcodeIdempotenceTest` 5건(멱등·차이시전송·공백시전송 + [[D-232]] 존재판정 2건), `ProductBarcodeSyncIdentifierTest` 에 `ALREADY` 1건 추가
 - 상태: **수정완료(검증대기 — 배포 후 재집계 실행)** 2026-08-29
 
+### D-234: 바코드 일괄 전송에 스로틀이 없어 네이버 요청 한도를 때린다 (2026-08-29, 재집계 중 실측)
+
+- 심각도: **표준(마켓 API 한도 잠식)** | 위치: `ProductBarcodeSyncUseCase.sync` · `ProductBarcodeSyncController`
+- 증상: `sync(productIds, dryRun)` 이 상품 사이에 **아무 지연 없이** 순회한다. 상품당 마켓 수만큼 GET 이 나가므로 400건 배치면 순식간에 수백~수천 요청이 된다.
+- 실측: 재집계 400건 배치에서 **12분간 429 가 2,050건**. `last_sync_error=TRANSIENT_ERROR` 가 818건까지 치솟았다. 실패의 대부분이 실제 문제가 아니라 **우리가 너무 빨리 때린 결과**다.
+- **동시 실행이 겹친 것도 원인**: 같은 시간에 스마트스토어 카탈로그 대조(`persist=true`)도 돌고 있었다. 네이버를 때리는 작업 둘을 병렬로 돌린 운영 판단 착오다.
+- 피해가 제한된 이유: [[D-231]] A안 덕분에 429 는 `last_sync_error` 에만 기록되고 **`is_synced` 를 뒤집지 않았다.** 이전 모델이었다면 818건이 "마켓에 없음"으로 뒤집혀 배지가 전부 오염됐을 것이다.
+- 수정: `sync(productIds, dryRun, throttleMs)` 오버로드 + 컨트롤러 `throttleMs` 파라미터(기본 0 — 기존 소량 호출은 그대로 빠르게). 상품 사이에만 지연하고 첫 건은 지연하지 않는다.
+- 운영 규칙: 네이버가 섞인 일괄 실행은 **`throttleMs` 600 이상**, 그리고 **네이버를 쓰는 작업은 동시에 하나만**. [[is-synced-means-present-on-market]] 의 프로브 스로틀 1200ms 와 같은 계열의 제약이다.
+- 테스트: `ProductBarcodeSyncThrottleTest` 2건
+- 상태: **수정완료(검증대기)** 2026-08-29
+
 ### D-229: 쿠팡 상품 조회 경로의 vendorId 가 항상 비어 있다 (2026-08-29, 프로브 로그에서 발견)
 
 - 심각도: 경량(현재 무해) | 위치: `CoupangMarketClient.extractMarketItem`

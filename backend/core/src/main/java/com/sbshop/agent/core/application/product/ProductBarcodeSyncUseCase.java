@@ -37,8 +37,17 @@ public class ProductBarcodeSyncUseCase {
 	}
 
 	public List<ProductOutcome> sync(List<Long> productIds, boolean dryRun) {
+		return sync(productIds, dryRun, 0L);
+	}
+
+	public List<ProductOutcome> sync(List<Long> productIds, boolean dryRun, long throttleMs) {
 		List<ProductOutcome> outcomes = new ArrayList<>();
+		boolean first = true;
 		for (Long productId : productIds) {
+			if (!first) {
+				sleepQuietly(throttleMs);
+			}
+			first = false;
 			Product product = productRepository.findById(productId).orElse(null);
 			if (product == null) {
 				outcomes.add(new ProductOutcome(productId, null, null,
@@ -112,6 +121,17 @@ public class ProductBarcodeSyncUseCase {
 		reg.markSynced();
 		marketRegistrationRepository.save(reg);
 		return new MarketOutcome(market, written ? "SENT" : "ALREADY", marketItemId);
+	}
+
+	private static void sleepQuietly(long millis) {
+		if (millis <= 0) {
+			return;
+		}
+		try {
+			Thread.sleep(millis);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		}
 	}
 
 	private Map<String, Object> parseRawData(String json) {

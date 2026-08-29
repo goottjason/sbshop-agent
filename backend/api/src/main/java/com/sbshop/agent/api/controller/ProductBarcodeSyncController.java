@@ -22,12 +22,15 @@ public class ProductBarcodeSyncController {
 	public ResponseEntity<Map<String, Object>> sync(@RequestBody
 	List<Long> productIds,
 		@RequestParam(defaultValue = "true")
-		boolean dryRun) {
+		boolean dryRun,
+		@RequestParam(defaultValue = "0")
+		long throttleMs) {
 		if (productIds == null || productIds.isEmpty()) {
 			return ResponseEntity.badRequest().body(Map.of("success", false,
 				"message", "productIds 는 명시 대상 전용이다 — 비어 있을 수 없다"));
 		}
 		return ResponseEntity.ok(Map.of("success", true, "dryRun", dryRun,
-			"results", productBarcodeSyncUseCase.sync(productIds, dryRun)));
+			"throttleMs", throttleMs,
+			"results", productBarcodeSyncUseCase.sync(productIds, dryRun, throttleMs)));
 	}
 }
