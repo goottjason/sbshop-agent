@@ -27,9 +27,19 @@ public class MarketNoticeRepairUseCase {
 
 	public Report repair(MarketType market, int limit, long throttleMs, boolean dryRun,
 		boolean syncedOnly) {
+		return repair(market, limit, throttleMs, dryRun, syncedOnly, List.of());
+	}
+
+	public Report repair(MarketType market, int limit, long throttleMs, boolean dryRun,
+		boolean syncedOnly, List<String> marketItemIds) {
 		List<MarketRegistration> registrations = syncedOnly
 			? marketRegistrationRepository.findByMarketTypeAndIsSyncedTrue(market)
 			: marketRegistrationRepository.findByMarketType(market);
+		if (marketItemIds != null && !marketItemIds.isEmpty()) {
+			registrations = registrations.stream()
+				.filter(r -> marketItemIds.contains(r.extractDeleteCode()))
+				.toList();
+		}
 		int examined = 0;
 		int repaired = 0;
 		int alreadyOk = 0;

@@ -2,10 +2,12 @@ package com.sbshop.agent.api.controller;
 
 import com.sbshop.agent.core.application.product.MarketNoticeRepairUseCase;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,8 +30,11 @@ public class MarketNoticeRepairController {
 		@RequestParam(defaultValue = "true")
 		boolean dryRun,
 		@RequestParam(defaultValue = "false")
-		boolean syncedOnly) {
+		boolean syncedOnly,
+		@RequestBody(required = false)
+		List<String> marketItemIds) {
 		return ResponseEntity.ok(Map.of("success", true, "dryRun", dryRun,
-			"report", marketNoticeRepairUseCase.repair(market, limit, throttleMs, dryRun, syncedOnly)));
+			"report", marketNoticeRepairUseCase.repair(market, limit, throttleMs, dryRun, syncedOnly,
+				marketItemIds == null ? List.of() : marketItemIds)));
 	}
 }
