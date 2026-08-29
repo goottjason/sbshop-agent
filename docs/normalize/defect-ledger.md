@@ -3849,6 +3849,16 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 수정 방향(미착수): `restClient.resolveVendorId()` 로 통일한다. 다만 경로가 바뀌면 **HMAC 서명 대상 문자열도 바뀌므로** 서명 생성과 실제 요청 경로가 같은지 확인 후 반영.
 - 상태: 발견
 
+### D-230: 프론트 배포가 사용자에게 도달하지 않는다 — index.html 에 Cache-Control 이 없다 (2026-08-29, D-222 라이브 검증 중 발견)
+
+- 심각도: **표준(모든 프론트 배포에 영향)** | 위치: 운영서버 nginx 설정 (repo 밖)
+- 증상: [[D-222]] 배지 수정을 배포하고 화면을 봤는데 **옛 화면 그대로**였다. 서버 번들에는 새 코드가 있는데 브라우저는 낡은 청크를 로드하고 있었다.
+- 실측: 브라우저가 로드한 청크 `index-DaQUVVX_.js` / `ProductGrid-CrHr8p82.js`, 서버가 가진 청크 `index-DFHcJhpE.js` / `ProductGrid-BMleJyAz.js` — **완전히 다른 해시**. `curl -I` 결과 `index.html` 응답에 `Cache-Control` 헤더가 **아예 없다**(`Last-Modified`·`ETag` 만 있음).
+- 원인: 헤더가 없으면 브라우저가 `Last-Modified` 기반 **휴리스틱 캐싱**으로 index.html 을 재사용한다. Vite 빌드는 청크 파일명에 해시를 박으므로 index.html 만 갱신되면 되는데, 그 index.html 이 캐시되어 **옛 해시를 계속 가리킨다.**
+- 피해: 프론트를 배포해도 기존 사용자에게 **강제 새로고침 전까지 반영되지 않는다.** 이번처럼 "배포했는데 화면이 안 바뀐다"를 코드 문제로 오진하게 만든다.
+- 수정 방향(미착수): nginx 에서 `index.html` 에 `Cache-Control: no-cache` (매번 재검증), 해시가 박힌 `/assets/*` 에는 `Cache-Control: public, max-age=31536000, immutable` 을 준다. **인프라 설정은 repo 밖 서버 직접 수정**이므로 사용자 승인 후 반영한다([[admin-login-gate-and-https]] 와 같은 범주).
+- 상태: 발견
+
 ### D-223: 재등록에 중복 가드가 없어 마켓에 유령 리스팅을 만든다 (2026-08-29, 상품 생명주기 딥다이브 중 발견)
 
 - 심각도: **P1(마켓 데이터 훼손·되돌리기 어려움)** | 위치: `ProductPublishUseCase.publishToMarket`
