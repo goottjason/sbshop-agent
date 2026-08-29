@@ -11,7 +11,8 @@ public record MarketSyncReportRequest(
 	int deepLimit,
 	long throttleMs,
 	boolean liveInventory,
-	int liveLimit) {
+	int liveLimit,
+	boolean persist) {
 
 	public static final int DEFAULT_SAMPLE_LIMIT = 20;
 	public static final int MAX_SAMPLE_LIMIT = 500;
@@ -38,6 +39,12 @@ public record MarketSyncReportRequest(
 	public static MarketSyncReportRequest of(
 		List<MarketType> markets, Integer sampleLimit, Boolean deep, Integer deepLimit, Long throttleMs,
 		Boolean liveInventory, Integer liveLimit) {
+		return of(markets, sampleLimit, deep, deepLimit, throttleMs, liveInventory, liveLimit, null);
+	}
+
+	public static MarketSyncReportRequest of(
+		List<MarketType> markets, Integer sampleLimit, Boolean deep, Integer deepLimit, Long throttleMs,
+		Boolean liveInventory, Integer liveLimit, Boolean persist) {
 		return new MarketSyncReportRequest(
 			resolveMarkets(markets),
 			clamp(sampleLimit, DEFAULT_SAMPLE_LIMIT, 0, MAX_SAMPLE_LIMIT),
@@ -45,7 +52,8 @@ public record MarketSyncReportRequest(
 			clamp(deepLimit, DEFAULT_DEEP_LIMIT, 0, MAX_DEEP_LIMIT),
 			clamp(throttleMs, DEFAULT_THROTTLE_MS, 0L, MAX_THROTTLE_MS),
 			Boolean.TRUE.equals(liveInventory),
-			clamp(liveLimit, DEFAULT_LIVE_LIMIT, 0, MAX_LIVE_LIMIT));
+			clamp(liveLimit, DEFAULT_LIVE_LIMIT, 0, MAX_LIVE_LIMIT),
+			Boolean.TRUE.equals(persist));
 	}
 
 	private static List<MarketType> resolveMarkets(List<MarketType> requested) {

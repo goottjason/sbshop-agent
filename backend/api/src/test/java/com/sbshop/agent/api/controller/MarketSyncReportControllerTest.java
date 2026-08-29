@@ -178,11 +178,11 @@ class MarketSyncReportControllerTest {
 			1262, 1261, 1, 1200, 0, 0, 1197,
 			Map.of(MarketSyncBucket.MATCHED, 1197, MarketSyncBucket.STALE_LOCAL, 3),
 			Map.of("APPROVED", 1198, "DELETED", 2),
-			Map.of(), 0, false, 12L, List.of(), null);
+			Map.of(), 0, false, 0, 12L, List.of(), null);
 		MarketSyncMarketReport eleven = new MarketSyncMarketReport(
 			MarketType.ELEVEN_STREET.name(), MarketType.ELEVEN_STREET.getLabel(), MarketSyncOutcome.FAILED,
 			"-997 등록된 API 정보가 존재하지 않습니다", 2286, 2286, 0, 0, 0, 0, 0,
-			Map.of(), Map.of(), Map.of(), 0, false, 3L, List.of(), null);
+			Map.of(), Map.of(), Map.of(), 0, false, 0, 3L, List.of(), null);
 		return new MarketSyncReport(LocalDateTime.now(), 20, false, 15L, List.of(coupang, eleven));
 	}
 }

@@ -13,6 +13,7 @@ import com.sbshop.agent.core.application.market.dto.MarketSyncReport;
 import com.sbshop.agent.core.application.market.dto.MarketSyncReportRequest;
 import com.sbshop.agent.core.application.market.dto.MarketSyncSample;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
+import com.sbshop.agent.core.domain.market.UnsyncReason;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
@@ -200,7 +201,12 @@ public class MarketCatalogReconciliationService {
 		}
 
 		int deepLookups = 0;
+		int persistedAbsent = 0;
 		boolean deepTruncated = false;
+		if (request.persist() && !request.deep()) {
+			warnings.add("persist=true 이지만 deep=false 라 부재를 확정할 수 없습니다 — 아무것도 기록하지 않습니다"
+				+ " (카탈로그에 없다는 것만으로는 삭제 증거가 부족합니다)");
+		}
 		boolean deepSupported = request.deep() && client.supportsSingleLookup();
 		if (request.deep() && !deepSupported) {
 			warnings.add(market.getLabel() + " 클라이언트가 SB코드 단건 조회를 지원하지 않아 deep 확인을 건너뜁니다 "
@@ -239,6 +245,10 @@ public class MarketCatalogReconciliationService {
 					staleNote = lookup.failed() ? NOTE_DEEP_UNCONFIRMED : NOTE_ABSENT_CONFIRMED;
 				}
 			}
+			if (request.persist() && NOTE_ABSENT_CONFIRMED.equals(staleNote)
+				&& persistAbsent(market, row, warnings)) {
+				persistedAbsent++;
+			}
 			bucketer.add(MarketSyncBucket.STALE_LOCAL, localSample(row, staleNote));
 		}
 		if (deepTruncated) {
@@ -250,8 +260,33 @@ public class MarketCatalogReconciliationService {
 		return new MarketSyncMarketReport(market.name(), market.getLabel(), MarketSyncOutcome.COMPLETED, null,
 			localRows.size(), localWithSbCode, localWithoutIdentifiers, entries.size(), marketWithSellerCode,
 			matchedBySbCode, matchedByIdentifier, bucketer.counts(), sortByCountDesc(statusCounts),
-			bucketer.samples(), deepLookups, deepTruncated, System.currentTimeMillis() - started,
+			bucketer.samples(), deepLookups, deepTruncated, persistedAbsent, System.currentTimeMillis() - started,
 			List.copyOf(warnings), live);
+	}
+
+	private boolean persistAbsent(MarketType market, LocalRow row, List<String> warnings) {
+		if (row.productId() == null) {
+			return false;
+		}
+		try {
+			Optional<MarketRegistration> found = marketRegistrationRepository
+				.findByProductIdAndMarketType(row.productId(), market);
+			if (found.isEmpty()) {
+				return false;
+			}
+			MarketRegistration registration = found.get();
+			if (registration.getUnsyncReason() == UnsyncReason.DELETED_ON_MARKET) {
+				return false;
+			}
+			registration.markAbsentFromMarket(UnsyncReason.DELETED_ON_MARKET);
+			marketRegistrationRepository.save(registration);
+			log.info("[마켓대조][영속화] 부재 확정 기록: productId={}, market={}, sbCode={}",
+				row.productId(), market, row.sbCode());
+			return true;
+		} catch (Exception e) {
+			warnings.add("부재 기록 실패: productId=" + row.productId() + " — " + describe(e));
+			return false;
+		}
 	}
 
 	private SingleLookup fetchSingle(MarketClient client, String sbCode, List<String> warnings) {
@@ -295,7 +330,7 @@ public class MarketCatalogReconciliationService {
 		}
 		return new MarketSyncMarketReport(market.name(), market.getLabel(), outcome, reason,
 			localRows.size(), withSbCode, withoutIdentifiers, 0, 0, 0, 0, bucketer.counts(), Map.of(),
-			bucketer.samples(), 0, false, System.currentTimeMillis() - started, List.copyOf(warnings), null);
+			bucketer.samples(), 0, false, 0, System.currentTimeMillis() - started, List.copyOf(warnings), null);
 	}
 
 	private List<LocalRow> loadLocalRows(MarketType market) {

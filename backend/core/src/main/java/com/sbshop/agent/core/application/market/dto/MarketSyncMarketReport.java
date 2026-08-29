@@ -20,6 +20,7 @@ public record MarketSyncMarketReport(
 	Map<MarketSyncBucket, List<MarketSyncSample>> samples,
 	int deepLookups,
 	boolean deepTruncated,
+	int persistedAbsent,
 	long elapsedMs,
 	List<String> warnings,
 	MarketLiveInventoryReport liveInventory) {
