@@ -53,6 +53,31 @@ class UnsyncReasonClassifierTest {
 	}
 
 	@Test
+	@DisplayName("D-224: 상품번호에 404 가 들어 있다고 삭제로 판정하면 안 된다 — 숫자 상태코드 문자열 매칭의 함정")
+	void productIdContaining404_isNotMistakenForDeleted() {
+		String message = "400 Bad Request: \"{\"code\":\"DEFAULT\","
+			+ "\"message\":\"Product(14813281404) is invalid.\"}\"";
+		assertThat(UnsyncReasonClassifier.classify(message))
+			.isEqualTo(UnsyncReason.VALIDATION_FAILED);
+	}
+
+	@Test
+	@DisplayName("D-224: 쿠팡의 실제 삭제 신호는 'data not found' 다 — 400 으로 오지만 삭제를 뜻한다")
+	void coupangDataNotFound_classifiedAsDeletedOnMarket() {
+		String message = "400 Bad Request: \"{\"code\":\"DEFAULT\","
+			+ "\"message\":\"Product(14813282146) data not found.\"}\"";
+		assertThat(UnsyncReasonClassifier.classify(message))
+			.isEqualTo(UnsyncReason.DELETED_ON_MARKET);
+	}
+
+	@Test
+	@DisplayName("D-224: 일반 400 은 검증 실패다 — 삭제로 번지지 않는다")
+	void plainBadRequest_classifiedAsValidationFailed() {
+		assertThat(UnsyncReasonClassifier.classify("400 Bad Request: 필수 항목 누락"))
+			.isEqualTo(UnsyncReason.VALIDATION_FAILED);
+	}
+
+	@Test
 	@DisplayName("D-224: 실패 사유가 등록행에 남고, 다시 성공하면 지워진다")
 	void registrationRecordsAndClearsReason() {
 		MarketRegistration reg = MarketRegistration.builder()

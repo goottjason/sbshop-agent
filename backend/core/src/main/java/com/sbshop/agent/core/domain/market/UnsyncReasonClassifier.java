@@ -6,11 +6,12 @@ public final class UnsyncReasonClassifier {
 
 	private static final List<String> DELETED_MARKERS = List.of(
 		"삭제된 상품", "삭제되었습니다", "존재하지 않는 상품", "등록된 상품이 없습니다",
-		"상품을 찾을 수 없", "조회된 상품이 없", "NOT_FOUND", "404");
+		"상품을 찾을 수 없", "조회된 상품이 없",
+		"data not found", "does not exist", "404 Not Found");
 
 	private static final List<String> VALIDATION_MARKERS = List.of(
 		"유효하지 않", "허용되지 않", "입력하지 않", "필수", "올바르지 않", "올바른",
-		"파싱", "형식이 잘못", "초과", "BAD_REQUEST", "400");
+		"파싱", "형식이 잘못", "초과", "400 Bad Request");
 
 	private UnsyncReasonClassifier() {}
 

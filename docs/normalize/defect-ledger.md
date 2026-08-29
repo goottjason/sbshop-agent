@@ -3834,8 +3834,20 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 판단 근거: 사유 없는 미동기 행을 경고로 물들이지 않았다. 기존 테스트가 "식별자가 있으면 isSynced=false 여도 SYNCED — 레거시 임포트 행을 거짓 미완료로 경고하지 않는다"는 **의도적 결정**을 박아 두었고, 미분류 2,021건이 여기 해당한다. 그 결정을 존중하고 **사유가 확정된 행만** 갈라 그린다.
 - **동반 발견 — 죽은 등록은 스스로 분류될 수 없다**: [[D-225]] 가 `is_synced=false` 를 전송에서 건너뛰므로, 죽은 등록은 마켓 응답을 받을 기회가 영영 없다. 즉 배지를 갈라 그려도 **가를 재료가 생기지 않는다**(작업 시점 `DELETED_ON_MARKET` 보유 행 0건). 상품 44 도 사유가 NULL 이라 여전히 SYNCED 로 그려졌다.
 - 그래서 `MarketRegistrationProbeService` 를 함께 만들었다 — 미분류 미동기 행을 마켓 단건 조회로 확인해 **삭제가 확정된 것만** `DELETED_ON_MARKET` 으로 기록한다. 살아 있으면 아무것도 쓰지 않고, 삭제인지 알 수 없는 실패(타임아웃 등)는 `INCONCLUSIVE` 로 남긴다 — **한 방향으로만 쓴다.** 트리거: `POST /internal/registrations/probe?market=COUPANG&limit=&throttleMs=&dryRun=`. 이것은 [[D-227]] 의 축소판(카탈로그 전수 대조가 아니라 등록행 단건 프로브)이다.
-- 테스트: `MarketBadgeStateTest` 5건 + `MarketRegistrationProbeServiceTest` 4건
-- 상태: **수정완료(검증통과)** 2026-08-29
+- **라이브 프로브에서 분류기 버그 발견·수정(2026-08-29)**: 쿠팡 20건 프로브 결과가 `DELETED 1 / INCONCLUSIVE 14`로 갈렸는데 **15건의 응답 메시지가 완전히 동일**했다(`Product(...) data not found.`). 원인은 `DELETED_MARKERS` 의 `"404"` — 상품번호 `14813281**404**` 에 우연히 404 가 들어 있어 삭제로 판정됐다. **숫자 상태코드를 문자열로 매칭했는데 메시지가 상품번호를 품고 있었다.**
+- 피해 가능성: 오판 시 [[D-223]] 가드가 통과시켜 **중복 리스팅**을 만든다 — 정확히 [[D-224]] 에서 "틀린 사유는 사유 없음보다 나쁘다"고 적은 그 경로다.
+- 수정: 맨 숫자 마커(`"400"`·`"404"`·`"NOT_FOUND"`·`"BAD_REQUEST"`) 제거, 이유구까지 포함한 `"400 Bad Request"`·`"404 Not Found"` 로 교체. 쿠팡의 실제 삭제 신호인 `"data not found"` 를 DELETED 마커에 추가(쿠팡 API 직접 조회로 5/5 실재 부재 확인).
+- 회귀 3건 추가: 상품번호에 404 포함 시 오판 금지, `data not found` → DELETED, 일반 400 → VALIDATION.
+- 테스트: `MarketBadgeStateTest` 5건 + `MarketRegistrationProbeServiceTest` 4건 + 분류기 회귀 3건
+- 상태: **수정완료(라이브 검증)** 2026-08-29
+
+### D-229: 쿠팡 상품 조회 경로의 vendorId 가 항상 비어 있다 (2026-08-29, 프로브 로그에서 발견)
+
+- 심각도: 경량(현재 무해) | 위치: `CoupangMarketClient.extractMarketItem`
+- 증상: 요청 경로가 `...seller-products/{id}?vendorId=` 로 **값 없이** 나간다. `properties.getVendorId()`(env)를 쓰는데 비어 있고, 인증 헤더(`X-Requested-By`)는 `CoupangRestClient.resolveCredentials()` 가 **DB 값**을 쓴다 — 같은 요청에서 출처가 갈린다.
+- 현재 영향 없음: 이 엔드포인트는 vendorId 없이도 동작한다(프로브에서 ALIVE 5건, 쿠팡 API 직접 조회 6건 모두 성공).
+- 수정 방향(미착수): `restClient.resolveVendorId()` 로 통일한다. 다만 경로가 바뀌면 **HMAC 서명 대상 문자열도 바뀌므로** 서명 생성과 실제 요청 경로가 같은지 확인 후 반영.
+- 상태: 발견
 
 ### D-223: 재등록에 중복 가드가 없어 마켓에 유령 리스팅을 만든다 (2026-08-29, 상품 생명주기 딥다이브 중 발견)
 
