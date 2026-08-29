@@ -140,6 +140,7 @@ public class MarketCatalogReconciliationService {
 			}
 		}
 
+		int recoveredIdentifiers = 0;
 		Map<String, Integer> statusCounts = new HashMap<>();
 		Set<Integer> consumed = new HashSet<>();
 		int marketWithSellerCode = 0;
@@ -191,8 +192,15 @@ public class MarketCatalogReconciliationService {
 				matchedByIdentifier++;
 			}
 			if (row.identifiers().isEmpty()) {
+				boolean recovered = request.persist()
+					&& recoverIdentifiers(market, row, marketIdentifiers, warnings);
+				if (recovered) {
+					recoveredIdentifiers++;
+				}
 				bucketer.add(MarketSyncBucket.MISSING_LOCAL, sample(row, entry, marketIdentifiers, matchedBy,
-					List.of(), "로컬 등록행은 있으나 식별자가 비어 있습니다"));
+					List.of(), recovered
+						? "식별자가 비어 있었으나 마켓에서 되찾아 복구했습니다"
+						: "로컬 등록행은 있으나 식별자가 비어 있습니다"));
 				continue;
 			}
 			List<MarketSyncIdentifierDiff> differences = diff(row, sellerCode, marketIdentifiers);
@@ -260,7 +268,8 @@ public class MarketCatalogReconciliationService {
 		return new MarketSyncMarketReport(market.name(), market.getLabel(), MarketSyncOutcome.COMPLETED, null,
 			localRows.size(), localWithSbCode, localWithoutIdentifiers, entries.size(), marketWithSellerCode,
 			matchedBySbCode, matchedByIdentifier, bucketer.counts(), sortByCountDesc(statusCounts),
-			bucketer.samples(), deepLookups, deepTruncated, persistedAbsent, System.currentTimeMillis() - started,
+			bucketer.samples(), deepLookups, deepTruncated, persistedAbsent, recoveredIdentifiers,
+			System.currentTimeMillis() - started,
 			List.copyOf(warnings), live);
 	}
 
@@ -275,16 +284,48 @@ public class MarketCatalogReconciliationService {
 				return false;
 			}
 			MarketRegistration registration = found.get();
-			if (registration.getUnsyncReason() == UnsyncReason.DELETED_ON_MARKET) {
+			UnsyncReason reason = registration.hasIdentifiers()
+				? UnsyncReason.DELETED_ON_MARKET
+				: UnsyncReason.NEVER_SYNCED;
+			if (registration.getUnsyncReason() == reason) {
 				return false;
 			}
-			registration.markAbsentFromMarket(UnsyncReason.DELETED_ON_MARKET);
+			registration.markAbsentFromMarket(reason);
 			marketRegistrationRepository.save(registration);
-			log.info("[마켓대조][영속화] 부재 확정 기록: productId={}, market={}, sbCode={}",
-				row.productId(), market, row.sbCode());
+			log.info("[마켓대조][영속화] 부재 확정 기록: productId={}, market={}, sbCode={}, 사유={}",
+				row.productId(), market, row.sbCode(), reason);
 			return true;
 		} catch (Exception e) {
 			warnings.add("부재 기록 실패: productId=" + row.productId() + " — " + describe(e));
+			return false;
+		}
+	}
+
+	private boolean recoverIdentifiers(MarketType market, LocalRow row, Map<String, String> marketIdentifiers,
+		List<String> warnings) {
+		if (row.productId() == null || marketIdentifiers.isEmpty()) {
+			return false;
+		}
+		try {
+			Optional<MarketRegistration> found = marketRegistrationRepository
+				.findByProductIdAndMarketType(row.productId(), market);
+			if (found.isEmpty()) {
+				return false;
+			}
+			MarketRegistration registration = found.get();
+			if (registration.hasIdentifiers()) {
+				return false;
+			}
+			for (Map.Entry<String, String> entry : marketIdentifiers.entrySet()) {
+				registration.enrichIdentifier(entry.getKey(), entry.getValue());
+			}
+			registration.markSynced();
+			marketRegistrationRepository.save(registration);
+			log.info("[마켓대조][복구] 유실 식별자 복구: productId={}, market={}, sbCode={}, identifiers={}",
+				row.productId(), market, row.sbCode(), marketIdentifiers);
+			return true;
+		} catch (Exception e) {
+			warnings.add("식별자 복구 실패: productId=" + row.productId() + " — " + describe(e));
 			return false;
 		}
 	}
@@ -330,7 +371,7 @@ public class MarketCatalogReconciliationService {
 		}
 		return new MarketSyncMarketReport(market.name(), market.getLabel(), outcome, reason,
 			localRows.size(), withSbCode, withoutIdentifiers, 0, 0, 0, 0, bucketer.counts(), Map.of(),
-			bucketer.samples(), 0, false, 0, System.currentTimeMillis() - started, List.copyOf(warnings), null);
+			bucketer.samples(), 0, false, 0, 0, System.currentTimeMillis() - started, List.copyOf(warnings), null);
 	}
 
 	private List<LocalRow> loadLocalRows(MarketType market) {
