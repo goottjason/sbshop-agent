@@ -245,12 +245,42 @@ public class SmartstoreMarketClient implements MarketClient {
 		log.info("[스토어] 바코드 전송 완료: {} barcode={}", marketItemId, barcode);
 	}
 
+	@Override
 	@SuppressWarnings("unchecked")
-	private static void backfillConsumptionDate(Map<String, Object> detailAttribute) {
+	public boolean repairProductNotice(String marketItemId) {
+		String path = "/v2/products/origin-products/" + marketItemId;
+		Map<String, Object> originProduct;
+		try {
+			JsonNode originNode = objectMapper.readTree(restClient.get(path)).path("originProduct");
+			originProduct = objectMapper.convertValue(originNode, Map.class);
+		} catch (Exception e) {
+			throw new IllegalStateException("스토어 상품 조회 실패 — 고시정보 보정 중단: " + marketItemId, e);
+		}
+		if (originProduct == null || originProduct.isEmpty()) {
+			throw new IllegalStateException("스토어 상품 조회 응답에 originProduct 없음: " + marketItemId);
+		}
+		Object rawAttr = originProduct.get("detailAttribute");
+		if (!(rawAttr instanceof Map)) {
+			return false;
+		}
+		Map<String, Object> attr = (Map<String, Object>)rawAttr;
+		if (!backfillConsumptionDate(attr)) {
+			return false;
+		}
+		Map<String, Object> requestBody = new HashMap<>();
+		requestBody.put("originProduct", originProduct);
+		restClient.put(path, requestBody);
+		log.info("[스토어] 고시정보 보정 완료: {}", marketItemId);
+		return true;
+	}
+
+	@SuppressWarnings("unchecked")
+	private static boolean backfillConsumptionDate(Map<String, Object> detailAttribute) {
 		Object rawNotice = detailAttribute.get("productInfoProvidedNotice");
 		if (!(rawNotice instanceof Map)) {
-			return;
+			return false;
 		}
+		boolean changed = false;
 		Map<String, Object> notice = (Map<String, Object>)rawNotice;
 		for (Map.Entry<String, Object> entry : notice.entrySet()) {
 			if (!(entry.getValue() instanceof Map)) {
@@ -265,8 +295,10 @@ public class SmartstoreMarketClient implements MarketClient {
 			String filled = (expiration != null && !String.valueOf(expiration).isBlank())
 				? String.valueOf(expiration) : "상세설명 참조";
 			block.put("consumptionDateText", filled);
+			changed = true;
 			log.info("[스토어] 소비기한 미입력 고시정보 보정: block={} value={}", entry.getKey(), filled);
 		}
+		return changed;
 	}
 
 	@Override
