@@ -13,6 +13,7 @@ import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
 import com.sbshop.agent.core.domain.product.component.ProductWriter;
 import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
+import com.sbshop.agent.core.domain.product.enums.SourceGoneReason;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import com.sbshop.agent.core.domain.product.service.MarginCalculator;
@@ -69,6 +70,8 @@ public class BatchPriceStockService {
 				if (result.sourceGone()) {
 					boolean goneChanged = product.getStockStatus() != StockStatus.OUT_OF_STOCK;
 					product.updateStockStatus(StockStatus.OUT_OF_STOCK);
+					product.markSourceGone(result.sourceGoneReason() != null
+						? result.sourceGoneReason() : SourceGoneReason.LINK_DEAD);
 					productWriter.save(product);
 					BigDecimal existingCost = product.getPriceInfo() != null
 						? product.getPriceInfo().getCostPrice() : null;
@@ -109,6 +112,7 @@ public class BatchPriceStockService {
 					.stock(result.stock())
 					.build();
 				product.update(command);
+				product.clearSourceGone();
 				product.updateStockStatus(result.status());
 				product.updateRestockDate(result.restockDate());
 				productWriter.save(product);

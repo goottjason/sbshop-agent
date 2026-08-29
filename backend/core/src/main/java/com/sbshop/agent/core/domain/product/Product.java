@@ -45,6 +45,14 @@ public class Product extends BaseEntity {
 	@Column(name = "deleted_at")
 	private java.time.LocalDateTime deletedAt;
 
+	@Column(name = "source_gone_at")
+	private java.time.LocalDateTime sourceGoneAt;
+
+	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(Types.VARCHAR)
+	@Column(name = "source_gone_reason", length = 32)
+	private com.sbshop.agent.core.domain.product.enums.SourceGoneReason sourceGoneReason;
+
 	@Column(name = "brand", length = 100)
 	private String brand;
 
@@ -354,6 +362,26 @@ public class Product extends BaseEntity {
 
 	public boolean isDeleted() {
 		return deletedAt != null;
+	}
+
+	public boolean isSourceGone() {
+		return sourceGoneAt != null;
+	}
+
+	public void markSourceGone(com.sbshop.agent.core.domain.product.enums.SourceGoneReason reason) {
+		if (reason == null) {
+			throw new IllegalArgumentException(
+				"원본 소멸 사유는 필수다 — 왜 사라졌는지 없이 폐기 후보로 만들지 않는다");
+		}
+		if (sourceGoneAt == null) {
+			this.sourceGoneAt = java.time.LocalDateTime.now();
+		}
+		this.sourceGoneReason = reason;
+	}
+
+	public void clearSourceGone() {
+		this.sourceGoneAt = null;
+		this.sourceGoneReason = null;
 	}
 
 	public void markDeleted() {

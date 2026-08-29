@@ -81,7 +81,8 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 					Thread.sleep(2000L * (i + 1));
 				} else if (response.statusCode() == 404) {
 					log.warn("아이허브 상품 없음 (404) — 원본 소멸로 기록: {}", productId);
-					return new StockCheckResult(StockStatus.OUT_OF_STOCK, null, 0, null, true);
+					return new StockCheckResult(StockStatus.OUT_OF_STOCK, null, 0, null, true, null,
+						com.sbshop.agent.core.domain.product.enums.SourceGoneReason.LINK_DEAD);
 				} else {
 					if (i == maxRetries) {
 						throw new RuntimeException("HTTP 상태 코드 에러: " + response.statusCode());

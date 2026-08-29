@@ -21,12 +21,18 @@ from scrapers.fortnum import FortnumScraper
 from scrapers import iherb as iherb_mod
 from scrapers.iherb import IherbScraper
 from scrapers import vitabiotics as vtb_mod
+from scrapers.vitabiotics_stock import VitabioticsScraper
+from scrapers.jsonld import CostcoUkScraper, OcadoScraper, TescoScraper
 from pricing import landed_cost_krw
 
 # 벤더 스크래퍼 레지스트리 — supports(url)로 첫 매칭 사용(Java SourcingAgentFactory와 대칭).
 SCRAPERS: list[VendorScraper] = [
     FortnumScraper(),
     IherbScraper(),
+    VitabioticsScraper(),
+    OcadoScraper(),
+    CostcoUkScraper(),
+    TescoScraper(),
 ]
 
 app = FastAPI(title="sbshop-scraper", version="0.1.0")

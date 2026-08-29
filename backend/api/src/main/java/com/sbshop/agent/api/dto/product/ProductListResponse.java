@@ -24,6 +24,7 @@ public record ProductListResponse(
 	List<String> hostedImages,
 	String sourcingUrl,
 	String memo,
+	String sourceGoneReason,
 	Map<String, MarketBadgeState> marketRegistrations) {
 
 	public static ProductListResponse from(Product p) {
@@ -43,6 +44,7 @@ public record ProductListResponse(
 			p.getHostedImages(),
 			p.getSourcingUrl(),
 			p.getMemo(),
+			p.getSourceGoneReason() != null ? p.getSourceGoneReason().name() : null,
 			null);
 	}
 
@@ -63,6 +65,7 @@ public record ProductListResponse(
 			p.getHostedImages(),
 			p.getSourcingUrl(),
 			p.getMemo(),
+			p.getSourceGoneReason() != null ? p.getSourceGoneReason().name() : null,
 			marketRegistrations);
 	}
 }

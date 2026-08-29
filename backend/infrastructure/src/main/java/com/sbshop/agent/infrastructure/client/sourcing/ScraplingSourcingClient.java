@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
 import com.sbshop.agent.core.application.product.port.VendorAwareStockCrawler;
+import com.sbshop.agent.core.domain.product.enums.SourceGoneReason;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import java.math.BigDecimal;
@@ -14,11 +15,8 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 @Slf4j
-@Component
 public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 
 	private final HttpClient httpClient = HttpClient.newBuilder()
@@ -27,17 +25,17 @@ public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 		.build();
 	private final ObjectMapper objectMapper;
 	private final String baseUrl;
+	private final VendorType vendor;
 
-	public ScraplingSourcingClient(ObjectMapper objectMapper,
-		@Value("${scraper.base-url:http://localhost:8099}")
-		String baseUrl) {
+	public ScraplingSourcingClient(ObjectMapper objectMapper, String baseUrl, VendorType vendor) {
 		this.objectMapper = objectMapper;
 		this.baseUrl = baseUrl;
+		this.vendor = vendor;
 	}
 
 	@Override
 	public VendorType vendor() {
-		return VendorType.FTN;
+		return vendor;
 	}
 
 	@Override
@@ -66,20 +64,25 @@ public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 					goods, inStock ? 100 : 0, null, false, shipping);
 			}
 			case "not_found":
-				log.info("F&M 링크 소멸(404) → 품절 처리: {}", sourceUrl);
-				return new StockCheckResult(StockStatus.OUT_OF_STOCK, null, 0, null, true);
+				log.info("{} 링크 소멸(404) → 폐기 후보로 기록: {}", vendor, sourceUrl);
+				return new StockCheckResult(StockStatus.OUT_OF_STOCK, null, 0, null, true, null,
+					SourceGoneReason.LINK_DEAD);
+			case "discontinued":
+				log.info("{} 단종 표기 → 폐기 후보로 기록: {}", vendor, sourceUrl);
+				return new StockCheckResult(StockStatus.OUT_OF_STOCK, null, 0, null, true, null,
+					SourceGoneReason.DISCONTINUED);
 			case "blocked":
 				throw new IllegalStateException("Cloudflare/봇차단 의심(스킵·추적) http="
 					+ res.path("httpStatus").asText("?") + " url=" + sourceUrl);
 			default:
-				throw new IllegalStateException("F&M 스크랩 실패(" + status + "): "
+				throw new IllegalStateException(vendor + " 스크랩 실패(" + status + "): "
 					+ res.path("error").asText("") + " url=" + sourceUrl);
 		}
 	}
 
 	private JsonNode call(String url) {
 		try {
-			String body = objectMapper.writeValueAsString(Map.of("url", url, "vendor", "FTN"));
+			String body = objectMapper.writeValueAsString(Map.of("url", url, "vendor", vendor.name()));
 			HttpRequest request = HttpRequest.newBuilder()
 				.uri(URI.create(baseUrl + "/scrape/stock-price"))
 				.header("Content-Type", "application/json")
