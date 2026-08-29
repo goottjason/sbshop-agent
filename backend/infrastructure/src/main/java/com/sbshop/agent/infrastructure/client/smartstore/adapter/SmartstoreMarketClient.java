@@ -240,7 +240,7 @@ public class SmartstoreMarketClient implements MarketClient {
 		backfillConsumptionDate(attr);
 		backfillUnitPriceYn(attr, product);
 
-		dropReadOnlyStatusType(originProduct);
+		normalizeReadOnlyStatusType(originProduct);
 		Map<String, Object> requestBody = new HashMap<>();
 		requestBody.put("originProduct", originProduct);
 		restClient.put(path, requestBody);
@@ -270,6 +270,7 @@ public class SmartstoreMarketClient implements MarketClient {
 			return false;
 		}
 		backfillUnitPriceYn(attr, product);
+		normalizeReadOnlyStatusType(originProduct);
 		Map<String, Object> requestBody = new HashMap<>();
 		requestBody.put("originProduct", originProduct);
 		restClient.put(path, requestBody);
@@ -277,11 +278,11 @@ public class SmartstoreMarketClient implements MarketClient {
 		return true;
 	}
 
-	private static void dropReadOnlyStatusType(Map<String, Object> originProduct) {
-		Object statusType = originProduct.get("statusType");
-		if ("OUTOFSTOCK".equals(statusType)) {
-			originProduct.remove("statusType");
-			log.info("[스토어] statusType=OUTOFSTOCK 제거 — 조회 전용 파생값이라 PUT 이 거부한다");
+	private static void normalizeReadOnlyStatusType(Map<String, Object> originProduct) {
+		if ("OUTOFSTOCK".equals(originProduct.get("statusType"))) {
+			originProduct.put("statusType", "SALE");
+			log.info("[스토어] statusType=OUTOFSTOCK → SALE 치환 — 조회 전용 파생값이라 "
+				+ "그대로도 빈 값으로도 PUT 이 거부된다. 재고 0 이면 네이버가 다시 품절로 표시한다");
 		}
 	}
 

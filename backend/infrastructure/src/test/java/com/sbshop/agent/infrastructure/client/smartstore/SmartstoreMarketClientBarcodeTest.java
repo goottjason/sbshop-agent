@@ -90,8 +90,8 @@ class SmartstoreMarketClientBarcodeTest {
 	}
 
 	@Test
-	@DisplayName("statusType=OUTOFSTOCK 은 PUT 에서 제거한다 — 네이버가 조회엔 주지만 수정엔 받지 않는다")
-	void dropsOutOfStockStatusType() {
+	@DisplayName("statusType=OUTOFSTOCK 은 SALE 로 치환한다 — 조회 전용 파생값이라 그대로도 빈 값으로도 거부된다")
+	void replacesOutOfStockStatusType() {
 		when(restClient.get(PATH)).thenReturn("{\"originProduct\":{\"name\":\"상품\","
 			+ "\"statusType\":\"OUTOFSTOCK\",\"stockQuantity\":0,"
 			+ "\"detailAttribute\":{\"sellerCodeInfo\":{\"sellerManagementCode\":\"X\"}}}}");
@@ -102,7 +102,7 @@ class SmartstoreMarketClientBarcodeTest {
 		verify(restClient).put(eq(PATH), body.capture());
 		@SuppressWarnings("unchecked")
 		Map<String, Object> origin = (Map<String, Object>)body.getValue().get("originProduct");
-		assertThat(origin).doesNotContainKey("statusType");
+		assertThat(origin).containsEntry("statusType", "SALE");
 		assertThat(origin).containsEntry("stockQuantity", 0);
 	}
 
