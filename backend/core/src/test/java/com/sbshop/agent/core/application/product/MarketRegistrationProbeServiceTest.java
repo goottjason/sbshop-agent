@@ -54,8 +54,8 @@ class MarketRegistrationProbeServiceTest {
 	@DisplayName("D-222: 마켓 조회가 '이미 삭제된 상품'으로 실패하면 DELETED_ON_MARKET 을 확정 기록한다 — 배지가 갈릴 재료를 만든다")
 	void deletedOnMarket_isRecorded() {
 		MarketRegistration reg = unclassified();
-		when(client.extractMarketItem(anyString())).thenThrow(new RuntimeException("쿠팡 데이터 추출 오류",
-			new IllegalStateException("해당 상품은 이미 삭제된 상품입니다")));
+		when(client.checkPresence(anyString()))
+			.thenReturn(com.sbshop.agent.core.domain.market.MarketPresence.ABSENT);
 
 		List<MarketRegistrationProbeService.ProbeOutcome> out = service().probe(MARKET, 10, 0, false);
 
@@ -69,7 +69,8 @@ class MarketRegistrationProbeServiceTest {
 	@DisplayName("D-222: 마켓에 살아 있으면 아무것도 쓰지 않는다 — 프로브는 한 방향으로만 기록한다")
 	void aliveOnMarket_writesNothing() {
 		MarketRegistration reg = unclassified();
-		when(client.extractMarketItem(anyString())).thenReturn(null);
+		when(client.checkPresence(anyString()))
+			.thenReturn(com.sbshop.agent.core.domain.market.MarketPresence.PRESENT);
 
 		List<MarketRegistrationProbeService.ProbeOutcome> out = service().probe(MARKET, 10, 0, false);
 
@@ -82,7 +83,8 @@ class MarketRegistrationProbeServiceTest {
 	@DisplayName("D-222: 삭제인지 알 수 없는 실패(타임아웃 등)는 INCONCLUSIVE — 추측으로 삭제 처리하지 않는다")
 	void ambiguousFailure_recordsNothing() {
 		MarketRegistration reg = unclassified();
-		when(client.extractMarketItem(anyString())).thenThrow(new RuntimeException("Read timed out"));
+		when(client.checkPresence(anyString()))
+			.thenReturn(com.sbshop.agent.core.domain.market.MarketPresence.UNKNOWN);
 
 		List<MarketRegistrationProbeService.ProbeOutcome> out = service().probe(MARKET, 10, 0, false);
 
@@ -99,7 +101,7 @@ class MarketRegistrationProbeServiceTest {
 		List<MarketRegistrationProbeService.ProbeOutcome> out = service().probe(MARKET, 10, 0, true);
 
 		assertThat(out).singleElement().satisfies(o -> assertThat(o.result()).isEqualTo("DRY_RUN"));
-		verify(client, never()).extractMarketItem(anyString());
+		verify(client, never()).checkPresence(anyString());
 		verify(marketRegistrationRepository, never()).save(any());
 	}
 }

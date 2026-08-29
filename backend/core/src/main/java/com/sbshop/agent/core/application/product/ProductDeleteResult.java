@@ -7,5 +7,12 @@ import java.util.Map;
 public record ProductDeleteResult(
 	List<MarketType> deleted,
 	List<MarketType> skipped,
-	Map<MarketType, String> failed) {
+	Map<MarketType, String> failed,
+	Map<MarketType, String> manual,
+	boolean disposed) {
+
+	public ProductDeleteResult(List<MarketType> deleted, List<MarketType> skipped,
+		Map<MarketType, String> failed) {
+		this(deleted, skipped, failed, Map.of(), true);
+	}
 }

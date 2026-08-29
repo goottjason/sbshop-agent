@@ -137,6 +137,12 @@ public class ProductController {
 	Long id) {
 		try {
 			ProductDeleteResult result = productManageUseCase.deleteProduct(id);
+			if (!result.disposed()) {
+				actionLogService.record(ActionLogConstants.PRODUCT_DELETE, null, ActionStatus.FAILED,
+					"상품 폐기 보류 (상품 " + id + ") — 마켓에 리스팅이 남아 있습니다: 실패="
+						+ result.failed().keySet() + ", 수동=" + result.manual().keySet());
+				return ResponseEntity.status(org.springframework.http.HttpStatus.CONFLICT).body(result);
+			}
 			return ResponseEntity.ok(result);
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.PRODUCT_DELETE, null,

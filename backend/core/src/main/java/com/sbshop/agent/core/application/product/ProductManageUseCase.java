@@ -6,7 +6,9 @@ import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.common.exception.ResourceNotFoundException;
+import com.sbshop.agent.core.domain.market.MarketFailureClassifier;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
+import com.sbshop.agent.core.domain.market.UnsyncReason;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
@@ -110,6 +112,7 @@ public class ProductManageUseCase {
 		List<MarketType> deleted = new ArrayList<>();
 		List<MarketType> skipped = new ArrayList<>();
 		Map<MarketType, String> failed = new LinkedHashMap<>();
+		Map<MarketType, String> manual = new LinkedHashMap<>();
 		Map<MarketType, String> marketItemIds = new LinkedHashMap<>();
 
 		for (MarketRegistration reg : registrations) {
@@ -119,30 +122,58 @@ public class ProductManageUseCase {
 			if (marketItemId != null && !marketItemId.isEmpty()) {
 				marketItemIds.put(marketType, marketItemId);
 			}
+			if (Boolean.FALSE.equals(reg.getIsSynced())
+				&& reg.getUnsyncReason() == UnsyncReason.DELETED_ON_MARKET) {
+				deleted.add(marketType);
+				log.info("[완전삭제] 이미 마켓에서 삭제 확인된 등록 — 건너뜀: productId={}, market={}",
+					productId, marketType);
+				continue;
+			}
+			if (marketItemId == null || marketItemId.isEmpty()) {
+				manual.put(marketType, "마켓 상품코드를 몰라 자동 삭제할 수 없습니다 — 마켓에서 직접 지워야 합니다");
+				log.warn("[완전삭제] 마켓 상품코드 없음 — 수동 처리 필요: productId={}, market={}",
+					productId, marketType);
+				continue;
+			}
 			if (!marketClientRouter.hasClient(marketType)) {
-				skipped.add(marketType);
-				log.info("[완전삭제] 마켓 클라이언트 없음 — 스킵: productId={}, market={}", productId, marketType);
+				manual.put(marketType, "마켓 클라이언트가 없어 자동 삭제할 수 없습니다 — 마켓에서 직접 지워야 합니다");
+				log.warn("[완전삭제] 마켓 클라이언트 없음 — 수동 처리 필요: productId={}, market={}",
+					productId, marketType);
 				continue;
 			}
 			try {
 				marketClientRouter.getClient(marketType).deleteFromMarket(marketItemId);
+				reg.markAbsentFromMarket(UnsyncReason.DELETED_ON_MARKET);
+				marketRegistrationRepository.save(reg);
 				deleted.add(marketType);
 				log.info("[완전삭제] 마켓 리스팅 삭제 성공: productId={}, market={}, marketItemId={}",
 					productId, marketType, marketItemId);
+			} catch (UnsupportedOperationException unsupported) {
+				manual.put(marketType, unsupported.getMessage());
+				log.warn("[완전삭제] 삭제 API 미지원 — 수동 처리 필요: productId={}, market={}",
+					productId, marketType);
 			} catch (Exception e) {
 				failed.put(marketType, e.getMessage());
-				log.error("[완전삭제] 마켓 리스팅 삭제 실패(best-effort로 DB 삭제는 진행): productId={}, market={}, error={}",
+				reg.recordSyncError(MarketFailureClassifier.classifyError(e));
+				marketRegistrationRepository.save(reg);
+				log.error("[완전삭제] 마켓 리스팅 삭제 실패 — 상품을 폐기하지 않는다: productId={}, market={}, error={}",
 					productId, marketType, e.getMessage(), e);
 			}
 		}
 
-		productDeleteTxService.deleteWithRegistrations(product, registrations);
+		boolean disposed = failed.isEmpty() && manual.isEmpty();
+		if (disposed) {
+			productDeleteTxService.deleteWithRegistrations(product, registrations);
+		} else {
+			log.warn("[완전삭제] 폐기 보류 — 마켓에 리스팅이 남아 있다: productId={}, 실패={}, 수동={}",
+				productId, failed.keySet(), manual.keySet());
+		}
 
 		recordDeleteActionLog(productId, deleted, skipped, failed, marketItemIds);
 
-		log.info("[완전삭제] 완료: productId={}, deleted={}, skipped={}, failed={}",
-			productId, deleted, skipped, failed.keySet());
-		return new ProductDeleteResult(deleted, skipped, failed);
+		log.info("[완전삭제] 완료: productId={}, 폐기={}, deleted={}, failed={}, manual={}",
+			productId, disposed, deleted, failed.keySet(), manual.keySet());
+		return new ProductDeleteResult(deleted, skipped, failed, manual, disposed);
 	}
 
 	private MarketRepublishResult republishToMarkets(Product product, Long productId,

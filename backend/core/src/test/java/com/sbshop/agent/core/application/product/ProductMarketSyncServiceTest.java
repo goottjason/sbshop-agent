@@ -159,8 +159,8 @@ class ProductMarketSyncServiceTest {
 	}
 
 	@Test
-	@DisplayName("동기화 실패 시 등록행 isSynced=false로 리셋·저장(다음 배치 재시도 신호)")
-	void syncFailure_marksRegSyncFailed() {
+	@DisplayName("D-231(A안): 동기화 실패는 쓰기 오류로만 기록한다 — 상품이 마켓을 떠난 게 아니므로 is_synced 는 건드리지 않는다")
+	void syncFailure_recordsWriteErrorButKeepsPresence() {
 		MarketClient coupangClient = Mockito.mock(MarketClient.class);
 		MarketRegistration cp = reg(MarketType.COUPANG, "{\"vendorItemId\":\"CP123\"}");
 		cp.markSynced();
@@ -172,7 +172,10 @@ class ProductMarketSyncServiceTest {
 
 		service.syncPriceStock(PRODUCT_ID, 1000, StockStatus.IN_STOCK);
 
-		assertThat(cp.getIsSynced()).isFalse();
+		assertThat(cp.getIsSynced()).isTrue();
+		assertThat(cp.getUnsyncReason()).isNull();
+		assertThat(cp.getLastSyncError())
+			.isEqualTo(com.sbshop.agent.core.domain.market.SyncErrorType.TRANSIENT_ERROR);
 		verify(marketRegistrationRepository).save(cp);
 	}
 

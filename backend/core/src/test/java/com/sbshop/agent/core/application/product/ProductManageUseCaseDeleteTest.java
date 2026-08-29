@@ -98,8 +98,8 @@ class ProductManageUseCaseDeleteTest {
 	}
 
 	@Test
-	@DisplayName("일부 마켓 실패 → Product·등록행 여전히 삭제(best-effort), failed 수집")
-	void deleteProduct_partialFailureStillDeletesDb() {
+	@DisplayName("8a 결정: 일부 마켓 삭제 실패 → 폐기 보류. 마켓에 남는데 우리만 잊는 상태를 만들지 않는다")
+	void deleteProduct_partialFailureBlocksDisposal() {
 		MarketClient coupangClient = Mockito.mock(MarketClient.class);
 		MarketClient cafe24Client = Mockito.mock(MarketClient.class);
 		List<MarketRegistration> regs = List.of(
@@ -114,17 +114,20 @@ class ProductManageUseCaseDeleteTest {
 
 		ProductDeleteResult result = useCase.deleteProduct(PRODUCT_ID);
 
-		verify(productDeleteTxService).deleteWithRegistrations(product, regs);
+		verify(productDeleteTxService, never()).deleteWithRegistrations(product, regs);
 		verify(cafe24Client).deleteFromMarket("C24");
+		assertThat(result.disposed()).isFalse();
 		assertThat(result.deleted()).containsExactly(MarketType.CAFE24);
 		assertThat(result.failed()).containsKey(MarketType.COUPANG);
 		assertThat(result.failed().get(MarketType.COUPANG)).contains("주문이력");
 	}
 
 	@Test
-	@DisplayName("클라이언트 없는 마켓(GMARKET/AUCTION) → API 미호출, skipped 보고, 등록행 삭제")
-	void deleteProduct_skipsMarketsWithoutClient() {
-		List<MarketRegistration> regs = List.of(reg(MarketType.GMARKET, "{}"), reg(MarketType.AUCTION, "{}"));
+	@DisplayName("8a 결정: 자동 삭제할 수 없는 마켓은 수동 처리 대상이다 — 조용히 스킵하고 폐기하지 않는다")
+	void deleteProduct_marketsWithoutClientAreManual() {
+		List<MarketRegistration> regs = List.of(
+			reg(MarketType.GMARKET, "{\"goodsNo\":\"G1\"}"),
+			reg(MarketType.AUCTION, "{\"itemNo\":\"A1\"}"));
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID)).thenReturn(regs);
 		when(marketClientRouter.hasClient(MarketType.GMARKET)).thenReturn(false);
 		when(marketClientRouter.hasClient(MarketType.AUCTION)).thenReturn(false);
@@ -133,8 +136,9 @@ class ProductManageUseCaseDeleteTest {
 
 		verify(marketClientRouter, never()).getClient(MarketType.GMARKET);
 		verify(marketClientRouter, never()).getClient(MarketType.AUCTION);
-		verify(productDeleteTxService).deleteWithRegistrations(product, regs);
-		assertThat(result.skipped()).containsExactlyInAnyOrder(MarketType.GMARKET, MarketType.AUCTION);
+		verify(productDeleteTxService, never()).deleteWithRegistrations(product, regs);
+		assertThat(result.disposed()).isFalse();
+		assertThat(result.manual()).containsKeys(MarketType.GMARKET, MarketType.AUCTION);
 		assertThat(result.deleted()).isEmpty();
 	}
 
