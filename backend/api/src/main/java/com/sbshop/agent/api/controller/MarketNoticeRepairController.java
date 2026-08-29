@@ -26,8 +26,10 @@ public class MarketNoticeRepairController {
 		@RequestParam(defaultValue = "250")
 		long throttleMs,
 		@RequestParam(defaultValue = "true")
-		boolean dryRun) {
+		boolean dryRun,
+		@RequestParam(defaultValue = "false")
+		boolean syncedOnly) {
 		return ResponseEntity.ok(Map.of("success", true, "dryRun", dryRun,
-			"report", marketNoticeRepairUseCase.repair(market, limit, throttleMs, dryRun)));
+			"report", marketNoticeRepairUseCase.repair(market, limit, throttleMs, dryRun, syncedOnly)));
 	}
 }

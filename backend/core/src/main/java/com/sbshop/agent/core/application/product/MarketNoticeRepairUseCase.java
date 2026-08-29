@@ -25,8 +25,11 @@ public class MarketNoticeRepairUseCase {
 		Map<String, Integer> failureReasons, List<String> repairedIds) {
 	}
 
-	public Report repair(MarketType market, int limit, long throttleMs, boolean dryRun) {
-		List<MarketRegistration> registrations = marketRegistrationRepository.findByMarketType(market);
+	public Report repair(MarketType market, int limit, long throttleMs, boolean dryRun,
+		boolean syncedOnly) {
+		List<MarketRegistration> registrations = syncedOnly
+			? marketRegistrationRepository.findByMarketTypeAndIsSyncedTrue(market)
+			: marketRegistrationRepository.findByMarketType(market);
 		int examined = 0;
 		int repaired = 0;
 		int alreadyOk = 0;

@@ -18,6 +18,8 @@ public interface MarketRegistrationRepository extends JpaRepository<MarketRegist
 
 	List<MarketRegistration> findByMarketType(MarketType marketType);
 
+	List<MarketRegistration> findByMarketTypeAndIsSyncedTrue(MarketType marketType);
+
 	Optional<MarketRegistration> findByProductIdAndMarketType(Long productId, MarketType marketType);
 
 	@Query("SELECT r FROM MarketRegistration r WHERE r.marketType = :marketType "
