@@ -4,7 +4,7 @@ import { productApi, type ProductList } from '../../api/productApi';
 import { sourcingApi } from '../../api/sourcingApi';
 import { fetchPricePolicy } from '../../api/pricePolicyApi';
 import {
-  MARKET_BADGES, badgeVisual, ESM_MARKET_KEYS,
+  MARKET_BADGES, badgeVisual, ESM_MARKET_KEYS, UNSYNC_REASON_LABEL,
   DEFAULT_MARKET_MARGIN_RATE, DEFAULT_MARKET_COUPON_RATE, DEFAULT_MARKET_MIN_MARGIN_PRICE,
 } from './productGridShared';
 import { notify } from '../../utils/notify';
@@ -134,6 +134,39 @@ export function MarketBadgeCell({ product, onPublished }:
           );
         }
         const visual = badgeVisual(product, m.key);
+        if (visual === 'deleted') {
+          const why = UNSYNC_REASON_LABEL[regs[m.key].reason ?? ''] ?? '마켓에서 삭제되었습니다';
+          return (
+            <span key={m.key}
+              title={`${m.label} — ${why}. 클릭하면 다시 등록합니다.`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (ESM_MARKET_KEYS.includes(m.key)) handoff(m.key, m.label);
+                else publish(m.key, m.label);
+              }}
+              style={{ ...baseStyle, color: '#b91c1c', background: '#fee2e2',
+                border: '1px solid #dc2626', cursor: 'pointer' }}>
+              {m.label}
+            </span>
+          );
+        }
+        if (visual === 'failed') {
+          const why = UNSYNC_REASON_LABEL[regs[m.key].reason ?? ''] ?? '마켓 반영에 실패했습니다';
+          const failStyle: CSSProperties = { ...baseStyle, color: '#b45309', background: '#fef3c7',
+            border: '1px solid #f59e0b', textDecoration: 'none' };
+          const failTitle = `${m.label} — ${why}. 상품은 마켓에 남아 있을 수 있어 재등록하지 않습니다.`;
+          return regs[m.key].url ? (
+            <a key={m.key} href={regs[m.key].url as string} target="_blank" rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()} title={`${failTitle} 클릭하면 마켓 페이지를 엽니다.`}
+              style={{ ...failStyle, cursor: 'pointer' }}>
+              {m.label}
+            </a>
+          ) : (
+            <span key={m.key} title={failTitle} style={{ ...failStyle, cursor: 'default' }}>
+              {m.label}
+            </span>
+          );
+        }
         if (visual === 'registered') {
           return (
             <a key={m.key} href={regs[m.key].url as string} target="_blank" rel="noopener noreferrer"

@@ -20,6 +20,11 @@ public interface MarketRegistrationRepository extends JpaRepository<MarketRegist
 
 	List<MarketRegistration> findByMarketTypeAndIsSyncedTrue(MarketType marketType);
 
+	@Query("SELECT r FROM MarketRegistration r WHERE r.marketType = :marketType "
+		+ "AND r.isSynced = false AND r.unsyncReason IS NULL ORDER BY r.id ASC")
+	List<MarketRegistration> findUnclassifiedUnsynced(@Param("marketType")
+	MarketType marketType);
+
 	Optional<MarketRegistration> findByProductIdAndMarketType(Long productId, MarketType marketType);
 
 	@Query("SELECT r FROM MarketRegistration r WHERE r.marketType = :marketType "

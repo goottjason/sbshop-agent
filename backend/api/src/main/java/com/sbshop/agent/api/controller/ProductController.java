@@ -285,17 +285,19 @@ public class ProductController {
 		}
 		Map<String, MarketBadgeState> marketMap = new HashMap<>();
 		for (MarketRegistration reg : registrations) {
-			boolean synced = reg.hasIdentifiers();
+			boolean hasIdentifiers = reg.hasIdentifiers();
+			boolean isSynced = Boolean.TRUE.equals(reg.getIsSynced());
 			switch (reg.getMarketType()) {
 				case COUPANG:
 				case SMART_STORE:
 				case ELEVEN_STREET: {
-					marketMap.put(reg.getMarketType().name(),
-						MarketBadgeState.of(synced, reg.buildMarketUrl()));
+					marketMap.put(reg.getMarketType().name(), MarketBadgeState.of(hasIdentifiers, isSynced,
+						reg.getUnsyncReason(), reg.buildMarketUrl()));
 					break;
 				}
 				case CAFE24: {
-					marketMap.put("CAFE24", MarketBadgeState.of(synced, null));
+					marketMap.put("CAFE24", MarketBadgeState.of(hasIdentifiers, isSynced,
+						reg.getUnsyncReason(), null));
 					String gUrl = reg.buildGmarketUrl();
 					if (gUrl != null) {
 						marketMap.put("GMARKET", MarketBadgeState.of(true, gUrl));

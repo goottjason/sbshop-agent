@@ -3,7 +3,8 @@ import type { ProductList } from '../../api/productApi';
 
 export type SaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
-type BadgeVisual = 'registered' | 'registeredNoLink' | 'linkless' | 'pending' | 'missing' | 'blocked';
+type BadgeVisual = 'registered' | 'registeredNoLink' | 'linkless' | 'pending' | 'missing' | 'blocked'
+  | 'deleted' | 'failed';
 
 export const inputStyle: CSSProperties = {
   width: '100%', padding: '4px 6px', fontSize: '12px', border: '1px solid #d1d5db',
@@ -55,10 +56,19 @@ export function statusBorder(status: SaveStatus): string {
   }
 }
 
+export const UNSYNC_REASON_LABEL: Record<string, string> = {
+  DELETED_ON_MARKET: '마켓에서 삭제된 상품입니다',
+  VALIDATION_FAILED: '마켓이 데이터를 거부했습니다 — 상품 정보를 고쳐야 합니다',
+  TRANSIENT_ERROR: '일시 오류로 반영되지 않았습니다 — 재시도하면 풀릴 수 있습니다',
+  NEVER_SYNCED: '한 번도 동기화된 적이 없습니다',
+};
+
 export function badgeVisual(product: ProductList, marketKey: string): BadgeVisual {
   const regs = product.marketRegistrations ?? {};
   const state = regs[marketKey];
   if (state) {
+    if (state.status === 'DELETED') return 'deleted';
+    if (state.status === 'FAILED') return 'failed';
     if (state.status === 'PENDING') return 'pending';
     if (state.url) return 'registered';
     return NO_LINK_MARKET_KEYS.includes(marketKey) ? 'registeredNoLink' : 'linkless';

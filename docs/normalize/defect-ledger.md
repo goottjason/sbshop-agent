@@ -3829,7 +3829,13 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 수정 방향(미착수): ① `sb_market_registration`에 **미동기 사유 컬럼** 신설(`DELETED_ON_MARKET` / `SYNC_FAILED` / `NEVER_SYNCED`, nullable). 마켓 응답에서 삭제 판정 시 기록한다 — 쿠팡은 `"이미 삭제된 상품입니다"`가 확정 신호. ② `MarketBadgeState`에 사유를 실어 프론트가 배지를 갈라 그리게 한다(삭제=빨강+재등록 유도, 실패=주황+사유 툴팁, 대기=회색). ③ 스키마 변경이므로 수동 DDL 선행 필요.
 - 참고: 식별자(`sellerProductId` 등)는 **지우지 않는다.** 과거 주문 추적([[D-218]] 오배송 사고 계열)·[[D-210]] 정합성 대조·재등록 이력의 근거다. 지우면 문제가 해결되는 게 아니라 안 보이게 된다.
 - 규모: 바코드 확대 340건 표본에서 "이미 삭제된 상품" **10건**. [[D-210]] 리포트의 "쿠팡 우리에만 101건"과 같은 뿌리로 보인다.
-- 상태: 발견
+- **원인 정정(2026-08-29)**: 딥다이브 §6.1 의 "백엔드는 제대로 내려보낸다"는 **틀렸다.** `ProductController.buildMarketMap` 이 `boolean synced = reg.hasIdentifiers()` 로 판정한다 — `is_synced` 를 **보지 않는다.** 그래서 마켓에서 삭제됐어도 식별자만 남아 있으면 SYNCED 로 내려간다. 상품 44 증상의 직접 원인이다.
+- 수정: `MarketBadgeState` 에 `reason` 필드 추가 + `of(hasIdentifiers, isSynced, reason, url)` 신설. `DELETED_ON_MARKET` → `DELETED`, `VALIDATION_FAILED`/`TRANSIENT_ERROR` → `FAILED`, **사유가 없으면 기존 판정 유지**. 프론트 `badgeVisual` 에 `deleted`(빨강·클릭 시 재등록)·`failed`(주황·사유 툴팁·링크 유지) 추가.
+- 판단 근거: 사유 없는 미동기 행을 경고로 물들이지 않았다. 기존 테스트가 "식별자가 있으면 isSynced=false 여도 SYNCED — 레거시 임포트 행을 거짓 미완료로 경고하지 않는다"는 **의도적 결정**을 박아 두었고, 미분류 2,021건이 여기 해당한다. 그 결정을 존중하고 **사유가 확정된 행만** 갈라 그린다.
+- **동반 발견 — 죽은 등록은 스스로 분류될 수 없다**: [[D-225]] 가 `is_synced=false` 를 전송에서 건너뛰므로, 죽은 등록은 마켓 응답을 받을 기회가 영영 없다. 즉 배지를 갈라 그려도 **가를 재료가 생기지 않는다**(작업 시점 `DELETED_ON_MARKET` 보유 행 0건). 상품 44 도 사유가 NULL 이라 여전히 SYNCED 로 그려졌다.
+- 그래서 `MarketRegistrationProbeService` 를 함께 만들었다 — 미분류 미동기 행을 마켓 단건 조회로 확인해 **삭제가 확정된 것만** `DELETED_ON_MARKET` 으로 기록한다. 살아 있으면 아무것도 쓰지 않고, 삭제인지 알 수 없는 실패(타임아웃 등)는 `INCONCLUSIVE` 로 남긴다 — **한 방향으로만 쓴다.** 트리거: `POST /internal/registrations/probe?market=COUPANG&limit=&throttleMs=&dryRun=`. 이것은 [[D-227]] 의 축소판(카탈로그 전수 대조가 아니라 등록행 단건 프로브)이다.
+- 테스트: `MarketBadgeStateTest` 5건 + `MarketRegistrationProbeServiceTest` 4건
+- 상태: **수정완료(검증통과)** 2026-08-29
 
 ### D-223: 재등록에 중복 가드가 없어 마켓에 유령 리스팅을 만든다 (2026-08-29, 상품 생명주기 딥다이브 중 발견)
 
