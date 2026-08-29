@@ -154,7 +154,7 @@ export function MarketBadgeCell({ product, onPublished }:
           const why = UNSYNC_REASON_LABEL[regs[m.key].reason ?? ''] ?? '마켓 반영에 실패했습니다';
           const failStyle: CSSProperties = { ...baseStyle, color: '#b45309', background: '#fef3c7',
             border: '1px solid #f59e0b', textDecoration: 'none' };
-          const failTitle = `${m.label} — ${why}. 상품은 마켓에 남아 있을 수 있어 재등록하지 않습니다.`;
+          const failTitle = `${m.label} — ${why}. 상품은 마켓에 있으므로 재등록하지 않습니다.`;
           return regs[m.key].url ? (
             <a key={m.key} href={regs[m.key].url as string} target="_blank" rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()} title={`${failTitle} 클릭하면 마켓 페이지를 엽니다.`}

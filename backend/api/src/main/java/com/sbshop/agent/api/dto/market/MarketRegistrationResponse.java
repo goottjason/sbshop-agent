@@ -19,7 +19,8 @@ public record MarketRegistrationResponse(
 	String marketDetailedInfo,
 	Boolean isSynced,
 	LocalDateTime lastSyncedAt,
-	String unsyncReason) {
+	String unsyncReason,
+	String lastSyncError) {
 
 	public static MarketRegistrationResponse from(MarketRegistration r) {
 		return new MarketRegistrationResponse(
@@ -35,6 +36,7 @@ public record MarketRegistrationResponse(
 			r.getMarketDetailedInfo(),
 			r.getIsSynced(),
 			r.getLastSyncedAt(),
-			r.getUnsyncReason() != null ? r.getUnsyncReason().name() : null);
+			r.getUnsyncReason() != null ? r.getUnsyncReason().name() : null,
+			r.getLastSyncError() != null ? r.getLastSyncError().name() : null);
 	}
 }

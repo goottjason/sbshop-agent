@@ -3846,6 +3846,20 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - **프로브의 사각**: `is_synced=true` 인데 실제로는 삭제된 행은 대상에 들어오지 않는다. 그 방향은 [[D-227]] 카탈로그 전수 대조가 필요하다.
 - 상태: **수정완료(라이브 검증)** 2026-08-29
 
+### D-231: is_synced 의 의미가 확정되지 않아 두 경로가 다른 규칙으로 돌았다 (2026-08-29, 아키텍처 검토 중 발견)
+
+- 심각도: **P1(모든 후속 설계의 전제)** | 위치: `MarketRegistration` + `ProductMarketSyncService` + `ProductBarcodeSyncUseCase`
+- 증상: 쓰기 실패 시 `is_synced` 를 뒤집을지가 경로마다 달랐다 — 가격·재고는 무조건 뒤집고, 바코드는 `DELETED_ON_MARKET` 일 때만 뒤집었다. [[D-224]] 자책 결함을 한쪽만 고친 결과다.
+- 실측 근거: 프로브가 미동기 행의 실제 상태를 측정하니 **쿠팡 287건 중 237건(83%)·나머지 3마켓 표본 90/90(100%)이 마켓에 살아 있었다.** 즉 `is_synced=false` 는 "마켓에 없음"이 아니라 "마지막 쓰기 실패"로 쓰이고 있었고, 목표 아키텍처 문서는 전자를 전제하고 있었다.
+- 결정(**A안**, 사용자 확정 2026-08-29): **`is_synced` 는 "마켓에 존재"다.** 존재를 바꾸는 것은 존재 확인뿐이고, 쓰기 실패는 존재를 건드리지 않는다.
+- 그 귀결로 **질문 두 개를 두 컬럼으로 분리**: `unsync_reason`(존재 — `NEVER_SYNCED`/`DELETED_ON_MARKET`) + **`last_sync_error` 신설**(쓰기 결과 — `TRANSIENT_ERROR`/`VALIDATION_FAILED`/`BLOCKED_BY_MARKET`). `is_synced=true` 이면서 `last_sync_error=BLOCKED_BY_MARKET` 인 상태("마켓엔 있는데 심사중이라 수정이 안 들어간다")가 실재하는데 이전 모델에는 그 칸이 없었다.
+- 신설 `BLOCKED_BY_MARKET`: 쿠팡 "심사가 진행중입니다"가 그동안 `TRANSIENT_ERROR`(=재시도하면 됨)로 분류됐다. **재시도해도 심사가 끝나기 전엔 안 풀린다.**
+- 엔티티 API 도 의미별로 갈랐다 — `markSynced`(쓰기 성공=존재 확인, 둘 다 지움) / `confirmPresentOnMarket`(존재만 확인, 쓰기오류 유지) / `markAbsentFromMarket`(부재, 사유 필수) / `recordSyncError`(쓰기 실패, 존재 불변).
+- 스키마: `ALTER TABLE sb_market_registration ADD COLUMN IF NOT EXISTS last_sync_error VARCHAR(32);` 적용 완료. 기존 `unsync_reason` 값은 전부 존재-사유(DELETED 50·NEVER_SYNCED 3)라 **데이터 이전 불필요**.
+- 테스트: `MarketFailureClassifierTest` 10건 + `MarketBadgeStateTest` 7건
+- 문서: `product-lifecycle-target.md` 개정(§1.2·2.2·2.3·2.4·2.5·2.6·4.2·8·9). 초판이 틀렸던 네 곳을 본문에 표시했다.
+- 상태: **수정완료(검증대기 — 배포 후 라이브 확인)** 2026-08-29
+
 ### D-229: 쿠팡 상품 조회 경로의 vendorId 가 항상 비어 있다 (2026-08-29, 프로브 로그에서 발견)
 
 - 심각도: 경량(현재 무해) | 위치: `CoupangMarketClient.extractMarketItem`

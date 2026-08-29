@@ -28,9 +28,12 @@ public class MarketRegistrationProbeController {
 		@RequestParam(defaultValue = "300")
 		long throttleMs,
 		@RequestParam(defaultValue = "true")
-		boolean dryRun) {
+		boolean dryRun,
+		@RequestParam(defaultValue = "false")
+		boolean promoteAlive) {
 		MarketType marketType = MarketType.valueOf(market.toUpperCase());
-		List<ProbeOutcome> results = marketRegistrationProbeService.probe(marketType, limit, throttleMs, dryRun);
+		List<ProbeOutcome> results = marketRegistrationProbeService.probe(marketType, limit, throttleMs, dryRun,
+			promoteAlive);
 		Map<String, Integer> summary = new LinkedHashMap<>();
 		for (ProbeOutcome outcome : results) {
 			summary.merge(outcome.result(), 1, Integer::sum);

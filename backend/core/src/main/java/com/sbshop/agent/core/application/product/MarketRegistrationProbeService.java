@@ -2,7 +2,7 @@ package com.sbshop.agent.core.application.product;
 
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.UnsyncReason;
-import com.sbshop.agent.core.domain.market.UnsyncReasonClassifier;
+import com.sbshop.agent.core.domain.market.MarketFailureClassifier;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
@@ -26,6 +26,11 @@ public class MarketRegistrationProbeService {
 	}
 
 	public List<ProbeOutcome> probe(MarketType marketType, int limit, long throttleMs, boolean dryRun) {
+		return probe(marketType, limit, throttleMs, dryRun, false);
+	}
+
+	public List<ProbeOutcome> probe(MarketType marketType, int limit, long throttleMs, boolean dryRun,
+		boolean promoteAlive) {
 		List<ProbeOutcome> outcomes = new ArrayList<>();
 		if (!marketClientRouter.hasClient(marketType)) {
 			return outcomes;
@@ -45,24 +50,30 @@ public class MarketRegistrationProbeService {
 				outcomes.add(new ProbeOutcome(reg.getProductId(), marketType, marketItemId, "DRY_RUN", null));
 				continue;
 			}
-			outcomes.add(probeOne(client, reg, marketType, marketItemId));
+			outcomes.add(probeOne(client, reg, marketType, marketItemId, promoteAlive));
 			sleepQuietly(throttleMs);
 		}
 		return outcomes;
 	}
 
 	private ProbeOutcome probeOne(MarketClient client, MarketRegistration reg, MarketType marketType,
-		String marketItemId) {
+		String marketItemId, boolean promoteAlive) {
 		try {
 			client.extractMarketItem(marketItemId);
+			if (promoteAlive && !Boolean.TRUE.equals(reg.getIsSynced())) {
+				reg.confirmPresentOnMarket();
+				marketRegistrationRepository.save(reg);
+				log.info("[등록프로브] 마켓 존재 확인 — 동기 상태로 승격: productId={}, market={}, marketItemId={}",
+					reg.getProductId(), marketType, marketItemId);
+				return new ProbeOutcome(reg.getProductId(), marketType, marketItemId, "PROMOTED", null);
+			}
 			return new ProbeOutcome(reg.getProductId(), marketType, marketItemId, "ALIVE", null);
 		} catch (Exception e) {
-			UnsyncReason reason = UnsyncReasonClassifier.classify(e);
-			if (reason != UnsyncReason.DELETED_ON_MARKET) {
+			if (!MarketFailureClassifier.indicatesDeleted(e)) {
 				return new ProbeOutcome(reg.getProductId(), marketType, marketItemId, "INCONCLUSIVE",
 					rootMessage(e));
 			}
-			reg.markSyncFailed(UnsyncReason.DELETED_ON_MARKET);
+			reg.markAbsentFromMarket(UnsyncReason.DELETED_ON_MARKET);
 			marketRegistrationRepository.save(reg);
 			log.info("[등록프로브] 마켓에서 삭제 확인: productId={}, market={}, marketItemId={}",
 				reg.getProductId(), marketType, marketItemId);

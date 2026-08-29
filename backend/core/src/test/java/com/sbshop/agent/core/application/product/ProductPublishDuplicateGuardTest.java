@@ -104,7 +104,7 @@ class ProductPublishDuplicateGuardTest {
 	@DisplayName("D-223: 마켓에서 삭제된 등록(DELETED_ON_MARKET)은 가드를 통과한다 — 이게 정상 재등록이다")
 	void deletedOnMarket_publishAllowed() {
 		MarketRegistration dead = liveRegistration();
-		dead.markSyncFailed(UnsyncReason.DELETED_ON_MARKET);
+		dead.markAbsentFromMarket(UnsyncReason.DELETED_ON_MARKET);
 		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품")).thenReturn(dead);
 		when(client.publish(eq(product), any())).thenReturn(Map.of("sellerProductId", "33333"));
 

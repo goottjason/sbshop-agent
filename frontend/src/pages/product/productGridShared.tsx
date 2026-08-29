@@ -60,6 +60,7 @@ export const UNSYNC_REASON_LABEL: Record<string, string> = {
   DELETED_ON_MARKET: '마켓에서 삭제된 상품입니다',
   VALIDATION_FAILED: '마켓이 데이터를 거부했습니다 — 상품 정보를 고쳐야 합니다',
   TRANSIENT_ERROR: '일시 오류로 반영되지 않았습니다 — 재시도하면 풀릴 수 있습니다',
+  BLOCKED_BY_MARKET: '마켓이 막아둔 상태입니다(심사중·판매중지) — 재시도로는 풀리지 않습니다',
   NEVER_SYNCED: '한 번도 동기화된 적이 없습니다',
 };
 

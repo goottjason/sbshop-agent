@@ -19,12 +19,14 @@ export interface ProductList {
   stockStatus?: 'IN_STOCK' | 'OUT_OF_STOCK';
 }
 
-export type UnsyncReason = 'DELETED_ON_MARKET' | 'VALIDATION_FAILED' | 'TRANSIENT_ERROR' | 'NEVER_SYNCED';
+export type BadgeReason =
+  | 'DELETED_ON_MARKET' | 'NEVER_SYNCED'
+  | 'VALIDATION_FAILED' | 'TRANSIENT_ERROR' | 'BLOCKED_BY_MARKET';
 
 export interface MarketBadgeState {
   status: 'SYNCED' | 'PENDING' | 'DELETED' | 'FAILED';
   url: string | null;
-  reason: UnsyncReason | null;
+  reason: BadgeReason | null;
 }
 
 export interface ProductPage<T> {

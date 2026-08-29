@@ -77,6 +77,11 @@ public class MarketRegistration extends BaseEntity {
 	@Column(name = "unsync_reason", length = 32)
 	private UnsyncReason unsyncReason;
 
+	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(Types.VARCHAR)
+	@Column(name = "last_sync_error", length = 32)
+	private SyncErrorType lastSyncError;
+
 	@Builder
 	public MarketRegistration(Long productId, Long sbProductId, MarketType marketType, String marketProductName,
 		String marketIdentifiers, String marketDetailedInfo) {
@@ -102,15 +107,24 @@ public class MarketRegistration extends BaseEntity {
 		this.isSynced = true;
 		this.lastSyncedAt = LocalDateTime.now();
 		this.unsyncReason = null;
+		this.lastSyncError = null;
 	}
 
-	public void markSyncFailed() {
-		markSyncFailed(UnsyncReason.TRANSIENT_ERROR);
+	public void confirmPresentOnMarket() {
+		this.isSynced = true;
+		this.unsyncReason = null;
 	}
 
-	public void markSyncFailed(UnsyncReason reason) {
+	public void recordSyncError(SyncErrorType errorType) {
+		this.lastSyncError = errorType;
+	}
+
+	public void markAbsentFromMarket(UnsyncReason reason) {
+		if (reason == null) {
+			throw new IllegalArgumentException("부재 사유는 필수다 — is_synced=false 는 사유 없이 만들지 않는다");
+		}
 		this.isSynced = false;
-		this.unsyncReason = (reason == null) ? UnsyncReason.TRANSIENT_ERROR : reason;
+		this.unsyncReason = reason;
 	}
 
 	public void replaceIdentifiersArchivingPrevious(String newIdentifiersJson) {
