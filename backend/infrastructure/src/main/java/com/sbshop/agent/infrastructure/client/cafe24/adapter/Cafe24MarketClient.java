@@ -135,6 +135,41 @@ public class Cafe24MarketClient implements MarketClient {
 	}
 
 	@Override
+	public void syncBarcode(Product product, String marketItemId, Map<String, Object> currentRawData) {
+		String barcode = (product.getProductSpec() == null) ? null : product.getProductSpec().getBarcode();
+		if (barcode == null || barcode.isBlank()) {
+			log.info("[카페24] 바코드 없음 — 전송 생략: {}", marketItemId);
+			return;
+		}
+		Map<String, Object> variant = firstVariant(currentRawData);
+		String variantCode = variant == null ? null : String.valueOf(variant.get("variant_code"));
+		if (variantCode == null || variantCode.isBlank() || "null".equals(variantCode)) {
+			throw new IllegalStateException(
+				"카페24 바코드 전송 불가 — variant_code 를 찾을 수 없다: marketItemId=" + marketItemId);
+		}
+		Map<String, Object> request = new HashMap<>();
+		request.put("shop_no", 1);
+		request.put("gtin", barcode);
+		cafe24RestClient.put("/admin/products/" + marketItemId + "/variants/" + variantCode,
+			Map.of("request", request));
+		variant.put("gtin", barcode);
+		log.info("[카페24] 바코드 전송 완료: {} variant={} gtin={}", marketItemId, variantCode, barcode);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static Map<String, Object> firstVariant(Map<String, Object> rawData) {
+		if (rawData == null) {
+			return null;
+		}
+		Object raw = rawData.get("variants");
+		if (!(raw instanceof List<?> variants) || variants.isEmpty()) {
+			return null;
+		}
+		Object first = variants.get(0);
+		return (first instanceof Map) ? (Map<String, Object>)first : null;
+	}
+
+	@Override
 	public MarketItemInfo extractMarketItem(String marketItemId) {
 		String path = "/admin/products/" + marketItemId + "?embed=variants";
 		String responseJson = cafe24RestClient.get(path);

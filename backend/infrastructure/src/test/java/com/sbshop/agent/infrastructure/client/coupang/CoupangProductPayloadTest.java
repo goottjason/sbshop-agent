@@ -5,6 +5,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
 import com.sbshop.agent.core.domain.product.Product;
+import com.sbshop.agent.core.domain.product.vo.ProductSpec;
 import com.sbshop.agent.core.domain.product.vo.LogisticsInfo;
 import com.sbshop.agent.infrastructure.client.coupang.dto.CoupangProductPayload;
 import com.sbshop.agent.infrastructure.client.coupang.dto.CoupangProductPayload.Item;
@@ -54,6 +55,49 @@ class CoupangProductPayloadTest {
 		lenient().when(product.getLogisticsInfo())
 			.thenReturn(LogisticsInfo.builder().bundleQuantity(3).build());
 		lenient().when(product.getSbCode()).thenReturn("SB-0001");
+		return product;
+	}
+
+	@Test
+	@DisplayName("바코드가 있으면 barcode 를 싣고 emptyBarcode 는 false 다")
+	void withBarcode() {
+		Item item = itemOf(50400, "9400501001116");
+
+		assertThat(item.barcode()).isEqualTo("9400501001116");
+		assertThat(item.emptyBarcode()).isFalse();
+		assertThat(item.emptyBarcodeReason()).isNull();
+	}
+
+	@Test
+	@DisplayName("바코드가 없으면 emptyBarcode=true 와 사유를 싣는다 — 쿠팡은 '그냥 비움'을 받지 않는다")
+	void withoutBarcode() {
+		Item item = itemOf(50400, null);
+
+		assertThat(item.barcode()).isNull();
+		assertThat(item.emptyBarcode()).isTrue();
+		assertThat(item.emptyBarcodeReason()).isNotBlank();
+	}
+
+	@Test
+	@DisplayName("emptyBarcodeReason 은 쿠팡 제한인 100자를 넘지 않는다")
+	void reasonWithinLimit() {
+		assertThat(itemOf(50400, null).emptyBarcodeReason().length()).isLessThanOrEqualTo(100);
+	}
+
+	private Item itemOf(int salePrice, String barcode) {
+		CoupangProductPayload payload = CoupangProductPayload.create(
+			product(barcode), 73134L, "마스터명", "일반명", "브랜드", salePrice,
+			List.of("태그"), List.of(), List.of(), List.of(), "<p>상세</p>");
+		return payload.items().get(0);
+	}
+
+	private Product product(String barcode) {
+		Product product = mock(Product.class);
+		lenient().when(product.getLogisticsInfo())
+			.thenReturn(LogisticsInfo.builder().bundleQuantity(3).build());
+		lenient().when(product.getSbCode()).thenReturn("SB-0001");
+		lenient().when(product.getProductSpec())
+			.thenReturn(ProductSpec.builder().barcode(barcode).build());
 		return product;
 	}
 }

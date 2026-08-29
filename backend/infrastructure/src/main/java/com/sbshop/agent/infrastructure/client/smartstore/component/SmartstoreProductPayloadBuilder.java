@@ -102,6 +102,14 @@ public class SmartstoreProductPayloadBuilder {
 		return delivery;
 	}
 
+	private static String barcodeOf(Product product) {
+		if (product.getProductSpec() == null) {
+			return null;
+		}
+		String barcode = product.getProductSpec().getBarcode();
+		return barcode == null || barcode.isBlank() ? null : barcode;
+	}
+
 	private Map<String, Object> detailAttribute(Product product, MarketPublishContext context,
 		String asTelephone) {
 		Map<String, Object> attr = new LinkedHashMap<>();
@@ -120,8 +128,13 @@ public class SmartstoreProductPayloadBuilder {
 			"importer", nz(context.extraString("importer"), "구매대행"),
 			"content", nz(originContent(product))));
 
-		attr.put("sellerCodeInfo", Map.of(
-			"sellerManagementCode", nz(product.getSbCode())));
+		Map<String, Object> sellerCodeInfo = new LinkedHashMap<>();
+		sellerCodeInfo.put("sellerManagementCode", nz(product.getSbCode()));
+		String barcode = barcodeOf(product);
+		if (barcode != null) {
+			sellerCodeInfo.put("sellerBarcode", barcode);
+		}
+		attr.put("sellerCodeInfo", sellerCodeInfo);
 
 		attr.put("minorPurchasable", true);
 		attr.put("productInfoProvidedNotice", productInfoProvidedNotice(product, context));

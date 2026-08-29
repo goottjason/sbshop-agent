@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.dto.ProductCreateCommand;
+import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
 import com.sbshop.agent.core.domain.product.enums.MeasureUnit;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import com.sbshop.agent.infrastructure.client.smartstore.component.SmartstoreProductPayloadBuilder;
@@ -336,5 +337,42 @@ class SmartstoreProductPayloadBuilderTest {
 		assertThatThrownBy(() -> builder.build(product(), noCategory))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("leafCategoryId");
+	}
+
+	@Test
+	@DisplayName("바코드가 있으면 sellerCodeInfo.sellerBarcode 로 전송한다")
+	void sendsBarcodeAsSellerBarcode() {
+		Product p = product();
+		p.update(ProductUpdateCommand.builder().barcode("9400501001116").build());
+
+		Map<String, Object> payload = builder.build(p, context());
+
+		assertThat(sellerCodeInfo(payload)).containsEntry("sellerBarcode", "9400501001116");
+	}
+
+	@Test
+	@DisplayName("바코드가 없으면 sellerBarcode 키를 아예 싣지 않는다 — 빈 문자열 전송은 기존 값을 지운다")
+	void omitsSellerBarcodeWhenAbsent() {
+		Map<String, Object> payload = builder.build(product(), context());
+
+		assertThat(sellerCodeInfo(payload)).doesNotContainKey("sellerBarcode");
+	}
+
+	@Test
+	@DisplayName("바코드를 실어도 기존 sellerManagementCode 는 그대로 둔다")
+	void keepsSellerManagementCode() {
+		Product p = product();
+		p.update(ProductUpdateCommand.builder().barcode("9400501001116").build());
+
+		Map<String, Object> payload = builder.build(p, context());
+
+		assertThat(sellerCodeInfo(payload)).containsEntry("sellerManagementCode", "250726IHB001");
+	}
+
+	@SuppressWarnings("unchecked")
+	private Map<String, Object> sellerCodeInfo(Map<String, Object> payload) {
+		Map<String, Object> origin = (Map<String, Object>)payload.get("originProduct");
+		Map<String, Object> attr = (Map<String, Object>)origin.get("detailAttribute");
+		return (Map<String, Object>)attr.get("sellerCodeInfo");
 	}
 }

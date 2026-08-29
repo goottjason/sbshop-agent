@@ -38,6 +38,16 @@ public record CoupangProductPayload(
 
 	private static final int SALE_PRICE_UNIT = 10;
 
+	private static final String EMPTY_BARCODE_REASON = "해외구매대행 상품으로 국내 유통 바코드가 부여되지 않았습니다.";
+
+	private static String resolveBarcode(Product product) {
+		if (product.getProductSpec() == null) {
+			return null;
+		}
+		String barcode = product.getProductSpec().getBarcode();
+		return barcode == null || barcode.isBlank() ? null : barcode;
+	}
+
 	@Builder
 	public record Item(
 		String itemName,
@@ -61,7 +71,10 @@ public record CoupangProductPayload(
 		List<Attribute> attributes,
 		List<Content> contents,
 		String offerCondition,
-		String manufacture) {
+		String manufacture,
+		String barcode,
+		Boolean emptyBarcode,
+		String emptyBarcodeReason) {
 
 		@Builder
 		public record Certification(String certificationType, String certificationCode) {
@@ -125,6 +138,7 @@ public record CoupangProductPayload(
 		Item.Content contentObj = Item.Content.builder()
 			.contentsType("HTML").contentDetails(List.of(htmlDetail)).build();
 
+		String barcode = resolveBarcode(product);
 		int bundleQty = (product.getLogisticsInfo() != null) ? product.getLogisticsInfo().getBundleQuantity() : 1;
 		int safeMaxBuyForPerson = Math.max(1, 6 / bundleQty);
 
@@ -143,6 +157,9 @@ public record CoupangProductPayload(
 			.overseasPurchased("OVERSEAS_PURCHASED")
 			.pccNeeded(true)
 			.externalVendorSku(product.getSbCode())
+			.barcode(barcode)
+			.emptyBarcode(barcode == null)
+			.emptyBarcodeReason(barcode == null ? EMPTY_BARCODE_REASON : null)
 			.certifications(List.of(defaultCert))
 			.searchTags(searchTags)
 			.images(images)
