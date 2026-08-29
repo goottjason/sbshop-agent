@@ -88,4 +88,37 @@ class SmartstoreMarketClientBarcodeTest {
 
 		verify(restClient, never()).put(any(), any());
 	}
+
+	@Test
+	@DisplayName("statusType=OUTOFSTOCK 은 PUT 에서 제거한다 — 네이버가 조회엔 주지만 수정엔 받지 않는다")
+	void dropsOutOfStockStatusType() {
+		when(restClient.get(PATH)).thenReturn("{\"originProduct\":{\"name\":\"상품\","
+			+ "\"statusType\":\"OUTOFSTOCK\",\"stockQuantity\":0,"
+			+ "\"detailAttribute\":{\"sellerCodeInfo\":{\"sellerManagementCode\":\"X\"}}}}");
+
+		client.syncBarcode(product("9400501001116"), "5219903157", new HashMap<>());
+
+		ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
+		verify(restClient).put(eq(PATH), body.capture());
+		@SuppressWarnings("unchecked")
+		Map<String, Object> origin = (Map<String, Object>)body.getValue().get("originProduct");
+		assertThat(origin).doesNotContainKey("statusType");
+		assertThat(origin).containsEntry("stockQuantity", 0);
+	}
+
+	@Test
+	@DisplayName("정상 statusType 은 그대로 둔다 — 필요한 값까지 지우지 않는다")
+	void keepsNormalStatusType() {
+		when(restClient.get(PATH)).thenReturn("{\"originProduct\":{\"name\":\"상품\","
+			+ "\"statusType\":\"SALE\","
+			+ "\"detailAttribute\":{\"sellerCodeInfo\":{\"sellerManagementCode\":\"X\"}}}}");
+
+		client.syncBarcode(product("9400501001116"), "5219903157", new HashMap<>());
+
+		ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
+		verify(restClient).put(eq(PATH), body.capture());
+		@SuppressWarnings("unchecked")
+		Map<String, Object> origin = (Map<String, Object>)body.getValue().get("originProduct");
+		assertThat(origin).containsEntry("statusType", "SALE");
+	}
 }

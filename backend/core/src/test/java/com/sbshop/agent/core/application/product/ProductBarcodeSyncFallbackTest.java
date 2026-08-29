@@ -57,6 +57,7 @@ class ProductBarcodeSyncFallbackTest {
 
 		MarketRegistration reg = mock(MarketRegistration.class);
 		when(reg.getMarketType()).thenReturn(MarketType.ELEVEN_STREET);
+		when(reg.getIsSynced()).thenReturn(true);
 		when(reg.extractDeleteCode()).thenReturn("3181899155");
 		when(marketRegistrationRepository.findByProductId(1L)).thenReturn(List.of(reg));
 		when(marketClientRouter.hasClient(MarketType.ELEVEN_STREET)).thenReturn(true);
@@ -68,5 +69,25 @@ class ProductBarcodeSyncFallbackTest {
 
 		verify(client, never()).syncImagesAndHtml(any(), anyString(), any(), anyList(), anyString());
 		assertThat(out.get(0).markets().get(0).result()).isEqualTo("UNSUPPORTED");
+	}
+
+	@Test
+	@DisplayName("미동기 등록에는 전송하지 않는다 — 마켓에 없는 상품에 보내봐야 거부만 당한다")
+	void skipsUnsyncedRegistration() {
+		Product product = mock(Product.class);
+		when(product.getProductSpec()).thenReturn(ProductSpec.builder().barcode("9400501001116").build());
+		when(product.getSbCode()).thenReturn("200907WA006");
+		when(productRepository.findById(44L)).thenReturn(Optional.of(product));
+
+		MarketRegistration reg = mock(MarketRegistration.class);
+		when(reg.getMarketType()).thenReturn(MarketType.COUPANG);
+		when(reg.getIsSynced()).thenReturn(false);
+		when(marketRegistrationRepository.findByProductId(44L)).thenReturn(List.of(reg));
+		when(marketClientRouter.hasClient(MarketType.COUPANG)).thenReturn(true);
+
+		List<ProductBarcodeSyncUseCase.ProductOutcome> out = useCase().sync(List.of(44L), false);
+
+		verify(marketClientRouter, never()).getClient(any(MarketType.class));
+		assertThat(out.get(0).markets().get(0).result()).isEqualTo("SKIPPED");
 	}
 }

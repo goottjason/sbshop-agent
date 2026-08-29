@@ -240,6 +240,7 @@ public class SmartstoreMarketClient implements MarketClient {
 		backfillConsumptionDate(attr);
 		backfillUnitPriceYn(attr, product);
 
+		dropReadOnlyStatusType(originProduct);
 		Map<String, Object> requestBody = new HashMap<>();
 		requestBody.put("originProduct", originProduct);
 		restClient.put(path, requestBody);
@@ -274,6 +275,14 @@ public class SmartstoreMarketClient implements MarketClient {
 		restClient.put(path, requestBody);
 		log.info("[스토어] 고시정보 보정 완료: {}", marketItemId);
 		return true;
+	}
+
+	private static void dropReadOnlyStatusType(Map<String, Object> originProduct) {
+		Object statusType = originProduct.get("statusType");
+		if ("OUTOFSTOCK".equals(statusType)) {
+			originProduct.remove("statusType");
+			log.info("[스토어] statusType=OUTOFSTOCK 제거 — 조회 전용 파생값이라 PUT 이 거부한다");
+		}
 	}
 
 	@SuppressWarnings("unchecked")

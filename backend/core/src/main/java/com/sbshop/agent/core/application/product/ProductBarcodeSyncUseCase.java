@@ -63,6 +63,10 @@ public class ProductBarcodeSyncUseCase {
 				results.add(new MarketOutcome(market, "SKIPPED", "클라이언트 없음"));
 				continue;
 			}
+			if (!Boolean.TRUE.equals(reg.getIsSynced())) {
+				results.add(new MarketOutcome(market, "SKIPPED", "미동기 등록 — 마켓에 없거나 반영 안 됨"));
+				continue;
+			}
 			String marketItemId = reg.extractDeleteCode();
 			if (marketItemId == null || marketItemId.isEmpty()) {
 				results.add(new MarketOutcome(market, "SKIPPED", "마켓 상품코드 없음"));
