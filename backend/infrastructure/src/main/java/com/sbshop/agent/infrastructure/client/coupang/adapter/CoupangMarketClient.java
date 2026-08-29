@@ -685,12 +685,75 @@ public class CoupangMarketClient implements MarketClient {
 		}
 		String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId;
 		try {
+			// 쿠팡 DELETE 는 성공 시 본문이 비어 올 수 있다(D-181 특성화) — lenient 가 맞다.
 			verifyEnvelopeLenient(restClient.requestWithBody("DELETE", path, null), "[쿠팡] 상품 삭제");
 			log.info("[쿠팡] 상품 삭제 성공: sellerProductId={}", marketItemId);
-		} catch (Exception e) {
-			log.error("[쿠팡] 상품 삭제 실패: sellerProductId={}, msg={}", marketItemId, e.getMessage());
-			throw e;
+			return;
+		} catch (Exception first) {
+			if (!isNotDeletableState(first)) {
+				log.error("[쿠팡] 상품 삭제 실패: sellerProductId={}, msg={}", marketItemId, first.getMessage());
+				throw first;
+			}
+			// "없거나 삭제가 불가능한" — '또는' 이다. 둘을 갈라야 한다.
+			if (checkPresence(marketItemId) == com.sbshop.agent.core.domain.market.MarketPresence.ABSENT) {
+				log.info("[쿠팡] 이미 삭제된 상품 — 삭제 성공으로 본다: sellerProductId={}", marketItemId);
+				return;
+			}
+			stopSalesForDeletion(marketItemId);
+			try {
+				verifyEnvelopeLenient(restClient.requestWithBody("DELETE", path, null),
+					"[쿠팡] 상품 삭제(판매중지 후 재시도)");
+				log.info("[쿠팡] 판매중지 후 상품 삭제 성공: sellerProductId={}", marketItemId);
+			} catch (Exception second) {
+				log.error("[쿠팡] 판매중지 후에도 삭제 실패: sellerProductId={}, msg={}",
+					marketItemId, second.getMessage());
+				throw new RuntimeException("[쿠팡] 상품 삭제 실패 — 판매중지 후에도 지워지지 않는다: "
+					+ marketItemId + " (" + second.getMessage() + ")", second);
+			}
 		}
+	}
+
+	/** 쿠팡은 승인된 상품을 바로 못 지운다. 판매중지하면 삭제 가능한 상태로 내려간다(2026-08-30 실측). */
+	private void stopSalesForDeletion(String sellerProductId) {
+		String vendorItemId = firstVendorItemId(sellerProductId);
+		if (vendorItemId == null) {
+			throw new IllegalStateException("[쿠팡] 판매중지할 옵션ID(vendorItemId)를 찾지 못했다: "
+				+ sellerProductId);
+		}
+		verifyEnvelopeStrict(restClient.put(
+			"/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/" + vendorItemId + "/sales/stop",
+			Map.of()), "[쿠팡] 삭제 전 판매중지");
+		log.info("[쿠팡] 삭제 전 판매중지 완료: sellerProductId={}, vendorItemId={}",
+			sellerProductId, vendorItemId);
+	}
+
+	private String firstVendorItemId(String sellerProductId) {
+		try {
+			JsonNode data = objectMapper.readTree(restClient.get(
+				"/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + sellerProductId))
+				.path("data");
+			JsonNode items = data.path("items");
+			if (items.isArray() && !items.isEmpty()) {
+				String id = items.get(0).path("vendorItemId").asText(null);
+				return (id == null || id.isBlank()) ? null : id;
+			}
+		} catch (Exception e) {
+			log.warn("[쿠팡] 옵션ID 조회 실패: {}, error={}", sellerProductId, e.getMessage());
+		}
+		return null;
+	}
+
+	private static boolean isNotDeletableState(Throwable e) {
+		for (Throwable t = e; t != null; t = t.getCause()) {
+			String m = t.getMessage();
+			if (m != null && m.contains("삭제가 불가능한 상태")) {
+				return true;
+			}
+			if (t.getCause() == t) {
+				break;
+			}
+		}
+		return false;
 	}
 
 	private void sanitizeItemAttributes(List<Map<String, Object>> items, Product product,
