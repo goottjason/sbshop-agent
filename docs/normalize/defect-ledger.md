@@ -3839,6 +3839,8 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 수정: 맨 숫자 마커(`"400"`·`"404"`·`"NOT_FOUND"`·`"BAD_REQUEST"`) 제거, 이유구까지 포함한 `"400 Bad Request"`·`"404 Not Found"` 로 교체. 쿠팡의 실제 삭제 신호인 `"data not found"` 를 DELETED 마커에 추가(쿠팡 API 직접 조회로 5/5 실재 부재 확인).
 - 회귀 3건 추가: 상품번호에 404 포함 시 오판 금지, `data not found` → DELETED, 일반 400 → VALIDATION.
 - 테스트: `MarketBadgeStateTest` 5건 + `MarketRegistrationProbeServiceTest` 4건 + 분류기 회귀 3건
+- **프로브 실측 — 삭제는 쿠팡에만 몰려 있다(2026-08-29)**: 스토어·11번가·카페24 각 30건 표본이 **전부 ALIVE**(90/90). 즉 이 세 마켓의 미동기 행은 **삭제된 게 아니라 "마지막 작업만 실패한" 레거시**다. [[D-224]] 에서 미분류 행을 경고로 물들이지 않기로 한 판단이 실측으로 뒷받침됐다 — 다 칠했다면 1,734건이 거짓 경고였을 것이다.
+- 운영 판단: 세 마켓 전량 프로브(1,734건)는 **API 예산 대비 수확이 없어 보류**한다. 삭제율이 유의미해지는 신호(배지 문의·주문 실패)가 나오면 그때 돌린다. 쿠팡만 전량 실행.
 - 상태: **수정완료(라이브 검증)** 2026-08-29
 
 ### D-229: 쿠팡 상품 조회 경로의 vendorId 가 항상 비어 있다 (2026-08-29, 프로브 로그에서 발견)
@@ -3856,8 +3858,11 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 실측: 브라우저가 로드한 청크 `index-DaQUVVX_.js` / `ProductGrid-CrHr8p82.js`, 서버가 가진 청크 `index-DFHcJhpE.js` / `ProductGrid-BMleJyAz.js` — **완전히 다른 해시**. `curl -I` 결과 `index.html` 응답에 `Cache-Control` 헤더가 **아예 없다**(`Last-Modified`·`ETag` 만 있음).
 - 원인: 헤더가 없으면 브라우저가 `Last-Modified` 기반 **휴리스틱 캐싱**으로 index.html 을 재사용한다. Vite 빌드는 청크 파일명에 해시를 박으므로 index.html 만 갱신되면 되는데, 그 index.html 이 캐시되어 **옛 해시를 계속 가리킨다.**
 - 피해: 프론트를 배포해도 기존 사용자에게 **강제 새로고침 전까지 반영되지 않는다.** 이번처럼 "배포했는데 화면이 안 바뀐다"를 코드 문제로 오진하게 만든다.
-- 수정 방향(미착수): nginx 에서 `index.html` 에 `Cache-Control: no-cache` (매번 재검증), 해시가 박힌 `/assets/*` 에는 `Cache-Control: public, max-age=31536000, immutable` 을 준다. **인프라 설정은 repo 밖 서버 직접 수정**이므로 사용자 승인 후 반영한다([[admin-login-gate-and-https]] 와 같은 범주).
-- 상태: 발견
+- 수정(2026-08-29, 사용자 승인 후 서버 직접 반영): `infra/nginx/conf.d/default.conf` 에 `/sbshop-agent/assets/` 전용 location 을 신설하고, 나머지 `/sbshop-agent/` 에는 `Cache-Control: no-cache` 를 준다. 백업 `default.conf.bak-cache-20260829-111902`.
+- **조건부 캐시가 필요했다**: 프론트 nginx 가 SPA 폴백(`try_files ... /index.html`)을 하므로 **없는 자산 요청에 HTML 이 200 으로 돌아온다.** 여기에 `immutable` 을 붙이면 **HTML 이 1년 캐시**된다 — 배포 후 옛 청크를 요청하는 탭에서 정확히 이 일이 생긴다. 그래서 `map $sent_http_content_type` 으로 갈랐다: `text/html` 이면 `no-cache`, 아니면 `immutable`.
+- 검증: 실제 JS/CSS → `immutable` · 없는 자산(HTML 폴백) → `no-cache` · `index.html` → `no-cache` · API 401(로그인 게이트 유지) · HTTPS 200. 브라우저 하드 리로드 후 새 청크(`index-DFHcJhpE.js`/`ProductGrid-BMleJyAz.js`) 수신 확인.
+- **주의**: 수정 이전에 캐시된 항목은 재검증 없이 쓰인다. 기존 사용자는 **한 번의 강제 새로고침**이 필요하고, 그 이후로는 자동 반영된다. 캐시 항목은 URL 단위라 `/products`·`/orders` 등 SPA 경로가 각각 별도 항목이다.
+- 상태: **수정완료(라이브 검증)** 2026-08-29
 
 ### D-223: 재등록에 중복 가드가 없어 마켓에 유령 리스팅을 만든다 (2026-08-29, 상품 생명주기 딥다이브 중 발견)
 
