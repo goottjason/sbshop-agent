@@ -53,8 +53,8 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 	public StockCheckResult checkStockWithDetails(String sourceUrl) {
 		String productId = extractProductId(sourceUrl);
 		if (productId == null) {
-			log.error("아이허브 상품 ID 추출 실패. sourceUrl={}", sourceUrl);
-			return new StockCheckResult(StockStatus.OUT_OF_STOCK, null, 0, null);
+			throw new IllegalStateException("아이허브 재고 판정 불가 — 상품 ID 를 뽑을 수 없는 URL 이다: "
+				+ sourceUrl + " (아이허브 상품이 맞는지 확인 필요. 품절로 단정하지 않는다)");
 		}
 
 		String apiUrl = "https://catalog.app.iherb.com/product/" + productId;
@@ -80,8 +80,8 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 					log.warn("아이허브 403 차단. 재시도 중... ({}/{})", i + 1, maxRetries);
 					Thread.sleep(2000L * (i + 1));
 				} else if (response.statusCode() == 404) {
-					log.error("아이허브 상품 없음 (404): {}", productId);
-					return new StockCheckResult(StockStatus.OUT_OF_STOCK, null, 0, null);
+					log.warn("아이허브 상품 없음 (404) — 원본 소멸로 기록: {}", productId);
+					return new StockCheckResult(StockStatus.OUT_OF_STOCK, null, 0, null, true);
 				} else {
 					if (i == maxRetries) {
 						throw new RuntimeException("HTTP 상태 코드 에러: " + response.statusCode());
@@ -89,11 +89,13 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 				}
 			} catch (Exception e) {
 				if (i == maxRetries) {
-					log.error("아이허브 크롤링 실패", e);
+					throw new IllegalStateException("아이허브 재고 판정 불가 — 조회가 끝내 실패했다: "
+						+ productId + " (차단·순단일 수 있다. 품절로 단정하지 않는다)", e);
 				}
 			}
 		}
-		return new StockCheckResult(StockStatus.OUT_OF_STOCK, null, 0, null);
+		throw new IllegalStateException("아이허브 재고 판정 불가 — 재시도를 모두 소진했다: " + productId
+			+ " (품절로 단정하지 않는다)");
 	}
 
 	public IherbProductInfo crawlProductInfo(String url) {
