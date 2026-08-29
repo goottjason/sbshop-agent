@@ -237,11 +237,36 @@ public class SmartstoreMarketClient implements MarketClient {
 		Map<String, Object> sellerCodeInfo = (Map<String, Object>)attr
 			.computeIfAbsent("sellerCodeInfo", k -> new HashMap<String, Object>());
 		sellerCodeInfo.put("sellerBarcode", barcode);
+		backfillConsumptionDate(attr);
 
 		Map<String, Object> requestBody = new HashMap<>();
 		requestBody.put("originProduct", originProduct);
 		restClient.put(path, requestBody);
 		log.info("[스토어] 바코드 전송 완료: {} barcode={}", marketItemId, barcode);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static void backfillConsumptionDate(Map<String, Object> detailAttribute) {
+		Object rawNotice = detailAttribute.get("productInfoProvidedNotice");
+		if (!(rawNotice instanceof Map)) {
+			return;
+		}
+		Map<String, Object> notice = (Map<String, Object>)rawNotice;
+		for (Map.Entry<String, Object> entry : notice.entrySet()) {
+			if (!(entry.getValue() instanceof Map)) {
+				continue;
+			}
+			Map<String, Object> block = (Map<String, Object>)entry.getValue();
+			Object current = block.get("consumptionDate");
+			if (current != null && !String.valueOf(current).isBlank()) {
+				continue;
+			}
+			Object expiration = block.get("expirationDateText");
+			String filled = (expiration != null && !String.valueOf(expiration).isBlank())
+				? String.valueOf(expiration) : "상세설명 참조";
+			block.put("consumptionDate", filled);
+			log.info("[스토어] 소비기한 미입력 고시정보 보정: block={} value={}", entry.getKey(), filled);
+		}
 	}
 
 	@Override
