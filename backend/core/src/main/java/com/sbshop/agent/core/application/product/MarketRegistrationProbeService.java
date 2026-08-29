@@ -3,6 +3,7 @@ package com.sbshop.agent.core.application.product;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.UnsyncReason;
 import com.sbshop.agent.core.domain.market.MarketFailureClassifier;
+import com.sbshop.agent.core.domain.market.MarketPresence;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
@@ -59,7 +60,14 @@ public class MarketRegistrationProbeService {
 	private ProbeOutcome probeOne(MarketClient client, MarketRegistration reg, MarketType marketType,
 		String marketItemId, boolean promoteAlive) {
 		try {
-			client.extractMarketItem(marketItemId);
+			MarketPresence presence = client.checkPresence(marketItemId);
+			if (presence == MarketPresence.UNKNOWN) {
+				return new ProbeOutcome(reg.getProductId(), marketType, marketItemId, "INCONCLUSIVE",
+					"마켓이 존재 여부를 확정해 주지 않았다");
+			}
+			if (presence == MarketPresence.ABSENT) {
+				return recordAbsent(reg, marketType, marketItemId, "마켓이 부재를 알렸다");
+			}
 			if (promoteAlive && !Boolean.TRUE.equals(reg.getIsSynced())) {
 				reg.confirmPresentOnMarket();
 				marketRegistrationRepository.save(reg);
@@ -73,12 +81,19 @@ public class MarketRegistrationProbeService {
 				return new ProbeOutcome(reg.getProductId(), marketType, marketItemId, "INCONCLUSIVE",
 					rootMessage(e));
 			}
+			return recordAbsent(reg, marketType, marketItemId, rootMessage(e));
+		}
+	}
+
+	private ProbeOutcome recordAbsent(MarketRegistration reg, MarketType marketType, String marketItemId,
+		String detail) {
+		if (reg.getUnsyncReason() != UnsyncReason.DELETED_ON_MARKET) {
 			reg.markAbsentFromMarket(UnsyncReason.DELETED_ON_MARKET);
 			marketRegistrationRepository.save(reg);
 			log.info("[등록프로브] 마켓에서 삭제 확인: productId={}, market={}, marketItemId={}",
 				reg.getProductId(), marketType, marketItemId);
-			return new ProbeOutcome(reg.getProductId(), marketType, marketItemId, "DELETED", rootMessage(e));
 		}
+		return new ProbeOutcome(reg.getProductId(), marketType, marketItemId, "DELETED", detail);
 	}
 
 	private static String rootMessage(Throwable e) {

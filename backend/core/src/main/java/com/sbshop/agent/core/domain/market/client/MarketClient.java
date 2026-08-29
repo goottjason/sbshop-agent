@@ -26,6 +26,17 @@ public interface MarketClient {
 
 	MarketItemInfo extractMarketItem(String marketItemId);
 
+	default com.sbshop.agent.core.domain.market.MarketPresence checkPresence(String marketItemId) {
+		try {
+			extractMarketItem(marketItemId);
+			return com.sbshop.agent.core.domain.market.MarketPresence.PRESENT;
+		} catch (Exception e) {
+			return com.sbshop.agent.core.domain.market.MarketFailureClassifier.indicatesDeleted(e)
+				? com.sbshop.agent.core.domain.market.MarketPresence.ABSENT
+				: com.sbshop.agent.core.domain.market.MarketPresence.UNKNOWN;
+		}
+	}
+
 	MarketItemInfo parseLocalData(Map<String, Object> rawData);
 
 	Map<String, Object> syncPriceAndStock(

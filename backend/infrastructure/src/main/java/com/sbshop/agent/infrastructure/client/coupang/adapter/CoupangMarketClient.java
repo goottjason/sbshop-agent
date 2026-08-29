@@ -121,6 +121,32 @@ public class CoupangMarketClient implements MarketClient {
 	}
 
 	@Override
+	public com.sbshop.agent.core.domain.market.MarketPresence checkPresence(String marketItemId) {
+		String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId;
+		String responseJson;
+		try {
+			responseJson = restClient.get(path);
+		} catch (Exception e) {
+			return com.sbshop.agent.core.domain.market.MarketFailureClassifier.indicatesDeleted(e)
+				? com.sbshop.agent.core.domain.market.MarketPresence.ABSENT
+				: com.sbshop.agent.core.domain.market.MarketPresence.UNKNOWN;
+		}
+		try {
+			JsonNode data = objectMapper.readTree(responseJson).path("data");
+			if (data.isMissingNode() || data.isNull()) {
+				return com.sbshop.agent.core.domain.market.MarketPresence.ABSENT;
+			}
+			String statusName = data.path("statusName").asText(null);
+			return com.sbshop.agent.core.domain.market.MarketFailureClassifier.indicatesDeletedStatus(statusName)
+				? com.sbshop.agent.core.domain.market.MarketPresence.ABSENT
+				: com.sbshop.agent.core.domain.market.MarketPresence.PRESENT;
+		} catch (Exception e) {
+			log.warn("[쿠팡] 존재 판정 파싱 실패 — 미확정 처리: {}, error={}", marketItemId, e.getMessage());
+			return com.sbshop.agent.core.domain.market.MarketPresence.UNKNOWN;
+		}
+	}
+
+	@Override
 	public MarketItemInfo extractMarketItem(String marketItemId) {
 		String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId
 			+ "?vendorId=" + properties.getVendorId();

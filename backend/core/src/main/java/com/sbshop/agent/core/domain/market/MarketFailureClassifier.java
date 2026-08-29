@@ -16,7 +16,13 @@ public final class MarketFailureClassifier {
 		"유효하지 않", "허용되지 않", "입력하지 않", "필수", "올바르지 않", "올바른",
 		"파싱", "형식이 잘못", "초과", "400 Bad Request");
 
+	private static final List<String> DELETED_STATUS_MARKERS = List.of("삭제");
+
 	private MarketFailureClassifier() {}
+
+	public static boolean indicatesDeletedStatus(String statusName) {
+		return containsAny(statusName, DELETED_STATUS_MARKERS);
+	}
 
 	public static boolean indicatesDeleted(Throwable error) {
 		return anyInCauseChain(error, DELETED_MARKERS);

@@ -3865,6 +3865,18 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 잔여: `last_sync_error` 는 아직 전부 NULL 이다. 앞으로 쓰기가 실패할 때 채워지므로, 다음 동기화에서 `BLOCKED_BY_MARKET` 이 처음 기록되는 것을 확인하면 완전 검증된다.
 - 상태: **수정완료(라이브 검증)** 2026-08-29
 
+### D-232: 프로브가 "조회 성공"을 "존재"로 단정했다 — 쿠팡은 삭제된 상품도 200으로 돌려준다 (2026-08-29, D-227 교차대조 중 발견)
+
+- 심각도: **표준(오판이 중복 등록으로 이어짐)** | 위치: `MarketRegistrationProbeService.probeOne` + `CoupangMarketClient`
+- 증상: 프로브가 `extractMarketItem` 이 예외를 안 던지면 ALIVE 로 판정하고 `is_synced=true` 로 승격했다. 그런데 **쿠팡은 삭제된 상품도 200 으로 응답한다** — 본문의 `statusName` 이 `"상품삭제"` 일 뿐이다. 껍데기만 보고 내용을 안 읽었다.
+- 발견 경로: [[D-227]] 카탈로그 대조가 쿠팡 `STALE_LOCAL` **101건**(카탈로그에도 `fetchBySellerCode` 에도 없음)을 보고했는데, 프로브는 같은 행들을 방금 ALIVE 로 승격한 상태였다. **두 방법이 충돌**해서 실측했더니 `200815TE116`(sellerProductId=11002709448)이 ID 조회는 성공하는데 `statusName="상품삭제"` 였다.
+- 규모: `is_synced=true` 쿠팡 60건 표본에 **상품삭제 1건**(나머지 59는 심사중 — 오늘 바코드 PUT 결과). 대조 기준으로는 101건 중 기존 기록 50건을 뺀 **약 51건**이 잘못 승격됐다.
+- 계열: [[D-181]]·[[D-208]]·[[D-212]] 의 **거짓 성공** 계열이다. "봉투가 아니라 내용으로 판정하라"를 문서에 적어두고 프로브에서 스스로 어겼다.
+- 수정: `MarketPresence`(PRESENT/ABSENT/UNKNOWN) 신설 + `MarketClient.checkPresence` 로 존재 판정을 클라이언트에 위임. 쿠팡은 `statusName` 을 읽어 `MarketFailureClassifier.indicatesDeletedStatus`("삭제" 포함)로 판정한다. 프로브는 **PRESENT 일 때만 승격**하고 UNKNOWN 은 아무것도 쓰지 않는다.
+- 교훈: **두 독립적 방법을 교차 대조하지 않았으면 못 잡았다.** 프로브(ID 조회)와 카탈로그 대조(목록+sellerCode)가 서로를 검증했다. 단일 판정 경로만 있으면 이런 오판은 조용히 남는다.
+- 테스트: `MarketPresenceCheckTest` 4건 (Red 3건 확인 후 구현)
+- 상태: **수정완료(검증대기 — 배포 후 재프로브 필요)** 2026-08-29
+
 ### D-229: 쿠팡 상품 조회 경로의 vendorId 가 항상 비어 있다 (2026-08-29, 프로브 로그에서 발견)
 
 - 심각도: 경량(현재 무해) | 위치: `CoupangMarketClient.extractMarketItem`
