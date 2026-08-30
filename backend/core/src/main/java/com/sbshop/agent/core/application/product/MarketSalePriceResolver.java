@@ -2,9 +2,11 @@ package com.sbshop.agent.core.application.product;
 
 import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.fee.PricePolicyService;
+import com.sbshop.agent.core.application.pricing.VendorPricePolicyService;
 import com.sbshop.agent.core.application.product.dto.MarketSalePriceOverrides;
 import com.sbshop.agent.core.application.product.dto.PricingInputs;
 import com.sbshop.agent.core.domain.fee.PricePolicy;
+import com.sbshop.agent.core.domain.pricing.VendorPricePolicy;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.service.MarginCalculator;
@@ -20,6 +22,7 @@ public class MarketSalePriceResolver {
 	private final MarginCalculator marginCalculator;
 	private final MarketFeeService marketFeeService;
 	private final PricePolicyService pricePolicyService;
+	private final VendorPricePolicyService vendorPricePolicyService;
 
 	public Integer resolve(PricingInputs p, MarketType marketType) {
 		BigDecimal fee = marketFeeService.feeRate(marketType);
@@ -35,10 +38,12 @@ public class MarketSalePriceResolver {
 		MarketSalePriceOverrides overrides) {
 		MarketSalePriceOverrides o = overrides != null ? overrides : MarketSalePriceOverrides.EMPTY;
 		PricePolicy policy = isFullyOverridden(o) ? null : pricePolicyService.get();
+		VendorPricePolicy vendorPolicy = isFullyOverridden(o) ? null
+			: vendorPricePolicyService.find(product.getVendor()).orElse(null);
 		BigDecimal costPrice = product.getPriceInfo() != null ? product.getPriceInfo().getCostPrice() : null;
-		BigDecimal marginRate = resolveMarginRate(product, o, policy);
-		BigDecimal couponRate = resolveCouponRate(product, o, policy);
-		BigDecimal minMarginPrice = resolveMinMarginPrice(product, o, policy);
+		BigDecimal marginRate = resolveMarginRate(product, o, vendorPolicy, policy);
+		BigDecimal couponRate = resolveCouponRate(product, o, vendorPolicy, policy);
+		BigDecimal minMarginPrice = resolveMinMarginPrice(product, o, vendorPolicy, policy);
 		if (costPrice == null || costPrice.signum() <= 0 || marginRate == null) {
 			log.info("[등록가] 원가·마진 미보유 → 기준가로 등록: sbCode={}, market={}",
 				product.getSbCode(), marketType);
@@ -56,7 +61,8 @@ public class MarketSalePriceResolver {
 		return o.marginRate() != null && o.couponRate() != null && o.minMarginPrice() != null;
 	}
 
-	private BigDecimal resolveMarginRate(Product product, MarketSalePriceOverrides o, PricePolicy policy) {
+	private BigDecimal resolveMarginRate(Product product, MarketSalePriceOverrides o,
+		VendorPricePolicy vendorPolicy, PricePolicy policy) {
 		if (o.marginRate() != null) {
 			return o.marginRate();
 		}
@@ -65,10 +71,14 @@ public class MarketSalePriceResolver {
 		if (productRate != null) {
 			return productRate;
 		}
+		if (vendorPolicy != null && vendorPolicy.getMarginRate() != null) {
+			return vendorPolicy.getMarginRate();
+		}
 		return policy != null ? policy.getMarginRate() : null;
 	}
 
-	private BigDecimal resolveCouponRate(Product product, MarketSalePriceOverrides o, PricePolicy policy) {
+	private BigDecimal resolveCouponRate(Product product, MarketSalePriceOverrides o,
+		VendorPricePolicy vendorPolicy, PricePolicy policy) {
 		if (o.couponRate() != null) {
 			return o.couponRate();
 		}
@@ -77,10 +87,14 @@ public class MarketSalePriceResolver {
 		if (productRate != null) {
 			return productRate;
 		}
+		if (vendorPolicy != null && vendorPolicy.getCouponRate() != null) {
+			return vendorPolicy.getCouponRate();
+		}
 		return policy != null ? policy.getCouponRate() : null;
 	}
 
-	private BigDecimal resolveMinMarginPrice(Product product, MarketSalePriceOverrides o, PricePolicy policy) {
+	private BigDecimal resolveMinMarginPrice(Product product, MarketSalePriceOverrides o,
+		VendorPricePolicy vendorPolicy, PricePolicy policy) {
 		if (o.minMarginPrice() != null) {
 			return o.minMarginPrice();
 		}
@@ -88,6 +102,9 @@ public class MarketSalePriceResolver {
 			? product.getPriceInfo().getMinMarginPrice() : null;
 		if (productValue != null) {
 			return productValue;
+		}
+		if (vendorPolicy != null && vendorPolicy.getMinMarginPrice() != null) {
+			return vendorPolicy.getMinMarginPrice();
 		}
 		return policy != null ? policy.getMinMarginPrice() : null;
 	}

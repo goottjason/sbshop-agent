@@ -3,6 +3,7 @@ package com.sbshop.agent.core.application.product;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.fee.PricePolicyService;
+import com.sbshop.agent.core.application.pricing.VendorPricePolicyService;
 import com.sbshop.agent.core.application.product.dto.MarketSalePriceOverrides;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
@@ -98,7 +99,8 @@ class ProductPublishPriceOverrideTest {
 			.mock(MarketFeeService.class);
 		when(feeService.feeRate(MARKET)).thenReturn(new BigDecimal("18"));
 		MarketSalePriceResolver resolver = new MarketSalePriceResolver(
-			new MarginCalculator(), feeService, Mockito.mock(PricePolicyService.class));
+			new MarginCalculator(), feeService, Mockito.mock(PricePolicyService.class),
+			Mockito.mock(VendorPricePolicyService.class));
 		Product realProduct = Product.create("250101IHB001",
 			new ProductCreateCommand(
 				"https://kr.iherb.com/pr/x/1", new BigDecimal("40000"), "테스트 상품",

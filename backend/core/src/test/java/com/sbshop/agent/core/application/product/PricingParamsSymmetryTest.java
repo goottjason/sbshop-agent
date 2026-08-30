@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.fee.PricePolicyService;
+import com.sbshop.agent.core.application.pricing.VendorPricePolicyService;
 import com.sbshop.agent.core.application.product.dto.MarketSalePriceOverrides;
 import com.sbshop.agent.core.domain.fee.PricePolicy;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -34,7 +35,8 @@ class PricingParamsSymmetryTest {
 	private final MarginCalculator marginCalculator = new MarginCalculator();
 
 	private MarketSalePriceResolver resolver() {
-		return new MarketSalePriceResolver(marginCalculator, marketFeeService, pricePolicyService);
+		return new MarketSalePriceResolver(marginCalculator, marketFeeService, pricePolicyService,
+			org.mockito.Mockito.mock(VendorPricePolicyService.class));
 	}
 
 	private Product base(String sb, BigDecimal margin) {
