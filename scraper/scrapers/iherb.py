@@ -500,12 +500,9 @@ class IherbScraper(VendorScraper):
             sourceUrl=url,
             vendor=self.vendor,
             name=name,
-            # kr.iherb.com은 원화 표기 → 환산 없이 그대로 원가로 쓴다.
+            # kr.iherb.com은 원화 표기 → 자바가 환율 1.0 으로 그대로 쓴다.
             price=price,
             currency="KRW",
-            goodsKrw=int(price),
-            shippingKrw=0,          # 배대지 배송비는 Java 배치가 별도 가산한다
-            costKrw=int(price),
             inStock=in_stock,
             availabilityText=("단종" if discontinued else "판매중" if in_stock else "품절"),
             weightGrams=_weight_grams(props.get("data-shipping-weight-kg")),

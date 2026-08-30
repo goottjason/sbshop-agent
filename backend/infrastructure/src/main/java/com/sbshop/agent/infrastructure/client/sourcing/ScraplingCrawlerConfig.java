@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.pricing.VendorPricePolicyService;
 import com.sbshop.agent.core.application.product.port.VendorAwareStockCrawler;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
+import com.sbshop.agent.infrastructure.client.fx.FxRateClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,29 +22,29 @@ public class ScraplingCrawlerConfig {
 	@Bean
 	public VendorAwareStockCrawler fortnumStockCrawler(ObjectMapper objectMapper,
 		@Value("${scraper.base-url:http://localhost:8099}")
-		String baseUrl, VendorPricePolicyService vendorPricePolicyService) {
-		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.FTN, vendorPricePolicyService);
+		String baseUrl, VendorPricePolicyService vendorPricePolicyService, FxRateClient fxRateClient) {
+		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.FTN, vendorPricePolicyService, fxRateClient);
 	}
 
 	@Bean
 	public VendorAwareStockCrawler vitabioticsStockCrawler(ObjectMapper objectMapper,
 		@Value("${scraper.base-url:http://localhost:8099}")
-		String baseUrl, VendorPricePolicyService vendorPricePolicyService) {
-		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.VTB, vendorPricePolicyService);
+		String baseUrl, VendorPricePolicyService vendorPricePolicyService, FxRateClient fxRateClient) {
+		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.VTB, vendorPricePolicyService, fxRateClient);
 	}
 
 	@Bean
 	public VendorAwareStockCrawler ocadoStockCrawler(ObjectMapper objectMapper,
 		@Value("${scraper.base-url:http://localhost:8099}")
-		String baseUrl, VendorPricePolicyService vendorPricePolicyService) {
-		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.OCD, vendorPricePolicyService);
+		String baseUrl, VendorPricePolicyService vendorPricePolicyService, FxRateClient fxRateClient) {
+		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.OCD, vendorPricePolicyService, fxRateClient);
 	}
 
 	@Bean
 	public VendorAwareStockCrawler costcoUkStockCrawler(ObjectMapper objectMapper,
 		@Value("${scraper.base-url:http://localhost:8099}")
-		String baseUrl, VendorPricePolicyService vendorPricePolicyService) {
-		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.COK, vendorPricePolicyService);
+		String baseUrl, VendorPricePolicyService vendorPricePolicyService, FxRateClient fxRateClient) {
+		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.COK, vendorPricePolicyService, fxRateClient);
 	}
 
 	/**
@@ -54,7 +55,7 @@ public class ScraplingCrawlerConfig {
 	@Bean
 	public VendorAwareStockCrawler tescoStockCrawler(ObjectMapper objectMapper,
 		@Value("${scraper.base-url:http://localhost:8099}")
-		String baseUrl, VendorPricePolicyService vendorPricePolicyService) {
-		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.TES, vendorPricePolicyService);
+		String baseUrl, VendorPricePolicyService vendorPricePolicyService, FxRateClient fxRateClient) {
+		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.TES, vendorPricePolicyService, fxRateClient);
 	}
 }

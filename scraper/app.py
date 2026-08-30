@@ -23,7 +23,6 @@ from scrapers.iherb import IherbScraper
 from scrapers import vitabiotics as vtb_mod
 from scrapers.vitabiotics_stock import VitabioticsScraper
 from scrapers.jsonld import CostcoUkScraper, OcadoScraper, TescoScraper
-from pricing import landed_cost_krw
 
 # 벤더 스크래퍼 레지스트리 — supports(url)로 첫 매칭 사용(Java SourcingAgentFactory와 대칭).
 SCRAPERS: list[VendorScraper] = [
@@ -59,27 +58,7 @@ def scrape_stock_price(req: ScrapeRequest) -> ScrapeResult:
             error="지원하는 스크래퍼가 없는 URL입니다.",
             scrapedAt=datetime.now(timezone.utc).isoformat(),
         )
-    result = scraper.scrape(req.url)
-    # status=ok면 원가(원) 산출을 응답에 첨부(FX·배송비 포함). 실패해도 스크랩 결과는 유지.
-    # kr.iherb.com처럼 이미 원화로 표기되는 벤더는 환산 대상이 아니다(스크래퍼가 goodsKrw를 채운다).
-    if result.currency == "KRW":
-        return result
-    if result.status == "ok" and result.price is not None:
-        try:
-            cb = landed_cost_krw(result.price, result.weightGrams, currency=result.currency or "GBP")
-            result.goodsKrw = cb.goods_krw
-            result.shippingKrw = cb.shipping_krw
-            result.costKrw = cb.cost_krw
-            result.fxGbpKrw = cb.fx_gbp_krw
-            result.fxRate = cb.fx_gbp_krw
-            result.shippingGbp = cb.shipping_gbp
-            result.landedGbp = cb.landed_gbp
-        except Exception as e:  # noqa: BLE001
-            # FX 실패 시 costKrw 없이 반환 → Java가 error로 스킵(오품절/오가격 방지)
-            result.ok = False
-            result.status = "error"
-            result.error = f"원가 산출 실패(FX): {e}"
-    return result
+    return scraper.scrape(req.url)
 
 
 @app.post("/discover/bestsellers", response_model=DiscoverResult)

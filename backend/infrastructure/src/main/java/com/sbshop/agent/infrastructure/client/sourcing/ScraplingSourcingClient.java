@@ -10,7 +10,9 @@ import com.sbshop.agent.core.domain.pricing.VendorShippingCalculator;
 import com.sbshop.agent.core.domain.product.enums.SourceGoneReason;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
+import com.sbshop.agent.infrastructure.client.fx.FxRateClient;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -30,13 +32,15 @@ public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 	private final String baseUrl;
 	private final VendorType vendor;
 	private final VendorPricePolicyService vendorPricePolicyService;
+	private final FxRateClient fxRateClient;
 
 	public ScraplingSourcingClient(ObjectMapper objectMapper, String baseUrl, VendorType vendor,
-		VendorPricePolicyService vendorPricePolicyService) {
+		VendorPricePolicyService vendorPricePolicyService, FxRateClient fxRateClient) {
 		this.objectMapper = objectMapper;
 		this.baseUrl = baseUrl;
 		this.vendor = vendor;
 		this.vendorPricePolicyService = vendorPricePolicyService;
+		this.fxRateClient = fxRateClient;
 	}
 
 	@Override
@@ -55,15 +59,17 @@ public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 		String status = res.path("status").asText("error");
 		switch (status) {
 			case "ok": {
-				if (!res.hasNonNull("goodsKrw")) {
-					throw new IllegalStateException("F&M 원가(goodsKrw) 없음 — 스킵: " + sourceUrl);
+				if (!res.hasNonNull("price")) {
+					throw new IllegalStateException(vendor + " 매입가(price) 없음 — 스킵: " + sourceUrl);
 				}
 				if (!res.hasNonNull("inStock")) {
-					throw new IllegalStateException("F&M 재고 판별 불가(inStock 없음) — 스킵: " + sourceUrl);
+					throw new IllegalStateException(vendor + " 재고 판별 불가(inStock 없음) — 스킵: " + sourceUrl);
 				}
 				boolean inStock = res.path("inStock").asBoolean(false);
-				BigDecimal goods = BigDecimal.valueOf(res.get("goodsKrw").asLong());
-				BigDecimal shipping = resolveShipping(res);
+				BigDecimal fx = fxRateClient.toKrw(res.path("currency").asText(null));
+				BigDecimal goods = BigDecimal.valueOf(res.get("price").asDouble())
+					.multiply(fx).setScale(0, RoundingMode.HALF_UP);
+				BigDecimal shipping = resolveShipping(res, fx);
 				return new StockCheckResult(
 					inStock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
 					goods, inStock ? 100 : 0, null, false, shipping);
@@ -85,30 +91,18 @@ public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 		}
 	}
 
-	private BigDecimal resolveShipping(JsonNode res) {
-		BigDecimal fromScraper = res.hasNonNull("shippingKrw")
-			? BigDecimal.valueOf(res.get("shippingKrw").asLong()) : BigDecimal.ZERO;
-		if (vendorPricePolicyService == null) {
-			return fromScraper;
-		}
+	private BigDecimal resolveShipping(JsonNode res, BigDecimal fx) {
 		VendorPricePolicy policy = vendorPricePolicyService.find(vendor).orElse(null);
 		Double weight = res.hasNonNull("weightGrams") ? res.get("weightGrams").asDouble() : null;
 		BigDecimal inCurrency = VendorShippingCalculator.amount(weight, policy);
 		if (inCurrency == null) {
-			log.debug("{} 소싱처 배송비 정책 없음 → 스크래퍼 값 사용", vendor);
-			return fromScraper;
+			throw new IllegalStateException(vendor + " 배송비 정책이 없다 — 0 으로 두면 원가를 과소평가한다."
+				+ " 설정 및 연동 > 가격 정책에서 등록할 것");
 		}
 		if (inCurrency.signum() == 0) {
 			return BigDecimal.ZERO;
 		}
-		double fx = res.hasNonNull("fxRate") ? res.get("fxRate").asDouble()
-			: res.hasNonNull("fxGbpKrw") ? res.get("fxGbpKrw").asDouble() : 0d;
-		if (fx <= 0) {
-			log.warn("{} 환율을 못 읽어 스크래퍼 배송비를 사용한다", vendor);
-			return fromScraper;
-		}
-		return inCurrency.multiply(BigDecimal.valueOf(fx))
-			.setScale(0, java.math.RoundingMode.HALF_UP);
+		return inCurrency.multiply(fx).setScale(0, RoundingMode.HALF_UP);
 	}
 
 	private JsonNode call(String url) {
