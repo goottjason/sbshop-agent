@@ -6,7 +6,7 @@ import {
 } from 'antd';
 import { batchApi } from '../api/batchApi';
 import { notify } from '../utils/notify';
-import { VENDOR_OPTIONS } from './product/productGridShared';
+import { fetchVendorPricePolicies, type VendorPricePolicy } from '../api/vendorPricePolicyApi';
 
 interface BatchSummary {
   batchId: string;
@@ -126,6 +126,24 @@ const BatchUpdatePage = () => {
   const [mode, setMode] = useState<BatchMode>('supplier');
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
+
+  const { data: vendorPolicies = [] } = useQuery<VendorPricePolicy[]>({
+    queryKey: ['vendorPricePolicies'],
+    queryFn: fetchVendorPricePolicies,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const [supplierCode, setSupplierCode] = useState('IHB');
+  const activePolicy = vendorPolicies.find((p) => p.vendor === supplierCode) ?? null;
+
+  useEffect(() => {
+    if (!activePolicy) return;
+    form.setFieldsValue({
+      marginRate: activePolicy.marginRate ?? undefined,
+      couponRate: activePolicy.couponRate ?? undefined,
+      minMarginPrice: activePolicy.minMarginPrice ?? undefined,
+    });
+  }, [activePolicy, form]);
 
   const [batchId, setBatchId] = useState<string | null>(() => localStorage.getItem(ACTIVE_BATCH_KEY));
 
@@ -347,7 +365,7 @@ const BatchUpdatePage = () => {
           }
         />
 
-        <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ marginRate: 15, couponRate: 20, minMarginPrice: 5000 }}>
+        <Form form={form} layout="vertical" onFinish={handleSubmit}>
           {isDirect ? (
             <>
               <Form.Item
@@ -368,7 +386,11 @@ const BatchUpdatePage = () => {
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               {mode === 'supplier' ? (
                 <Form.Item name="supplierCode" label="소싱업체 코드" initialValue="IHB" style={{ marginBottom: 0 }}>
-                  <Select style={{ width: 160 }} options={VENDOR_OPTIONS.map((v) => ({ value: v, label: v }))} />
+                  <Select
+                    style={{ width: 160 }}
+                    onChange={(v: string) => setSupplierCode(v)}
+                    options={vendorPolicies.map((p) => ({ value: p.vendor, label: p.vendor }))}
+                  />
                 </Form.Item>
               ) : (
                 <Form.Item name="productIds" label="상품 ID (콤마 구분)" style={{ marginBottom: 0 }}>
@@ -387,6 +409,30 @@ const BatchUpdatePage = () => {
               <Form.Item style={{ marginBottom: 0 }}>
                 <Button type="primary" htmlType="submit" loading={loading} style={{ fontWeight: 600 }}>배치 실행</Button>
               </Form.Item>
+            </div>
+          )}
+          {!isDirect && mode === 'supplier' && activePolicy && (
+            <div style={{ marginTop: 14, fontSize: 13, color: '#4b5563', lineHeight: 1.8 }}>
+              <span style={{ fontWeight: 600, color: GREEN }}>{activePolicy.vendor} 배송비 조건</span>
+              {' — '}
+              {activePolicy.shipCurrency && activePolicy.shipBaseAmount != null
+                && Number(activePolicy.shipBaseAmount) > 0 ? (
+                <>
+                  해외 {activePolicy.shipCurrency} {activePolicy.shipBaseAmount}
+                  {` / ${activePolicy.shipBaseWeightG}g 까지, 이후 ${activePolicy.shipStepWeightG}g 마다 +${activePolicy.shipStepAmount}`}
+                </>
+              ) : (
+                <>해외 배송비 없음</>
+              )}
+              {activePolicy.domesticFee != null && Number(activePolicy.domesticFee) > 0 && (
+                <>
+                  {' · 국내 '}
+                  {Number(activePolicy.domesticFee).toLocaleString()}원
+                  {activePolicy.domesticFreeOver != null
+                    && ` (${Number(activePolicy.domesticFreeOver).toLocaleString()}원 이상 무료)`}
+                </>
+              )}
+              <span style={{ marginLeft: 8, color: '#9ca3af' }}>설정 및 연동에서 변경</span>
             </div>
           )}
         </Form>

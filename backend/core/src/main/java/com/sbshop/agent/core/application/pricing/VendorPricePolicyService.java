@@ -28,4 +28,26 @@ public class VendorPricePolicyService {
 	public List<VendorPricePolicy> findAll() {
 		return repository.findAllByStatusOrderByVendorAsc(RecordStatus.ACTIVE);
 	}
+
+	@Transactional
+	public VendorPricePolicy upsert(VendorType vendor, java.math.BigDecimal marginRate,
+		java.math.BigDecimal couponRate, java.math.BigDecimal minMarginPrice, String shipCurrency,
+		java.math.BigDecimal shipBaseAmount, Integer shipBaseWeightG,
+		java.math.BigDecimal shipStepAmount, Integer shipStepWeightG,
+		java.math.BigDecimal domesticFee, java.math.BigDecimal domesticFreeOver) {
+		VendorPricePolicy existing = repository.findByVendorAndStatus(vendor, RecordStatus.ACTIVE)
+			.orElse(null);
+		if (existing == null) {
+			return repository.save(VendorPricePolicy.builder()
+				.vendor(vendor).marginRate(marginRate).couponRate(couponRate)
+				.minMarginPrice(minMarginPrice).shipCurrency(shipCurrency)
+				.shipBaseAmount(shipBaseAmount).shipBaseWeightG(shipBaseWeightG)
+				.shipStepAmount(shipStepAmount).shipStepWeightG(shipStepWeightG)
+				.domesticFee(domesticFee).domesticFreeOver(domesticFreeOver)
+				.build());
+		}
+		existing.update(marginRate, couponRate, minMarginPrice, shipCurrency, shipBaseAmount,
+			shipBaseWeightG, shipStepAmount, shipStepWeightG, domesticFee, domesticFreeOver);
+		return repository.save(existing);
+	}
 }
