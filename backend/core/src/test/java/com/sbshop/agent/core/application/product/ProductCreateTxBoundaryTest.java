@@ -4,6 +4,7 @@ import com.sbshop.agent.core.application.product.dto.BulkProductCreateResult;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
 import com.sbshop.agent.core.domain.product.client.ImageStorageClient;
 import com.sbshop.agent.core.domain.product.client.dto.ImageUploadFile;
+import com.sbshop.agent.core.application.pricing.VendorPricePolicyService;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
 import com.sbshop.agent.core.domain.product.component.ProductWriter;
 import com.sbshop.agent.core.domain.product.dto.ProductCreateCommand;
@@ -137,6 +138,11 @@ class ProductCreateTxBoundaryTest {
 
 	private ProductCreateUseCase newUseCase() {
 		ProductPersistTxService persistTxService = new ProductPersistTxService(productWriter);
-		return new ProductCreateUseCase(productReader, imageDownloadClient, imageStorageClient, persistTxService);
+		VendorPricePolicyService policyService = org.mockito.Mockito.mock(VendorPricePolicyService.class);
+		org.mockito.Mockito.lenient().when(policyService.find(org.mockito.ArgumentMatchers.any()))
+			.thenReturn(java.util.Optional.of(com.sbshop.agent.core.domain.pricing.VendorPricePolicy.builder()
+				.marginRate(new java.math.BigDecimal("25")).build()));
+		return new ProductCreateUseCase(productReader, imageDownloadClient, imageStorageClient,
+			persistTxService, policyService);
 	}
 }

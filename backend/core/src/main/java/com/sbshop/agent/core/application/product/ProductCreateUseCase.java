@@ -1,12 +1,15 @@
 package com.sbshop.agent.core.application.product;
 
+import com.sbshop.agent.core.application.pricing.VendorPricePolicyService;
 import com.sbshop.agent.core.application.product.dto.BulkProductCreateResult;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.client.ImageDownloadClient;
 import com.sbshop.agent.core.domain.product.client.ImageStorageClient;
 import com.sbshop.agent.core.domain.product.client.dto.ImageUploadFile;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
+import com.sbshop.agent.core.domain.pricing.VendorPricePolicy;
 import com.sbshop.agent.core.domain.product.dto.ProductCreateCommand;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -24,6 +27,7 @@ public class ProductCreateUseCase {
 	private final ImageDownloadClient imageDownloadClient;
 	private final ImageStorageClient imageStorageClient;
 	private final ProductPersistTxService productPersistTxService;
+	private final VendorPricePolicyService vendorPricePolicyService;
 
 	public BulkProductCreateResult createBulk(List<ProductCreateCommand> commands) {
 		String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
@@ -42,7 +46,7 @@ public class ProductCreateUseCase {
 				String sbCode = prefix + String.format("%03d", seq);
 				seq++;
 
-				ProductCreateCommand enrichedCommand = enrichWithHostedImages(command);
+				ProductCreateCommand enrichedCommand = withResolvedMargin(enrichWithHostedImages(command));
 
 				Product product = Product.create(sbCode, enrichedCommand);
 				products.add(product);
@@ -64,6 +68,30 @@ public class ProductCreateUseCase {
 			}
 		}
 		return new BulkProductCreateResult(succeeded, failed);
+	}
+
+	/**
+	 * 마진율이 없으면 소싱처 정책값으로 채운다. 예전에는 {@code Product.create} 가 0 으로 메웠는데,
+	 * 상품값이 정책보다 우선하므로 <b>그 상품은 영원히 0% 마진으로 계산됐다</b>(D-251).
+	 * 정책도 없으면 만들지 않는다 — 0% 마진 상품이 조용히 생기는 것보다 생성 실패가 낫다.
+	 */
+	private ProductCreateCommand withResolvedMargin(ProductCreateCommand command) {
+		if (command.marginRate() != null && command.marginRate().signum() > 0) {
+			return command;
+		}
+		BigDecimal fromPolicy = vendorPricePolicyService.find(command.vendor())
+			.map(VendorPricePolicy::getMarginRate)
+			.filter(rate -> rate.signum() > 0)
+			.orElseThrow(() -> new IllegalStateException(
+				"마진율이 없고 소싱처 정책도 없다: vendor=" + command.vendor()
+					+ " — 설정 및 연동 > 가격 정책에서 등록할 것"));
+		return new ProductCreateCommand(
+			command.sourceUrl(), command.costPrice(), command.baseName(),
+			command.originalName(), command.brand(), command.origin(),
+			command.weight(), command.capacity(), command.measureUnit(),
+			command.sourceImages(), command.hostedImages(), command.rawSourceHtml(),
+			command.rawCategory(), command.isAvailable(), command.bundleQuantity(),
+			fromPolicy, command.vendor(), command.barcode());
 	}
 
 	private ProductCreateCommand enrichWithHostedImages(ProductCreateCommand command) {
