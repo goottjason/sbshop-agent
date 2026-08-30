@@ -90,6 +90,10 @@ class JsonLdScraper(VendorScraper):
     vendor = ""
     host_markers: tuple[str, ...] = ()
     needs_browser = False
+    # URL 에 이 조각이 있으면 상품 페이지다.
+    product_path_marker: str | None = None
+    # 브라우저 렌더 후 제목이 이것이면 상품 페이지가 아니라 홈으로 밀린 것 = 소멸.
+    home_title_marker: str | None = None
 
     def supports(self, url: str) -> bool:
         return bool(url) and any(m in url.lower() for m in self.host_markers)
@@ -99,25 +103,42 @@ class JsonLdScraper(VendorScraper):
                             vendor=self.vendor, error=error,
                             scrapedAt=datetime.now(timezone.utc).isoformat())
 
+    def _browser_html(self, url: str) -> tuple[int, str]:
+        from scrapling.fetchers import DynamicFetcher
+        page = DynamicFetcher.fetch(url, headless=True, network_idle=True, wait=3000)
+        # 실제 상태를 버리고 200 으로 고정하면 404(원본 소멸)가 "판정 불가"로 묻힌다.
+        # Ocado 131건이 이렇게 사라졌다(2026-08-30 실측).
+        status = getattr(page, "status", None) or 200
+        return int(status), page.html_content
+
     def fetch_html(self, url: str) -> tuple[int, str]:
+        http, html, final = self.fetch_html_with_final(url)
+        return http, html
+
+    def fetch_html_with_final(self, url: str) -> tuple[int, str, str]:
+        """(상태, HTML, 최종 URL). 최종 URL 은 리다이렉트로 상품이 사라졌는지 판별하는 근거다."""
         if self.needs_browser:
-            from scrapling.fetchers import DynamicFetcher
-            page = DynamicFetcher.fetch(url, headless=True, network_idle=True, wait=3000)
-            return 200, page.html_content
+            http, html = self._browser_html(url)
+            return http, html, url
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
                                                    "Accept-Language": "en-GB,en;q=0.9"})
         try:
             with urllib.request.urlopen(req, timeout=30) as res:
-                return res.status, res.read().decode("utf-8", "replace")
+                return res.status, res.read().decode("utf-8", "replace"), res.url
         except urllib.error.HTTPError as e:
-            return e.code, ""
+            return e.code, "", url
 
     def scrape(self, url: str) -> ScrapeResult:
         now = datetime.now(timezone.utc).isoformat()
         try:
-            http, html = self.fetch_html(url)
+            http, html, final_url = self.fetch_html_with_final(url)
         except Exception as e:  # noqa: BLE001
             return self._fail(url, "error", "fetch 실패: %s" % e)
+
+        if self.product_path_marker and self.product_path_marker in url \
+                and self.product_path_marker not in (final_url or ""):
+            return self._fail(url, "not_found",
+                              "상품 페이지가 사라져 다른 곳으로 이동됨: %s" % final_url, http)
 
         if http == 404:
             return self._fail(url, "not_found", "상품 페이지 없음(404)", http)
@@ -127,6 +148,21 @@ class JsonLdScraper(VendorScraper):
             return self._fail(url, "error", "페이지 응답 실패(HTTP %s)" % http, http)
 
         product, offer = parse_product(html)
+        if product is None and not self.needs_browser:
+            # 같은 사이트라도 일부 페이지는 JSON-LD 를 서버에서 안 내려준다(Costco 실측).
+            # 다른 스크래퍼로 넘기는 게 아니라 같은 일을 브라우저 통로로 한 번 더 하는 것이다.
+            try:
+                http, html = self._browser_html(url)
+                product, offer = parse_product(html)
+                # 상품이 사라지면 JS 가 홈으로 밀어낸다(Costco 실측). HTTP 리다이렉트가 아니라
+                # 최종 URL 로는 못 잡는다 — 렌더된 제목이 홈 제목이면 소멸로 본다.
+                if product is None and self.home_title_marker:
+                    title = re.search(r"<title[^>]*>(.*?)</title>", html or "", re.S)
+                    if title and self.home_title_marker in title.group(1):
+                        return self._fail(url, "not_found",
+                                          "상품 페이지가 홈으로 밀림 — 원본 소멸", http)
+            except Exception as e:  # noqa: BLE001
+                return self._fail(url, "error", "브라우저 재시도 실패: %s" % e, http)
         if product is None:
             return self._fail(url, "error", "JSON-LD 에 Product 가 없다 — 레이아웃 변경 의심", http)
 
@@ -178,3 +214,5 @@ class CostcoUkScraper(JsonLdScraper):
     vendor = "COK"
     host_markers = ("costco.co.uk",)
     needs_browser = False
+    product_path_marker = "/p/"
+    home_title_marker = "Online Grocery Shopping"
