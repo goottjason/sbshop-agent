@@ -66,11 +66,12 @@ def scrape_stock_price(req: ScrapeRequest) -> ScrapeResult:
         return result
     if result.status == "ok" and result.price is not None:
         try:
-            cb = landed_cost_krw(result.price, result.weightGrams)
+            cb = landed_cost_krw(result.price, result.weightGrams, currency=result.currency or "GBP")
             result.goodsKrw = cb.goods_krw
             result.shippingKrw = cb.shipping_krw
             result.costKrw = cb.cost_krw
             result.fxGbpKrw = cb.fx_gbp_krw
+            result.fxRate = cb.fx_gbp_krw
             result.shippingGbp = cb.shipping_gbp
             result.landedGbp = cb.landed_gbp
         except Exception as e:  # noqa: BLE001

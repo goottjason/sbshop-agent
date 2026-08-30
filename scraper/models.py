@@ -123,6 +123,7 @@ class ScrapeResult(BaseModel):
     shippingKrw: Optional[int] = None
     costKrw: Optional[int] = None      # goods+shipping (참고/표시)
     fxGbpKrw: Optional[float] = None
+    fxRate: Optional[float] = None     # 표시 통화 → KRW 환율(자바가 배송비 환산에 사용)
     shippingGbp: Optional[float] = None
     landedGbp: Optional[float] = None
     scrapedAt: str = ""

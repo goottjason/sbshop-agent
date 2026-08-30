@@ -1,6 +1,7 @@
 package com.sbshop.agent.infrastructure.client.sourcing;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sbshop.agent.core.application.pricing.VendorPricePolicyService;
 import com.sbshop.agent.core.application.product.port.VendorAwareStockCrawler;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,29 +21,29 @@ public class ScraplingCrawlerConfig {
 	@Bean
 	public VendorAwareStockCrawler fortnumStockCrawler(ObjectMapper objectMapper,
 		@Value("${scraper.base-url:http://localhost:8099}")
-		String baseUrl) {
-		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.FTN);
+		String baseUrl, VendorPricePolicyService vendorPricePolicyService) {
+		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.FTN, vendorPricePolicyService);
 	}
 
 	@Bean
 	public VendorAwareStockCrawler vitabioticsStockCrawler(ObjectMapper objectMapper,
 		@Value("${scraper.base-url:http://localhost:8099}")
-		String baseUrl) {
-		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.VTB);
+		String baseUrl, VendorPricePolicyService vendorPricePolicyService) {
+		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.VTB, vendorPricePolicyService);
 	}
 
 	@Bean
 	public VendorAwareStockCrawler ocadoStockCrawler(ObjectMapper objectMapper,
 		@Value("${scraper.base-url:http://localhost:8099}")
-		String baseUrl) {
-		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.OCD);
+		String baseUrl, VendorPricePolicyService vendorPricePolicyService) {
+		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.OCD, vendorPricePolicyService);
 	}
 
 	@Bean
 	public VendorAwareStockCrawler costcoUkStockCrawler(ObjectMapper objectMapper,
 		@Value("${scraper.base-url:http://localhost:8099}")
-		String baseUrl) {
-		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.COK);
+		String baseUrl, VendorPricePolicyService vendorPricePolicyService) {
+		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.COK, vendorPricePolicyService);
 	}
 
 	/**
@@ -53,7 +54,7 @@ public class ScraplingCrawlerConfig {
 	@Bean
 	public VendorAwareStockCrawler tescoStockCrawler(ObjectMapper objectMapper,
 		@Value("${scraper.base-url:http://localhost:8099}")
-		String baseUrl) {
-		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.TES);
+		String baseUrl, VendorPricePolicyService vendorPricePolicyService) {
+		return new ScraplingSourcingClient(objectMapper, baseUrl, VendorType.TES, vendorPricePolicyService);
 	}
 }
