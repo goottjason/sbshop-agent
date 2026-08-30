@@ -108,6 +108,8 @@ public class BatchPriceStockService {
 				ProductUpdateCommand command = ProductUpdateCommand.builder()
 					.costPrice(buyPrice)
 					.marginRate(marginRate)
+					.couponRate(couponRate)
+					.minMarginPrice(minMarginPrice)
 					.salePrice(salePrice)
 					.stock(result.stock())
 					.build();

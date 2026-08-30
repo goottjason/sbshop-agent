@@ -27,6 +27,12 @@ public class PriceInfo {
 	@Column(name = "margin_rate", precision = 5, scale = 2)
 	private BigDecimal marginRate;
 
+	@Column(name = "coupon_rate", precision = 5, scale = 2)
+	private BigDecimal couponRate;
+
+	@Column(name = "min_margin_price", precision = 15, scale = 2)
+	private BigDecimal minMarginPrice;
+
 	@Column(name = "sale_price", precision = 15, scale = 0)
 	private BigDecimal salePrice;
 }

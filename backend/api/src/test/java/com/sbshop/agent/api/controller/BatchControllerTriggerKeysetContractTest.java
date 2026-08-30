@@ -45,7 +45,7 @@ class BatchControllerTriggerKeysetContractTest {
 	private ProductUpdateCommand emptyCommand() {
 		return new ProductUpdateCommand(
 			null, null, null, null, null,
-			null, null, null, null, null,
+			null, null, null, null, null, null, null,
 			null, null, null,
 			null, null, null,
 			null, null, null, null, null,

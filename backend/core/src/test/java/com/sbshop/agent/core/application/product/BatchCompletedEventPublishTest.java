@@ -57,7 +57,7 @@ class BatchCompletedEventPublishTest {
 		List<Long> productIds = List.of(1L, 2L);
 		ProductUpdateCommand cmd = new ProductUpdateCommand(
 			null, null, null, null, null,
-			null, null, null, null, null,
+			null, null, null, null, null, null, null,
 			null, null, null,
 			null, null, null,
 			null, null, null, null, null,
@@ -119,7 +119,7 @@ class BatchCompletedEventPublishTest {
 		List<Long> productIds = List.of(1L, 2L);
 		ProductUpdateCommand cmd = new ProductUpdateCommand(
 			null, null, null, null, null,
-			null, null, null, null, null,
+			null, null, null, null, null, null, null,
 			null, null, null,
 			null, null, null,
 			null, null, null, null, null,

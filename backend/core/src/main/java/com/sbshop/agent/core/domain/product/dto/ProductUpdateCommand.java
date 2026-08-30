@@ -18,6 +18,8 @@ public record ProductUpdateCommand(
 	BigDecimal exchangeRate,
 	BigDecimal deliveryFee,
 	BigDecimal marginRate,
+	BigDecimal couponRate,
+	BigDecimal minMarginPrice,
 	BigDecimal salePrice,
 	Integer stock,
 	BigDecimal weight,

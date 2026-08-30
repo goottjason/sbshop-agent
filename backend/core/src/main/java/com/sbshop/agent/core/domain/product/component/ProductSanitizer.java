@@ -10,19 +10,13 @@ public class ProductSanitizer {
 		if (product.getProductName() != null) {
 			String sanitized = product.getProductName().replaceAll("[<>\"'&]", "").trim();
 			if (!sanitized.equals(product.getProductName())) {
-				product.update(new ProductUpdateCommand(
-					null, sanitized, null, null, null, null, null, null, null, null,
-					null, null, null, null, null, null, null, null, null, null, null,
-					null, null, null, null, null));
+				product.update(ProductUpdateCommand.builder().name(sanitized).build());
 			}
 		}
 		if (product.getBrand() != null) {
 			String brand = product.getBrand().replaceAll("[<>\"'&]", "").trim();
 			if (!brand.equals(product.getBrand())) {
-				product.update(new ProductUpdateCommand(
-					brand, null, null, null, null, null, null, null, null, null,
-					null, null, null, null, null, null, null, null, null, null, null,
-					null, null, null, null, null));
+				product.update(ProductUpdateCommand.builder().brand(brand).build());
 			}
 		}
 		return product;

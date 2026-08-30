@@ -254,6 +254,7 @@ public class Product extends BaseEntity {
 	private void updatePriceInfo(ProductUpdateCommand command) {
 		boolean hasUpdate = command.costPrice() != null || command.exchangeRate() != null ||
 			command.deliveryFee() != null || command.marginRate() != null ||
+			command.couponRate() != null || command.minMarginPrice() != null ||
 			command.salePrice() != null;
 		if (!hasUpdate)
 			return;
@@ -267,6 +268,10 @@ public class Product extends BaseEntity {
 			builder.deliveryFee(command.deliveryFee());
 		if (command.marginRate() != null)
 			builder.marginRate(command.marginRate());
+		if (command.couponRate() != null)
+			builder.couponRate(command.couponRate());
+		if (command.minMarginPrice() != null)
+			builder.minMarginPrice(command.minMarginPrice());
 		if (command.salePrice() != null)
 			builder.salePrice(command.salePrice());
 		this.priceInfo = builder.build();

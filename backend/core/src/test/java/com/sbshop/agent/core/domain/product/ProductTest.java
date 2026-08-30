@@ -68,7 +68,7 @@ class ProductTest {
 
 		ProductUpdateCommand update = new ProductUpdateCommand(
 			null, null, null, null, null,
-			null, null, null, null, new BigDecimal("50000"),
+			null, null, null, null, null, null, new BigDecimal("50000"),
 			100, null, null,
 			null, null, null,
 			null, null, null, null, null,
@@ -96,7 +96,7 @@ class ProductTest {
 
 		ProductUpdateCommand clearImages = new ProductUpdateCommand(
 			null, null, null, null, null,
-			null, null, null, null, null,
+			null, null, null, null, null, null, null,
 			null, null, null,
 			null, null, null,
 			null, null, null, null, null,
@@ -120,7 +120,7 @@ class ProductTest {
 
 		ProductUpdateCommand keepImages = new ProductUpdateCommand(
 			null, "새이름", null, null, null,
-			null, null, null, null, null,
+			null, null, null, null, null, null, null,
 			null, null, null,
 			null, null, null,
 			null, null, null, null, null,

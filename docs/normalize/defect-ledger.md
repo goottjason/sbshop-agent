@@ -4297,3 +4297,29 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
   - 백필 전까지는 **IHB 배치에 마진 오버라이드를 반드시 명시**한다.
 - 상태: **발견** 2026-08-30
 
+### D-250: 배치가 쓴 세 가격 파라미터 중 마진율만 저장돼 판매가를 재현할 수 없다 (2026-08-30, 사용자 지적)
+
+- 심각도: **표준(구조 결함 — [[D-248]]·[[D-249]] 의 공통 뿌리)** | 위치: `PriceInfo` · `ProductUpdateCommand` · `BatchPriceStockService` · `MarketSalePriceResolver`
+- 사용자 지적: "마진율, 쿠폰율, 최소마진가가 상품에 어떤 건 저장되고 어떤 건 안 된다는 게 이상하다."
+- 증상: 배치 화면은 **마진율·쿠폰율·최소마진가 셋을 함께 받아** 판매가를 만드는데, 상품에 남는 것은 **마진율뿐**이었다.
+
+  ```java
+  ProductUpdateCommand.builder()
+      .costPrice(buyPrice)
+      .marginRate(marginRate)   // ← 이것만 저장
+      .salePrice(salePrice)     // 쿠폰율·최소마진가는 계산에만 쓰이고 사라짐
+  ```
+
+  쿠폰율·최소마진가는 전역 `sb_price_policy` 한 줄에만 존재했다.
+- 피해: **그 판매가가 어떤 조건에서 나왔는지 사후에 알 수 없다.** 그리고 배치가 아닌 경로(배지 클릭 등록 등)로 재계산하면 마진율은 상품값, 쿠폰율·최소마진가는 전역값이 되어 **서로 다른 시점·출처의 값이 한 계산식에 섞인다.** [[D-248]] 이 바로 이 혼합의 결과다.
+- 수정:
+  - `PriceInfo` 에 `coupon_rate`·`min_margin_price` 추가(둘 다 nullable), `ProductUpdateCommand` 에 동일 파라미터 추가.
+  - `BatchPriceStockService` 가 세 값을 함께 저장한다.
+  - `MarketSalePriceResolver` 의 쿠폰율·최소마진가 해석을 **마진율과 같은 우선순위**로 통일: `오버라이드 → 상품값 → 전역 정책`.
+  - **기존 행은 NULL 이므로 전역 정책으로 폴백한다 — 현재 동작이 그대로 유지된다.** 운영 DB 3,095건 전부 NULL 확인.
+- 구조 정리(Tidy First): `ProductUpdateCommand` 를 위치 인자 26개로 호출하던 `ProductSanitizer` 를 빌더로 바꿨다. 필드가 늘 때마다 무관한 호출부가 깨지던 구조였다.
+- 테스트: `PricingParamsSymmetryTest` 5건. **Red 를 단언 실패로 확인**(2건 실패 → 표면만 추가한 상태에서 값이 저장되지 않음·정책이 상품값을 이김). 폴백·오버라이드 우선 2건은 대조군으로 처음부터 통과해 기존 동작 보존을 확인했다.
+- 스키마: `ALTER TABLE sb_product ADD COLUMN IF NOT EXISTS coupon_rate numeric(5,2), min_margin_price numeric(15,2)` — 운영 DB 수동 반영 완료(가산적·되돌리기 가능).
+- **남은 위험(후속 필요)**: 배치 화면의 초기값이 `marginRate: 15, couponRate: 20, minMarginPrice: 5000` 으로 **하드코딩**돼 있다. 아이허브 정책 그대로다. 이제 값이 **영속되므로**, 다른 소싱처 상품을 기본값으로 돌리면 잘못된 쿠폰율이 상품에 박힌다 — 수정 전보다 위험이 커졌다. [[D-248]](소싱처별 가격 정책)에서 함께 해소해야 한다.
+- 상태: **수정완료(검증통과)** 2026-08-30
+

@@ -38,7 +38,7 @@ public record ProductUpdateRequest(
 	public ProductUpdateCommand toCommand() {
 		return new ProductUpdateCommand(
 			brand, name, baseName, originalName, category,
-			costPrice, exchangeRate, deliveryFee, marginRate, salePrice,
+			costPrice, exchangeRate, deliveryFee, marginRate, null, null, salePrice,
 			stock, weight, bundleQuantity,
 			barcode, capacity, measureUnit,
 			vendor, sourceUrl, manufacturer, origin, hsCode,
