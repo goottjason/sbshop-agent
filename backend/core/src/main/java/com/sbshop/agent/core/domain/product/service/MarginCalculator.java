@@ -19,12 +19,20 @@ public class MarginCalculator {
 	public BigDecimal calculateSalePrice(BigDecimal buyPrice, int bundleQty,
 		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice, BigDecimal channelFeeRate) {
 		return computeSalePrice(applyCoupon(buyPrice, couponRate), bundleQty, marginRate, minMarginPrice,
-			channelFeeRate);
+			channelFeeRate, DELIVERY_FEE, DELIVERY_FEE_THRESHOLD);
+	}
+
+	public BigDecimal calculateSalePrice(BigDecimal buyPrice, int bundleQty,
+		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice, BigDecimal channelFeeRate,
+		BigDecimal domesticFee, BigDecimal domesticFreeOver) {
+		return computeSalePrice(applyCoupon(buyPrice, couponRate), bundleQty, marginRate, minMarginPrice,
+			channelFeeRate, domesticFee, domesticFreeOver);
 	}
 
 	public BigDecimal calculateSalePrice(BigDecimal buyPrice, int bundleQty,
 		BigDecimal marginRate, BigDecimal minMarginPrice) {
-		return computeSalePrice(buyPrice, bundleQty, marginRate, minMarginPrice, DEFAULT_CHANNEL_FEE_RATE);
+		return computeSalePrice(buyPrice, bundleQty, marginRate, minMarginPrice, DEFAULT_CHANNEL_FEE_RATE,
+			DELIVERY_FEE, DELIVERY_FEE_THRESHOLD);
 	}
 
 	public BigDecimal getEffectiveBuyPrice(BigDecimal listPrice, BigDecimal discountPrice,
@@ -37,6 +45,20 @@ public class MarginCalculator {
 			.divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 	}
 
+	/**
+	 * 국내 배송비는 소싱처마다 다르다 — 아이허브는 4만원 미만 매입 시 6,000원이 붙고,
+	 * 배대지를 쓰는 영국 소싱처는 붙지 않는다(사용자 확인 2026-08-30). 정책값이 0 이면 가산하지 않는다.
+	 */
+	private BigDecimal domesticFee(BigDecimal totalBuyPrice, BigDecimal fee, BigDecimal freeOver) {
+		if (fee == null || fee.signum() <= 0) {
+			return BigDecimal.ZERO;
+		}
+		if (freeOver != null && freeOver.signum() > 0 && totalBuyPrice.compareTo(freeOver) >= 0) {
+			return BigDecimal.ZERO;
+		}
+		return fee;
+	}
+
 	private BigDecimal applyCoupon(BigDecimal buyPrice, BigDecimal couponRate) {
 		if (couponRate == null || couponRate.signum() <= 0) {
 			return buyPrice;
@@ -47,11 +69,10 @@ public class MarginCalculator {
 	}
 
 	private BigDecimal computeSalePrice(BigDecimal buyPrice, int bundleQty,
-		BigDecimal marginRate, BigDecimal minMarginPrice, BigDecimal channelFeeRate) {
+		BigDecimal marginRate, BigDecimal minMarginPrice, BigDecimal channelFeeRate,
+		BigDecimal domesticFee, BigDecimal domesticFreeOver) {
 		BigDecimal totalBuyPrice = buyPrice.multiply(BigDecimal.valueOf(bundleQty));
-		if (totalBuyPrice.compareTo(DELIVERY_FEE_THRESHOLD) < 0) {
-			totalBuyPrice = totalBuyPrice.add(DELIVERY_FEE);
-		}
+		totalBuyPrice = totalBuyPrice.add(domesticFee(totalBuyPrice, domesticFee, domesticFreeOver));
 
 		BigDecimal divisor = BigDecimal.ONE
 			.subtract(marginRate.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP))

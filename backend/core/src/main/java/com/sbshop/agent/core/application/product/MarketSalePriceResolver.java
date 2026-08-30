@@ -53,8 +53,13 @@ public class MarketSalePriceResolver {
 			&& product.getLogisticsInfo().getBundleQuantity() != null
 				? product.getLogisticsInfo().getBundleQuantity() : 1;
 		BigDecimal fee = marketFeeService.feeRate(marketType);
+		if (vendorPolicy == null || vendorPolicy.getDomesticFee() == null) {
+			return marginCalculator.calculateSalePrice(costPrice, bundleQty, marginRate,
+				couponRate, minMarginPrice, fee);
+		}
 		return marginCalculator.calculateSalePrice(costPrice, bundleQty, marginRate,
-			couponRate, minMarginPrice, fee);
+			couponRate, minMarginPrice, fee,
+			vendorPolicy.getDomesticFee(), vendorPolicy.getDomesticFreeOver());
 	}
 
 	private boolean isFullyOverridden(MarketSalePriceOverrides o) {

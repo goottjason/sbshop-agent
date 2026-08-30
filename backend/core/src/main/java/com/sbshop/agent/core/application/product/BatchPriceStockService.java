@@ -15,6 +15,7 @@ import com.sbshop.agent.core.domain.product.component.ProductReader;
 import com.sbshop.agent.core.domain.product.component.ProductWriter;
 import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
 import com.sbshop.agent.core.domain.pricing.LandedCostCalculator;
+import com.sbshop.agent.core.domain.pricing.VendorPricePolicy;
 import com.sbshop.agent.core.domain.product.enums.SourceGoneReason;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
@@ -93,13 +94,18 @@ public class BatchPriceStockService {
 
 				BigDecimal weightKg = product.getLogisticsInfo() != null
 					? product.getLogisticsInfo().getWeight() : null;
+				VendorPricePolicy vendorPolicy = vendorPricePolicyService.find(product.getVendor())
+					.orElse(null);
 				BigDecimal buyPrice = LandedCostCalculator.buyPricePerUnit(result.costPrice(), weightKg,
-					bundleQty, vendorPricePolicyService.find(product.getVendor()).orElse(null),
-					result.fxRate());
+					bundleQty, vendorPolicy, result.fxRate());
 
 				BigDecimal coupangFee = marketFeeService.feeRate(MarketType.COUPANG);
-				BigDecimal salePrice = marginCalculator.calculateSalePrice(buyPrice, bundleQty, marginRate,
-					couponRate, minMarginPrice, coupangFee);
+				BigDecimal salePrice = (vendorPolicy == null || vendorPolicy.getDomesticFee() == null)
+					? marginCalculator.calculateSalePrice(buyPrice, bundleQty, marginRate,
+						couponRate, minMarginPrice, coupangFee)
+					: marginCalculator.calculateSalePrice(buyPrice, bundleQty, marginRate,
+						couponRate, minMarginPrice, coupangFee,
+						vendorPolicy.getDomesticFee(), vendorPolicy.getDomesticFreeOver());
 
 				BigDecimal oldSalePrice = product.getSalePrice();
 				StockStatus oldStatus = product.getStockStatus();
