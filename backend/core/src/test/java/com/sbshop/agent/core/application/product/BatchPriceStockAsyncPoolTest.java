@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.product;
 
 import com.sbshop.agent.core.application.fee.MarketFeeService;
+import com.sbshop.agent.core.application.pricing.VendorPricePolicyService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.config.AsyncConfig;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
@@ -81,7 +82,8 @@ class BatchPriceStockAsyncPoolTest {
 			return new BatchPriceStockService(mock(ProductReader.class), mock(ProductWriter.class),
 				mock(ProductRepository.class), mock(StockCrawlerRouter.class),
 				mock(ProcessStatusService.class), mock(MarginCalculator.class), recordingPublisher,
-				mock(ProductMarketSyncService.class), mock(MarketFeeService.class));
+				mock(ProductMarketSyncService.class), mock(MarketFeeService.class),
+			mock(VendorPricePolicyService.class));
 		}
 	}
 }

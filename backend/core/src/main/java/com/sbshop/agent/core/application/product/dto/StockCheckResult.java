@@ -11,12 +11,12 @@ public record StockCheckResult(
 	Integer stock,
 	LocalDate restockDate,
 	boolean sourceGone,
-	BigDecimal shippingCost,
+	BigDecimal fxRate,
 	SourceGoneReason sourceGoneReason) {
 
 	public StockCheckResult(StockStatus status, BigDecimal costPrice, Integer stock, LocalDate restockDate,
-		boolean sourceGone, BigDecimal shippingCost) {
-		this(status, costPrice, stock, restockDate, sourceGone, shippingCost, null);
+		boolean sourceGone, BigDecimal fxRate) {
+		this(status, costPrice, stock, restockDate, sourceGone, fxRate, null);
 	}
 	public StockCheckResult(StockStatus status, BigDecimal costPrice, Integer stock, LocalDate restockDate,
 		boolean sourceGone) {

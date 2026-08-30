@@ -3,6 +3,7 @@ package com.sbshop.agent.core.application.product;
 import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.dto.PriceStockItem;
+import com.sbshop.agent.core.application.pricing.VendorPricePolicyService;
 import com.sbshop.agent.core.application.product.dto.PricingInputs;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
 import com.sbshop.agent.core.application.product.event.BatchCompletedEvent;
@@ -13,6 +14,7 @@ import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
 import com.sbshop.agent.core.domain.product.component.ProductWriter;
 import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
+import com.sbshop.agent.core.domain.pricing.LandedCostCalculator;
 import com.sbshop.agent.core.domain.product.enums.SourceGoneReason;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
@@ -42,6 +44,7 @@ public class BatchPriceStockService {
 	private final ProductMarketSyncService productMarketSyncService;
 
 	private final MarketFeeService marketFeeService;
+	private final VendorPricePolicyService vendorPricePolicyService;
 
 	private static final long CRAWL_THROTTLE_MS = 500L;
 
@@ -88,12 +91,11 @@ public class BatchPriceStockService {
 					continue;
 				}
 
-				BigDecimal goods = result.costPrice() != null ? result.costPrice() : BigDecimal.ZERO;
-				BigDecimal buyPrice = goods;
-				if (result.shippingCost() != null && result.shippingCost().signum() > 0 && bundleQty > 0) {
-					buyPrice = goods.add(result.shippingCost()
-						.divide(BigDecimal.valueOf(bundleQty), 4, RoundingMode.HALF_UP));
-				}
+				BigDecimal weightKg = product.getLogisticsInfo() != null
+					? product.getLogisticsInfo().getWeight() : null;
+				BigDecimal buyPrice = LandedCostCalculator.buyPricePerUnit(result.costPrice(), weightKg,
+					bundleQty, vendorPricePolicyService.find(product.getVendor()).orElse(null),
+					result.fxRate());
 
 				BigDecimal coupangFee = marketFeeService.feeRate(MarketType.COUPANG);
 				BigDecimal salePrice = marginCalculator.calculateSalePrice(buyPrice, bundleQty, marginRate,

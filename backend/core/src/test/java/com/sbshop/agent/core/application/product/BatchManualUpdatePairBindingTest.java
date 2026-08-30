@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.product;
 
 import com.sbshop.agent.core.application.fee.MarketFeeService;
+import com.sbshop.agent.core.application.pricing.VendorPricePolicyService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.dto.PriceStockItem;
 import com.sbshop.agent.core.domain.product.Product;
@@ -57,12 +58,18 @@ class BatchManualUpdatePairBindingTest {
 	private static final Long PID_1 = 1L;
 	private static final Long PID_2 = 2L;
 
+	@Mock
+	private VendorPricePolicyService vendorPricePolicyService;
+
 	@BeforeEach
 	void setUp() {
 		service = new BatchPriceStockService(productReader, productWriter, productRepository,
 			stockCrawlerRouter, processStatusService, marginCalculator, eventPublisher,
-			productMarketSyncService, marketFeeService);
+			productMarketSyncService, marketFeeService, vendorPricePolicyService);
 
+		lenient().when(vendorPricePolicyService.find(any())).thenReturn(java.util.Optional.of(
+			com.sbshop.agent.core.domain.pricing.VendorPricePolicy.builder()
+				.shipBaseAmount(java.math.BigDecimal.ZERO).build()));
 		lenient().when(productReader.findById(PID_1)).thenReturn(Optional.of(product1));
 		lenient().when(productReader.findById(PID_2)).thenReturn(Optional.of(product2));
 		lenient().when(product1.getSbCode()).thenReturn("SB-001");

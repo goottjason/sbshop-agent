@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.product;
 
 import com.sbshop.agent.core.application.fee.MarketFeeService;
+import com.sbshop.agent.core.application.pricing.VendorPricePolicyService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.dto.PriceStockItem;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
@@ -57,17 +58,23 @@ class BatchForwardsStockStatusTest {
 
 	private static final Long PRODUCT_ID = 42L;
 
+	@Mock
+	private VendorPricePolicyService vendorPricePolicyService;
+
 	@BeforeEach
 	void setUp() {
 		service = new BatchPriceStockService(productReader, productWriter, productRepository,
 			stockCrawlerRouter, processStatusService, marginCalculator, eventPublisher,
-			productMarketSyncService, marketFeeService);
+			productMarketSyncService, marketFeeService, vendorPricePolicyService);
 
 		lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 		lenient().when(product.getSourcingUrl()).thenReturn("https://example.com/item/42");
 		lenient().when(product.getLogisticsInfo()).thenReturn(null);
 		lenient().when(product.getSbCode()).thenReturn("SB-042");
 		lenient().when(marketFeeService.feeRate(any())).thenReturn(new BigDecimal("11"));
+		lenient().when(vendorPricePolicyService.find(any())).thenReturn(java.util.Optional.of(
+			com.sbshop.agent.core.domain.pricing.VendorPricePolicy.builder()
+				.shipBaseAmount(java.math.BigDecimal.ZERO).build()));
 
 		lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any(), any(), any()))
 			.thenReturn(new BigDecimal("9900"));

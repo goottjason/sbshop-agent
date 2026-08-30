@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.product;
 
 import com.sbshop.agent.core.application.fee.MarketFeeService;
+import com.sbshop.agent.core.application.pricing.VendorPricePolicyService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.event.BatchCompletedEvent;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
@@ -44,7 +45,8 @@ class BatchCompletedEventPublishTest {
 			mock(MarginCalculator.class),
 			eventPublisher,
 			mock(ProductMarketSyncService.class),
-			mock(MarketFeeService.class));
+			mock(MarketFeeService.class),
+			mock(VendorPricePolicyService.class));
 	}
 
 	@Test

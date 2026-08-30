@@ -3,10 +3,7 @@ package com.sbshop.agent.infrastructure.client.sourcing;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
-import com.sbshop.agent.core.application.pricing.VendorPricePolicyService;
 import com.sbshop.agent.core.application.product.port.VendorAwareStockCrawler;
-import com.sbshop.agent.core.domain.pricing.VendorPricePolicy;
-import com.sbshop.agent.core.domain.pricing.VendorShippingCalculator;
 import com.sbshop.agent.core.domain.product.enums.SourceGoneReason;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
@@ -31,15 +28,13 @@ public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 	private final ObjectMapper objectMapper;
 	private final String baseUrl;
 	private final VendorType vendor;
-	private final VendorPricePolicyService vendorPricePolicyService;
 	private final FxRateClient fxRateClient;
 
 	public ScraplingSourcingClient(ObjectMapper objectMapper, String baseUrl, VendorType vendor,
-		VendorPricePolicyService vendorPricePolicyService, FxRateClient fxRateClient) {
+		FxRateClient fxRateClient) {
 		this.objectMapper = objectMapper;
 		this.baseUrl = baseUrl;
 		this.vendor = vendor;
-		this.vendorPricePolicyService = vendorPricePolicyService;
 		this.fxRateClient = fxRateClient;
 	}
 
@@ -69,10 +64,9 @@ public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 				BigDecimal fx = fxRateClient.toKrw(res.path("currency").asText(null));
 				BigDecimal goods = BigDecimal.valueOf(res.get("price").asDouble())
 					.multiply(fx).setScale(0, RoundingMode.HALF_UP);
-				BigDecimal shipping = resolveShipping(res, fx);
 				return new StockCheckResult(
 					inStock ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
-					goods, inStock ? 100 : 0, null, false, shipping);
+					goods, inStock ? 100 : 0, null, false, fx);
 			}
 			case "not_found":
 				log.info("{} 링크 소멸(404) → 폐기 후보로 기록: {}", vendor, sourceUrl);
@@ -89,20 +83,6 @@ public class ScraplingSourcingClient implements VendorAwareStockCrawler {
 				throw new IllegalStateException(vendor + " 스크랩 실패(" + status + "): "
 					+ res.path("error").asText("") + " url=" + sourceUrl);
 		}
-	}
-
-	private BigDecimal resolveShipping(JsonNode res, BigDecimal fx) {
-		VendorPricePolicy policy = vendorPricePolicyService.find(vendor).orElse(null);
-		Double weight = res.hasNonNull("weightGrams") ? res.get("weightGrams").asDouble() : null;
-		BigDecimal inCurrency = VendorShippingCalculator.amount(weight, policy);
-		if (inCurrency == null) {
-			throw new IllegalStateException(vendor + " 배송비 정책이 없다 — 0 으로 두면 원가를 과소평가한다."
-				+ " 설정 및 연동 > 가격 정책에서 등록할 것");
-		}
-		if (inCurrency.signum() == 0) {
-			return BigDecimal.ZERO;
-		}
-		return inCurrency.multiply(fx).setScale(0, RoundingMode.HALF_UP);
 	}
 
 	private JsonNode call(String url) {
