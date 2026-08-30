@@ -14,7 +14,7 @@ RUN pip install -r requirements.txt
 RUN scrapling install
 
 # 소스(.venv/__pycache__ 제외하고 명시적으로만 복사)
-COPY scraper/app.py scraper/models.py scraper/pricing.py ./
+COPY scraper/app.py scraper/models.py ./
 COPY scraper/scrapers/ ./scrapers/
 
 EXPOSE 8099
