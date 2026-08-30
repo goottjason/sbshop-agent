@@ -4,6 +4,7 @@ import { fetchCredentials, saveCredential, getCafe24Status, issueCafe24Token } f
 import type { MarketCredential } from '../api/marketApi';
 import { fetchPricePolicy, savePricePolicy } from '../api/pricePolicyApi';
 import { getAdminAuth, setAdminAuth } from '../api/axios';
+import VendorPricePolicyPanel from './settings/VendorPricePolicyPanel';
 
 const secretPlaceholder = (hasValue?: boolean, fallback = ''): string =>
   hasValue ? '설정됨 — 변경하려면 새 값 입력 (비우면 기존 값 유지)' : fallback;
@@ -161,7 +162,10 @@ const Settings = () => {
     { id: 'SMART_STORE', label: 'N스토어 (Naver)' },
     { id: 'ELEVEN_STREET', label: '11번가 (11st)' },
     { id: 'CAFE24', label: '카페24 (Cafe24)' },
+    { id: 'PRICE_POLICY', label: '가격 정책' },
   ];
+
+  const isPricePolicyTab = activeTab === 'PRICE_POLICY';
 
   if (!authed) {
     return (
@@ -224,6 +228,9 @@ const Settings = () => {
         ))}
       </div>
 
+      {isPricePolicyTab ? (
+        <VendorPricePolicyPanel />
+      ) : (
       <div className="card" style={{ padding: '32px' }}>
         <h2 style={{ marginBottom: '24px' }}>{tabs.find((t) => t.id === activeTab)?.label} API 설정</h2>
 
@@ -444,11 +451,13 @@ const Settings = () => {
           </div>
         </form>
       </div>
+      )}
 
+      {isPricePolicyTab && (
       <div className="card" style={{ padding: '32px', marginTop: '24px' }}>
-        <h2 style={{ marginBottom: '8px' }}>가격 정책</h2>
+        <h2 style={{ marginBottom: '8px' }}>공통 폴백 정책</h2>
         <p style={{ color: '#666', fontSize: 14, marginTop: 0, marginBottom: '24px' }}>
-          상품 등록·일괄 가격 갱신에 쓰이는 기본값입니다. 비워두면 화면별 기본값이 사용됩니다.
+          소싱처 정책이 없을 때만 쓰이는 값입니다. 위에서 소싱처별로 지정한 값이 항상 우선합니다.
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -499,6 +508,7 @@ const Settings = () => {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };
