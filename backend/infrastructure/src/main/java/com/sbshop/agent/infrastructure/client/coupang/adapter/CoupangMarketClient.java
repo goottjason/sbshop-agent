@@ -24,6 +24,7 @@ import com.sbshop.agent.infrastructure.client.coupang.dto.CoupangProductPayload;
 import com.sbshop.agent.infrastructure.client.coupang.mapper.CoupangDataMapper;
 import com.sbshop.agent.infrastructure.client.coupang.parser.CoupangProductParser;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -224,7 +225,7 @@ public class CoupangMarketClient implements MarketClient {
 		}
 		String base = "/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/" + marketItemId;
 		if (price != null) {
-			verifyEnvelopeLenient(restClient.put(base + "/prices/" + price, Map.of()), "[쿠팡] 가격 변경");
+			changePriceStepwise(base, currentRawData, price);
 		}
 		verifyEnvelopeLenient(restClient.put(base + "/quantities/" + quantity, Map.of()), "[쿠팡] 재고 변경");
 		verifyEnvelopeLenient(restClient.put(base + (soldOut ? "/sales/stop" : "/sales/resume"), Map.of()),
@@ -232,6 +233,81 @@ public class CoupangMarketClient implements MarketClient {
 		log.info("[쿠팡] 가격/재고/판매상태: vendorItemId={}, price={}, qty={}, soldOut={}",
 			marketItemId, price, quantity, soldOut);
 		return currentRawData;
+	}
+
+	private static final BigDecimal MAX_CUT = new BigDecimal("0.5");
+	private static final BigDecimal MAX_RAISE = new BigDecimal("2.0");
+	private static final int MAX_PRICE_STEPS = 8;
+
+	/**
+	 * 쿠팡은 1회 변경 한도가 기존가 대비 -50% ~ +100% 다(D-246). 목표가가 한도 밖이면
+	 * 한도까지만 옮기고 다시 시도한다. 현재가를 모르면 나눌 기준이 없으므로 한 번만 보낸다 —
+	 * 추측으로 여러 번 밀어넣으면 엉뚱한 가격이 마켓에 남는다.
+	 */
+	private void changePriceStepwise(String base, Map<String, Object> currentRawData, int target) {
+		Integer current = readCurrentPrice(currentRawData);
+		if (current == null || current <= 0) {
+			current = fetchCurrentPrice(base);
+		}
+		if (current == null || current <= 0) {
+			verifyEnvelopeLenient(restClient.put(base + "/prices/" + target, Map.of()), "[쿠팡] 가격 변경");
+			return;
+		}
+		for (int step = 0; step < MAX_PRICE_STEPS; step++) {
+			int next = clampToAllowed(current, target);
+			verifyEnvelopeLenient(restClient.put(base + "/prices/" + next, Map.of()), "[쿠팡] 가격 변경");
+			if (next != target) {
+				log.info("[쿠팡] 변경 폭 제한으로 단계 인상/인하: {} → {} (목표 {})", current, next, target);
+			}
+			current = next;
+			if (current == target) {
+				return;
+			}
+		}
+		throw new IllegalStateException("[쿠팡] 가격을 " + MAX_PRICE_STEPS
+			+ "단계 안에 목표가로 옮기지 못했다: 현재=" + current + ", 목표=" + target);
+	}
+
+	private int clampToAllowed(int current, int target) {
+		BigDecimal cur = BigDecimal.valueOf(current);
+		int floor = cur.multiply(MAX_CUT).setScale(0, RoundingMode.CEILING).intValue();
+		int ceiling = cur.multiply(MAX_RAISE).setScale(0, RoundingMode.FLOOR).intValue();
+		if (target < floor) {
+			return floor;
+		}
+		if (target > ceiling) {
+			return ceiling;
+		}
+		return target;
+	}
+
+	/** 저장된 rawData 에 현재가가 없는 경우가 대부분이라(운영 1,262건 중 1,242건) 마켓에서 직접 읽는다. */
+	private Integer fetchCurrentPrice(String base) {
+		try {
+			JsonNode root = objectMapper.readTree(restClient.get(base));
+			JsonNode price = root.path("data").path("salePrice");
+			if (price.isNumber()) {
+				return price.asInt();
+			}
+			log.warn("[쿠팡] 현재가를 응답에서 찾지 못했다 — 단계 조정 없이 1회만 시도한다: {}", base);
+		} catch (Exception e) {
+			log.warn("[쿠팡] 현재가 조회 실패 — 단계 조정 없이 1회만 시도한다: {}", e.getMessage());
+		}
+		return null;
+	}
+
+	private Integer readCurrentPrice(Map<String, Object> currentRawData) {
+		if (currentRawData == null) {
+			return null;
+		}
+		Object v = currentRawData.get("salePrice");
+		if (v instanceof Number n) {
+			return n.intValue();
+		}
+		if (v instanceof String str && str.matches("\\d+")) {
+			return Integer.parseInt(str);
+		}
+		return null;
 	}
 
 	@Override
