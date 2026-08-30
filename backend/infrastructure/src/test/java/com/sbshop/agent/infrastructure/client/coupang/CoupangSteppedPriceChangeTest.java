@@ -53,13 +53,21 @@ class CoupangSteppedPriceChangeTest {
 	private final List<Integer> pricePuts = new ArrayList<>();
 
 	private static final String ITEM = "999";
+	private static final String SELLER_PRODUCT_ID = "555";
 	private static final Pattern PRICE_PATH = Pattern.compile("/vendor-items/" + ITEM + "/prices/(\\d+)");
 
 	/** 쿠팡을 흉내낸다 — 현재가 대비 -50%/+100% 를 벗어나면 거부하고, 통과하면 현재가가 바뀐다. */
 	private void simulateCoupang(int startingPrice) {
 		int[] current = {startingPrice};
-		lenient().when(restClient.get(anyString()))
-			.thenAnswer(inv -> "{\"data\":{\"salePrice\":" + current[0] + "}}");
+		lenient().when(restClient.get(anyString())).thenAnswer(inv -> {
+			String path = inv.getArgument(0);
+			if (!path.contains("/seller-products/" + SELLER_PRODUCT_ID)) {
+				throw new IllegalStateException("404 Not Found: 존재하지 않는 조회 경로 " + path);
+			}
+			return "{\"data\":{\"items\":["
+				+ "{\"vendorItemId\":11111,\"salePrice\":999999},"
+				+ "{\"vendorItemId\":" + ITEM + ",\"salePrice\":" + current[0] + "}]}}";
+		});
 		lenient().when(restClient.put(anyString(), anyMap())).thenAnswer(inv -> {
 			String path = inv.getArgument(0);
 			Matcher m = PRICE_PATH.matcher(path);
@@ -90,7 +98,7 @@ class CoupangSteppedPriceChangeTest {
 	void withinLimitSendsOnce() {
 		simulateCoupang(10000);
 
-		client.syncPriceAndStock(ITEM, Map.of("salePrice", 10000), 14000, 10, false);
+		client.syncPriceAndStock(ITEM, Map.of("sellerProductId", SELLER_PRODUCT_ID), 14000, 10, false);
 
 		assertThat(pricePuts).containsExactly(14000);
 	}
@@ -100,7 +108,7 @@ class CoupangSteppedPriceChangeTest {
 	void largeIncreaseIsStepped() {
 		simulateCoupang(10000);
 
-		client.syncPriceAndStock(ITEM, Map.of("salePrice", 10000), 90000, 10, false);
+		client.syncPriceAndStock(ITEM, Map.of("sellerProductId", SELLER_PRODUCT_ID), 90000, 10, false);
 
 		assertThat(pricePuts).hasSizeGreaterThan(1);
 		assertThat(pricePuts.get(pricePuts.size() - 1)).isEqualTo(90000);
@@ -112,25 +120,25 @@ class CoupangSteppedPriceChangeTest {
 	void largeDecreaseIsStepped() {
 		simulateCoupang(80000);
 
-		client.syncPriceAndStock(ITEM, Map.of("salePrice", 80000), 15000, 10, false);
+		client.syncPriceAndStock(ITEM, Map.of("sellerProductId", SELLER_PRODUCT_ID), 15000, 10, false);
 
 		assertThat(pricePuts).hasSizeGreaterThan(1);
 		assertThat(pricePuts.get(pricePuts.size() - 1)).isEqualTo(15000);
 	}
 
 	@Test
-	@DisplayName("저장된 rawData 가 비어도 마켓에서 현재가를 읽어 단계로 올린다 — 1,242건이 이 경우다")
+	@DisplayName("여러 옵션 중 해당 vendorItemId 의 가격을 골라 단계로 올린다 — 첫 항목을 집으면 엉뚱한 가격 기준이 된다")
 	void readsCurrentPriceFromMarketWhenRawDataEmpty() {
 		simulateCoupang(10000);
 
-		client.syncPriceAndStock(ITEM, Map.of(), 90000, 10, false);
+		client.syncPriceAndStock(ITEM, Map.of("sellerProductId", SELLER_PRODUCT_ID), 90000, 10, false);
 
 		assertThat(pricePuts).hasSizeGreaterThan(1);
 		assertThat(pricePuts.get(pricePuts.size() - 1)).isEqualTo(90000);
 	}
 
 	@Test
-	@DisplayName("현재가를 끝내 못 읽으면 한 번만 시도한다 — 추측으로 여러 번 밀어넣지 않는다")
+	@DisplayName("sellerProductId 가 없으면 한 번만 시도한다 — 없는 경로를 두드리지 않는다")
 	void withoutCurrentPriceTriesOnce() {
 		lenient().when(restClient.get(anyString())).thenReturn("{}");
 		lenient().when(restClient.put(anyString(), anyMap())).thenAnswer(inv -> {
@@ -142,7 +150,7 @@ class CoupangSteppedPriceChangeTest {
 			return "{\"code\":\"SUCCESS\"}";
 		});
 
-		client.syncPriceAndStock(ITEM, Map.of(), 90000, 10, false);
+		client.syncPriceAndStock(ITEM, Map.of("sellerProductId", SELLER_PRODUCT_ID), 90000, 10, false);
 
 		assertThat(pricePuts).containsExactly(90000);
 	}

@@ -4235,7 +4235,20 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
   - 현재가를 끝내 못 읽으면 **1회만 시도한다.** 추측으로 여러 번 밀어넣으면 엉뚱한 가격이 마켓에 남는다.
   - 8단계 안에 수렴하지 못하면 예외 — 조용히 중간 가격으로 두지 않는다.
 - 테스트: `CoupangSteppedPriceChangeTest` 5건. 쿠팡의 거부 규칙을 흉내내는 스텁(한도 밖이면 400, 통과하면 현재가 갱신)으로 실제 왕복을 재현했다. Red 확인(한도 초과 2건 실패, 한도 내 1건은 통과 — 기존 동작 보존). **변이 검사**: 한도 무시 변이 → 2건 실패, 현재가 미상 시 추측 허용 변이 → 1건 실패.
-- 상태: **수정완료(검증통과)** 2026-08-30
+- **1차 수정 실패 (2026-08-30, FTN 배치 `1a32728a` 실측)**: 현재가를 `GET /vendor-items/{id}` 로 읽게 했는데 **그런 엔드포인트가 없다.**
+
+  ```
+  404 PRECONDITION_FAILED: No exactly matching API specification for
+  /api/v1/marketplace/vendor-items/78506056296 found
+  ```
+
+  PUT 경로(`/vendor-items/{id}/prices/{price}`)와 대칭일 것이라 **짐작하고 검증 없이 배포**했다. 운영에서 **86회 전부 실패**했고, 단계 조정은 0회, 한도 거부 3건이 그대로 남았다. 테스트는 통과했는데 — 스텁이 내 잘못된 가정을 그대로 흉내냈기 때문이다. **가짜 계약을 검증한 테스트였다.**
+- **2차 수정**: 실제 조회 경로는 `GET /seller-products/{sellerProductId}` 이고, 가격은 `data.items[]` 안에 **옵션별로** 들어 있다. `vendorItemId` 가 일치하는 항목을 골라야 한다(첫 항목을 집으면 다른 옵션 가격을 기준으로 삼는다).
+  - `sellerProductId` 는 `marketDetailedInfo` 에 **1,262건 중 20건**뿐이지만 `marketIdentifiers` 에는 **1,262건 전부** 있다 → `ProductMarketSyncService.mergeRawDataWithIdentifiers` 로 둘을 합쳐 클라이언트에 넘긴다(상세정보가 우선 — 마켓에서 읽어온 최신값을 식별자로 덮지 않는다).
+  - 테스트 스텁을 **실제 경로만 응답하고 나머지는 404 를 던지도록** 고쳤다. 그러자 3건이 Red 로 떨어졌다 — 운영에서 벌어진 일이 테스트에 재현됐다.
+- 교훈: **외부 API 경로를 대칭으로 짐작하지 않는다.** 이미 운영에서 성공하는 호출을 찾아 그 경로를 쓰거나, 배포 전에 한 건 실호출로 확인한다. 스텁은 내 가정이 아니라 **관측된 응답**을 흉내내야 한다.
+- 테스트: `CoupangSteppedPriceChangeTest` 5건 + `SyncPassesIdentifiersTest` 4건.
+- 상태: **재수정완료(배포·실전 검증 대기)** 2026-08-30
 
 ### D-247: Costco 일부 페이지에 JSON-LD Product 가 없다 (2026-08-30, 재크롤 중 2건)
 
@@ -4375,4 +4388,27 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 실측: 마진율 0/NULL 상품은 vendor 없는 고아 1건뿐 — **아직 피해 없음, 예방 조치다.**
 - 테스트: `ProductCreateMarginFromPolicyTest` 3건. 구현 후 통과라 **변이 검사로 판별력 확인** — 정책 해석을 건너뛰는 변이에서 2건이 정확히 실패했다.
 - 상태: **수정완료(검증통과)** 2026-08-30
+
+### D-252: F&M 단종 상품은 404 가 아니라 200 + "This Product is not available." 라 폐기 후보로 안 잡힌다 (2026-08-30, FTN 재크롤 실패 28건 추적)
+
+- 심각도: 표준(28건이 영구 실패로 적체) | 위치: `scraper/scrapers/fortnum.py`
+- 증상: FTN 재크롤 배치(`1a32728a`)에서 28건이 전부 같은 이유로 실패했다.
+
+  ```
+  FTN 스크랩 실패(error): price not found (200) url=.../balsamic-jelly-100g
+  ```
+
+- 실측 응답:
+
+  ```json
+  {"httpStatus":200, "name":"This Product is not available.",
+   "price":null, "inStock":true, "availabilityText":"In stock"}
+  ```
+
+  **HTTP 200 이고 "재고 있음"으로 읽힌다.** 스크래퍼는 `404` 또는 `"page not found"` 만 링크 소멸로 보는데, F&M 은 단종 상품에 **소프트 404**(200 + "This Product is not available.")를 준다.
+- 피해: 폐기 후보로 기록되지 않아 **매 배치마다 같은 28건이 실패로 쌓인다.** 사람이 보기 전까지 영원히 갱신되지 않는다. [[D-247]](Costco JSON-LD 부재 2건)과 같은 계열 — "실패로 남기는 것"이 안전하긴 해도 해소되지는 않는다.
+- **가격이 `null` 인 것이 유일한 방어였다.** 가격만 파싱됐다면 `inStock=true` 로 읽혀 **단종 상품이 판매중으로 유지**됐을 것이다. 재고 판정이 소프트 404 를 못 걸러낸다는 뜻이다.
+- 수정: `gone_markers` 에 `"this product is not available"` 추가 — 가격 파싱 전에 `status="not_found"` 로 반환한다. 자바가 `sourceGone=LINK_DEAD` 로 기록해 폐기 후보가 된다.
+- 검증 예정: 배포 후 실패 URL 2건 + **정상 상품 1건(대조군)** 으로 확인한다. 대조군 없이 "고쳐졌다"를 판정하지 않는다.
+- 상태: **수정완료(배포·검증 대기)** 2026-08-30
 

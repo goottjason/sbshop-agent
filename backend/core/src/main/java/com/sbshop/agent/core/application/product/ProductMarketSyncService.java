@@ -85,7 +85,8 @@ public class ProductMarketSyncService {
 				if (marketItemId == null || marketItemId.isEmpty()) {
 					throw new IllegalStateException("마켓 상품코드 없음(연동정보에 코드 키 부재)");
 				}
-				Map<String, Object> currentRawData = parseRawData(reg.getMarketDetailedInfo());
+				Map<String, Object> currentRawData = mergeRawDataWithIdentifiers(objectMapper,
+					reg.getMarketDetailedInfo(), reg.getMarketIdentifiers());
 
 				MarketClient client = marketClientRouter.getClient(marketType);
 				Map<String, Object> updated = client.syncPriceAndStock(marketItemId, currentRawData,
@@ -117,6 +118,30 @@ public class ProductMarketSyncService {
 		log.info("[가격재고동기화] 완료: productId={}, synced={}, skipped={}, failed={}",
 			productId, synced, skipped, failed.keySet());
 		return new MarketRepublishResult(synced, skipped, failed);
+	}
+
+	/**
+	 * 마켓 클라이언트가 쓰는 rawData 에 식별자를 함께 싣는다.
+	 * 쿠팡 단계 가격조정([[D-246]])은 {@code sellerProductId} 로 현재가를 읽는데,
+	 * {@code marketDetailedInfo} 에는 운영 1,262건 중 20건에만 있고 {@code marketIdentifiers} 에는 전부 있다.
+	 * 상세정보 값이 우선한다 — 마켓에서 읽어온 최신값을 식별자로 덮지 않는다.
+	 */
+	static Map<String, Object> mergeRawDataWithIdentifiers(ObjectMapper objectMapper,
+		String detailedInfo, String identifiers) {
+		Map<String, Object> merged = new HashMap<>(parseJsonMap(objectMapper, identifiers));
+		merged.putAll(parseJsonMap(objectMapper, detailedInfo));
+		return merged;
+	}
+
+	private static Map<String, Object> parseJsonMap(ObjectMapper objectMapper, String json) {
+		if (json == null || json.isBlank()) {
+			return new HashMap<>();
+		}
+		try {
+			return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+		} catch (Exception e) {
+			return new HashMap<>();
+		}
 	}
 
 	private Map<String, Object> parseRawData(String json) {

@@ -50,11 +50,14 @@ class FortnumScraper(VendorScraper):
             return ScrapeResult(ok=False, status="blocked", httpStatus=http, sourceUrl=url,
                                 vendor=self.vendor, error="bot/Cloudflare 차단 의심", scrapedAt=now)
 
-        # (2) 링크 소멸(404) — 더 이상 판매 안 함 → 품절 처리(가격 미변경).
-        if http == 404 or "page not found" in low_all:
+        # (2) 링크 소멸 — 더 이상 판매 안 함 → 폐기 후보(가격 미변경).
+        #     F&M 은 단종 상품에 404 가 아니라 **HTTP 200 + "This Product is not available."** 를 준다.
+        #     이 소프트 404 를 못 읽으면 "가격 없음(error)" 으로 떨어져 영원히 실패로만 쌓인다(D-252).
+        gone_markers = ("page not found", "this product is not available")
+        if http == 404 or any(m in low_all for m in gone_markers):
             return ScrapeResult(ok=False, status="not_found", httpStatus=http, sourceUrl=url,
-                                vendor=self.vendor, inStock=False, availabilityText="404 Not Found",
-                                error="상품 페이지 없음(404)", scrapedAt=now)
+                                vendor=self.vendor, inStock=False, availabilityText="상품 없음",
+                                error="상품 페이지 없음", scrapedAt=now)
 
         name = self._first(page, [
             'meta[property="og:title"]::attr(content)',

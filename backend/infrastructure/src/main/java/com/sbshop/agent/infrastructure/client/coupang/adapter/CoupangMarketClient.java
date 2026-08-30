@@ -46,6 +46,7 @@ public class CoupangMarketClient implements MarketClient {
 
 	private static final String CATALOG_BASE = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
 	private static final String VENDOR_ITEM_BASE = "/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/";
+	private static final String SELLER_PRODUCT_BASE = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/";
 	private static final Set<String> OPTION_ABSENT_MESSAGES = Set.of("유효한 옵션이 없습니다",
 		"유효하지 않은 ID가 입력되었습니다");
 	private static final Set<String> APPROVAL_ELIGIBLE_STATUSES = Set.of("임시저장", "승인반려", "부분승인완료");
@@ -225,7 +226,7 @@ public class CoupangMarketClient implements MarketClient {
 		}
 		String base = "/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/" + marketItemId;
 		if (price != null) {
-			changePriceStepwise(base, currentRawData, price);
+			changePriceStepwise(base, marketItemId, currentRawData, price);
 		}
 		verifyEnvelopeLenient(restClient.put(base + "/quantities/" + quantity, Map.of()), "[쿠팡] 재고 변경");
 		verifyEnvelopeLenient(restClient.put(base + (soldOut ? "/sales/stop" : "/sales/resume"), Map.of()),
@@ -244,10 +245,11 @@ public class CoupangMarketClient implements MarketClient {
 	 * 한도까지만 옮기고 다시 시도한다. 현재가를 모르면 나눌 기준이 없으므로 한 번만 보낸다 —
 	 * 추측으로 여러 번 밀어넣으면 엉뚱한 가격이 마켓에 남는다.
 	 */
-	private void changePriceStepwise(String base, Map<String, Object> currentRawData, int target) {
+	private void changePriceStepwise(String base, String vendorItemId,
+		Map<String, Object> currentRawData, int target) {
 		Integer current = readCurrentPrice(currentRawData);
 		if (current == null || current <= 0) {
-			current = fetchCurrentPrice(base);
+			current = fetchCurrentPrice(currentRawData, vendorItemId);
 		}
 		if (current == null || current <= 0) {
 			verifyEnvelopeLenient(restClient.put(base + "/prices/" + target, Map.of()), "[쿠팡] 가격 변경");
@@ -281,15 +283,30 @@ public class CoupangMarketClient implements MarketClient {
 		return target;
 	}
 
-	/** 저장된 rawData 에 현재가가 없는 경우가 대부분이라(운영 1,262건 중 1,242건) 마켓에서 직접 읽는다. */
-	private Integer fetchCurrentPrice(String base) {
+	/**
+	 * 저장된 rawData 에 현재가가 없는 경우가 대부분이라(운영 1,262건 중 1,242건) 마켓에서 직접 읽는다.
+	 * <p><b>{@code GET /vendor-items/{id}} 는 존재하지 않는다</b> — PUT 경로와 대칭일 것이라 짐작했다가
+	 * 운영에서 86회 전부 `PRECONDITION_FAILED` 로 실패했다(D-246 1차 수정 실패). 실제 조회 경로는
+	 * {@code GET /seller-products/{sellerProductId}} 이고, 가격은 {@code data.items[]} 안에
+	 * 옵션별로 들어 있으므로 <b>vendorItemId 가 일치하는 항목</b>을 골라야 한다.
+	 */
+	private Integer fetchCurrentPrice(Map<String, Object> currentRawData, String vendorItemId) {
+		Object sellerProductId = currentRawData == null ? null : currentRawData.get("sellerProductId");
+		if (sellerProductId == null || sellerProductId.toString().isBlank()) {
+			log.warn("[쿠팡] sellerProductId 가 없어 현재가를 못 읽는다 — 단계 조정 없이 1회만 시도한다");
+			return null;
+		}
 		try {
-			JsonNode root = objectMapper.readTree(restClient.get(base));
-			JsonNode price = root.path("data").path("salePrice");
-			if (price.isNumber()) {
-				return price.asInt();
+			JsonNode items = objectMapper.readTree(restClient.get(SELLER_PRODUCT_BASE + sellerProductId))
+				.path("data").path("items");
+			for (JsonNode item : items) {
+				if (vendorItemId.equals(item.path("vendorItemId").asText())
+					&& item.path("salePrice").isNumber()) {
+					return item.path("salePrice").asInt();
+				}
 			}
-			log.warn("[쿠팡] 현재가를 응답에서 찾지 못했다 — 단계 조정 없이 1회만 시도한다: {}", base);
+			log.warn("[쿠팡] items 에서 vendorItemId={} 를 찾지 못했다 — 단계 조정 없이 1회만 시도한다",
+				vendorItemId);
 		} catch (Exception e) {
 			log.warn("[쿠팡] 현재가 조회 실패 — 단계 조정 없이 1회만 시도한다: {}", e.getMessage());
 		}
