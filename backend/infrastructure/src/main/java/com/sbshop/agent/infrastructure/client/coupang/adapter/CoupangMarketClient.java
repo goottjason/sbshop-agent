@@ -275,12 +275,25 @@ public class CoupangMarketClient implements MarketClient {
 		int floor = cur.multiply(MAX_CUT).setScale(0, RoundingMode.CEILING).intValue();
 		int ceiling = cur.multiply(MAX_RAISE).setScale(0, RoundingMode.FLOOR).intValue();
 		if (target < floor) {
-			return floor;
+			return roundUpToTenWon(floor);
 		}
 		if (target > ceiling) {
-			return ceiling;
+			return roundDownToTenWon(ceiling);
 		}
 		return target;
+	}
+
+	/**
+	 * 쿠팡은 <b>10원 단위</b>만 받는다("판매가는 최소 10원 단위로 입력가능합니다").
+	 * 단계 조정이 반으로 나누면 1원 단위가 나오므로(91,150 → 45,575) 한도 방향으로 맞춰 올림/내림한다.
+	 * 한도 안쪽으로 남기려면 <b>인하 시 올림, 인상 시 내림</b>이어야 한다 — 반대로 하면 다시 거부당한다.
+	 */
+	private int roundUpToTenWon(int value) {
+		return value % 10 == 0 ? value : value + (10 - value % 10);
+	}
+
+	private int roundDownToTenWon(int value) {
+		return value - (value % 10);
 	}
 
 	/**

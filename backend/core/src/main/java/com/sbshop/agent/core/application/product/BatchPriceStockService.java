@@ -77,15 +77,14 @@ public class BatchPriceStockService {
 					product.markSourceGone(result.sourceGoneReason() != null
 						? result.sourceGoneReason() : SourceGoneReason.LINK_DEAD);
 					productWriter.save(product);
-					BigDecimal existingCost = product.getPriceInfo() != null
-						? product.getPriceInfo().getCostPrice() : null;
+					// 원본이 사라진 상품은 새 가격을 알 수 없다. 원가(null)를 그대로 넘겨
+					// 가격은 건드리지 않고 재고만 0 으로 보낸다 — 0 으로 계산하면 쓰레기 값이 나간다(D-253).
 					MarketRepublishResult goneSync = productMarketSyncService.syncPriceStockPerMarket(
 						productId,
-						new PricingInputs(existingCost != null ? existingCost : BigDecimal.ZERO,
-							bundleQty, marginRate, couponRate, minMarginPrice),
+						new PricingInputs(null, bundleQty, marginRate, couponRate, minMarginPrice),
 						StockStatus.OUT_OF_STOCK, goneChanged);
 					processStatusService.markSuccess(batchId, String.valueOf(productId),
-						String.format("[%s] 소스 링크 없음 → 품절 처리(가격 미변경) · 마켓반영 성공%d/스킵%d/실패%d",
+						String.format("[%s] 소스 링크 없음 → 품절 처리(가격 미전송) · 마켓반영 성공%d/스킵%d/실패%d",
 							product.getSbCode(), goneSync.synced().size(), goneSync.skipped().size(),
 							goneSync.failed().size()));
 					Thread.sleep(CRAWL_THROTTLE_MS);

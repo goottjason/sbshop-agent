@@ -55,7 +55,20 @@ public class ProductMarketSyncService {
 	}
 
 	private Integer priceForMarket(PricingInputs p, MarketType marketType) {
+		if (!hasUsableCost(p)) {
+			return null;
+		}
 		return marketSalePriceResolver.resolve(p, marketType);
+	}
+
+	/**
+	 * 원가 0 은 "공짜"가 아니라 <b>품절이라 가격을 못 읽었거나 링크가 죽었다</b>는 뜻이다.
+	 * 0 으로 계산하면 마진·수수료만 얹힌 쓰레기 값이 마켓에 나간다 — 2026-08-31 OCD 배치에서
+	 * 원본 소멸 31건이 47,500~182,300원에서 11,000원대로 덮였다([[D-253]]).
+	 * {@code null} 을 돌려주면 마켓 클라이언트가 가격 갱신을 건너뛰고 재고만 반영한다.
+	 */
+	static boolean hasUsableCost(PricingInputs p) {
+		return p != null && p.buyPrice() != null && p.buyPrice().signum() > 0;
 	}
 
 	private MarketRepublishResult syncInternal(Long productId, Function<MarketType, Integer> priceResolver,

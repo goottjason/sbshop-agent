@@ -75,6 +75,10 @@ class CoupangSteppedPriceChangeTest {
 				return "{\"code\":\"SUCCESS\"}";
 			}
 			int wanted = Integer.parseInt(m.group(1));
+			if (wanted % 10 != 0) {
+				throw new IllegalStateException("400 Bad Request: 판매가는 최소 10원 단위로"
+					+ " 입력가능합니다. (1원단위 입력 불가)");
+			}
 			if (wanted < current[0] / 2 || wanted > current[0] * 2) {
 				throw new IllegalStateException("400 Bad Request: 가격변경에 실패했습니다."
 					+ " [옵션ID[" + ITEM + "] : 판매가 변경이 불가능합니다."
@@ -153,5 +157,17 @@ class CoupangSteppedPriceChangeTest {
 		client.syncPriceAndStock(ITEM, Map.of("sellerProductId", SELLER_PRODUCT_ID), 90000, 10, false);
 
 		assertThat(pricePuts).containsExactly(90000);
+	}
+
+	@Test
+	@DisplayName("단계 가격은 10원 단위로 맞춘다 — 쿠팡은 1원 단위를 거부한다(91,150 → 45,575 로 실패했다)")
+	void steppedPricesAreOnTenWonBoundary() {
+		simulateCoupang(182300);
+
+		client.syncPriceAndStock(ITEM, Map.of("sellerProductId", SELLER_PRODUCT_ID), 11000, 10, false);
+
+		assertThat(pricePuts).isNotEmpty();
+		assertThat(pricePuts).allSatisfy(p -> assertThat(p % 10).isZero());
+		assertThat(pricePuts.get(pricePuts.size() - 1)).isEqualTo(11000);
 	}
 }
