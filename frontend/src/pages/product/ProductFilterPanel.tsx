@@ -9,6 +9,7 @@ export interface ProductFilters {
   vendors: string[];
   stockStatuses: string[];
   inStockOnly: boolean;
+  sourceGone: 'ALL' | 'GONE_ONLY' | 'ALIVE_ONLY';
 }
 
 const rowStyle = { display: 'flex', alignItems: 'center' } as const;
@@ -28,12 +29,13 @@ export function ProductFilterPanel({ categoryOptions, onSearch }: { categoryOpti
   const [vendors, setVendors] = useState<string[]>(allVendors);
   const [stockStatuses, setStockStatuses] = useState<string[]>(allStock);
   const [inStockOnly, setInStockOnly] = useState(false);
+  const [sourceGone, setSourceGone] = useState<ProductFilters['sourceGone']>('ALL');
 
   const toggle = (list: string[], set: (v: string[]) => void, val: string) =>
     set(list.includes(val) ? list.filter((x) => x !== val) : [...list, val]);
 
   const handleSearch = () =>
-    onSearch({ keyword, categories, includeUncategorized, markets, vendors, stockStatuses, inStockOnly });
+    onSearch({ keyword, categories, includeUncategorized, markets, vendors, stockStatuses, inStockOnly, sourceGone });
 
   const isAllMarkets = markets.length === allMarkets.length;
   const isAllVendors = vendors.length === allVendors.length;
@@ -98,6 +100,30 @@ export function ProductFilterPanel({ categoryOptions, onSearch }: { categoryOpti
             ))}
           </div>
         </div>
+        <div style={{ flex: 1, ...rowStyle }}>
+          <span style={labelStyle}>원본 상태</span>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            {([
+              { id: 'ALL', label: '전체' },
+              { id: 'ALIVE_ONLY', label: '정상만' },
+              { id: 'GONE_ONLY', label: '폐기 후보만' },
+            ] as const).map((o) => (
+              <label key={o.id} style={optLabelStyle}>
+                <input
+                  type="radio"
+                  name="sourceGone"
+                  checked={sourceGone === o.id}
+                  onChange={() => setSourceGone(o.id)}
+                  style={checkboxStyle}
+                />
+                {o.label}
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex' }}>
         <div style={{ flex: 1, ...rowStyle }}>
           <span style={labelStyle}>소싱처</span>
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>

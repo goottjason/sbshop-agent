@@ -57,7 +57,7 @@ class ProductControllerMarketMapTest {
 	}
 
 	private ResponseEntity<Page<ProductListResponse>> listAll() {
-		return controller().getProducts(null, null, null, null, null, null, false, false, PageRequest.of(0, 50));
+		return controller().getProducts(null, null, null, null, null, null, false, false, null, PageRequest.of(0, 50));
 	}
 
 	private MarketRegistration reg(Long productId, MarketType type, String identifiersJson) {

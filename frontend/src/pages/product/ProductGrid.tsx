@@ -17,7 +17,7 @@ import { notify } from '../../utils/notify';
 
 const columnHelper = createColumnHelper<ProductList>();
 const DEFAULT_FILTERS: ProductFilters = {
-  keyword: '', categories: [], includeUncategorized: false, markets: [], vendors: [], stockStatuses: [], inStockOnly: false,
+  keyword: '', categories: [], includeUncategorized: false, markets: [], vendors: [], stockStatuses: [], inStockOnly: false, sourceGone: 'ALL',
 };
 
 function stockBadge(soldOut: boolean): React.CSSProperties {
@@ -34,6 +34,7 @@ function toQuery(page: number, size: number, keyword: string, f: ProductFilters)
   if (f.stockStatuses.length === 1) q.stockStatuses = f.stockStatuses;
   if (f.markets.length > 0 && f.markets.length < MARKET_FILTER_OPTIONS.length) q.markets = f.markets;
   if (f.inStockOnly) q.inStockOnly = true;
+  if (f.sourceGone && f.sourceGone !== 'ALL') q.sourceGone = f.sourceGone;
   return q;
 }
 
@@ -113,6 +114,24 @@ export default function ProductGrid() {
       cell: (info) => <span style={{ color: '#64748b' }}>{info.getValue() || '-'}</span> }),
     columnHelper.accessor('vendor', { id: 'vendor', header: '소싱처', size: 80,
       cell: (info) => <span style={{ color: '#64748b' }}>{info.getValue() || '-'}</span> }),
+    columnHelper.display({
+      id: 'sourceGone', header: '원본 상태', size: 130,
+      cell: ({ row }) => {
+        const r = row.original;
+        if (!r.sourceGoneReason) return <span style={{ color: '#94a3b8' }}>정상</span>;
+        const label = r.sourceGoneReason === 'DISCONTINUED' ? '단종' : '링크 소멸';
+        const since = r.sourceGoneAt ? String(r.sourceGoneAt).slice(0, 10) : null;
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+              background: '#fef3c7', color: '#92400e', width: 'fit-content' }}>
+              {label}
+            </span>
+            {since && <span style={{ fontSize: 11, color: '#94a3b8' }}>{since}부터</span>}
+          </div>
+        );
+      },
+    }),
     columnHelper.accessor('salePrice', {
       id: 'priceStock', header: '판매가·재고', size: 150,
       cell: (info) => {

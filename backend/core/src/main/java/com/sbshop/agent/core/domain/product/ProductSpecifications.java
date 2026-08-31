@@ -34,8 +34,20 @@ public final class ProductSpecifications {
 			addVendors(predicates, condition, root);
 			addStockStatuses(predicates, condition, root, cb);
 			addInStockOnly(predicates, condition, root, cb);
+			addSourceGone(predicates, condition, root, cb);
 			return cb.and(predicates.toArray(new Predicate[0]));
 		};
+	}
+
+	/** 폐기 후보(원본 소멸)만 / 정상만 걸러낸다. 판정 기준은 {@code sourceGoneAt} 의 존재다. */
+	private static void addSourceGone(List<Predicate> predicates, ProductSearchCondition condition,
+		Root<Product> root, CriteriaBuilder cb) {
+		switch (condition.sourceGone()) {
+			case GONE_ONLY -> predicates.add(cb.isNotNull(root.get("sourceGoneAt")));
+			case ALIVE_ONLY -> predicates.add(cb.isNull(root.get("sourceGoneAt")));
+			default -> {
+			}
+		}
 	}
 
 	private static void addKeyword(List<Predicate> predicates, ProductSearchCondition condition,

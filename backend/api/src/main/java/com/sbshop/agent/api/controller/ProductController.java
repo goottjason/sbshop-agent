@@ -26,6 +26,7 @@ import com.sbshop.agent.core.domain.product.client.dto.ImageProcessResult;
 import com.sbshop.agent.core.domain.product.client.dto.ImageUploadFile;
 import com.sbshop.agent.core.domain.product.dto.ProductSearchCondition;
 import com.sbshop.agent.core.domain.product.enums.ProductCategory;
+import com.sbshop.agent.core.domain.product.enums.SourceGoneFilter;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import java.io.ByteArrayInputStream;
@@ -90,10 +91,12 @@ public class ProductController {
 		boolean inStockOnly,
 		@RequestParam(defaultValue = "false")
 		boolean includeUncategorized,
+		@RequestParam(required = false)
+		SourceGoneFilter sourceGone,
 		@PageableDefault(size = 50)
 		Pageable pageable) {
 		ProductSearchCondition condition = buildSearchCondition(keyword, marketFilter, categories,
-			vendors, stockStatuses, markets, inStockOnly, includeUncategorized);
+			vendors, stockStatuses, markets, inStockOnly, includeUncategorized, sourceGone);
 		Page<Product> products = productSearchUseCase.searchProducts(condition, pageable);
 		Map<Long, List<MarketRegistration>> registrationsByProduct = loadRegistrations(products.getContent());
 		return ResponseEntity.ok(products.map(
@@ -255,7 +258,7 @@ public class ProductController {
 	private ProductSearchCondition buildSearchCondition(
 		String keyword, String marketFilter, List<ProductCategory> categories,
 		List<VendorType> vendors, List<StockStatus> stockStatuses, List<MarketType> markets,
-		boolean inStockOnly, boolean includeUncategorized) {
+		boolean inStockOnly, boolean includeUncategorized, SourceGoneFilter sourceGone) {
 		MarketType marketFilterType = null;
 		boolean registered = false;
 		if (marketFilter != null && !marketFilter.isBlank()) {
@@ -273,6 +276,7 @@ public class ProductController {
 			.markets(markets)
 			.inStockOnly(inStockOnly)
 			.includeUncategorized(includeUncategorized)
+			.sourceGone(sourceGone)
 			.build();
 	}
 

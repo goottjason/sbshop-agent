@@ -2,6 +2,7 @@ package com.sbshop.agent.core.domain.product.dto;
 
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.enums.ProductCategory;
+import com.sbshop.agent.core.domain.product.enums.SourceGoneFilter;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import java.util.List;
@@ -17,7 +18,8 @@ public record ProductSearchCondition(
 	List<StockStatus> stockStatuses,
 	List<MarketType> markets,
 	boolean inStockOnly,
-	boolean includeUncategorized) {
+	boolean includeUncategorized,
+	SourceGoneFilter sourceGone) {
 
 	public ProductSearchCondition {
 		keyword = blankToNull(keyword);
@@ -25,6 +27,7 @@ public record ProductSearchCondition(
 		vendors = nullToEmpty(vendors);
 		stockStatuses = nullToEmpty(stockStatuses);
 		markets = nullToEmpty(markets);
+		sourceGone = (sourceGone == null) ? SourceGoneFilter.ALL : sourceGone;
 	}
 
 	public static ProductSearchCondition none() {

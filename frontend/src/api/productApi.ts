@@ -17,6 +17,10 @@ export interface ProductList {
   marketRegistrations?: Record<string, MarketBadgeState>;
   category?: string;
   stockStatus?: 'IN_STOCK' | 'OUT_OF_STOCK';
+  /** 원본 소멸 사유. LINK_DEAD(링크 죽음) / DISCONTINUED(단종). null 이면 정상 */
+  sourceGoneReason?: string | null;
+  /** 원본 소멸을 처음 감지한 시각 — 언제부터 사라졌는지가 폐기 판단 근거다 */
+  sourceGoneAt?: string | null;
 }
 
 export type BadgeReason =
@@ -46,6 +50,7 @@ export interface ProductQuery {
   stockStatuses?: string[];
   markets?: string[];
   inStockOnly?: boolean;
+  sourceGone?: 'GONE_ONLY' | 'ALIVE_ONLY';
 }
 
 export interface ProductDetail {

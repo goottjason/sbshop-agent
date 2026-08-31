@@ -4471,3 +4471,27 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 교훈: **배치 메시지가 실제 동작을 반영하는지 확인해야 한다.** "가격 미변경"이라는 문구를 믿고 이 경로를 검토 대상에서 빼고 있었다.
 - 상태: **수정완료(배포 대기) · 오염 37건 복구 필요** 2026-08-31
 
+### D-254: 폐기 후보 191건이 기록만 되고 관리자에게 보이지 않는다 (2026-08-31, 사용자 지적)
+
+- 심각도: 표준(운영 공백) | 위치: `ProductSearchCondition` · `ProductSpecifications` · `ProductListResponse` · 프론트 상품 관리
+- 사용자 지적: "품절인지 링크소멸인지 단종인지 파악하고 상태를 기록할 필요가 있다. 비정상 상품은 품절 처리해 두고, 상태를 파악해 두면 배치가 끝나고 관리자가 삭제할 수 있어야 한다."
+- **판별·기록은 이미 되고 있었다**([[D-239]] 에서 신설). 배치가 스크래퍼 status 에 따라 갈라 처리한다:
+
+  | 스크래퍼 status | 자바 처리 | DB 기록 |
+  |----------------|----------|---------|
+  | `ok` + inStock | 재고·가격 정상 갱신 | `IN_STOCK` |
+  | `ok` + !inStock | 품절(가격은 갱신) | `OUT_OF_STOCK` |
+  | `not_found` | 품절 + 폐기 후보 | `source_gone_reason=LINK_DEAD` |
+  | `discontinued` | 품절 + 폐기 후보 | `source_gone_reason=DISCONTINUED` |
+  | `blocked`·`error` | **아무것도 안 함** | 변경 없음 |
+
+- **끊긴 곳 ①(고침)**: API 는 `sourceGoneReason` 을 내려주는데 **프론트가 쓰지 않았다** — `frontend/src` 에 `sourceGone` 참조 0건. 목록 필터도 소싱처·재고·마켓뿐이라 **폐기 후보 191건이 3,000건 속에 묻혀 있었다.**
+  - `SourceGoneFilter`(ALL / GONE_ONLY / ALIVE_ONLY) 신설 → 검색 조건·Specification·컨트롤러 파라미터 연결.
+  - `ProductListResponse` 에 `sourceGoneAt` 추가 — **언제부터 사라졌는지가 삭제 판단 근거**다.
+  - 프론트: 필터 패널에 `원본 상태` 라디오, 그리드에 `원본 상태` 컬럼(사유 배지 + "YYYY-MM-DD부터").
+  - 일괄 삭제는 이미 있었다(`productBulkApi.bulkDeleteProducts`) — 필터로 골라 체크 후 삭제하면 [[D-237]]·[[D-244]] 의 마켓 삭제 경로를 탄다.
+- **끊긴 곳 ②(미해결)**: 단종을 판별하는 스크래퍼가 절반뿐이다 — iHerb·jsonld(Ocado/Costco/Tesco)만 있고 **F&M·Vitabiotics 는 없다.** 그래서 191건이 **전부 `LINK_DEAD`** 이고 `DISCONTINUED` 는 0건이다.
+  - 다만 **실익을 먼저 봐야 한다** — 둘 다 결국 폐기 대상이라 사람이 할 일이 같다면 나눌 필요가 없다. 화면을 쓰면서 판단한다.
+- 현재 폐기 후보: OCD 136 · VTB 34 · COK 14 · FTN 7 = **191건**
+- 상태: **수정완료(①) · 단종 판별 확대는 보류(②)** 2026-08-31
+

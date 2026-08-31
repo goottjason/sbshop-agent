@@ -25,6 +25,7 @@ public record ProductListResponse(
 	String sourcingUrl,
 	String memo,
 	String sourceGoneReason,
+	String sourceGoneAt,
 	Map<String, MarketBadgeState> marketRegistrations) {
 
 	public static ProductListResponse from(Product p) {
@@ -45,6 +46,7 @@ public record ProductListResponse(
 			p.getSourcingUrl(),
 			p.getMemo(),
 			p.getSourceGoneReason() != null ? p.getSourceGoneReason().name() : null,
+			p.getSourceGoneAt() != null ? p.getSourceGoneAt().toString() : null,
 			null);
 	}
 
@@ -66,6 +68,7 @@ public record ProductListResponse(
 			p.getSourcingUrl(),
 			p.getMemo(),
 			p.getSourceGoneReason() != null ? p.getSourceGoneReason().name() : null,
+			p.getSourceGoneAt() != null ? p.getSourceGoneAt().toString() : null,
 			marketRegistrations);
 	}
 }
