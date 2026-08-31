@@ -118,7 +118,19 @@ export default function ProductGrid() {
       id: 'sourceGone', header: '원본 상태', size: 130,
       cell: ({ row }) => {
         const r = row.original;
-        if (!r.sourceGoneReason) return <span style={{ color: '#94a3b8' }}>정상</span>;
+        if (!r.sourceGoneReason) {
+          if (!r.lastCrawlError) return <span style={{ color: '#94a3b8' }}>정상</span>;
+          const tried = r.lastCrawlAt ? String(r.lastCrawlAt).slice(0, 10) : null;
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }} title={r.lastCrawlError}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+                background: '#e0e7ff', color: '#3730a3', width: 'fit-content' }}>
+                확인 실패
+              </span>
+              {tried && <span style={{ fontSize: 11, color: '#94a3b8' }}>{tried} 시도</span>}
+            </div>
+          );
+        }
         const label = r.sourceGoneReason === 'DISCONTINUED' ? '단종' : '링크 소멸';
         const since = r.sourceGoneAt ? String(r.sourceGoneAt).slice(0, 10) : null;
         return (

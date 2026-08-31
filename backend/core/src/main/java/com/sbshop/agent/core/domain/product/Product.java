@@ -53,6 +53,12 @@ public class Product extends BaseEntity {
 	@Column(name = "source_gone_reason", length = 32)
 	private com.sbshop.agent.core.domain.product.enums.SourceGoneReason sourceGoneReason;
 
+	@Column(name = "last_crawl_at")
+	private java.time.LocalDateTime lastCrawlAt;
+
+	@Column(name = "last_crawl_error", length = 500)
+	private String lastCrawlError;
+
 	@Column(name = "brand", length = 100)
 	private String brand;
 
@@ -387,6 +393,32 @@ public class Product extends BaseEntity {
 	public void clearSourceGone() {
 		this.sourceGoneAt = null;
 		this.sourceGoneReason = null;
+	}
+
+	private static final int MAX_CRAWL_ERROR_LENGTH = 500;
+
+	/**
+	 * 크롤 시도가 실패했음을 남긴다 — <b>재고·가격은 건드리지 않는다.</b>
+	 *
+	 * <p>봇차단·일시 오류로 판매 상태를 흔들면 멀쩡한 상품이 품절이 된다([[D-239]]).
+	 * 그렇다고 아무 기록도 안 남기면 그 상품은 조용히 옛 가격으로 굳는다 —
+	 * 2026-08-31 F&M 31건이 매 배치마다 실패했는데 상품만 봐서는 알 수 없었다.
+	 * 폐기 후보({@code sourceGone})와는 다른 축이다: 폐기는 "원본이 없다", 이쪽은 "확인하지 못했다".
+	 */
+	public void recordCrawlFailure(String reason) {
+		if (reason == null || reason.isBlank()) {
+			throw new IllegalArgumentException(
+				"크롤 실패 사유는 필수다 — 무엇이 실패했는지 없이 기록하지 않는다");
+		}
+		this.lastCrawlAt = java.time.LocalDateTime.now();
+		this.lastCrawlError = reason.length() > MAX_CRAWL_ERROR_LENGTH
+			? reason.substring(0, MAX_CRAWL_ERROR_LENGTH) : reason;
+	}
+
+	/** 크롤이 성공했음을 남기고 이전 실패 기록을 지운다 — 복구된 상품이 계속 실패로 보이면 안 된다. */
+	public void recordCrawlSuccess() {
+		this.lastCrawlAt = java.time.LocalDateTime.now();
+		this.lastCrawlError = null;
 	}
 
 	public void markDeleted() {

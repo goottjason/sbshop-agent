@@ -21,6 +21,10 @@ export interface ProductList {
   sourceGoneReason?: string | null;
   /** 원본 소멸을 처음 감지한 시각 — 언제부터 사라졌는지가 폐기 판단 근거다 */
   sourceGoneAt?: string | null;
+  /** 마지막 크롤이 실패한 사유(봇차단·일시오류 등). null 이면 마지막 크롤 성공 */
+  lastCrawlError?: string | null;
+  /** 마지막 크롤 시도 시각 */
+  lastCrawlAt?: string | null;
 }
 
 export type BadgeReason =

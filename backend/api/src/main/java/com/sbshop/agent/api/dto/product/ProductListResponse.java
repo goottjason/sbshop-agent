@@ -26,6 +26,8 @@ public record ProductListResponse(
 	String memo,
 	String sourceGoneReason,
 	String sourceGoneAt,
+	String lastCrawlError,
+	String lastCrawlAt,
 	Map<String, MarketBadgeState> marketRegistrations) {
 
 	public static ProductListResponse from(Product p) {
@@ -47,6 +49,8 @@ public record ProductListResponse(
 			p.getMemo(),
 			p.getSourceGoneReason() != null ? p.getSourceGoneReason().name() : null,
 			p.getSourceGoneAt() != null ? p.getSourceGoneAt().toString() : null,
+			p.getLastCrawlError(),
+			p.getLastCrawlAt() != null ? p.getLastCrawlAt().toString() : null,
 			null);
 	}
 
@@ -69,6 +73,8 @@ public record ProductListResponse(
 			p.getMemo(),
 			p.getSourceGoneReason() != null ? p.getSourceGoneReason().name() : null,
 			p.getSourceGoneAt() != null ? p.getSourceGoneAt().toString() : null,
+			p.getLastCrawlError(),
+			p.getLastCrawlAt() != null ? p.getLastCrawlAt().toString() : null,
 			marketRegistrations);
 	}
 }

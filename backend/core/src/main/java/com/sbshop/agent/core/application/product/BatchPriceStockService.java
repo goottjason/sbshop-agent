@@ -49,6 +49,22 @@ public class BatchPriceStockService {
 
 	private static final long CRAWL_THROTTLE_MS = 500L;
 
+	/**
+	 * 크롤 실패를 상품에 남긴다 — <b>재고·가격은 건드리지 않는다.</b> 일시 오류일 수 있기 때문이다.
+	 * 기록 자체가 실패해도 배치는 계속한다 — 부수 기록 때문에 본 작업을 멈추지 않는다.
+	 */
+	private void recordCrawlFailure(Long productId, Exception cause) {
+		try {
+			productReader.findById(productId).ifPresent(p -> {
+				String reason = cause.getMessage() != null ? cause.getMessage() : cause.toString();
+				p.recordCrawlFailure(reason);
+				productWriter.save(p);
+			});
+		} catch (Exception e) {
+			log.warn("크롤 실패 기록 실패(무시하고 계속): productId={}, error={}", productId, e.getMessage());
+		}
+	}
+
 	@Async("productBatchExecutor")
 	public void crawlAndUpdatePriceStock(String batchId, List<Long> productIds,
 		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice, String actionType) {
@@ -76,6 +92,7 @@ public class BatchPriceStockService {
 					product.updateStockStatus(StockStatus.OUT_OF_STOCK);
 					product.markSourceGone(result.sourceGoneReason() != null
 						? result.sourceGoneReason() : SourceGoneReason.LINK_DEAD);
+					product.recordCrawlSuccess();
 					productWriter.save(product);
 					// 원본이 사라진 상품은 새 가격을 알 수 없다. 원가(null)를 그대로 넘겨
 					// 가격은 건드리지 않고 재고만 0 으로 보낸다 — 0 으로 계산하면 쓰레기 값이 나간다(D-253).
@@ -124,6 +141,7 @@ public class BatchPriceStockService {
 				product.clearSourceGone();
 				product.updateStockStatus(result.status());
 				product.updateRestockDate(result.restockDate());
+				product.recordCrawlSuccess();
 				productWriter.save(product);
 
 				MarketRepublishResult sync = productMarketSyncService.syncPriceStockPerMarket(
@@ -138,6 +156,7 @@ public class BatchPriceStockService {
 				Thread.sleep(CRAWL_THROTTLE_MS);
 			} catch (Exception e) {
 				log.error("배치 업데이트 실패: productId={}", productId, e);
+				recordCrawlFailure(productId, e);
 				processStatusService.markFailed(batchId, String.valueOf(productId), e.getMessage());
 				failCount++;
 			}
