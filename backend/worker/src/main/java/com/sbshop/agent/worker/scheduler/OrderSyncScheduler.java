@@ -8,6 +8,8 @@ import com.sbshop.agent.core.application.order.service.SmartStoreOrderSyncServic
 import com.sbshop.agent.core.application.sync.SyncMarketKeys;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.worker.service.EmailFetcherService;
+import java.time.LocalDate;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -19,6 +21,8 @@ import org.springframework.stereotype.Component;
 public class OrderSyncScheduler {
 
 	private static final String EMAIL = SyncMarketKeys.EMAIL;
+
+	static final int RECONCILE_LOOKBACK_DAYS = 90;
 
 	private final EmailFetcherService emailFetcherService;
 	private final SmartStoreOrderSyncService smartStoreOrderSyncService;
@@ -68,6 +72,25 @@ public class OrderSyncScheduler {
 	public void syncElevenstOrders() {
 		log.info("11번가 주문 동기화 트리거...");
 		elevenstOrderSyncService.syncElevenstOrders();
+	}
+
+	@Scheduled(cron = "0 30 3 * * ?", zone = "Asia/Seoul")
+	public void reconcileOpenOrders() {
+		LocalDate to = LocalDate.now();
+		LocalDate from = to.minusDays(RECONCILE_LOOKBACK_DAYS);
+		log.info("장기 주문 재동기화 트리거: {} ~ {} (갱신 전용)", from, to);
+		runReconcile("COUPANG", () -> coupangOrderSyncService.syncCoupangOrders(from, to, false));
+		runReconcile("GMARKET/AUCTION", () -> cafe24OrderSyncService.syncCafe24Orders(from, to, false));
+		runReconcile("SMART_STORE", () -> smartStoreOrderSyncService.syncSmartStoreOrders(from, to, false));
+		runReconcile("ELEVEN_STREET", () -> elevenstOrderSyncService.syncElevenstOrders(from, to, false));
+	}
+
+	private void runReconcile(String market, Runnable task) {
+		try {
+			task.run();
+		} catch (Exception e) {
+			log.error("장기 주문 재동기화 실패({}): {}", market, e.getMessage(), e);
+		}
 	}
 
 	@Scheduled(cron = "0 0 2 * * ?", zone = "Asia/Seoul")
