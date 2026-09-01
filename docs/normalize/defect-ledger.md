@@ -4764,5 +4764,22 @@ ESM 상품 목록에서 세 그룹의 실제 판매종료일·판매상태를 �
   - 11번가 `GET /rest/claimservice/orderlistall/{ordNo}`: 36일 전도 조회, `ordPrdStatNm='취소완료'`. 없는 번호는 빈 응답.
   - 스마트스토어: `last-changed-statuses`(변경일 기준)라 단건 확증이 애초에 불필요.
 - 실측 중 확인된 결함: **GMARKET `4462952064`(2026-06-30)가 카페24에서 이미 `배송완료(T)` 인데 우리는 `SHIPPED`** — [[D-264]] 의 90일 패스가 고칠 대상이다. 반면 `4478846950`·11번가 `20260727088019019` 은 마켓도 배송중이라 우리 값이 맞았다. 정체 3건 중 **진짜 누락은 1건**.
-- 상태: **설계확정·실측완료·구현 미착수** 2026-09-01
+**1단계 구현 완료** (2026-09-01, 브랜치 `feat/d265-order-probe`, 커밋 `3d1acd08..37b55f3d`)
+
+- 서브에이전트 방식으로 7개 태스크 실행, **전부 리뷰 통과**(Critical 0 · 최종 리뷰 Important 1건은 병합 전 수정). **전체 회귀 1,702건 통과.**
+- 만든 것: `order/probe/` 패키지 — `MarketOrderProbe`(계약, `probe(Order)` 로 받아 마켓별 조회 키를 프로브가 정한다) · `MarketOrderProbeRouter`(한 프로브가 여러 마켓 담당 가능) · 쿠팡·카페24(G마켓+옥션)·11번가 프로브 3종 · `OrderReconciliationService`(확증층).
+- 스케줄러: `reconcileOrders()` 매시 40분, **120일 창**, 갱신 전용 목록 조회 + 목록에 없는 주문만 단건 확증. [[D-264]] 의 `reconcileOpenOrders`(일 1회·90일)를 대체했다.
+- **[[D-160]] 폐기 완료** — `CoupangOrderAdapter.detectCancellations`(응답에 없으면 취소로 추정)와 `isNonTerminal`, 그리고 판정범위 가드 테스트를 삭제했다. `detectReturns` 는 남기고 **`createMissing`·`fetchComplete` 와 무관하게 항상 실행**한다(반품 API 직접 조회라 추정이 아니고, 취소와 반품을 가르는 유일한 수단이다). 11번가 `detectClaims` 는 단건 조회로 확증하므로 그대로 둔다.
+- 안전 속성: 브랜치 전체에서 프로덕션 쓰기 지점은 `OrderReconciliationService.apply` 하나뿐이고, `NOT_FOUND`·`UNKNOWN`·`TERMINATED`(상태 미지정, 쿠팡)은 **아무 것도 쓰지 않는다**. 429 를 포함한 모든 오류가 `UNKNOWN` 으로 떨어져 상태를 잘못 쓰지 않는다.
+- 쿠팡 호출 제한 대응: `sbshop.order.probe-delay-ms`(기본 300ms)로 **프로브 단위** 스로틀. 실측 안전 간격(3초)보다 촘촘하므로 배포 후 429 발생 여부를 관찰한다.
+
+**배포 후 확인할 것**
+
+1. 매시 40분 로그: `docker logs projects-sbshop-api-1 | grep 확증`
+2. GMARKET `4462952064` 가 `DELIVERED` 로 바뀌는지 — 카페24 실측값이 `shipping_status='T'` 였다. 1단계의 실효 검증.
+3. 쿠팡 429 발생 여부 → 나면 `probe-delay-ms` 를 올린다.
+
+**2단계로 넘긴 것**: `seenMarketOrderNos` 를 sync 서비스가 실제로 돌려주게 하기(지금은 `Set.of()` 라 창 안 전 주문을 프로브한다) · 11번가 `isNonTerminal` 잔여 사용처 제거 · miss 카운터와 '확인 필요' 목록 · 추적 대상을 주문일 120일로 명시 전환.
+
+- 상태: **1단계 완료(배포 대기)·2~4단계 미착수** 2026-09-01
 
