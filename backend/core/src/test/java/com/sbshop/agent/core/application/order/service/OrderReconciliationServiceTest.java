@@ -42,7 +42,7 @@ class OrderReconciliationServiceTest {
 		lineItemRepository = mock(OrderLineItemRepository.class);
 		probeRouter = mock(MarketOrderProbeRouter.class);
 		when(probeRouter.has(any())).thenReturn(true);
-		service = new OrderReconciliationService(orderRepository, lineItemRepository, probeRouter);
+		service = new OrderReconciliationService(orderRepository, lineItemRepository, probeRouter, 0);
 	}
 
 	private Order order(String no, LocalDate date) {
@@ -170,5 +170,13 @@ class OrderReconciliationServiceTest {
 
 		assertThat(service.reconcile(MarketType.SMART_STORE, FROM, TO, Set.of())).isZero();
 		verify(orderRepository, never()).findByMarketType(MarketType.SMART_STORE);
+	}
+
+	@Test
+	@DisplayName("프로브가 없으면 지연도 걸리지 않는다")
+	void noDelayWhenNoProbe() {
+		when(probeRouter.has(MarketType.SMART_STORE)).thenReturn(false);
+
+		assertThat(service.reconcile(MarketType.SMART_STORE, FROM, TO, Set.of())).isZero();
 	}
 }

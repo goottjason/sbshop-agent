@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,16 +20,25 @@ import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class OrderReconciliationService {
 	private final OrderRepository orderRepository;
 	private final OrderLineItemRepository orderLineItemRepository;
 	private final MarketOrderProbeRouter probeRouter;
+	private final long probeDelayMillis;
+
+	public OrderReconciliationService(OrderRepository orderRepository,
+			OrderLineItemRepository orderLineItemRepository,
+			MarketOrderProbeRouter probeRouter,
+			@Value("${sbshop.order.probe-delay-ms:300}") long probeDelayMillis) {
+		this.orderRepository = orderRepository;
+		this.orderLineItemRepository = orderLineItemRepository;
+		this.probeRouter = probeRouter;
+		this.probeDelayMillis = probeDelayMillis;
+	}
 
 	@Transactional
 	public int reconcile(MarketType marketType, LocalDate from, LocalDate to, Set<String> seenMarketOrderNos) {
@@ -48,6 +58,14 @@ public class OrderReconciliationService {
 			}
 			probed++;
 			OrderProbeResult result = probeRouter.probe(marketType, order);
+			if (probeDelayMillis > 0) {
+				try {
+					Thread.sleep(probeDelayMillis);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					break;
+				}
+			}
 			ShippingStatus resolved = resolvedStatus(result);
 			if (resolved == null) {
 				if (result.status() == OrderProbeStatus.NOT_FOUND) {
