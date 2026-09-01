@@ -10,7 +10,11 @@ public final class MarketFailureClassifier {
 		"data not found", "does not exist", "404 Not Found");
 
 	private static final List<String> BLOCKED_MARKERS = List.of(
-		"심사가 진행중", "심사중", "판매중지", "판매 중지", "승인 대기", "권한이 없");
+		"심사가 진행중", "심사중", "판매중지", "판매 중지", "승인 대기", "승인대기", "권한이 없",
+		// 쿠팡은 심사중·승인대기 상품의 삭제를 거부한다(사용자 실측 2026-09-01) — 마켓 화면에서도
+		// "승인대기중/심사중인 상품은 삭제할 수 없습니다." 가 뜬다. 재시도로는 풀리지 않고
+		// 심사가 끝나야 풀리므로, 429 같은 일시 오류와 같은 통에 담으면 매번 같은 건이 실패한다.
+		"삭제가 불가능한 상태", "삭제할 수 없습니다");
 
 	private static final List<String> VALIDATION_MARKERS = List.of(
 		"유효하지 않", "허용되지 않", "입력하지 않", "필수", "올바르지 않", "올바른",

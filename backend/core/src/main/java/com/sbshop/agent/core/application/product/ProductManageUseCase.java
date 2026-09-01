@@ -154,7 +154,7 @@ public class ProductManageUseCase {
 					productId, marketType);
 			} catch (Exception e) {
 				failed.put(marketType, e.getMessage());
-				reg.recordSyncError(MarketFailureClassifier.classifyError(e));
+				reg.recordSyncError(MarketFailureClassifier.classifyError(e), e.getMessage());
 				marketRegistrationRepository.save(reg);
 				log.error("[완전삭제] 마켓 리스팅 삭제 실패 — 상품을 폐기하지 않는다: productId={}, market={}, error={}",
 					productId, marketType, e.getMessage(), e);

@@ -82,6 +82,10 @@ public class MarketRegistration extends BaseEntity {
 	@Column(name = "last_sync_error", length = 32)
 	private SyncErrorType lastSyncError;
 
+	/** 실패 원문. 분류만으로는 "심사중이라 못 지운다"와 "권한이 없다"를 구분할 수 없다. */
+	@Column(name = "last_sync_error_message", length = 500)
+	private String lastSyncErrorMessage;
+
 	@Builder
 	public MarketRegistration(Long productId, Long sbProductId, MarketType marketType, String marketProductName,
 		String marketIdentifiers, String marketDetailedInfo) {
@@ -108,6 +112,7 @@ public class MarketRegistration extends BaseEntity {
 		this.lastSyncedAt = LocalDateTime.now();
 		this.unsyncReason = null;
 		this.lastSyncError = null;
+		this.lastSyncErrorMessage = null;
 	}
 
 	public void confirmPresentOnMarket() {
@@ -116,7 +121,24 @@ public class MarketRegistration extends BaseEntity {
 	}
 
 	public void recordSyncError(SyncErrorType errorType) {
+		recordSyncError(errorType, null);
+	}
+
+	private static final int MAX_SYNC_ERROR_MESSAGE = 500;
+
+	/**
+	 * 실패 분류와 <b>원문 사유</b>를 함께 남긴다.
+	 *
+	 * <p>분류만으로는 조치를 정할 수 없다 — {@code BLOCKED_BY_MARKET} 이
+	 * "심사중이라 삭제가 막혔다"(심사 끝나면 풀림)인지 "권한이 없다"(계정 문제)인지 구분되지 않는다.
+	 */
+	public void recordSyncError(SyncErrorType errorType, String message) {
 		this.lastSyncError = errorType;
+		if (message == null || message.isBlank()) {
+			return;
+		}
+		this.lastSyncErrorMessage = message.length() > MAX_SYNC_ERROR_MESSAGE
+			? message.substring(0, MAX_SYNC_ERROR_MESSAGE) : message;
 	}
 
 	public void markAbsentFromMarket(UnsyncReason reason) {

@@ -44,6 +44,10 @@ export default function ProductGrid() {
   const [keyword, setKeyword] = useState('');
   const [detailId, setDetailId] = useState<number | null>(null);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  // 삭제는 건별 마켓 API 호출이라 수십 초가 걸린다. 진행 표시가 없으면 사용자가 버튼을 다시 눌러
+  // 확인 모달이 겹쳐 뜬다(D-256). 진행 중에는 버튼을 잠그고 몇 건째인지 보여준다.
+  const [deleting, setDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -176,17 +180,26 @@ export default function ProductGrid() {
   const selectedIds = Object.keys(rowSelection).filter((k) => rowSelection[k]).map(Number);
 
   const handleBulkDelete = () => {
+    if (deleting) return;
     if (selectedIds.length === 0) { notify.warning('삭제할 상품을 선택하세요.'); return; }
+    setDeleting(true);
     modal.confirm({
       title: `상품 ${selectedIds.length}개 삭제`,
       content: '선택한 상품을 삭제합니다. 되돌릴 수 없습니다. 진행할까요?',
       okText: '삭제', okType: 'danger', cancelText: '취소',
+      onCancel: () => setDeleting(false),
       onOk: async () => {
-        const { deleted, failed } = await bulkDeleteProducts(selectedIds);
-        if (failed.length === 0) notify.success(`${deleted}개 삭제 완료`);
-        else notify.warning(`${deleted}개 삭제, ${failed.length}개 실패`);
-        setRowSelection({});
-        refetch();
+        try {
+          const { deleted, failed } = await bulkDeleteProducts(
+            selectedIds, (done, total) => setDeleteProgress(`${done}/${total}`));
+          if (failed.length === 0) notify.success(`${deleted}개 삭제 완료`);
+          else notify.warning(`${deleted}개 삭제, ${failed.length}개 실패`);
+          setRowSelection({});
+          refetch();
+        } finally {
+          setDeleting(false);
+          setDeleteProgress(null);
+        }
       },
     });
   };
@@ -237,8 +250,8 @@ export default function ProductGrid() {
             </button>
           )}
           {selectedIds.length > 0 && (
-            <button onClick={handleBulkDelete} style={{ padding: '8px 16px', backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}>
-              선택 삭제 ({selectedIds.length})
+            <button onClick={handleBulkDelete} disabled={deleting} style={{ padding: '8px 16px', backgroundColor: deleting ? '#f1f5f9' : '#fee2e2', color: deleting ? '#94a3b8' : '#b91c1c', border: '1px solid ' + (deleting ? '#e2e8f0' : '#fecaca'), borderRadius: '8px', cursor: deleting ? 'default' : 'pointer', fontSize: '13px', fontWeight: 700 }}>
+              {deleting ? `삭제 중… ${deleteProgress ?? ''}` : `선택 삭제 (${selectedIds.length})`}
             </button>
           )}
           <button onClick={() => refetch()} style={{ padding: '8px 16px', backgroundColor: '#fff', color: '#475569', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>새로고침</button>
