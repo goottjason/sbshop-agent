@@ -98,6 +98,30 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 	}
 
 	@Override
+	public JsonNode fetchOrderById(MarketCredential credential, String orderId) {
+		String path = "/v2/providers/openapi/apis/api/v4/vendors/" + credential.getClientId()
+			+ "/" + orderId + "/ordersheets";
+		try {
+			String body = restClient.get()
+				.uri(URI.create(DOMAIN + path))
+				.header(HttpHeaders.AUTHORIZATION,
+					generateHmacSignature("GET", path, credential.getAccessKey(), credential.getSecretKey()))
+				.accept(MediaType.APPLICATION_JSON)
+				.retrieve()
+				.body(String.class);
+			return objectMapper.readTree(body);
+		} catch (RestClientResponseException e) {
+			try {
+				return objectMapper.readTree(e.getResponseBodyAsString());
+			} catch (Exception parseFailure) {
+				return objectMapper.createObjectNode().put("message", e.getResponseBodyAsString());
+			}
+		} catch (Exception e) {
+			return objectMapper.createObjectNode().put("message", String.valueOf(e.getMessage()));
+		}
+	}
+
+	@Override
 	public JsonNode queryReturns(MarketCredential credential, String fromDate, String toDate) {
 		String vendorId = credential.getClientId();
 		String accessKey = credential.getAccessKey();
