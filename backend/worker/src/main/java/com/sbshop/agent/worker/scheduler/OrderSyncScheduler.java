@@ -4,11 +4,14 @@ import com.sbshop.agent.core.application.order.service.Cafe24OrderSyncService;
 import com.sbshop.agent.core.application.order.service.CoupangOrderSyncService;
 import com.sbshop.agent.core.application.order.service.CustomsOrderSyncService;
 import com.sbshop.agent.core.application.order.service.ElevenstOrderSyncService;
+import com.sbshop.agent.core.application.order.service.OrderReconciliationService;
 import com.sbshop.agent.core.application.order.service.SmartStoreOrderSyncService;
 import com.sbshop.agent.core.application.sync.SyncMarketKeys;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
+import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.worker.service.EmailFetcherService;
 import java.time.LocalDate;
+import java.util.Set;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +25,7 @@ public class OrderSyncScheduler {
 
 	private static final String EMAIL = SyncMarketKeys.EMAIL;
 
-	static final int RECONCILE_LOOKBACK_DAYS = 90;
+	static final int RECONCILE_LOOKBACK_DAYS = 120;
 
 	private final EmailFetcherService emailFetcherService;
 	private final SmartStoreOrderSyncService smartStoreOrderSyncService;
@@ -31,6 +34,7 @@ public class OrderSyncScheduler {
 	private final Cafe24OrderSyncService cafe24OrderSyncService;
 	private final CustomsOrderSyncService customsOrderSyncService;
 	private final SyncStatusService syncStatusService;
+	private final OrderReconciliationService orderReconciliationService;
 
 	@Scheduled(cron = "0 0/30 * * * ?", zone = "Asia/Seoul")
 	public void syncOrders() {
@@ -74,22 +78,32 @@ public class OrderSyncScheduler {
 		elevenstOrderSyncService.syncElevenstOrders();
 	}
 
-	@Scheduled(cron = "0 30 3 * * ?", zone = "Asia/Seoul")
-	public void reconcileOpenOrders() {
+	@Scheduled(cron = "0 40 * * * ?", zone = "Asia/Seoul")
+	public void reconcileOrders() {
 		LocalDate to = LocalDate.now();
 		LocalDate from = to.minusDays(RECONCILE_LOOKBACK_DAYS);
-		log.info("장기 주문 재동기화 트리거: {} ~ {} (갱신 전용)", from, to);
-		runReconcile("COUPANG", () -> coupangOrderSyncService.syncCoupangOrders(from, to, false));
-		runReconcile("GMARKET/AUCTION", () -> cafe24OrderSyncService.syncCafe24Orders(from, to, false));
-		runReconcile("SMART_STORE", () -> smartStoreOrderSyncService.syncSmartStoreOrders(from, to, false));
-		runReconcile("ELEVEN_STREET", () -> elevenstOrderSyncService.syncElevenstOrders(from, to, false));
+		log.info("주문 확증 트리거: {} ~ {} (갱신 전용 + 프로브)", from, to);
+
+		runQuietly("COUPANG 목록", () -> coupangOrderSyncService.syncCoupangOrders(from, to, false));
+		runQuietly("COUPANG 확증",
+			() -> orderReconciliationService.reconcile(MarketType.COUPANG, from, to, Set.of()));
+
+		runQuietly("CAFE24 목록", () -> cafe24OrderSyncService.syncCafe24Orders(from, to, false));
+		runQuietly("GMARKET 확증",
+			() -> orderReconciliationService.reconcile(MarketType.GMARKET, from, to, Set.of()));
+		runQuietly("AUCTION 확증",
+			() -> orderReconciliationService.reconcile(MarketType.AUCTION, from, to, Set.of()));
+
+		runQuietly("ELEVEN_STREET 목록", () -> elevenstOrderSyncService.syncElevenstOrders(from, to, false));
+		runQuietly("ELEVEN_STREET 확증",
+			() -> orderReconciliationService.reconcile(MarketType.ELEVEN_STREET, from, to, Set.of()));
 	}
 
-	private void runReconcile(String market, Runnable task) {
+	private void runQuietly(String label, Runnable task) {
 		try {
 			task.run();
 		} catch (Exception e) {
-			log.error("장기 주문 재동기화 실패({}): {}", market, e.getMessage(), e);
+			log.error("주문 확증 단계 실패({}): {}", label, e.getMessage(), e);
 		}
 	}
 
