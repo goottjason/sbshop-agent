@@ -320,47 +320,6 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		}
 	}
 
-	public void detectCancellations(List<MarketOrderDto> apiOrders, LocalDate fromDate, LocalDate toDate) {
-		Set<String> apiOrderIds = new HashSet<>();
-		for (MarketOrderDto dto : apiOrders) {
-			apiOrderIds.add(dto.getMarketOrderNo());
-		}
-
-		List<Order> dbOrders = orderRepository.findByMarketType(MarketType.COUPANG);
-		int canceledCount = 0;
-
-		for (Order order : dbOrders) {
-			if (order.getOrderDate() != null) {
-				LocalDate orderDate = order.getOrderDate().toLocalDate();
-				if (orderDate.isBefore(fromDate) || orderDate.isAfter(toDate)) {
-					continue;
-				}
-			}
-
-			if (!apiOrderIds.contains(order.getMarketOrderNo())) {
-				List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
-				boolean hasNonTerminal = items.stream().anyMatch(item -> isNonTerminal(item));
-
-				if (hasNonTerminal) {
-					for (OrderLineItem item : items) {
-						if (isNonTerminal(item)) {
-							ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
-								.shippingStatus(ShippingStatus.CANCELED)
-								.build();
-							item.applyShippingData(cmd.toShippingData(item.getShippingData()));
-							orderLineItemRepository.save(item);
-						}
-					}
-					canceledCount++;
-				}
-			}
-		}
-
-		if (canceledCount > 0) {
-			log.info("쿠팡 취소 감지: {}건 CANCELED로 업데이트", canceledCount);
-		}
-	}
-
 	public void detectReturns(MarketCredential credential, LocalDate fromDate, LocalDate toDate) {
 		JsonNode returns = coupangOrderApiPort.queryReturns(
 			credential, fromDate.toString(), toDate.toString());
@@ -700,17 +659,6 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 			case ROCKET -> "COUPANG";
 			default -> "CJGLS";
 		};
-	}
-
-	private boolean isNonTerminal(OrderLineItem item) {
-		if (item.getShippingData() == null) {
-			return true;
-		}
-		ShippingStatus s = item.getShippingData().getShippingStatus();
-		return s != ShippingStatus.CANCELED
-			&& s != ShippingStatus.DELIVERED
-			&& s != ShippingStatus.RETURNED
-			&& s != ShippingStatus.EXCHANGED;
 	}
 
 	private boolean isAlreadyReturnedWithZeroSettlement(OrderLineItem item) {

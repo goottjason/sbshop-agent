@@ -94,7 +94,7 @@ public class CoupangOrderSyncService {
 				credential, fromDate, toDate);
 			List<MarketOrderDto> orders = outcome.orders();
 			SyncCounts counts = processOrders(orders, credential, createMissing);
-			postSyncProcess(orders, credential, fromDate, toDate, createMissing, outcome.complete());
+			postSyncProcess(orders, credential, fromDate, toDate);
 
 			log.info("[COUPANG] 주문 동기화 완료: 처리 {}건, 신규 {}건",
 				counts.processed(), counts.created());
@@ -281,16 +281,8 @@ public class CoupangOrderSyncService {
 	};
 
 	private void postSyncProcess(List<MarketOrderDto> orders, MarketCredential credential,
-		LocalDate fromDate, LocalDate toDate, boolean createMissing, boolean fetchComplete) {
-		if (!createMissing) {
-			log.info("[COUPANG] 갱신 전용 동기화 — 취소·반품 감지를 건너뛴다 ({}~{})", fromDate, toDate);
-		} else if (!fetchComplete) {
-			log.warn("[COUPANG] 부분 조회로 취소·반품 감지를 건너뛴다 ({}~{}) — 못 본 주문을 사라진 것으로 읽지 않는다",
-				fromDate, toDate);
-		} else {
-			coupangOrderAdapter.detectCancellations(orders, fromDate, toDate);
-			coupangOrderAdapter.detectReturns(credential, fromDate, toDate);
-		}
+		LocalDate fromDate, LocalDate toDate) {
+		coupangOrderAdapter.detectReturns(credential, fromDate, toDate);
 		terminalSettlementService.zeroSettlementForRefunded(MarketType.COUPANG);
 		coupangOrderAdapter.fixCarriers(orders);
 	}
