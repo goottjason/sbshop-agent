@@ -127,7 +127,9 @@ public class BatchPriceStockService {
 				StockStatus oldStatus = product.getStockStatus();
 				boolean priceChanged = (salePrice == null) != (oldSalePrice == null)
 					|| (salePrice != null && oldSalePrice != null && salePrice.compareTo(oldSalePrice) != 0);
-				boolean changed = priceChanged || result.status() != oldStatus;
+				boolean statusChanged = result.status() != oldStatus;
+				boolean changed = statusChanged
+					|| (priceChanged && result.status() != StockStatus.OUT_OF_STOCK);
 
 				ProductUpdateCommand command = ProductUpdateCommand.builder()
 					.costPrice(buyPrice)
@@ -200,7 +202,8 @@ public class BatchPriceStockService {
 				productWriter.save(product);
 
 				MarketRepublishResult sync = productMarketSyncService.syncPriceStock(
-					productId, price != null ? price.intValue() : null, newStatus);
+					productId, price != null ? price.intValue() : null, newStatus,
+					statusChanged || (priceChanged && newStatus != StockStatus.OUT_OF_STOCK));
 				processStatusService.markSuccess(batchId, String.valueOf(productId),
 					String.format("[%s] 가격:%s->%s, 판매상태:%s->%s · 마켓반영 성공%d/스킵%d/실패%d%s",
 						product.getSbCode(), oldPrice, price, oldStatus, newStatus, sync.synced().size(),

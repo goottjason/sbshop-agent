@@ -22,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -78,7 +79,7 @@ class BatchManualUpdatePairBindingTest {
 		lenient().when(product2.getStockStatus()).thenReturn(StockStatus.IN_STOCK);
 		lenient().when(product1.getSalePrice()).thenReturn(new BigDecimal("1000"));
 		lenient().when(product2.getSalePrice()).thenReturn(new BigDecimal("2000"));
-		lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class)))
+		lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class), anyBoolean()))
 			.thenReturn(new MarketRepublishResult(List.of(), List.of(), new LinkedHashMap<>()));
 	}
 
@@ -94,11 +95,13 @@ class BatchManualUpdatePairBindingTest {
 
 		verify(product1).update(argThat(cmd -> price1.equals(cmd.salePrice())));
 		verify(product1).updateStockStatus(StockStatus.IN_STOCK);
-		verify(productMarketSyncService).syncPriceStock(eq(PID_1), eq(1500), eq(StockStatus.IN_STOCK));
+		verify(productMarketSyncService).syncPriceStock(eq(PID_1), eq(1500), eq(StockStatus.IN_STOCK),
+			anyBoolean());
 
 		verify(product2).update(argThat(cmd -> price2.equals(cmd.salePrice())));
 		verify(product2).updateStockStatus(StockStatus.OUT_OF_STOCK);
-		verify(productMarketSyncService).syncPriceStock(eq(PID_2), eq(2500), eq(StockStatus.OUT_OF_STOCK));
+		verify(productMarketSyncService).syncPriceStock(eq(PID_2), eq(2500), eq(StockStatus.OUT_OF_STOCK),
+			anyBoolean());
 	}
 
 	@Test

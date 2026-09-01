@@ -25,14 +25,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class BatchForwardsStockStatusTest {
+class BatchSoldOutSkipsCafe24ResendTest {
 	@Mock
 	private ProductReader productReader;
 	@Mock
@@ -52,14 +51,14 @@ class BatchForwardsStockStatusTest {
 	@Mock
 	private MarketFeeService marketFeeService;
 	@Mock
+	private VendorPricePolicyService vendorPricePolicyService;
+	@Mock
 	private Product product;
 
 	private BatchPriceStockService service;
 
 	private static final Long PRODUCT_ID = 42L;
-
-	@Mock
-	private VendorPricePolicyService vendorPricePolicyService;
+	private static final String URL = "https://example.com/item/42";
 
 	@BeforeEach
 	void setUp() {
@@ -68,14 +67,13 @@ class BatchForwardsStockStatusTest {
 			productMarketSyncService, marketFeeService, vendorPricePolicyService);
 
 		lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
-		lenient().when(product.getSourcingUrl()).thenReturn("https://example.com/item/42");
+		lenient().when(product.getSourcingUrl()).thenReturn(URL);
 		lenient().when(product.getLogisticsInfo()).thenReturn(null);
 		lenient().when(product.getSbCode()).thenReturn("SB-042");
 		lenient().when(marketFeeService.feeRate(any())).thenReturn(new BigDecimal("11"));
-		lenient().when(vendorPricePolicyService.find(any())).thenReturn(java.util.Optional.of(
+		lenient().when(vendorPricePolicyService.find(any())).thenReturn(Optional.of(
 			com.sbshop.agent.core.domain.pricing.VendorPricePolicy.builder()
-				.shipBaseAmount(java.math.BigDecimal.ZERO).build()));
-
+				.shipBaseAmount(BigDecimal.ZERO).build()));
 		lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any(), any(), any()))
 			.thenReturn(new BigDecimal("9900"));
 		lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any()))
@@ -88,12 +86,12 @@ class BatchForwardsStockStatusTest {
 	}
 
 	@Test
-	@DisplayName("크롤러가 OUT_OF_STOCK을 반환하면 syncPriceStock에 StockStatus.OUT_OF_STOCK을 전달한다")
-	void crawlBatch_outOfStock_forwardsStockStatusToSync() throws InterruptedException {
-		StockCheckResult crawlResult = new StockCheckResult(
-			StockStatus.OUT_OF_STOCK, new BigDecimal("5000"), 0, null);
-		when(stockCrawlerRouter.checkStockWithDetails(any(), eq("https://example.com/item/42")))
-			.thenReturn(crawlResult);
+	@DisplayName("품절이 유지되는데 가격만 바뀌면 changed=false 로 넘겨 카페24 재전송을 막는다")
+	void crawlBatch_staysSoldOut_priceOnly_passesChangedFalse() throws InterruptedException {
+		when(product.getStockStatus()).thenReturn(StockStatus.OUT_OF_STOCK);
+		when(product.getSalePrice()).thenReturn(new BigDecimal("8800"));
+		when(stockCrawlerRouter.checkStockWithDetails(any(), eq(URL)))
+			.thenReturn(new StockCheckResult(StockStatus.OUT_OF_STOCK, new BigDecimal("5000"), 0, null));
 
 		service.crawlAndUpdatePriceStock("batch-1", List.of(PRODUCT_ID),
 			new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO,
@@ -101,45 +99,58 @@ class BatchForwardsStockStatusTest {
 
 		Thread.sleep(500);
 
-		verify(productMarketSyncService).syncPriceStockPerMarket(eq(PRODUCT_ID), any(), eq(StockStatus.OUT_OF_STOCK),
-			anyBoolean());
+		verify(productMarketSyncService).syncPriceStockPerMarket(eq(PRODUCT_ID), any(),
+			eq(StockStatus.OUT_OF_STOCK), eq(false));
 	}
 
 	@Test
-	@DisplayName("크롤러가 IN_STOCK을 반환하면 syncPriceStock에 StockStatus.IN_STOCK을 전달한다")
-	void crawlBatch_inStock_forwardsStockStatusToSync() throws InterruptedException {
-		StockCheckResult crawlResult = new StockCheckResult(
-			StockStatus.IN_STOCK, new BigDecimal("5000"), 100, null);
-		when(stockCrawlerRouter.checkStockWithDetails(any(), eq("https://example.com/item/42")))
-			.thenReturn(crawlResult);
+	@DisplayName("품절에서 재입고로 상태가 바뀌면 changed=true 로 넘겨 반드시 전송한다")
+	void crawlBatch_soldOutToInStock_passesChangedTrue() throws InterruptedException {
+		when(product.getStockStatus()).thenReturn(StockStatus.OUT_OF_STOCK);
+		when(product.getSalePrice()).thenReturn(new BigDecimal("9900"));
+		when(stockCrawlerRouter.checkStockWithDetails(any(), eq(URL)))
+			.thenReturn(new StockCheckResult(StockStatus.IN_STOCK, new BigDecimal("5000"), 10, null));
 
-		service.crawlAndUpdatePriceStock("batch-1", List.of(PRODUCT_ID),
+		service.crawlAndUpdatePriceStock("batch-2", List.of(PRODUCT_ID),
 			new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO,
 			ActionLogConstants.BATCH_CRAWL_UPDATE);
 
 		Thread.sleep(500);
 
-		verify(productMarketSyncService).syncPriceStockPerMarket(eq(PRODUCT_ID), any(), eq(StockStatus.IN_STOCK),
-			anyBoolean());
+		verify(productMarketSyncService).syncPriceStockPerMarket(eq(PRODUCT_ID), any(),
+			eq(StockStatus.IN_STOCK), eq(true));
 	}
 
 	@Test
-	@DisplayName("수동 배치 stock=0 입력 시 stockStatus를 OUT_OF_STOCK으로 갱신하고 DB에 재고숫자 0을 쓰지 않는다")
-	void manualUpdate_soldOut_setsStatusAndDoesNotWriteZeroStock() throws InterruptedException {
-		BigDecimal price = new BigDecimal("9900");
-		lenient().when(product.getStockStatus()).thenReturn(StockStatus.IN_STOCK);
-		lenient().when(product.getSalePrice()).thenReturn(new BigDecimal("8800"));
+	@DisplayName("판매중 상품의 가격이 바뀌면 changed=true 로 넘겨 그대로 전송한다")
+	void crawlBatch_inStock_priceChanged_passesChangedTrue() throws InterruptedException {
+		when(product.getStockStatus()).thenReturn(StockStatus.IN_STOCK);
+		when(product.getSalePrice()).thenReturn(new BigDecimal("8800"));
+		when(stockCrawlerRouter.checkStockWithDetails(any(), eq(URL)))
+			.thenReturn(new StockCheckResult(StockStatus.IN_STOCK, new BigDecimal("5000"), 10, null));
+
+		service.crawlAndUpdatePriceStock("batch-3", List.of(PRODUCT_ID),
+			new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO,
+			ActionLogConstants.BATCH_CRAWL_UPDATE);
+
+		Thread.sleep(500);
+
+		verify(productMarketSyncService).syncPriceStockPerMarket(eq(PRODUCT_ID), any(),
+			eq(StockStatus.IN_STOCK), eq(true));
+	}
+
+	@Test
+	@DisplayName("수동 배치도 품절 유지 중 가격만 바뀌면 changed=false 로 넘긴다")
+	void manualUpdate_staysSoldOut_priceOnly_passesChangedFalse() throws InterruptedException {
+		when(product.getStockStatus()).thenReturn(StockStatus.OUT_OF_STOCK);
+		when(product.getSalePrice()).thenReturn(new BigDecimal("8800"));
 
 		service.manualUpdatePriceStock("batch-manual", List.of(
-			new PriceStockItem(PRODUCT_ID, price, 0)));
+			new PriceStockItem(PRODUCT_ID, new BigDecimal("9900"), 0)));
 
 		Thread.sleep(500);
 
-		verify(productMarketSyncService).syncPriceStock(eq(PRODUCT_ID), any(), eq(StockStatus.OUT_OF_STOCK),
-			anyBoolean());
-
-		verify(product).updateStockStatus(StockStatus.OUT_OF_STOCK);
-
-		verify(product).update(argThat(cmd -> cmd.stock() == null));
+		verify(productMarketSyncService).syncPriceStock(eq(PRODUCT_ID), any(),
+			eq(StockStatus.OUT_OF_STOCK), eq(false));
 	}
 }
