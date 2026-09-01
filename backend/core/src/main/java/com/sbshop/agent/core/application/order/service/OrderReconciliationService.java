@@ -7,7 +7,6 @@ import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.application.order.probe.MarketOrderProbeRouter;
@@ -40,7 +39,6 @@ public class OrderReconciliationService {
 		this.probeDelayMillis = probeDelayMillis;
 	}
 
-	@Transactional
 	public int reconcile(MarketType marketType, LocalDate from, LocalDate to, Set<String> seenMarketOrderNos) {
 		if (!probeRouter.has(marketType)) {
 			return 0;
