@@ -4783,3 +4783,34 @@ ESM 상품 목록에서 세 그룹의 실제 판매종료일·판매상태를 �
 
 - 상태: **1단계 완료(배포 대기)·2~4단계 미착수** 2026-09-01
 
+### D-266: 스마트스토어 옛 상품은 필수 Enum 부재로 모든 수정이 400 난다 (2026-09-02)
+
+- 심각도: 표준(가격·재고 갱신 유실) | 위치: `SmartstoreProductPayloadBuilder` · 스마트스토어 상품수정 경로
+- 발견 경로: [[D-262]] 라이브 검증 중 부수 관측. 카페24 전송이 스킵되자 그동안 가려져 있던 스마트스토어 실패가 드러났다.
+- 실측 원문 (2026-09-02 00:23, `productId=21` / `230602FM001`):
+
+  ```
+  400 Bad Request: {"code":"BAD_REQUEST","message":"입력한 데이터가 유효하지 않습니다.",
+   "invalidInputs":[{"name":"originProduct.statusType","type":"NotValidEnum",
+   "message":"Enum값을 입력하지 않았거나 허용되지 않은 Enum 값입니다."}]}
+  ```
+
+- **규모: 스마트스토어 등록 중 `VALIDATION_FAILED` 66건** (그 외 `TRANSIENT_ERROR` 19건). 이 66건은 가격·재고가 마켓에 반영되지 않고 있다.
+- [[barcode-market-push]] 에 기록된 *"네이버 옛상품은 `consumptionDateText` 부재로 모든 수정 400"* 과 **같은 뿌리**다 — 옛 상품이 현재 API 가 필수로 요구하는 필드를 갖고 있지 않고, 우리 payload 는 신선 GET 값을 그대로 실어 보내므로 빈 값이 그대로 나간다. `statusType` 은 그 목록에 새로 추가된 필드다.
+- 착수 시 확인할 것: ① 66건의 실패 사유가 전부 `statusType` 인지 다른 필드도 섞였는지([[D-267]] 선행 필요) ② `originProduct.statusType` 의 허용값과 기본값 ③ [[barcode-market-push]] 의 원칙(신선 GET → 해당 필드만 → PUT)에 보정 로직을 어디에 끼울지
+- 상태: **발견** 2026-09-02
+
+### D-267: 가격·재고 동기화는 실패 사유 원문을 저장하지 않는다 (2026-09-02)
+
+- 심각도: 표준(진단 불가) | 위치: `ProductMarketSyncService:121`
+- [[D-258]] 이 `MarketRegistration.recordSyncError(SyncErrorType, String)` 오버로드를 만들어 **원문 사유를 500자까지 저장**하도록 했으나, **가격·재고 동기화 경로는 여전히 1-arg 버전을 부른다**:
+
+  ```java
+  reg.recordSyncError(MarketFailureClassifier.classifyError(e));   // 분류만, 원문 유실
+  ```
+
+- 결과: 스마트스토어 `VALIDATION_FAILED` 66건 전부 `last_sync_error_message` 가 비어 있다. DB 만 보면 **어느 필드가 문제인지 알 수 없고**, 로그가 만료되면 영영 모른다. [[D-266]] 조사가 이것 때문에 막힌다.
+- 부수 관측: 같은 오류가 반복되면 `last_sync_error` 값이 바뀌지 않아 JPA 더티체킹이 UPDATE 를 내지 않고, 그래서 `updated_at` 도 갱신되지 않는다 — **실패가 언제까지 이어졌는지도 알 수 없다**(`productId=21` 은 2026-09-02 에 또 실패했는데 `updated_at` 은 2026-08-30 그대로).
+- 수정 방향: 2-arg 오버로드로 교체하고, 재실패 시에도 시각이 갱신되도록 한다. [[D-266]] 의 선행 작업이다.
+- 상태: **발견** 2026-09-02
+
