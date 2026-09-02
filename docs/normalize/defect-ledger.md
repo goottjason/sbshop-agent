@@ -4859,9 +4859,10 @@ ESM 상품 목록에서 세 그룹의 실제 판매종료일·판매상태를 �
   | 카페24(G마켓·옥션) | order-level `shipping_status` | items[].`order_status`의 `C*/R*/E*` | 가능 |
   | 스마트스토어 | `productOrderStatus` | 네이버 `claim` 객체(미독) | 가능·미구현 |
   | 쿠팡 | `status` | `returnRequests` API([[D-097]]에서 사용 중) | 가능(반품) |
-  | 11번가 | `ordPrdStat` 한 필드에 혼재 | 별도 클레임 API 없음 | **불확실 — 상태명 세분화 실측 필요** |
+  | 11번가 | `ordPrdStat` 한 필드에 혼재 | `claimservice/orderlistall` 단건조회 (목록 API는 부재) | **불확실 — 코드표 필요** |
 - 범위: 클레임 필드 신설(스키마) + 매퍼 4개 + 프로브 + 프론트 배지. [[D-265]] 2~4단계와 같은 급이라 그 안에서 다룬다.
 - 주의: `C*`/`R*`를 함께 들어내면 [[D-098]](취소·반품 정산0 정규화)가 의존하는 상태가 사라진다. 교환만 따로 떼는 것으로는 부족하고, 클레임 필드가 함께 생겨야 한다.
+- 11번가 실측(2026-09-02): **라이브 사례가 없어 실측 불가.** DB의 11번가 라인아이템은 DELIVERED 18 / SHIPPED 4 / CANCELED 1 — 교환·반품 0건. [[D-099]](2026-07-22) 당시에도 "실 클레임 대기(DB 클레임 0건)"였고 그 뒤로도 발생하지 않았다. 상태 경로는 `/rest/claimservice/orderlistall/{ordNo}` 단건조회의 `ordPrdStat`/`ordPrdStatNm`이며(클레임 *목록* API는 부재), 우리 매퍼는 `ordPrdStatNm` 문자열에 "교환"이 들어가면 전부 EXCHANGED로 뭉갠다 — 카페24와 같은 결함. `ordPrdStat`(코드)는 받아만 두고 쓰지 않는다. **필요한 것: 11번가 OPEN API의 `ordPrdStat` 코드표.**
 - 상태: **발견(설계 필요)** 2026-09-02
 
 ### D-271: 확증 주기가 ESM 정기 동기화와 같은 분에 시작한다 (2026-09-02)
