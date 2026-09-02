@@ -68,6 +68,33 @@
 - 확인할 것: 세 코드가 어느 마켓에서 오는지(로그 스레드는 `SyncWorker`), 그리고 각 코드의 실제 택배사. 카페24 `shipping_company_code` 체계로 보인다.
 - 상태: **발견** 2026-09-02
 
+### D-276: enum 값을 늘리면 DB CHECK 제약도 함께 늘려야 한다 (2026-09-02, D-270 2단계 배포 중 사고)
+
+- 심각도: **P1(마켓 동기화 전면 중단)** | 위치: 운영 DB 제약 · 배포 절차
+- 사고: [[D-270]] 1단계에서 `ShippingStatus.CONFIRMED` 를 추가하고 컬럼 DDL 만 쳤다. `sb_order_line_item_shipping_status_check` 가 옛 9개 값만 허용하고 있어, 카페24가 `N50` 을 주는 순간 INSERT/UPDATE 가 거부되고 **동기화 트랜잭션이 통째로 롤백**됐다.
+  ```
+  ERROR: new row for relation "sb_order_line_item" violates check constraint
+         "sb_order_line_item_shipping_status_check"
+  Failing row contains (..., CONFIRMED, ...)
+  ```
+- 증상이 원인을 가렸다. 겉으로는 "클레임이 안 채워진다"로 보여 목록 조회·라인아이템 매칭을 한참 의심했다. `sb_market_sync_status.error_message` 를 읽고서야 드러났다 — **동기화 실패는 로그가 아니라 이 표에 남는다**([[D-273]] 과 같은 함정).
+- 조치: 제약 재작성 + 신설
+  ```sql
+  ALTER TABLE sb_order_line_item DROP CONSTRAINT sb_order_line_item_shipping_status_check;
+  ALTER TABLE sb_order_line_item ADD CONSTRAINT sb_order_line_item_shipping_status_check
+    CHECK (shipping_status IN ('UNKNOWN','NEW','PREPARING','DISPATCHED','SHIPPED','DELIVERED','CONFIRMED','CANCELED','RETURNED','EXCHANGED'));
+  ALTER TABLE sb_order_line_item ADD CONSTRAINT sb_order_line_item_claim_type_check
+    CHECK (claim_type IS NULL OR claim_type IN ('NONE','CANCEL','RETURN','EXCHANGE'));
+  ALTER TABLE sb_order_line_item ADD CONSTRAINT sb_order_line_item_claim_stage_check
+    CHECK (claim_stage IS NULL OR claim_stage IN ('NONE','REQUESTED','IN_PROGRESS','DONE','REJECTED'));
+  ```
+- **규칙: enum 값을 추가·삭제하면 배포 전에 해당 컬럼의 CHECK 제약을 반드시 확인한다.** Flyway 가 없어 `ddl-auto` 는 컬럼만 만들고 제약은 갱신하지 않는다. 확인 쿼리:
+  ```sql
+  SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint
+  WHERE conrelid='<테이블>'::regclass AND contype='c';
+  ```
+- 상태: **수정완료** 2026-09-02
+
 ## 배포 전 수동 DDL — **적용 완료 2026-09-02**
 
 Flyway 를 쓰지 않으므로 배포 전에 운영 DB 에 직접 친다.
