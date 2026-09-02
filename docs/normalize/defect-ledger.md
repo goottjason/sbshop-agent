@@ -4859,10 +4859,25 @@ ESM 상품 목록에서 세 그룹의 실제 판매종료일·판매상태를 �
   | 카페24(G마켓·옥션) | order-level `shipping_status` | items[].`order_status`의 `C*/R*/E*` | 가능 |
   | 스마트스토어 | `productOrderStatus` | 네이버 `claim` 객체(미독) | 가능·미구현 |
   | 쿠팡 | `status` | `returnRequests` API([[D-097]]에서 사용 중) | 가능(반품) |
-  | 11번가 | `ordPrdStat` 한 필드에 혼재 | `claimservice/orderlistall` 단건조회 (목록 API는 부재) | **불확실 — 코드표 필요** |
+  | 11번가 | `ordPrdStat` (상태별 목록 API) | **`clmStat` 별도 필드 + 클레임 목록 API 9종** | **가능 — 4마켓 중 가장 깔끔** |
 - 범위: 클레임 필드 신설(스키마) + 매퍼 4개 + 프로브 + 프론트 배지. [[D-265]] 2~4단계와 같은 급이라 그 안에서 다룬다.
 - 주의: `C*`/`R*`를 함께 들어내면 [[D-098]](취소·반품 정산0 정규화)가 의존하는 상태가 사라진다. 교환만 따로 떼는 것으로는 부족하고, 클레임 필드가 함께 생겨야 한다.
-- 11번가 실측(2026-09-02): **라이브 사례가 없어 실측 불가.** DB의 11번가 라인아이템은 DELIVERED 18 / SHIPPED 4 / CANCELED 1 — 교환·반품 0건. [[D-099]](2026-07-22) 당시에도 "실 클레임 대기(DB 클레임 0건)"였고 그 뒤로도 발생하지 않았다. 상태 경로는 `/rest/claimservice/orderlistall/{ordNo}` 단건조회의 `ordPrdStat`/`ordPrdStatNm`이며(클레임 *목록* API는 부재), 우리 매퍼는 `ordPrdStatNm` 문자열에 "교환"이 들어가면 전부 EXCHANGED로 뭉갠다 — 카페24와 같은 결함. `ordPrdStat`(코드)는 받아만 두고 쓰지 않는다. **필요한 것: 11번가 OPEN API의 `ordPrdStat` 코드표.**
+- 11번가 실측(2026-09-02, 사용자가 받아준 OPEN API 문서 22종으로 확정): 라이브 클레임은 0건(DELIVERED 18 / SHIPPED 4 / CANCELED 1)이라 관측은 못 했지만, **문서로 답이 나왔다 — 11번가는 배송 단계와 클레임을 완전히 분리해 준다.**
+  - **`clmStat`(클레임 상태)가 `ordPrdStat`(배송 단계)과 별개 필드로 존재한다:**
+    `103` 재결제대기중 · `104` 반품보류 · `105` 반품신청 · `106` 반품완료 · `107` 반품거부 · `108` 반품철회 · `109` 반품완료보류 · `201` 교환신청 · `212` 교환승인 · `214` 교환보류 · `221` 교환발송완료 · `232` 교환거부 · `233` 교환철회 · `301` 재배송접수
+  - 교환이 6단계로 세분된다. **`221` 교환발송완료 / `301` 재배송접수**가 4477134670 같은 "교환 끝나고 재발송" 상태를 정확히 짚고, `232` 교환거부 / `233` 교환철회는 클레임이 무산돼 배송 단계로 돌아가야 하는 경우를 구분해 준다.
+  - **[[D-099]]의 "클레임 목록 조회 REST 부재 라이브확정"은 오판이었다.** 목록조회 API가 9종 존재한다 — 당시 시도한 경로가 틀렸다:
+    | 용도 | 엔드포인트 (`http://api.11st.co.kr` + path) |
+    |---|---|
+    | 교환 요청/완료/철회 | `/rest/claimservice/exchangeorders|exchangedorders|retractexcorders/{start}/{end}` |
+    | 반품 요청/완료/철회 | `/rest/claimservice/returnorders|returnedorders|retractretorders/{start}/{end}` |
+    | 취소 요청/완료/철회 | `/rest/claimservice/cancelorders|canceledorders|withdrawcanceledorders/{start}/{end}` |
+    | 구매확정후직권취소 | `/rest/claimservice/officecancellist/{start}/{end}` |
+    | 교환 승인/거부 | `/rest/claimservice/exchangereqconf|exchangereqreject/...` |
+    | 반품 승인/거부 | `/rest/claimservice/returnreqconf|returnreqreject/...` |
+    조회 기간은 최대 30일. 시각 포맷은 `YYYYMMDDhhmm`.
+  - 함정: PDF 텍스트 추출에서 합자(ligature)가 깨진다 — `officecancellist`가 `oﬃcecancellist`로, `affiliateBndlDlvSeq`가 `aﬄiateBndlDlvSeq`로 나온다. 코드에 옮길 때 주의.
+  - 현행 매퍼는 `ordPrdStatNm` 문자열에 "교환"이 들어가면 전부 EXCHANGED로 뭉갠다(카페24와 같은 결함). `ordPrdStat` 코드는 받아만 두고 쓰지 않는다.
 - 상태: **발견(설계 필요)** 2026-09-02
 
 ### D-271: 확증 주기가 ESM 정기 동기화와 같은 분에 시작한다 (2026-09-02)
