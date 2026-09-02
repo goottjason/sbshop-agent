@@ -4,6 +4,7 @@ import com.sbshop.agent.core.domain.common.RecordStatus;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.PurchaseStatus;
 import com.sbshop.agent.core.domain.order.vo.SettlementData;
+import com.sbshop.agent.core.domain.order.vo.ClaimData;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import com.sbshop.agent.core.domain.order.vo.SourcingData;
 import java.time.LocalDateTime;
@@ -25,12 +26,14 @@ public class OrderLineItemResponse {
 	private final SourcingData sourcingData;
 	private final SettlementData settlementData;
 	private final ShippingData shippingData;
+	private final ClaimData claimData;
 	private final Boolean isUnipassDone;
 	private final PurchaseStatus purchaseStatus;
 
 	private final String marketLineItemNo;
 	private final Long shipmentId;
 
+	private final boolean refundTerminal;
 	private final boolean progressed;
 
 	public static OrderLineItemResponse from(OrderLineItem item) {
@@ -45,10 +48,12 @@ public class OrderLineItemResponse {
 			.sourcingData(item.getSourcingData())
 			.settlementData(item.getSettlementData())
 			.shippingData(item.getShippingData())
+			.claimData(item.getClaimData())
 			.isUnipassDone(item.getIsUnipassDone())
 			.purchaseStatus(item.getPurchaseStatus())
 			.marketLineItemNo(item.getMarketLineItemNo())
 			.shipmentId(item.getShipmentId())
+			.refundTerminal(item.isRefundTerminal())
 			.progressed(item.isProgressed())
 			.build();
 	}

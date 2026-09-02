@@ -6,7 +6,6 @@ import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.SettlementData;
-import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,9 +39,7 @@ public class TerminalSettlementService {
 	}
 
 	private boolean shouldZero(OrderLineItem item) {
-		ShippingData shipping = item.getShippingData();
-		if (shipping == null || shipping.getShippingStatus() == null
-			|| !shipping.getShippingStatus().isRefundTerminal()) {
+		if (!RefundTerminalPolicy.isRefundTerminal(item)) {
 			return false;
 		}
 		SettlementData settlement = item.getSettlementData();

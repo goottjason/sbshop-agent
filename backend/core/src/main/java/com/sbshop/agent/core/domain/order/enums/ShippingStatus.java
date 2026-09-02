@@ -14,8 +14,16 @@ public enum ShippingStatus implements EnumMapperType {
 	DISPATCHED("배송지시", 2),
 	SHIPPED("배송중", 3),
 	DELIVERED("배송완료", 4),
+	CONFIRMED("구매확정", 5),
+
+	/** @deprecated D-270 — 클레임은 {@code ClaimData} 로 옮겼다. 새로 쓰지 않는다. */
+	@Deprecated
 	CANCELED("취소됨", -1),
+	/** @deprecated D-270 — {@code ClaimData} 로 옮겼다. */
+	@Deprecated
 	RETURNED("반품됨", -1),
+	/** @deprecated D-270 — {@code ClaimData} 로 옮겼다. */
+	@Deprecated
 	EXCHANGED("교환됨", -1);
 
 	private final String label;

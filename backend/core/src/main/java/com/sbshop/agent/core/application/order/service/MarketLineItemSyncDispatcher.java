@@ -113,7 +113,7 @@ public class MarketLineItemSyncDispatcher {
 		MarketLineItemDto lineItemDto, MarketLineItemSyncPolicy policy) {
 		ShippingStatus status = item.getShippingData() != null
 			? item.getShippingData().getShippingStatus() : null;
-		if (status == null || status.isRefundTerminal()) {
+		if (status == null || RefundTerminalPolicy.isRefundTerminal(item)) {
 			return;
 		}
 		BigDecimal current = item.getSettlementData() != null

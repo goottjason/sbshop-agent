@@ -74,9 +74,21 @@ Flyway 를 쓰지 않으므로 배포 전에 운영 DB 에 직접 친다.
 `docker exec -i projects-postgres-1 psql -U canagent -d sbshop`
 
 ```sql
--- D-265 2단계: 확증 프로브 결과 기록 (확인 못 한 주문을 드러내기 위한 것)
+-- D-265 2단계: 확증 프로브 결과 기록 (적용완료)
 ALTER TABLE sb_order ADD COLUMN IF NOT EXISTS last_probe_status VARCHAR(20);
 ALTER TABLE sb_order ADD COLUMN IF NOT EXISTS last_probe_at TIMESTAMP;
+
+-- D-267: 실패 시각 (적용완료)
+ALTER TABLE sb_market_registration ADD COLUMN IF NOT EXISTS last_sync_error_at TIMESTAMP;
+
+-- D-270 1단계: 클레임 축 (적용완료 2026-09-02, 283행 초기화 + 17행 이전)
+ALTER TABLE sb_order_line_item ADD COLUMN IF NOT EXISTS claim_type VARCHAR(20);
+ALTER TABLE sb_order_line_item ADD COLUMN IF NOT EXISTS claim_stage VARCHAR(20);
+ALTER TABLE sb_order_line_item ADD COLUMN IF NOT EXISTS claim_raw_code VARCHAR(40);
+UPDATE sb_order_line_item SET claim_type='NONE', claim_stage='NONE' WHERE claim_type IS NULL;
+UPDATE sb_order_line_item SET claim_type='CANCEL',   claim_stage='DONE' WHERE shipping_status='CANCELED';
+UPDATE sb_order_line_item SET claim_type='RETURN',   claim_stage='DONE' WHERE shipping_status='RETURNED';
+UPDATE sb_order_line_item SET claim_type='EXCHANGE', claim_stage='DONE' WHERE shipping_status='EXCHANGED';
 ```
 
 운영 DB 에 적용 확인했다(`last_probe_status varchar`, `last_probe_at timestamp`). 순서는 DDL 이 먼저다 — 반대면 `sb_order` 조회가 전부 깨진다.
