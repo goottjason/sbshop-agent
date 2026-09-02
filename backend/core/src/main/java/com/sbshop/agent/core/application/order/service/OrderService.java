@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -440,7 +441,7 @@ public class OrderService {
 	}
 
 	private BulkConfirmResult bulkThenRefreshByList(List<Long> ids,
-		java.util.function.LongFunction<Order> op, String actionLabel) {
+		LongFunction<Order> op, String actionLabel) {
 		Set<MarketType> touched = EnumSet.noneOf(MarketType.class);
 		BulkConfirmResult result = bulkOperate(ids, id -> {
 			Order order = op.apply(id);

@@ -2,6 +2,7 @@ package com.sbshop.agent.core.application.order.service;
 
 import com.sbshop.agent.core.application.order.dto.BulkShipResult;
 import com.sbshop.agent.core.application.order.dto.OrderShipOutcome;
+import com.sbshop.agent.core.domain.order.enums.MarketType;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -31,8 +32,7 @@ public class OrderShipService {
 				.build();
 		}
 
-		Set<com.sbshop.agent.core.domain.order.enums.MarketType> touched =
-			EnumSet.noneOf(com.sbshop.agent.core.domain.order.enums.MarketType.class);
+		Set<MarketType> touched = EnumSet.noneOf(MarketType.class);
 		for (Long orderId : orderIds) {
 			OrderShipOutcome outcome = orderShipProcessor.shipSingleOrder(orderId);
 			if (outcome.isFailed()) {
@@ -40,7 +40,7 @@ public class OrderShipService {
 				errors.add(outcome.getErrorMessage());
 			} else if (outcome.isShipped()) {
 				successCount++;
-				var marketType = orderService.marketTypeOfOrder(orderId);
+				MarketType marketType = orderService.marketTypeOfOrder(orderId);
 				if (marketType != null) {
 					touched.add(marketType);
 				}
