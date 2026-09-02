@@ -118,7 +118,7 @@ public class ProductMarketSyncService {
 				if (absent) {
 					reg.markAbsentFromMarket(UnsyncReason.DELETED_ON_MARKET);
 				} else {
-					reg.recordSyncError(MarketFailureClassifier.classifyError(e));
+					reg.recordSyncError(MarketFailureClassifier.classifyError(e), rootMessage(e));
 				}
 				marketRegistrationRepository.save(reg);
 				failed.put(marketType, rootMessage(e));

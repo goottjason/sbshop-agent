@@ -86,6 +86,10 @@ public class MarketRegistration extends BaseEntity {
 	@Column(name = "last_sync_error_message", length = 500)
 	private String lastSyncErrorMessage;
 
+	/** 마지막 실패 시각. 같은 오류가 반복되면 다른 필드가 안 바뀌어 갱신 흔적이 남지 않는다. */
+	@Column(name = "last_sync_error_at")
+	private LocalDateTime lastSyncErrorAt;
+
 	@Builder
 	public MarketRegistration(Long productId, Long sbProductId, MarketType marketType, String marketProductName,
 		String marketIdentifiers, String marketDetailedInfo) {
@@ -113,6 +117,7 @@ public class MarketRegistration extends BaseEntity {
 		this.unsyncReason = null;
 		this.lastSyncError = null;
 		this.lastSyncErrorMessage = null;
+		this.lastSyncErrorAt = null;
 	}
 
 	public void confirmPresentOnMarket() {
@@ -134,6 +139,7 @@ public class MarketRegistration extends BaseEntity {
 	 */
 	public void recordSyncError(SyncErrorType errorType, String message) {
 		this.lastSyncError = errorType;
+		this.lastSyncErrorAt = LocalDateTime.now();
 		if (message == null || message.isBlank()) {
 			return;
 		}

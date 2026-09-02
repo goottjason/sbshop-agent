@@ -59,4 +59,29 @@ class SyncErrorMessageTest {
 
 		assertThat(reg.getLastSyncError()).isEqualTo(SyncErrorType.TRANSIENT_ERROR);
 	}
+	@Test
+	@DisplayName("같은 오류가 반복돼도 실패 시각은 갱신된다 — 언제까지 이어졌는지 알아야 한다")
+	void refreshesTimestampOnRepeatedFailure() throws InterruptedException {
+		MarketRegistration reg = MarketRegistration.builder().build();
+		reg.recordSyncError(SyncErrorType.VALIDATION_FAILED, "statusType 누락");
+		java.time.LocalDateTime first = reg.getLastSyncErrorAt();
+
+		Thread.sleep(5);
+		reg.recordSyncError(SyncErrorType.VALIDATION_FAILED, "statusType 누락");
+
+		assertThat(first).isNotNull();
+		assertThat(reg.getLastSyncErrorAt()).isAfter(first);
+	}
+
+	@Test
+	@DisplayName("성공하면 실패 시각도 지운다")
+	void clearsTimestampOnSuccess() {
+		MarketRegistration reg = MarketRegistration.builder().build();
+		reg.recordSyncError(SyncErrorType.VALIDATION_FAILED, "오류");
+
+		reg.markSynced();
+
+		assertThat(reg.getLastSyncErrorAt()).isNull();
+	}
+
 }

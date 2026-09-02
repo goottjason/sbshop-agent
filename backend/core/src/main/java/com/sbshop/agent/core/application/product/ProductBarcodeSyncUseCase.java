@@ -99,7 +99,7 @@ public class ProductBarcodeSyncUseCase {
 				if (absent) {
 					reg.markAbsentFromMarket(UnsyncReason.DELETED_ON_MARKET);
 				} else {
-					reg.recordSyncError(MarketFailureClassifier.classifyError(e));
+					reg.recordSyncError(MarketFailureClassifier.classifyError(e), e.getMessage());
 				}
 				marketRegistrationRepository.save(reg);
 				log.error("[바코드전송] 실패: productId={}, market={}, 마켓부재={}, 쓰기오류={}, error={}",
