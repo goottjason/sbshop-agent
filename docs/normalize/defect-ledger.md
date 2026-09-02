@@ -4856,8 +4856,8 @@ ESM 상품 목록에서 세 그룹의 실제 판매종료일·판매상태를 �
 - 마켓별 분리 가능성 조사:
   | 마켓 | 배송 단계 | 클레임 | 분리 |
   |---|---|---|---|
-  | 카페24(G마켓·옥션) | order-level `shipping_status` | items[].`order_status`의 `C*/R*/E*` | 가능 |
-  | 스마트스토어 | `productOrderStatus` | 네이버 `claim` 객체(미독) | 가능·미구현 |
+  | 카페24(G마켓·옥션) | order-level `shipping_status` · **`order_status_before_cs`(CS 전 상태)** | **`claim_type`/`claim_status`** + `order_status_additional_info.status_code` | 가능 |
+  | 스마트스토어 | `productOrderStatus` | **`claimType`/`claimStatus`** (별도 필드) | 가능·미구현 |
   | 쿠팡 | `status` | `returnRequests` API([[D-097]]에서 사용 중) | 가능(반품) |
   | 11번가 | `ordPrdStat` (상태별 목록 API) | **`clmStat` 별도 필드 + 클레임 목록 API 9종** | **가능 — 4마켓 중 가장 깔끔** |
 - 범위: 클레임 필드 신설(스키마) + 매퍼 4개 + 프로브 + 프론트 배지. [[D-265]] 2~4단계와 같은 급이라 그 안에서 다룬다.
@@ -4878,6 +4878,16 @@ ESM 상품 목록에서 세 그룹의 실제 판매종료일·판매상태를 �
     조회 기간은 최대 30일. 시각 포맷은 `YYYYMMDDhhmm`.
   - 함정: PDF 텍스트 추출에서 합자(ligature)가 깨진다 — `officecancellist`가 `oﬃcecancellist`로, `affiliateBndlDlvSeq`가 `aﬄiateBndlDlvSeq`로 나온다. 코드에 옮길 때 주의.
   - 현행 매퍼는 `ordPrdStatNm` 문자열에 "교환"이 들어가면 전부 EXCHANGED로 뭉갠다(카페24와 같은 결함). `ordPrdStat` 코드는 받아만 두고 쓰지 않는다.
+- 카페24·스마트스토어 문서 확정(2026-09-02, 다운로드 폴더의 기존 문서로 확인 — 추가 수집 불필요):
+  - **카페24**: `order_status`가 이미 30개 넘게 세분돼 있다. 교환만 해도 `E00` 교환신청 · `E10` 교환접수 · `E11` 교환접수거부 · `E12` 교환보류 · `E13` 교환접수-수거완료(자동) · `E20` 교환준비 · `E30`~`E36` 교환처리중(수거전/수거완료/입금전/입금완료/환불전/환불완료/환불보류) · `E40` 교환완료. 반품은 `R20`·`R30`/`R31`·`R34`/`R36`·`R40`~`R43`. **접두어 매칭이 이 30여 개를 3개로 뭉갠 것이 D-270의 직접 원인이다.**
+  - 카페24는 클레임 축을 따로도 준다: `GET /api/v2/admin/orders/{order_id}/items` 응답의 **`claim_type`(취소/교환/반품 타입) · `claim_status`(요청 상태) · `order_status_before_cs`(CS 전 주문상태)**, 그리고 `order_status_additional_info`의 `claim_quantity`(요청 수량) · `status_code`(`N1` 정상 / `N2` 교환상품 / `C1` 입금전취소 / `C2` 배송전취소 / `C3` 반품 / `E1` 교환) · `status_text` · `open_market_status`(마켓연동 상태값). **`order_status_before_cs`가 있으면 클레임 중에도 원래 배송 단계를 복원할 수 있다.** (`claim_status` 자체의 코드값은 미확인 — 구현 시 확인할 것. 문서 검색에 걸리는 동명 코드표는 카페24가 *네이버페이 연동 주문*에 쓰는 별개 값이니 혼동 금지.)
+  - 우리 매퍼는 `N01`(교환접수-교환상품) · `N03`(교환접수-카드결제대기)을 매핑하지 않아 UNKNOWN으로 떨어뜨린다 — **교환으로 새로 나가는 상품이 `N` 계열을 받는데 그것을 못 읽는다.** 별개 결함.
+  - 참고: `cancel_N20`/`exchange_N30`/`return_N40` 류의 복합 코드는 주문 *설정*(`claim_request_button_exposure`, 구매자 신청 버튼 노출 범위)이지 응답값이 아니다. 다만 카페24가 "교환신청 + 배송중"을 한 상태로 인정한다는 것 자체가 두 축이 독립임을 보여준다.
+  - **스마트스토어**: `productOrder.claimType`/`claimStatus`가 `productOrderStatus`와 별도 필드로 존재한다.
+    `claimType` = `CANCEL` · `RETURN` · `EXCHANGE` · `ADMIN_CANCEL` · `PURCHASE_DECISION_HOLDBACK`
+    `claimStatus` = `CANCEL_REQUEST`/`CANCELING`/`CANCEL_DONE`/`CANCEL_REJECT` · `RETURN_REQUEST`/`RETURN_DONE`/`RETURN_REJECT` · `EXCHANGE_REQUEST`/**`EXCHANGE_REDELIVERING`**/`EXCHANGE_DONE`/`EXCHANGE_REJECT` · `COLLECTING`/`COLLECT_DONE` · `PURCHASE_DECISION_HOLDBACK`/`PURCHASE_DECISION_REQUEST`
+    `EXCHANGE_REDELIVERING`(교환 재배송 중)이 11번가 `301` 재배송접수와 같은 개념 — 4477134670 상황을 정확히 표현한다.
+  - **남은 것: 쿠팡** 주문 조회 응답의 상태 코드표와 교환 API 유무(반품은 `returnRequests`로 [[D-097]]에서 확인됨). 문서 미확보.
 - 상태: **발견(설계 필요)** 2026-09-02
 
 ### D-271: 확증 주기가 ESM 정기 동기화와 같은 분에 시작한다 (2026-09-02)
