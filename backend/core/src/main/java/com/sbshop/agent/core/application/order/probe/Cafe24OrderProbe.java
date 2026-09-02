@@ -10,6 +10,7 @@ import com.sbshop.agent.core.application.order.service.Cafe24LineItemMapper;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+import com.sbshop.agent.core.domain.order.vo.ClaimData;
 
 import lombok.RequiredArgsConstructor;
 
@@ -39,43 +40,39 @@ public class Cafe24OrderProbe implements MarketOrderProbe {
 			|| detail.path("order_id").asText("").isBlank()) {
 			return OrderProbeResult.notFound("order 없음");
 		}
-		ShippingStatus itemTerminal = null;
+		ClaimData claim = null;
 		ShippingStatus itemStage = null;
+		String marketTracking = null;
 		for (JsonNode item : detail.path("items")) {
-			ShippingStatus mappedItem = Cafe24LineItemMapper.mapStatus(item.path("order_status").asText(""));
-			if (isTerminated(mappedItem)) {
-				itemTerminal = mappedItem;
-				break;
+			String code = item.path("order_status").asText("");
+			ClaimData itemClaim = Cafe24LineItemMapper.mapClaim(code);
+			if (itemClaim.getClaimType().isActive() && claim == null) {
+				claim = itemClaim;
 			}
+			ShippingStatus mappedItem = Cafe24LineItemMapper.mapStatus(code);
 			if (mappedItem != ShippingStatus.UNKNOWN && itemStage == null) {
 				itemStage = mappedItem;
 			}
-		}
-		if (itemTerminal != null) {
-			return OrderProbeResult.terminated(itemTerminal, "order_status");
+			String tracking = item.path("tracking_no").asText("");
+			if (marketTracking == null && !tracking.isBlank()) {
+				marketTracking = tracking;
+			}
 		}
 		if ("T".equalsIgnoreCase(detail.path("canceled").asText(""))) {
 			boolean returned = !detail.path("return_confirmed_date").asText("").isBlank();
 			return OrderProbeResult.terminated(
 				returned ? ShippingStatus.RETURNED : ShippingStatus.CANCELED,
-				detail.path("canceled").asText(""));
+				claim, detail.path("canceled").asText(""));
 		}
-		if (itemStage != null) {
-			return OrderProbeResult.found(itemStage);
-		}
-		ShippingStatus mapped = mapShippingStatus(detail.path("shipping_status").asText(""));
-		if (mapped == null) {
+		ShippingStatus stage = itemStage != null
+			? itemStage : mapShippingStatus(detail.path("shipping_status").asText(""));
+		if (stage == null) {
 			return OrderProbeResult.unknown("알 수 없는 shipping_status: "
 				+ detail.path("shipping_status").asText(""));
 		}
-		return OrderProbeResult.found(mapped);
+		return OrderProbeResult.found(stage, claim, marketTracking);
 	}
 
-	private boolean isTerminated(ShippingStatus status) {
-		return status == ShippingStatus.CANCELED
-			|| status == ShippingStatus.RETURNED
-			|| status == ShippingStatus.EXCHANGED;
-	}
 
 	private ShippingStatus mapShippingStatus(String code) {
 		return switch (code.toUpperCase()) {

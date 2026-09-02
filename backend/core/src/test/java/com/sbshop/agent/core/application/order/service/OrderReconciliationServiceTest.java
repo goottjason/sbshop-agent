@@ -244,4 +244,38 @@ class OrderReconciliationServiceTest {
 		assertThat(service.reconcile(MarketType.SMART_STORE, FROM, TO, Set.of())).isZero();
 		verify(orderRepository, never()).findByMarketType(MarketType.SMART_STORE);
 	}
+	@Test
+	@DisplayName("확증이 클레임도 반영한다 — 목록이 닿지 않는 주문은 여기서만 갱신된다")
+	void reconcileAppliesClaim() {
+		Order o = order("ORD-1", LocalDate.of(2026, 7, 1));
+		OrderLineItem li = item(ShippingStatus.SHIPPED);
+		when(orderRepository.findByMarketType(MarketType.GMARKET)).thenReturn(List.of(o));
+		when(lineItemRepository.findByOrderId(1L)).thenReturn(List.of(li));
+		when(probeRouter.probe(any(), any())).thenReturn(OrderProbeResult.found(
+			ShippingStatus.SHIPPED,
+			com.sbshop.agent.core.domain.order.vo.ClaimData.builder()
+				.claimType(com.sbshop.agent.core.domain.order.enums.ClaimType.EXCHANGE)
+				.claimStage(com.sbshop.agent.core.domain.order.enums.ClaimStage.REQUESTED)
+				.claimRawCode("E00").build(),
+			null));
+
+		service.reconcile(MarketType.GMARKET, FROM, TO, Set.of());
+
+		verify(li).applyClaim(any(com.sbshop.agent.core.domain.order.vo.ClaimData.class));
+	}
+
+	@Test
+	@DisplayName("클레임이 없으면 기존 클레임을 지우지 않는다 — 부분 응답으로 이력을 날리지 않는다")
+	void reconcileKeepsClaimWhenAbsent() {
+		Order o = order("ORD-1", LocalDate.of(2026, 7, 1));
+		OrderLineItem li = item(ShippingStatus.SHIPPED);
+		when(orderRepository.findByMarketType(MarketType.GMARKET)).thenReturn(List.of(o));
+		when(lineItemRepository.findByOrderId(1L)).thenReturn(List.of(li));
+		when(probeRouter.probe(any(), any())).thenReturn(OrderProbeResult.found(ShippingStatus.DELIVERED));
+
+		service.reconcile(MarketType.GMARKET, FROM, TO, Set.of());
+
+		verify(li, never()).applyClaim(any());
+	}
+
 }

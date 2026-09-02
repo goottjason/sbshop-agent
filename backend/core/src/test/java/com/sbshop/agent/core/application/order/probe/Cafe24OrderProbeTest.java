@@ -147,4 +147,41 @@ class Cafe24OrderProbeTest {
 		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.DELIVERED);
 	}
 
+	@Test
+	@DisplayName("D-270 3단계: 클레임과 배송 단계를 함께 실어온다 — 교환 중에도 배송 단계를 잃지 않는다")
+	void carriesClaimAndStageTogether() throws Exception {
+		respond("{\"order_id\":\"20260630-0000017\",\"shipping_status\":\"M\",\"canceled\":\"F\","
+			+ "\"items\":[{\"order_status\":\"E00\"}]}");
+
+		OrderProbeResult result = probe.probe(order);
+
+		assertThat(result.status()).isEqualTo(OrderProbeStatus.FOUND);
+		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.SHIPPED);
+		assertThat(result.claim()).isNotNull();
+		assertThat(result.claim().getClaimRawCode()).isEqualTo("E00");
+	}
+
+	@Test
+	@DisplayName("D-274: 마켓 송장을 함께 실어온다 — 목록이 닿지 않는 주문의 대조 근거다")
+	void carriesMarketTracking() throws Exception {
+		respond("{\"order_id\":\"20260630-0000017\",\"shipping_status\":\"M\",\"canceled\":\"F\","
+			+ "\"items\":[{\"order_status\":\"N30\",\"tracking_no\":\"424410969006\"}]}");
+
+		OrderProbeResult result = probe.probe(order);
+
+		assertThat(result.marketTrackingNo()).isEqualTo("424410969006");
+	}
+
+	@Test
+	@DisplayName("클레임이 없으면 클레임도 비어 온다")
+	void noClaimWhenNormal() throws Exception {
+		respond("{\"order_id\":\"20260630-0000017\",\"shipping_status\":\"T\",\"canceled\":\"F\","
+			+ "\"items\":[{\"order_status\":\"N40\"}]}");
+
+		OrderProbeResult result = probe.probe(order);
+
+		assertThat(result.claim()).isNull();
+		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.DELIVERED);
+	}
+
 }

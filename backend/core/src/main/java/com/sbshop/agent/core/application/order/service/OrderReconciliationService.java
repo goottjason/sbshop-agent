@@ -16,6 +16,7 @@ import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+import com.sbshop.agent.core.domain.order.vo.ClaimData;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 
@@ -75,7 +76,7 @@ public class OrderReconciliationService {
 					marketType, orderNo, result.status(), result.rawMessage());
 				continue;
 			}
-			changed += apply(order, resolved);
+			changed += apply(order, resolved, result.claim());
 		}
 		if (probed > 0) {
 			log.info("[{}] 확증 완료: 프로브 {}건, 반영 {}건, 없음 {}건", marketType, probed, changed, missed);
@@ -97,7 +98,7 @@ public class OrderReconciliationService {
 				marketType, order.getMarketOrderNo(), result.status(), result.rawMessage());
 			return 0;
 		}
-		return apply(order, resolved);
+		return apply(order, resolved, result.claim());
 	}
 
 	private boolean withinWindow(LocalDateTime orderDate, LocalDate from, LocalDate to) {
@@ -116,10 +117,14 @@ public class OrderReconciliationService {
 		return status == ShippingStatus.UNKNOWN ? null : status;
 	}
 
-	private int apply(Order order, ShippingStatus resolved) {
+	private int apply(Order order, ShippingStatus resolved, ClaimData claim) {
 		int changed = 0;
 		List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
 		for (OrderLineItem item : items) {
+			if (claim != null && claim.getClaimType().isActive()) {
+				item.applyClaim(claim);
+				orderLineItemRepository.save(item);
+			}
 			ShippingStatus current = item.getShippingData() != null
 				? item.getShippingData().getShippingStatus() : null;
 			if (current == resolved) {
