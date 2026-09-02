@@ -16,6 +16,7 @@ import com.sbshop.agent.core.application.order.dto.MarketFetchOutcome;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
+import com.sbshop.agent.core.application.order.service.RefundTerminalPolicy;
 import com.sbshop.agent.core.domain.order.Shipment;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
@@ -24,6 +25,7 @@ import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.application.order.mapper.CoupangStatusMapper;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
+import com.sbshop.agent.core.domain.order.vo.ClaimData;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -31,11 +33,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -327,47 +327,51 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 			return;
 		}
 
-		Set<String> completedReturnOrderIds = new HashSet<>();
+		Map<String, ClaimData> claimByOrderId = new LinkedHashMap<>();
 		for (JsonNode node : returns) {
-			String receiptType = node.path("receiptType").asText("");
-			String receiptStatus = node.path("receiptStatus").asText("");
-			if ("RETURN".equalsIgnoreCase(receiptType)
-				&& "RETURNS_COMPLETED".equalsIgnoreCase(receiptStatus)) {
-				String orderId = node.path("orderId").asText(null);
-				if (orderId != null && !orderId.isEmpty()) {
-					completedReturnOrderIds.add(orderId);
-				}
+			String orderId = node.path("orderId").asText(null);
+			if (orderId == null || orderId.isEmpty()) {
+				continue;
+			}
+			ClaimData claim = statusMapper.mapClaim(
+				node.path("receiptType").asText(""), node.path("receiptStatus").asText(""));
+			if (claim.getClaimType().isActive()) {
+				claimByOrderId.put(orderId, claim);
 			}
 		}
-		if (completedReturnOrderIds.isEmpty()) {
+		if (claimByOrderId.isEmpty()) {
 			return;
 		}
 
 		List<Order> dbOrders = orderRepository.findByMarketType(MarketType.COUPANG);
-		int returnedCount = 0;
+		int zeroedCount = 0;
 		for (Order order : dbOrders) {
-			if (!completedReturnOrderIds.contains(order.getMarketOrderNo())) {
+			ClaimData claim = claimByOrderId.get(order.getMarketOrderNo());
+			if (claim == null) {
 				continue;
 			}
+
 			List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
 			for (OrderLineItem item : items) {
-				if (isAlreadyReturnedWithZeroSettlement(item)) {
-					continue;
+				item.applyClaim(claim);
+				if (RefundTerminalPolicy.isRefundTerminal(item) && !isZeroSettlement(item)) {
+					item.applySettlement(BigDecimal.ZERO);
+					item.markSettlementVerified();
+					zeroedCount++;
 				}
-				ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
-					.shippingStatus(ShippingStatus.RETURNED)
-					.build();
-				item.applyShippingData(cmd.toShippingData(item.getShippingData()));
-				item.applySettlement(BigDecimal.ZERO);
-				item.markSettlementVerified();
 				orderLineItemRepository.save(item);
-				returnedCount++;
 			}
 		}
 
-		if (returnedCount > 0) {
-			log.info("쿠팡 반품완료 반영: {}건 RETURNED+정산0 전환", returnedCount);
+		if (zeroedCount > 0) {
+			log.info("쿠팡 반품·취소 클레임 완료 반영: {}건 정산0 처리(배송 단계는 마켓 값 그대로 유지)", zeroedCount);
 		}
+	}
+
+	private boolean isZeroSettlement(OrderLineItem item) {
+		return item.getSettlementData() != null
+			&& item.getSettlementData().getSettlementAmount() != null
+			&& item.getSettlementData().getSettlementAmount().compareTo(BigDecimal.ZERO) == 0;
 	}
 
 	public void fixCarriers(List<MarketOrderDto> apiOrders) {
@@ -659,15 +663,6 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 			case ROCKET -> "COUPANG";
 			default -> "CJGLS";
 		};
-	}
-
-	private boolean isAlreadyReturnedWithZeroSettlement(OrderLineItem item) {
-		boolean returned = item.getShippingData() != null
-			&& item.getShippingData().getShippingStatus() == ShippingStatus.RETURNED;
-		boolean zeroSettlement = item.getSettlementData() != null
-			&& item.getSettlementData().getSettlementAmount() != null
-			&& item.getSettlementData().getSettlementAmount().compareTo(BigDecimal.ZERO) == 0;
-		return returned && zeroSettlement;
 	}
 
 	private MarketShipmentDto resolveSourceShipment(MarketOrderDto apiOrder, OrderLineItem item) {

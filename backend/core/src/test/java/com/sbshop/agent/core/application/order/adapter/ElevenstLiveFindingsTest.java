@@ -25,6 +25,8 @@ import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.mapper.ElevenstStatusMapper;
 import com.sbshop.agent.core.application.order.port.ElevenstOrderApiPort;
 import com.sbshop.agent.core.domain.market.MarketCredential;
+import com.sbshop.agent.core.domain.order.enums.ClaimStage;
+import com.sbshop.agent.core.domain.order.enums.ClaimType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 
@@ -134,7 +136,7 @@ class ElevenstLiveFindingsTest {
 	}
 
 	@Test
-	@DisplayName("클레임 판정은 상품주문마다 돌려준다 — 첫 행을 주문 전체에 씌우지 않는다")
+	@DisplayName("클레임 판정은 상품주문마다 돌려준다 — 배송 단계를 덮지 않고 클레임 축에 따로 실린다(D-270)")
 	void resolvesClaimsPerProductOrder() throws Exception {
 		when(api.fetchOrderDetail(anyString(), anyString())).thenReturn(List.of(
 			element("<order><ordNo>" + ORD_NO + "</ordNo><ordPrdSeq>1</ordPrdSeq>"
@@ -142,10 +144,12 @@ class ElevenstLiveFindingsTest {
 			element("<order><ordNo>" + ORD_NO + "</ordNo><ordPrdSeq>2</ordPrdSeq>"
 				+ "<ordPrdStat>801</ordPrdStat><ordPrdStatNm>반품완료</ordPrdStatNm></order>")));
 
-		Map<String, ShippingStatus> claims =
-			adapter().resolveMissingOrderState("api-key", ORD_NO).statuses();
+		var state = adapter().resolveMissingOrderState("api-key", ORD_NO);
 
-		assertThat(claims).containsExactly(Map.entry("2", ShippingStatus.RETURNED));
+		assertThat(state.statuses()).isEmpty();
+		assertThat(state.claims()).containsOnlyKeys("2");
+		assertThat(state.claims().get("2").getClaimType()).isEqualTo(ClaimType.RETURN);
+		assertThat(state.claims().get("2").getClaimStage()).isEqualTo(ClaimStage.DONE);
 	}
 
 	@Test
@@ -157,7 +161,7 @@ class ElevenstLiveFindingsTest {
 
 		var state = adapter().resolveMissingOrderState("api-key", ORD_NO);
 
-		assertThat(state.statuses()).containsExactly(Map.entry("1", ShippingStatus.DELIVERED));
+		assertThat(state.statuses()).containsExactly(Map.entry("1", ShippingStatus.CONFIRMED));
 		assertThat(state.trackingNos()).containsExactly(Map.entry("1", "6079990333504"));
 	}
 

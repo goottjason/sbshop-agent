@@ -68,16 +68,37 @@ class SmartStoreStatusMapperTest {
 	}
 
 	@Test
-	@DisplayName("D-117 회귀: 실제 취소(productOrderStatus=CANCELED)는 CANCELED 유지")
-	void canceled_mapsToCanceled() {
+	@DisplayName("D-270: 취소(CANCELED)는 배송 단계를 말해주지 않는다 — UNKNOWN, 클레임은 mapClaim이 읽는다")
+	void canceled_mapsToUnknown() {
 		ShippingStatus result = mapper.mapStatus(Map.of("status", "CANCELED"));
-		assertThat(result).isEqualTo(ShippingStatus.CANCELED);
+		assertThat(result).isEqualTo(ShippingStatus.UNKNOWN);
 	}
 
 	@Test
-	@DisplayName("D-117 회귀: 미결제취소(CANCELED_BY_NOPAYMENT)는 CANCELED 유지")
-	void canceledByNoPayment_mapsToCanceled() {
+	@DisplayName("D-270: 미결제취소(CANCELED_BY_NOPAYMENT)도 배송 단계는 UNKNOWN이다")
+	void canceledByNoPayment_mapsToUnknown() {
 		ShippingStatus result = mapper.mapStatus(Map.of("status", "CANCELED_BY_NOPAYMENT"));
-		assertThat(result).isEqualTo(ShippingStatus.CANCELED);
+		assertThat(result).isEqualTo(ShippingStatus.UNKNOWN);
+	}
+
+	@Test
+	@DisplayName("D-270: 반품(RETURNED)도 배송 단계는 UNKNOWN이다")
+	void returned_mapsToUnknown() {
+		ShippingStatus result = mapper.mapStatus(Map.of("status", "RETURNED"));
+		assertThat(result).isEqualTo(ShippingStatus.UNKNOWN);
+	}
+
+	@Test
+	@DisplayName("D-270: 교환(EXCHANGED)도 배송 단계는 UNKNOWN이다")
+	void exchanged_mapsToUnknown() {
+		ShippingStatus result = mapper.mapStatus(Map.of("status", "EXCHANGED"));
+		assertThat(result).isEqualTo(ShippingStatus.UNKNOWN);
+	}
+
+	@Test
+	@DisplayName("D-270: 구매확정(PURCHASE_DECIDED)은 CONFIRMED다 — 배송완료로 뭉개지 않는다")
+	void purchaseDecided_mapsToConfirmed() {
+		ShippingStatus result = mapper.mapStatus(Map.of("status", "PURCHASE_DECIDED"));
+		assertThat(result).isEqualTo(ShippingStatus.CONFIRMED);
 	}
 }

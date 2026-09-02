@@ -86,10 +86,19 @@ export const ORDER_COLUMNS: string[] = [];
 
 export const PRODUCT_COLUMNS: string[] = [];
 
-export const TERMINAL_STATUSES = ['CANCELED', 'RETURNED', 'EXCHANGED'];
+export const ALL_STATUSES = ['UNKNOWN', 'NEW', 'PREPARING', 'DISPATCHED', 'SHIPPED', 'DELIVERED', 'CONFIRMED'];
 
-export const ALL_STATUSES = ['UNKNOWN', 'NEW', 'PREPARING', 'DISPATCHED', 'SHIPPED', 'DELIVERED', 'CONFIRMED', 'CANCELED', 'RETURNED', 'EXCHANGED'];
+export const DEFAULT_VISIBLE_STATUSES = ALL_STATUSES;
 
-export const DEFAULT_VISIBLE_STATUSES = ALL_STATUSES.filter(s => !TERMINAL_STATUSES.includes(s));
+export const CLAIM_TYPE_OPTIONS: { id: string; label: string }[] = [
+  { id: 'NONE', label: '없음' },
+  { id: 'CANCEL', label: '취소' },
+  { id: 'RETURN', label: '반품' },
+  { id: 'EXCHANGE', label: '교환' },
+];
+
+export const ALL_CLAIM_TYPES = CLAIM_TYPE_OPTIONS.map(c => c.id);
+
+export const DEFAULT_VISIBLE_CLAIM_TYPES = ['NONE'];
 
 export const FILTER_OPEN_KEY = 'sbshop.orderFilter.open';

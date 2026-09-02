@@ -30,20 +30,19 @@ class ElevenstProductOrderStatusMapperTest {
 	}
 
 	@Test
-	@DisplayName("배송완료·구매확정 → DELIVERED")
+	@DisplayName("배송완료 → DELIVERED")
 	void mapsDelivered() {
 		assertThat(mapper.mapProductOrderStatus("배송완료")).isEqualTo(ShippingStatus.DELIVERED);
-		assertThat(mapper.mapProductOrderStatus("구매확정")).isEqualTo(ShippingStatus.DELIVERED);
 	}
 
 	@Test
-	@DisplayName("클레임 상태는 종결 상태로 매핑한다")
-	void mapsClaims() {
-		assertThat(mapper.mapProductOrderStatus("취소완료")).isEqualTo(ShippingStatus.CANCELED);
-		assertThat(mapper.mapProductOrderStatus("취소신청")).isEqualTo(ShippingStatus.CANCELED);
-		assertThat(mapper.mapProductOrderStatus("반품완료")).isEqualTo(ShippingStatus.RETURNED);
-		assertThat(mapper.mapProductOrderStatus("반품신청")).isEqualTo(ShippingStatus.RETURNED);
-		assertThat(mapper.mapProductOrderStatus("교환완료")).isEqualTo(ShippingStatus.EXCHANGED);
+	@DisplayName("클레임 이름은 배송 단계에서 UNKNOWN이다 — 클레임은 mapClaim이 맡는다(D-270)")
+	void claimNamesAreUnknown() {
+		assertThat(mapper.mapProductOrderStatus("취소완료")).isEqualTo(ShippingStatus.UNKNOWN);
+		assertThat(mapper.mapProductOrderStatus("취소신청")).isEqualTo(ShippingStatus.UNKNOWN);
+		assertThat(mapper.mapProductOrderStatus("반품완료")).isEqualTo(ShippingStatus.UNKNOWN);
+		assertThat(mapper.mapProductOrderStatus("반품신청")).isEqualTo(ShippingStatus.UNKNOWN);
+		assertThat(mapper.mapProductOrderStatus("교환완료")).isEqualTo(ShippingStatus.UNKNOWN);
 	}
 
 	@Test

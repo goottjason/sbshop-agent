@@ -13,7 +13,7 @@ import { toast } from 'react-toastify';
 import { useSearchParams } from 'react-router-dom';
 import { Table, TableHeader, TableBody, TableRow, TableHead } from '../../components/ui/Table';
 import type { RowData, OrdersCache } from './types';
-import { toolbarBtn, toolbarBtnBase, DEFAULT_VISIBLE_STATUSES } from './constants';
+import { toolbarBtn, toolbarBtnBase, DEFAULT_VISIBLE_STATUSES, DEFAULT_VISIBLE_CLAIM_TYPES } from './constants';
 import { marketSyncState, patchOrderInCache, patchLineItemInCache } from './helpers';
 import { buildOrderColumns } from './orderColumns';
 import OrderTableRow from './OrderTableRow';
@@ -91,31 +91,33 @@ const OrderGrid: React.FC = () => {
     const stockStatuses = getAll('stockStatuses');
     const vendors = getAll('vendors');
     const customsStatuses = getAll('customsStatuses');
+    const claimTypes = getAll('claimTypes');
     const keyword = searchParams.get('keyword') ?? '';
     const startDate = searchParams.get('startDate') ?? undefined;
     const endDate = searchParams.get('endDate') ?? undefined;
-    const hasAny = markets.length || statuses.length || stockStatuses.length || vendors.length || customsStatuses.length || searchParams.get('keyword') || searchParams.get('startDate') || searchParams.get('endDate');
+    const hasAny = markets.length || statuses.length || stockStatuses.length || vendors.length || customsStatuses.length || claimTypes.length || searchParams.get('keyword') || searchParams.get('startDate') || searchParams.get('endDate');
     return hasAny ? {
       keyword,
       markets: markets.length ? markets : ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'],
       statuses: statuses.length ? statuses : DEFAULT_VISIBLE_STATUSES,
       purchaseStatuses: ['NOT_PURCHASED', 'PURCHASED', 'WAITING_STOCK'],
-      stockStatuses, vendors, customsStatuses, startDate, endDate,
+      stockStatuses, vendors, customsStatuses, claimTypes, startDate, endDate,
     } : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const [queryParams, setQueryParams] = useState<{keyword?: string, markets?: string[], statuses?: string[], purchaseStatuses?: string[], stockStatuses?: string[], vendors?: string[], customsStatuses?: string[], startDate?: string, endDate?: string}>(initialFromUrl ?? {
+  const [queryParams, setQueryParams] = useState<{keyword?: string, markets?: string[], statuses?: string[], purchaseStatuses?: string[], stockStatuses?: string[], vendors?: string[], customsStatuses?: string[], claimTypes?: string[], startDate?: string, endDate?: string}>(initialFromUrl ?? {
     keyword: '',
     markets: ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'],
     statuses: DEFAULT_VISIBLE_STATUSES,
     purchaseStatuses: ['NOT_PURCHASED', 'PURCHASED', 'WAITING_STOCK'],
+    claimTypes: DEFAULT_VISIBLE_CLAIM_TYPES,
     startDate: defaultStart,
     endDate: defaultEnd
   });
   const [searchTrigger, setSearchTrigger] = useState(0);
   const { data, isLoading: queryLoading, refetch } = useQuery({
     queryKey: ['orders', queryParams, searchTrigger],
-    queryFn: () => fetchOrders(0, 500, queryParams.keyword, queryParams.markets, queryParams.statuses, queryParams.startDate, queryParams.endDate, queryParams.purchaseStatuses, queryParams.stockStatuses, queryParams.vendors, queryParams.customsStatuses)
+    queryFn: () => fetchOrders(0, 500, queryParams.keyword, queryParams.markets, queryParams.statuses, queryParams.startDate, queryParams.endDate, queryParams.purchaseStatuses, queryParams.stockStatuses, queryParams.vendors, queryParams.customsStatuses, queryParams.claimTypes)
   });
   type CacheSnapshot = ReturnType<typeof queryClient.getQueriesData<OrdersCache>>;
   const optimisticPatch = useCallback(async (patch: (c: OrdersCache | undefined) => OrdersCache | undefined): Promise<CacheSnapshot> => {
@@ -555,7 +557,7 @@ const OrderGrid: React.FC = () => {
           <button onClick={handleExportExcel} style={{ ...toolbarBtnBase, backgroundColor: '#fff', color: '#217346', border: '1px solid #c8e6c9' }}>엑셀 다운로드</button>
         </div>
       </div>
-      <OrderFilterPanel onSearch={(keyword, markets, statuses, startDate, endDate, purchaseStatuses, stockStatuses, vendors) => { setQueryParams(prev => ({ keyword, markets, statuses, purchaseStatuses, startDate, endDate, stockStatuses, vendors, customsStatuses: prev.customsStatuses })); setSearchTrigger(c => c + 1); }} />
+      <OrderFilterPanel onSearch={(keyword, markets, statuses, startDate, endDate, purchaseStatuses, stockStatuses, vendors, claimTypes) => { setQueryParams(prev => ({ keyword, markets, statuses, purchaseStatuses, startDate, endDate, stockStatuses, vendors, claimTypes, customsStatuses: prev.customsStatuses })); setSearchTrigger(c => c + 1); }} />
       <div style={{ flex: 1, backgroundColor: 'white', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
         <div className="force-scrollbar" ref={gridScrollRef} onMouseOver={applyRowHover} onMouseLeave={clearRowHover} style={{ flex: 1, overflow: 'scroll' }}>
           {(queryLoading || isSyncing) && (

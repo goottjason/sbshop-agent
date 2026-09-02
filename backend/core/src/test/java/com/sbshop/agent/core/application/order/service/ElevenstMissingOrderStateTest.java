@@ -66,7 +66,7 @@ class ElevenstMissingOrderStateTest {
 		stubCredentialAndEmptyApi();
 		OrderLineItem li = item(ShippingStatus.SHIPPED);
 		stubOrderWith(li, new MissingOrderState(
-			Map.of(ElevenstOrderAdapter.CLAIM_ORDER_WIDE, ShippingStatus.DELIVERED), Map.of()));
+			Map.of(ElevenstOrderAdapter.CLAIM_ORDER_WIDE, ShippingStatus.DELIVERED), Map.of(), Map.of()));
 
 		service().syncElevenstOrders();
 
@@ -81,7 +81,7 @@ class ElevenstMissingOrderStateTest {
 		when(shipmentRepository.findByOrderId(any())).thenReturn(List.of(shipment));
 		stubOrderWith(item(ShippingStatus.SHIPPED), new MissingOrderState(
 			Map.of(ElevenstOrderAdapter.CLAIM_ORDER_WIDE, ShippingStatus.DELIVERED),
-			Map.of("1", "6079990333504")));
+			Map.of(), Map.of("1", "6079990333504")));
 
 		service().syncElevenstOrders();
 
@@ -97,7 +97,7 @@ class ElevenstMissingOrderStateTest {
 		shipment.markManualFixRequired();
 		when(shipmentRepository.findByOrderId(any())).thenReturn(List.of(shipment));
 		stubOrderWith(item(ShippingStatus.SHIPPED), new MissingOrderState(
-			Map.of(), Map.of("1", "424438293101")));
+			Map.of(), Map.of(), Map.of("1", "424438293101")));
 
 		service().syncElevenstOrders();
 
@@ -111,7 +111,7 @@ class ElevenstMissingOrderStateTest {
 		Shipment shipment = shipment("424438293101");
 		when(shipmentRepository.findByOrderId(any())).thenReturn(List.of(shipment));
 		stubOrderWith(item(ShippingStatus.SHIPPED), new MissingOrderState(
-			Map.of(), Map.of("1", "6079990333504", "2", "111122223333")));
+			Map.of(), Map.of(), Map.of("1", "6079990333504", "2", "111122223333")));
 
 		service().syncElevenstOrders();
 
@@ -123,7 +123,7 @@ class ElevenstMissingOrderStateTest {
 	void nonTerminalStatusLeavesShippingUntouched() {
 		stubCredentialAndEmptyApi();
 		OrderLineItem li = item(ShippingStatus.SHIPPED);
-		stubOrderWith(li, new MissingOrderState(Map.of(), Map.of("1", "6079990333504")));
+		stubOrderWith(li, new MissingOrderState(Map.of(), Map.of(), Map.of("1", "6079990333504")));
 		when(shipmentRepository.findByOrderId(any())).thenReturn(List.of(shipment("424438293101")));
 
 		service().syncElevenstOrders();

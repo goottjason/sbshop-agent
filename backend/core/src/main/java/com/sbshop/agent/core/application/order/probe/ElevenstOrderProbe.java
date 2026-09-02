@@ -14,6 +14,7 @@ import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+import com.sbshop.agent.core.domain.order.vo.ClaimData;
 
 import lombok.RequiredArgsConstructor;
 
@@ -49,6 +50,7 @@ public class ElevenstOrderProbe implements MarketOrderProbe {
 			return OrderProbeResult.notFound("상품주문 없음");
 		}
 		ShippingStatus best = null;
+		ClaimData claim = null;
 		String lastName = "";
 		for (Element row : rows) {
 			String name = ElevenstXmlUtils.getElementText(row, "ordPrdStatNm");
@@ -57,22 +59,17 @@ public class ElevenstOrderProbe implements MarketOrderProbe {
 			}
 			lastName = name;
 			ShippingStatus mapped = statusMapper.mapProductOrderStatus(name);
-			if (isTerminated(mapped)) {
-				return OrderProbeResult.terminated(mapped, name);
-			}
 			if (mapped != ShippingStatus.UNKNOWN && best == null) {
 				best = mapped;
 			}
+			ClaimData rowClaim = statusMapper.mapClaimByStatusName(name);
+			if (rowClaim.getClaimType().isActive() && claim == null) {
+				claim = rowClaim;
+			}
 		}
-		if (best == null) {
+		if (best == null && claim == null) {
 			return OrderProbeResult.unknown("매핑되지 않는 상태명: " + lastName);
 		}
-		return OrderProbeResult.found(best);
-	}
-
-	private boolean isTerminated(ShippingStatus status) {
-		return status == ShippingStatus.CANCELED
-			|| status == ShippingStatus.RETURNED
-			|| status == ShippingStatus.EXCHANGED;
+		return OrderProbeResult.found(best != null ? best : ShippingStatus.UNKNOWN, claim, null);
 	}
 }

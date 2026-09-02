@@ -265,6 +265,27 @@ class OrderReconciliationServiceTest {
 	}
 
 	@Test
+	@DisplayName("배송 단계를 알 수 없어도 클레임은 반영한다 — 11번가처럼 클레임 전용 행엔 배송 신호가 없다(D-270)")
+	void reconcileAppliesClaimEvenWithoutResolvableShippingStatus() {
+		Order o = order("ORD-1", LocalDate.of(2026, 7, 1));
+		OrderLineItem li = item(ShippingStatus.SHIPPED);
+		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(o));
+		when(lineItemRepository.findByOrderId(1L)).thenReturn(List.of(li));
+		when(probeRouter.probe(any(), any())).thenReturn(OrderProbeResult.found(
+			ShippingStatus.UNKNOWN,
+			com.sbshop.agent.core.domain.order.vo.ClaimData.builder()
+				.claimType(com.sbshop.agent.core.domain.order.enums.ClaimType.CANCEL)
+				.claimStage(com.sbshop.agent.core.domain.order.enums.ClaimStage.DONE)
+				.claimRawCode("취소완료").build(),
+			null));
+
+		service.reconcile(MarketType.ELEVEN_STREET, FROM, TO, Set.of());
+
+		verify(li).applyClaim(any(com.sbshop.agent.core.domain.order.vo.ClaimData.class));
+		verify(lineItemRepository).save(li);
+	}
+
+	@Test
 	@DisplayName("클레임이 없으면 기존 클레임을 지우지 않는다 — 부분 응답으로 이력을 날리지 않는다")
 	void reconcileKeepsClaimWhenAbsent() {
 		Order o = order("ORD-1", LocalDate.of(2026, 7, 1));

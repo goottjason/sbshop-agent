@@ -69,7 +69,7 @@ public class OrderReconciliationService {
 				}
 			}
 			ShippingStatus resolved = resolvedStatus(result);
-			if (resolved == null) {
+			if (resolved == null && !hasActiveClaim(result)) {
 				if (result.status() == OrderProbeStatus.NOT_FOUND) {
 					missed++;
 				}
@@ -94,7 +94,7 @@ public class OrderReconciliationService {
 		order.recordProbeResult(result.status());
 		orderRepository.save(order);
 		ShippingStatus resolved = resolvedStatus(result);
-		if (resolved == null) {
+		if (resolved == null && !hasActiveClaim(result)) {
 			log.info("[{}] 명령 후 재조회 미반영: orderNo={}, status={}, msg={}",
 				marketType, order.getMarketOrderNo(), result.status(), result.rawMessage());
 			return 0;
@@ -118,27 +118,37 @@ public class OrderReconciliationService {
 		return status == ShippingStatus.UNKNOWN ? null : status;
 	}
 
+	private boolean hasActiveClaim(OrderProbeResult result) {
+		ClaimData claim = result.claim();
+		return claim != null && claim.getClaimType().isActive();
+	}
+
 	private int apply(Order order, ShippingStatus resolved, ClaimData claim) {
 		int changed = 0;
 		List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
 		for (OrderLineItem item : items) {
+			boolean itemChanged = false;
 			if (claim != null && claim.getClaimType().isActive()) {
 				item.applyClaim(claim);
+				itemChanged = true;
+			}
+			if (resolved != null) {
+				ShippingStatus current = item.getShippingData() != null
+					? item.getShippingData().getShippingStatus() : null;
+				if (current != resolved) {
+					ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
+						.shippingStatus(resolved)
+						.build();
+					item.applyShippingData(cmd.toShippingData(item.getShippingData()));
+					itemChanged = true;
+					changed++;
+					log.info("[{}] 확증 반영: orderNo={}, {} → {}",
+						order.getMarketType(), order.getMarketOrderNo(), current, resolved);
+				}
+			}
+			if (itemChanged) {
 				orderLineItemRepository.save(item);
 			}
-			ShippingStatus current = item.getShippingData() != null
-				? item.getShippingData().getShippingStatus() : null;
-			if (current == resolved) {
-				continue;
-			}
-			ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
-				.shippingStatus(resolved)
-				.build();
-			item.applyShippingData(cmd.toShippingData(item.getShippingData()));
-			orderLineItemRepository.save(item);
-			changed++;
-			log.info("[{}] 확증 반영: orderNo={}, {} → {}",
-				order.getMarketType(), order.getMarketOrderNo(), current, resolved);
 		}
 		return changed;
 	}

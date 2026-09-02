@@ -15,6 +15,7 @@ import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.QOrderLineItem;
 import com.sbshop.agent.core.domain.order.Shipment;
+import com.sbshop.agent.core.domain.order.enums.ClaimType;
 import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.PurchaseStatus;
@@ -58,6 +59,7 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 				shippingStatusIn(condition.getShippingStatuses()),
 				purchaseStatusIn(condition.getPurchaseStatuses()),
 				customsStatusIn(condition.getCustomsStatuses()),
+				claimTypeIn(condition.getClaimTypes()),
 				keywordContains(condition.getKeyword(), qLineItem, qProduct),
 				dateBetween(condition.getStartDate(), condition.getEndDate()),
 				stockStatusExists(condition.getStockStatuses()),
@@ -144,6 +146,7 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 				shippingStatusIn(condition.getShippingStatuses()),
 				purchaseStatusIn(condition.getPurchaseStatuses()),
 				customsStatusIn(condition.getCustomsStatuses()),
+				claimTypeIn(condition.getClaimTypes()),
 				keywordContains(condition.getKeyword(), qLineItem, qProduct),
 				dateBetween(condition.getStartDate(), condition.getEndDate()),
 				stockStatusExists(condition.getStockStatuses()),
@@ -192,6 +195,19 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.from(subLineItem)
 			.where(subLineItem.orderId.eq(order.id)
 				.and(subLineItem.purchaseStatus.in(statuses)))
+			.exists();
+	}
+
+	BooleanExpression claimTypeIn(List<ClaimType> claimTypes) {
+		if (claimTypes == null || claimTypes.isEmpty()) {
+			return null;
+		}
+		QOrderLineItem subLineItem = QOrderLineItem.orderLineItem;
+		return JPAExpressions
+			.selectOne()
+			.from(subLineItem)
+			.where(subLineItem.orderId.eq(order.id)
+				.and(subLineItem.claimData.claimType.in(claimTypes)))
 			.exists();
 	}
 

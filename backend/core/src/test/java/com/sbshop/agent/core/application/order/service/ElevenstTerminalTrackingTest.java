@@ -142,7 +142,7 @@ class ElevenstTerminalTrackingTest {
 		when(adapter.resolveMissingOrderState(anyString(), anyString()))
 			.thenReturn(new ElevenstOrderAdapter.MissingOrderState(
 				Map.of(ElevenstOrderAdapter.CLAIM_ORDER_WIDE, ShippingStatus.DELIVERED),
-				Map.of()));
+				Map.of(), Map.of()));
 
 		service.syncElevenstOrders(LocalDate.now().minusDays(30), LocalDate.now());
 

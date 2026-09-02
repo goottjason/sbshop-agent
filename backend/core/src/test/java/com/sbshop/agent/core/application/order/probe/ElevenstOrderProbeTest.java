@@ -23,6 +23,8 @@ import com.sbshop.agent.core.application.order.port.ElevenstOrderApiPort;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import com.sbshop.agent.core.domain.order.Order;
+import com.sbshop.agent.core.domain.order.enums.ClaimStage;
+import com.sbshop.agent.core.domain.order.enums.ClaimType;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.OrderProbeStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
@@ -56,7 +58,7 @@ class ElevenstOrderProbeTest {
 	}
 
 	@Test
-	@DisplayName("배송중은 FOUND + SHIPPED 다")
+	@DisplayName("배송중은 FOUND + SHIPPED 다 — 클레임 없음")
 	void shipped() throws Exception {
 		when(port.fetchProductOrderStatuses(any(), eq("ORD-1"))).thenReturn(List.of(row("배송중")));
 
@@ -64,29 +66,34 @@ class ElevenstOrderProbeTest {
 
 		assertThat(result.status()).isEqualTo(OrderProbeStatus.FOUND);
 		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.SHIPPED);
+		assertThat(result.claim()).isNull();
 	}
 
 	@Test
-	@DisplayName("취소완료는 TERMINATED + CANCELED 다")
+	@DisplayName("취소완료는 클레임으로 실린다 — 배송 단계는 덮지 않고 UNKNOWN이다(D-270)")
 	void canceled() throws Exception {
 		when(port.fetchProductOrderStatuses(any(), eq("ORD-1"))).thenReturn(List.of(row("취소완료")));
 
 		OrderProbeResult result = probe.probe(order);
 
-		assertThat(result.status()).isEqualTo(OrderProbeStatus.TERMINATED);
-		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.CANCELED);
+		assertThat(result.status()).isEqualTo(OrderProbeStatus.FOUND);
+		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.UNKNOWN);
+		assertThat(result.claim().getClaimType()).isEqualTo(ClaimType.CANCEL);
+		assertThat(result.claim().getClaimStage()).isEqualTo(ClaimStage.DONE);
 	}
 
 	@Test
-	@DisplayName("여러 상품주문 중 하나라도 종결이면 종결로 본다")
-	void anyTerminatedWins() throws Exception {
+	@DisplayName("클레임 행과 배송 단계 행이 섞이면 배송 단계는 그대로 실리고 클레임도 함께 실린다")
+	void claimAndDeliveryStageCoexist() throws Exception {
 		when(port.fetchProductOrderStatuses(any(), eq("ORD-1")))
 			.thenReturn(List.of(row("배송중"), row("반품완료")));
 
 		OrderProbeResult result = probe.probe(order);
 
-		assertThat(result.status()).isEqualTo(OrderProbeStatus.TERMINATED);
-		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.RETURNED);
+		assertThat(result.status()).isEqualTo(OrderProbeStatus.FOUND);
+		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.SHIPPED);
+		assertThat(result.claim().getClaimType()).isEqualTo(ClaimType.RETURN);
+		assertThat(result.claim().getClaimStage()).isEqualTo(ClaimStage.DONE);
 	}
 
 	@Test

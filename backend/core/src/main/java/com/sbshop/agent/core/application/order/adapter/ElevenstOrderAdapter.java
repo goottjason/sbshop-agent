@@ -13,6 +13,7 @@ import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+import com.sbshop.agent.core.domain.order.vo.ClaimData;
 import com.sbshop.agent.core.application.order.mapper.ElevenstStatusMapper;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -119,6 +120,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				return MissingOrderState.empty();
 			}
 			Map<String, ShippingStatus> statuses = new LinkedHashMap<>();
+			Map<String, ClaimData> claims = new LinkedHashMap<>();
 			Map<String, String> trackingNos = new LinkedHashMap<>();
 			for (Element el : details) {
 				String seq = emptyToNull(ElevenstXmlUtils.getElementText(el, "ordPrdSeq"));
@@ -129,13 +131,17 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				if (isTerminalStatus(status)) {
 					statuses.put(key, status);
 				}
+				ClaimData claim = statusMapper.mapClaimByStatusName(statNm);
+				if (claim.getClaimType().isActive()) {
+					claims.put(key, claim);
+				}
 
 				String invcNo = emptyToNull(ElevenstXmlUtils.getElementText(el, "invcNo"));
 				if (invcNo != null) {
 					trackingNos.put(key, invcNo);
 				}
 			}
-			return new MissingOrderState(statuses, trackingNos);
+			return new MissingOrderState(statuses, claims, trackingNos);
 		} catch (Exception e) {
 			log.warn("11번가 사라진 주문 상태 조회 실패: ordNo={}, error={}", ordNo, e.getMessage());
 			return MissingOrderState.empty();
@@ -305,13 +311,14 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		return dlvNo;
 	}
 
-	public record MissingOrderState(Map<String, ShippingStatus> statuses, Map<String, String> trackingNos) {
+	public record MissingOrderState(Map<String, ShippingStatus> statuses, Map<String, ClaimData> claims,
+		Map<String, String> trackingNos) {
 		public static MissingOrderState empty() {
-			return new MissingOrderState(Map.of(), Map.of());
+			return new MissingOrderState(Map.of(), Map.of(), Map.of());
 		}
 
 		public boolean isEmpty() {
-			return statuses.isEmpty() && trackingNos.isEmpty();
+			return statuses.isEmpty() && claims.isEmpty() && trackingNos.isEmpty();
 		}
 	}
 
@@ -458,9 +465,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 
 	private static boolean isTerminalStatus(ShippingStatus status) {
 		return status == ShippingStatus.DELIVERED
-			|| status == ShippingStatus.CANCELED
-			|| status == ShippingStatus.RETURNED
-			|| status == ShippingStatus.EXCHANGED;
+			|| status == ShippingStatus.CONFIRMED;
 	}
 
 	private static BigDecimal parseBigDecimal(String value) {
@@ -678,6 +683,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 					.totalAmount(resolveAmount(status, detail != null ? detail.totalAmount() : null))
 					.settlementAmount(status != null ? status.settlementAmount() : null)
 					.status(resolveStatus(status, detail, mapper))
+					.claim(mapper.mapClaimByStatusName(status != null ? status.statusName() : null))
 					.marketSpecificData(lineData)
 					.build());
 			}

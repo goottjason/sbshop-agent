@@ -22,6 +22,7 @@ import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.application.order.adapter.ElevenstOrderAdapter;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
+import com.sbshop.agent.core.domain.order.vo.ClaimData;
 import com.sbshop.agent.core.domain.order.vo.CustomsData;
 import com.sbshop.agent.core.domain.order.vo.SettlementData;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
@@ -260,30 +261,37 @@ public class ElevenstOrderSyncService {
 				continue;
 			}
 			applyMarketTrackingFromMissingOrder(order, state);
-			Map<String, ShippingStatus> claims = state.statuses();
-			if (claims.isEmpty()) {
+			Map<String, ShippingStatus> statuses = state.statuses();
+			Map<String, ClaimData> claims = state.claims();
+			if (statuses.isEmpty() && claims.isEmpty()) {
 				continue;
 			}
 
 			int applied = 0;
 			for (OrderLineItem item : items) {
-				ShippingStatus claimStatus = resolveClaimFor(item, claims);
-				if (claimStatus == null) {
-					continue;
+				ShippingStatus claimStatus = resolveFor(item, statuses);
+				if (claimStatus != null) {
+					ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
+						.shippingStatus(claimStatus)
+						.build();
+					item.applyShippingData(cmd.toShippingData(item.getShippingData()));
+					applied++;
 				}
-				ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
-					.shippingStatus(claimStatus)
-					.build();
-				item.applyShippingData(cmd.toShippingData(item.getShippingData()));
-				orderLineItemRepository.save(item);
-				applied++;
+				ClaimData claim = resolveFor(item, claims);
+				if (claim != null) {
+					item.applyClaim(claim);
+					applied++;
+				}
+				if (claimStatus != null || claim != null) {
+					orderLineItemRepository.save(item);
+				}
 			}
 			if (applied == 0) {
 				continue;
 			}
 			claimCount++;
-			log.info("[ELEVEN_STREET] 클레임 감지: ordNo={} → {}건 반영 {}",
-				order.getMarketOrderNo(), applied, claims);
+			log.info("[ELEVEN_STREET] 클레임 감지: ordNo={} → {}건 반영 상태={} 클레임={}",
+				order.getMarketOrderNo(), applied, statuses, claims);
 		}
 
 		if (claimCount > 0) {
@@ -307,16 +315,16 @@ public class ElevenstOrderSyncService {
 		}
 	}
 
-	private ShippingStatus resolveClaimFor(OrderLineItem item, Map<String, ShippingStatus> claims) {
+	private <T> T resolveFor(OrderLineItem item, Map<String, T> byKey) {
 		String seq = item.getMarketLineItemNo();
 		if (seq != null) {
-			return claims.get(seq);
+			return byKey.get(seq);
 		}
-		ShippingStatus orderWide = claims.get(ElevenstOrderAdapter.CLAIM_ORDER_WIDE);
+		T orderWide = byKey.get(ElevenstOrderAdapter.CLAIM_ORDER_WIDE);
 		if (orderWide != null) {
 			return orderWide;
 		}
-		return claims.size() == 1 ? claims.values().iterator().next() : null;
+		return byKey.size() == 1 ? byKey.values().iterator().next() : null;
 	}
 
 	private OrderLineItem buildLineItemFromDto(MarketLineItemDto dto, Long orderId, Long productId) {
@@ -328,6 +336,7 @@ public class ElevenstOrderSyncService {
 			.shippingData(ShippingData.builder()
 				.shippingStatus(dto.getStatus())
 				.build())
+			.claimData(dto.getClaim())
 			.settlementData(SettlementData.builder()
 				.settlementAmount(resolveSettlementAmount(dto))
 				.settlementVerified(false)

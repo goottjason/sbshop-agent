@@ -19,10 +19,13 @@ import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.domain.order.enums.ClaimStage;
+import com.sbshop.agent.core.domain.order.enums.ClaimType;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
+import com.sbshop.agent.core.domain.order.vo.ClaimData;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import java.time.LocalDateTime;
@@ -59,48 +62,51 @@ class ElevenstDetectCancellationsTest {
 	private final MarketFeeService marketFeeService = new MarketFeeService(mock(FeePolicyRepository.class));
 
 	@Test
-	@DisplayName("[D-099] 사라진 NEW 주문의 실상태가 취소면 CANCELED로 처리된다(상세조회 판정)")
+	@DisplayName("[D-270] 사라진 NEW 주문의 실상태가 취소면 클레임(CANCEL·DONE)으로 반영된다 — 배송 단계는 덮지 않는다")
 	void newOrder_absentFromApi_resolvedCanceled() {
 		stubCredentialAndEmptyApi();
 		OrderLineItem li = item(ShippingStatus.NEW);
 		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(order("A-1")));
 		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(li));
 		when(elevenstOrderAdapter.resolveMissingOrderState(any(), any()))
-			.thenReturn(missingState(ShippingStatus.CANCELED));
+			.thenReturn(claimState(ClaimType.CANCEL, ClaimStage.DONE));
 
 		service().syncElevenstOrders();
 
-		assertThat(li.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.CANCELED);
+		assertThat(li.getClaimData().getClaimType()).isEqualTo(ClaimType.CANCEL);
+		assertThat(li.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.NEW);
 	}
 
 	@Test
-	@DisplayName("[D-099] 사라진 주문의 실상태가 반품이면 RETURNED로 처리된다(취소로 뭉뚱그리지 않음)")
+	@DisplayName("[D-270] 사라진 주문의 실상태가 반품이면 클레임(RETURN·DONE)으로 반영된다(취소로 뭉뚱그리지 않음)")
 	void absentOrder_resolvedReturned() {
 		stubCredentialAndEmptyApi();
 		OrderLineItem li = item(ShippingStatus.SHIPPED);
 		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(order("RT-1")));
 		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(li));
 		when(elevenstOrderAdapter.resolveMissingOrderState(any(), any()))
-			.thenReturn(missingState(ShippingStatus.RETURNED));
+			.thenReturn(claimState(ClaimType.RETURN, ClaimStage.DONE));
 
 		service().syncElevenstOrders();
 
-		assertThat(li.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.RETURNED);
+		assertThat(li.getClaimData().getClaimType()).isEqualTo(ClaimType.RETURN);
+		assertThat(li.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.SHIPPED);
 	}
 
 	@Test
-	@DisplayName("[D-099] 사라진 주문의 실상태가 교환이면 EXCHANGED로 처리된다")
+	@DisplayName("[D-270] 사라진 주문의 실상태가 교환이면 클레임(EXCHANGE·DONE)으로 반영된다 — 배송 단계는 그대로다")
 	void absentOrder_resolvedExchanged() {
 		stubCredentialAndEmptyApi();
 		OrderLineItem li = item(ShippingStatus.SHIPPED);
 		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(order("EX-1")));
 		when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(li));
 		when(elevenstOrderAdapter.resolveMissingOrderState(any(), any()))
-			.thenReturn(missingState(ShippingStatus.EXCHANGED));
+			.thenReturn(claimState(ClaimType.EXCHANGE, ClaimStage.DONE));
 
 		service().syncElevenstOrders();
 
-		assertThat(li.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.EXCHANGED);
+		assertThat(li.getClaimData().getClaimType()).isEqualTo(ClaimType.EXCHANGE);
+		assertThat(li.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.SHIPPED);
 	}
 
 	@Test
@@ -185,12 +191,10 @@ class ElevenstDetectCancellationsTest {
 			.build();
 	}
 
-	private ElevenstOrderAdapter.MissingOrderState missingState(
-		ShippingStatus status) {
+	private ElevenstOrderAdapter.MissingOrderState claimState(ClaimType type, ClaimStage stage) {
+		ClaimData claim = ClaimData.builder().claimType(type).claimStage(stage).claimRawCode("TEST").build();
 		return new ElevenstOrderAdapter.MissingOrderState(
-			Map.of(
-				ElevenstOrderAdapter.CLAIM_ORDER_WIDE, status),
-			Map.of());
+			Map.of(), Map.of(ElevenstOrderAdapter.CLAIM_ORDER_WIDE, claim), Map.of());
 	}
 
 	private OrderLineItem item(ShippingStatus status) {

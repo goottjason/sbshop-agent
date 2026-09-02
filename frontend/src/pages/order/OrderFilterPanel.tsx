@@ -2,24 +2,26 @@ import { useState, useMemo, useEffect } from 'react';
 import type { KstPeriodRange } from '../../utils/datetime';
 import { kstDateString, kstDateStringOffset, kstPeriodRanges } from '../../utils/datetime';
 import { ORDER_MARKET_CODES, marketLabel } from '../../utils/marketLabels';
-import { VENDOR_OPTIONS, ALL_STATUSES, DEFAULT_VISIBLE_STATUSES, FILTER_OPEN_KEY } from './constants';
+import { VENDOR_OPTIONS, ALL_STATUSES, DEFAULT_VISIBLE_STATUSES, FILTER_OPEN_KEY, CLAIM_TYPE_OPTIONS, ALL_CLAIM_TYPES } from './constants';
 
 const PERIOD_DEFAULT = 'DEFAULT';
 const PERIOD_CUSTOM = 'CUSTOM';
 const PERIOD_FIXED_LABELS: Record<string, string> = { TODAY: '오늘', THIS_WEEK: '이번주' };
 const periodLabel = (preset: KstPeriodRange) => PERIOD_FIXED_LABELS[preset.id] ?? `${preset.month}월`;
 
-export default function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: string[], statuses: string[], startDate: string, endDate: string, purchaseStatuses: string[], stockStatuses: string[], vendors: string[]) => void }) {
+export default function OrderFilterPanel({ onSearch }: { onSearch: (keyword: string, markets: string[], statuses: string[], startDate: string, endDate: string, purchaseStatuses: string[], stockStatuses: string[], vendors: string[], claimTypes: string[]) => void }) {
   const allMarkets = ORDER_MARKET_CODES;
   const allStatuses = ALL_STATUSES;
   const allPurchaseStatuses = ['NOT_PURCHASED', 'PURCHASED', 'WAITING_STOCK'];
   const allStockStatuses = ['IN_STOCK', 'OUT_OF_STOCK'];
   const allVendors = VENDOR_OPTIONS.filter(v => v !== '');
+  const allClaimTypes = ALL_CLAIM_TYPES;
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(allMarkets);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(DEFAULT_VISIBLE_STATUSES);
   const [selectedPurchaseStatuses, setSelectedPurchaseStatuses] = useState<string[]>(allPurchaseStatuses);
   const [selectedStockStatuses, setSelectedStockStatuses] = useState<string[]>(allStockStatuses);
   const [selectedVendors, setSelectedVendors] = useState<string[]>(allVendors);
+  const [selectedClaimTypes, setSelectedClaimTypes] = useState<string[]>(allClaimTypes);
   const [keyword, setKeyword] = useState('');
   const [startDate, setStartDate] = useState(kstDateStringOffset({ months: -1 }));
   const [endDate, setEndDate] = useState(kstDateString());
@@ -44,10 +46,12 @@ export default function OrderFilterPanel({ onSearch }: { onSearch: (keyword: str
   const isAllPurchaseSelected = selectedPurchaseStatuses.length === allPurchaseStatuses.length;
   const isAllStockSelected = selectedStockStatuses.length === allStockStatuses.length;
   const isAllVendorsSelected = selectedVendors.length === allVendors.length;
+  const isAllClaimTypesSelected = selectedClaimTypes.length === allClaimTypes.length;
   const handleSearch = () => {
     const stockFilter = isAllStockSelected ? [] : selectedStockStatuses;
     const vendorFilter = isAllVendorsSelected ? [] : selectedVendors;
-    onSearch(keyword, selectedMarkets, selectedStatuses, startDate, endDate, selectedPurchaseStatuses, stockFilter, vendorFilter);
+    const claimTypeFilter = isAllClaimTypesSelected ? [] : selectedClaimTypes;
+    onSearch(keyword, selectedMarkets, selectedStatuses, startDate, endDate, selectedPurchaseStatuses, stockFilter, vendorFilter, claimTypeFilter);
   };
   const handlePeriod = (id: string) => {
     const preset = kstPeriodRanges().find(p => p.id === id);
@@ -61,6 +65,7 @@ export default function OrderFilterPanel({ onSearch }: { onSearch: (keyword: str
   const togglePurchase = (val: string) => setSelectedPurchaseStatuses(prev => prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]);
   const toggleStock = (val: string) => setSelectedStockStatuses(prev => prev.includes(val) ? prev.filter(s => s !== val) : [...prev, val]);
   const toggleVendor = (val: string) => setSelectedVendors(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
+  const toggleClaimType = (val: string) => setSelectedClaimTypes(prev => prev.includes(val) ? prev.filter(c => c !== val) : [...prev, val]);
 
   const chips: { label: string; active: boolean }[] = [
     { label: `${startDate.slice(5).replace('-', '.')} ~ ${endDate.slice(5).replace('-', '.')}`, active: activePeriod !== PERIOD_DEFAULT },
@@ -72,6 +77,7 @@ export default function OrderFilterPanel({ onSearch }: { onSearch: (keyword: str
     { label: `구매 ${isAllPurchaseSelected ? '전체' : selectedPurchaseStatuses.length}`, active: !isAllPurchaseSelected },
     { label: `재고 ${isAllStockSelected ? '전체' : selectedStockStatuses.length}`, active: !isAllStockSelected },
     { label: `소싱 ${isAllVendorsSelected ? '전체' : selectedVendors.length}`, active: !isAllVendorsSelected },
+    { label: `클레임 ${isAllClaimTypesSelected ? '전체' : selectedClaimTypes.length}`, active: !isAllClaimTypesSelected },
   ];
   return (
     <div style={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderTop: '2px solid var(--primary-color)', borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', padding: open ? '8px 14px 10px' : '5px 14px', marginBottom: '6px', fontSize: '13px' }}>
@@ -162,10 +168,7 @@ export default function OrderFilterPanel({ onSearch }: { onSearch: (keyword: str
               { id: 'DISPATCHED', label: '배송지시' },
               { id: 'SHIPPED', label: '배송중' },
               { id: 'DELIVERED', label: '배송완료' },
-              { id: 'CONFIRMED', label: '구매확정' },
-              { id: 'CANCELED', label: '취소됨' },
-              { id: 'RETURNED', label: '반품됨' },
-              { id: 'EXCHANGED', label: '교환됨' }
+              { id: 'CONFIRMED', label: '구매확정' }
             ].map(status => (
               <label key={status.id} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#333' }}>
                 <input type="checkbox" checked={selectedStatuses.includes(status.id)} onChange={() => toggleStatus(status.id)} style={{ marginRight: '6px', accentColor: 'var(--primary-color)', width: '16px', height: '16px', cursor: 'pointer' }} />
@@ -226,6 +229,21 @@ export default function OrderFilterPanel({ onSearch }: { onSearch: (keyword: str
               <label key={vendor} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#333' }}>
                 <input type="checkbox" checked={selectedVendors.includes(vendor)} onChange={() => toggleVendor(vendor)} style={{ marginRight: '6px', accentColor: 'var(--primary-color)', width: '16px', height: '16px', cursor: 'pointer' }} />
                 {vendor}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+          <span style={{ width: '120px', fontWeight: 600, color: '#555' }}>클레임</span>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#333' }}>
+              <input type="checkbox" checked={isAllClaimTypesSelected} onChange={() => setSelectedClaimTypes(isAllClaimTypesSelected ? [] : allClaimTypes)} style={{ marginRight: '6px', accentColor: 'var(--primary-color)', width: '16px', height: '16px', cursor: 'pointer' }} />
+              전체
+            </label>
+            {CLAIM_TYPE_OPTIONS.map(claim => (
+              <label key={claim.id} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#333' }}>
+                <input type="checkbox" checked={selectedClaimTypes.includes(claim.id)} onChange={() => toggleClaimType(claim.id)} style={{ marginRight: '6px', accentColor: 'var(--primary-color)', width: '16px', height: '16px', cursor: 'pointer' }} />
+                {claim.label}
               </label>
             ))}
           </div>

@@ -12,6 +12,7 @@ import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+import com.sbshop.agent.core.domain.order.vo.ClaimData;
 import com.sbshop.agent.core.application.order.mapper.SmartStoreStatusMapper;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -164,7 +165,7 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 		String ordererName, String ordererPhone, String customsClearanceNo,
 		String productName, String sellerProductCode, int quantity,
 		BigDecimal unitPrice, BigDecimal totalAmount, BigDecimal settlementAmount,
-		ShippingStatus status, String trackingNo, ShippingCarrier carrier, String deliveryStatus) {
+		ShippingStatus status, ClaimData claim, String trackingNo, ShippingCarrier carrier, String deliveryStatus) {
 		String shipmentKey() {
 			return (packageNumber != null && !packageNumber.isBlank()) ? packageNumber : productOrderId;
 		}
@@ -243,6 +244,7 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 					.totalAmount(row.totalAmount())
 					.settlementAmount(row.settlementAmount())
 					.status(row.status())
+					.claim(row.claim())
 					.marketSpecificData(lineData)
 					.build());
 			}
@@ -319,6 +321,10 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 			Map<String, String> statusMap = Map.of("status", status, "placeOrderStatus", placeOrderStatus);
 			ShippingStatus shippingStatus = statusMapper.mapStatus(statusMap);
 
+			String claimType = productOrderInfo.path("claimType").asText(null);
+			String claimStatus = productOrderInfo.path("claimStatus").asText(null);
+			ClaimData claim = statusMapper.mapClaim(status, claimType, claimStatus);
+
 			String productName = productOrderInfo.path("productName").asText();
 			String sellerProductCode = productOrderInfo.path("sellerProductCode").asText();
 			int quantity = productOrderInfo.path("quantity").asInt(1);
@@ -349,7 +355,7 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 				receiverPhone.isEmpty() ? recipientPhone : receiverPhone,
 				zipCode, address, message, ordererName, ordererPhone, customsClearanceNo,
 				productName, sellerProductCode, quantity, unitPrice, totalPaymentAmount,
-				settlementAmount, shippingStatus, trackingNo, carrier, deliveryStatus);
+				settlementAmount, shippingStatus, claim, trackingNo, carrier, deliveryStatus);
 		} catch (Exception e) {
 			log.error("스마트스토어 주문 파싱 실패: {}", e.getMessage());
 			return null;
