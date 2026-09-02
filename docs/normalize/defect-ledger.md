@@ -4858,7 +4858,7 @@ ESM 상품 목록에서 세 그룹의 실제 판매종료일·판매상태를 �
   |---|---|---|---|
   | 카페24(G마켓·옥션) | order-level `shipping_status` · **`order_status_before_cs`(CS 전 상태)** | **`claim_type`/`claim_status`** + `order_status_additional_info.status_code` | 가능 |
   | 스마트스토어 | `productOrderStatus` | **`claimType`/`claimStatus`** (별도 필드) | 가능·미구현 |
-  | 쿠팡 | `status` | `returnRequests` API([[D-097]]에서 사용 중) | 가능(반품) |
+  | 쿠팡 | `status` | `exchangeRequests`(교환) + `returnRequests`(반품·취소) 별도 API | 가능 |
   | 11번가 | `ordPrdStat` (상태별 목록 API) | **`clmStat` 별도 필드 + 클레임 목록 API 9종** | **가능 — 4마켓 중 가장 깔끔** |
 - 범위: 클레임 필드 신설(스키마) + 매퍼 4개 + 프로브 + 프론트 배지. [[D-265]] 2~4단계와 같은 급이라 그 안에서 다룬다.
 - 주의: `C*`/`R*`를 함께 들어내면 [[D-098]](취소·반품 정산0 정규화)가 의존하는 상태가 사라진다. 교환만 따로 떼는 것으로는 부족하고, 클레임 필드가 함께 생겨야 한다.
@@ -4888,6 +4888,22 @@ ESM 상품 목록에서 세 그룹의 실제 판매종료일·판매상태를 �
     `claimStatus` = `CANCEL_REQUEST`/`CANCELING`/`CANCEL_DONE`/`CANCEL_REJECT` · `RETURN_REQUEST`/`RETURN_DONE`/`RETURN_REJECT` · `EXCHANGE_REQUEST`/**`EXCHANGE_REDELIVERING`**/`EXCHANGE_DONE`/`EXCHANGE_REJECT` · `COLLECTING`/`COLLECT_DONE` · `PURCHASE_DECISION_HOLDBACK`/`PURCHASE_DECISION_REQUEST`
     `EXCHANGE_REDELIVERING`(교환 재배송 중)이 11번가 `301` 재배송접수와 같은 개념 — 4477134670 상황을 정확히 표현한다.
   - **남은 것: 쿠팡** 주문 조회 응답의 상태 코드표와 교환 API 유무(반품은 `returnRequests`로 [[D-097]]에서 확인됨). 문서 미확보.
+- 쿠팡 문서 확정(2026-09-02): **교환 전용 API가 따로 있다** — `GET /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/exchangeRequests`. [[D-097]]에서 반품만 쓰고 있었고 교환은 손대지 않았다.
+  - `exchangeStatus`(교환 상태) = `RECEIPT` 접수 · `PROGRESS` 진행 · `SUCCESS` 완료 · `REJECT` 거부 · `CANCEL` 취소
+  - `collectStatus`(회수 상태) = `BeforeDirection` · `CompleteDirection` · `Delivering` · `CompleteCollect` · `DirectionFail` · `Fail` · `Withdraw` · `NoCollect` · `NoneData`
+  - 그 밖에 `referType`(접수경로 VENDOR/CS_CENTER/WEB_PC/WEB_MOBILE) · `faultType`(귀책) · `collectCompleteDate`(입고완료일시). 교환 재발송 송장은 별도 API(교환상품 송장 업로드 처리)로 다룬다.
+  - 반품·취소는 `GET /v2/providers/openapi/apis/api/v6/vendors/{vendorId}/returnRequests`. **`receiptType`이 `RETURN`/`CANCEL`을 구분**하고, `receiptStatus` = `RELEASE_STOP_UNCHECKED`(출고중지요청) · `RETURNS_UNCHECKED`(반품접수) · `VENDOR_WAREHOUSE_CONFIRM`(입고완료) · `REQUEST_COUPANG_CHECK`(쿠팡확인요청) · `RETURNS_COMPLETED`(반품완료)
+
+**조사 결론(2026-09-02): 4마켓 전부 클레임을 배송 단계와 분리해 주고, 전부 교환을 세분해 준다.** 뭉갠 것은 우리 매퍼뿐이다.
+
+| 마켓 | 클레임 전용 축 | 교환 세분 |
+|---|---|---|
+| 카페24 | `claim_type`/`claim_status` · `order_status_before_cs` · `status_code` | `E00`~`E40` 14단계 |
+| 11번가 | `clmStat` + 클레임 목록 API 9종 | `201`/`212`/`214`/`221`/`232`/`233` + `301` |
+| 쿠팡 | `exchangeRequests` · `returnRequests` 별도 API | `RECEIPT`/`PROGRESS`/`SUCCESS`/`REJECT`/`CANCEL` |
+| 스마트스토어 | `claimType`/`claimStatus` | `EXCHANGE_REQUEST`/`REDELIVERING`/`DONE`/`REJECT` |
+
+네 마켓 모두 "교환 진행 중"과 "교환 끝나고 재발송"을 구분할 수단을 준다(카페24 `E40`+`order_status_before_cs`, 11번가 `221`/`301`, 스토어 `EXCHANGE_REDELIVERING`, 쿠팡 `SUCCESS`+`collectStatus`). 설계는 짐작이 아니라 이 코드들을 옮기는 일이 된다.
 - 상태: **발견(설계 필요)** 2026-09-02
 
 ### D-271: 확증 주기가 ESM 정기 동기화와 같은 분에 시작한다 (2026-09-02)
