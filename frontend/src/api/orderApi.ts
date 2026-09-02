@@ -43,6 +43,14 @@ export interface OrderLineItemDto {
     shippingCarrier?: string;
     trackingSentToMarket?: boolean | null;
   };
+  claimData?: {
+    claimType?: 'NONE' | 'CANCEL' | 'RETURN' | 'EXCHANGE';
+    claimStage?: 'NONE' | 'REQUESTED' | 'IN_PROGRESS' | 'DONE' | 'REJECTED';
+    claimRawCode?: string | null;
+    label?: string | null;
+    active?: boolean;
+    refundTerminal?: boolean;
+  };
 }
 
 export interface ProductDto {

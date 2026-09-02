@@ -162,6 +162,7 @@ export default function OrderFilterPanel({ onSearch }: { onSearch: (keyword: str
               { id: 'DISPATCHED', label: '배송지시' },
               { id: 'SHIPPED', label: '배송중' },
               { id: 'DELIVERED', label: '배송완료' },
+              { id: 'CONFIRMED', label: '구매확정' },
               { id: 'CANCELED', label: '취소됨' },
               { id: 'RETURNED', label: '반품됨' },
               { id: 'EXCHANGED', label: '교환됨' }

@@ -3,7 +3,7 @@ import { createColumnHelper } from '@tanstack/react-table';
 import type { RowData } from './types';
 import { formatPhone } from '../../utils/phone';
 import { stockCellInfo, marketSyncState } from './helpers';
-import { InlineInput, FinancialEditCell, ShippingEditCell, TrackingCompareCell, SourcingEditCell } from './cells';
+import { InlineInput, FinancialEditCell, ShippingEditCell, TrackingCompareCell, OrderStatusCell, SourcingEditCell } from './cells';
 
 const columnHelper = createColumnHelper<RowData>();
 
@@ -61,8 +61,8 @@ export function buildOrderColumns({ getCommonLabel, handleUpdate, handleSyncCust
       header: '주문상태',
       size: 90,
       meta: { frozen: true, freezeLeft: 170 },
-      cell: info => {
-        const val = info.getValue() as string;
+      cell: ({ row, getValue }) => {
+        const val = getValue() as string;
         const colorMap: Record<string, { bg: string; text: string }> = {
           'UNKNOWN':    { bg: '#f5f5f5', text: '#666' },
           'NEW':        { bg: '#e0f7fa', text: '#006064' },
@@ -70,12 +70,21 @@ export function buildOrderColumns({ getCommonLabel, handleUpdate, handleSyncCust
           'DISPATCHED': { bg: '#fce4ec', text: '#880e4f' },
           'SHIPPED':    { bg: '#f1f8e9', text: '#558b2f' },
           'DELIVERED':  { bg: '#e1f5fe', text: '#0277bd' },
+          'CONFIRMED':  { bg: '#e8f5e9', text: '#2e7d32' },
           'CANCELED':   { bg: '#ffebee', text: '#c62828' },
           'RETURNED':   { bg: '#f3e5f5', text: '#6a1b9a' },
           'EXCHANGED':  { bg: '#e8eaf6', text: '#283593' }
         };
-        const style = colorMap[val] || { bg: '#f5f5f5', text: '#666' };
-        return val ? <span style={{ backgroundColor: style.bg, color: style.text, padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>{getCommonLabel('shippingStatus', val)}</span> : '-';
+        if (!val) return '-';
+        const claim = row.original.lineItem?.claimData;
+        return (
+          <OrderStatusCell
+            label={getCommonLabel('shippingStatus', val)}
+            tone={colorMap[val] || { bg: '#f5f5f5', text: '#666' }}
+            claimLabel={claim?.label}
+            claimType={claim?.claimType}
+          />
+        );
       }
     }),
     columnHelper.display({

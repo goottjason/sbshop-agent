@@ -111,6 +111,37 @@ export function SourceIcon({ source }: { source?: 'EMAIL' | 'MANUAL' | 'MARKET' 
 }
 
 
+
+const CLAIM_TONE: Record<string, { fg: string; line: string }> = {
+  CANCEL:   { fg: '#c62828', line: '#ffcdd2' },
+  RETURN:   { fg: '#6a1b9a', line: '#e1bee7' },
+  EXCHANGE: { fg: '#283593', line: '#c5cae9' },
+};
+
+export function OrderStatusCell({ label, tone, claimLabel, claimType }: {
+  label: string;
+  tone: { bg: string; text: string };
+  claimLabel?: string | null;
+  claimType?: string | null;
+}) {
+  const claimTone = claimType ? CLAIM_TONE[claimType] : undefined;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+      <span style={{ backgroundColor: tone.bg, color: tone.text, padding: '2px 6px',
+        borderRadius: '4px', fontWeight: 600 }}>
+        {label}
+      </span>
+      {claimLabel && claimTone && (
+        <span style={{ fontSize: '10.5px', color: claimTone.fg, display: 'flex',
+          alignItems: 'center', gap: '2px', whiteSpace: 'nowrap' }}>
+          <span style={{ color: claimTone.line }}>└</span>
+          {claimLabel}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function TrackingCompareCell({ carrier, trackingNo, marketTrackingNo }: {
   carrier: string;
   trackingNo: string;
