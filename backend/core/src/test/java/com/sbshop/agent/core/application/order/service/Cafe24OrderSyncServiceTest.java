@@ -78,7 +78,7 @@ class Cafe24OrderSyncServiceTest {
 			Mockito.mock(TerminalSettlementService.class),
 			Mockito.mock(Cafe24ShipmentTrackingLookup.class),
 			new MarketLineItemSyncDispatcher(orderLineItemRepository,
-				new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository)));
+				new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository), org.mockito.Mockito.mock(TrackingMismatchResolver.class)));
 		lenient().when(shipmentRepository.findByOrderIdAndMarketShipmentNo(
 			ArgumentMatchers.any(), anyString())).thenReturn(Optional.empty());
 		lenient().when(shipmentRepository.save(ArgumentMatchers.any(

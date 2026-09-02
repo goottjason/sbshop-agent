@@ -110,6 +110,50 @@ export function SourceIcon({ source }: { source?: 'EMAIL' | 'MANUAL' | 'MARKET' 
   );
 }
 
+
+export function TrackingCompareCell({ carrier, trackingNo, marketTrackingNo }: {
+  carrier: string;
+  trackingNo: string;
+  marketTrackingNo?: string;
+}) {
+  const carrierLabel = CARRIER_OPTIONS.find(o => o.value === carrier)?.label || carrier;
+  const market = marketTrackingNo?.trim() || '';
+  const mail = trackingNo?.trim() || '';
+
+  if (!market && !mail) {
+    return <span style={{ color: '#d1d5db' }}>—</span>;
+  }
+
+  const main = market || mail;
+  const mismatch = !!market && !!mail && market !== mail;
+  const notSent = !market && !!mail;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', lineHeight: 1.35 }}>
+      {carrierLabel && carrierLabel !== '-' && (
+        <span style={{ fontSize: '10.5px', color: '#9ca3af' }}>{carrierLabel}</span>
+      )}
+      <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#374151', letterSpacing: '0.01em' }}>
+        {main}
+      </span>
+      {mismatch && (
+        <span title="마켓에 박힌 송장과 메일로 받은 송장이 다릅니다 — 구매자는 위 번호를 추적합니다"
+          style={{ fontSize: '10.5px', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '3px' }}>
+          <span style={{ fontWeight: 700 }}>메일</span>
+          <span>{mail}</span>
+        </span>
+      )}
+      {notSent && (
+        <span title="아직 마켓에 전송되지 않았습니다"
+          style={{ fontSize: '10px', fontWeight: 700, color: '#b45309', backgroundColor: '#fffbeb',
+            border: '1px solid #fde68a', borderRadius: '4px', padding: '0 4px' }}>
+          미전송
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function ShippingEditCell({ carrier, trackingNo, syncState, marketTrackingNo, trackingSource, onSave }: {
   carrier: string;
   trackingNo: string;

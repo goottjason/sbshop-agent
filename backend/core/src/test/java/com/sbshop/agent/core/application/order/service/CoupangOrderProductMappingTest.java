@@ -98,7 +98,7 @@ class CoupangOrderProductMappingTest {
 			coupangOrderAdapter, statusMapper, syncStatusService, marketFeeService,
 			terminalSettlementService, actionLogService,
 			new MarketLineItemSyncDispatcher(orderLineItemRepository,
-				new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository)));
+				new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository), org.mockito.Mockito.mock(TrackingMismatchResolver.class)));
 	}
 
 	private static final String VENDOR_ITEM_ID = "VI456";

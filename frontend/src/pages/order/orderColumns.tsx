@@ -3,7 +3,7 @@ import { createColumnHelper } from '@tanstack/react-table';
 import type { RowData } from './types';
 import { formatPhone } from '../../utils/phone';
 import { stockCellInfo, marketSyncState } from './helpers';
-import { InlineInput, FinancialEditCell, ShippingEditCell, SourcingEditCell } from './cells';
+import { InlineInput, FinancialEditCell, ShippingEditCell, TrackingCompareCell, SourcingEditCell } from './cells';
 
 const columnHelper = createColumnHelper<RowData>();
 
@@ -281,18 +281,29 @@ export function buildOrderColumns({ getCommonLabel, handleUpdate, handleSyncCust
       cell: ({ row }) => {
         const carrier = row.original.lineItem?.shippingData?.shippingCarrier || '';
         const trackingNo = row.original.lineItem?.shippingData?.trackingNo || '';
+        const marketTrackingNo = row.original.shipment?.marketTrackingNo || undefined;
+        const shippingStatus = row.original.lineItem?.shippingData?.shippingStatus;
         const orderId = row.original.order?.id || 0;
         const lineItemId = row.original.lineItem?.id || 0;
+        const editable = shippingStatus === 'PREPARING';
         return (
           <div style={{ fontSize: '12px', textAlign: 'center' }}>
-            <ShippingEditCell
-              carrier={carrier}
-              trackingNo={trackingNo}
-              syncState={marketSyncState(row.original.lineItem, row.original.shipment)}
-              marketTrackingNo={row.original.shipment?.marketTrackingNo || undefined}
-              trackingSource={row.original.shipment?.trackingSource ?? null}
-              onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.shipping', v)}
-            />
+            {editable ? (
+              <ShippingEditCell
+                carrier={carrier}
+                trackingNo={trackingNo}
+                syncState={marketSyncState(row.original.lineItem, row.original.shipment)}
+                marketTrackingNo={marketTrackingNo}
+                trackingSource={row.original.shipment?.trackingSource ?? null}
+                onSave={(v) => handleUpdate(orderId, lineItemId, 'lineItem.shipping', v)}
+              />
+            ) : (
+              <TrackingCompareCell
+                carrier={carrier}
+                trackingNo={trackingNo}
+                marketTrackingNo={marketTrackingNo}
+              />
+            )}
           </div>
         );
       }

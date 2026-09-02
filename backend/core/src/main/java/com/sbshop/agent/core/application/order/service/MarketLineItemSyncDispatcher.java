@@ -26,6 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 public class MarketLineItemSyncDispatcher {
 	private final OrderLineItemRepository orderLineItemRepository;
 	private final OrderShipmentUpsertService orderShipmentUpsertService;
+	private final TrackingMismatchResolver trackingMismatchResolver;
 
 	public void sync(Order order, MarketOrderDto dto, List<OrderLineItem> existing,
 		MarketLineItemSyncPolicy policy) {
@@ -58,7 +59,9 @@ public class MarketLineItemSyncDispatcher {
 
 		IdentityHashMap<MarketShipmentDto, Shipment> shipments = new IdentityHashMap<>();
 		for (MarketShipmentDto shipmentDto : shipmentDtos) {
-			shipments.put(shipmentDto, orderShipmentUpsertService.upsertShipment(order.getId(), shipmentDto));
+			Shipment shipment = orderShipmentUpsertService.upsertShipment(order.getId(), shipmentDto);
+			shipments.put(shipmentDto, shipment);
+			trackingMismatchResolver.resolve(order.getMarketType(), shipment);
 		}
 
 		for (OrderLineItemMatcher.Adoption adoption : match.matched()) {

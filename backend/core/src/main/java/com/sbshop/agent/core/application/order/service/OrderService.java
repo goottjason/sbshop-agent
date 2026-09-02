@@ -397,8 +397,10 @@ public class OrderService {
 
 		ShippingStatus currentStatus = item.getShippingData() != null
 			? item.getShippingData().getShippingStatus() : null;
-		if (currentStatus != ShippingStatus.DISPATCHED && currentStatus != ShippingStatus.SHIPPED) {
-			throw new IllegalStateException("송장 수정은 DISPATCHED 또는 SHIPPED 상태에서만 가능합니다. 현재: " + currentStatus);
+		if (currentStatus != ShippingStatus.PREPARING) {
+			throw new IllegalStateException(
+				"송장 입력은 PREPARING(구매준비) 상태에서만 가능합니다. 발송 후에는 대부분의 마켓이 수정 API 를 주지 않습니다. 현재: "
+					+ currentStatus);
 		}
 
 		ShippingData currentShipping = item.getShippingData();

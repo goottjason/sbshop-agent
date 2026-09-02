@@ -93,7 +93,7 @@ class CoupangThreeTierSyncTest {
 	@BeforeEach
 	void setUp() {
 		MarketLineItemSyncDispatcher syncDispatcher = new MarketLineItemSyncDispatcher(orderLineItemRepository,
-			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
+			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository), org.mockito.Mockito.mock(TrackingMismatchResolver.class));
 		service = new CoupangOrderSyncService(credentialRepository, orderRepository,
 			orderLineItemRepository, productRepository, marketRegistrationRepository,
 			new MarketRegistrationLookup(marketRegistrationRepository), eventPublisher,

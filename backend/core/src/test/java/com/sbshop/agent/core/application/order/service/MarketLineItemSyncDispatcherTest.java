@@ -68,7 +68,7 @@ class MarketLineItemSyncDispatcherTest {
 		logs.start();
 		((Logger)LoggerFactory.getLogger(MarketLineItemSyncDispatcher.class)).addAppender(logs);
 		dispatcher = new MarketLineItemSyncDispatcher(orderLineItemRepository,
-			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
+			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository), org.mockito.Mockito.mock(TrackingMismatchResolver.class));
 
 		when(orderLineItemRepository.save(any(OrderLineItem.class))).thenAnswer(inv -> {
 			OrderLineItem li = inv.getArgument(0);

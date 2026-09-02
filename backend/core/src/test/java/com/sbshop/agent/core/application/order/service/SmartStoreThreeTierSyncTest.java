@@ -91,7 +91,7 @@ class SmartStoreThreeTierSyncTest {
 	@BeforeEach
 	void setUp() {
 		MarketLineItemSyncDispatcher syncDispatcher = new MarketLineItemSyncDispatcher(orderLineItemRepository,
-			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository));
+			new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository), org.mockito.Mockito.mock(TrackingMismatchResolver.class));
 		service = new SmartStoreOrderSyncService(credentialRepository, orderRepository,
 			orderLineItemRepository, productRepository, eventPublisher, adapter,
 			syncStatusService, marketFeeService, terminalSettlementService, syncDispatcher);
