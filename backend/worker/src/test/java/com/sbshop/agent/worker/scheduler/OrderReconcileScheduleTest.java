@@ -52,16 +52,16 @@ class OrderReconcileScheduleTest {
 	OrderSyncScheduler scheduler;
 
 	@Test
-	@DisplayName("확증 주기는 120일 창을 갱신전용으로 훑는다")
-	void reconcile_usesLongWindowUpdateOnly() {
-		LocalDate today = LocalDate.now();
-		LocalDate from = today.minusDays(OrderSyncScheduler.RECONCILE_LOOKBACK_DAYS);
-
+	@DisplayName("확증 주기는 목록을 훑지 않는다 — 카페24 3개월·쿠팡 31일 제한을 120일 창이 위반한다")
+	void reconcile_doesNotCallMarketLists() {
 		scheduler.reconcileOrders();
 
-		verify(coupangOrderSyncService).syncCoupangOrders(eq(from), eq(today), eq(false));
-		verify(cafe24OrderSyncService).syncCafe24Orders(eq(from), eq(today), eq(false));
-		verify(elevenstOrderSyncService).syncElevenstOrders(eq(from), eq(today), eq(false));
+		verify(coupangOrderSyncService, org.mockito.Mockito.never())
+			.syncCoupangOrders(any(LocalDate.class), any(LocalDate.class), org.mockito.ArgumentMatchers.anyBoolean());
+		verify(cafe24OrderSyncService, org.mockito.Mockito.never())
+			.syncCafe24Orders(any(LocalDate.class), any(LocalDate.class), org.mockito.ArgumentMatchers.anyBoolean());
+		verify(elevenstOrderSyncService, org.mockito.Mockito.never())
+			.syncElevenstOrders(any(LocalDate.class), any(LocalDate.class), org.mockito.ArgumentMatchers.anyBoolean());
 	}
 
 	@Test
@@ -79,17 +79,16 @@ class OrderReconcileScheduleTest {
 	}
 
 	@Test
-	@DisplayName("한 마켓이 실패해도 나머지 확증은 계속한다")
+	@DisplayName("한 마켓 확증이 실패해도 나머지는 계속한다")
 	void reconcile_oneMarketFails_othersStillRun() {
 		LocalDate today = LocalDate.now();
 		LocalDate from = today.minusDays(OrderSyncScheduler.RECONCILE_LOOKBACK_DAYS);
-		doThrow(new RuntimeException("쿠팡 조회 실패"))
-			.when(coupangOrderSyncService).syncCoupangOrders(eq(from), eq(today), eq(false));
+		doThrow(new RuntimeException("쿠팡 확증 실패"))
+			.when(orderReconciliationService).reconcile(eq(MarketType.COUPANG), eq(from), eq(today), any());
 
 		scheduler.reconcileOrders();
 
-		verify(cafe24OrderSyncService).syncCafe24Orders(eq(from), eq(today), eq(false));
-		verify(elevenstOrderSyncService).syncElevenstOrders(eq(from), eq(today), eq(false));
+		verify(orderReconciliationService).reconcile(eq(MarketType.GMARKET), eq(from), eq(today), any());
 		verify(orderReconciliationService).reconcile(eq(MarketType.ELEVEN_STREET), eq(from), eq(today), any());
 	}
 

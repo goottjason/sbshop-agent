@@ -82,19 +82,16 @@ public class OrderSyncScheduler {
 	public void reconcileOrders() {
 		LocalDate to = LocalDate.now();
 		LocalDate from = to.minusDays(RECONCILE_LOOKBACK_DAYS);
-		log.info("주문 확증 트리거: {} ~ {} (갱신 전용 + 프로브)", from, to);
+		log.info("주문 확증 트리거: {} ~ {} (단건 프로브 전용)", from, to);
 
-		runQuietly("COUPANG 목록", () -> coupangOrderSyncService.syncCoupangOrders(from, to, false));
 		runQuietly("COUPANG 확증",
 			() -> orderReconciliationService.reconcile(MarketType.COUPANG, from, to, Set.of()));
 
-		runQuietly("CAFE24 목록", () -> cafe24OrderSyncService.syncCafe24Orders(from, to, false));
 		runQuietly("GMARKET 확증",
 			() -> orderReconciliationService.reconcile(MarketType.GMARKET, from, to, Set.of()));
 		runQuietly("AUCTION 확증",
 			() -> orderReconciliationService.reconcile(MarketType.AUCTION, from, to, Set.of()));
 
-		runQuietly("ELEVEN_STREET 목록", () -> elevenstOrderSyncService.syncElevenstOrders(from, to, false));
 		runQuietly("ELEVEN_STREET 확증",
 			() -> orderReconciliationService.reconcile(MarketType.ELEVEN_STREET, from, to, Set.of()));
 	}

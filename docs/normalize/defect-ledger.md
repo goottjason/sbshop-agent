@@ -36,6 +36,18 @@
 - API 가 있으면 전파 + 재조회로 전환하고, 없으면 해당 마켓의 취소 버튼을 막거나 "우리 장부에만 반영됨"을 화면에 명시해야 한다.
 - 상태: **발견** 2026-09-02
 
+### D-273: 확증층의 120일 목록 조회가 마켓 API 기간 제한을 위반한다 (2026-09-02, 사용자 신고)
+
+- 심각도: **P1(화면에 상시 Red)** | 위치: `OrderSyncScheduler.reconcileOrders`
+- 증상: 쿠팡·G마켓/옥션 동기화 상태가 Red. `sb_market_sync_status` 에
+  `COUPANG: 429 TOO_MANY_REQUESTS (status=NONE_TRACKING)` · `GMARKET: Cafe24 API 422 "date range ... should be within 3 months"` 가 기록됐고 **`last_sync_at` 이 둘 다 확증 트리거 시각(05:25)** 이었다.
+- 원인: 확증층이 **120일 창을 그대로 마켓 목록 API 에 보냈다.** 카페24는 조회 기간이 최대 3개월, 쿠팡은 31일이다. [[D-265]] 설계 5절에 "쿠팡 31일 청크 4개"라고 적었지만 **청크 로직은 구현되지 않았다** — `CoupangOrderSyncService`/`CoupangOrderAdapter` 어디에도 없다.
+- **[[D-265]] 1단계 배포 이후 계속 실패하고 있었다.** `runQuietly` 와 각 sync 서비스 내부의 예외 삼킴 때문에 조용히 넘어갔고 `sync_status` 에만 Red 로 남았다. 확증 로그는 "완료"로 찍혀 정상처럼 보였다.
+- 수정: **확증층에서 목록 조회를 제거한다.** 없애도 잃는 것이 없다 — 확증은 `Set.of()` 를 넘겨 목록 결과를 쓰지 않고 전부 단건 프로브한다(사용자 결정 "전부 단건 조회로 확증"). 즉 작동한 적 없는 낭비 호출이 Red 를 만들고 있었다. 30일 창의 부가 필드 갱신은 정기 동기화가 그대로 맡는다.
+- 회귀 고정: `OrderReconcileScheduleTest.reconcile_doesNotCallMarketLists` — 되돌리면 실패하는 것을 확인했다.
+- 프로브(단건 조회)는 영향 없다. 라이브에서 229건 기록(FOUND 216·TERMINATED 11·UNKNOWN 2)이 정상 수집됐다.
+- 상태: **수정완료** 2026-09-02
+
 ## 배포 전 수동 DDL — **적용 완료 2026-09-02**
 
 Flyway 를 쓰지 않으므로 배포 전에 운영 DB 에 직접 친다.
