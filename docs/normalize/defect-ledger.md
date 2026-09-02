@@ -105,6 +105,17 @@
 - 남은 것: 클라이언트+포트 신설 → `CoupangOrderAdapter` 에 `detectReturns` 와 같은 꼴의 교환 감지 추가 → `item.applyClaim(...)` 배선. `collectStatus`(회수 9단계)도 함께 실으면 진단이 쉬워진다.
 - 상태: **발견** 2026-09-02
 
+### D-278: 11번가 클레임 목록 API 9종이 연결되지 않았다 (2026-09-02, D-270 2단계 중 확인)
+
+- 심각도: P2 | 위치: `ElevenstOrderApiPort` · 11번가 REST 클라이언트 · `ElevenstOrderAdapter`
+- [[D-270]] 조사에서 `clmStat`(클레임 상태 14코드)이 배송 단계와 별개 필드로 실재함을 문서로 확인했으나, **그 필드는 클레임 목록 API 9종에서만 오고 그 9종이 포트에 없다.** 지금 호출 자체가 불가능하다.
+- 실측(2026-09-02): `clmStat` 이라는 필드명이 파서·클라이언트·픽스처 어디에도 없다(grep 0건). `ordPrdStat` 은 **값 공간이 다르다** — 상세조회에서 반품완료가 `801` 로 오고 `clmStat` 표의 `106` 과 다른 코드계다(`ElevenstLiveFindingsTest` 라이브 픽스처로 확인). 둘을 섞으면 안 된다.
+- 현재 대응: 실제로 파싱되는 유일한 신호인 `ordPrdStatNm`(상태명 한글)을 쓰되, **접두어·부분일치가 아니라 `clmStat` 라벨과 정확히(equals) 대조**한다(`ElevenstStatusMapper.mapClaimByStatusName`). 부분일치가 D-270 의 원인이었으므로 그것만은 재현하지 않는다. 코드 기반 매핑(`mapClaim(clmStat)`)은 표 그대로 준비돼 있고 테스트로 고정돼 있으나 **프로덕션 경로에서 호출되지 않는다.**
+- 남은 것: `ElevenstOrderApiPort` 에 9종 메서드 신설 + REST 클라이언트 + `ElevenstOrderAdapter` 배선. 엔드포인트는 [[D-270]] 원장에 있다(`claimservice/exchangeorders|exchangedorders|retractexcorders`, `returnorders|returnedorders|retractretorders`, `cancelorders|canceledorders|withdrawcanceledorders`, 각 `/{start}/{end}` 최대 30일).
+- 곁들여: 취소 `clmStat` 코드는 문서에서 확보하지 못했다(103~109 반품, 201~301 교환만). 9종을 붙일 때 `cancelorders` 응답으로 함께 확인할 것.
+- [[D-277]](쿠팡 교환 미연동)과 같은 성격 — 매핑은 준비됐고 API 연결만 남았다.
+- 상태: **발견** 2026-09-02
+
 ## 배포 전 수동 DDL — **적용 완료 2026-09-02**
 
 Flyway 를 쓰지 않으므로 배포 전에 운영 DB 에 직접 친다.
