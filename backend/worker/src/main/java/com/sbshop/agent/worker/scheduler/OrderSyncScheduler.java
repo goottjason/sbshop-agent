@@ -78,7 +78,7 @@ public class OrderSyncScheduler {
 		elevenstOrderSyncService.syncElevenstOrders();
 	}
 
-	@Scheduled(cron = "0 40 * * * ?", zone = "Asia/Seoul")
+	@Scheduled(cron = "0 25 * * * ?", zone = "Asia/Seoul")
 	public void reconcileOrders() {
 		LocalDate to = LocalDate.now();
 		LocalDate from = to.minusDays(RECONCILE_LOOKBACK_DAYS);
