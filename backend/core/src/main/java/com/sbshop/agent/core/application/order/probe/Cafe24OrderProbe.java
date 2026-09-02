@@ -73,7 +73,6 @@ public class Cafe24OrderProbe implements MarketOrderProbe {
 		return OrderProbeResult.found(stage, claim, marketTracking);
 	}
 
-
 	private ShippingStatus mapShippingStatus(String code) {
 		return switch (code.toUpperCase()) {
 			case "F" -> ShippingStatus.PREPARING;

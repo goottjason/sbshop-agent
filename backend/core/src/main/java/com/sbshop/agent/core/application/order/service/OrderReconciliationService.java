@@ -31,9 +31,10 @@ public class OrderReconciliationService {
 	private final long probeDelayMillis;
 
 	public OrderReconciliationService(OrderRepository orderRepository,
-			OrderLineItemRepository orderLineItemRepository,
-			MarketOrderProbeRouter probeRouter,
-			@Value("${sbshop.order.probe-delay-ms:300}") long probeDelayMillis) {
+		OrderLineItemRepository orderLineItemRepository,
+		MarketOrderProbeRouter probeRouter,
+		@Value("${sbshop.order.probe-delay-ms:300}")
+		long probeDelayMillis) {
 		this.orderRepository = orderRepository;
 		this.orderLineItemRepository = orderLineItemRepository;
 		this.probeRouter = probeRouter;
