@@ -134,11 +134,11 @@ class Cafe24LineItemMapperTest {
 	}
 
 	@Test
-	@DisplayName("클레임 코드는 접두어로 판정한다")
-	void mapsClaimPrefixes() {
-		assertThat(Cafe24LineItemMapper.mapStatus("C10")).isEqualTo(ShippingStatus.CANCELED);
-		assertThat(Cafe24LineItemMapper.mapStatus("R20")).isEqualTo(ShippingStatus.RETURNED);
-		assertThat(Cafe24LineItemMapper.mapStatus("E30")).isEqualTo(ShippingStatus.EXCHANGED);
+	@DisplayName("D-270: 클레임 코드는 배송 단계를 말해주지 않는다 — 접두어 뭉개기를 걷어냈다")
+	void claimCodesDoNotCarryDeliveryStage() {
+		assertThat(Cafe24LineItemMapper.mapStatus("C10")).isEqualTo(ShippingStatus.UNKNOWN);
+		assertThat(Cafe24LineItemMapper.mapStatus("R20")).isEqualTo(ShippingStatus.UNKNOWN);
+		assertThat(Cafe24LineItemMapper.mapStatus("E30")).isEqualTo(ShippingStatus.UNKNOWN);
 	}
 
 	@Test
@@ -149,7 +149,8 @@ class Cafe24LineItemMapperTest {
 		assertThat(Cafe24LineItemMapper.mapStatus("N20")).isEqualTo(ShippingStatus.PREPARING);
 		assertThat(Cafe24LineItemMapper.mapStatus("N30")).isEqualTo(ShippingStatus.SHIPPED);
 		assertThat(Cafe24LineItemMapper.mapStatus("N40")).isEqualTo(ShippingStatus.DELIVERED);
-		assertThat(Cafe24LineItemMapper.mapStatus("N50")).isEqualTo(ShippingStatus.DELIVERED);
+		// D-270: 구매확정은 배송완료와 다르다 — 확정되면 반품·교환 청구권이 닫힌다.
+		assertThat(Cafe24LineItemMapper.mapStatus("N50")).isEqualTo(ShippingStatus.CONFIRMED);
 	}
 
 	@Test

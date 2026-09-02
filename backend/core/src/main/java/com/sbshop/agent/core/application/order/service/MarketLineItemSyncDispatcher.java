@@ -13,6 +13,7 @@ import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.domain.order.vo.ClaimData;
 import com.sbshop.agent.core.domain.order.Shipment;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
@@ -98,6 +99,10 @@ public class MarketLineItemSyncDispatcher {
 	private void applyLineItem(OrderLineItem item, MarketLineItemDto dto, Long productId) {
 		if (productId != null && !productId.equals(item.getProductId())) {
 			item.assignProductId(productId);
+		}
+		ClaimData claim = dto.getClaim();
+		if (claim != null && claim.getClaimType().isActive()) {
+			item.applyClaim(claim);
 		}
 		ShippingStatus status = dto.getStatus();
 		if (status == null || status == ShippingStatus.UNKNOWN) {

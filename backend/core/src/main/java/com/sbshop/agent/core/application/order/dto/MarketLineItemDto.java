@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.Map;
 
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+import com.sbshop.agent.core.domain.order.vo.ClaimData;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -27,6 +28,8 @@ public class MarketLineItemDto {
 	private BigDecimal settlementAmount;
 
 	private ShippingStatus status;
+
+	private ClaimData claim;
 
 	private Map<String, Object> marketSpecificData;
 }

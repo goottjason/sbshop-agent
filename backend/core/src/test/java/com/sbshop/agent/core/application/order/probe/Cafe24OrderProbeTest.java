@@ -113,42 +113,6 @@ class Cafe24OrderProbeTest {
 	}
 
 	@Test
-	@DisplayName("[D-268] 아이템의 교환 코드(E*)를 읽어 EXCHANGED 로 확정한다 — 주문 레벨에는 교환이 없다")
-	void exchangeFromItems() throws Exception {
-		respond("{\"order_id\":\"20260630-0000017\",\"shipping_status\":\"M\",\"canceled\":\"F\","
-			+ "\"items\":[{\"order_status\":\"E00\"}]}");
-
-		OrderProbeResult result = probe.probe(order);
-
-		assertThat(result.status()).isEqualTo(OrderProbeStatus.TERMINATED);
-		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.EXCHANGED);
-	}
-
-	@Test
-	@DisplayName("[D-268] 아이템의 반품 코드(R*)를 읽어 RETURNED 로 확정한다")
-	void returnFromItems() throws Exception {
-		respond("{\"order_id\":\"20260630-0000017\",\"shipping_status\":\"M\",\"canceled\":\"F\","
-			+ "\"items\":[{\"order_status\":\"R10\"}]}");
-
-		OrderProbeResult result = probe.probe(order);
-
-		assertThat(result.status()).isEqualTo(OrderProbeStatus.TERMINATED);
-		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.RETURNED);
-	}
-
-	@Test
-	@DisplayName("[D-268] 아이템의 취소 코드(C*)를 읽어 CANCELED 로 확정한다")
-	void cancelFromItems() throws Exception {
-		respond("{\"order_id\":\"20260630-0000017\",\"shipping_status\":\"M\",\"canceled\":\"F\","
-			+ "\"items\":[{\"order_status\":\"C10\"}]}");
-
-		OrderProbeResult result = probe.probe(order);
-
-		assertThat(result.status()).isEqualTo(OrderProbeStatus.TERMINATED);
-		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.CANCELED);
-	}
-
-	@Test
 	@DisplayName("[D-268] 아이템이 정상 배송단계면 그 코드로 FOUND 를 준다")
 	void normalStageFromItems() throws Exception {
 		respond("{\"order_id\":\"20260630-0000017\",\"shipping_status\":\"F\",\"canceled\":\"F\","
@@ -158,18 +122,6 @@ class Cafe24OrderProbeTest {
 
 		assertThat(result.status()).isEqualTo(OrderProbeStatus.FOUND);
 		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.DELIVERED);
-	}
-
-	@Test
-	@DisplayName("[D-268] 아이템 여럿 중 하나라도 종결이면 종결로 본다")
-	void anyTerminatedItemWins() throws Exception {
-		respond("{\"order_id\":\"20260630-0000017\",\"shipping_status\":\"M\",\"canceled\":\"F\","
-			+ "\"items\":[{\"order_status\":\"N30\"},{\"order_status\":\"E00\"}]}");
-
-		OrderProbeResult result = probe.probe(order);
-
-		assertThat(result.status()).isEqualTo(OrderProbeStatus.TERMINATED);
-		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.EXCHANGED);
 	}
 
 	@Test
@@ -183,4 +135,16 @@ class Cafe24OrderProbeTest {
 		assertThat(result.status()).isEqualTo(OrderProbeStatus.FOUND);
 		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.DELIVERED);
 	}
+	@Test
+	@DisplayName("D-270: 클레임 코드는 배송 상태를 확정하지 않는다 — 주문 레벨로 물러난다")
+	void claimCodesFallBackToOrderLevel() throws Exception {
+		respond("{\"order_id\":\"20260630-0000017\",\"shipping_status\":\"T\",\"canceled\":\"F\","
+			+ "\"items\":[{\"order_status\":\"E40\"}]}");
+
+		OrderProbeResult result = probe.probe(order);
+
+		assertThat(result.status()).isEqualTo(OrderProbeStatus.FOUND);
+		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.DELIVERED);
+	}
+
 }

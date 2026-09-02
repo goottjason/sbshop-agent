@@ -10,8 +10,11 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sbshop.agent.core.application.order.dto.MarketLineItemDto;
 import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
+import com.sbshop.agent.core.domain.order.enums.ClaimStage;
+import com.sbshop.agent.core.domain.order.enums.ClaimType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+import com.sbshop.agent.core.domain.order.vo.ClaimData;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
 
 import lombok.extern.slf4j.Slf4j;
@@ -69,29 +72,72 @@ public final class Cafe24LineItemMapper {
 		return shipments;
 	}
 
+	/**
+	 * 배송 단계만 돌려준다. 클레임 코드({@code C*}/{@code R*}/{@code E*})는
+	 * 배송 단계를 말해주지 않으므로 {@code UNKNOWN} 이다 — 클레임은 {@link #mapClaim} 이 읽는다.
+	 *
+	 * <p>D-270 이전에는 접두어로 뭉개 30여 개 코드를 3개로 눌렀다.
+	 */
 	public static ShippingStatus mapStatus(String code) {
 		if (code == null || code.isBlank()) {
 			return ShippingStatus.UNKNOWN;
 		}
-		String c = code.trim().toUpperCase();
-		if (c.startsWith("C")) {
-			return ShippingStatus.CANCELED;
-		}
-		if (c.startsWith("R")) {
-			return ShippingStatus.RETURNED;
-		}
-		if (c.startsWith("E")) {
-			return ShippingStatus.EXCHANGED;
-		}
-		return switch (c) {
+		return switch (code.trim().toUpperCase()) {
+			// D-088: 카페24 N10(상품준비중)은 발주확인 전이라 우리 기준 신규다 — PREPARING 이 아니다.
 			case "N00", "N02", "N10" -> ShippingStatus.NEW;
+			case "N01", "N03" -> ShippingStatus.NEW;
 			case "N20", "N21", "N22" -> ShippingStatus.PREPARING;
 			case "N30" -> ShippingStatus.SHIPPED;
-			case "N40", "N50" -> ShippingStatus.DELIVERED;
-			default -> {
-				log.warn("[CAFE24-ORDER] 미매핑 order_status 코드={} → UNKNOWN(상태를 덮지 않는다)", code);
-				yield ShippingStatus.UNKNOWN;
-			}
+			case "N40" -> ShippingStatus.DELIVERED;
+			case "N50" -> ShippingStatus.CONFIRMED;
+			default -> ShippingStatus.UNKNOWN;
+		};
+	}
+
+	/**
+	 * 클레임 축을 돌려준다. 배송 코드({@code N*})에는 클레임이 없다.
+	 *
+	 * <p>{@code N01}/{@code N03} 은 교환으로 새로 나가는 상품이라 배송 단계와 클레임을 동시에 갖는다.
+	 */
+	public static ClaimData mapClaim(String code) {
+		if (code == null || code.isBlank()) {
+			return ClaimData.builder().build();
+		}
+		String c = code.trim().toUpperCase();
+		ClaimType type = claimTypeOf(c);
+		if (type == ClaimType.NONE) {
+			return ClaimData.builder().build();
+		}
+		return ClaimData.builder()
+			.claimType(type)
+			.claimStage(claimStageOf(c))
+			.claimRawCode(c)
+			.build();
+	}
+
+	private static ClaimType claimTypeOf(String c) {
+		if (c.equals("N01") || c.equals("N03")) {
+			return ClaimType.EXCHANGE;
+		}
+		if (c.startsWith("N")) {
+			return ClaimType.NONE;
+		}
+		return switch (c.charAt(0)) {
+			case 'C' -> ClaimType.CANCEL;
+			case 'R' -> ClaimType.RETURN;
+			case 'E' -> ClaimType.EXCHANGE;
+			default -> ClaimType.NONE;
+		};
+	}
+
+	private static ClaimStage claimStageOf(String c) {
+		return switch (c) {
+			case "C00", "R00", "E00" -> ClaimStage.REQUESTED;
+			case "C11", "R11", "E11" -> ClaimStage.REJECTED;
+			case "C40", "C41", "C42", "C43", "C47", "C48", "C49" -> ClaimStage.DONE;
+			case "R40", "R41", "R42", "R43" -> ClaimStage.DONE;
+			case "E40" -> ClaimStage.DONE;
+			default -> ClaimStage.IN_PROGRESS;
 		};
 	}
 
@@ -114,6 +160,7 @@ public final class Cafe24LineItemMapper {
 			.orderPrice(unit)
 			.totalAmount(total)
 			.status(mapStatus(text(item, "order_status")))
+			.claim(mapClaim(text(item, "order_status")))
 			.marketSpecificData(marketData)
 			.build();
 	}
