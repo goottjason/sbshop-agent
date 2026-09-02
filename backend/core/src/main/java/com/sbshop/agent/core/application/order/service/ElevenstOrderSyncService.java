@@ -253,9 +253,6 @@ public class ElevenstOrderSyncService {
 				continue;
 			}
 			List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
-			if (items.stream().noneMatch(this::isNonTerminal)) {
-				continue;
-			}
 
 			ElevenstOrderAdapter.MissingOrderState state = elevenstOrderAdapter.resolveMissingOrderState(apiKey,
 				order.getMarketOrderNo());
@@ -270,9 +267,6 @@ public class ElevenstOrderSyncService {
 
 			int applied = 0;
 			for (OrderLineItem item : items) {
-				if (!isNonTerminal(item)) {
-					continue;
-				}
 				ShippingStatus claimStatus = resolveClaimFor(item, claims);
 				if (claimStatus == null) {
 					continue;
@@ -323,17 +317,6 @@ public class ElevenstOrderSyncService {
 			return orderWide;
 		}
 		return claims.size() == 1 ? claims.values().iterator().next() : null;
-	}
-
-	private boolean isNonTerminal(OrderLineItem item) {
-		if (item.getShippingData() == null) {
-			return true;
-		}
-		ShippingStatus s = item.getShippingData().getShippingStatus();
-		return s != ShippingStatus.CANCELED
-			&& s != ShippingStatus.DELIVERED
-			&& s != ShippingStatus.RETURNED
-			&& s != ShippingStatus.EXCHANGED;
 	}
 
 	private OrderLineItem buildLineItemFromDto(MarketLineItemDto dto, Long orderId, Long productId) {
