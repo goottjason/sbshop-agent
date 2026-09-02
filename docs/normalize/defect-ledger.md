@@ -26,6 +26,21 @@
 
 > 2026-08-21 갱신(리더, 전면 구조 리팩토링 캠페인): **신규 18건 등재 D-163~D-180** (P1 2: D-167 Cafe24 거짓성공·D-175 상품 500건 상한 / P2 9 / P3 7). 캠페인 자체는 구조 변경만 수행(행위 변경 0) — 주석 전량 제거·FQN→import·스텝다운 정렬·데드코드 삭제(BusinessDayCalculator·UnipassUpdateRequest·프론트 supplierApi/App.css/assets/ag-grid 등). 제거 주석의 "왜" 지식은 `docs/normalize/refactor-20260821/salvage-*.md` 6부에 보존 — **추후 주석 재작성 규칙 수립 시 1차 원천.** 특기: `BannedIngredientSyncService` raw NUL(0x00)로 grep이 파일째 누락하던 함정 발견·교정(`"\0"` 이스케이프, 바이트 동일) — 미참조 판정은 `grep -ra` 필수.
 
+## 배포 전 수동 DDL — **미적용 (D-265 4단계 배포 시 함께 실행)**
+
+Flyway 를 쓰지 않으므로 배포 전에 운영 DB 에 직접 친다.
+`docker exec -i projects-postgres-1 psql -U canagent -d sbshop`
+
+```sql
+-- D-265 2단계: 확증 프로브 결과 기록 (확인 못 한 주문을 드러내기 위한 것)
+ALTER TABLE sb_order ADD COLUMN IF NOT EXISTS last_probe_status VARCHAR(20);
+ALTER TABLE sb_order ADD COLUMN IF NOT EXISTS last_probe_at TIMESTAMP;
+```
+
+미적용 상태로 배포하면 `sb_order` 조회가 전부 깨진다. **배포와 DDL 은 같은 시점에 한다.**
+
+---
+
 ## 실행 백로그 — 순차 진행 (2026-09-02 사용자 확정)
 
 위에서부터 순서대로 진행한다. 앞 항목이 끝나기 전에 뒤를 건드리지 않는다.

@@ -3,6 +3,7 @@ package com.sbshop.agent.api.dto;
 import com.sbshop.agent.core.domain.common.RecordStatus;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.order.enums.OrderProbeStatus;
 import com.sbshop.agent.core.domain.order.vo.CustomsData;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -30,6 +31,8 @@ public class OrderResponse {
 	private final String ordererName;
 	private final String ordererPhone;
 	private final String marketSpecificData;
+	private final OrderProbeStatus lastProbeStatus;
+	private final LocalDateTime lastProbeAt;
 
 	private final Map<String, String> marketSpecificDataMap;
 	private final String cafe24OrderId;
@@ -52,6 +55,8 @@ public class OrderResponse {
 			.ordererName(order.getOrdererName())
 			.ordererPhone(order.getOrdererPhone())
 			.marketSpecificData(order.getMarketSpecificData())
+			.lastProbeStatus(order.getLastProbeStatus())
+			.lastProbeAt(order.getLastProbeAt())
 			.marketSpecificDataMap(order.getMarketSpecificDataMap())
 			.cafe24OrderId(order.getCafe24OrderId())
 			.build();

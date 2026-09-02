@@ -24,6 +24,7 @@ import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.order.enums.OrderProbeStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 
 class ElevenstOrderProbeTest {

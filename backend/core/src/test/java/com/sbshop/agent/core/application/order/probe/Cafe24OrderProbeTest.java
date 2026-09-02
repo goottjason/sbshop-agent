@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
 import com.sbshop.agent.core.domain.order.Order;
+import com.sbshop.agent.core.domain.order.enums.OrderProbeStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 
 class Cafe24OrderProbeTest {

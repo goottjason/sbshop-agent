@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.probe;
 
+import com.sbshop.agent.core.domain.order.enums.OrderProbeStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 
 public record OrderProbeResult(OrderProbeStatus status, ShippingStatus shippingStatus, String rawMessage) {

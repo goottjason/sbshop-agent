@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 
 import com.sbshop.agent.core.application.order.probe.MarketOrderProbeRouter;
 import com.sbshop.agent.core.application.order.probe.OrderProbeResult;
+import com.sbshop.agent.core.domain.order.enums.OrderProbeStatus;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -161,6 +162,39 @@ class OrderReconciliationServiceTest {
 
 		assertThat(service.reconcile(MarketType.COUPANG, FROM, TO, Set.of())).isZero();
 		verify(lineItemRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("확인하지 못한 주문에도 프로브 결과를 남긴다 — 조용히 넘어가면 사람이 볼 수 없다")
+	void recordsProbeResultOnMiss() {
+		Order o = order("ORD-1", LocalDate.of(2026, 7, 1));
+		OrderLineItem li = item(ShippingStatus.SHIPPED);
+		when(orderRepository.findByMarketType(MarketType.COUPANG))
+			.thenReturn(List.of(o));
+		when(lineItemRepository.findByOrderId(1L)).thenReturn(List.of(li));
+		when(probeRouter.probe(any(), any()))
+			.thenReturn(OrderProbeResult.notFound("유효하지 않은 주문번호 입니다."));
+
+		service.reconcile(MarketType.COUPANG, FROM, TO, Set.of());
+
+		verify(o).recordProbeResult(OrderProbeStatus.NOT_FOUND);
+		verify(orderRepository).save(o);
+	}
+
+	@Test
+	@DisplayName("확증된 주문에도 프로브 결과를 남긴다 — 마지막으로 언제 확인됐는지가 정보다")
+	void recordsProbeResultOnSuccess() {
+		Order o = order("ORD-1", LocalDate.of(2026, 7, 1));
+		OrderLineItem li = item(ShippingStatus.SHIPPED);
+		when(orderRepository.findByMarketType(MarketType.COUPANG))
+			.thenReturn(List.of(o));
+		when(lineItemRepository.findByOrderId(1L)).thenReturn(List.of(li));
+		when(probeRouter.probe(any(), any()))
+			.thenReturn(OrderProbeResult.found(ShippingStatus.DELIVERED));
+
+		service.reconcile(MarketType.COUPANG, FROM, TO, Set.of());
+
+		verify(o).recordProbeResult(OrderProbeStatus.FOUND);
 	}
 
 	@Test

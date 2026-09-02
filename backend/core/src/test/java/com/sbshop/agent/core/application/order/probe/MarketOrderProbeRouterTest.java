@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.order.enums.OrderProbeStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 
 class MarketOrderProbeRouterTest {

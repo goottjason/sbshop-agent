@@ -9,6 +9,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.sbshop.agent.core.domain.common.BaseEntity;
+import com.sbshop.agent.core.domain.order.enums.OrderProbeStatus;
 import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.VerifiedPerson;
@@ -80,6 +81,13 @@ public class Order extends BaseEntity {
 	@Column(name = "market_specific_data", columnDefinition = "TEXT")
 	private String marketSpecificData;
 
+	@Enumerated(EnumType.STRING)
+	@Column(name = "last_probe_status", length = 20)
+	private OrderProbeStatus lastProbeStatus;
+
+	@Column(name = "last_probe_at")
+	private LocalDateTime lastProbeAt;
+
 	@Builder
 	public Order(
 		MarketType marketType,
@@ -106,6 +114,11 @@ public class Order extends BaseEntity {
 		this.ordererName = ordererName;
 		this.ordererPhone = ordererPhone;
 		this.marketSpecificData = marketSpecificData;
+	}
+
+	public void recordProbeResult(OrderProbeStatus status) {
+		this.lastProbeStatus = status;
+		this.lastProbeAt = LocalDateTime.now();
 	}
 
 	public void rekeyMarketOrderNo(String marketOrderNo) {

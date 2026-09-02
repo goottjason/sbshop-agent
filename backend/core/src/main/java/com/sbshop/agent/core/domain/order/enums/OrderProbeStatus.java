@@ -1,4 +1,4 @@
-package com.sbshop.agent.core.application.order.probe;
+package com.sbshop.agent.core.domain.order.enums;
 
 public enum OrderProbeStatus {
 	FOUND,

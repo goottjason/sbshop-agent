@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.application.order.probe.MarketOrderProbeRouter;
 import com.sbshop.agent.core.application.order.probe.OrderProbeResult;
-import com.sbshop.agent.core.application.order.probe.OrderProbeStatus;
+import com.sbshop.agent.core.domain.order.enums.OrderProbeStatus;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -56,6 +56,8 @@ public class OrderReconciliationService {
 			}
 			probed++;
 			OrderProbeResult result = probeRouter.probe(marketType, order);
+			order.recordProbeResult(result.status());
+			orderRepository.save(order);
 			if (probeDelayMillis > 0) {
 				try {
 					Thread.sleep(probeDelayMillis);
