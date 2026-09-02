@@ -35,7 +35,7 @@ class OrderServiceBulkOperateTest {
 		credentialRepository = mock(MarketCredentialRepository.class);
 		marketplaceShippingService = mock(MarketplaceShippingService.class);
 		service = new OrderService(orderRepository, orderLineItemRepository,
-			credentialRepository, marketplaceShippingService, shippingWriter());
+			credentialRepository, marketplaceShippingService, shippingWriter(), orderMarketRefresher());
 	}
 
 	private MarketCredentialRepository credentialRepository;
@@ -113,4 +113,9 @@ class OrderServiceBulkOperateTest {
 			.build();
 		when(orderLineItemRepository.findByOrderId(id)).thenReturn(List.of(item));
 	}
+	private com.sbshop.agent.core.application.order.service.OrderMarketRefresher orderMarketRefresher() {
+		return org.mockito.Mockito.mock(
+			com.sbshop.agent.core.application.order.service.OrderMarketRefresher.class);
+	}
+
 }

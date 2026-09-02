@@ -109,7 +109,7 @@ class OrderServiceTrackingPreservedOnSendFailureTest {
 
 	private OrderService service() {
 		return new OrderService(orderRepository, orderLineItemRepository,
-			credentialRepository, marketplaceShippingService, shippingWriter());
+			credentialRepository, marketplaceShippingService, shippingWriter(), orderMarketRefresher());
 	}
 
 	private ShippingUpdateCommand command() {
@@ -131,4 +131,9 @@ class OrderServiceTrackingPreservedOnSendFailureTest {
 		lenient().when(orderRepository.findById(223L))
 			.thenReturn(Optional.of(Order.builder().marketType(marketType).build()));
 	}
+	private com.sbshop.agent.core.application.order.service.OrderMarketRefresher orderMarketRefresher() {
+		return org.mockito.Mockito.mock(
+			com.sbshop.agent.core.application.order.service.OrderMarketRefresher.class);
+	}
+
 }

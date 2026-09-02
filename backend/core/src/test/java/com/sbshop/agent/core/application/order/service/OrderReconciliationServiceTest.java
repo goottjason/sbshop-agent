@@ -198,6 +198,45 @@ class OrderReconciliationServiceTest {
 	}
 
 	@Test
+	@DisplayName("단건 재조회는 마켓 값으로 갱신하고 몇 건 바뀌었는지 돌려준다 — 명령 직후 공백을 메운다")
+	void reconcileOneAppliesMarketValue() {
+		Order o = order("ORD-1", LocalDate.of(2026, 7, 1));
+		OrderLineItem li = item(ShippingStatus.NEW);
+		when(o.getMarketType()).thenReturn(MarketType.COUPANG);
+		when(lineItemRepository.findByOrderId(1L)).thenReturn(List.of(li));
+		when(probeRouter.probe(eq(MarketType.COUPANG), any(Order.class)))
+			.thenReturn(OrderProbeResult.found(ShippingStatus.PREPARING));
+
+		assertThat(service.reconcileOne(o)).isEqualTo(1);
+		verify(lineItemRepository).save(li);
+		verify(o).recordProbeResult(OrderProbeStatus.FOUND);
+	}
+
+	@Test
+	@DisplayName("단건 재조회도 확증되지 않으면 상태를 건드리지 않는다 — 명령했다고 짐작하지 않는다")
+	void reconcileOneDoesNotGuess() {
+		Order o = order("ORD-1", LocalDate.of(2026, 7, 1));
+		OrderLineItem li = item(ShippingStatus.NEW);
+		when(o.getMarketType()).thenReturn(MarketType.COUPANG);
+		when(lineItemRepository.findByOrderId(1L)).thenReturn(List.of(li));
+		when(probeRouter.probe(any(), any())).thenReturn(OrderProbeResult.unknown("timeout"));
+
+		assertThat(service.reconcileOne(o)).isZero();
+		verify(lineItemRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("프로브가 없는 마켓이면 단건 재조회는 조용히 넘어간다 — 스마트스토어는 목록이 담당한다")
+	void reconcileOneSkipsMarketWithoutProbe() {
+		Order o = order("ORD-1", LocalDate.of(2026, 7, 1));
+		when(o.getMarketType()).thenReturn(MarketType.SMART_STORE);
+		when(probeRouter.has(MarketType.SMART_STORE)).thenReturn(false);
+
+		assertThat(service.reconcileOne(o)).isZero();
+		verify(probeRouter, never()).probe(any(), any());
+	}
+
+	@Test
 	@DisplayName("프로브가 없는 마켓은 조회조차 하지 않는다")
 	void skipsMarketWithoutProbe() {
 		when(probeRouter.has(MarketType.SMART_STORE)).thenReturn(false);

@@ -17,7 +17,7 @@ class OrderShipServiceNullOrderIdsTest {
 	@BeforeEach
 	void setUp() {
 		orderShipProcessor = mock(OrderShipProcessor.class);
-		service = new OrderShipService(orderShipProcessor);
+		service = new OrderShipService(orderShipProcessor, org.mockito.Mockito.mock(OrderMarketRefresher.class), org.mockito.Mockito.mock(OrderService.class));
 	}
 
 	@Test

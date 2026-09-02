@@ -39,7 +39,7 @@ class OrderServiceConfirmFailureTypeTest {
 		credentialRepository = mock(MarketCredentialRepository.class);
 		marketplaceShippingService = mock(MarketplaceShippingService.class);
 		service = new OrderService(orderRepository, orderLineItemRepository,
-			credentialRepository, marketplaceShippingService, shippingWriter());
+			credentialRepository, marketplaceShippingService, shippingWriter(), orderMarketRefresher());
 	}
 
 	private MarketCredentialRepository credentialRepository;
@@ -100,4 +100,9 @@ class OrderServiceConfirmFailureTypeTest {
 	private LineItemShippingWriter shippingWriter() {
 		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
 	}
+	private com.sbshop.agent.core.application.order.service.OrderMarketRefresher orderMarketRefresher() {
+		return org.mockito.Mockito.mock(
+			com.sbshop.agent.core.application.order.service.OrderMarketRefresher.class);
+	}
+
 }

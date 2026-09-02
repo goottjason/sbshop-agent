@@ -55,7 +55,7 @@ class OrderServiceStateGuardTest {
 
 	private OrderService service() {
 		return new OrderService(orderRepository, orderLineItemRepository,
-			credentialRepository, marketplaceShippingService, shippingWriter());
+			credentialRepository, marketplaceShippingService, shippingWriter(), orderMarketRefresher());
 	}
 
 	private OrderLineItem itemWithStatus(ShippingStatus status) {
@@ -220,13 +220,12 @@ class OrderServiceStateGuardTest {
 	@Nested
 	class ConfirmOrderCafe24NoCredential {
 		@Test
-		@DisplayName("AUCTION 주문 발주확인 → 마켓 크레덴셜 없어도 성공(NEW→PREPARING), 포트 위임")
+		@DisplayName("AUCTION 주문 발주확인 → 마켓 크레덴셜 없어도 포트에 위임한다, 상태는 스스로 찍지 않는다")
 		void auctionOrder_confirm_withoutCredential_succeeds() {
 			Order order = Order.builder().marketType(MarketType.AUCTION).marketOrderNo("2566278285").build();
 			OrderLineItem item = itemWithStatus(ShippingStatus.NEW);
 			when(orderRepository.findById(6L)).thenReturn(Optional.of(order));
 			when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(item));
-			when(orderLineItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 			when(credentialRepository.findByMarketType(MarketType.AUCTION)).thenReturn(Optional.empty());
 			MarketOrderPort port = Mockito
 				.mock(MarketOrderPort.class);
@@ -235,7 +234,14 @@ class OrderServiceStateGuardTest {
 			service().confirmOrder(6L);
 
 			verify(port).acceptOrders(ArgumentMatchers.isNull(), ArgumentMatchers.eq(order));
-			assertThat(item.getShippingData().getShippingStatus()).isEqualTo(ShippingStatus.PREPARING);
+			assertThat(item.getShippingData().getShippingStatus())
+				.as("D-265 3단계 — 상태는 마켓 재조회가 정한다")
+				.isEqualTo(ShippingStatus.NEW);
 		}
 	}
+	private com.sbshop.agent.core.application.order.service.OrderMarketRefresher orderMarketRefresher() {
+		return org.mockito.Mockito.mock(
+			com.sbshop.agent.core.application.order.service.OrderMarketRefresher.class);
+	}
+
 }

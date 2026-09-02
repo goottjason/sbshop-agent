@@ -112,7 +112,7 @@ class OrderServiceInputGuardTest {
 
 	private OrderService service() {
 		return new OrderService(orderRepository, orderLineItemRepository,
-			credentialRepository, marketplaceShippingService, shippingWriter());
+			credentialRepository, marketplaceShippingService, shippingWriter(), orderMarketRefresher());
 	}
 
 	private OrderLineItem itemWithStatus(ShippingStatus status) {
@@ -122,4 +122,9 @@ class OrderServiceInputGuardTest {
 			.shippingData(ShippingData.builder().shippingStatus(status).build())
 			.build();
 	}
+	private com.sbshop.agent.core.application.order.service.OrderMarketRefresher orderMarketRefresher() {
+		return org.mockito.Mockito.mock(
+			com.sbshop.agent.core.application.order.service.OrderMarketRefresher.class);
+	}
+
 }

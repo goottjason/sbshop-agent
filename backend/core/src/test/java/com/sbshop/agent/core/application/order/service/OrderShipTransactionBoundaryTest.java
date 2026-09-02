@@ -69,6 +69,6 @@ class OrderShipTransactionBoundaryTest {
 	}
 
 	private OrderShipService service() {
-		return new OrderShipService(orderShipProcessor);
+		return new OrderShipService(orderShipProcessor, org.mockito.Mockito.mock(OrderMarketRefresher.class), org.mockito.Mockito.mock(OrderService.class));
 	}
 }

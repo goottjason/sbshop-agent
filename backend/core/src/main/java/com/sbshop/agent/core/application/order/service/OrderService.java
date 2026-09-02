@@ -1,8 +1,10 @@
 package com.sbshop.agent.core.application.order.service;
 
 import java.math.BigDecimal;
+import java.util.EnumSet;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import java.util.function.LongConsumer;
 import org.springframework.data.domain.Page;
@@ -46,6 +48,7 @@ public class OrderService {
 	private final MarketCredentialRepository credentialRepository;
 	private final MarketplaceShippingService marketplaceShippingService;
 	private final LineItemShippingWriter shippingWriter;
+	private final OrderMarketRefresher marketRefresher;
 
 	public Page<OrderDetailDto> searchOrders(OrderSearchCondition condition,
 		Pageable pageable) {
@@ -54,6 +57,12 @@ public class OrderService {
 
 	@Transactional
 	public Order confirmOrder(Long id) {
+		Order order = confirmOrderOnly(id);
+		marketRefresher.refreshOne(order);
+		return order;
+	}
+
+	private Order confirmOrderOnly(Long id) {
 		Order order = orderRepository.findById(id)
 			.orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
 
@@ -91,30 +100,23 @@ public class OrderService {
 			throw new MarketOrderAcceptException("마켓플레이스 주문 접수 실패: " + e.getMessage(), e);
 		}
 
-		for (OrderLineItem item : currentItems) {
-			ShippingStatus currentStatus = item.getShippingData() != null
-				? item.getShippingData().getShippingStatus() : null;
-			if (currentStatus == ShippingStatus.NEW) {
-				ShippingUpdateCommand cmd = ShippingUpdateCommand.builder()
-					.trackingNo(item.getShippingData() != null ? item.getShippingData().getTrackingNo() : null)
-					.shippingStatus(ShippingStatus.PREPARING)
-					.build();
-				item.applyShippingData(cmd.toShippingData(item.getShippingData()));
-				orderLineItemRepository.save(item);
-			}
-		}
-
-		log.info("주문 {} 접수 확인 및 상태를 PREPARING로 변경", id);
+		log.info("주문 {} 접수 확인 요청 완료 — 상태는 마켓 재조회로 반영한다", id);
 		return order;
 	}
 
 	@Transactional
 	public BulkConfirmResult bulkConfirmOrders(List<Long> ids) {
-		return bulkOperate(ids, this::confirmOrder, "접수 확인");
+		return bulkThenRefreshByList(ids, this::confirmOrderOnly, "접수 확인");
 	}
 
 	@Transactional
 	public Order cancelOrder(Long id) {
+		Order order = cancelOrderOnly(id);
+		marketRefresher.refreshOne(order);
+		return order;
+	}
+
+	private Order cancelOrderOnly(Long id) {
 		Order order = orderRepository.findById(id)
 			.orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
 
@@ -128,13 +130,15 @@ public class OrderService {
 		}
 
 		MarketType mt = order.getMarketType();
-		if (mt == MarketType.GMARKET || mt == MarketType.AUCTION) {
+		boolean sentToMarket = mt == MarketType.GMARKET || mt == MarketType.AUCTION;
+		if (sentToMarket) {
 			try {
 				marketplaceShippingService.cancelOrderToMarketplace(order);
 			} catch (Exception e) {
 				log.error("마켓 주문취소 전파 실패: order={} ({}): {}", id, order.getMarketOrderNo(), e.getMessage());
 				throw new RuntimeException("마켓 주문취소 실패: " + e.getMessage(), e);
 			}
+			return order;
 		}
 
 		for (OrderLineItem item : lineItems) {
@@ -153,7 +157,7 @@ public class OrderService {
 
 	@Transactional
 	public BulkConfirmResult bulkCancelOrders(List<Long> ids) {
-		return bulkOperate(ids, this::cancelOrder, "취소");
+		return bulkThenRefreshByList(ids, this::cancelOrderOnly, "취소");
 	}
 
 	@Transactional
@@ -373,14 +377,15 @@ public class OrderService {
 		shippingWriter.applyShipping(item, currentShipping.toBuilder()
 			.trackingNo(trackingNo)
 			.shippingCarrier(carrier)
-			.shippingStatus(ShippingStatus.DISPATCHED)
 			.build(), TrackingSource.MANUAL);
 
 		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item,
 			invoiceAlreadyExists);
 		markSentIfSucceeded(item, sendResult, lineItemId);
+		refreshOrderOf(item);
 
-		log.info("라인아이템 {} 배송지시 처리: tracking={}, carrier={}", lineItemId, trackingNo, carrier);
+		log.info("라인아이템 {} 배송지시 요청 완료: tracking={}, carrier={} — 상태는 마켓 재조회로 반영한다",
+			lineItemId, trackingNo, carrier);
 	}
 
 	@Transactional
@@ -406,8 +411,13 @@ public class OrderService {
 
 		MarketShippingResult sendResult = marketplaceShippingService.sendTrackingToMarketplace(item, true);
 		markSentIfSucceeded(item, sendResult, lineItemId);
+		refreshOrderOf(item);
 
 		log.info("라인아이템 {} 송장번호 업데이트: tracking={}, carrier={}", lineItemId, trackingNo, carrier);
+	}
+
+	private void refreshOrderOf(OrderLineItem item) {
+		orderRepository.findById(item.getOrderId()).ifPresent(marketRefresher::refreshOne);
 	}
 
 	public MarketType marketTypeOfLineItem(Long lineItemId) {
@@ -427,6 +437,19 @@ public class OrderService {
 	private void callMarketplaceAcceptApi(Order order, MarketCredential credential) {
 		MarketOrderPort port = marketplaceShippingService.getPort(order.getMarketType());
 		port.acceptOrders(credential, order);
+	}
+
+	private BulkConfirmResult bulkThenRefreshByList(List<Long> ids,
+		java.util.function.LongFunction<Order> op, String actionLabel) {
+		Set<MarketType> touched = EnumSet.noneOf(MarketType.class);
+		BulkConfirmResult result = bulkOperate(ids, id -> {
+			Order order = op.apply(id);
+			if (order != null && order.getMarketType() != null) {
+				touched.add(order.getMarketType());
+			}
+		}, actionLabel);
+		marketRefresher.refreshAfterBulk(touched);
+		return result;
 	}
 
 	private BulkConfirmResult bulkOperate(List<Long> ids, LongConsumer op,

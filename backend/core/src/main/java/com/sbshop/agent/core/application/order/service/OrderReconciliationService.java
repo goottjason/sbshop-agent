@@ -83,6 +83,23 @@ public class OrderReconciliationService {
 		return changed;
 	}
 
+	public int reconcileOne(Order order) {
+		MarketType marketType = order.getMarketType();
+		if (marketType == null || !probeRouter.has(marketType)) {
+			return 0;
+		}
+		OrderProbeResult result = probeRouter.probe(marketType, order);
+		order.recordProbeResult(result.status());
+		orderRepository.save(order);
+		ShippingStatus resolved = resolvedStatus(result);
+		if (resolved == null) {
+			log.info("[{}] 명령 후 재조회 미반영: orderNo={}, status={}, msg={}",
+				marketType, order.getMarketOrderNo(), result.status(), result.rawMessage());
+			return 0;
+		}
+		return apply(order, resolved);
+	}
+
 	private boolean withinWindow(LocalDateTime orderDate, LocalDate from, LocalDate to) {
 		if (orderDate == null) {
 			return false;

@@ -94,7 +94,7 @@ class OrderServiceCancelPropagationTest {
 
 	private OrderService service() {
 		return new OrderService(orderRepository, orderLineItemRepository,
-			credentialRepository, marketplaceShippingService, shippingWriter());
+			credentialRepository, marketplaceShippingService, shippingWriter(), orderMarketRefresher());
 	}
 
 	private Order orderOf(MarketType marketType) {
@@ -103,4 +103,9 @@ class OrderServiceCancelPropagationTest {
 			.marketOrderNo("ORD-" + marketType.name())
 			.build();
 	}
+	private com.sbshop.agent.core.application.order.service.OrderMarketRefresher orderMarketRefresher() {
+		return org.mockito.Mockito.mock(
+			com.sbshop.agent.core.application.order.service.OrderMarketRefresher.class);
+	}
+
 }

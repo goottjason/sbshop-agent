@@ -78,7 +78,7 @@ class OrderServiceUpdateMessageTest {
 	private OrderService service() {
 		return new OrderService(orderRepository, orderLineItemRepository,
 			credentialRepository, marketplaceShippingService,
-			new LineItemShippingWriter(shipmentRepository, orderLineItemRepository));
+			new LineItemShippingWriter(shipmentRepository, orderLineItemRepository), orderMarketRefresher());
 	}
 
 	private OrderLineItem progressedItem() {
@@ -96,4 +96,9 @@ class OrderServiceUpdateMessageTest {
 			.message(message)
 			.build();
 	}
+	private com.sbshop.agent.core.application.order.service.OrderMarketRefresher orderMarketRefresher() {
+		return org.mockito.Mockito.mock(
+			com.sbshop.agent.core.application.order.service.OrderMarketRefresher.class);
+	}
+
 }

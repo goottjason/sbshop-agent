@@ -47,7 +47,7 @@ class OrderServiceClearFieldsTest {
 
 	private OrderService service() {
 		return new OrderService(orderRepository, orderLineItemRepository,
-			credentialRepository, marketplaceShippingService, shippingWriter());
+			credentialRepository, marketplaceShippingService, shippingWriter(), orderMarketRefresher());
 	}
 
 	private OrderLineItem progressedItem() {
@@ -146,4 +146,9 @@ class OrderServiceClearFieldsTest {
 			assertThat(order.getCustomsData().getCustomsClearanceNo()).isEqualTo("P1234567890123");
 		}
 	}
+	private com.sbshop.agent.core.application.order.service.OrderMarketRefresher orderMarketRefresher() {
+		return org.mockito.Mockito.mock(
+			com.sbshop.agent.core.application.order.service.OrderMarketRefresher.class);
+	}
+
 }
