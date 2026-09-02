@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
+import com.sbshop.agent.core.application.order.service.Cafe24LineItemMapper;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
@@ -38,11 +39,29 @@ public class Cafe24OrderProbe implements MarketOrderProbe {
 			|| detail.path("order_id").asText("").isBlank()) {
 			return OrderProbeResult.notFound("order 없음");
 		}
+		ShippingStatus itemTerminal = null;
+		ShippingStatus itemStage = null;
+		for (JsonNode item : detail.path("items")) {
+			ShippingStatus mappedItem = Cafe24LineItemMapper.mapStatus(item.path("order_status").asText(""));
+			if (isTerminated(mappedItem)) {
+				itemTerminal = mappedItem;
+				break;
+			}
+			if (mappedItem != ShippingStatus.UNKNOWN && itemStage == null) {
+				itemStage = mappedItem;
+			}
+		}
+		if (itemTerminal != null) {
+			return OrderProbeResult.terminated(itemTerminal, "order_status");
+		}
 		if ("T".equalsIgnoreCase(detail.path("canceled").asText(""))) {
 			boolean returned = !detail.path("return_confirmed_date").asText("").isBlank();
 			return OrderProbeResult.terminated(
 				returned ? ShippingStatus.RETURNED : ShippingStatus.CANCELED,
 				detail.path("canceled").asText(""));
+		}
+		if (itemStage != null) {
+			return OrderProbeResult.found(itemStage);
 		}
 		ShippingStatus mapped = mapShippingStatus(detail.path("shipping_status").asText(""));
 		if (mapped == null) {
@@ -50,6 +69,12 @@ public class Cafe24OrderProbe implements MarketOrderProbe {
 				+ detail.path("shipping_status").asText(""));
 		}
 		return OrderProbeResult.found(mapped);
+	}
+
+	private boolean isTerminated(ShippingStatus status) {
+		return status == ShippingStatus.CANCELED
+			|| status == ShippingStatus.RETURNED
+			|| status == ShippingStatus.EXCHANGED;
 	}
 
 	private ShippingStatus mapShippingStatus(String code) {

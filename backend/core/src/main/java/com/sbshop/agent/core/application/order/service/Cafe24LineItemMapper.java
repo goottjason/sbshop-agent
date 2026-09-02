@@ -17,7 +17,7 @@ import com.sbshop.agent.core.domain.order.vo.ShippingData;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-final class Cafe24LineItemMapper {
+public final class Cafe24LineItemMapper {
 	private Cafe24LineItemMapper() {}
 
 	static List<MarketShipmentDto> toShipments(JsonNode order, String fallbackShipmentNo) {
@@ -69,7 +69,7 @@ final class Cafe24LineItemMapper {
 		return shipments;
 	}
 
-	static ShippingStatus mapStatus(String code) {
+	public static ShippingStatus mapStatus(String code) {
 		if (code == null || code.isBlank()) {
 			return ShippingStatus.UNKNOWN;
 		}
