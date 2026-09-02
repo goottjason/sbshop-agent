@@ -95,6 +95,16 @@
   ```
 - 상태: **수정완료** 2026-09-02
 
+### D-277: 쿠팡 교환이 전혀 감지되지 않는다 — exchangeRequests 미연동 (2026-09-02, D-270 2단계 중 확인)
+
+- 심각도: P2 | 위치: `CoupangOrderAdapter` · 쿠팡 클라이언트/포트
+- [[D-097]]이 반품(`returnRequests`)만 붙였고 **교환 API 는 존재조차 쓰이지 않는다.** [[D-270]] 조사에서 `GET /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/exchangeRequests` 가 실재함을 문서로 확인했다.
+- 결과: 쿠팡 교환 신청·진행·완료·거부가 우리 시스템에 **하나도 반영되지 않는다.** `claimData` 는 계속 NONE 이다. 단건 프로브도 `"해당 주문이 취소 또는 반품 되었습니다."` 만 판정해 교환은 못 본다.
+- 매핑 함수는 이미 있다 — `CoupangStatusMapper.mapExchangeClaim(exchangeStatus)`:
+  `RECEIPT`→REQUESTED · `PROGRESS`→IN_PROGRESS · `SUCCESS`→DONE · `REJECT`/`CANCEL`→REJECTED
+- 남은 것: 클라이언트+포트 신설 → `CoupangOrderAdapter` 에 `detectReturns` 와 같은 꼴의 교환 감지 추가 → `item.applyClaim(...)` 배선. `collectStatus`(회수 9단계)도 함께 실으면 진단이 쉬워진다.
+- 상태: **발견** 2026-09-02
+
 ## 배포 전 수동 DDL — **적용 완료 2026-09-02**
 
 Flyway 를 쓰지 않으므로 배포 전에 운영 DB 에 직접 친다.
