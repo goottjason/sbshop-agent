@@ -104,6 +104,7 @@
   `RECEIPT`→REQUESTED · `PROGRESS`→IN_PROGRESS · `SUCCESS`→DONE · `REJECT`/`CANCEL`→REJECTED
 - 남은 것: 클라이언트+포트 신설 → `CoupangOrderAdapter` 에 `detectReturns` 와 같은 꼴의 교환 감지 추가 → `item.applyClaim(...)` 배선. `collectStatus`(회수 9단계)도 함께 실으면 진단이 쉬워진다.
 - 수정(2026-09-03): `queryExchanges` 포트·클라이언트 신설 + `CoupangOrderAdapter.detectExchanges` 배선. `postSyncProcess` 에서 `detectReturns` 다음에 돈다. 문서 실측으로 함정 하나를 피했다 — `exchangeRequests` 는 `createdAtFrom/To` 가 **초 단위까지 필수**(`yyyy-MM-ddTHH:mm:ss`)라 `returnRequests` 의 `T00:00` 형식을 그대로 쓰면 전부 거부된다. 기간 제한도 7일이라 같은 창 페이징을 재사용했다. 정산0 분기는 넣지 않았다 — 교환은 `isRefundTerminalAt` 에서 제외돼 죽은 코드가 된다.
+- 라이브 검증 보류(2026-09-03): 배포·동기화는 정상(처리 21건)이나 **교환 API 가 호출됐는지 로그로 확인할 수 없다.** 쿠팡 클라이언트는 11번가와 달리 조회 완료 로그를 찍지 않고, `detectExchanges` 도 반영 건수가 0 이면 조용하다. 최근 쿠팡 교환 자체가 없어 반영 대상도 없었다. **다음 작업 시 11번가처럼 "N건 조회" 로그를 넣을 것** — 진단 가능성이 마켓마다 갈리면 이런 검증이 매번 막힌다.
 - 상태: **수정완료** 2026-09-03
 
 ### D-278: 11번가 클레임 목록 API 9종이 연결되지 않았다 (2026-09-02, D-270 2단계 중 확인)
