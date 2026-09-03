@@ -98,6 +98,11 @@ public class BatchPriceStockService {
 		return flat.length() <= MAX_REASON_LEN ? flat : flat.substring(0, MAX_REASON_LEN) + "…";
 	}
 
+	private static boolean isOutOfStockWithoutCost(StockCheckResult result) {
+		return result.status() == StockStatus.OUT_OF_STOCK
+			&& (result.costPrice() == null || result.costPrice().signum() <= 0);
+	}
+
 	private boolean recordOutcome(String batchId, Long productId, MarketRepublishResult sync, String message) {
 		String details = renderMarketDetails(sync);
 		if (sync.failed().isEmpty()) {
@@ -179,6 +184,26 @@ public class BatchPriceStockService {
 					if (recordOutcome(batchId, productId, goneSync,
 						String.format("[%s] 소스 링크 없음 → 품절 처리(가격 미전송)%s",
 							product.getSbCode(), renderMarketOutcome(goneSync)))) {
+						partialCount++;
+					}
+					Thread.sleep(CRAWL_THROTTLE_MS);
+					continue;
+				}
+
+				if (isOutOfStockWithoutCost(result)) {
+					boolean soldOutChanged = product.getStockStatus() != StockStatus.OUT_OF_STOCK;
+					product.updateStockStatus(StockStatus.OUT_OF_STOCK);
+					product.updateRestockDate(result.restockDate());
+					product.update(ProductUpdateCommand.builder().stock(result.stock()).build());
+					product.recordCrawlSuccess();
+					productWriter.save(product);
+					MarketRepublishResult soldOutSync = productMarketSyncService.syncPriceStockPerMarket(
+						productId,
+						new PricingInputs(null, bundleQty, marginRate, couponRate, minMarginPrice),
+						StockStatus.OUT_OF_STOCK, soldOutChanged);
+					if (recordOutcome(batchId, productId, soldOutSync,
+						String.format("[%s] 소싱처 품절 → 재고 0 전송(가격 미전송)%s",
+							product.getSbCode(), renderMarketOutcome(soldOutSync)))) {
 						partialCount++;
 					}
 					Thread.sleep(CRAWL_THROTTLE_MS);
