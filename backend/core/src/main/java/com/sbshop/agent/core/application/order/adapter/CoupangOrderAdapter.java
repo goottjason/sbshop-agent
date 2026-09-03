@@ -324,8 +324,11 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		JsonNode returns = coupangOrderApiPort.queryReturns(
 			credential, fromDate.toString(), toDate.toString());
 		if (returns == null || !returns.isArray()) {
+			log.info("쿠팡 반품요청 조회 완료: 응답 없음 ({}~{})", fromDate, toDate);
 			return;
 		}
+
+		log.info("쿠팡 반품요청 조회 완료: {}건 ({}~{})", returns.size(), fromDate, toDate);
 
 		Map<String, ClaimData> claimByOrderId = new LinkedHashMap<>();
 		for (JsonNode node : returns) {
@@ -372,8 +375,10 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		JsonNode exchanges = coupangOrderApiPort.queryExchanges(
 			credential, fromDate.toString(), toDate.toString());
 		if (exchanges == null || !exchanges.isArray()) {
+			log.info("쿠팡 교환요청 조회 완료: 응답 없음 ({}~{})", fromDate, toDate);
 			return;
 		}
+		log.info("쿠팡 교환요청 조회 완료: {}건 ({}~{})", exchanges.size(), fromDate, toDate);
 
 		Map<String, ClaimData> claimByOrderId = new LinkedHashMap<>();
 		for (JsonNode node : exchanges) {
