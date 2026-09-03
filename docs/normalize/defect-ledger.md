@@ -34,7 +34,68 @@
 - [[D-265]] 3단계에서 마켓 호출이 있는 경로(G마켓/옥션)만 재조회로 전환했다. 나머지를 함께 전환하면 재조회 결과가 `NEW` 라 취소가 통째로 사라진다 — 기능이 없어지므로 손대지 않았다.
 - 착수 전 확인할 것: 세 마켓에 **판매자 발주취소 API 가 실재하는지**. 쿠팡은 판매자 임의취소가 제한적이고, 11번가는 `claimservice` 취소 API 가 있다([[D-270]] 조사에서 `cancelorders`/`canceledorders` 확인). 스마트스토어는 미확인.
 - API 가 있으면 전파 + 재조회로 전환하고, 없으면 해당 마켓의 취소 버튼을 막거나 "우리 장부에만 반영됨"을 화면에 명시해야 한다.
-- 상태: **발견** 2026-09-02
+
+**조사 결과 (2026-09-03) — 세 마켓 판정 확정**
+
+| 마켓 | 판매자 취소 API | 구현 | 배선 |
+|---|---|---|---|
+| 쿠팡 | **있다** | **이미 완성** | 안 됨 |
+| 스마트스토어 | **있다** | **이미 완성** | 안 됨 |
+| 11번가 | **없다** (확정) | — | — |
+
+**핵심 — 몰라서 안 붙인 게 아니다.** 2026-06-24 커밋 `8f74f1d3` 에서 쿠팡·스토어 취소 어댑터를
+전부 만들고 `docs/external-api/` 에 문서까지 남겼다. 이후 `4e3a781c` 에서 **G마켓/옥션만 우선
+배선하고 나머지는 의도적으로 미뤘다.** 그 흔적이 `OrderService.cancelOrderOnly:134` 이다:
+
+```java
+boolean sentToMarket = mt == MarketType.GMARKET || mt == MarketType.AUCTION;
+```
+
+`OrderServiceCancelPropagationTest` 에 "COUPANG 주문 취소 → 마켓 호출 안 됨(회귀 불변)"을
+고정한 테스트까지 있다. **배선하려면 그 테스트부터 뒤집어야 한다.**
+
+- **쿠팡**: `POST .../orders/{orderId}/cancel`. `bigCancelCode="CANERR"`, `vendorItemIds[]`,
+  `receiptCounts[]`, `userId`(WING 로그인 ID) 필요. 결제완료·상품준비중에서만 가능.
+  구현: `CoupangOrderAdapter.cancelOrder:161-198` · `CoupangOrderApiClient.cancelOrder:467-501`.
+- **스마트스토어**: `POST /external/v1/pay-order/seller/product-orders/cancel`, `productOrderIds[]` 배치.
+  구현: `SmartStoreOrderAdapter.cancelOrder:153-159` · `SmartStoreOrderApiClient.cancelOrders:173-207`.
+- **11번가**: 없다. 근거 셋이 일치한다 — ① 사용자 확보 공식 PDF 에 실행 엔드포인트 부재
+  ② `docs/external-api/elevenst/elevenst-cancel-order.md` 가 "API 존재 여부: 없음"으로 기록
+  ③ [[D-278]] 에서 확인한 `claimservice` 취소 3종(`cancelorders`/`canceledorders`/
+  `withdrawcanceledorders`)이 **전부 조회 전용**이다. `ElevenstOrderAdapter.cancelOrder` 는
+  `UnsupportedOperationException` 을 던지도록 이미 방어돼 있다.
+
+**착수 순서 (선결 조건이 있다)**
+1. **[[D-288]] 을 먼저 고친다** — 스토어 취소가 부분실패를 삼킨다. 이걸 두고 배선하면
+   "화면은 취소, 마켓은 그대로"가 다시 생긴다. 이 결함을 없애려다 같은 결함을 만드는 꼴이다.
+2. 쿠팡·스토어를 `sentToMarket` 게이트에 추가하고 `OrderServiceCancelPropagationTest` 의
+   회귀 불변을 뒤집는다. 기존 `allNew` 가드(NEW 에서만 취소)가 두 마켓 API 의
+   "결제완료·상품준비중" 제약과 이미 호환되므로 추가 상태 가드는 불필요하다.
+3. **11번가는 전파 대상이 아니다.** 취소 버튼을 막거나, 유지한다면 "마켓에는 반영되지 않았습니다 —
+   11번가 판매자센터에서 직접 취소하세요"를 명시해야 한다. 지금은 경고 없이 조용히 로컬만
+   `CANCELED` 로 찍혀 사용자가 마켓 취소로 오인한다.
+
+- 상태: **조사완료 · 착수가능(D-288 선행)** 2026-09-03
+
+### D-288 — 스마트스토어 취소가 건별 실패를 삼킨다 (배선 전에 반드시 고칠 것)
+
+- 심각도: **높음(배선 시)** · 리스크: 경량 · 상태: **발견** 2026-09-03
+- [[D-272]] 조사 중 발견. `SmartStoreOrderApiClient.cancelOrders:193-202`:
+
+```java
+if (!item.path("cancel").asBoolean()) {
+    log.warn("스마트스토어 주문취소 실패 건: productOrderId={}, ...");
+}
+```
+
+  **로그만 찍고 예외를 던지지 않는다.** 네이버는 HTTP 200 을 주면서 `detail[].cancel=false` 로
+  건별 실패를 알리는데, 우리는 그걸 읽고도 성공으로 돌아간다.
+- 지금은 호출부가 없어 잠자는 결함이다. 그러나 [[D-272]] 배선 순간 **"화면은 취소, 마켓은 살아
+  있음"** 이 그대로 재현된다 — D-272 가 고치려는 바로 그 증상이다.
+- [[D-181]](쿠팡이 HTTP 200 에 실패를 담아 보낸 것을 놓친 결함)과 같은 계열이다. **봉투가
+  200 이라고 성공이 아니다.**
+- 수정 방향: `cancel=false` 인 건이 하나라도 있으면 어느 주문이 왜 실패했는지 담아 예외를
+  던진다. 전건 실패와 부분 실패를 구분해 알릴 수 있으면 더 낫다.
 
 ### D-273: 확증층의 120일 목록 조회가 마켓 API 기간 제한을 위반한다 (2026-09-02, 사용자 신고)
 
