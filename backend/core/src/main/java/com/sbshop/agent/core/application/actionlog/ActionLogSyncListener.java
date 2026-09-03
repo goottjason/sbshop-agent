@@ -6,8 +6,10 @@ import com.sbshop.agent.core.application.sync.SyncMarketKeys;
 import com.sbshop.agent.core.application.sync.SyncStatusService;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +23,7 @@ public class ActionLogSyncListener {
 
 	private final ActionLogService actionLogService;
 	private final SyncStatusService syncStatusService;
+	private final OrderRepository orderRepository;
 
 	@EventListener
 	public void onSyncCompleted(SyncCompletedEvent event) {
@@ -56,14 +59,18 @@ public class ActionLogSyncListener {
 		if (lastNewAt.isEmpty()) {
 			return;
 		}
+		LocalDateTime now = LocalDateTime.now();
+		long ordersInWindow = orderRepository.countByMarketTypeInAndOrderDateGreaterThanEqual(
+			countedMarkets(market), now.minusDays(SyncFreshnessPolicy.WINDOW_DAYS));
 		Optional<Duration> stale = SyncFreshnessPolicy.staleness(
-			syncKey, lastNewAt.get(), LocalDateTime.now());
+			ordersInWindow, SyncFreshnessPolicy.WINDOW_DAYS, lastNewAt.get(), now);
 		if (stale.isEmpty()) {
 			return;
 		}
 		long days = stale.get().toDays();
+		Duration threshold = SyncFreshnessPolicy.threshold(ordersInWindow, SyncFreshnessPolicy.WINDOW_DAYS);
 		String message = "신규 주문이 " + days + "일째 0건이다 (임계 "
-			+ SyncFreshnessPolicy.threshold(syncKey).toDays() + "일). 마지막 신규 유입 "
+			+ threshold.toDays() + "일). 마지막 신규 유입 "
 			+ lastNewAt.get() + " — 마켓 연동 상태를 확인하라";
 		log.warn("[{}] {}", marketType, message);
 		actionLogService.record(actionType + "_STALE", marketType, ActionStatus.WARNING, message);
@@ -76,6 +83,13 @@ public class ActionLogSyncListener {
 			case SMART_STORE -> SyncMarketKeys.SMART_STORE;
 			case ELEVEN_STREET -> SyncMarketKeys.ELEVEN_STREET;
 			default -> market.name();
+		};
+	}
+
+	private List<MarketType> countedMarkets(MarketType market) {
+		return switch (market) {
+			case GMARKET, AUCTION -> List.of(MarketType.GMARKET, MarketType.AUCTION);
+			default -> List.of(market);
 		};
 	}
 }
