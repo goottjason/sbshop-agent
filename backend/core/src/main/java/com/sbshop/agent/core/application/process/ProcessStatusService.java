@@ -80,6 +80,12 @@ public class ProcessStatusService {
 	}
 
 	@Transactional
+	public void markPartialFailed(String batchId, String productCode, String message) {
+		updateStep(batchId, productCode, ProcessStep.UPDATE_PRODUCT_PUBLISH,
+			ProcessStatusType.PARTIAL_FAILED, message);
+	}
+
+	@Transactional
 	public void markFailed(String batchId, String productCode, String message) {
 		updateStep(batchId, productCode, ProcessStep.UPDATE_PRODUCT_ERROR, ProcessStatusType.FAILED, message);
 	}
@@ -115,7 +121,9 @@ public class ProcessStatusService {
 		}
 		long success = processStatusRepository.countByBatchIdAndProcessStatus(batchId, ProcessStatusType.SUCCESS);
 		long failed = processStatusRepository.countByBatchIdAndProcessStatus(batchId, ProcessStatusType.FAILED);
-		return BatchSummary.of(batchId, total, success, failed);
+		long partial = processStatusRepository.countByBatchIdAndProcessStatus(batchId,
+			ProcessStatusType.PARTIAL_FAILED);
+		return BatchSummary.of(batchId, total, success, failed, partial);
 	}
 
 	@Transactional(readOnly = true)

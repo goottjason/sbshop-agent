@@ -21,8 +21,8 @@ import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import com.sbshop.agent.core.domain.product.service.MarginCalculator;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +49,8 @@ public class BatchPriceStockService {
 
 	private static final long CRAWL_THROTTLE_MS = 500L;
 
+	private static final int MAX_REASON_LEN = 160;
+
 	/**
 	 * 크롤 실패를 상품에 남긴다 — <b>재고·가격은 건드리지 않는다.</b> 일시 오류일 수 있기 때문이다.
 	 * 기록 자체가 실패해도 배치는 계속한다 — 부수 기록 때문에 본 작업을 멈추지 않는다.
@@ -65,10 +67,63 @@ public class BatchPriceStockService {
 		}
 	}
 
+	private static String renderMarketOutcome(MarketRepublishResult sync) {
+		String base = String.format(" · 마켓반영 성공%d/스킵%d/실패%d",
+			sync.synced().size(), sync.skipped().size(), sync.failed().size());
+		if (sync.failed().isEmpty()) {
+			return base;
+		}
+		StringBuilder sb = new StringBuilder(base).append(" (");
+		boolean first = true;
+		for (Map.Entry<MarketType, String> entry : sync.failed().entrySet()) {
+			if (!first) {
+				sb.append(" | ");
+			}
+			first = false;
+			sb.append(entry.getKey()).append(": ").append(abbreviate(entry.getValue()));
+		}
+		return sb.append(")").toString();
+	}
+
+	private static String abbreviate(String reason) {
+		if (reason == null || reason.isBlank()) {
+			return "사유 없음";
+		}
+		String flat = reason.replaceAll("\\s+", " ").trim();
+		return flat.length() <= MAX_REASON_LEN ? flat : flat.substring(0, MAX_REASON_LEN) + "…";
+	}
+
+	private boolean recordOutcome(String batchId, Long productId, MarketRepublishResult sync, String message) {
+		if (sync.failed().isEmpty()) {
+			processStatusService.markSuccess(batchId, String.valueOf(productId), message);
+			return false;
+		}
+		processStatusService.markPartialFailed(batchId, String.valueOf(productId), message);
+		return true;
+	}
+
+	private static String batchMessage(String prefix, int failCount, int partialCount) {
+		if (failCount == 0 && partialCount == 0) {
+			return prefix;
+		}
+		StringBuilder sb = new StringBuilder(prefix).append("(");
+		if (failCount > 0) {
+			sb.append("실패 ").append(failCount).append("건");
+		}
+		if (partialCount > 0) {
+			if (failCount > 0) {
+				sb.append(", ");
+			}
+			sb.append("부분실패 ").append(partialCount).append("건");
+		}
+		return sb.append(")").toString();
+	}
+
 	@Async("productBatchExecutor")
 	public void crawlAndUpdatePriceStock(String batchId, List<Long> productIds,
 		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice, String actionType) {
 		int failCount = 0;
+		int partialCount = 0;
 		for (Long productId : productIds) {
 			try {
 				Product product = productReader.findById(productId)
@@ -100,10 +155,11 @@ public class BatchPriceStockService {
 						productId,
 						new PricingInputs(null, bundleQty, marginRate, couponRate, minMarginPrice),
 						StockStatus.OUT_OF_STOCK, goneChanged);
-					processStatusService.markSuccess(batchId, String.valueOf(productId),
-						String.format("[%s] 소스 링크 없음 → 품절 처리(가격 미전송) · 마켓반영 성공%d/스킵%d/실패%d",
-							product.getSbCode(), goneSync.synced().size(), goneSync.skipped().size(),
-							goneSync.failed().size()));
+					if (recordOutcome(batchId, productId, goneSync,
+						String.format("[%s] 소스 링크 없음 → 품절 처리(가격 미전송)%s",
+							product.getSbCode(), renderMarketOutcome(goneSync)))) {
+						partialCount++;
+					}
 					Thread.sleep(CRAWL_THROTTLE_MS);
 					continue;
 				}
@@ -150,11 +206,11 @@ public class BatchPriceStockService {
 					productId,
 					new PricingInputs(buyPrice, bundleQty, marginRate, couponRate, minMarginPrice),
 					result.status(), changed);
-				processStatusService.markSuccess(batchId, String.valueOf(productId),
-					String.format("[%s] 가격:%s, 재고:%d · 마켓반영 성공%d/스킵%d/실패%d%s",
-						product.getSbCode(), salePrice, result.stock(), sync.synced().size(), sync.skipped().size(),
-						sync.failed().size(),
-						sync.failed().isEmpty() ? "" : " (" + sync.failed().keySet() + ")"));
+				if (recordOutcome(batchId, productId, sync,
+					String.format("[%s] 가격:%s, 재고:%d%s",
+						product.getSbCode(), salePrice, result.stock(), renderMarketOutcome(sync)))) {
+					partialCount++;
+				}
 				Thread.sleep(CRAWL_THROTTLE_MS);
 			} catch (Exception e) {
 				log.error("배치 업데이트 실패: productId={}", productId, e);
@@ -165,13 +221,15 @@ public class BatchPriceStockService {
 		}
 		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId,
 			actionType,
-			failCount == 0, failCount == 0 ? "배치 완료" : "배치 완료(실패 " + failCount + "건)"));
+			failCount == 0 && partialCount == 0,
+			batchMessage("배치 완료", failCount, partialCount)));
 	}
 
 	@Async("productBatchExecutor")
 	public void manualUpdatePriceStock(String batchId,
 		List<PriceStockItem> items) {
 		int failCount = 0;
+		int partialCount = 0;
 		for (PriceStockItem item : items) {
 			Long productId = item.productId();
 			try {
@@ -204,11 +262,11 @@ public class BatchPriceStockService {
 				MarketRepublishResult sync = productMarketSyncService.syncPriceStock(
 					productId, price != null ? price.intValue() : null, newStatus,
 					statusChanged || (priceChanged && newStatus != StockStatus.OUT_OF_STOCK));
-				processStatusService.markSuccess(batchId, String.valueOf(productId),
-					String.format("[%s] 가격:%s->%s, 판매상태:%s->%s · 마켓반영 성공%d/스킵%d/실패%d%s",
-						product.getSbCode(), oldPrice, price, oldStatus, newStatus, sync.synced().size(),
-						sync.skipped().size(),
-						sync.failed().size(), sync.failed().isEmpty() ? "" : " (" + sync.failed().keySet() + ")"));
+				if (recordOutcome(batchId, productId, sync,
+					String.format("[%s] 가격:%s->%s, 판매상태:%s->%s%s",
+						product.getSbCode(), oldPrice, price, oldStatus, newStatus, renderMarketOutcome(sync)))) {
+					partialCount++;
+				}
 			} catch (Exception e) {
 				log.error("수동 업데이트 실패: productId={}", productId, e);
 				processStatusService.markFailed(batchId, String.valueOf(productId), e.getMessage());
@@ -217,7 +275,8 @@ public class BatchPriceStockService {
 		}
 		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId,
 			ActionLogConstants.BATCH_MANUAL_UPDATE,
-			failCount == 0, failCount == 0 ? "수동 배치 완료" : "수동 배치 완료(실패 " + failCount + "건)"));
+			failCount == 0 && partialCount == 0,
+			batchMessage("수동 배치 완료", failCount, partialCount)));
 	}
 
 	@Async("productBatchExecutor")

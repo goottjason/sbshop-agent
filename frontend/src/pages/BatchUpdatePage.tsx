@@ -13,6 +13,7 @@ interface BatchSummary {
   total: number;
   success: number;
   failed: number;
+  partial: number;
   pending: number;
   done: number;
   percent: number;
@@ -329,10 +330,12 @@ const BatchUpdatePage = () => {
   };
 
   const isComplete = !!summary && summary.total > 0 && summary.done >= summary.total;
+  const partialCount = summary?.partial ?? 0;
+  const isClean = !!summary && summary.failed === 0 && partialCount === 0;
   const progressStatus = !summary
     ? 'active'
     : isComplete
-      ? (summary.failed === 0 ? 'success' : 'exception')
+      ? (isClean ? 'success' : 'exception')
       : 'active';
   const isDirect = mode === 'direct';
 
@@ -454,11 +457,20 @@ const BatchUpdatePage = () => {
                   {summary.done} / {summary.total} ({summary.percent}%)
                 </Typography.Text>
                 <Typography.Text type="secondary">
-                  성공 {summary.success} · 실패 {summary.failed} · 대기 {summary.pending}
+                  성공 {summary.success}
+                  {partialCount > 0 && ` · 부분실패 ${partialCount}`}
+                  {' · '}실패 {summary.failed} · 대기 {summary.pending}
                 </Typography.Text>
                 {isComplete && (
-                  <Typography.Text type={summary.failed === 0 ? 'success' : 'danger'} strong>
-                    완료 (성공 {summary.success} / 실패 {summary.failed})
+                  <Typography.Text type={isClean ? 'success' : 'danger'} strong>
+                    완료 (성공 {summary.success}
+                    {partialCount > 0 && ` / 부분실패 ${partialCount}`}
+                    {' / '}실패 {summary.failed})
+                  </Typography.Text>
+                )}
+                {partialCount > 0 && (
+                  <Typography.Text type="warning" style={{ fontSize: 12 }}>
+                    부분실패 — 상품은 저장됐지만 일부 마켓 전송이 거부됐습니다.
                   </Typography.Text>
                 )}
               </>
