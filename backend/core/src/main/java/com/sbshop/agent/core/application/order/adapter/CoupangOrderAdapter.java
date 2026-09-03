@@ -32,10 +32,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -347,6 +349,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		}
 
 		List<Order> dbOrders = orderRepository.findByMarketType(MarketType.COUPANG);
+		warnUnmatchedClaims("반품", claimByOrderId, dbOrders);
 		int zeroedCount = 0;
 		for (Order order : dbOrders) {
 			ClaimData claim = claimByOrderId.get(order.getMarketOrderNo());
@@ -401,6 +404,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		}
 
 		List<Order> dbOrders = orderRepository.findByMarketType(MarketType.COUPANG);
+		warnUnmatchedClaims("교환", claimByOrderId, dbOrders);
 		int appliedCount = 0;
 		for (Order order : dbOrders) {
 			ClaimData claim = claimByOrderId.get(order.getMarketOrderNo());
@@ -425,6 +429,21 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		return item.getSettlementData() != null
 			&& item.getSettlementData().getSettlementAmount() != null
 			&& item.getSettlementData().getSettlementAmount().compareTo(BigDecimal.ZERO) == 0;
+	}
+
+	private void warnUnmatchedClaims(String label, Map<String, ClaimData> claimByOrderId,
+		List<Order> dbOrders) {
+		Set<String> known = new HashSet<>();
+		for (Order order : dbOrders) {
+			known.add(order.getMarketOrderNo());
+		}
+		List<String> unmatched = claimByOrderId.keySet().stream()
+			.filter(no -> !known.contains(no))
+			.toList();
+		if (!unmatched.isEmpty()) {
+			log.warn("[COUPANG] {} 신호 {}건이 어느 주문과도 짝지어지지 않았다 — 수집되지 않은 주문이다: {}",
+				label, unmatched.size(), unmatched);
+		}
 	}
 
 	public void fixCarriers(List<MarketOrderDto> apiOrders) {
