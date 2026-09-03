@@ -35,6 +35,7 @@ export interface MarketBadgeState {
   status: 'SYNCED' | 'PENDING' | 'DELETED' | 'FAILED';
   url: string | null;
   reason: BadgeReason | null;
+  errorAt: string | null;
 }
 
 export interface ProductPage<T> {

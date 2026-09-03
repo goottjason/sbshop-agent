@@ -302,12 +302,12 @@ public class ProductController {
 				case SMART_STORE:
 				case ELEVEN_STREET: {
 					marketMap.put(reg.getMarketType().name(), MarketBadgeState.of(hasIdentifiers, isSynced,
-						reg.getUnsyncReason(), reg.getLastSyncError(), reg.buildMarketUrl()));
+						reg.getUnsyncReason(), reg.getLastSyncError(), reg.getLastSyncErrorAt(), reg.buildMarketUrl()));
 					break;
 				}
 				case CAFE24: {
 					marketMap.put("CAFE24", MarketBadgeState.of(hasIdentifiers, isSynced,
-						reg.getUnsyncReason(), reg.getLastSyncError(), null));
+						reg.getUnsyncReason(), reg.getLastSyncError(), reg.getLastSyncErrorAt(), null));
 					String gUrl = reg.buildGmarketUrl();
 					if (gUrl != null) {
 						marketMap.put("GMARKET", MarketBadgeState.of(true, gUrl));

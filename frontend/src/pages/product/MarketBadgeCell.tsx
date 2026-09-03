@@ -4,7 +4,7 @@ import { productApi, type ProductList } from '../../api/productApi';
 import { sourcingApi } from '../../api/sourcingApi';
 import { fetchPricePolicy } from '../../api/pricePolicyApi';
 import {
-  MARKET_BADGES, badgeVisual, ESM_MARKET_KEYS, UNSYNC_REASON_LABEL,
+  MARKET_BADGES, badgeVisual, ESM_MARKET_KEYS, UNSYNC_REASON_LABEL, failedBadgeReasonText,
   DEFAULT_MARKET_MARGIN_RATE, DEFAULT_MARKET_COUPON_RATE, DEFAULT_MARKET_MIN_MARGIN_PRICE,
 } from './productGridShared';
 import { notify } from '../../utils/notify';
@@ -151,7 +151,7 @@ export function MarketBadgeCell({ product, onPublished }:
           );
         }
         if (visual === 'failed') {
-          const why = UNSYNC_REASON_LABEL[regs[m.key].reason ?? ''] ?? '마켓 반영에 실패했습니다';
+          const why = failedBadgeReasonText(regs[m.key].reason, regs[m.key].errorAt);
           const failStyle: CSSProperties = { ...baseStyle, color: '#b45309', background: '#fef3c7',
             border: '1px solid #f59e0b', textDecoration: 'none' };
           const failTitle = `${m.label} — ${why}. 상품은 마켓에 있으므로 재등록하지 않습니다.`;

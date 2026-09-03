@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { ProductList } from '../../api/productApi';
+import { toKstDate, kstDateString } from '../../utils/datetime';
 
 export type SaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
@@ -63,6 +64,18 @@ export const UNSYNC_REASON_LABEL: Record<string, string> = {
   BLOCKED_BY_MARKET: '마켓이 막아둔 상태입니다(심사중·판매중지) — 재시도로는 풀리지 않습니다',
   NEVER_SYNCED: '한 번도 동기화된 적이 없습니다',
 };
+
+export function failedBadgeReasonText(
+  reason: string | null | undefined,
+  errorAt: string | null | undefined,
+  now: Date = new Date(),
+): string {
+  const base = UNSYNC_REASON_LABEL[reason ?? ''] ?? '마켓 반영에 실패했습니다';
+  const errorDate = toKstDate(errorAt);
+  if (!errorDate) return `이전 오류 · ${base} (시점 미상)`;
+  const age = kstDateString(errorDate) === kstDateString(now) ? '오늘' : kstDateString(errorDate);
+  return `${base} (${age})`;
+}
 
 export function badgeVisual(product: ProductList, marketKey: string): BadgeVisual {
   const regs = product.marketRegistrations ?? {};
