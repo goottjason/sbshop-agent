@@ -229,8 +229,51 @@ public class ElevenstOrderSyncService {
 				fromDate, toDate);
 		} else {
 			detectClaims(orders, fromDate, toDate, credential.getAccessKey());
+			applyClaimListSignals(credential.getAccessKey(), fromDate, toDate);
 		}
 		terminalSettlementService.zeroSettlementForRefunded(MarketType.ELEVEN_STREET);
+	}
+
+	private void applyClaimListSignals(String apiKey, LocalDate fromDate, LocalDate toDate) {
+		Map<String, Map<String, ClaimData>> claimSignals = elevenstOrderAdapter.fetchClaimListSignals(apiKey, fromDate,
+			toDate);
+		if (claimSignals.isEmpty()) {
+			return;
+		}
+
+		List<Order> dbOrders = orderRepository.findByMarketType(MarketType.ELEVEN_STREET);
+		int orderCount = 0;
+
+		for (Order order : dbOrders) {
+			if (order.getOrderDate() != null) {
+				LocalDate orderDate = order.getOrderDate().toLocalDate();
+				if (orderDate.isBefore(fromDate) || orderDate.isAfter(toDate)) {
+					continue;
+				}
+			}
+			Map<String, ClaimData> claims = claimSignals.get(order.getMarketOrderNo());
+			if (claims == null || claims.isEmpty()) {
+				continue;
+			}
+
+			List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
+			int applied = 0;
+			for (OrderLineItem item : items) {
+				ClaimData claim = resolveFor(item, claims);
+				if (claim != null) {
+					item.applyClaim(claim);
+					orderLineItemRepository.save(item);
+					applied++;
+				}
+			}
+			if (applied > 0) {
+				orderCount++;
+			}
+		}
+
+		if (orderCount > 0) {
+			log.info("[ELEVEN_STREET] 클레임 목록 API로 {}건 주문에 클레임 반영", orderCount);
+		}
 	}
 
 	private void detectClaims(List<MarketOrderDto> apiOrders, LocalDate fromDate, LocalDate toDate, String apiKey) {

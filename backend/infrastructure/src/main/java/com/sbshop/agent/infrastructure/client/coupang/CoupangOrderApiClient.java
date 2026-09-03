@@ -195,6 +195,78 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 	}
 
 	@Override
+	public JsonNode queryExchanges(MarketCredential credential, String fromDate, String toDate) {
+		String vendorId = credential.getClientId();
+		String accessKey = credential.getAccessKey();
+		String secretKey = credential.getSecretKey();
+
+		List<JsonNode> all = new ArrayList<>();
+		LocalDate from = LocalDate.parse(fromDate);
+		LocalDate to = LocalDate.parse(toDate);
+
+		for (LocalDate windowStart = from; !windowStart.isAfter(to); windowStart = windowStart.plusDays(7)) {
+			LocalDate windowEnd = windowStart.plusDays(6);
+			if (windowEnd.isAfter(to)) {
+				windowEnd = to;
+			}
+			String createdAtFrom = windowStart + "T00:00:00";
+			String createdAtTo = windowEnd + "T23:59:59";
+			String nextToken = "";
+
+			while (true) {
+				String path = "/v2/providers/openapi/apis/api/v4/vendors/" + vendorId + "/exchangeRequests"
+					+ "?createdAtFrom=" + createdAtFrom
+					+ "&createdAtTo=" + createdAtTo
+					+ "&maxPerPage=50";
+				if (!nextToken.isEmpty()) {
+					path += "&nextToken=" + nextToken;
+				}
+
+				String authorization = generateHmacSignature("GET", path, accessKey, secretKey);
+
+				try {
+					String response = restClient.get()
+						.uri(URI.create(DOMAIN + path))
+						.header(HttpHeaders.AUTHORIZATION, authorization)
+						.header("X-Requested-By", vendorId)
+						.accept(MediaType.APPLICATION_JSON)
+						.retrieve()
+						.body(String.class);
+
+					JsonNode root = objectMapper.readTree(response);
+					String code = root.path("code").asText();
+					if (!"200".equals(code) && !"SUCCESS".equalsIgnoreCase(code)) {
+						log.error("쿠팡 교환조회 오류: {} ({}~{})",
+							root.path("message").asText(), createdAtFrom, createdAtTo);
+						break;
+					}
+
+					JsonNode data = root.path("data");
+					if (data.isArray()) {
+						for (JsonNode n : data) {
+							all.add(n);
+						}
+					}
+
+					nextToken = root.path("nextToken").asText("");
+					if (nextToken.isEmpty()) {
+						break;
+					}
+					Thread.sleep(300);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					throw new RuntimeException("쿠팡 교환조회 중단됨", e);
+				} catch (Exception e) {
+					log.error("쿠팡 교환조회 실패: {} ({}~{})", e.getMessage(), createdAtFrom, createdAtTo);
+					break;
+				}
+			}
+		}
+
+		return objectMapper.valueToTree(all);
+	}
+
+	@Override
 	public JsonNode querySalesDetails(MarketCredential credential,
 		String recognitionDateFrom, String recognitionDateTo) {
 		String vendorId = credential.getClientId();

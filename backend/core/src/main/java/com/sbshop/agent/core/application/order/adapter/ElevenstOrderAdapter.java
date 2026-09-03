@@ -148,6 +148,97 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 		}
 	}
 
+	private static final int CLAIM_LIST_CHUNK_DAYS = 29;
+
+	public Map<String, Map<String, ClaimData>> fetchClaimListSignals(String apiKey,
+		LocalDate fromDate, LocalDate toDate) {
+		Map<String, Map<String, ClaimData>> signals = new LinkedHashMap<>();
+		LocalDate current = fromDate;
+		while (!current.isAfter(toDate)) {
+			LocalDate chunkEnd = current.plusDays(CLAIM_LIST_CHUNK_DAYS).isAfter(toDate)
+				? toDate : current.plusDays(CLAIM_LIST_CHUNK_DAYS);
+			String startTime = formatDateTime(current, "0000");
+			String endTime = formatDateTime(chunkEnd, "2359");
+
+			try {
+				collectClaimListSignals(signals, "반품요청", startTime, endTime,
+					() -> elevenstOrderApiPort.fetchReturnRequestedOrders(apiKey, startTime, endTime));
+				Thread.sleep(500);
+				collectClaimListSignals(signals, "반품완료", startTime, endTime,
+					() -> elevenstOrderApiPort.fetchReturnCompletedOrders(apiKey, startTime, endTime));
+				Thread.sleep(500);
+				collectClaimListSignals(signals, "반품철회", startTime, endTime,
+					() -> elevenstOrderApiPort.fetchReturnWithdrawnOrders(apiKey, startTime, endTime));
+				Thread.sleep(500);
+				collectClaimListSignals(signals, "교환요청", startTime, endTime,
+					() -> elevenstOrderApiPort.fetchExchangeRequestedOrders(apiKey, startTime, endTime));
+				Thread.sleep(500);
+				collectClaimListSignals(signals, "교환완료", startTime, endTime,
+					() -> elevenstOrderApiPort.fetchExchangeCompletedOrders(apiKey, startTime, endTime));
+				Thread.sleep(500);
+				collectClaimListSignals(signals, "교환철회", startTime, endTime,
+					() -> elevenstOrderApiPort.fetchExchangeWithdrawnOrders(apiKey, startTime, endTime));
+				Thread.sleep(500);
+				collectCancelListSignals(signals, "취소요청", startTime, endTime,
+					() -> elevenstOrderApiPort.fetchCancelRequestedOrders(apiKey, startTime, endTime));
+				Thread.sleep(500);
+				collectCancelListSignals(signals, "취소완료", startTime, endTime,
+					() -> elevenstOrderApiPort.fetchCancelCompletedOrders(apiKey, startTime, endTime));
+				Thread.sleep(500);
+				collectCancelListSignals(signals, "취소철회", startTime, endTime,
+					() -> elevenstOrderApiPort.fetchCancelWithdrawnOrders(apiKey, startTime, endTime));
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				break;
+			}
+
+			current = chunkEnd.plusDays(1);
+		}
+		return signals;
+	}
+
+	private void collectClaimListSignals(Map<String, Map<String, ClaimData>> signals, String label,
+		String startTime, String endTime, java.util.function.Supplier<List<Element>> fetcher) {
+		indexClaimRows(signals, label, startTime, endTime, fetcher, row -> {
+			String clmStat = ElevenstXmlUtils.getElementText(row, "clmStat");
+			return statusMapper.mapClaim(clmStat);
+		});
+	}
+
+	private void collectCancelListSignals(Map<String, Map<String, ClaimData>> signals, String label,
+		String startTime, String endTime, java.util.function.Supplier<List<Element>> fetcher) {
+		indexClaimRows(signals, label, startTime, endTime, fetcher, row -> {
+			String ordCnStatCd = ElevenstXmlUtils.getElementText(row, "ordCnStatCd");
+			return statusMapper.mapCancelClaim(ordCnStatCd);
+		});
+	}
+
+	private void indexClaimRows(Map<String, Map<String, ClaimData>> signals, String label,
+		String startTime, String endTime, java.util.function.Supplier<List<Element>> fetcher,
+		java.util.function.Function<Element, ClaimData> toClaimData) {
+		try {
+			List<Element> rows = fetcher.get();
+			if (rows == null) {
+				return;
+			}
+			for (Element row : rows) {
+				String ordNo = emptyToNull(ElevenstXmlUtils.getElementText(row, "ordNo"));
+				if (ordNo == null) {
+					continue;
+				}
+				ClaimData claim = toClaimData.apply(row);
+				if (!claim.getClaimType().isActive()) {
+					continue;
+				}
+				String seq = emptyToNull(ElevenstXmlUtils.getElementText(row, "ordPrdSeq"));
+				String key = seq != null ? seq : CLAIM_ORDER_WIDE;
+				signals.computeIfAbsent(ordNo, k -> new LinkedHashMap<>()).put(key, claim);
+			}
+		} catch (Exception e) {
+			log.warn("11번가 {} 목록 조회 실패 ({}~{}): {}", label, startTime, endTime, e.getMessage());
+		}
+	}
+
 	private MarketFetchOutcome doFetchOrders(MarketCredential credential,
 		LocalDate fromDate, LocalDate toDate) {
 		Map<String, OrderAccumulator> orders = new LinkedHashMap<>();

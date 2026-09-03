@@ -19,6 +19,8 @@ public interface CoupangOrderApiPort {
 
 	JsonNode queryReturns(MarketCredential credential, String fromDate, String toDate);
 
+	JsonNode queryExchanges(MarketCredential credential, String fromDate, String toDate);
+
 	JsonNode queryProduct(MarketCredential credential, long sellerProductId);
 
 	void cancelOrder(MarketCredential credential, CoupangCancelOrderRequest request);

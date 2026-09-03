@@ -84,6 +84,28 @@ public class ElevenstStatusMapper implements MarketStatusMapper {
 		return toClaimData(byName(name), name);
 	}
 
+	public ClaimData mapCancelClaim(String ordCnStatCd) {
+		if (ordCnStatCd == null || ordCnStatCd.isBlank()) {
+			return ClaimData.builder().build();
+		}
+		String code = ordCnStatCd.trim();
+		ClaimStage stage = switch (code) {
+			case "01" -> ClaimStage.REQUESTED;
+			case "02" -> ClaimStage.DONE;
+			case "05" -> ClaimStage.REJECTED;
+			default -> null;
+		};
+		if (stage == null) {
+			log.warn("11번가 취소 상태코드(ordCnStatCd) 미매핑: '{}' → 클레임 아님으로 처리", code);
+			return ClaimData.builder().build();
+		}
+		return ClaimData.builder()
+			.claimType(ClaimType.CANCEL)
+			.claimStage(stage)
+			.claimRawCode(code)
+			.build();
+	}
+
 	private static ClaimData toClaimData(ClaimEntry entry, String rawCode) {
 		if (entry == null) {
 			return ClaimData.builder().build();

@@ -99,4 +99,34 @@ class ElevenstClaimMappingTest {
 		assertThat(mapper.mapClaimByStatusName("취소신청").getClaimStage()).isEqualTo(ClaimStage.REQUESTED);
 		assertThat(mapper.mapClaimByStatusName("배송중").getClaimType()).isEqualTo(ClaimType.NONE);
 	}
+
+	@Test
+	@DisplayName("D-278: 취소 목록 API의 ordCnStatCd 코드가 요청·완료·철회로 갈린다")
+	void cancelStatusCodesAreDistinguished() {
+		assertThat(mapper.mapCancelClaim("01").getClaimType()).isEqualTo(ClaimType.CANCEL);
+		assertThat(mapper.mapCancelClaim("01").getClaimStage()).isEqualTo(ClaimStage.REQUESTED);
+		assertThat(mapper.mapCancelClaim("02").getClaimStage()).isEqualTo(ClaimStage.DONE);
+		assertThat(mapper.mapCancelClaim("05").getClaimStage()).isEqualTo(ClaimStage.REJECTED);
+	}
+
+	@Test
+	@DisplayName("D-278: 취소완료는 환불종결이다")
+	void cancelDoneIsRefundTerminal() {
+		assertThat(mapper.mapCancelClaim("02").isRefundTerminal()).isTrue();
+		assertThat(mapper.mapCancelClaim("01").isRefundTerminal()).isFalse();
+	}
+
+	@Test
+	@DisplayName("D-278: ordCnStatCd 원본 코드를 그대로 남긴다")
+	void cancelClaimKeepsRawCode() {
+		assertThat(mapper.mapCancelClaim("02").getClaimRawCode()).isEqualTo("02");
+	}
+
+	@Test
+	@DisplayName("D-278: 모르는 취소 코드나 빈 값은 클레임으로 만들지 않는다 — 짐작하지 않는다")
+	void unknownOrBlankCancelCodeIsNotAClaim() {
+		assertThat(mapper.mapCancelClaim("99").getClaimType()).isEqualTo(ClaimType.NONE);
+		assertThat(mapper.mapCancelClaim(null).getClaimType()).isEqualTo(ClaimType.NONE);
+		assertThat(mapper.mapCancelClaim("").getClaimType()).isEqualTo(ClaimType.NONE);
+	}
 }

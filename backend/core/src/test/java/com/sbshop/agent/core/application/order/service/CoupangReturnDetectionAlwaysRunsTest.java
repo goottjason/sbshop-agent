@@ -90,6 +90,7 @@ class CoupangReturnDetectionAlwaysRunsTest {
 		service.syncCoupangOrders(LocalDate.of(2026, 5, 4), LocalDate.of(2026, 9, 1), false);
 
 		verify(adapter).detectReturns(any(), any(), any());
+		verify(adapter).detectExchanges(any(), any(), any());
 	}
 
 	@Test
@@ -101,5 +102,6 @@ class CoupangReturnDetectionAlwaysRunsTest {
 		service.syncCoupangOrders(LocalDate.now().minusDays(30), LocalDate.now());
 
 		verify(adapter).detectReturns(any(), any(), any());
+		verify(adapter).detectExchanges(any(), any(), any());
 	}
 }

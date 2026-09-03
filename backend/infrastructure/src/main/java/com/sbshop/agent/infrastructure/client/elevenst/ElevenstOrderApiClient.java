@@ -54,6 +54,60 @@ public class ElevenstOrderApiClient implements ElevenstOrderApiPort {
 	}
 
 	@Override
+	public List<Element> fetchReturnRequestedOrders(String apiKey, String startTime, String endTime) {
+		String path = "/rest/claimservice/returnorders/" + startTime + "/" + endTime;
+		return fetchOrderList(path, apiKey, "반품요청목록");
+	}
+
+	@Override
+	public List<Element> fetchReturnCompletedOrders(String apiKey, String startTime, String endTime) {
+		String path = "/rest/claimservice/returnedorders/" + startTime + "/" + endTime;
+		return fetchOrderList(path, apiKey, "반품완료목록");
+	}
+
+	@Override
+	public List<Element> fetchReturnWithdrawnOrders(String apiKey, String startTime, String endTime) {
+		String path = "/rest/claimservice/retractretorders/" + startTime + "/" + endTime;
+		return fetchOrderList(path, apiKey, "반품철회목록");
+	}
+
+	@Override
+	public List<Element> fetchExchangeRequestedOrders(String apiKey, String startTime, String endTime) {
+		String path = "/rest/claimservice/exchangeorders/" + startTime + "/" + endTime;
+		return fetchOrderList(path, apiKey, "교환요청목록");
+	}
+
+	@Override
+	public List<Element> fetchExchangeCompletedOrders(String apiKey, String startTime, String endTime) {
+		String path = "/rest/claimservice/exchangedorders/" + startTime + "/" + endTime;
+		return fetchOrderList(path, apiKey, "교환완료목록");
+	}
+
+	@Override
+	public List<Element> fetchExchangeWithdrawnOrders(String apiKey, String startTime, String endTime) {
+		String path = "/rest/claimservice/retractexcorders/" + startTime + "/" + endTime;
+		return fetchOrderList(path, apiKey, "교환철회목록");
+	}
+
+	@Override
+	public List<Element> fetchCancelRequestedOrders(String apiKey, String startTime, String endTime) {
+		String path = "/rest/claimservice/cancelorders/" + startTime + "/" + endTime;
+		return fetchOrderList(path, apiKey, "취소요청목록");
+	}
+
+	@Override
+	public List<Element> fetchCancelCompletedOrders(String apiKey, String startTime, String endTime) {
+		String path = "/rest/claimservice/canceledorders/" + startTime + "/" + endTime;
+		return fetchOrderList(path, apiKey, "취소완료목록");
+	}
+
+	@Override
+	public List<Element> fetchCancelWithdrawnOrders(String apiKey, String startTime, String endTime) {
+		String path = "/rest/claimservice/withdrawcanceledorders/" + startTime + "/" + endTime;
+		return fetchOrderList(path, apiKey, "취소철회완료목록");
+	}
+
+	@Override
 	public void confirmOrder(String apiKey, String ordNo, String ordPrdSeq,
 		String addPrdYn, String addPrdNo, String dlvNo) {
 		String path = "/rest/ordservices/reqpackaging/"

@@ -368,6 +368,54 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		}
 	}
 
+	public void detectExchanges(MarketCredential credential, LocalDate fromDate, LocalDate toDate) {
+		JsonNode exchanges = coupangOrderApiPort.queryExchanges(
+			credential, fromDate.toString(), toDate.toString());
+		if (exchanges == null || !exchanges.isArray()) {
+			return;
+		}
+
+		Map<String, ClaimData> claimByOrderId = new LinkedHashMap<>();
+		for (JsonNode node : exchanges) {
+			String orderId = node.path("orderId").asText(null);
+			if (orderId == null || orderId.isEmpty()) {
+				continue;
+			}
+			ClaimData claim = statusMapper.mapExchangeClaim(node.path("exchangeStatus").asText(null));
+			if (claim.getClaimType().isActive()) {
+				claimByOrderId.put(orderId, claim);
+				String collectStatus = node.path("collectStatus").asText(null);
+				if (collectStatus != null && !collectStatus.isEmpty()) {
+					log.debug("쿠팡 교환 회수상태: orderId={}, exchangeStatus={}, collectStatus={}",
+						orderId, claim.getClaimRawCode(), collectStatus);
+				}
+			}
+		}
+		if (claimByOrderId.isEmpty()) {
+			return;
+		}
+
+		List<Order> dbOrders = orderRepository.findByMarketType(MarketType.COUPANG);
+		int appliedCount = 0;
+		for (Order order : dbOrders) {
+			ClaimData claim = claimByOrderId.get(order.getMarketOrderNo());
+			if (claim == null) {
+				continue;
+			}
+
+			List<OrderLineItem> items = orderLineItemRepository.findByOrderId(order.getId());
+			for (OrderLineItem item : items) {
+				item.applyClaim(claim);
+				orderLineItemRepository.save(item);
+				appliedCount++;
+			}
+		}
+
+		if (appliedCount > 0) {
+			log.info("쿠팡 교환 클레임 반영: {}건(배송 단계·정산은 마켓 값 그대로 유지)", appliedCount);
+		}
+	}
+
 	private boolean isZeroSettlement(OrderLineItem item) {
 		return item.getSettlementData() != null
 			&& item.getSettlementData().getSettlementAmount() != null

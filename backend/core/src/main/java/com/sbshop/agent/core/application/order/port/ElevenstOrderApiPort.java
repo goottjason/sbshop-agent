@@ -24,4 +24,22 @@ public interface ElevenstOrderApiPort {
 	List<Element> fetchOrderDetail(String apiKey, String ordNo);
 
 	List<Element> fetchProductOrderStatuses(String apiKey, String ordNos);
+
+	List<Element> fetchReturnRequestedOrders(String apiKey, String startTime, String endTime);
+
+	List<Element> fetchReturnCompletedOrders(String apiKey, String startTime, String endTime);
+
+	List<Element> fetchReturnWithdrawnOrders(String apiKey, String startTime, String endTime);
+
+	List<Element> fetchExchangeRequestedOrders(String apiKey, String startTime, String endTime);
+
+	List<Element> fetchExchangeCompletedOrders(String apiKey, String startTime, String endTime);
+
+	List<Element> fetchExchangeWithdrawnOrders(String apiKey, String startTime, String endTime);
+
+	List<Element> fetchCancelRequestedOrders(String apiKey, String startTime, String endTime);
+
+	List<Element> fetchCancelCompletedOrders(String apiKey, String startTime, String endTime);
+
+	List<Element> fetchCancelWithdrawnOrders(String apiKey, String startTime, String endTime);
 }

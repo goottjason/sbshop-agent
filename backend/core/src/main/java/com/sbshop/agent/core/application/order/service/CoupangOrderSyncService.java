@@ -283,6 +283,7 @@ public class CoupangOrderSyncService {
 	private void postSyncProcess(List<MarketOrderDto> orders, MarketCredential credential,
 		LocalDate fromDate, LocalDate toDate) {
 		coupangOrderAdapter.detectReturns(credential, fromDate, toDate);
+		coupangOrderAdapter.detectExchanges(credential, fromDate, toDate);
 		terminalSettlementService.zeroSettlementForRefunded(MarketType.COUPANG);
 		coupangOrderAdapter.fixCarriers(orders);
 	}

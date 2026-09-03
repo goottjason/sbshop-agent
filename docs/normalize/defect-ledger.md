@@ -103,7 +103,8 @@
 - 매핑 함수는 이미 있다 — `CoupangStatusMapper.mapExchangeClaim(exchangeStatus)`:
   `RECEIPT`→REQUESTED · `PROGRESS`→IN_PROGRESS · `SUCCESS`→DONE · `REJECT`/`CANCEL`→REJECTED
 - 남은 것: 클라이언트+포트 신설 → `CoupangOrderAdapter` 에 `detectReturns` 와 같은 꼴의 교환 감지 추가 → `item.applyClaim(...)` 배선. `collectStatus`(회수 9단계)도 함께 실으면 진단이 쉬워진다.
-- 상태: **발견** 2026-09-02
+- 수정(2026-09-03): `queryExchanges` 포트·클라이언트 신설 + `CoupangOrderAdapter.detectExchanges` 배선. `postSyncProcess` 에서 `detectReturns` 다음에 돈다. 문서 실측으로 함정 하나를 피했다 — `exchangeRequests` 는 `createdAtFrom/To` 가 **초 단위까지 필수**(`yyyy-MM-ddTHH:mm:ss`)라 `returnRequests` 의 `T00:00` 형식을 그대로 쓰면 전부 거부된다. 기간 제한도 7일이라 같은 창 페이징을 재사용했다. 정산0 분기는 넣지 않았다 — 교환은 `isRefundTerminalAt` 에서 제외돼 죽은 코드가 된다.
+- 상태: **수정완료** 2026-09-03
 
 ### D-278: 11번가 클레임 목록 API 9종이 연결되지 않았다 (2026-09-02, D-270 2단계 중 확인)
 
@@ -114,7 +115,10 @@
 - 남은 것: `ElevenstOrderApiPort` 에 9종 메서드 신설 + REST 클라이언트 + `ElevenstOrderAdapter` 배선. 엔드포인트는 [[D-270]] 원장에 있다(`claimservice/exchangeorders|exchangedorders|retractexcorders`, `returnorders|returnedorders|retractretorders`, `cancelorders|canceledorders|withdrawcanceledorders`, 각 `/{start}/{end}` 최대 30일).
 - 곁들여: 취소 `clmStat` 코드는 문서에서 확보하지 못했다(103~109 반품, 201~301 교환만). 9종을 붙일 때 `cancelorders` 응답으로 함께 확인할 것.
 - [[D-277]](쿠팡 교환 미연동)과 같은 성격 — 매핑은 준비됐고 API 연결만 남았다.
-- 상태: **발견** 2026-09-02
+- 수정(2026-09-03): 포트 9종 + 클라이언트 + `ElevenstOrderAdapter.fetchClaimListSignals` + `ElevenstOrderSyncService.applyClaimListSignals` 배선. 배송 단계는 건드리지 않고 `applyClaim` 만 한다.
+- **취소는 `clmStat` 이 아니었다.** 취소 3종(`cancelorders`/`canceledorders`/`withdrawcanceledorders`) 응답에는 `clmStat` 필드 자체가 없고 **`ordCnStatCd`** 가 온다 — `01` 취소요청 → REQUESTED · `02` 취소완료 → DONE · `05` 취소신청취소(철회완료) → REJECTED. 그래서 `mapCancelClaim` 을 `mapClaim` 과 분리했다. 응답 루트 태그도 `<s2:orders>` 로 반품·교환 6종의 `<ns2:orders>` 와 다르지만, 파서가 자식 태그명으로 찾아 영향은 없다.
+- 호출 주기: 30일 청크로 사이클당 9콜(반품3+교환3+취소3), 콜 사이 500ms. `detectClaims` 와 같은 게이트(`createMissing && fetchComplete`)에서만 돌아 갱신전용·백필에는 붙지 않는다. 같은 `ordNo`+`seq` 가 여러 목록에 겹치면 호출 순서(요청→완료→철회)대로 나중 것이 남는다.
+- 상태: **수정완료** 2026-09-03
 
 ## 배포 전 수동 DDL — **적용 완료 2026-09-02**
 
