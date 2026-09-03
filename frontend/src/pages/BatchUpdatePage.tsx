@@ -7,6 +7,7 @@ import {
 import { batchApi } from '../api/batchApi';
 import { notify } from '../utils/notify';
 import { fetchVendorPricePolicies, type VendorPricePolicy } from '../api/vendorPricePolicyApi';
+import BatchResultTable from '../components/batch/BatchResultTable';
 
 interface BatchSummary {
   batchId: string;
@@ -26,6 +27,29 @@ interface ManualItem {
 }
 
 type BatchMode = 'supplier' | 'crawl' | 'direct';
+
+interface CrawlParams {
+  marginRate: number;
+  couponRate: number;
+  minMarginPrice: number;
+}
+
+const RETRY_PARAMS_KEY = 'sbshop.batch.retryParams';
+
+const readRetryParams = (): CrawlParams | null => {
+  try {
+    const raw = localStorage.getItem(RETRY_PARAMS_KEY);
+    return raw ? (JSON.parse(raw) as CrawlParams) : null;
+  } catch {
+    return null;
+  }
+};
+
+const crawlParams = (values: { marginRate: number; couponRate: number; minMarginPrice: number }): CrawlParams => ({
+  marginRate: values.marginRate,
+  couponRate: values.couponRate,
+  minMarginPrice: values.minMarginPrice,
+});
 
 const GREEN = '#166534';
 
@@ -147,6 +171,8 @@ const BatchUpdatePage = () => {
   }, [activePolicy, form]);
 
   const [batchId, setBatchId] = useState<string | null>(() => localStorage.getItem(ACTIVE_BATCH_KEY));
+  const [retryParams, setRetryParams] = useState<CrawlParams | null>(() => readRetryParams());
+  const [retrying, setRetrying] = useState(false);
 
   const mountedRef = useRef(true);
   const batchIdRef = useRef<string | null>(batchId);
@@ -189,10 +215,39 @@ const BatchUpdatePage = () => {
     },
   });
 
-  const startTracking = useCallback((id: string) => {
+  const startTracking = useCallback((id: string, params?: CrawlParams) => {
     localStorage.setItem(ACTIVE_BATCH_KEY, id);
+    if (params) {
+      localStorage.setItem(RETRY_PARAMS_KEY, JSON.stringify(params));
+    } else {
+      localStorage.removeItem(RETRY_PARAMS_KEY);
+    }
+    setRetryParams(params ?? null);
     setBatchId(id);
   }, []);
+
+  const retryProducts = useCallback(async (productCodes: string[]) => {
+    if (!retryParams) return;
+    const ids = productCodes.map((c) => parseInt(c, 10)).filter((n) => !isNaN(n));
+    if (ids.length === 0) {
+      notify.warning('다시 실행할 상품을 찾지 못했습니다');
+      return;
+    }
+    setRetrying(true);
+    try {
+      const res = await batchApi.crawlAndUpdate(
+        ids, retryParams.marginRate, retryParams.couponRate, retryParams.minMarginPrice);
+      const startedId = (res.data as { batchId?: string }).batchId;
+      if (startedId) {
+        notify.success(`문제 ${ids.length}건 재실행 시작 (batchId: ${startedId})`);
+        startTracking(startedId, retryParams);
+      }
+    } catch {
+      notify.error('재실행 시작 실패');
+    } finally {
+      setRetrying(false);
+    }
+  }, [retryParams, startTracking]);
 
   useEffect(() => {
     const es = new EventSource(SSE_URL);
@@ -305,7 +360,7 @@ const BatchUpdatePage = () => {
         const data = res.data as { batchId?: string; count?: string; message?: string };
         if (data.batchId) {
           notify.success(`배치 시작: ${data.count}개 상품 (batchId: ${data.batchId})`);
-          startTracking(data.batchId);
+          startTracking(data.batchId, crawlParams(values));
         } else {
           notify.info(data.message || '해당 소싱업체의 상품이 없습니다.');
         }
@@ -319,7 +374,7 @@ const BatchUpdatePage = () => {
         const startedId = (res.data as { batchId?: string }).batchId;
         notify.success(`배치 시작 (batchId: ${startedId})`);
         if (startedId) {
-          startTracking(startedId);
+          startTracking(startedId, crawlParams(values));
         }
       }
     } catch {
@@ -478,6 +533,12 @@ const BatchUpdatePage = () => {
               <Typography.Text type="secondary">진행현황 불러오는 중…</Typography.Text>
             )}
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>batchId: {batchId}</Typography.Text>
+            <BatchResultTable
+              batchId={batchId}
+              polling={!isComplete}
+              onRetry={retryParams ? retryProducts : undefined}
+              retryLoading={retrying}
+            />
           </Space>
         </Card>
       )}

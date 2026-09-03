@@ -80,9 +80,30 @@ public class ProcessStatusService {
 	}
 
 	@Transactional
+	public void updateStep(String batchId, String productCode, ProcessStep step,
+		ProcessStatusType status, String message, String details) {
+		processStatusRepository.findByBatchId(batchId).stream()
+			.filter(s -> s.getProductCode().equals(productCode))
+			.findFirst()
+			.ifPresent(s -> s.updateStep(step, status, message, details));
+	}
+
+	@Transactional
 	public void markPartialFailed(String batchId, String productCode, String message) {
 		updateStep(batchId, productCode, ProcessStep.UPDATE_PRODUCT_PUBLISH,
 			ProcessStatusType.PARTIAL_FAILED, message);
+	}
+
+	@Transactional
+	public void markPartialFailed(String batchId, String productCode, String message, String details) {
+		updateStep(batchId, productCode, ProcessStep.UPDATE_PRODUCT_PUBLISH,
+			ProcessStatusType.PARTIAL_FAILED, message, details);
+	}
+
+	@Transactional
+	public void markSuccess(String batchId, String productCode, String message, String details) {
+		updateStep(batchId, productCode, ProcessStep.UPDATE_PRODUCT_SAVE,
+			ProcessStatusType.SUCCESS, message, details);
 	}
 
 	@Transactional

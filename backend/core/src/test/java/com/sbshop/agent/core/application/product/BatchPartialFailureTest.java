@@ -121,8 +121,8 @@ class BatchPartialFailureTest {
 
 		runCrawlBatch();
 
-		verify(processStatusService).markPartialFailed(eq("b1"), eq(KEY), contains("SMART_STORE"));
-		verify(processStatusService, never()).markSuccess(eq("b1"), eq(KEY), anyString());
+		verify(processStatusService).markPartialFailed(eq("b1"), eq(KEY), contains("SMART_STORE"), anyString());
+		verify(processStatusService, never()).markSuccess(eq("b1"), eq(KEY), anyString(), anyString());
 	}
 
 	@Test
@@ -134,8 +134,8 @@ class BatchPartialFailureTest {
 
 		runCrawlBatch();
 
-		verify(processStatusService).markSuccess(eq("b1"), eq(KEY), anyString());
-		verify(processStatusService, never()).markPartialFailed(eq("b1"), eq(KEY), anyString());
+		verify(processStatusService).markSuccess(eq("b1"), eq(KEY), anyString(), anyString());
+		verify(processStatusService, never()).markPartialFailed(eq("b1"), eq(KEY), anyString(), anyString());
 	}
 
 	@Test
@@ -149,8 +149,8 @@ class BatchPartialFailureTest {
 
 		runCrawlBatch();
 
-		verify(processStatusService).markPartialFailed(eq("b1"), eq(KEY), contains("SMART_STORE"));
-		verify(processStatusService, never()).markSuccess(eq("b1"), eq(KEY), anyString());
+		verify(processStatusService).markPartialFailed(eq("b1"), eq(KEY), contains("SMART_STORE"), anyString());
+		verify(processStatusService, never()).markSuccess(eq("b1"), eq(KEY), anyString(), anyString());
 	}
 
 	@Test
@@ -164,8 +164,8 @@ class BatchPartialFailureTest {
 		service.manualUpdatePriceStock("b2", List.of(
 			new PriceStockItem(PRODUCT_ID, new BigDecimal("20500"), 50)));
 
-		verify(processStatusService).markPartialFailed(eq("b2"), eq(KEY), contains("SMART_STORE"));
-		verify(processStatusService, never()).markSuccess(eq("b2"), eq(KEY), anyString());
+		verify(processStatusService).markPartialFailed(eq("b2"), eq(KEY), contains("SMART_STORE"), anyString());
+		verify(processStatusService, never()).markSuccess(eq("b2"), eq(KEY), anyString(), anyString());
 	}
 
 	@Test

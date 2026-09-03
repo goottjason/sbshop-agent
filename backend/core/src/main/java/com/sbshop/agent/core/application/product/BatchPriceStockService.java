@@ -1,5 +1,8 @@
 package com.sbshop.agent.core.application.product;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sbshop.agent.core.application.fee.MarketFeeService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.dto.PriceStockItem;
@@ -51,6 +54,8 @@ public class BatchPriceStockService {
 
 	private static final int MAX_REASON_LEN = 160;
 
+	private static final ObjectMapper DETAILS_MAPPER = new ObjectMapper();
+
 	/**
 	 * 크롤 실패를 상품에 남긴다 — <b>재고·가격은 건드리지 않는다.</b> 일시 오류일 수 있기 때문이다.
 	 * 기록 자체가 실패해도 배치는 계속한다 — 부수 기록 때문에 본 작업을 멈추지 않는다.
@@ -94,12 +99,28 @@ public class BatchPriceStockService {
 	}
 
 	private boolean recordOutcome(String batchId, Long productId, MarketRepublishResult sync, String message) {
+		String details = renderMarketDetails(sync);
 		if (sync.failed().isEmpty()) {
-			processStatusService.markSuccess(batchId, String.valueOf(productId), message);
+			processStatusService.markSuccess(batchId, String.valueOf(productId), message, details);
 			return false;
 		}
-		processStatusService.markPartialFailed(batchId, String.valueOf(productId), message);
+		processStatusService.markPartialFailed(batchId, String.valueOf(productId), message, details);
 		return true;
+	}
+
+	private static String renderMarketDetails(MarketRepublishResult sync) {
+		ObjectNode root = DETAILS_MAPPER.createObjectNode();
+		ArrayNode synced = root.putArray("synced");
+		sync.synced().forEach(m -> synced.add(m.name()));
+		ArrayNode skipped = root.putArray("skipped");
+		sync.skipped().forEach(m -> skipped.add(m.name()));
+		ArrayNode failed = root.putArray("failed");
+		for (Map.Entry<MarketType, String> entry : sync.failed().entrySet()) {
+			ObjectNode one = failed.addObject();
+			one.put("market", entry.getKey().name());
+			one.put("reason", entry.getValue() == null ? "사유 없음" : entry.getValue());
+		}
+		return root.toString();
 	}
 
 	private static String batchMessage(String prefix, int failCount, int partialCount) {

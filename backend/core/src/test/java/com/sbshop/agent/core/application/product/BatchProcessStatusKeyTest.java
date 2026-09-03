@@ -101,8 +101,8 @@ class BatchProcessStatusKeyTest {
 			new BigDecimal("0.2"), BigDecimal.ZERO, BigDecimal.ZERO,
 			ActionLogConstants.BATCH_CRAWL_UPDATE);
 
-		verify(processStatusService).markSuccess(eq("batch-1"), eq(PRODUCT_ID_KEY), anyString());
-		verify(processStatusService, never()).markSuccess(eq("batch-1"), eq(SB_CODE), anyString());
+		verify(processStatusService).markSuccess(eq("batch-1"), eq(PRODUCT_ID_KEY), anyString(), anyString());
+		verify(processStatusService, never()).markSuccess(eq("batch-1"), eq(SB_CODE), anyString(), anyString());
 	}
 
 	@Test
@@ -128,7 +128,7 @@ class BatchProcessStatusKeyTest {
 			new PriceStockItem(
 				PRODUCT_ID, new BigDecimal("9900"), 50)));
 
-		verify(processStatusService).markSuccess(eq("batch-manual"), eq(PRODUCT_ID_KEY), anyString());
-		verify(processStatusService, never()).markSuccess(eq("batch-manual"), eq(SB_CODE), anyString());
+		verify(processStatusService).markSuccess(eq("batch-manual"), eq(PRODUCT_ID_KEY), anyString(), anyString());
+		verify(processStatusService, never()).markSuccess(eq("batch-manual"), eq(SB_CODE), anyString(), anyString());
 	}
 }

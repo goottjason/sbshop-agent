@@ -77,6 +77,12 @@ public class ProcessStatus extends BaseEntity {
 		this.updatedAtExtra = LocalDateTime.now();
 	}
 
+	public void updateStep(ProcessStep step, ProcessStatusType processStatus, String message,
+		String details) {
+		updateStep(step, processStatus, message);
+		this.details = details;
+	}
+
 	public void mergeChannelResult(String channelResult) {
 		if (this.details == null || this.details.isEmpty()) {
 			this.details = channelResult;
