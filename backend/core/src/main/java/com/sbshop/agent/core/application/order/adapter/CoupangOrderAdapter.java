@@ -585,7 +585,8 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 				invoiceNo = null;
 			}
 			ShippingCarrier carrier = ShippingCarrier.fromMarketCode(
-				orderNode.path("deliveryCompanyName").asText(null));
+				orderNode.path("deliveryCompanyName").asText(null),
+				"COUPANG orderNo=" + marketOrderNo);
 			ShippingStatus boxStatus = statusMapper.mapStatus(Map.of("status", status));
 
 			List<MarketLineItemDto> lineItems = new ArrayList<>();

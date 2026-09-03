@@ -335,7 +335,8 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 
 			String trackingNo = deliveryInfo.path("trackingNumber").asText(null);
 			String deliveryCompanyCode = deliveryInfo.path("deliveryCompany").asText(null);
-			ShippingCarrier carrier = ShippingCarrier.fromMarketCode(deliveryCompanyCode);
+			ShippingCarrier carrier = ShippingCarrier.fromMarketCode(deliveryCompanyCode,
+				"SMART_STORE productOrderId=" + productOrderInfo.path("productOrderId").asText(""));
 			String deliveryStatus = deliveryInfo.path("deliveryStatus").asText(null);
 
 			BigDecimal settlementAmount = null;

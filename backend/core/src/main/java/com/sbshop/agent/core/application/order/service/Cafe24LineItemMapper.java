@@ -41,7 +41,8 @@ public final class Cafe24LineItemMapper {
 				if (ShippingData.isMeaningfulTracking(tracking)) {
 					trackingByCode.putIfAbsent(shippingCode, tracking);
 					ShippingCarrier carrier = ShippingCarrier.resolve(
-						text(item, "shipping_company_code"), text(item, "shipping_company_name"));
+						text(item, "shipping_company_code"), text(item, "shipping_company_name"),
+						"CAFE24 orderNo=" + fallbackShipmentNo);
 					if (carrier != null) {
 						carrierByCode.putIfAbsent(shippingCode, carrier);
 					}

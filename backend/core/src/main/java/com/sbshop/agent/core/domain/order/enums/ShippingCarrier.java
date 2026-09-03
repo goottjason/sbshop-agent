@@ -25,11 +25,19 @@ public enum ShippingCarrier implements EnumMapperType {
 	}
 
 	public static ShippingCarrier resolve(String code, String name) {
-		ShippingCarrier byCode = fromMarketCode(code);
-		return byCode != null ? byCode : fromMarketCode(name);
+		return resolve(code, name, null);
+	}
+
+	public static ShippingCarrier resolve(String code, String name, String context) {
+		ShippingCarrier byCode = fromMarketCode(code, context);
+		return byCode != null ? byCode : fromMarketCode(name, context);
 	}
 
 	public static ShippingCarrier fromMarketCode(String code) {
+		return fromMarketCode(code, null);
+	}
+
+	public static ShippingCarrier fromMarketCode(String code, String context) {
 		if (code == null || code.isBlank())
 			return null;
 		String normalized = code.toUpperCase().replaceAll("[\\s-_]", "");
@@ -41,7 +49,8 @@ public enum ShippingCarrier implements EnumMapperType {
 			case "KGB", "로젠택배", "로젠" -> LOTTE_LOGISTICS;
 			case "ROCKET", "쿠팡로켓" -> ROCKET;
 			default -> {
-				log.warn("알 수 없는 택배사 코드: '{}' → 미매핑(null) 처리", code);
+				log.warn("알 수 없는 택배사 코드: '{}' → 미매핑(null) 처리 [{}]",
+					code, context != null ? context : "출처 미상");
 				yield null;
 			}
 		};

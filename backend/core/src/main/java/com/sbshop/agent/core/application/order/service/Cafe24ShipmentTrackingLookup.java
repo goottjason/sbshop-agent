@@ -41,7 +41,8 @@ public class Cafe24ShipmentTrackingLookup {
 				continue;
 			}
 			ShippingCarrier carrier = ShippingCarrier.resolve(
-				text(shipment, "shipping_company_code"), text(shipment, "shipping_company_name"));
+				text(shipment, "shipping_company_code"), text(shipment, "shipping_company_name"),
+				"CAFE24 배송건 orderId=" + cafe24OrderId);
 			log.info("[Cafe24 배송건] 실송장 발견 orderId={}, tracking={}, carrier={}",
 				cafe24OrderId, trackingNo, carrier);
 			return new Found(trackingNo, carrier);
