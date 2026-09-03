@@ -18,6 +18,8 @@ import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.vo.ClaimData;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
+import com.sbshop.agent.core.domain.order.Shipment;
+import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 
 import lombok.extern.slf4j.Slf4j;
@@ -28,16 +30,22 @@ public class OrderReconciliationService {
 	private final OrderRepository orderRepository;
 	private final OrderLineItemRepository orderLineItemRepository;
 	private final MarketOrderProbeRouter probeRouter;
+	private final ShipmentRepository shipmentRepository;
+	private final TrackingMismatchResolver trackingMismatchResolver;
 	private final long probeDelayMillis;
 
 	public OrderReconciliationService(OrderRepository orderRepository,
 		OrderLineItemRepository orderLineItemRepository,
 		MarketOrderProbeRouter probeRouter,
+		ShipmentRepository shipmentRepository,
+		TrackingMismatchResolver trackingMismatchResolver,
 		@Value("${sbshop.order.probe-delay-ms:300}")
 		long probeDelayMillis) {
 		this.orderRepository = orderRepository;
 		this.orderLineItemRepository = orderLineItemRepository;
 		this.probeRouter = probeRouter;
+		this.shipmentRepository = shipmentRepository;
+		this.trackingMismatchResolver = trackingMismatchResolver;
 		this.probeDelayMillis = probeDelayMillis;
 	}
 
@@ -77,6 +85,7 @@ public class OrderReconciliationService {
 					marketType, orderNo, result.status(), result.rawMessage());
 				continue;
 			}
+			applyMarketTracking(order, result.marketTrackingNo());
 			changed += apply(order, resolved, result.claim());
 		}
 		if (probed > 0) {
@@ -99,6 +108,7 @@ public class OrderReconciliationService {
 				marketType, order.getMarketOrderNo(), result.status(), result.rawMessage());
 			return 0;
 		}
+		applyMarketTracking(order, result.marketTrackingNo());
 		return apply(order, resolved, result.claim());
 	}
 
@@ -121,6 +131,17 @@ public class OrderReconciliationService {
 	private boolean hasActiveClaim(OrderProbeResult result) {
 		ClaimData claim = result.claim();
 		return claim != null && claim.getClaimType().isActive();
+	}
+
+	private void applyMarketTracking(Order order, String marketTrackingNo) {
+		if (marketTrackingNo == null || marketTrackingNo.isBlank()) {
+			return;
+		}
+		for (Shipment shipment : shipmentRepository.findByOrderId(order.getId())) {
+			shipment.applyMarketTracking(marketTrackingNo);
+			shipmentRepository.save(shipment);
+			trackingMismatchResolver.resolve(order.getMarketType(), shipment);
+		}
 	}
 
 	private int apply(Order order, ShippingStatus resolved, ClaimData claim) {

@@ -21,6 +21,7 @@ import com.sbshop.agent.core.application.order.probe.OrderProbeResult;
 import com.sbshop.agent.core.domain.order.enums.OrderProbeStatus;
 import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
+import com.sbshop.agent.core.domain.order.Shipment;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
@@ -32,6 +33,8 @@ class OrderReconciliationServiceTest {
 	private OrderRepository orderRepository;
 	private OrderLineItemRepository lineItemRepository;
 	private MarketOrderProbeRouter probeRouter;
+	private com.sbshop.agent.core.domain.order.repository.ShipmentRepository shipmentRepository;
+	private TrackingMismatchResolver trackingMismatchResolver;
 	private OrderReconciliationService service;
 
 	private static final LocalDate FROM = LocalDate.of(2026, 5, 4);
@@ -42,8 +45,11 @@ class OrderReconciliationServiceTest {
 		orderRepository = mock(OrderRepository.class);
 		lineItemRepository = mock(OrderLineItemRepository.class);
 		probeRouter = mock(MarketOrderProbeRouter.class);
+		shipmentRepository = mock(com.sbshop.agent.core.domain.order.repository.ShipmentRepository.class);
+		trackingMismatchResolver = mock(TrackingMismatchResolver.class);
 		when(probeRouter.has(any())).thenReturn(true);
-		service = new OrderReconciliationService(orderRepository, lineItemRepository, probeRouter, 0);
+		service = new OrderReconciliationService(orderRepository, lineItemRepository, probeRouter,
+			shipmentRepository, trackingMismatchResolver, 0);
 	}
 
 	private Order order(String no, LocalDate date) {
@@ -297,6 +303,43 @@ class OrderReconciliationServiceTest {
 		service.reconcile(MarketType.GMARKET, FROM, TO, Set.of());
 
 		verify(li, never()).applyClaim(any());
+	}
+
+	@Test
+	@DisplayName("D-274: 확증이 마켓 송장도 반영한다 — 목록이 닿지 않는 오래된 주문은 여기서만 대조된다")
+	void reconcileAppliesMarketTracking() {
+		Order o = order("ORD-1", LocalDate.of(2026, 7, 1));
+		when(o.getMarketType()).thenReturn(MarketType.GMARKET);
+		OrderLineItem li = item(ShippingStatus.SHIPPED);
+		Shipment shipment = Shipment.builder().orderId(1L).marketShipmentNo("SH-1").build();
+		when(orderRepository.findByMarketType(MarketType.GMARKET)).thenReturn(List.of(o));
+		when(lineItemRepository.findByOrderId(1L)).thenReturn(List.of(li));
+		when(shipmentRepository.findByOrderId(1L)).thenReturn(List.of(shipment));
+		when(probeRouter.probe(any(), any()))
+			.thenReturn(OrderProbeResult.found(ShippingStatus.SHIPPED, null, "424410969006"));
+
+		service.reconcile(MarketType.GMARKET, FROM, TO, Set.of());
+
+		assertThat(shipment.getMarketTrackingNo()).isEqualTo("424410969006");
+		verify(shipmentRepository).save(shipment);
+		verify(trackingMismatchResolver).resolve(MarketType.GMARKET, shipment);
+	}
+
+	@Test
+	@DisplayName("D-274: 프로브가 송장을 안 실어오면 기존 마켓 송장을 지우지 않는다")
+	void reconcileKeepsTrackingWhenAbsent() {
+		Order o = order("ORD-1", LocalDate.of(2026, 7, 1));
+		OrderLineItem li = item(ShippingStatus.SHIPPED);
+		Shipment shipment = Shipment.builder().orderId(1L).marketShipmentNo("SH-1").build();
+		shipment.applyMarketTracking("OLD-TRACKING");
+		when(orderRepository.findByMarketType(MarketType.GMARKET)).thenReturn(List.of(o));
+		when(lineItemRepository.findByOrderId(1L)).thenReturn(List.of(li));
+		when(shipmentRepository.findByOrderId(1L)).thenReturn(List.of(shipment));
+		when(probeRouter.probe(any(), any())).thenReturn(OrderProbeResult.found(ShippingStatus.DELIVERED));
+
+		service.reconcile(MarketType.GMARKET, FROM, TO, Set.of());
+
+		assertThat(shipment.getMarketTrackingNo()).isEqualTo("OLD-TRACKING");
 	}
 
 }
