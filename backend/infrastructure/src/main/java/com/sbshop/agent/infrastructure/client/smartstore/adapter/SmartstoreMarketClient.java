@@ -149,11 +149,8 @@ public class SmartstoreMarketClient implements MarketClient {
 				originProduct.put("stockQuantity", 0);
 			} else {
 				originProduct.put("stockQuantity", quantity);
-				Object current = originProduct.get("statusType");
-				if (current == null || "SALE".equals(current) || "OUTOFSTOCK".equals(current)) {
-					originProduct.put("statusType", "SALE");
-				}
 			}
+			normalizeReadOnlyStatusType(originProduct);
 
 			Map<String, Object> requestBody = new HashMap<>();
 			requestBody.put("originProduct", originProduct);
@@ -285,10 +282,17 @@ public class SmartstoreMarketClient implements MarketClient {
 	}
 
 	private static void normalizeReadOnlyStatusType(Map<String, Object> originProduct) {
-		if ("OUTOFSTOCK".equals(originProduct.get("statusType"))) {
+		Object current = originProduct.get("statusType");
+		if ("OUTOFSTOCK".equals(current)) {
 			originProduct.put("statusType", "SALE");
 			log.info("[스토어] statusType=OUTOFSTOCK → SALE 치환 — 조회 전용 파생값이라 "
 				+ "그대로도 빈 값으로도 PUT 이 거부된다. 재고 0 이면 네이버가 다시 품절로 표시한다");
+			return;
+		}
+		if (current == null || String.valueOf(current).isBlank()) {
+			originProduct.put("statusType", "SALE");
+			log.info("[스토어] statusType 이 비어 SALE 로 채운다 — 옛 상품은 이 값이 없어 "
+				+ "NotValidEnum 으로 모든 수정이 거부된다");
 		}
 	}
 
