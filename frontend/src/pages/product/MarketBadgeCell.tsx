@@ -228,6 +228,7 @@ export function MarketBadgeCell({ product, onPublished }:
       })}
     </div>
     <AntModal
+      rootClassName="product-theme"
       title={publishTarget ? `${publishTarget.label} 등록` : ''}
       open={publishTarget != null}
       onCancel={() => setPublishTarget(null)}

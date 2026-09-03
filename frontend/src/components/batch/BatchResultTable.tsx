@@ -50,6 +50,16 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
   PENDING: { label: '대기', color: 'default' },
 };
 
+const MESSAGE_FIELD = /"message"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+
+function humanReason(reason: string): { lead: string; raw: string | null } {
+  if (!reason) return { lead: '사유 없음', raw: null };
+  const found = [...reason.matchAll(MESSAGE_FIELD)].map((m) => m[1]).filter(Boolean);
+  if (found.length === 0) return { lead: reason, raw: null };
+  const lead = found[found.length - 1].replace(/\\"/g, '"');
+  return { lead, raw: reason };
+}
+
 function headline(message: string): string {
   if (!message) return '';
   const cut = message.indexOf(' · 마켓반영');
@@ -123,11 +133,25 @@ const BatchResultTable = ({ batchId, polling = false, onRetry, retryLabel, retry
         return (
           <Space direction="vertical" size={2} style={{ width: '100%' }}>
             <Typography.Text>{headline(row.message)}</Typography.Text>
-            {d.failed.map((f) => (
-              <Typography.Text key={f.market} type="danger" style={{ fontSize: 12 }}>
-                {marketLabel(f.market)} — {f.reason}
-              </Typography.Text>
-            ))}
+            {d.failed.map((f) => {
+              const { lead, raw } = humanReason(f.reason);
+              return (
+                <Space key={f.market} direction="vertical" size={0} style={{ width: '100%' }}>
+                  <Typography.Text type="danger" style={{ fontSize: 12 }}>
+                    {marketLabel(f.market)} — {lead}
+                  </Typography.Text>
+                  {raw && (
+                    <Typography.Paragraph
+                      type="secondary"
+                      style={{ fontSize: 11, marginBottom: 0 }}
+                      ellipsis={{ rows: 1, expandable: true, symbol: '원문' }}
+                    >
+                      {raw}
+                    </Typography.Paragraph>
+                  )}
+                </Space>
+              );
+            })}
             {d.synced.length > 0 && (
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 전송됨: {d.synced.map(marketLabel).join(', ')}

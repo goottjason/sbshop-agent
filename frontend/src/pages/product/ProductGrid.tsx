@@ -314,6 +314,7 @@ export default function ProductGrid() {
       </div>
 
       <AntModal
+        rootClassName="product-theme"
         title={`선택 상품 가격/재고 업데이트 (${selectedIds.length}개)`}
         open={bulkOpen}
         onCancel={() => setBulkOpen(false)}

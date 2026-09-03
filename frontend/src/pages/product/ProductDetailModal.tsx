@@ -251,6 +251,7 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
 
   return (
     <Modal
+      rootClassName="product-theme"
       open={open}
       onCancel={onClose}
       width={660}
