@@ -118,6 +118,8 @@
 - 수정(2026-09-03): 포트 9종 + 클라이언트 + `ElevenstOrderAdapter.fetchClaimListSignals` + `ElevenstOrderSyncService.applyClaimListSignals` 배선. 배송 단계는 건드리지 않고 `applyClaim` 만 한다.
 - **취소는 `clmStat` 이 아니었다.** 취소 3종(`cancelorders`/`canceledorders`/`withdrawcanceledorders`) 응답에는 `clmStat` 필드 자체가 없고 **`ordCnStatCd`** 가 온다 — `01` 취소요청 → REQUESTED · `02` 취소완료 → DONE · `05` 취소신청취소(철회완료) → REJECTED. 그래서 `mapCancelClaim` 을 `mapClaim` 과 분리했다. 응답 루트 태그도 `<s2:orders>` 로 반품·교환 6종의 `<ns2:orders>` 와 다르지만, 파서가 자식 태그명으로 찾아 영향은 없다.
 - 호출 주기: 30일 청크로 사이클당 9콜(반품3+교환3+취소3), 콜 사이 500ms. `detectClaims` 와 같은 게이트(`createMissing && fetchComplete`)에서만 돌아 갱신전용·백필에는 붙지 않는다. 같은 `ordNo`+`seq` 가 여러 목록에 겹치면 호출 순서(요청→완료→철회)대로 나중 것이 남는다.
+- 라이브 검증 중 결함 하나(2026-09-03): `applyClaimListSignals` 가 **주문일 창**으로 다시 걸러 클레임 신호를 버리고 있었다. 클레임 목록 API 는 *클레임 발생일* 기준으로 조회하는데 우리가 *주문일* 로 재차 거르니, 오래된 주문의 최근 클레임이 통째로 사라진다. 라이브에서 취소완료 1건(`20260802089431131`, 32일 전 주문)이 조회됐는데 반영되지 않아 드러났다. 창 필터를 제거했다 — 마켓이 "이 주문에 클레임이 있다"고 명시한 목록이므로 주문일과 무관하게 신뢰한다.
+- 관측(무해): `lookback 30일` + `청크 29일(=30일치)` 이라 청크가 2개가 되어 9종이 두 번씩(18회) 호출된다. 두 번째는 하루짜리라 대개 0건이다. 호출량이 아깝지만 기능에는 영향 없다.
 - 상태: **수정완료** 2026-09-03
 
 ## 배포 전 수동 DDL — **적용 완료 2026-09-02**

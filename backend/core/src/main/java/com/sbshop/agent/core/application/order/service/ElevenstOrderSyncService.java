@@ -245,12 +245,6 @@ public class ElevenstOrderSyncService {
 		int orderCount = 0;
 
 		for (Order order : dbOrders) {
-			if (order.getOrderDate() != null) {
-				LocalDate orderDate = order.getOrderDate().toLocalDate();
-				if (orderDate.isBefore(fromDate) || orderDate.isAfter(toDate)) {
-					continue;
-				}
-			}
 			Map<String, ClaimData> claims = claimSignals.get(order.getMarketOrderNo());
 			if (claims == null || claims.isEmpty()) {
 				continue;

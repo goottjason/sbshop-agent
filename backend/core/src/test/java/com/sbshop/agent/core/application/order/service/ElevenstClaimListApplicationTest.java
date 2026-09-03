@@ -145,6 +145,28 @@ class ElevenstClaimListApplicationTest {
 		assertThat(item.getClaimData().getClaimStage()).isEqualTo(ClaimStage.REQUESTED);
 	}
 
+	@Test
+	@DisplayName("D-278: 주문일이 조회 구간 밖이어도 클레임 목록에 나오면 반영한다 — 클레임은 주문 한참 뒤에 생긴다")
+	void claimSignalsApplyToOrdersOutsideOrderDateWindow() {
+		Order order = Order.builder().marketType(MarketType.ELEVEN_STREET)
+			.marketOrderNo("20260802089431131")
+			.orderDate(LocalDateTime.now().minusDays(60)).build();
+		ReflectionTestUtils.setField(order, "id", 900L);
+		OrderLineItem item = lineItem(900L, "1");
+		when(orderRepository.findByMarketType(MarketType.ELEVEN_STREET)).thenReturn(List.of(order));
+		when(orderLineItemRepository.findByOrderId(900L)).thenReturn(List.of(item));
+
+		ClaimData claim = ClaimData.builder()
+			.claimType(ClaimType.CANCEL).claimStage(ClaimStage.DONE).claimRawCode("02").build();
+		when(adapter.fetchClaimListSignals(anyString(), any(), any()))
+			.thenReturn(Map.of("20260802089431131", Map.of("1", claim)));
+
+		service.syncElevenstOrders(LocalDate.now().minusDays(30), LocalDate.now());
+
+		assertThat(item.getClaimData().getClaimType()).isEqualTo(ClaimType.CANCEL);
+		assertThat(item.getClaimData().getClaimRawCode()).isEqualTo("02");
+	}
+
 	private Order liveOrder(String marketOrderNo) {
 		Order o = Order.builder().marketType(MarketType.ELEVEN_STREET)
 			.marketOrderNo(marketOrderNo)
