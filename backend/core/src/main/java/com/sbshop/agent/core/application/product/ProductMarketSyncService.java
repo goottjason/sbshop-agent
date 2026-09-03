@@ -88,7 +88,8 @@ public class ProductMarketSyncService {
 		for (MarketRegistration reg : registrations) {
 			MarketType marketType = reg.getMarketType();
 
-			if (marketType == MarketType.CAFE24 && !changed && Boolean.TRUE.equals(reg.getIsSynced())) {
+			if (marketType == MarketType.CAFE24 && !changed && Boolean.TRUE.equals(reg.getIsSynced())
+				&& reg.getLastSyncError() == null) {
 				skipped.add(marketType);
 				log.info("[가격재고동기화] 변경없음 스킵(Cafe24): productId={}", productId);
 				continue;
