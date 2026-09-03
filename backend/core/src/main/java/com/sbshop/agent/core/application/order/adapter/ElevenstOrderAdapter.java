@@ -241,7 +241,7 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 				signals.computeIfAbsent(ordNo, k -> new LinkedHashMap<>()).put(key, claim);
 			}
 			if (indexed > 0) {
-				log.info("11번가 {} 목록: {}건 색인", label, indexed);
+				log.info("11번가 {} 목록: {}건 색인, 주문번호={}", label, indexed, signals.keySet());
 			}
 		} catch (Exception e) {
 			log.warn("11번가 {} 목록 조회 실패 ({}~{}): {}", label, startTime, endTime, e.getMessage());

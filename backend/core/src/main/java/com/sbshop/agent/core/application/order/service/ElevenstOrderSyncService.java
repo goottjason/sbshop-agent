@@ -267,6 +267,9 @@ public class ElevenstOrderSyncService {
 
 		if (orderCount > 0) {
 			log.info("[ELEVEN_STREET] 클레임 목록 API로 {}건 주문에 클레임 반영", orderCount);
+		} else {
+			log.warn("[ELEVEN_STREET] 클레임 목록 신호 {}건이 어느 주문과도 짝지어지지 않았다: 신호={}",
+				claimSignals.size(), claimSignals.keySet());
 		}
 	}
 
