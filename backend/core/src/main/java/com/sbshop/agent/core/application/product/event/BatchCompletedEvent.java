@@ -5,15 +5,22 @@ import org.springframework.context.ApplicationEvent;
 public class BatchCompletedEvent extends ApplicationEvent {
 	private final String batchId;
 	private final String actionType;
-	private final boolean success;
+	private final int failCount;
+	private final int partialCount;
 	private final String message;
 
-	public BatchCompletedEvent(Object source, String batchId, String actionType, boolean success, String message) {
+	public BatchCompletedEvent(Object source, String batchId, String actionType,
+		int failCount, int partialCount, String message) {
 		super(source);
 		this.batchId = batchId;
 		this.actionType = actionType;
-		this.success = success;
+		this.failCount = failCount;
+		this.partialCount = partialCount;
 		this.message = message;
+	}
+
+	public BatchCompletedEvent(Object source, String batchId, String actionType, boolean success, String message) {
+		this(source, batchId, actionType, success ? 0 : 1, 0, message);
 	}
 
 	public String getBatchId() {
@@ -25,7 +32,15 @@ public class BatchCompletedEvent extends ApplicationEvent {
 	}
 
 	public boolean isSuccess() {
-		return success;
+		return failCount == 0 && partialCount == 0;
+	}
+
+	public int getFailCount() {
+		return failCount;
+	}
+
+	public int getPartialCount() {
+		return partialCount;
 	}
 
 	public String getMessage() {

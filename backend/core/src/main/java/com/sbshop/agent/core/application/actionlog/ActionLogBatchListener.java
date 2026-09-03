@@ -16,7 +16,14 @@ public class ActionLogBatchListener {
 
 	@EventListener
 	public void onBatchCompleted(BatchCompletedEvent event) {
-		ActionStatus status = event.isSuccess() ? ActionStatus.SUCCESS : ActionStatus.FAILED;
+		ActionStatus status;
+		if (event.getFailCount() > 0) {
+			status = ActionStatus.FAILED;
+		} else if (event.getPartialCount() > 0) {
+			status = ActionStatus.WARNING;
+		} else {
+			status = ActionStatus.SUCCESS;
+		}
 		actionLogService.record(event.getActionType(), null, status,
 			event.getMessage() + " (batchId=" + event.getBatchId() + ")");
 	}

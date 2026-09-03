@@ -267,7 +267,7 @@ public class BatchPriceStockService {
 		}
 		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId,
 			actionType,
-			failCount == 0 && partialCount == 0,
+			failCount, partialCount,
 			batchMessage("배치 완료", failCount, partialCount)));
 	}
 
@@ -321,7 +321,7 @@ public class BatchPriceStockService {
 		}
 		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId,
 			ActionLogConstants.BATCH_MANUAL_UPDATE,
-			failCount == 0 && partialCount == 0,
+			failCount, partialCount,
 			batchMessage("수동 배치 완료", failCount, partialCount)));
 	}
 
@@ -349,7 +349,7 @@ public class BatchPriceStockService {
 		}
 		eventPublisher.publishEvent(new BatchCompletedEvent(this, batchId,
 			ActionLogConstants.BATCH_MANUAL_UPDATE_ALL,
-			failCount == 0, failCount == 0 ? "전체 필드 배치 완료" : "전체 필드 배치 완료(실패 " + failCount + "건)"));
+			failCount, 0, failCount == 0 ? "전체 필드 배치 완료" : "전체 필드 배치 완료(실패 " + failCount + "건)"));
 	}
 
 	public List<Long> getProductIdsByVendor(VendorType vendor) {
