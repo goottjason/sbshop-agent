@@ -221,18 +221,27 @@ public class ElevenstOrderAdapter implements MarketOrderPort {
 			if (rows == null) {
 				return;
 			}
+			int indexed = 0;
 			for (Element row : rows) {
 				String ordNo = emptyToNull(ElevenstXmlUtils.getElementText(row, "ordNo"));
 				if (ordNo == null) {
+					log.warn("11번가 {} 목록: ordNo 없는 행 건너뜀", label);
 					continue;
 				}
 				ClaimData claim = toClaimData.apply(row);
 				if (!claim.getClaimType().isActive()) {
+					log.warn("11번가 {} 목록: 클레임으로 못 읽은 행 ordNo={} clmStat={} ordCnStatCd={}",
+						label, ordNo, ElevenstXmlUtils.getElementText(row, "clmStat"),
+						ElevenstXmlUtils.getElementText(row, "ordCnStatCd"));
 					continue;
 				}
+				indexed++;
 				String seq = emptyToNull(ElevenstXmlUtils.getElementText(row, "ordPrdSeq"));
 				String key = seq != null ? seq : CLAIM_ORDER_WIDE;
 				signals.computeIfAbsent(ordNo, k -> new LinkedHashMap<>()).put(key, claim);
+			}
+			if (indexed > 0) {
+				log.info("11번가 {} 목록: {}건 색인", label, indexed);
 			}
 		} catch (Exception e) {
 			log.warn("11번가 {} 목록 조회 실패 ({}~{}): {}", label, startTime, endTime, e.getMessage());
