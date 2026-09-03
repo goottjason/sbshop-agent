@@ -3,6 +3,7 @@ package com.sbshop.agent.core.application.product;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.product.dto.PricingInputs;
+import com.sbshop.agent.core.domain.market.SyncErrorType;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.MarketFailureClassifier;
 import com.sbshop.agent.core.domain.market.UnsyncReason;
@@ -13,12 +14,14 @@ import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.component.ProductReader;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,6 +36,8 @@ public class ProductMarketSyncService {
 
 	private final ProductReader productReader;
 	private final ObjectMapper objectMapper = new ObjectMapper();
+
+	private static final int BLOCKED_RECHECK_DAYS = 7;
 
 	public MarketRepublishResult syncPriceStock(Long productId, Integer price, StockStatus stockStatus) {
 		return syncPriceStock(productId, price, stockStatus, true);
@@ -91,6 +96,12 @@ public class ProductMarketSyncService {
 			if (!marketClientRouter.hasClient(marketType)) {
 				skipped.add(marketType);
 				log.info("[가격재고동기화] 마켓 클라이언트 없음 — 스킵: productId={}, market={}", productId, marketType);
+				continue;
+			}
+			String writeBlock = writeBlockedReason(reg);
+			if (writeBlock != null) {
+				skipped.add(marketType);
+				log.info("[가격재고동기화] {} — 스킵: productId={}, market={}", writeBlock, productId, marketType);
 				continue;
 			}
 			try {
@@ -169,12 +180,48 @@ public class ProductMarketSyncService {
 		}
 	}
 
+	private static String writeBlockedReason(MarketRegistration reg) {
+		if (reg.getUnsyncReason() == UnsyncReason.DELETED_ON_MARKET) {
+			return "마켓에서 삭제된 상품";
+		}
+		if (reg.getLastSyncError() != SyncErrorType.BLOCKED_BY_MARKET) {
+			return null;
+		}
+		LocalDateTime blockedAt = reg.getLastSyncErrorAt();
+		if (blockedAt == null || blockedAt.isBefore(LocalDateTime.now().minusDays(BLOCKED_RECHECK_DAYS))) {
+			return null;
+		}
+		return "마켓이 막아둔 상품(재확인까지 " + BLOCKED_RECHECK_DAYS + "일)";
+	}
+
 	private String rootMessage(Throwable e) {
 		Throwable cur = e;
 		while (cur.getCause() != null && cur.getCause() != cur) {
 			cur = cur.getCause();
 		}
 		String msg = cur.getMessage();
-		return msg != null ? msg : cur.getClass().getSimpleName();
+		return msg != null ? sanitizeMarketMessage(msg) : cur.getClass().getSimpleName();
+	}
+
+	private static final Pattern HTML_TAG_PATTERN = Pattern.compile("</?[a-zA-Z][^>]*>");
+	private static final int MAX_SYNC_ERROR_LENGTH = 480;
+
+	static String sanitizeMarketMessage(String message) {
+		if (message == null) {
+			return null;
+		}
+		String noTags = HTML_TAG_PATTERN.matcher(message).replaceAll("");
+		String noEntities = noTags
+			.replace("&lt;", "<")
+			.replace("&gt;", ">")
+			.replace("&quot;", "\"")
+			.replace("&#39;", "'")
+			.replace("&nbsp;", " ")
+			.replace("&amp;", "&");
+		String collapsed = noEntities.replaceAll("\\s+", " ").trim();
+		if (collapsed.length() > MAX_SYNC_ERROR_LENGTH) {
+			return collapsed.substring(0, MAX_SYNC_ERROR_LENGTH) + "…";
+		}
+		return collapsed;
 	}
 }
