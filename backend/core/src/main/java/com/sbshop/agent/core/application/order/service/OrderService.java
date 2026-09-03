@@ -131,15 +131,16 @@ public class OrderService {
 		}
 
 		MarketType mt = order.getMarketType();
-		boolean sentToMarket = mt == MarketType.GMARKET || mt == MarketType.AUCTION;
-		if (sentToMarket) {
+		if (supportsMarketCancel(mt)) {
 			try {
 				marketplaceShippingService.cancelOrderToMarketplace(order);
 			} catch (Exception e) {
 				log.error("마켓 주문취소 전파 실패: order={} ({}): {}", id, order.getMarketOrderNo(), e.getMessage());
 				throw new RuntimeException("마켓 주문취소 실패: " + e.getMessage(), e);
 			}
-			return order;
+			if (reflectsCancelOnRefetch(mt)) {
+				return order;
+			}
 		}
 
 		for (OrderLineItem item : lineItems) {
@@ -154,6 +155,15 @@ public class OrderService {
 		}
 
 		return order;
+	}
+
+	private static boolean supportsMarketCancel(MarketType mt) {
+		return mt == MarketType.GMARKET || mt == MarketType.AUCTION
+			|| mt == MarketType.COUPANG || mt == MarketType.SMART_STORE;
+	}
+
+	private static boolean reflectsCancelOnRefetch(MarketType mt) {
+		return mt == MarketType.GMARKET || mt == MarketType.AUCTION;
 	}
 
 	@Transactional
