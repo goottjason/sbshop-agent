@@ -11,6 +11,7 @@ import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.service.MarginCalculator;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -26,8 +27,9 @@ public class MarketSalePriceResolver {
 
 	public Integer resolve(PricingInputs p, MarketType marketType) {
 		BigDecimal fee = marketFeeService.feeRate(marketType);
-		return marginCalculator.calculateSalePrice(p.buyPrice(), p.bundleQty(), p.marginRate(),
-			p.couponRate(), p.minMarginPrice(), fee).intValue();
+		BigDecimal price = marginCalculator.calculateSalePrice(p.buyPrice(), p.bundleQty(), p.marginRate(),
+			p.couponRate(), p.minMarginPrice(), fee);
+		return roundForMarket(price, marketType).intValue();
 	}
 
 	public BigDecimal resolveForProduct(Product product, MarketType marketType) {
@@ -47,19 +49,26 @@ public class MarketSalePriceResolver {
 		if (costPrice == null || costPrice.signum() <= 0 || marginRate == null) {
 			log.info("[등록가] 원가·마진 미보유 → 기준가로 등록: sbCode={}, market={}",
 				product.getSbCode(), marketType);
-			return product.getSalePrice();
+			return roundForMarket(product.getSalePrice(), marketType);
 		}
 		int bundleQty = product.getLogisticsInfo() != null
 			&& product.getLogisticsInfo().getBundleQuantity() != null
 				? product.getLogisticsInfo().getBundleQuantity() : 1;
 		BigDecimal fee = marketFeeService.feeRate(marketType);
 		if (vendorPolicy == null || vendorPolicy.getDomesticFee() == null) {
-			return marginCalculator.calculateSalePrice(costPrice, bundleQty, marginRate,
-				couponRate, minMarginPrice, fee);
+			return roundForMarket(marginCalculator.calculateSalePrice(costPrice, bundleQty, marginRate,
+				couponRate, minMarginPrice, fee), marketType);
 		}
-		return marginCalculator.calculateSalePrice(costPrice, bundleQty, marginRate,
+		return roundForMarket(marginCalculator.calculateSalePrice(costPrice, bundleQty, marginRate,
 			couponRate, minMarginPrice, fee,
-			vendorPolicy.getDomesticFee(), vendorPolicy.getDomesticFreeOver());
+			vendorPolicy.getDomesticFee(), vendorPolicy.getDomesticFreeOver()), marketType);
+	}
+
+	private BigDecimal roundForMarket(BigDecimal price, MarketType marketType) {
+		if (price == null || marketType != MarketType.SMART_STORE) {
+			return price;
+		}
+		return price.divide(BigDecimal.TEN, 0, RoundingMode.CEILING).multiply(BigDecimal.TEN);
 	}
 
 	private boolean isFullyOverridden(MarketSalePriceOverrides o) {
