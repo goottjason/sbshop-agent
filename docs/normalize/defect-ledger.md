@@ -5086,10 +5086,15 @@ primary 버튼의 **흰 글자만 남아 빈 흰 박스**가 됐다. `rootClassN
 포털 루트에 스코프를 실어 해결. 같은 이유로 깨질 수 있는 상품 상세·마켓배지 모달에도 함께
 넣었다. 라이브에서 `취소` / `적용` 이 정상 표시됨을 확인했다.
 
-**E — 부분 완료.** 진행현황 화면의 배치 표를 `BatchResultTable` 로 대체했다. 그 과정에서
+**E 완료 (2026-09-04, 검증대기).** 진행현황 화면의 배치 표를 `BatchResultTable` 로 대체했다. 그 과정에서
 상태 칼럼이 **HTML 문자열을 반환하고 있어 화면에 태그가 그대로 찍히던 결함**이 함께 사라졌다.
-남은 것: 부분실패가 활동로그에서는 `FAILED` 로 뭉뚱그려진다(`BatchCompletedEvent` 가
-boolean 만 나른다). `WARNING` 을 들일지는 별도 판단.
+남았던 것 — 부분실패가 활동로그에서는 `FAILED` 로 뭉뚱그려지던 문제(`BatchCompletedEvent` 가
+boolean 만 나름) — 를 마저 고쳤다. `BatchCompletedEvent` 를 `failCount`/`partialCount` 두
+정수로 확장(옛 boolean 생성자는 오버로드로 하위호환 유지)하고, `ActionLogBatchListener` 를
+세 갈래로 판정하도록 바꿨다: 완전실패(failCount>0) → `FAILED`, 부분실패만(failCount=0,
+partialCount>0) → `WARNING`, 그 외 → `SUCCESS`. 프론트 `ProcessStatusPage.tsx` 는 원시
+enum 문자열을 그대로 태그로 찍고 있었고 `WARNING: 'orange'` 매핑이 이미 있어 변경 불필요.
+TDD로 4케이스(D-269-E 접두) 추가, Red 확인 후 구현. 상세는 `_workspace/fixes/D-269-E_fix.md`.
 
 **설계 시 반드시 담을 것**: ① 마켓별 성공/스킵/실패를 행으로 ② 실패 사유 원문([[D-267]] 로 저장은 시작됐다) ③ 실패 건만 골라 재실행 ④ 진행 중·완료 상태를 정확히 ⑤ 버튼 라벨
 
@@ -5179,7 +5184,7 @@ boolean 만 나른다). `WARNING` 을 들일지는 별도 판단.
 
 ### D-281 — 배치가 크롤 단계에서 실패하면 마켓 오류 표시가 옛날 값 그대로 남는다
 
-- 심각도: 중 · 리스크: 표준 · 상태: **발견** 2026-09-03
+- 심각도: 중 · 리스크: 표준 · 상태: **수정완료(검증대기)** 2026-09-04 (잔여 알맹이 ① 나이 표시만 — 알맹이 ②는 [[D-286]]으로 분리 등재됨)
 - 증상: 상품 1916·2069·2096·2980 이 상품관리에서 `VALIDATION_FAILED` 로 보인다. 그런데 이 값은 **오늘 실패의 결과가 아니라 며칠 전 실패의 잔여물이다** — `last_sync_error_message` 와 `last_sync_error_at` 이 비어 있다([[D-267]] 이전에 쓰인 행).
 - 실제로 오늘 벌어진 일: 아이허브 크롤이 `status: OUT_OF_STOCK, costPrice: null` 을 돌려줬고, 원가를 확인 못 해 `배치 업데이트 실패: productId=1916` 로 끝났다. **마켓에는 요청을 보내지도 않았다.** 그래서 마켓 오류 필드는 갱신될 일이 없었다.
 - **원래 증상은 [[D-283]] 으로 해소됐다 (2026-09-03 확인).** 지목했던 4건(1916·2069·2096·2980)이
@@ -5195,6 +5200,7 @@ boolean 만 나른다). `WARNING` 을 들일지는 별도 판단.
 - 왜 문제인가: 화면의 오류 배지가 "마켓 전송이 실패했다"로 읽히는데 실제 원인은 "소싱처에서 원가를 못 읽었다"이다. **원인이 다른 곳을 가리킨다.** [[vendor-pricing-and-disposal]] 의 "원가 0 = 확인 못 함" 규칙과 같은 층의 문제다.
 - 수정 방향: ① 크롤 실패는 마켓 오류가 아니라 상품 크롤 실패로 기록한다([[D-255]] 가 만든 경로를 쓴다) ② 마켓 전송을 시도하지 않은 회차는 기존 `last_sync_error` 를 그대로 두되 **언제 적 값인지** 화면에 드러낸다(`last_sync_error_at`) ③ 시각이 비면 "이전 오류"로 표시한다.
 - [[D-269]] 와 같은 뿌리: 결과 화면이 실패의 정체를 감춘다.
+- **수정 완료 (2026-09-04, 알맹이 ①만).** `MarketBadgeState`(레코드에 `errorAt` 필드 추가, `of(...)` 장문 오버로드가 `LocalDateTime errorAt` 을 받아 `FAILED` 일 때만 `toString()` 으로 싣는다 — `DELETED_ON_MARKET` 에는 붙이지 않는다), `ProductController.buildMarketMap` 이 `reg.getLastSyncErrorAt()` 전달, 프론트 `MarketBadgeState` 타입에 `errorAt` 추가, `productGridShared.tsx` 의 순수 함수 `failedBadgeReasonText(reason, errorAt, now)` 가 문구를 조립(오늘=KST 달력일 동일, 그 외=KST 날짜, 시각 없음="이전 오류 · … (시점 미상)"), `MarketBadgeCell.tsx` 의 `failed` 배지 툴팁이 이 함수를 쓴다. 상세는 `_workspace/fixes/D-281_fix.md`.
 
 ### D-286 — 카페24 "변경없음 스킵" 이 실패한 쓰기를 영구 동결한다
 
@@ -5320,3 +5326,13 @@ boolean 만 나른다). `WARNING` 을 들일지는 별도 판단.
   섞이면 엉뚱한 구간을 먹는다. 엔티티 6종을 풀고(`&amp;` 를 마지막에 풀어 이중 인코딩을 피한다)
   공백을 접고 480자에서 자른다. **HTML 이 없는 메시지는 한 글자도 바뀌지 않는다**(회귀로 고정).
 - 상태: **수정완료(검증대기)** 2026-09-03
+
+### D-287 — SSE 는 부분실패를 여전히 완전실패로 알린다
+
+- 심각도: 낮음 · 리스크: 경량 · 상태: **발견** 2026-09-03
+- [[D-269]] E단계 중 발견. `SseNotificationController` 가 `BatchCompletedEvent.isSuccess()` 로만
+  갈라 `BATCH_COMPLETED` / `BATCH_FAILED` 를 쏜다. 부분실패는 `BATCH_FAILED` 로 나간다.
+- **지금 사용자에게 보이는 해는 없다** — 배치 화면과 진행현황 화면 모두 두 이벤트에서 요약을
+  재조회하기만 한다. 확인했다.
+- 다만 이벤트 이름이 사실과 다르다. 나중에 이 신호로 알림을 띄우거나 분기하면 그때 틀린다.
+- 수정 방향: 이벤트를 세 갈래로 갈리거나, 페이로드에 건수를 실어 소비자가 판단하게 한다.
