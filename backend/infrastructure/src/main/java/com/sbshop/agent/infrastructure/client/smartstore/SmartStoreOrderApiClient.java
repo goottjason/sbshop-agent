@@ -1,5 +1,6 @@
 package com.sbshop.agent.infrastructure.client.smartstore;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -154,15 +155,7 @@ public class SmartStoreOrderApiClient implements SmartStoreOrderApiPort {
 				.body(String.class);
 
 			JsonNode rootNode = objectMapper.readTree(response);
-			JsonNode detail = rootNode.path("detail");
-			if (detail.isArray()) {
-				for (JsonNode item : detail) {
-					if (!item.path("confirm").asBoolean()) {
-						log.warn("스마트스토어 발주확인 실패 건: productOrderId={}, response={}",
-							item.path("productOrderId").asText(), rootNode.toPrettyString());
-					}
-				}
-			}
+			requireAllSucceeded(rootNode, "confirm", "발주확인");
 		} catch (Exception e) {
 			log.error("스마트스토어 발주 확인 실패: {}", e.getMessage(), e);
 			throw new RuntimeException("스마트스토어 발주 확인(confirmOrders) 실패", e);
@@ -191,19 +184,32 @@ public class SmartStoreOrderApiClient implements SmartStoreOrderApiPort {
 				.body(String.class);
 
 			JsonNode rootNode = objectMapper.readTree(response);
-			JsonNode detail = rootNode.path("detail");
-			if (detail.isArray()) {
-				for (JsonNode item : detail) {
-					if (!item.path("cancel").asBoolean()) {
-						log.warn("스마트스토어 주문취소 실패 건: productOrderId={}, response={}",
-							item.path("productOrderId").asText(), rootNode.toPrettyString());
-					}
-				}
-			}
+			requireAllSucceeded(rootNode, "cancel", "주문취소");
 		} catch (Exception e) {
 			log.error("스마트스토어 주문 취소 실패: {}", e.getMessage(), e);
 			throw new RuntimeException("스마트스토어 주문 취소(cancelOrders) 실패", e);
 		}
+	}
+
+	static void requireAllSucceeded(JsonNode root, String flagField, String actionLabel) {
+		JsonNode detail = root == null ? null : root.path("detail");
+		if (detail == null || !detail.isArray() || detail.isEmpty()) {
+			log.warn("[스토어] {} 응답에 건별 결과가 없다 — 성공 여부를 확인하지 못했다: response={}",
+				actionLabel, root == null ? "null" : root.toString());
+			return;
+		}
+		List<String> rejected = new ArrayList<>();
+		for (JsonNode item : detail) {
+			if (!item.path(flagField).asBoolean()) {
+				rejected.add(item.path("productOrderId").asText(""));
+			}
+		}
+		if (rejected.isEmpty()) {
+			return;
+		}
+		throw new IllegalStateException(
+			"스마트스토어가 " + actionLabel + " 을 거부했다 — " + rejected.size() + "건: "
+				+ String.join(", ", rejected) + " · 응답=" + root);
 	}
 
 	private String buildProductOrderIdsBody(List<String> productOrderIds) {
