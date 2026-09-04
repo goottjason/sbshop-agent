@@ -95,6 +95,7 @@ const ProcessStatusPage = () => {
     const eventSource = new EventSource('/sbshop-agent/api/v1/notifications/subscribe');
     const onBatch = () => { void refetchActionLogs(); };
     eventSource.addEventListener('BATCH_COMPLETED', onBatch);
+    eventSource.addEventListener('BATCH_PARTIAL', onBatch);
     eventSource.addEventListener('BATCH_FAILED', onBatch);
     eventSource.onerror = () => {
       if (eventSource.readyState === EventSource.CLOSED) {

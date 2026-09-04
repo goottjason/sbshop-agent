@@ -8,13 +8,19 @@ import org.junit.jupiter.api.Test;
 class SseNotificationBatchTest {
 
 	@Test
-	void batchEventName_success_returnsBatchCompleted() {
-		assertThat(SseNotificationController.batchEventName(true)).isEqualTo("BATCH_COMPLETED");
+	void batchEventName_clean_returnsBatchCompleted() {
+		assertThat(SseNotificationController.batchEventName(0, 0)).isEqualTo("BATCH_COMPLETED");
 	}
 
 	@Test
-	void batchEventName_failure_returnsBatchFailed() {
-		assertThat(SseNotificationController.batchEventName(false)).isEqualTo("BATCH_FAILED");
+	void batchEventName_partialOnly_returnsBatchPartial() {
+		assertThat(SseNotificationController.batchEventName(0, 3)).isEqualTo("BATCH_PARTIAL");
+	}
+
+	@Test
+	void batchEventName_anyHardFailure_returnsBatchFailed() {
+		assertThat(SseNotificationController.batchEventName(2, 0)).isEqualTo("BATCH_FAILED");
+		assertThat(SseNotificationController.batchEventName(2, 3)).isEqualTo("BATCH_FAILED");
 	}
 
 	@Test

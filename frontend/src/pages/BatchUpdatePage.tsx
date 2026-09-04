@@ -265,6 +265,7 @@ const BatchUpdatePage = () => {
     };
     es.addEventListener('BATCH_STARTED', onStarted);
     es.addEventListener('BATCH_COMPLETED', onCompleted);
+    es.addEventListener('BATCH_PARTIAL', onCompleted);
     es.addEventListener('BATCH_FAILED', onCompleted);
     es.onerror = () => {
       if (es.readyState === EventSource.CLOSED) {

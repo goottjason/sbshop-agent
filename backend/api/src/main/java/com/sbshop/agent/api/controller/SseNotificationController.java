@@ -44,7 +44,7 @@ public class SseNotificationController {
 
 	@EventListener
 	public void onBatchCompleted(BatchCompletedEvent event) {
-		String name = batchEventName(event.isSuccess());
+		String name = batchEventName(event.getFailCount(), event.getPartialCount());
 		String data = batchPayload(event.getBatchId(), event.isSuccess());
 		broadcast(name, data);
 	}
@@ -65,8 +65,11 @@ public class SseNotificationController {
 			: marketType.name() + "|fail|" + errorMessage;
 	}
 
-	static String batchEventName(boolean success) {
-		return success ? "BATCH_COMPLETED" : "BATCH_FAILED";
+	static String batchEventName(int failCount, int partialCount) {
+		if (failCount > 0) {
+			return "BATCH_FAILED";
+		}
+		return partialCount > 0 ? "BATCH_PARTIAL" : "BATCH_COMPLETED";
 	}
 
 	static String batchPayload(String batchId, boolean success) {
