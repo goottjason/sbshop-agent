@@ -50,4 +50,26 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 		+ "ORDER BY p.id")
 	List<Long> findBarcodeBackfillTargetIds(@Param("vendor")
 	VendorType vendor);
+
+	@Query("SELECT p.id FROM Product p "
+		+ "WHERE p.deletedAt IS NULL "
+		+ "AND p.brand IS NOT NULL AND p.brand <> '' "
+		+ "AND p.originalName IS NOT NULL AND p.originalName <> '' "
+		+ "AND p.sourcingInfo.sourceUrl IS NOT NULL AND p.sourcingInfo.sourceUrl <> '' "
+		+ "AND p.brand = CASE WHEN LOCATE(' ', p.originalName) > 0 "
+		+ "THEN SUBSTRING(p.originalName, 1, LOCATE(' ', p.originalName) - 1) ELSE p.originalName END "
+		+ "ORDER BY p.id")
+	List<Long> findBrandBackfillTargetIds();
+
+	@Query("SELECT p.id FROM Product p "
+		+ "WHERE p.deletedAt IS NULL "
+		+ "AND p.sourcingInfo.vendor = :vendor "
+		+ "AND p.brand IS NOT NULL AND p.brand <> '' "
+		+ "AND p.originalName IS NOT NULL AND p.originalName <> '' "
+		+ "AND p.sourcingInfo.sourceUrl IS NOT NULL AND p.sourcingInfo.sourceUrl <> '' "
+		+ "AND p.brand = CASE WHEN LOCATE(' ', p.originalName) > 0 "
+		+ "THEN SUBSTRING(p.originalName, 1, LOCATE(' ', p.originalName) - 1) ELSE p.originalName END "
+		+ "ORDER BY p.id")
+	List<Long> findBrandBackfillTargetIds(@Param("vendor")
+	VendorType vendor);
 }

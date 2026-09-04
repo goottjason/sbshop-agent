@@ -35,6 +35,7 @@ public final class ActionLogConstants {
 	public static final String BATCH_MANUAL_UPDATE_ALL = "BATCH_MANUAL_UPDATE_ALL";
 	public static final String BATCH_BY_SUPPLIER = "BATCH_BY_SUPPLIER";
 	public static final String BATCH_BACKFILL_BARCODE = "BATCH_BACKFILL_BARCODE";
+	public static final String BATCH_BACKFILL_BRAND = "BATCH_BACKFILL_BRAND";
 
 	public static final String SUPPLIER_CREATE = "SUPPLIER_CREATE";
 	public static final String CURRENCY_CREATE = "CURRENCY_CREATE";

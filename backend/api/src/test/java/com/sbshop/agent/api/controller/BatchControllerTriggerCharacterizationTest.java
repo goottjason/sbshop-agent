@@ -15,6 +15,7 @@ import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.BatchPriceStockService;
 import com.sbshop.agent.core.application.product.ProductBarcodeBackfillService;
+import com.sbshop.agent.core.application.product.ProductBrandBackfillService;
 import com.sbshop.agent.core.application.product.dto.PriceStockItem;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
@@ -45,7 +46,7 @@ class BatchControllerTriggerCharacterizationTest {
 		actionLogService = Mockito.mock(ActionLogService.class);
 		controller = new BatchController(batchPriceStockService, processStatusService, actionLogService,
 			Mockito.mock(ApplicationEventPublisher.class),
-			Mockito.mock(ProductBarcodeBackfillService.class));
+			Mockito.mock(ProductBarcodeBackfillService.class), Mockito.mock(ProductBrandBackfillService.class));
 	}
 
 	private ProductUpdateCommand emptyCommand() {

@@ -13,6 +13,7 @@ import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.BatchPriceStockService;
 import com.sbshop.agent.core.application.product.ProductBarcodeBackfillService;
+import com.sbshop.agent.core.application.product.ProductBrandBackfillService;
 import com.sbshop.agent.core.application.product.dto.PriceStockItem;
 import com.sbshop.agent.core.domain.process.enums.JobType;
 import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
@@ -39,7 +40,7 @@ class BatchControllerTriggerKeysetContractTest {
 		processStatusService = Mockito.mock(ProcessStatusService.class);
 		controller = new BatchController(batchPriceStockService, processStatusService,
 			Mockito.mock(ActionLogService.class), Mockito.mock(ApplicationEventPublisher.class),
-			Mockito.mock(ProductBarcodeBackfillService.class));
+			Mockito.mock(ProductBarcodeBackfillService.class), Mockito.mock(ProductBrandBackfillService.class));
 	}
 
 	private ProductUpdateCommand emptyCommand() {

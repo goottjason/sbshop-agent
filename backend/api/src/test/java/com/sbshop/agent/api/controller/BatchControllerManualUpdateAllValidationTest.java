@@ -10,6 +10,7 @@ import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.BatchPriceStockService;
 import com.sbshop.agent.core.application.product.ProductBarcodeBackfillService;
+import com.sbshop.agent.core.application.product.ProductBrandBackfillService;
 import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -33,7 +34,7 @@ class BatchControllerManualUpdateAllValidationTest {
 	private BatchController controller() {
 		return new BatchController(batchPriceStockService, processStatusService, actionLogService,
 			Mockito.mock(ApplicationEventPublisher.class),
-			Mockito.mock(ProductBarcodeBackfillService.class));
+			Mockito.mock(ProductBarcodeBackfillService.class), Mockito.mock(ProductBrandBackfillService.class));
 	}
 
 	private ProductUpdateCommand emptyCommand() {
