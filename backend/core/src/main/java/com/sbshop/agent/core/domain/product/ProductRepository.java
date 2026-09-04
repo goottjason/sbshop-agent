@@ -24,7 +24,7 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 	Optional<String> findMaxSbCodeByPrefix(@Param("prefix")
 	String prefix);
 
-	@Query("SELECT p FROM Product p WHERE p.sourcingInfo.vendor = :vendor")
+	@Query("SELECT p FROM Product p WHERE p.sourcingInfo.vendor = :vendor AND p.deletedAt IS NULL")
 	List<Product> findByVendor(@Param("vendor")
 	VendorType vendor);
 
