@@ -46,15 +46,28 @@ class CoupangBrandLookupServiceTest {
 	}
 
 	@Test
-	@DisplayName("D-261: 부분일치는 매칭이 아니다 — totalCount>0 이어도 정확히 같지 않으면 버린다")
+	@DisplayName("D-261: 쿠팡이 관련도 1위로 준 후보를 쓴다 — 교차언어 매칭은 쿠팡이 이미 해준다")
 	void partialMatch_isRejected() {
 		stubSearch("{\"code\":\"SUCCESS\",\"data\":{\"totalCount\":3,\"items\":["
 			+ "{\"brandId\":\"KR-2\",\"brandName\":\"NOW Foods\"},"
 			+ "{\"brandId\":\"KR-3\",\"brandName\":\"Nowon\"}]}}");
 
-		BrandLookupOutcome result = service.findOfficialBrandName("Now");
+		BrandLookupOutcome result = service.findOfficialBrandName("NOW Foods");
 
-		assertThat(result.isMatched()).isFalse();
+		assertThat(result.officialBrandName()).isEqualTo("NOW Foods");
+		assertThat(result.candidates()).containsExactly("NOW Foods", "Nowon");
+	}
+
+	@Test
+	@DisplayName("D-261: 정확일치가 2위에 있어도 1위를 쓴다 — 쿠팡 순위가 우리 문자열 비교보다 정확하다")
+	void rankBeatsExactStringEquality() {
+		stubSearch("{\"code\":\"SUCCESS\",\"data\":{\"totalCount\":2,\"items\":["
+			+ "{\"brandId\":\"KR-1\",\"brandName\":\"네이쳐스웨이\"},"
+			+ "{\"brandId\":\"KR-2\",\"brandName\":\"네이처스웨이\"}]}}");
+
+		BrandLookupOutcome result = service.findOfficialBrandName("네이처스웨이");
+
+		assertThat(result.officialBrandName()).isEqualTo("네이쳐스웨이");
 	}
 
 	@Test

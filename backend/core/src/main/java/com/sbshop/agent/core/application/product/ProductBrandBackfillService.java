@@ -83,9 +83,11 @@ public class ProductBrandBackfillService {
 					} else {
 						product.update(ProductUpdateCommand.builder().brand(resolution.brand()).build());
 						productWriter.save(product);
-						String source = resolution.coupangMatched() ? "쿠팡 확인" : "쿠팡 미등록";
+						String source = resolution.coupangMatched()
+							? "쿠팡 1위 · 후보=" + resolution.candidates()
+							: "쿠팡 미등록(크롤값)";
 						processStatusService.markSuccess(batchId, code,
-							"[%s] 브랜드 수집 %s (%s)".formatted(product.getSbCode(), resolution.brand(), source));
+							"[%s] 브랜드 %s ← %s".formatted(product.getSbCode(), resolution.brand(), source));
 						updated++;
 					}
 				}
@@ -105,7 +107,8 @@ public class ProductBrandBackfillService {
 	private record BrandCandidates(String english, String korean, String fallback) {
 	}
 
-	private record BrandResolution(String brand, boolean coupangMatched, boolean lookupFailed) {
+	private record BrandResolution(String brand, boolean coupangMatched, boolean lookupFailed,
+		java.util.List<String> candidates) {
 	}
 
 	private BrandResolution resolveOfficialBrand(BrandCandidates candidates) {
@@ -116,13 +119,13 @@ public class ProductBrandBackfillService {
 			? coupangBrandLookupPort.findOfficialBrandName(candidates.korean())
 			: BrandLookupOutcome.notRegistered();
 		if (korean.isMatched()) {
-			return new BrandResolution(korean.officialBrandName(), true, false);
+			return new BrandResolution(korean.officialBrandName(), true, false, korean.candidates());
 		}
 		if (english.isMatched()) {
-			return new BrandResolution(english.officialBrandName(), true, false);
+			return new BrandResolution(english.officialBrandName(), true, false, english.candidates());
 		}
 		boolean lookupFailed = !korean.isCacheable() || !english.isCacheable();
-		return new BrandResolution(candidates.fallback(), false, lookupFailed);
+		return new BrandResolution(candidates.fallback(), false, lookupFailed, java.util.List.of());
 	}
 
 	private static BrandCandidates parseBrandKo(String brandKo) {
