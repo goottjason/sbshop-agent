@@ -6,6 +6,8 @@ import com.sbshop.agent.core.application.product.port.BrandLookupOutcome;
 import com.sbshop.agent.core.application.product.port.CoupangBrandLookupPort;
 import com.sbshop.agent.infrastructure.client.coupang.client.CoupangRestClient;
 import java.util.Locale;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -48,33 +50,34 @@ public class CoupangBrandLookupService implements CoupangBrandLookupPort {
 			if (!"SUCCESS".equals(root.path("code").asText())) {
 				log.warn("[쿠팡 브랜드 검색] code != SUCCESS — 없음이 아니라 모름이다: keyword={}, response={}",
 					keyword, response);
-				return BrandLookupOutcome.lookupFailed(snippet(response));
+				return BrandLookupOutcome.lookupFailed();
 			}
-			return findExactMatch(root.path("data").path("items"), keyword, response);
+			return findExactMatch(root.path("data").path("items"), keyword);
 		} catch (Exception e) {
 			log.error("[쿠팡 브랜드 검색] 조회 실패 — 캐시하지 않는다: keyword={}", keyword, e);
 			return BrandLookupOutcome.lookupFailed();
 		}
 	}
 
-	private BrandLookupOutcome findExactMatch(JsonNode items, String keyword, String response) {
+	private BrandLookupOutcome findExactMatch(JsonNode items, String keyword) {
 		String normalizedKeyword = normalize(keyword);
+		List<String> candidates = new ArrayList<>();
+		String exact = null;
 		for (JsonNode item : items) {
 			String brandName = item.path("brandName").asText();
-			if (!brandName.isBlank() && normalize(brandName).equals(normalizedKeyword)) {
-				return BrandLookupOutcome.matched(brandName);
+			if (brandName.isBlank()) {
+				continue;
+			}
+			candidates.add(brandName);
+			if (exact == null && normalize(brandName).equals(normalizedKeyword)) {
+				exact = brandName;
 			}
 		}
-		log.info("[쿠팡 브랜드 검색] 일치 없음: keyword={}, response={}", keyword, snippet(response));
-		return BrandLookupOutcome.notRegistered(snippet(response));
-	}
-
-	private static String snippet(String body) {
-		if (body == null) {
-			return null;
+		if (exact != null) {
+			return BrandLookupOutcome.matched(exact, candidates);
 		}
-		String flat = body.replaceAll("\\s+", " ").trim();
-		return flat.length() <= 400 ? flat : flat.substring(0, 400) + "…";
+		log.info("[쿠팡 브랜드 검색] 정확일치 없음: keyword={}, 후보={}", keyword, candidates);
+		return BrandLookupOutcome.notRegistered(candidates);
 	}
 
 	private static String normalize(String s) {

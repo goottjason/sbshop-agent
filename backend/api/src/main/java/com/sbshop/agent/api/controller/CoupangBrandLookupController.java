@@ -28,7 +28,7 @@ public class CoupangBrandLookupController {
 		body.put("status", outcome.status().name());
 		body.put("matched", outcome.isMatched());
 		body.put("officialBrandName", outcome.officialBrandName());
-		body.put("raw", outcome.rawResponse());
+		body.put("candidates", outcome.candidates());
 		return ResponseEntity.ok(body);
 	}
 }
