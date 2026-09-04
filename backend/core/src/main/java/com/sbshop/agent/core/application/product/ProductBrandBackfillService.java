@@ -2,6 +2,8 @@ package com.sbshop.agent.core.application.product;
 
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.event.BatchCompletedEvent;
+import com.sbshop.agent.core.application.product.port.BrandLookupOutcome;
+import com.sbshop.agent.core.application.product.port.CoupangBrandLookupPort;
 import com.sbshop.agent.core.application.sourcing.dto.ProductDetailDto;
 import com.sbshop.agent.core.application.sourcing.port.ProductDetailCrawlerPort;
 import com.sbshop.agent.core.domain.product.Product;
@@ -28,6 +30,7 @@ public class ProductBrandBackfillService {
 	private final ProductWriter productWriter;
 	private final ProductRepository productRepository;
 	private final ProductDetailCrawlerPort productDetailCrawlerPort;
+	private final CoupangBrandLookupPort coupangBrandLookupPort;
 	private final ProcessStatusService processStatusService;
 	private final ApplicationEventPublisher eventPublisher;
 
@@ -61,22 +64,30 @@ public class ProductBrandBackfillService {
 				}
 
 				ProductDetailDto detail = productDetailCrawlerPort.fetchDetail(sourceUrl);
-				String extractedBrand = extractBrand(detail.brandKo());
+				BrandCandidates candidates = parseBrandKo(detail.brandKo());
 
-				if (extractedBrand == null) {
+				if (candidates == null) {
 					processStatusService.markSuccess(batchId, code,
 						"[%s] 크롤이 브랜드를 주지 않음 → 건너뜀".formatted(product.getSbCode()));
 					skipped++;
-				} else if (extractedBrand.equals(firstWordOf(product.getOriginalName()))) {
-					processStatusService.markSuccess(batchId, code,
-						"[%s] 크롤 결과가 기존과 동일(%s) → 건너뜀".formatted(product.getSbCode(), extractedBrand));
-					skipped++;
 				} else {
-					product.update(ProductUpdateCommand.builder().brand(extractedBrand).build());
-					productWriter.save(product);
-					processStatusService.markSuccess(batchId, code,
-						"[%s] 브랜드 수집 %s".formatted(product.getSbCode(), extractedBrand));
-					updated++;
+					BrandResolution resolution = resolveOfficialBrand(candidates);
+					if (resolution.lookupFailed()) {
+						processStatusService.markSuccess(batchId, code,
+							"[%s] 쿠팡 브랜드 조회 실패 → 기존 값 유지(건너뜀)".formatted(product.getSbCode()));
+						skipped++;
+					} else if (resolution.brand().equals(firstWordOf(product.getOriginalName()))) {
+						processStatusService.markSuccess(batchId, code,
+							"[%s] 크롤 결과가 기존과 동일(%s) → 건너뜀".formatted(product.getSbCode(), resolution.brand()));
+						skipped++;
+					} else {
+						product.update(ProductUpdateCommand.builder().brand(resolution.brand()).build());
+						productWriter.save(product);
+						String source = resolution.coupangMatched() ? "쿠팡 확인" : "쿠팡 미등록";
+						processStatusService.markSuccess(batchId, code,
+							"[%s] 브랜드 수집 %s (%s)".formatted(product.getSbCode(), resolution.brand(), source));
+						updated++;
+					}
 				}
 				throttle(product.getVendor());
 			} catch (Exception e) {
@@ -91,17 +102,51 @@ public class ProductBrandBackfillService {
 			new BatchCompletedEvent(this, batchId, actionType, failed == 0, message));
 	}
 
-	private static String extractBrand(String brandKo) {
+	private record BrandCandidates(String english, String korean, String fallback) {
+	}
+
+	private record BrandResolution(String brand, boolean coupangMatched, boolean lookupFailed) {
+	}
+
+	private BrandResolution resolveOfficialBrand(BrandCandidates candidates) {
+		BrandLookupOutcome english = candidates.english() != null
+			? coupangBrandLookupPort.findOfficialBrandName(candidates.english())
+			: BrandLookupOutcome.notRegistered();
+		BrandLookupOutcome korean = candidates.korean() != null
+			? coupangBrandLookupPort.findOfficialBrandName(candidates.korean())
+			: BrandLookupOutcome.notRegistered();
+		if (korean.isMatched()) {
+			return new BrandResolution(korean.officialBrandName(), true, false);
+		}
+		if (english.isMatched()) {
+			return new BrandResolution(english.officialBrandName(), true, false);
+		}
+		boolean lookupFailed = !korean.isCacheable() || !english.isCacheable();
+		return new BrandResolution(candidates.fallback(), false, lookupFailed);
+	}
+
+	private static BrandCandidates parseBrandKo(String brandKo) {
 		if (brandKo == null || brandKo.isBlank()) {
 			return null;
 		}
 		int open = brandKo.lastIndexOf('(');
 		int close = brandKo.lastIndexOf(')');
-		String picked = (open >= 0 && close > open)
-			? brandKo.substring(open + 1, close)
-			: brandKo;
-		String extracted = picked.replaceAll("\\s+", "").trim();
-		return extracted.isBlank() ? null : extracted;
+		if (open >= 0 && close > open) {
+			String english = nullIfBlank(brandKo.substring(0, open).trim());
+			String korean = nullIfBlank(collapseSpaces(brandKo.substring(open + 1, close)));
+			String fallback = korean != null ? korean : english;
+			return fallback == null ? null : new BrandCandidates(english, korean, fallback);
+		}
+		String whole = collapseSpaces(brandKo);
+		return whole.isBlank() ? null : new BrandCandidates(brandKo.trim(), null, whole);
+	}
+
+	private static String collapseSpaces(String s) {
+		return s.replaceAll("\\s+", "").trim();
+	}
+
+	private static String nullIfBlank(String s) {
+		return (s == null || s.isBlank()) ? null : s;
 	}
 
 	private static String firstWordOf(String originalName) {

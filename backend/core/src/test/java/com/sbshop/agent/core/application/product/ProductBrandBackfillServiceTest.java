@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.product;
 
+import com.sbshop.agent.core.application.product.port.BrandLookupOutcome;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -8,10 +9,12 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.event.BatchCompletedEvent;
+import com.sbshop.agent.core.application.product.port.CoupangBrandLookupPort;
 import com.sbshop.agent.core.application.sourcing.dto.ProductDetailDto;
 import com.sbshop.agent.core.application.sourcing.port.ProductDetailCrawlerPort;
 import com.sbshop.agent.core.domain.product.Product;
@@ -24,6 +27,7 @@ import com.sbshop.agent.core.domain.product.enums.VendorType;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,11 +48,19 @@ class ProductBrandBackfillServiceTest {
 	@Mock
 	private ProductDetailCrawlerPort productDetailCrawlerPort;
 	@Mock
+	private CoupangBrandLookupPort coupangBrandLookupPort;
+	@Mock
 	private ProcessStatusService processStatusService;
 	@Mock
 	private ApplicationEventPublisher eventPublisher;
 	@InjectMocks
 	private ProductBrandBackfillService service;
+
+	@BeforeEach
+	void stubLookupDefault() {
+		lenient().when(coupangBrandLookupPort.findOfficialBrandName(anyString()))
+			.thenReturn(BrandLookupOutcome.notRegistered());
+	}
 
 	@Test
 	@DisplayName("D-261: 소싱처를 지정하면 그 소싱처의 대상만 뽑는다")
@@ -146,6 +158,50 @@ class ProductBrandBackfillServiceTest {
 	}
 
 	@Test
+	@DisplayName("D-261: 쿠팡 검색에서 영문 후보가 매칭되면 공식 브랜드명을 쓴다")
+	void coupangMatch_english_usesOfficialName() {
+		Product product = product("SB-11", "Enzymedica", "Enzymedica Digest Gold");
+		when(productReader.findById(11L)).thenReturn(Optional.of(product));
+		when(productDetailCrawlerPort.fetchDetail(anyString())).thenReturn(detail(true, "Enzymedica"));
+		when(coupangBrandLookupPort.findOfficialBrandName("Enzymedica")).thenReturn(BrandLookupOutcome.matched("엔자이메디카"));
+
+		service.backfillBrands("b1", List.of(11L), "T");
+
+		assertThat(product.getBrand()).isEqualTo("엔자이메디카");
+		verify(processStatusService).markSuccess(eq("b1"), eq("11"), contains("엔자이메디카"));
+	}
+
+	@Test
+	@DisplayName("D-261: 영문·한글 후보가 둘 다 매칭되면 한글 쪽 결과를 쓴다 — 쿠팡 표준 표기가 한글이다")
+	void coupangMatch_bothMatched_prefersKorean() {
+		Product product = product("SB-12", "Nature's", "Nature's Way Chlorofresh");
+		when(productReader.findById(12L)).thenReturn(Optional.of(product));
+		when(productDetailCrawlerPort.fetchDetail(anyString()))
+			.thenReturn(detail(true, "Nature's Way (네이처스웨이)"));
+		when(coupangBrandLookupPort.findOfficialBrandName("Nature's Way"))
+			.thenReturn(BrandLookupOutcome.matched("NATURES-WAY-EN-MATCH"));
+		when(coupangBrandLookupPort.findOfficialBrandName("네이처스웨이"))
+			.thenReturn(BrandLookupOutcome.matched("네이처스웨이"));
+
+		service.backfillBrands("b1", List.of(12L), "T");
+
+		assertThat(product.getBrand()).isEqualTo("네이처스웨이");
+	}
+
+	@Test
+	@DisplayName("D-261: 쿠팡이 못 찾으면 크롤 값을 쓰되 미등록임을 기록한다 — 빈 값으로 덮지 않는다")
+	void coupangNoMatch_usesCrawledValueAndRecordsUnregistered() {
+		Product product = product("SB-13", "Real", "Real Mushrooms Chaga Extract");
+		when(productReader.findById(13L)).thenReturn(Optional.of(product));
+		when(productDetailCrawlerPort.fetchDetail(anyString())).thenReturn(detail(true, "Real (리얼)"));
+
+		service.backfillBrands("b1", List.of(13L), "T");
+
+		assertThat(product.getBrand()).isEqualTo("리얼");
+		verify(processStatusService).markSuccess(eq("b1"), eq("13"), contains("미등록"));
+	}
+
+	@Test
 	@DisplayName("D-261: 크롤 중 예외가 나면 실패로 기록하고 나머지는 계속 진행한다")
 	void backfill_marksFailedOnCrawlException_andContinues() {
 		Product failing = product("SB-4", "Doctor's", "Doctor's Best Fisetin");
@@ -189,6 +245,22 @@ class ProductBrandBackfillServiceTest {
 		verify(eventPublisher).publishEvent(captor.capture());
 		assertThat(captor.getValue().getBatchId()).isEqualTo("b1");
 		assertThat(captor.getValue().getMessage()).contains("건너뜀 1");
+	}
+
+	@Test
+	@DisplayName("D-261: 쿠팡 조회가 실패하면 기존 값을 유지한다 — 429 한 번에 잘못된 브랜드를 박지 않는다")
+	void lookupFailure_keepsExistingBrand() {
+		Product product = product("SB-13", "Nature's", "Nature's Way Chlorofresh");
+		when(productReader.findById(13L)).thenReturn(Optional.of(product));
+		when(productDetailCrawlerPort.fetchDetail(anyString()))
+			.thenReturn(detail(true, "Nature's Way (네이처스웨이)"));
+		when(coupangBrandLookupPort.findOfficialBrandName(anyString()))
+			.thenReturn(BrandLookupOutcome.lookupFailed());
+
+		service.backfillBrands("b1", List.of(13L), "T");
+
+		assertThat(product.getBrand()).isEqualTo("Nature's");
+		verify(processStatusService).markSuccess(eq("b1"), eq("13"), contains("조회 실패"));
 	}
 
 	private static ProductDetailDto detail(boolean ok, String brandKo) {
