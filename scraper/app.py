@@ -104,8 +104,11 @@ def scrape_product_detail(req: ScrapeRequest) -> ProductDetail:
         return iherb_mod.fetch_detail(req.url)
     if vtb_mod.supports(req.url):
         return vtb_mod.fetch_detail(req.url)
+    for scraper in (FortnumScraper(), OcadoScraper(), TescoScraper(), CostcoUkScraper()):
+        if scraper.supports(req.url):
+            return scraper.fetch_detail(req.url)
     return ProductDetail(
         ok=False, status="error", sourceUrl=req.url,
-        error="상세 크롤을 지원하지 않는 URL입니다(현재 iHerb·vitabiotics만 지원).",
+        error="상세 크롤을 지원하지 않는 URL입니다.",
         scrapedAt=datetime.now(timezone.utc).isoformat(),
     )

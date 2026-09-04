@@ -117,6 +117,7 @@ class ScrapeResult(BaseModel):
     inStock: Optional[bool] = None
     availabilityText: Optional[str] = None # 원문 재고 문구(디버깅/근거)
     weightGrams: Optional[float] = None    # 상품 표기 무게(g). 자바가 배송비 산정에 쓴다. 불명 시 None
+    brandKo: Optional[str] = None          # JSON-LD brand.name 원문 (D-291). 한글 표기가 없는 소싱처는 영문 그대로
     sku: Optional[str] = None
     scrapedAt: str = ""
     error: Optional[str] = None

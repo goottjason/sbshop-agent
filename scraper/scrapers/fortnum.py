@@ -9,8 +9,11 @@ from datetime import datetime, timezone
 
 from scrapling.fetchers import DynamicFetcher, StealthyFetcher
 
-from models import ScrapeResult
+from models import ProductDetail, ScrapeResult
 from scrapers.base import VendorScraper, parse_price, parse_weight_grams
+
+
+FORTNUM_BRAND_KO = "Fortnum & Mason (포트넘앤메이슨)"
 
 
 class FortnumScraper(VendorScraper):
@@ -134,3 +137,10 @@ class FortnumScraper(VendorScraper):
             if v:
                 return v.strip()
         return None
+
+    def fetch_detail(self, url: str) -> ProductDetail:
+        # F&M 은 소싱처 자체가 단일 브랜드다(D-292). 페이지에는 브랜드 표기가 없어
+        # 크롤로 얻을 것이 없으므로 상수로 답한다 — 여기서 페이지를 다시 여는 것은 낭비다.
+        return ProductDetail(ok=True, status="ok", sourceUrl=url,
+                             brandKo=FORTNUM_BRAND_KO,
+                             scrapedAt=datetime.now(timezone.utc).isoformat())

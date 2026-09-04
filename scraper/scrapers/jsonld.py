@@ -19,7 +19,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 
-from models import ScrapeResult
+from models import ProductDetail, ScrapeResult
 from scrapers.base import VendorScraper, parse_weight_grams
 
 _LD_RE = re.compile(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>', re.S | re.I)
@@ -70,6 +70,15 @@ def availability_to_stock(availability: str | None) -> bool | None:
         return True
     if token in _OUT_OF_STOCK:
         return False
+    return None
+
+
+def _brand_name(brand) -> str | None:
+    """JSON-LD brand 는 문자열일 수도 {"name": ...} 객체일 수도 있다(D-291 실측: Costco 는 객체)."""
+    if isinstance(brand, dict):
+        brand = brand.get("name")
+    if isinstance(brand, str) and brand.strip():
+        return brand.strip()
     return None
 
 
@@ -193,9 +202,21 @@ class JsonLdScraper(VendorScraper):
             currency=offer.get("priceCurrency") or "GBP",
             inStock=in_stock, availabilityText=str(offer.get("availability")),
             weightGrams=weight,
+            brandKo=_brand_name(product.get("brand")),
             sku=str(product.get("sku")) if product.get("sku") is not None else None,
             scrapedAt=now,
         )
+
+
+    def to_detail(self, result: ScrapeResult) -> ProductDetail:
+        return ProductDetail(
+            ok=result.ok, status=result.status, httpStatus=result.httpStatus,
+            sourceUrl=result.sourceUrl, nameKo=result.name, brandKo=result.brandKo,
+            inStock=result.inStock, shippingWeightGrams=result.weightGrams,
+            error=result.error, scrapedAt=result.scrapedAt)
+
+    def fetch_detail(self, url: str) -> ProductDetail:
+        return self.to_detail(self.scrape(url))
 
 
 class OcadoScraper(JsonLdScraper):
