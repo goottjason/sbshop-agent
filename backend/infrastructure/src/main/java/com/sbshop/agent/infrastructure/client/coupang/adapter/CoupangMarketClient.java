@@ -151,7 +151,7 @@ public class CoupangMarketClient implements MarketClient {
 	@Override
 	public MarketItemInfo extractMarketItem(String marketItemId) {
 		String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId
-			+ "?vendorId=" + properties.getVendorId();
+			+ "?vendorId=" + restClient.resolveVendorId();
 		String responseJson = restClient.get(path);
 		try {
 			JsonNode dataNode = productParser.parseDataNode(responseJson);

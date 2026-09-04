@@ -4462,8 +4462,10 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 - 심각도: 경량(현재 무해) | 위치: `CoupangMarketClient.extractMarketItem`
 - 증상: 요청 경로가 `...seller-products/{id}?vendorId=` 로 **값 없이** 나간다. `properties.getVendorId()`(env)를 쓰는데 비어 있고, 인증 헤더(`X-Requested-By`)는 `CoupangRestClient.resolveCredentials()` 가 **DB 값**을 쓴다 — 같은 요청에서 출처가 갈린다.
 - 현재 영향 없음: 이 엔드포인트는 vendorId 없이도 동작한다(프로브에서 ALIVE 5건, 쿠팡 API 직접 조회 6건 모두 성공).
-- 수정 방향(미착수): `restClient.resolveVendorId()` 로 통일한다. 다만 경로가 바뀌면 **HMAC 서명 대상 문자열도 바뀌므로** 서명 생성과 실제 요청 경로가 같은지 확인 후 반영.
-- 상태: 발견
+- 수정(2026-09-05): `restClient.resolveVendorId()` 로 통일했다. HMAC 우려는 코드로 해소됐다 —
+  `CoupangRestClient.request` 가 서명 생성과 실제 요청에 **같은 `path` 변수**를 쓰므로,
+  호출부에서 경로를 완성해 넘기면 서명·요청이 자동으로 일치한다.
+- 상태: **수정완료(검증대기)** 2026-09-05
 
 ### D-230: 프론트 배포가 사용자에게 도달하지 않는다 — index.html 에 Cache-Control 이 없다 (2026-08-29, D-222 라이브 검증 중 발견)
 
