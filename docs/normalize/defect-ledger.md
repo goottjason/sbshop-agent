@@ -5699,6 +5699,11 @@ List<Product> findByVendor(@Param("vendor") VendorType vendor);
   대부분 [[D-239]] LINK_DEAD 폐기와 [[D-254]] 폐기후보 삭제로 최근 생긴 것이다.
 - 지금도 사용자가 소싱업체별 배치를 돌리면 이 291건이 매번 대상에 들어간다.
   **[[D-240]] 을 켜면 매일 자동으로 반복된다.**
-- 수정 방향: `findByVendor` 에 `deletedAt IS NULL` 을 넣는다. 다른 호출부가 삭제 상품을
-  일부러 포함하는지 먼저 grep 으로 확인할 것.
-- **[[D-240]] 착수의 선결 조건으로 삼는다.**
+- 수정: `findByVendor` 에 `deletedAt IS NULL` 을 넣었다. 같은 저장소의 다른 조회는 전부 이미
+  달고 있었고 이 쿼리만 예외였다.
+- **호출부 전수 확인 — 둘 다 삭제 상품을 원하지 않는다.**
+  - `BatchPriceStockService.getProductIdsByVendor` — 소싱업체별 배치 대상
+  - `ProductSyncScheduler.syncIherbProductStock` — **`@Scheduled(0 0 4 * * ?)` 로 이미 매일
+    새벽 4시에 돌고 있다.** [[D-240]] 과 별개로 살아 있는 스케줄러다. 지금도 매일 삭제 상품을
+    훑고 있었다.
+- 상태: **수정완료(검증대기)** 2026-09-04
