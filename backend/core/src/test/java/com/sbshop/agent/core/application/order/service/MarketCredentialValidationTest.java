@@ -88,7 +88,7 @@ class MarketCredentialValidationTest {
 				.mock(MarketLineItemSyncDispatcher.class),
 			Mockito.mock(ShipmentRepository.class),
 			Mockito
-				.mock(MarketRegistrationLookup.class));
+				.mock(MarketRegistrationLookup.class), mock(ClaimOrphanRecorder.class));
 		service.syncElevenstOrders();
 
 		assertIncompleteCredentialFailure(capturedEvents());

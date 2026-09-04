@@ -137,7 +137,7 @@ class ElevenstMissingOrderStateTest {
 			productRepository, eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService,
 			mock(TerminalSettlementService.class), mock(MarketLineItemSyncDispatcher.class),
 			shipmentRepository, Mockito
-				.mock(MarketRegistrationLookup.class));
+				.mock(MarketRegistrationLookup.class), mock(ClaimOrphanRecorder.class));
 	}
 
 	private void stubCredentialAndEmptyApi() {

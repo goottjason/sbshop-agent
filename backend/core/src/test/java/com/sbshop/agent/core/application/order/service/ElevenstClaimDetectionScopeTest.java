@@ -78,7 +78,7 @@ class ElevenstClaimDetectionScopeTest {
 			orderLineItemRepository, productRepository, eventPublisher, adapter,
 			syncStatusService, marketFeeService, terminalSettlementService,
 			lineItemSyncDispatcher, shipmentRepository,
-			new MarketRegistrationLookup(marketRegistrationRepository));
+			new MarketRegistrationLookup(marketRegistrationRepository), mock(ClaimOrphanRecorder.class));
 
 		MarketCredential credential = mock(MarketCredential.class);
 		when(credential.getAccessKey()).thenReturn("api-key");

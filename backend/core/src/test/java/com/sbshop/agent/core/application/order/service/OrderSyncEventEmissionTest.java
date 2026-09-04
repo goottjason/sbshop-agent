@@ -111,7 +111,7 @@ class OrderSyncEventEmissionTest {
 			eventPublisher, elevenstOrderAdapter, syncStatusService, marketFeeService,
 			Mockito.mock(TerminalSettlementService.class),
 			Mockito.mock(MarketLineItemSyncDispatcher.class),
-			Mockito.mock(ShipmentRepository.class), Mockito.mock(MarketRegistrationLookup.class));
+			Mockito.mock(ShipmentRepository.class), Mockito.mock(MarketRegistrationLookup.class), mock(ClaimOrphanRecorder.class));
 
 		service.syncElevenstOrders();
 

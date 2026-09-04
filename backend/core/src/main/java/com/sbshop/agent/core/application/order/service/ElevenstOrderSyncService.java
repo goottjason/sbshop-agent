@@ -33,6 +33,7 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.Optional;
 import java.util.Map;
 import java.util.Set;
@@ -61,6 +62,8 @@ public class ElevenstOrderSyncService {
 	private final MarketLineItemSyncDispatcher lineItemSyncDispatcher;
 	private final ShipmentRepository shipmentRepository;
 	private final MarketRegistrationLookup marketRegistrationLookup;
+
+	private final ClaimOrphanRecorder claimOrphanRecorder;
 
 	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 
@@ -267,10 +270,12 @@ public class ElevenstOrderSyncService {
 
 		if (orderCount > 0) {
 			log.info("[ELEVEN_STREET] 클레임 목록 API로 {}건 주문에 클레임 반영", orderCount);
-		} else {
-			log.warn("[ELEVEN_STREET] 클레임 목록 신호 {}건이 어느 주문과도 짝지어지지 않았다: 신호={}",
-				claimSignals.size(), claimSignals.keySet());
 		}
+		Set<String> known = dbOrders.stream().map(Order::getMarketOrderNo).collect(Collectors.toSet());
+		List<String> orphans = claimSignals.keySet().stream()
+			.filter(no -> !known.contains(no))
+			.toList();
+		claimOrphanRecorder.record(MarketType.ELEVEN_STREET, orphans);
 	}
 
 	private void detectClaims(List<MarketOrderDto> apiOrders, LocalDate fromDate, LocalDate toDate, String apiKey) {

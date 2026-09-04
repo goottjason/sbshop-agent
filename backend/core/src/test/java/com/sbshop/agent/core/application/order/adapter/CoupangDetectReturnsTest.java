@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.adapter;
 
+import com.sbshop.agent.core.application.order.service.ClaimOrphanRecorder;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
@@ -51,6 +52,8 @@ class CoupangDetectReturnsTest {
 	private OrderLineItemRepository orderLineItemRepository;
 	@Mock
 	private MarketRegistrationRepository marketRegistrationRepository;
+	@Mock
+	private ClaimOrphanRecorder claimOrphanRecorder;
 	@InjectMocks
 	private CoupangOrderAdapter adapter;
 

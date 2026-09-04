@@ -18,6 +18,7 @@ import com.sbshop.agent.core.application.order.dto.MarketShipmentDto;
 import com.sbshop.agent.core.application.order.dto.ShippingUpdateCommand;
 import com.sbshop.agent.core.application.order.service.RefundTerminalPolicy;
 import com.sbshop.agent.core.domain.order.Shipment;
+import com.sbshop.agent.core.application.order.service.ClaimOrphanRecorder;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingCarrier;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
@@ -52,6 +53,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 	private final OrderLineItemRepository orderLineItemRepository;
 	private final MarketRegistrationRepository marketRegistrationRepository;
 	private final ShipmentRepository shipmentRepository;
+	private final ClaimOrphanRecorder claimOrphanRecorder;
 
 	@Override
 	public MarketType getMarketType() {
@@ -440,10 +442,7 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		List<String> unmatched = claimByOrderId.keySet().stream()
 			.filter(no -> !known.contains(no))
 			.toList();
-		if (!unmatched.isEmpty()) {
-			log.warn("[COUPANG] {} 신호 {}건이 어느 주문과도 짝지어지지 않았다 — 수집되지 않은 주문이다: {}",
-				label, unmatched.size(), unmatched);
-		}
+		claimOrphanRecorder.record(MarketType.COUPANG, unmatched);
 	}
 
 	public void fixCarriers(List<MarketOrderDto> apiOrders) {

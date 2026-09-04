@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.adapter;
 
+import com.sbshop.agent.core.application.order.service.ClaimOrphanRecorder;
 import com.sbshop.agent.core.domain.order.Shipment;
 import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,7 +39,7 @@ class CoupangOrderAdapterCarrierCodeTest {
 			Shipment.builder()
 				.orderId(1L).marketShipmentNo("708248067784723").build()));
 
-		CoupangOrderAdapter adapter = new CoupangOrderAdapter(apiPort, null, null, null, regRepo, shipmentRepo);
+		CoupangOrderAdapter adapter = new CoupangOrderAdapter(apiPort, null, null, null, regRepo, shipmentRepo, mock(ClaimOrphanRecorder.class));
 
 		MarketCredential cred = MarketCredential.builder()
 			.marketType(MarketType.COUPANG).clientId("vendorX").build();
