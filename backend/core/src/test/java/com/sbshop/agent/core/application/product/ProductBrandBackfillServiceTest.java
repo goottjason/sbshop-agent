@@ -78,7 +78,7 @@ class ProductBrandBackfillServiceTest {
 	}
 
 	@Test
-	@DisplayName("D-261: 온전한 브랜드로 갱신하고 성공으로 기록한다")
+	@DisplayName("D-261: 한글 브랜드로 갱신한다 — 쿠팡에 매칭된 9건이 전부 한글·공백없음이었다")
 	void backfill_updatesToFullBrand() {
 		Product product = product("SB-1", "Nature's", "Nature's Way Chlorofresh Liquid Chlorophyll");
 		when(productReader.findById(1L)).thenReturn(Optional.of(product));
@@ -87,9 +87,9 @@ class ProductBrandBackfillServiceTest {
 
 		service.backfillBrands("b1", List.of(1L), "ACT");
 
-		assertThat(product.getBrand()).isEqualTo("Nature's Way");
+		assertThat(product.getBrand()).isEqualTo("네이처스웨이");
 		verify(productWriter).save(product);
-		verify(processStatusService).markSuccess(eq("b1"), eq("1"), contains("Nature's Way"));
+		verify(processStatusService).markSuccess(eq("b1"), eq("1"), contains("네이처스웨이"));
 	}
 
 	@Test
@@ -121,6 +121,31 @@ class ProductBrandBackfillServiceTest {
 	}
 
 	@Test
+	@DisplayName("D-261: 괄호가 없으면 원문을 그대로 쓴다 — 한글 표기를 안 주는 소싱처도 있다")
+	void noParen_usesWholeValue() {
+		Product product = product("SB-9", "Comvita", "Comvita Manuka Honey");
+		when(productReader.findById(9L)).thenReturn(Optional.of(product));
+		when(productDetailCrawlerPort.fetchDetail(anyString())).thenReturn(detail(true, "Comvita"));
+
+		service.backfillBrands("b1", List.of(9L), "T");
+
+		assertThat(product.getBrand()).isEqualTo("Comvita");
+	}
+
+	@Test
+	@DisplayName("D-261: 한글 표기 안의 공백은 지운다 — 매칭된 쿠팡 브랜드에는 공백이 없었다")
+	void koreanWithSpace_isCollapsed() {
+		Product product = product("SB-10", "Garden", "Garden of Life Primal Defense");
+		when(productReader.findById(10L)).thenReturn(Optional.of(product));
+		when(productDetailCrawlerPort.fetchDetail(anyString()))
+			.thenReturn(detail(true, "Garden of Life (가든 오브 라이프)"));
+
+		service.backfillBrands("b1", List.of(10L), "T");
+
+		assertThat(product.getBrand()).isEqualTo("가든오브라이프");
+	}
+
+	@Test
 	@DisplayName("D-261: 크롤 중 예외가 나면 실패로 기록하고 나머지는 계속 진행한다")
 	void backfill_marksFailedOnCrawlException_andContinues() {
 		Product failing = product("SB-4", "Doctor's", "Doctor's Best Fisetin");
@@ -134,8 +159,8 @@ class ProductBrandBackfillServiceTest {
 		service.backfillBrands("b1", List.of(4L, 5L), "ACT");
 
 		verify(processStatusService).markFailed(eq("b1"), eq("4"), contains("timeout"));
-		assertThat(ok.getBrand()).isEqualTo("Nordic Naturals");
-		verify(processStatusService).markSuccess(eq("b1"), eq("5"), contains("Nordic Naturals"));
+		assertThat(ok.getBrand()).isEqualTo("노르딕내추럴스");
+		verify(processStatusService).markSuccess(eq("b1"), eq("5"), contains("노르딕내추럴스"));
 		verify(productWriter, times(1)).save(any());
 	}
 

@@ -95,8 +95,12 @@ public class ProductBrandBackfillService {
 		if (brandKo == null || brandKo.isBlank()) {
 			return null;
 		}
-		int parenIdx = brandKo.indexOf(" (");
-		String extracted = (parenIdx >= 0 ? brandKo.substring(0, parenIdx) : brandKo).trim();
+		int open = brandKo.lastIndexOf('(');
+		int close = brandKo.lastIndexOf(')');
+		String picked = (open >= 0 && close > open)
+			? brandKo.substring(open + 1, close)
+			: brandKo;
+		String extracted = picked.replaceAll("\\s+", "").trim();
 		return extracted.isBlank() ? null : extracted;
 	}
 
