@@ -24,7 +24,12 @@ public class CoupangBrandLookupService implements CoupangBrandLookupPort {
 
 	private final CoupangRestClient restClient;
 	private final ObjectMapper objectMapper;
+	private static final String ENROLLED_PATH =
+		"/v2/providers/seller_api/apis/api/v1/marketplace/brands/enrolled";
+
 	private final Map<String, BrandLookupOutcome> cache = new ConcurrentHashMap<>();
+
+	private volatile List<String> enrolledCache;
 
 	@Override
 	public BrandLookupOutcome findOfficialBrandName(String keyword) {
@@ -40,6 +45,35 @@ public class CoupangBrandLookupService implements CoupangBrandLookupPort {
 			cache.put(keyword, outcome);
 		}
 		return outcome;
+	}
+
+	@Override
+	public List<String> enrolledBrandNames() {
+		List<String> cached = enrolledCache;
+		if (cached != null) {
+			return cached;
+		}
+		try {
+			String response = restClient.requestWithBody("GET", ENROLLED_PATH, null);
+			JsonNode root = objectMapper.readTree(response);
+			if (!"SUCCESS".equals(root.path("code").asText())) {
+				log.warn("[쿠팡 등록 브랜드] code != SUCCESS — 캐시하지 않는다: {}", response);
+				return List.of();
+			}
+			List<String> names = new ArrayList<>();
+			for (JsonNode item : root.path("data")) {
+				String brandName = item.path("brandName").asText();
+				if (!brandName.isBlank()) {
+					names.add(brandName);
+				}
+			}
+			enrolledCache = List.copyOf(names);
+			log.info("[쿠팡 등록 브랜드] {}건 확보", names.size());
+			return enrolledCache;
+		} catch (Exception e) {
+			log.error("[쿠팡 등록 브랜드] 조회 실패 — 캐시하지 않는다", e);
+			return List.of();
+		}
 	}
 
 	private BrandLookupOutcome search(String keyword) {
