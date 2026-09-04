@@ -5168,7 +5168,35 @@ count(*) FILTER (WHERE split_part(original_name,' ',1) = brand)  →  3183 / 319
 
 - 나머지 경고(`정보 수정하고 매출 올리기` 47 · `증빙서류` 4 등)는 쿠팡 화면을 봐야 정체를 알 수
   있다. **사용자가 화면에서 항목을 열어 무엇을 요구하는지 알려주면** 같은 방식으로 잴 수 있다.
-- 상태: **부분 조사완료(브랜드 원인 확정) · 착수가능** 2026-09-03
+
+**브랜드 백필 TDD 구현 완료 (2026-09-04)**
+
+위 조사 노트가 가리킨 `IherbScraperClient`/`ScrapedProductDto.brand`(`brandName` 필드,
+`ProductInfoCrawlerPort` 경유)는 **신규 상품 소싱 등록 경로**의 크롤러이고, 바코드 백필이
+이미 쓰고 있는 것은 별개인 `ScraplingIherbClient`/`ProductDetailDto`(`ProductDetailCrawlerPort`
+경유)다. 착수 전 실제 상품 3건(Solaray·Nature's Way·NOW Foods 등)으로 라이브 스크레이퍼를
+직접 호출해 확인한 결과, 쓸 브랜드는 **`ProductDetailDto.brandKo`** 다 — 형식은
+`"{영문 브랜드} ({한글 표기})"`(예: `"Nature's Way (네이처스웨이)"`, `"California Gold Nutrition
+(캘리포니아골드뉴트리션)"`). `brandCode`는 `"NWY"`·`"SOR"` 같은 내부 3~4자 코드라 사람이 읽는
+브랜드명으로 쓸 수 없다. 괄호 앞부분만 잘라 쓰면 조사 노트가 기대한 정답과 정확히 일치한다.
+
+`ProductBarcodeBackfillService`와 같은 모양으로 `ProductBrandBackfillService`를 만들고
+(대상 조회·`@Async` 배치·스로틀·`ProcessStatus` 기록·`BatchCompletedEvent`), TDD로 9케이스
+(대상 조회 3 + 백필 6) 통과시켰다. 대상 조회(`ProductRepository.findBrandBackfillTargetIds`)는
+`brand = original_name의 첫 단어`인 상품만 고르며, `LOCATE`/`SUBSTRING` 표준 JPQL로 짜서
+Postgres 전용 `split_part` 없이도 H2에서 실제로 검증했다(운영 Postgres에서도 동일 함수로 변환).
+`BatchController`에 `/backfill-brand`를 바코드와 같은 모양으로 추가(`JobType.BACKFILL_BRAND`,
+`ActionLogConstants.BATCH_BACKFILL_BRAND`). 규율: 크롤이 브랜드를 못 주거나 크롤 결과가 기존
+첫 단어와 같으면 스킵(기존 값 유지, 덮어쓰지 않음), 크롤 예외만 실패로 기록. 마켓 전송은 안 함 —
+DB 교정까지만.
+
+운영 DB로 대상 조회 쿼리를 그대로 검산한 결과 **대상 2,893건**이다(조사 노트의 3,183건은
+soft-delete된 상품을 빼지 않은 수치 — `deleted_at IS NULL`을 걸면 290건이 이미 폐기돼 빠진다;
+소싱 URL 누락으로 추가로 빠지는 건은 0건). 소싱처별: IHB 2,137 · FTN 386 · OCD 271 · VTB 65 ·
+COK 34. **대량 실행은 하지 않았다** — 사용자 지시로 코드·테스트까지만 완료, 실제 백필은
+사용자가 검토 후 소량부터 직접 실행한다. 산출물: `_workspace/fixes/D-261_fix.md`.
+
+- 상태: **백필 코드·테스트 완료(TDD) · 대량 실행 대기(사용자 검토 후 소량부터)** 2026-09-04
 
 ### D-262: 품절 상품에 재전송이 반복돼 마켓플러스 전송실패가 쌓인다 (2026-09-01)
 
