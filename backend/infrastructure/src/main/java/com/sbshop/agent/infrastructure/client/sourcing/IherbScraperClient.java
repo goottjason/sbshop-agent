@@ -220,9 +220,12 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 		}
 	}
 
-	private StockCheckResult parseResponse(String body) {
+	StockCheckResult parseResponse(String body) {
 		try {
 			JsonNode root = objectMapper.readTree(body);
+			if (root == null || !root.isObject()) {
+				throw new IllegalStateException("응답이 JSON 객체가 아니다");
+			}
 
 			boolean isAvailable = root.path("isAvailableToPurchase").asBoolean(false);
 			StockStatus status = isAvailable ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK;
@@ -285,9 +288,17 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 
 			return new StockCheckResult(status, costPrice, stock, restockDate);
 		} catch (Exception e) {
-			log.error("아이허브 응답 파싱 실패", e);
-			return new StockCheckResult(StockStatus.OUT_OF_STOCK, null, 0, null);
+			throw new IllegalStateException("아이허브 재고 판정 불가 — 응답을 해석하지 못했다"
+				+ " (품절로 단정하지 않는다): " + snippet(body), e);
 		}
+	}
+
+	private static String snippet(String body) {
+		if (body == null) {
+			return "null";
+		}
+		String flat = body.replaceAll("\\s+", " ").trim();
+		return flat.length() <= 120 ? flat : flat.substring(0, 120) + "…";
 	}
 
 	private String extractProductId(String url) {
