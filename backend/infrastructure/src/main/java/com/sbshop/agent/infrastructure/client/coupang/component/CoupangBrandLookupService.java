@@ -48,16 +48,16 @@ public class CoupangBrandLookupService implements CoupangBrandLookupPort {
 			if (!"SUCCESS".equals(root.path("code").asText())) {
 				log.warn("[쿠팡 브랜드 검색] code != SUCCESS — 없음이 아니라 모름이다: keyword={}, response={}",
 					keyword, response);
-				return BrandLookupOutcome.lookupFailed();
+				return BrandLookupOutcome.lookupFailed(snippet(response));
 			}
-			return findExactMatch(root.path("data").path("items"), keyword);
+			return findExactMatch(root.path("data").path("items"), keyword, response);
 		} catch (Exception e) {
 			log.error("[쿠팡 브랜드 검색] 조회 실패 — 캐시하지 않는다: keyword={}", keyword, e);
 			return BrandLookupOutcome.lookupFailed();
 		}
 	}
 
-	private BrandLookupOutcome findExactMatch(JsonNode items, String keyword) {
+	private BrandLookupOutcome findExactMatch(JsonNode items, String keyword, String response) {
 		String normalizedKeyword = normalize(keyword);
 		for (JsonNode item : items) {
 			String brandName = item.path("brandName").asText();
@@ -65,7 +65,16 @@ public class CoupangBrandLookupService implements CoupangBrandLookupPort {
 				return BrandLookupOutcome.matched(brandName);
 			}
 		}
-		return BrandLookupOutcome.notRegistered();
+		log.info("[쿠팡 브랜드 검색] 일치 없음: keyword={}, response={}", keyword, snippet(response));
+		return BrandLookupOutcome.notRegistered(snippet(response));
+	}
+
+	private static String snippet(String body) {
+		if (body == null) {
+			return null;
+		}
+		String flat = body.replaceAll("\\s+", " ").trim();
+		return flat.length() <= 400 ? flat : flat.substring(0, 400) + "…";
 	}
 
 	private static String normalize(String s) {
