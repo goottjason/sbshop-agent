@@ -109,13 +109,24 @@ class ElevenstMarketClientPublishTest {
 	}
 
 	@Test
-	@DisplayName("상품정보제공고시 블록이 들어간다")
-	void sendsProductNotification() {
+	@DisplayName("D-298: 옛 형식 고시 블록(pdNo/ProductNotificationItem)은 더 이상 내보내지 않는다 "
+		+ "— 11번가 현행 규격은 type + item{code,name} 이다")
+	void doesNotSendLegacyNotificationShape() {
 		String xml = capturePublishedXml();
 
-		assertThat(xml).contains("<ProductNotification>");
-		assertThat(xml).contains("비타민D3, 비타민K2");
-		assertThat(xml).contains("질병의 예방 및 치료를 위한 의약품이 아닙니다");
+		assertThat(xml).doesNotContain("<pdNo>");
+		assertThat(xml).doesNotContain("ProductNotificationItem");
+		assertThat(xml).doesNotContain("<itemName>");
+		assertThat(xml).doesNotContain("<itemValue>");
+	}
+
+	@Test
+	@DisplayName("D-298 안전장치: 코드표 미확보 동안에는 고시 블록을 아예 안 싣는다 "
+		+ "— 추측 코드로 만든 블록을 내보내는 것보다 낫다")
+	void omitsNotificationWhileCodeTableUnresolved() {
+		String xml = capturePublishedXml();
+
+		assertThat(xml).doesNotContain("ProductNotification");
 	}
 
 	@Test

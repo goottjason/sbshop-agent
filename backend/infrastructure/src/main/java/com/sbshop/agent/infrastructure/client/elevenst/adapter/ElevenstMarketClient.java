@@ -8,6 +8,8 @@ import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.infrastructure.client.elevenst.client.ElevenstMarketRestClient;
+import com.sbshop.agent.infrastructure.client.elevenst.component.ElevenstProductNotice;
+import com.sbshop.agent.infrastructure.client.elevenst.component.ElevenstProductNotice.NoticeSpec;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -321,12 +323,7 @@ public class ElevenstMarketClient implements MarketClient {
 		}
 		updatedXml = injectElevenstRequiredFields(updatedXml);
 
-		String resp = restClient.put("/rest/prodservices/product/" + marketItemId, updatedXml);
-		log.info("[D092][11번가] 상품수정 PUT resp: {}", resp);
-		if (resp == null
-			|| (!resp.contains("<resultCode>200</resultCode>") && !resp.contains("<resultCode>210</resultCode>"))) {
-			throw new RuntimeException("[Elevenst] 상품수정(이미지) 실패: " + resp);
-		}
+		putProductXml(marketItemId, updatedXml, "이미지");
 		log.info("[Elevenst] 대표이미지 재게시 완료(전체 XML 라운드트립): {}", marketItemId);
 	}
 
@@ -354,12 +351,7 @@ public class ElevenstMarketClient implements MarketClient {
 		}
 		updatedXml = injectElevenstRequiredFields(updatedXml);
 
-		String resp = restClient.put("/rest/prodservices/product/" + marketItemId, updatedXml);
-		log.info("[Elevenst] 필드수정 PUT resp: {}", resp);
-		if (resp == null
-			|| (!resp.contains("<resultCode>200</resultCode>") && !resp.contains("<resultCode>210</resultCode>"))) {
-			throw new RuntimeException("[Elevenst] 상품수정(필드) 실패: " + resp);
-		}
+		putProductXml(marketItemId, updatedXml, "필드");
 		log.info("[Elevenst] 필드수정 완료(전체 XML 라운드트립): {} fields={}", marketItemId, fields);
 		if (currentRawData != null) {
 			for (MarketEditField field : fields) {
@@ -486,37 +478,33 @@ public class ElevenstMarketClient implements MarketClient {
 		if (notice.isEmpty()) {
 			return "";
 		}
-		StringBuilder sb = new StringBuilder();
-		sb.append("<ProductNotification>");
-		sb.append("<pdNo>1</pdNo>");
-		appendNotice(sb, "제품명", pickNotice(notice, "productName"));
-		appendNotice(sb, "식품의 유형", pickNotice(notice, "foodType"));
-		appendNotice(sb, "제조업소의 명칭과 소재지", pickNotice(notice, "producer"));
-		appendNotice(sb, "제조연월일 및 유통기한", pickNotice(notice, "expirationDate"));
-		appendNotice(sb, "포장단위별 내용물의 용량(중량), 수량", pickNotice(notice, "capacity"));
-		appendNotice(sb, "원재료명 및 함량", pickNotice(notice, "ingredients"));
-		appendNotice(sb, "영양성분", pickNotice(notice, "nutrition"));
-		appendNotice(sb, "섭취량 및 섭취방법", pickNotice(notice, "intakeMethod"));
-		appendNotice(sb, "질병의 예방 및 치료를 위한 의약품이 아니라는 내용의 표현",
-			"본 제품은 질병의 예방 및 치료를 위한 의약품이 아닙니다.");
-		appendNotice(sb, "유전자재조합식품에 해당하는 경우의 표시", pickNotice(notice, "gmoInfo"));
-		appendNotice(sb, "수입식품에 해당하는 경우 \"수입식품안전관리특별법에 따른 수입신고를 필함\"의 문구",
-			pickNotice(notice, "importDeclaration"));
-		appendNotice(sb, "소비자상담 관련 전화번호", pickNotice(notice, "customerServiceNumber"));
-		sb.append("</ProductNotification>");
-		return sb.toString();
+		return ElevenstProductNotice.buildBlock(
+			ElevenstProductNotice.specOf(ElevenstProductNotice.NoticeType.HEALTH_FUNCTIONAL_FOOD),
+			noticeValuesByLabel(notice));
 	}
 
-	private void appendNotice(StringBuilder sb, String name, String value) {
-		sb.append("<ProductNotificationItem>")
-			.append("<itemName><![CDATA[").append(name).append("]]></itemName>")
-			.append("<itemValue><![CDATA[").append(value).append("]]></itemValue>")
-			.append("</ProductNotificationItem>");
+	private Map<String, String> noticeValuesByLabel(Map<String, String> notice) {
+		Map<String, String> byLabel = new HashMap<>();
+		byLabel.put("제품명", pickNotice(notice, "productName"));
+		byLabel.put("식품의 유형", pickNotice(notice, "foodType"));
+		byLabel.put("제조업소의 명칭과 소재지", pickNotice(notice, "producer"));
+		byLabel.put("제조연월일 및 유통기한", pickNotice(notice, "expirationDate"));
+		byLabel.put("포장단위별 내용물의 용량(중량), 수량", pickNotice(notice, "capacity"));
+		byLabel.put("원재료명 및 함량", pickNotice(notice, "ingredients"));
+		byLabel.put("영양성분", pickNotice(notice, "nutrition"));
+		byLabel.put("섭취량 및 섭취방법", pickNotice(notice, "intakeMethod"));
+		byLabel.put("질병의 예방 및 치료를 위한 의약품이 아니라는 내용의 표현",
+			"본 제품은 질병의 예방 및 치료를 위한 의약품이 아닙니다.");
+		byLabel.put("유전자재조합식품에 해당하는 경우의 표시", pickNotice(notice, "gmoInfo"));
+		byLabel.put("수입식품에 해당하는 경우 \"수입식품안전관리특별법에 따른 수입신고를 필함\"의 문구",
+			pickNotice(notice, "importDeclaration"));
+		byLabel.put("소비자상담 관련 전화번호", pickNotice(notice, "customerServiceNumber"));
+		return byLabel;
 	}
 
 	private String pickNotice(Map<String, String> notice, String key) {
 		String v = notice.get(key);
-		return v == null || v.isBlank() ? "상세설명 참조" : v;
+		return v == null || v.isBlank() ? ElevenstProductNotice.PLACEHOLDER_VALUE : v;
 	}
 
 	private String nvl(String value, String fallback) {
@@ -575,6 +563,41 @@ public class ElevenstMarketClient implements MarketClient {
 		out = out.replace("</Product>",
 			"\n  <addrSeqOut>5</addrSeqOut>\n  <addrSeqIn>3</addrSeqIn>\n  <outsideYnOut>Y</outsideYnOut>\n  <outsideYnIn>N</outsideYnIn>\n</Product>");
 		return out;
+	}
+
+	NoticeSpec noticeSpec() {
+		return ElevenstProductNotice.specOf(ElevenstProductNotice.NoticeType.HEALTH_FUNCTIONAL_FOOD);
+	}
+
+	private void putProductXml(String marketItemId, String xml, String label) {
+		String path = "/rest/prodservices/product/" + marketItemId;
+		String resp = restClient.put(path, xml);
+		log.info("[Elevenst] 상품수정({}) PUT resp: {}", label, resp);
+		if (isPutSuccess(resp)) {
+			return;
+		}
+		if (isNoticeCountRejection(resp)) {
+			String withNotice = ElevenstProductNotice.inject(xml, noticeSpec(), Map.of());
+			if (!withNotice.equals(xml)) {
+				log.info("[Elevenst] 고시 항목 개수 불일치 거부 — 현행 규격 고시 블록 주입 후 1회 재시도: {}",
+					marketItemId);
+				String retryResp = restClient.put(path, withNotice);
+				log.info("[Elevenst] 상품수정({}) 재PUT resp: {}", label, retryResp);
+				if (isPutSuccess(retryResp)) {
+					return;
+				}
+			}
+		}
+		throw new RuntimeException("[Elevenst] 상품수정(" + label + ") 실패: " + resp);
+	}
+
+	private static boolean isPutSuccess(String resp) {
+		return resp != null
+			&& (resp.contains("<resultCode>200</resultCode>") || resp.contains("<resultCode>210</resultCode>"));
+	}
+
+	private static boolean isNoticeCountRejection(String resp) {
+		return resp != null && resp.contains("고시유형코드에 해당하는 고시 항목 개수");
 	}
 
 	private String extractXmlValue(String xml, String tagName) {
