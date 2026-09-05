@@ -10,6 +10,7 @@ export interface ProductList {
   vendor: string;
   salePrice: number;
   stock: number;
+  bundleQuantity?: number | null;
   repImageUrl: string;
   hostedImages: string[];
   sourcingUrl: string;
@@ -49,6 +50,8 @@ export interface ProductQuery {
   page: number;
   size: number;
   keyword?: string;
+  sbCodes?: string[];
+  brands?: string[];
   categories?: string[];
   includeUncategorized?: boolean;
   vendors?: string[];
@@ -169,11 +172,14 @@ export interface FieldSyncResponse {
 }
 
 export const productApi = {
-  fetchProducts: (query: ProductQuery) =>
-    apiClient.get<ProductPage<ProductList>>('/api/v1/products', { params: query }),
+  fetchProducts: ({ page, size, ...condition }: ProductQuery) =>
+    apiClient.post<ProductPage<ProductList>>('/api/v1/products/search', condition, { params: { page, size } }),
 
   fetchCategories: () =>
     apiClient.get<string[]>('/api/v1/products/categories'),
+
+  fetchBrands: () =>
+    apiClient.get<string[]>('/api/v1/products/brands'),
 
   fetchProductDetail: (id: number) =>
     apiClient.get(`/api/v1/products/${id}`),

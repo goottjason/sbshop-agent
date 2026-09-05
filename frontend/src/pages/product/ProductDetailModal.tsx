@@ -3,6 +3,7 @@ import { Modal, Image, Collapse, Tooltip, Popconfirm, Checkbox, Button, Typograp
 import { UploadOutlined, LinkOutlined, CloudDownloadOutlined } from '@ant-design/icons';
 import { productApi, type ProductDetail, type ImageUploadResult, type ProductEditFields } from '../../api/productApi';
 import { MarketLiveCompare } from './MarketLiveCompare';
+import { ProductPricePreview } from './ProductPricePreview';
 import { notify } from '../../utils/notify';
 import { marketLabel } from '../../utils/marketLabels';
 import {
@@ -420,8 +421,14 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
             {row('판매가', 'salePrice', 'number')}
             {row('마진율(%)', 'marginRate', 'number')}
           </div>
+          {productId != null && <ProductPricePreview
+            key={[productId, baseline.costPrice, baseline.salePrice, baseline.marginRate, baseline.bundleQuantity, baseline.vendor].join('-')}
+            productId={productId} />}
 
           <div style={sectionTitle}>물류 · 스펙</div>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            무게 변경 시 kg로 입력하세요 (125g = 0.125kg). 기존 무게는 소싱처의 단위를 확인한 뒤 수정하세요.
+          </Typography.Text>
           <div style={grid2}>
             {row('재고', 'stock', 'number')}
             {row('무게', 'weight', 'number')}

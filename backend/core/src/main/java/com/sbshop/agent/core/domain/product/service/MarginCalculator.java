@@ -18,21 +18,33 @@ public class MarginCalculator {
 
 	public BigDecimal calculateSalePrice(BigDecimal buyPrice, int bundleQty,
 		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice, BigDecimal channelFeeRate) {
-		return computeSalePrice(applyCoupon(buyPrice, couponRate), bundleQty, marginRate, minMarginPrice,
-			channelFeeRate, DELIVERY_FEE, DELIVERY_FEE_THRESHOLD);
+		return quoteSalePrice(buyPrice, bundleQty, marginRate, couponRate, minMarginPrice, channelFeeRate).salePrice();
 	}
 
 	public BigDecimal calculateSalePrice(BigDecimal buyPrice, int bundleQty,
 		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice, BigDecimal channelFeeRate,
 		BigDecimal domesticFee, BigDecimal domesticFreeOver) {
-		return computeSalePrice(applyCoupon(buyPrice, couponRate), bundleQty, marginRate, minMarginPrice,
-			channelFeeRate, domesticFee, domesticFreeOver);
+		return quoteSalePrice(buyPrice, bundleQty, marginRate, couponRate, minMarginPrice, channelFeeRate,
+			domesticFee, domesticFreeOver).salePrice();
 	}
 
 	public BigDecimal calculateSalePrice(BigDecimal buyPrice, int bundleQty,
 		BigDecimal marginRate, BigDecimal minMarginPrice) {
 		return computeSalePrice(buyPrice, bundleQty, marginRate, minMarginPrice, DEFAULT_CHANNEL_FEE_RATE,
+			DELIVERY_FEE, DELIVERY_FEE_THRESHOLD).salePrice();
+	}
+
+	public SalePriceRounding.Result quoteSalePrice(BigDecimal buyPrice, int bundleQty,
+		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice, BigDecimal channelFeeRate) {
+		return quoteSalePrice(buyPrice, bundleQty, marginRate, couponRate, minMarginPrice, channelFeeRate,
 			DELIVERY_FEE, DELIVERY_FEE_THRESHOLD);
+	}
+
+	public SalePriceRounding.Result quoteSalePrice(BigDecimal buyPrice, int bundleQty,
+		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice, BigDecimal channelFeeRate,
+		BigDecimal domesticFee, BigDecimal domesticFreeOver) {
+		return computeSalePrice(applyCoupon(buyPrice, couponRate), bundleQty, marginRate, minMarginPrice,
+			channelFeeRate, domesticFee, domesticFreeOver);
 	}
 
 	public BigDecimal getEffectiveBuyPrice(BigDecimal listPrice, BigDecimal discountPrice,
@@ -60,6 +72,8 @@ public class MarginCalculator {
 	}
 
 	private BigDecimal applyCoupon(BigDecimal buyPrice, BigDecimal couponRate) {
+		if (buyPrice == null)
+			throw new IllegalArgumentException("가격 계산에 매입가가 필요합니다.");
 		if (couponRate == null || couponRate.signum() <= 0) {
 			return buyPrice;
 		}
@@ -68,9 +82,16 @@ public class MarginCalculator {
 		return buyPrice.multiply(factor);
 	}
 
-	private BigDecimal computeSalePrice(BigDecimal buyPrice, int bundleQty,
+	private SalePriceRounding.Result computeSalePrice(BigDecimal buyPrice, int bundleQty,
 		BigDecimal marginRate, BigDecimal minMarginPrice, BigDecimal channelFeeRate,
 		BigDecimal domesticFee, BigDecimal domesticFreeOver) {
+		if (buyPrice == null || buyPrice.signum() < 0 || bundleQty < 1 || marginRate == null
+			|| channelFeeRate == null) {
+			throw new IllegalArgumentException("가격 계산에 유효한 매입가·묶음수량·마진율·채널수수료가 필요합니다.");
+		}
+		if (minMarginPrice != null && minMarginPrice.signum() < 0) {
+			throw new IllegalArgumentException("최소마진은 0 이상이어야 합니다.");
+		}
 		BigDecimal totalBuyPrice = buyPrice.multiply(BigDecimal.valueOf(bundleQty));
 		totalBuyPrice = totalBuyPrice.add(domesticFee(totalBuyPrice, domesticFee, domesticFreeOver));
 
@@ -78,17 +99,12 @@ public class MarginCalculator {
 			.subtract(marginRate.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP))
 			.subtract(channelFeeRate.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP));
 
-		BigDecimal salePrice = totalBuyPrice.divide(divisor, 0, RoundingMode.CEILING);
-		salePrice = new BigDecimal(salePrice.intValue() +
-			(100 - salePrice.intValue() % 100));
-
-		if (minMarginPrice != null) {
-			BigDecimal margin = salePrice.subtract(totalBuyPrice);
-			if (margin.compareTo(minMarginPrice) < 0) {
-				salePrice = salePrice.add(minMarginPrice.subtract(margin));
-			}
+		// 기존 최소마진 정의(판매가 - 쿠폰 적용 총 매입가 - 국내 배송비)를 유지한다.
+		BigDecimal minimumPrice = minMarginPrice == null ? null : totalBuyPrice.add(minMarginPrice);
+		var result = SalePriceRounding.fromRatio(totalBuyPrice, divisor, minimumPrice);
+		if (result.salePrice().signum() <= 0) {
+			throw new IllegalArgumentException("100원 단위 처리 후 판매가가 0원입니다. 매입가와 최소마진을 확인하세요.");
 		}
-
-		return salePrice;
+		return result;
 	}
 }

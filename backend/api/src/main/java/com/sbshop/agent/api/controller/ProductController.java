@@ -97,6 +97,21 @@ public class ProductController {
 		Pageable pageable) {
 		ProductSearchCondition condition = buildSearchCondition(keyword, marketFilter, categories,
 			vendors, stockStatuses, markets, inStockOnly, includeUncategorized, sourceGone);
+		return searchResponse(condition, pageable);
+	}
+
+	/** 많은 SB코드와 쉼표를 포함한 브랜드명을 URL 길이/파라미터 분할 문제 없이 검색한다. */
+	@PostMapping("/search")
+	public ResponseEntity<Page<ProductListResponse>> searchProducts(
+		@RequestBody
+		ProductSearchCondition condition,
+		@PageableDefault(size = 50)
+		Pageable pageable) {
+		return searchResponse(condition, pageable);
+	}
+
+	private ResponseEntity<Page<ProductListResponse>> searchResponse(ProductSearchCondition condition,
+		Pageable pageable) {
 		Page<Product> products = productSearchUseCase.searchProducts(condition, pageable);
 		Map<Long, List<MarketRegistration>> registrationsByProduct = loadRegistrations(products.getContent());
 		return ResponseEntity.ok(products.map(
@@ -107,6 +122,11 @@ public class ProductController {
 	@GetMapping("/categories")
 	public ResponseEntity<List<String>> getCategories() {
 		return ResponseEntity.ok(productSearchUseCase.getCategoryNames());
+	}
+
+	@GetMapping("/brands")
+	public ResponseEntity<List<String>> getBrands() {
+		return ResponseEntity.ok(productSearchUseCase.getBrandNames());
 	}
 
 	@GetMapping("/{id}")

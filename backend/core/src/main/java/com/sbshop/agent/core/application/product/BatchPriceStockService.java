@@ -218,12 +218,13 @@ public class BatchPriceStockService {
 					bundleQty, vendorPolicy, result.fxRate());
 
 				BigDecimal coupangFee = marketFeeService.feeRate(MarketType.COUPANG);
-				BigDecimal salePrice = (vendorPolicy == null || vendorPolicy.getDomesticFee() == null)
-					? marginCalculator.calculateSalePrice(buyPrice, bundleQty, marginRate,
+				var priceQuote = (vendorPolicy == null || vendorPolicy.getDomesticFee() == null)
+					? marginCalculator.quoteSalePrice(buyPrice, bundleQty, marginRate,
 						couponRate, minMarginPrice, coupangFee)
-					: marginCalculator.calculateSalePrice(buyPrice, bundleQty, marginRate,
+					: marginCalculator.quoteSalePrice(buyPrice, bundleQty, marginRate,
 						couponRate, minMarginPrice, coupangFee,
 						vendorPolicy.getDomesticFee(), vendorPolicy.getDomesticFreeOver());
+				BigDecimal salePrice = priceQuote.salePrice();
 
 				BigDecimal oldSalePrice = product.getSalePrice();
 				StockStatus oldStatus = product.getStockStatus();
@@ -250,11 +251,14 @@ public class BatchPriceStockService {
 
 				MarketRepublishResult sync = productMarketSyncService.syncPriceStockPerMarket(
 					productId,
-					new PricingInputs(buyPrice, bundleQty, marginRate, couponRate, minMarginPrice),
+					new PricingInputs(buyPrice, bundleQty, marginRate, couponRate, minMarginPrice,
+						vendorPolicy == null ? null : vendorPolicy.getDomesticFee(),
+						vendorPolicy == null ? null : vendorPolicy.getDomesticFreeOver()),
 					result.status(), changed);
 				if (recordOutcome(batchId, productId, sync,
-					String.format("[%s] 가격:%s, 재고:%d%s",
-						product.getSbCode(), salePrice, result.stock(), renderMarketOutcome(sync)))) {
+					String.format("[%s] 가격:%s, 재고:%d%s%s",
+						product.getSbCode(), salePrice, result.stock(),
+						priceQuote.minimumAdjusted() ? " · " + priceQuote.reason() : "", renderMarketOutcome(sync)))) {
 					partialCount++;
 				}
 				Thread.sleep(CRAWL_THROTTLE_MS);

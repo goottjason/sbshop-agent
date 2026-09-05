@@ -45,7 +45,7 @@ class MarginCalculatorTest {
 	}
 
 	@Test
-	@DisplayName("판매가는 100원 단위로 올림된다")
+	@DisplayName("판매가는 100원 단위로 반올림된다")
 	void calculateSalePrice_roundsToNearest100() {
 		BigDecimal salePrice = calculator.calculateSalePrice(
 			new BigDecimal("33000"), 1, new BigDecimal("15"), null);
@@ -84,11 +84,11 @@ class MarginCalculatorTest {
 
 		BigDecimal coupang = calculator.calculateSalePrice(
 			buyPrice, 2, new BigDecimal("10"), new BigDecimal("15"), new BigDecimal("3500"), new BigDecimal("11"));
-		assertThat(coupang).isEqualByComparingTo("67900");
+		assertThat(coupang).isEqualByComparingTo("67800");
 
 		BigDecimal gmarket = calculator.calculateSalePrice(
 			buyPrice, 2, new BigDecimal("10"), new BigDecimal("15"), new BigDecimal("3500"), new BigDecimal("18"));
-		assertThat(gmarket).isEqualByComparingTo("74500");
+		assertThat(gmarket).isEqualByComparingTo("74400");
 
 		assertThat(coupang).isLessThan(gmarket);
 	}
@@ -98,6 +98,33 @@ class MarginCalculatorTest {
 	void calculateSalePrice_withoutFeeParam_keeps18_5Default() {
 		BigDecimal legacy = calculator.calculateSalePrice(
 			new BigDecimal("31522"), 2, new BigDecimal("10"), new BigDecimal("15"), new BigDecimal("3500"));
-		assertThat(legacy).isEqualByComparingTo("75000");
+		assertThat(legacy).isEqualByComparingTo("74900");
+	}
+
+	@Test
+	void quotePreservesMinimumAndExplainsTheHundredWonAdjustment() {
+		var quote = calculator.quoteSalePrice(new BigDecimal("12340"), 1, BigDecimal.ZERO, BigDecimal.ZERO,
+			BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, null);
+		assertThat(quote.roundedPrice()).isEqualByComparingTo("12300");
+		assertThat(quote.minimumPrice()).isEqualByComparingTo("12340");
+		assertThat(quote.salePrice()).isEqualByComparingTo("12400");
+		assertThat(quote.reason()).contains("최소마진 보장", "12340", "12400");
+		assertThat(calculator.calculateSalePrice(new BigDecimal("12340"), 1, BigDecimal.ZERO, BigDecimal.ZERO,
+			BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, null)).isEqualByComparingTo(quote.salePrice());
+	}
+
+	@Test
+	void couponBundleAndDomesticShippingAreIncludedInTheExistingMinimumDefinition() {
+		var quote = calculator.quoteSalePrice(new BigDecimal("10000"), 2, BigDecimal.ZERO, new BigDecimal("10"),
+			new BigDecimal("2340"), BigDecimal.ZERO, new BigDecimal("6000"), new BigDecimal("40000"));
+		assertThat(quote.minimumPrice()).isEqualByComparingTo("26340");
+		assertThat(quote.salePrice()).isEqualByComparingTo("26400");
+	}
+
+	@Test
+	void roundingToZeroCannotBecomeAnAutomaticSalePrice() {
+		org.assertj.core.api.Assertions.assertThatThrownBy(() -> calculator.quoteSalePrice(new BigDecimal("1"), 1,
+			BigDecimal.ZERO, BigDecimal.ZERO, null, BigDecimal.ZERO, BigDecimal.ZERO, null))
+			.isInstanceOf(IllegalArgumentException.class).hasMessageContaining("0원");
 	}
 }

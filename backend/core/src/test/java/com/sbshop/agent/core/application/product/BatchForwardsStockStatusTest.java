@@ -76,8 +76,9 @@ class BatchForwardsStockStatusTest {
 			com.sbshop.agent.core.domain.pricing.VendorPricePolicy.builder()
 				.shipBaseAmount(java.math.BigDecimal.ZERO).build()));
 
-		lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any(), any(), any()))
-			.thenReturn(new BigDecimal("9900"));
+		lenient().when(marginCalculator.quoteSalePrice(any(), any(Integer.class), any(), any(), any(), any()))
+			.thenReturn(new com.sbshop.agent.core.domain.product.service.SalePriceRounding.Result(
+				new BigDecimal("9900"), null, new BigDecimal("9900")));
 		lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any()))
 			.thenReturn(new BigDecimal("9900"));
 		lenient().when(productMarketSyncService.syncPriceStock(any(), any(), any(StockStatus.class), anyBoolean()))

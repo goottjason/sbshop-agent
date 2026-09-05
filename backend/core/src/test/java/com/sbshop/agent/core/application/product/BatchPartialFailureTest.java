@@ -97,8 +97,9 @@ class BatchPartialFailureTest {
 				.shipBaseAmount(BigDecimal.ZERO).build()));
 		lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any()))
 			.thenReturn(new BigDecimal("20500"));
-		lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any(), any(), any()))
-			.thenReturn(new BigDecimal("20500"));
+		lenient().when(marginCalculator.quoteSalePrice(any(), any(Integer.class), any(), any(), any(), any()))
+			.thenReturn(new com.sbshop.agent.core.domain.product.service.SalePriceRounding.Result(
+				new BigDecimal("20500"), null, new BigDecimal("20500")));
 	}
 
 	private void crawlReturns(StockStatus status) {

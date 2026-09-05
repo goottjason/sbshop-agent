@@ -17,6 +17,8 @@ public interface ProductReader {
 
 	List<ProductCategory> findDistinctCategories();
 
+	List<String> findDistinctBrands();
+
 	List<Product> findAllByIds(List<Long> ids);
 
 	String getNextSbCodeSequence(String prefix);

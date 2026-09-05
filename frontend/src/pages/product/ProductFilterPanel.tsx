@@ -1,8 +1,14 @@
 import { useState } from 'react';
+import { Button, Checkbox, Input, Modal, Select, Tag } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
 import { MARKET_FILTER_OPTIONS, VENDOR_OPTIONS, STOCK_STATUS_OPTIONS } from './productGridShared';
+import { EMPTY_PRODUCT_FILTERS, parseSbCodes } from './productSearch';
+import './productWorkspace.css';
 
 export interface ProductFilters {
   keyword: string;
+  sbCodes: string[];
+  brands: string[];
   categories: string[];
   includeUncategorized: boolean;
   markets: string[];
@@ -12,163 +18,98 @@ export interface ProductFilters {
   sourceGone: 'ALL' | 'GONE_ONLY' | 'ALIVE_ONLY';
 }
 
-const rowStyle = { display: 'flex', alignItems: 'center' } as const;
-const labelStyle = { width: '120px', fontWeight: 600, color: '#555', flexShrink: 0 } as const;
-const checkboxStyle = { marginRight: '6px', accentColor: 'var(--product-primary)', width: '16px', height: '16px', cursor: 'pointer' } as const;
-const optLabelStyle = { display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#333' } as const;
+interface Props {
+  categoryOptions: string[];
+  brandOptions: string[];
+  brandsLoading: boolean;
+  brandsError: boolean;
+  onRetryBrands: () => void;
+  onSearch: (filters: ProductFilters) => void;
+}
 
-export function ProductFilterPanel({ categoryOptions, onSearch }: { categoryOptions: string[]; onSearch: (f: ProductFilters) => void }) {
-  const allMarkets = MARKET_FILTER_OPTIONS.map((m) => m.id);
-  const allVendors = VENDOR_OPTIONS;
-  const allStock = STOCK_STATUS_OPTIONS.map((s) => s.id as string);
-
-  const [keyword, setKeyword] = useState('');
-  const [categories, setCategories] = useState<string[]>([]);
-  const [includeUncategorized, setIncludeUncategorized] = useState(false);
-  const [markets, setMarkets] = useState<string[]>(allMarkets);
-  const [vendors, setVendors] = useState<string[]>(allVendors);
-  const [stockStatuses, setStockStatuses] = useState<string[]>(allStock);
-  const [inStockOnly, setInStockOnly] = useState(false);
-  const [sourceGone, setSourceGone] = useState<ProductFilters['sourceGone']>('ALL');
-
-  const toggle = (list: string[], set: (v: string[]) => void, val: string) =>
-    set(list.includes(val) ? list.filter((x) => x !== val) : [...list, val]);
-
-  const handleSearch = () =>
-    onSearch({ keyword, categories, includeUncategorized, markets, vendors, stockStatuses, inStockOnly, sourceGone });
-
-  const isAllMarkets = markets.length === allMarkets.length;
-  const isAllVendors = vendors.length === allVendors.length;
-  const isAllStock = stockStatuses.length === allStock.length;
-  const isAllCategories = categories.length === categoryOptions.length && includeUncategorized;
-
-  const toggleAllCategories = () => {
-    setCategories(isAllCategories ? [] : [...categoryOptions]);
-    setIncludeUncategorized(!isAllCategories);
-  };
+export function ProductFilterPanel({ categoryOptions, brandOptions, brandsLoading, brandsError, onRetryBrands, onSearch }: Props) {
+  const [filters, setFilters] = useState<ProductFilters>(EMPTY_PRODUCT_FILTERS);
+  const [codesOpen, setCodesOpen] = useState(false);
+  const [codesText, setCodesText] = useState('');
+  const codes = parseSbCodes(codesText);
+  const set = <K extends keyof ProductFilters>(key: K, value: ProductFilters[K]) =>
+    setFilters((previous) => ({ ...previous, [key]: value }));
+  const apply = (next: ProductFilters) => { setFilters(next); onSearch(next); };
 
   return (
-    <div style={{ backgroundColor: '#fff', borderTop: '2px solid var(--product-primary)', border: '1px solid #e5e7eb', borderTopColor: 'var(--product-primary)', borderTopWidth: 2, borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', padding: '14px 20px', marginBottom: '14px', fontSize: '13px' }}>
-      <style>{`
-        .pf-search:focus { border-color: var(--product-primary); box-shadow: 0 0 0 3px rgba(22,101,52,0.12); }
-        .pf-search::placeholder { color: #cbd5e1; }
-        .pf-searchbtn:hover { filter: brightness(1.08); box-shadow: 0 2px 8px rgba(22,101,52,0.25); }
-      `}</style>
-      <div style={{ display: 'flex', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px', marginBottom: '8px' }}>
-        <div style={{ flex: 1, ...rowStyle }}>
-          <span style={labelStyle}>통합 검색</span>
-          <input type="text" className="pf-search" placeholder="상품명, SB코드, 브랜드" value={keyword}
-            onChange={(e) => setKeyword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            style={{ flex: 1, padding: '7px 12px', border: '1px solid #d1d5db', borderRadius: 8, outline: 'none', fontSize: 13, transition: 'border-color .15s, box-shadow .15s' }} />
+    <section className="pw-search" aria-label="상품 검색 및 필터">
+      <form onSubmit={(event) => { event.preventDefault(); onSearch(filters); }}>
+        <div className="pw-searchbar">
+          <Input size="large" prefix={<SearchOutlined />} aria-label="상품 통합 검색"
+            placeholder="상품명, SB코드, 브랜드, 바코드 검색" allowClear
+            value={filters.keyword} onChange={(event) => set('keyword', event.target.value)} />
+          <Button size="large" onClick={() => { setCodesText(filters.sbCodes.join('\n')); setCodesOpen(true); }}>
+            여러 SB코드 붙여넣기{filters.sbCodes.length > 0 ? ' (' + filters.sbCodes.length + ')' : ''}
+          </Button>
+          <Button size="large" type="primary" htmlType="submit">검색</Button>
         </div>
-        <div style={{ flex: 1, ...rowStyle }}>
-          <span style={labelStyle}>카테고리</span>
-          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-            <label style={optLabelStyle}>
-              <input type="checkbox" checked={isAllCategories}
-                onChange={toggleAllCategories} style={checkboxStyle} />
-              전체
-            </label>
-            {categoryOptions.map((c) => (
-              <label key={c} style={optLabelStyle}>
-                <input type="checkbox" checked={categories.includes(c)} onChange={() => toggle(categories, setCategories, c)} style={checkboxStyle} />
-                {c}
-              </label>
-            ))}
-            <label style={optLabelStyle}>
-              <input type="checkbox" checked={includeUncategorized}
-                onChange={() => setIncludeUncategorized((v) => !v)} style={checkboxStyle} />
-              미분류
-            </label>
+        <div className="pw-filter-grid">
+          <div className="pw-filter">
+            <label htmlFor="pw-vendors">소싱처</label>
+            <Select id="pw-vendors" mode="multiple" allowClear placeholder="모든 소싱처"
+              value={filters.vendors} onChange={(value) => set('vendors', value)}
+              options={VENDOR_OPTIONS.map((value) => ({ value, label: value }))} />
+          </div>
+          <div className="pw-filter">
+            <label htmlFor="pw-brands">브랜드</label>
+            <Select id="pw-brands" mode="multiple" showSearch allowClear placeholder="브랜드 검색·선택"
+              optionFilterProp="label" loading={brandsLoading} disabled={brandsError}
+              value={filters.brands} onChange={(value) => set('brands', value)}
+              options={brandOptions.map((value) => ({ value, label: value }))} maxTagCount="responsive" />
+            {brandsError && <span role="alert">브랜드 목록 조회 실패 <Button type="link" size="small" onClick={onRetryBrands}>재시도</Button></span>}
+          </div>
+          <div className="pw-filter">
+            <label htmlFor="pw-stock">재고 상태</label>
+            <Select id="pw-stock" mode="multiple" allowClear placeholder="모든 재고 상태"
+              value={filters.stockStatuses} onChange={(value) => set('stockStatuses', value)}
+              options={STOCK_STATUS_OPTIONS.map((option) => ({ value: option.id, label: option.label }))} />
           </div>
         </div>
-      </div>
-
-      <div style={{ display: 'flex', paddingBottom: '8px', marginBottom: '8px', borderBottom: '1px solid #f1f5f9' }}>
-        <div style={{ flex: 1, ...rowStyle }}>
-          <span style={labelStyle}>마켓 등록상태</span>
-          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-            <label style={optLabelStyle}>
-              <input type="checkbox" checked={isAllMarkets} onChange={() => setMarkets(isAllMarkets ? [] : allMarkets)} style={checkboxStyle} />
-              전체
-            </label>
-            {MARKET_FILTER_OPTIONS.map((m) => (
-              <label key={m.id} style={optLabelStyle}>
-                <input type="checkbox" checked={markets.includes(m.id)} onChange={() => toggle(markets, setMarkets, m.id)} style={checkboxStyle} />
-                {m.label}
-              </label>
-            ))}
+        <details className="pw-more-filters">
+          <summary>카테고리 · 마켓 연결 · 원본 상태</summary>
+          <div className="pw-filter-grid">
+            <div className="pw-filter">
+              <label htmlFor="pw-categories">카테고리</label>
+              <Select id="pw-categories" mode="multiple" allowClear placeholder="모든 카테고리"
+                value={filters.categories} onChange={(value) => set('categories', value)}
+                options={categoryOptions.map((value) => ({ value, label: value }))} />
+              <Checkbox checked={filters.includeUncategorized} onChange={(event) => set('includeUncategorized', event.target.checked)}>미분류 포함</Checkbox>
+            </div>
+            <div className="pw-filter">
+              <label htmlFor="pw-markets">마켓 연결 기록</label>
+              <Select id="pw-markets" mode="multiple" allowClear placeholder="마켓 제한 없음"
+                value={filters.markets} onChange={(value) => set('markets', value)}
+                options={MARKET_FILTER_OPTIONS.map((option) => ({ value: option.id, label: option.label }))} />
+              <small>선택한 마켓 중 하나 이상에 연결 기록이 있는 상품</small>
+            </div>
+            <div className="pw-filter">
+              <label htmlFor="pw-source-state">소싱처 원본 상태</label>
+              <Select id="pw-source-state" value={filters.sourceGone} onChange={(value) => set('sourceGone', value)}
+                options={[{ value: 'ALL', label: '전체' }, { value: 'ALIVE_ONLY', label: '원본 소멸 기록 없음' }, { value: 'GONE_ONLY', label: '원본 소멸 확인' }]} />
+              <Checkbox checked={filters.inStockOnly} onChange={(event) => set('inStockOnly', event.target.checked)}>DB 재고 수량 1개 이상</Checkbox>
+            </div>
           </div>
+        </details>
+        <div className="pw-filter-footer">
+          <span>{filters.sbCodes.length > 0
+            ? <Tag closable onClose={() => apply({ ...filters, sbCodes: [] })}>SB코드 {filters.sbCodes.length}개 · 다른 검색 조건과 함께 적용</Tag>
+            : '조건을 조합하고 검색을 누르세요.'}</span>
+          <Button type="text" onClick={() => apply(EMPTY_PRODUCT_FILTERS)}>조건 초기화</Button>
         </div>
-        <div style={{ flex: 1, ...rowStyle }}>
-          <span style={labelStyle}>원본 상태</span>
-          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-            {([
-              { id: 'ALL', label: '전체' },
-              { id: 'ALIVE_ONLY', label: '정상만' },
-              { id: 'GONE_ONLY', label: '폐기 후보만' },
-            ] as const).map((o) => (
-              <label key={o.id} style={optLabelStyle}>
-                <input
-                  type="radio"
-                  name="sourceGone"
-                  checked={sourceGone === o.id}
-                  onChange={() => setSourceGone(o.id)}
-                  style={checkboxStyle}
-                />
-                {o.label}
-              </label>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex' }}>
-        <div style={{ flex: 1, ...rowStyle }}>
-          <span style={labelStyle}>소싱처</span>
-          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-            <label style={optLabelStyle}>
-              <input type="checkbox" checked={isAllVendors} onChange={() => setVendors(isAllVendors ? [] : allVendors)} style={checkboxStyle} />
-              전체
-            </label>
-            {VENDOR_OPTIONS.map((v) => (
-              <label key={v} style={optLabelStyle}>
-                <input type="checkbox" checked={vendors.includes(v)} onChange={() => toggle(vendors, setVendors, v)} style={checkboxStyle} />
-                {v}
-              </label>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex' }}>
-        <div style={{ flex: 1, ...rowStyle }}>
-          <span style={labelStyle}>재고·판매상태</span>
-          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-            <label style={optLabelStyle}>
-              <input type="checkbox" checked={isAllStock} onChange={() => setStockStatuses(isAllStock ? [] : allStock)} style={checkboxStyle} />
-              전체
-            </label>
-            {STOCK_STATUS_OPTIONS.map((s) => (
-              <label key={s.id} style={optLabelStyle}>
-                <input type="checkbox" checked={stockStatuses.includes(s.id)} onChange={() => toggle(stockStatuses, setStockStatuses, s.id)} style={checkboxStyle} />
-                {s.label}
-              </label>
-            ))}
-          </div>
-        </div>
-        <div style={{ flex: 1, ...rowStyle }}>
-          <span style={labelStyle}>재고유무</span>
-          <label style={optLabelStyle}>
-            <input type="checkbox" checked={inStockOnly} onChange={() => setInStockOnly((v) => !v)} style={checkboxStyle} />
-            재고 있는 상품만
-          </label>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
-        <button onClick={handleSearch} className="pf-searchbtn" style={{ backgroundColor: 'var(--product-primary)', color: 'white', border: 'none', padding: '9px 40px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', borderRadius: '8px', boxShadow: '0 1px 3px rgba(22,101,52,0.2)', transition: 'filter .15s, box-shadow .15s' }}>검색</button>
-      </div>
-    </div>
+      </form>
+      <Modal title="여러 SB코드 붙여넣기" open={codesOpen} onCancel={() => setCodesOpen(false)}
+        okText="검색에 적용" cancelText="취소"
+        onOk={() => { apply({ ...filters, sbCodes: codes }); setCodesOpen(false); }}>
+        <p>쉼표와 줄바꿈을 함께 사용할 수 있습니다. 공백·중복을 정리하고 코드 전체가 일치하는 상품을 찾습니다.</p>
+        <Input.TextArea aria-label="검색할 SB코드" value={codesText} onChange={(event) => setCodesText(event.target.value)}
+          autoSize={{ minRows: 6, maxRows: 14 }} placeholder={'SB코드1, SB코드2\nSB코드3'} />
+        <p>중복 제거 후 {codes.length.toLocaleString()}개 · 소싱처·브랜드 등 다른 조건도 함께 적용합니다.</p>
+      </Modal>
+    </section>
   );
 }

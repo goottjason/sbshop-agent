@@ -14,6 +14,7 @@ import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.dto.ProductCreateCommand;
 import com.sbshop.agent.core.domain.product.enums.MeasureUnit;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
+import com.sbshop.agent.core.domain.product.vo.ProductWeight;
 import com.sbshop.agent.core.domain.sourcing.MarketDraft;
 import com.sbshop.agent.core.domain.sourcing.ProductDraft;
 import java.math.BigDecimal;
@@ -51,9 +52,10 @@ public class DraftPublishUseCase {
 				"등록 가능한 마켓이 없습니다. 마켓별 필수필드를 채운 뒤 다시 시도하세요.");
 		}
 
+		ProductCreateCommand command = toCreateCommand(draft);
 		draftPublishTxService.markPublishing(draft.getId());
 
-		Product product = createProduct(draft);
+		Product product = createProduct(command);
 		Long productId = product.getId();
 
 		List<MarketOutcome> outcomes = new ArrayList<>();
@@ -69,8 +71,8 @@ public class DraftPublishUseCase {
 		return new PublishResult(draftId, productId, product.getSbCode(), outcomes);
 	}
 
-	private Product createProduct(ProductDraft draft) {
-		BulkProductCreateResult result = productCreateUseCase.createBulk(List.of(toCreateCommand(draft)));
+	private Product createProduct(ProductCreateCommand command) {
+		BulkProductCreateResult result = productCreateUseCase.createBulk(List.of(command));
 		if (result.succeeded().isEmpty()) {
 			String reason = result.failed().isEmpty() ? "알 수 없는 오류"
 				: result.failed().get(0).reason();
@@ -108,7 +110,7 @@ public class DraftPublishUseCase {
 			draft.getOriginalName(),
 			draft.getBrand(),
 			draft.getOrigin(),
-			draft.getWeightG(),
+			ProductWeight.fromGrams(draft.getWeightG()),
 			draft.getCapacity(),
 			draft.getMeasureUnit() != null ? draft.getMeasureUnit() : MeasureUnit.EA,
 			readList(draft.getSourceImages()),

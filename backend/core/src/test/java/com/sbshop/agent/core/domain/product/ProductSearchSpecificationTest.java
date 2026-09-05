@@ -337,6 +337,73 @@ class ProductSearchSpecificationTest {
 		return page.getContent().stream().map(Product::getSbCode).toList();
 	}
 
+	@Test
+	@DisplayName("붙여넣은 SB코드는 공백·중복·대소문자를 정리하고 브랜드/소싱처/재고와 AND로 검색한다")
+	void pastedCodesCombineWithOtherFilters() {
+		persist("SB001", ProductUpdateCommand.builder().brand("Brand, Inc.").stock(5).build(), StockStatus.IN_STOCK);
+		persist("SB002", ProductUpdateCommand.builder().brand("Other").stock(5).build(), StockStatus.IN_STOCK);
+		persist("SB003", ProductUpdateCommand.builder().brand("Brand, Inc.").stock(0).build(),
+			StockStatus.OUT_OF_STOCK);
+		persist("SB004", ProductUpdateCommand.builder().brand("Brand, Inc.").vendor(VendorType.AMZ).build(),
+			StockStatus.IN_STOCK);
+		persist("SB0010", ProductUpdateCommand.builder().brand("Brand, Inc.").stock(5).build(), StockStatus.IN_STOCK);
+		ProductSearchCondition condition = ProductSearchCondition.builder()
+			.sbCodes(List.of(" sb001, SB002\r\nSB003\nSB004, sb001,, MISSING "))
+			.brands(List.of("Brand, Inc."))
+			.vendors(List.of(VendorType.IHB))
+			.stockStatuses(List.of(StockStatus.IN_STOCK)).build();
+
+		assertThat(condition.sbCodes()).containsExactly("SB001", "SB002", "SB003", "SB004", "MISSING");
+		assertThat(sbCodesOf(condition)).containsExactly("SB001");
+	}
+
+	@Test
+	@DisplayName("SB코드 목록의 정확 일치 검색은 페이지 이동에서도 유지된다")
+	void exactCodesAreAppliedBeforePagination() {
+		save("SB001", ProductCategory.FOOD);
+		save("SB002", ProductCategory.FOOD);
+		save("SB0010", ProductCategory.FOOD);
+		var condition = ProductSearchCondition.builder().sbCodes(List.of("SB001", "SB002")).build();
+		Page<Product> page = productRepository.findAll(ProductSpecifications.matching(condition),
+			PageRequest.of(1, 1, org.springframework.data.domain.Sort.by("sbCode")));
+		assertThat(page.getTotalElements()).isEqualTo(2);
+		assertThat(page.getContent()).extracting(Product::getSbCode).containsExactly("SB002");
+	}
+
+	@Test
+	@DisplayName("통합검색은 DB 바코드의 선행 0을 보존한다")
+	void keywordSearchesBarcode() {
+		persist("SB001", ProductUpdateCommand.builder().barcode("068958016375").build(), StockStatus.IN_STOCK);
+		save("SB002", ProductCategory.FOOD);
+		assertThat(sbCodesOf(ProductSearchCondition.builder().keyword(" 068958016375 ").build()))
+			.containsExactly("SB001");
+	}
+
+	@Test
+	@DisplayName("검색어의 %, _, !는 와일드카드가 아니라 문자 그대로 검색한다")
+	void keywordTreatsWildcardCharactersLiterally() {
+		saveNamed("SB001", "100% A_B!", ProductCategory.FOOD);
+		saveNamed("SB002", "1000 AXB", ProductCategory.FOOD);
+		for (String keyword : List.of("%", "_", "!", "100% A_B!")) {
+			assertThat(sbCodesOf(ProductSearchCondition.builder().keyword(keyword).build())).containsExactly("SB001");
+		}
+	}
+
+	@Test
+	@DisplayName("브랜드 선택지는 전체 상품에서 조회하며 중복/빈값/폐기 상품은 제외한다")
+	void distinctBrandsExcludeDeletedAndEmptyProducts() {
+		persist("SB001", ProductUpdateCommand.builder().brand("Brand, Inc.").build(), StockStatus.IN_STOCK);
+		persist("SB002", ProductUpdateCommand.builder().brand("Brand, Inc.").build(), StockStatus.IN_STOCK);
+		persist("SB003", ProductUpdateCommand.builder().brand(" ").build(), StockStatus.IN_STOCK);
+		Product deleted = persist("SB004", ProductUpdateCommand.builder().brand("Deleted Brand").build(),
+			StockStatus.IN_STOCK);
+		deleted.markDeleted();
+		productRepository.saveAndFlush(deleted);
+		entityManager.clear();
+		assertThat(productRepository.findDistinctBrands()).containsExactly("Brand, Inc.");
+		assertThat(sbCodesOf(ProductSearchCondition.builder().sbCodes(List.of("SB004")).build())).isEmpty();
+	}
+
 	private Product save(String sbCode, ProductCategory category) {
 		return persist(sbCode, ProductUpdateCommand.builder().category(category).build(), StockStatus.IN_STOCK);
 	}

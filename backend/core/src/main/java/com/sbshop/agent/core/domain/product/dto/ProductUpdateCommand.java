@@ -3,6 +3,7 @@ package com.sbshop.agent.core.domain.product.dto;
 import com.sbshop.agent.core.domain.product.enums.MeasureUnit;
 import com.sbshop.agent.core.domain.product.enums.ProductCategory;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
+import com.sbshop.agent.core.domain.product.vo.ProductWeight;
 import java.math.BigDecimal;
 import java.util.List;
 import lombok.Builder;
@@ -22,7 +23,7 @@ public record ProductUpdateCommand(
 	BigDecimal minMarginPrice,
 	BigDecimal salePrice,
 	Integer stock,
-	BigDecimal weight,
+	BigDecimal weight, // kg. 기존 값의 단위 확인·변환은 별도 검토 절차를 따른다.
 	Integer bundleQuantity,
 	String barcode,
 	BigDecimal capacity,
@@ -37,4 +38,7 @@ public record ProductUpdateCommand(
 	String searchKeywords,
 	String detailHtml,
 	String memo) {
+	public ProductUpdateCommand {
+		ProductWeight.requireKilograms(weight);
+	}
 }

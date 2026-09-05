@@ -123,8 +123,9 @@ const ProductRegisterPage = () => {
     { title: '원가($)', dataIndex: 'costPrice', width: 80 },
     { title: '원산지', width: 110, render: (_: unknown, r: EditableRow, i: number) => (
       <Input size="small" value={r.origin} onChange={(e) => updateRow(i, { origin: e.target.value })} />) },
-    { title: '중량', width: 90, render: (_: unknown, r: EditableRow, i: number) => (
-      <InputNumber size="small" value={r.weight} onChange={(v) => updateRow(i, { weight: v ?? undefined })} />) },
+    { title: '중량 (kg)', width: 110, render: (_: unknown, r: EditableRow, i: number) => (
+      <InputNumber size="small" min={0} step={0.001} placeholder="예: 0.125" value={r.weight}
+        onChange={(v) => updateRow(i, { weight: v ?? undefined })} />) },
     { title: '카테고리', width: 130, render: (_: unknown, r: EditableRow, i: number) => (
       <Input size="small" value={r.rawCategory} onChange={(e) => updateRow(i, { rawCategory: e.target.value })} />) },
     { title: '묶음', width: 70, render: (_: unknown, r: EditableRow, i: number) => (

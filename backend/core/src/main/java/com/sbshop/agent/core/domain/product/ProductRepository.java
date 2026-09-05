@@ -42,6 +42,10 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 	@Query("SELECT DISTINCT p.category FROM Product p WHERE p.deletedAt IS NULL AND p.category IS NOT NULL")
 	List<ProductCategory> findDistinctCategories();
 
+	@Query("SELECT DISTINCT p.brand FROM Product p WHERE p.deletedAt IS NULL "
+		+ "AND p.brand IS NOT NULL AND TRIM(p.brand) <> '' ORDER BY p.brand")
+	List<String> findDistinctBrands();
+
 	@Query("SELECT p.id FROM Product p "
 		+ "WHERE p.deletedAt IS NULL "
 		+ "AND (p.productSpec.barcode IS NULL OR p.productSpec.barcode = '') "

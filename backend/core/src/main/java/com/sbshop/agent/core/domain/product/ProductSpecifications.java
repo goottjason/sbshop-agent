@@ -12,6 +12,7 @@ import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -28,6 +29,12 @@ public final class ProductSpecifications {
 			List<Predicate> predicates = new ArrayList<>();
 			predicates.add(cb.isNull(root.get("deletedAt")));
 			addKeyword(predicates, condition, root, cb);
+			if (!condition.sbCodes().isEmpty()) {
+				predicates.add(cb.upper(root.get("sbCode")).in(condition.sbCodes()));
+			}
+			if (!condition.brands().isEmpty()) {
+				predicates.add(root.get("brand").in(condition.brands()));
+			}
 			addMarketFilter(predicates, condition, root, query, cb);
 			addMarkets(predicates, condition, root, query, cb);
 			addCategories(predicates, condition, root, cb);
@@ -45,8 +52,7 @@ public final class ProductSpecifications {
 		switch (condition.sourceGone()) {
 			case GONE_ONLY -> predicates.add(cb.isNotNull(root.get("sourceGoneAt")));
 			case ALIVE_ONLY -> predicates.add(cb.isNull(root.get("sourceGoneAt")));
-			default -> {
-			}
+			default -> {}
 		}
 	}
 
@@ -55,11 +61,14 @@ public final class ProductSpecifications {
 		if (condition.keyword() == null) {
 			return;
 		}
-		String pattern = "%" + condition.keyword().toLowerCase() + "%";
+		// 검색어의 %, _는 SQL 와일드카드가 아닌 상품명에 들어 있는 문자로 취급한다.
+		String pattern = "%" + condition.keyword().toLowerCase(Locale.ROOT)
+			.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
 		predicates.add(cb.or(
-			cb.like(cb.lower(root.get("productName")), pattern),
-			cb.like(cb.lower(root.get("sbCode")), pattern),
-			cb.like(cb.lower(root.get("brand")), pattern)));
+			cb.like(cb.lower(root.get("productName")), pattern, '!'),
+			cb.like(cb.lower(root.get("sbCode")), pattern, '!'),
+			cb.like(cb.lower(root.get("brand")), pattern, '!'),
+			cb.like(cb.lower(root.get("productSpec").get("barcode")), pattern, '!')));
 	}
 
 	private static void addMarketFilter(List<Predicate> predicates, ProductSearchCondition condition,

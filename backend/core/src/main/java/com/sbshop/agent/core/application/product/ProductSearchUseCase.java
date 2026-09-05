@@ -34,4 +34,8 @@ public class ProductSearchUseCase {
 		return productReader.findById(id)
 			.orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다: " + id));
 	}
+
+	public List<String> getBrandNames() {
+		return productReader.findDistinctBrands();
+	}
 }

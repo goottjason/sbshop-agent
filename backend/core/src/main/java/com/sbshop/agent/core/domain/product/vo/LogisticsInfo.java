@@ -18,7 +18,8 @@ public class LogisticsInfo {
 	@Column(name = "stock", nullable = false)
 	private Integer stock;
 
-	@Column(name = "weight", precision = 10, scale = 2)
+	// 신규 입력은 kg. 이전 상품의 단위는 별도 출처 확인 전까지 미확인이다.
+	@Column(name = "weight", precision = ProductWeight.PRECISION, scale = ProductWeight.SCALE)
 	private BigDecimal weight;
 
 	@Column(name = "bundle_quantity")

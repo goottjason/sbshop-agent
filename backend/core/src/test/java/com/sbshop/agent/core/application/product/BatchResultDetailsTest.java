@@ -65,8 +65,7 @@ class BatchResultDetailsTest {
 	private static final Long PRODUCT_ID = 3020L;
 	private static final String KEY = "3020";
 	private static final String URL = "https://example.com/item/3020";
-	private static final String STORE_REASON =
-		"400 Bad Request: {\"message\":\"판매가 항목은 10원 단위로 입력해 주세요.\"}";
+	private static final String STORE_REASON = "400 Bad Request: {\"message\":\"판매가 항목은 10원 단위로 입력해 주세요.\"}";
 
 	private BatchPriceStockService service;
 
@@ -86,8 +85,9 @@ class BatchResultDetailsTest {
 				.shipBaseAmount(BigDecimal.ZERO).build()));
 		lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any()))
 			.thenReturn(new BigDecimal("20500"));
-		lenient().when(marginCalculator.calculateSalePrice(any(), any(Integer.class), any(), any(), any(), any()))
-			.thenReturn(new BigDecimal("20500"));
+		lenient().when(marginCalculator.quoteSalePrice(any(), any(Integer.class), any(), any(), any(), any()))
+			.thenReturn(new com.sbshop.agent.core.domain.product.service.SalePriceRounding.Result(
+				new BigDecimal("20500"), null, new BigDecimal("20500")));
 		lenient().when(stockCrawlerRouter.checkStockWithDetails(any(), eq(URL)))
 			.thenReturn(new StockCheckResult(StockStatus.IN_STOCK, new BigDecimal("5691"), 3, null));
 	}
@@ -101,6 +101,19 @@ class BatchResultDetailsTest {
 		service.crawlAndUpdatePriceStock("b1", List.of(PRODUCT_ID),
 			new BigDecimal("15"), new BigDecimal("20"), new BigDecimal("5000"),
 			ActionLogConstants.BATCH_CRAWL_UPDATE);
+	}
+
+	@Test
+	void minimumPriceAdjustmentIsIncludedInTheBatchMessageAndSavedPrice() {
+		when(marginCalculator.quoteSalePrice(any(), any(Integer.class), any(), any(), any(), any()))
+			.thenReturn(new com.sbshop.agent.core.domain.product.service.SalePriceRounding.Result(
+				new BigDecimal("12300"), new BigDecimal("12340"), new BigDecimal("12400")));
+		syncReturns(new MarketRepublishResult(List.of(MarketType.COUPANG), List.of(), new LinkedHashMap<>()));
+		runBatch();
+		ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
+		verify(processStatusService).markSuccess(eq("b1"), eq(KEY), message.capture(), anyString());
+		assertThat(message.getValue()).contains("최소마진 보장", "하한 12340원", "12400원");
+		verify(product).update(org.mockito.ArgumentMatchers.argThat(command -> command.salePrice().compareTo(new BigDecimal("12400")) == 0));
 	}
 
 	@Test

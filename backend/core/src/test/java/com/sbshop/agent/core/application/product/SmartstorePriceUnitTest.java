@@ -31,19 +31,19 @@ class SmartstorePriceUnitTest {
 	private final MarginCalculator marginCalculator = new MarginCalculator();
 
 	@Test
-	@DisplayName("D-280: 스토어 판매가 20105 는 20110 으로 올려 보낸다")
-	void resolve_smartStoreCeilsToTen() {
+	@DisplayName("Q20: 스토어 최소마진 하한 20105는 20200으로 보정한다")
+	void resolve_smartStorePreservesMinimumInHundreds() {
 		when(marketFeeService.feeRate(MarketType.SMART_STORE)).thenReturn(new BigDecimal("11"));
 		PricingInputs inputs = new PricingInputs(new BigDecimal("10000"), 1,
 			BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("4105"));
 
 		Integer price = resolver().resolve(inputs, MarketType.SMART_STORE);
 
-		assertThat(price).isEqualTo(20110);
+		assertThat(price).isEqualTo(20200);
 	}
 
 	@Test
-	@DisplayName("D-280: 이미 10원 단위인 값은 그대로 둔다")
+	@DisplayName("Q20: 이미 100원 단위인 하한은 그대로 둔다")
 	void resolve_alreadyRoundValueUnchanged() {
 		when(marketFeeService.feeRate(MarketType.SMART_STORE)).thenReturn(new BigDecimal("11"));
 		PricingInputs inputs = new PricingInputs(new BigDecimal("10000"), 1,
@@ -55,26 +55,26 @@ class SmartstorePriceUnitTest {
 	}
 
 	@Test
-	@DisplayName("D-280: 다른 마켓은 1원 단위 값도 그대로 보낸다")
-	void resolve_otherMarketsUnaffected() {
+	@DisplayName("Q20: 다른 마켓도 동일하게 하한을 충족하는 100원 단위로 계산한다")
+	void resolve_otherMarketsUseSameRoundingRule() {
 		when(marketFeeService.feeRate(MarketType.COUPANG)).thenReturn(new BigDecimal("11"));
 		PricingInputs inputs = new PricingInputs(new BigDecimal("10000"), 1,
 			BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("4105"));
 
 		Integer price = resolver().resolve(inputs, MarketType.COUPANG);
 
-		assertThat(price).isEqualTo(20105);
+		assertThat(price).isEqualTo(20200);
 	}
 
 	@Test
-	@DisplayName("D-280: 원가·마진 미보유로 기준가 폴백해도 스토어면 올림한다")
-	void resolveForProduct_fallbackAlsoCeilsForSmartStore() {
+	@DisplayName("Q18: 원가·마진 미보유 기준가는 100원 반올림한다")
+	void resolveForProduct_fallbackRoundsToHundreds() {
 		when(product.getPriceInfo()).thenReturn(null);
 		when(product.getSalePrice()).thenReturn(new BigDecimal("20105"));
 
 		BigDecimal price = resolver().resolveForProduct(product, MarketType.SMART_STORE);
 
-		assertThat(price).isEqualByComparingTo("20110");
+		assertThat(price).isEqualByComparingTo("20100");
 	}
 
 	@Test

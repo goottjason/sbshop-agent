@@ -4,8 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
@@ -20,6 +24,8 @@ import com.sbshop.agent.core.domain.product.dto.ProductSearchCondition;
 import com.sbshop.agent.core.domain.product.enums.ProductCategory;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
+import com.sbshop.agent.core.domain.product.vo.LogisticsInfo;
+import org.springframework.http.MediaType;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -174,6 +180,51 @@ class ProductControllerFilterParamTest {
 	private void stubEmptyPage() {
 		Page<Product> empty = new PageImpl<>(List.of(), PageRequest.of(0, 50), 0);
 		when(productSearchUseCase.searchProducts(any(), any())).thenReturn(empty);
+	}
+
+	@Test
+	@DisplayName("POST 검색: SB코드 붙여넣기와 쉼표를 포함한 브랜드를 JSON으로 받고 페이지 크기를 유지한다")
+	void searchBodyPreservesPastedCodesAndBrandNames() throws Exception {
+		stubEmptyPage();
+		mockMvc.perform(post("/api/v1/products/search")
+			.param("page", "2").param("size", "20")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+				{"sbCodes":[" sb001,SB002\\r\\nSB003 ","sb001"],"brands":["Brand, Inc."],
+				 "keyword":" 비타민 ","vendors":["IHB"],"stockStatuses":["IN_STOCK"]}
+				"""))
+			.andExpect(status().isOk());
+		var conditionCaptor = ArgumentCaptor.forClass(ProductSearchCondition.class);
+		var pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+		verify(productSearchUseCase).searchProducts(conditionCaptor.capture(), pageableCaptor.capture());
+		var condition = conditionCaptor.getValue();
+		assertThat(condition.sbCodes()).containsExactly("SB001", "SB002", "SB003");
+		assertThat(condition.brands()).containsExactly("Brand, Inc.");
+		assertThat(condition.keyword()).isEqualTo("비타민");
+		assertThat(condition.vendors()).containsExactly(VendorType.IHB);
+		assertThat(condition.stockStatuses()).containsExactly(StockStatus.IN_STOCK);
+		assertThat(pageableCaptor.getValue()).isEqualTo(PageRequest.of(2, 20));
+		verifyNoInteractions(productManageUseCase, productInfoCrawlerPort, imageDownloadClient, actionLogService);
+	}
+
+	@Test
+	@DisplayName("POST 검색 목록은 DB의 묶음수량을 응답한다")
+	void searchResponseIncludesBundleQuantity() throws Exception {
+		Product product = mock(Product.class);
+		when(product.getId()).thenReturn(1L);
+		when(product.getLogisticsInfo()).thenReturn(LogisticsInfo.builder().bundleQuantity(3).build());
+		when(productSearchUseCase.searchProducts(any(), any()))
+			.thenReturn(new PageImpl<>(List.of(product), PageRequest.of(0, 50), 1));
+		mockMvc.perform(post("/api/v1/products/search").contentType(MediaType.APPLICATION_JSON).content("{}"))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.content[0].bundleQuantity").value(3));
+	}
+
+	@Test
+	@DisplayName("브랜드 선택지 API는 쉼표가 포함된 이름을 분할하지 않는다")
+	void brandOptionsPreserveCommas() throws Exception {
+		when(productSearchUseCase.getBrandNames()).thenReturn(List.of("Brand, Inc."));
+		mockMvc.perform(get("/api/v1/products/brands"))
+			.andExpect(status().isOk()).andExpect(content().json("[\"Brand, Inc.\"]"));
 	}
 
 	private ProductSearchCondition captureCondition() {

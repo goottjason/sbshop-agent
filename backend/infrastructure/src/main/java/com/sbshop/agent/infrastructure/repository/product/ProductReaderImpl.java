@@ -40,6 +40,11 @@ public class ProductReaderImpl implements ProductReader {
 	}
 
 	@Override
+	public List<String> findDistinctBrands() {
+		return productRepository.findDistinctBrands();
+	}
+
+	@Override
 	public List<Product> findAllByIds(List<Long> ids) {
 		return productRepository.findAllByIdIn(ids);
 	}

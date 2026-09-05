@@ -4,21 +4,19 @@ import {
   useReactTable, getCoreRowModel, flexRender, createColumnHelper,
   type RowSelectionState,
 } from '@tanstack/react-table';
-import { App as AntApp, Modal as AntModal, Pagination, InputNumber } from 'antd';
+import { Alert, App as AntApp, Modal as AntModal, Pagination, InputNumber, Segmented } from 'antd';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/Table';
 import { productApi, type ProductList, type ProductQuery } from '../../api/productApi';
 import { batchApi } from '../../api/batchApi';
-import { MARKET_FILTER_OPTIONS, VENDOR_OPTIONS } from './productGridShared';
 import { MarketBadgeCell } from './MarketBadgeCell';
 import { ProductFilterPanel, type ProductFilters } from './ProductFilterPanel';
+import { EMPTY_PRODUCT_FILTERS, sourceProductUrl } from './productSearch';
 import { ProductDetailModal } from './ProductDetailModal';
+import { ProductNumericPreviewModal } from './ProductNumericPreviewModal';
 import { bulkDeleteProducts } from './productBulkApi';
 import { notify } from '../../utils/notify';
 
 const columnHelper = createColumnHelper<ProductList>();
-const DEFAULT_FILTERS: ProductFilters = {
-  keyword: '', categories: [], includeUncategorized: false, markets: [], vendors: [], stockStatuses: [], inStockOnly: false, sourceGone: 'ALL',
-};
 
 function stockBadge(soldOut: boolean): React.CSSProperties {
   const c = soldOut ? { bg: '#ffebee', text: '#c62828' } : { bg: '#e8f5e9', text: '#2e7d32' };
@@ -28,11 +26,13 @@ function stockBadge(soldOut: boolean): React.CSSProperties {
 function toQuery(page: number, size: number, keyword: string, f: ProductFilters): ProductQuery {
   const q: ProductQuery = { page, size };
   if (keyword) q.keyword = keyword;
+  if (f.sbCodes.length > 0) q.sbCodes = f.sbCodes;
+  if (f.brands.length > 0) q.brands = f.brands;
   if (f.categories.length > 0) q.categories = f.categories;
   if (f.includeUncategorized) q.includeUncategorized = true;
-  if (f.vendors.length > 0 && f.vendors.length < VENDOR_OPTIONS.length) q.vendors = f.vendors;
-  if (f.stockStatuses.length === 1) q.stockStatuses = f.stockStatuses;
-  if (f.markets.length > 0 && f.markets.length < MARKET_FILTER_OPTIONS.length) q.markets = f.markets;
+  if (f.vendors.length > 0) q.vendors = f.vendors;
+  if (f.stockStatuses.length > 0) q.stockStatuses = f.stockStatuses;
+  if (f.markets.length > 0) q.markets = f.markets;
   if (f.inStockOnly) q.inStockOnly = true;
   if (f.sourceGone && f.sourceGone !== 'ALL') q.sourceGone = f.sourceGone;
   return q;
@@ -40,7 +40,8 @@ function toQuery(page: number, size: number, keyword: string, f: ProductFilters)
 
 export default function ProductGrid() {
   const { modal } = AntApp.useApp();
-  const [filters, setFilters] = useState<ProductFilters>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<ProductFilters>(EMPTY_PRODUCT_FILTERS);
+  const [density, setDensity] = useState('compact');
   const [keyword, setKeyword] = useState('');
   const [detailId, setDetailId] = useState<number | null>(null);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -51,6 +52,7 @@ export default function ProductGrid() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [numericPreviewIds, setNumericPreviewIds] = useState<number[] | null>(null);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [marginRate, setMarginRate] = useState<number | null>(15);
   const [couponRate, setCouponRate] = useState<number | null>(20);
@@ -58,7 +60,7 @@ export default function ProductGrid() {
 
   const query = useMemo(() => toQuery(page, pageSize, keyword, filters), [page, pageSize, keyword, filters]);
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isFetching, isPlaceholderData, isError, refetch } = useQuery({
     queryKey: ['products', query],
     queryFn: async () => (await productApi.fetchProducts(query)).data,
     placeholderData: keepPreviousData,
@@ -69,7 +71,12 @@ export default function ProductGrid() {
     queryFn: async () => (await productApi.fetchCategories()).data,
   });
 
-  const rows = useMemo(() => data?.content ?? [], [data]);
+  const { data: brandOptions = [], isLoading: brandsLoading, isError: brandsError, refetch: refetchBrands } = useQuery({
+    queryKey: ['product-brands'],
+    queryFn: async () => (await productApi.fetchBrands()).data,
+  });
+
+  const rows = useMemo(() => isError ? [] : data?.content ?? [], [data, isError]);
   const totalElements = data?.totalElements ?? 0;
   const pageCount = Math.max(1, data?.totalPages ?? 1);
 
@@ -77,25 +84,25 @@ export default function ProductGrid() {
     if (data && page > 0 && page >= pageCount) setPage(pageCount - 1);
   }, [data, page, pageCount]);
 
-  const handleSearch = (f: ProductFilters) => { setKeyword(f.keyword); setFilters(f); setPage(0); };
+  const handleSearch = (f: ProductFilters) => { setKeyword(f.keyword); setFilters(f); setPage(0); setRowSelection({}); };
 
   const columns = useMemo(() => [
     columnHelper.display({
       id: 'select', header: ({ table }) => (
-        <input type="checkbox" checked={table.getIsAllRowsSelected()}
+        <input type="checkbox" aria-label="현재 페이지 상품 선택" checked={table.getIsAllRowsSelected()} disabled={isPlaceholderData || isError}
           ref={(el) => { if (el) el.indeterminate = table.getIsSomeRowsSelected(); }}
           onChange={table.getToggleAllRowsSelectedHandler()}
           style={{ width: 16, height: 16, accentColor: 'var(--product-primary)', cursor: 'pointer' }} />
       ), size: 40,
       cell: ({ row }) => (
-        <input type="checkbox" checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()}
+        <input type="checkbox" aria-label={`${row.original.sbCode} 선택`} checked={row.getIsSelected()} disabled={!row.getCanSelect()} onChange={row.getToggleSelectedHandler()}
           style={{ width: 16, height: 16, accentColor: 'var(--product-primary)', cursor: 'pointer' }} />
       ),
     }),
     columnHelper.accessor('repImageUrl', {
       id: 'image', header: '이미지', size: 64,
       cell: (info) => info.getValue()
-        ? <img src={info.getValue()} style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid #e5e7eb' }} />
+        ? <img src={info.getValue()} alt="상품 썸네일" loading="lazy" style={{ width: 44, height: 44, objectFit: 'contain', borderRadius: 8, border: '1px solid #e5e7eb' }} />
         : <div style={{ width: 44, height: 44, borderRadius: 8, background: '#f1f5f9', border: '1px solid #e5e7eb', margin: '0 auto' }} />,
     }),
     columnHelper.accessor('sbCode', {
@@ -106,13 +113,15 @@ export default function ProductGrid() {
       cell: (info) => <span style={{ color: '#64748b' }}>{info.getValue() || '-'}</span> }),
     columnHelper.display({
       id: 'productInfo', header: '상품정보', size: 300,
-      cell: ({ row }) => (
-        <div onClick={() => setDetailId(row.original.id)}
-          style={{ textAlign: 'left', cursor: 'pointer', minWidth: 0 }} title={row.original.productName}>
-          <div style={{ fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.original.productName}</div>
+      cell: ({ row }) => {
+        const sourceUrl = sourceProductUrl(row.original.sourcingUrl);
+        return <div style={{ textAlign: 'left', minWidth: 0 }} title={row.original.productName}>
+          {sourceUrl
+            ? <a className="pw-product-name" href={sourceUrl} target="_blank" rel="noopener noreferrer">{row.original.productName} ↗</a>
+            : <span className="pw-product-name" title="소싱처 상품 URL 없음">{row.original.productName}</span>}
           <div style={{ fontSize: 11, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.original.originalName || ' '}</div>
-        </div>
-      ),
+        </div>;
+      },
     }),
     columnHelper.accessor('category', { id: 'category', header: '카테고리', size: 100,
       cell: (info) => <span style={{ color: '#64748b' }}>{info.getValue() || '-'}</span> }),
@@ -123,7 +132,7 @@ export default function ProductGrid() {
       cell: ({ row }) => {
         const r = row.original;
         if (!r.sourceGoneReason) {
-          if (!r.lastCrawlError) return <span style={{ color: '#94a3b8' }}>정상</span>;
+          if (!r.lastCrawlError) return <span style={{ color: '#94a3b8' }}>{r.lastCrawlAt ? '소멸 기록 없음' : '확인 이력 없음'}</span>;
           const tried = r.lastCrawlAt ? String(r.lastCrawlAt).slice(0, 10) : null;
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }} title={r.lastCrawlError}>
@@ -149,29 +158,33 @@ export default function ProductGrid() {
       },
     }),
     columnHelper.accessor('salePrice', {
-      id: 'priceStock', header: '판매가·재고', size: 150,
+      id: 'priceStock', header: '기준가 · DB 재고', size: 150,
       cell: (info) => {
         const r = info.row.original;
-        const soldOut = r.stockStatus === 'OUT_OF_STOCK';
+        const soldOut = r.stockStatus ? r.stockStatus === 'OUT_OF_STOCK' : (r.stock ?? 0) <= 0;
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
-            <span style={{ fontWeight: 700, color: '#0f172a' }}>{r.salePrice ? `${r.salePrice.toLocaleString()}원` : '-'}</span>
-            <span style={stockBadge(soldOut)}>{soldOut ? '품절' : '있음'}</span>
+            <span style={{ fontWeight: 700, color: '#0f172a' }}>{r.salePrice != null ? `${r.salePrice.toLocaleString()}원` : '-'}</span>
+            <span style={stockBadge(soldOut)}>{soldOut ? '품절' : '재고 있음'} · {r.stock?.toLocaleString() ?? '미확인'}</span>
           </div>
         );
       },
     }),
+    columnHelper.accessor('bundleQuantity', { id: 'bundleQuantity', header: '묶음', size: 60,
+      cell: (info) => info.getValue() != null ? `${info.getValue()}개` : '—' }),
     columnHelper.display({
       id: 'markets', header: '마켓', size: 340,
       cell: ({ row }) => <MarketBadgeCell product={row.original} onPublished={refetch} />,
     }),
-  ], [refetch]);
+    columnHelper.display({ id: 'detail', header: '편집', size: 68,
+      cell: ({ row }) => <button className="pw-detail-button" aria-label={`${row.original.sbCode} 상세 편집`} onClick={() => setDetailId(row.original.id)}>열기</button> }),
+  ], [refetch, isPlaceholderData, isError]);
 
   const table = useReactTable({
     data: rows,
     columns,
     state: { rowSelection },
-    enableRowSelection: true,
+    enableRowSelection: !isPlaceholderData && !isError,
     onRowSelectionChange: setRowSelection,
     getRowId: (r) => String(r.id),
     getCoreRowModel: getCoreRowModel(),
@@ -221,7 +234,7 @@ export default function ProductGrid() {
   };
 
   return (
-    <div className="product-theme" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '16px 24px', background: '#f8f9fa' }}>
+    <div className={`product-theme pw-density-${density}`} style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px 24px', background: '#f4f6f7' }}>
       <style>{`
         .pg-size {
           appearance: none; -webkit-appearance: none; -moz-appearance: none;
@@ -244,12 +257,15 @@ export default function ProductGrid() {
           </span>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {selectedIds.length > 0 && (
+          {selectedIds.length > 0 && !isPlaceholderData && !isError && (
+            <button className="pw-detail-button" onClick={() => setNumericPreviewIds([...selectedIds])}>일괄 변경 미리보기 ({selectedIds.length})</button>
+          )}
+          {selectedIds.length > 0 && !isPlaceholderData && !isError && (
             <button onClick={() => setBulkOpen(true)} style={{ padding: '8px 16px', backgroundColor: 'var(--product-primary)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 700, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>
               선택 가격/재고 업데이트 ({selectedIds.length})
             </button>
           )}
-          {selectedIds.length > 0 && (
+          {selectedIds.length > 0 && !isPlaceholderData && !isError && (
             <button onClick={handleBulkDelete} disabled={deleting} style={{ padding: '8px 16px', backgroundColor: deleting ? '#f1f5f9' : '#fee2e2', color: deleting ? '#94a3b8' : '#b91c1c', border: '1px solid ' + (deleting ? '#e2e8f0' : '#fecaca'), borderRadius: '8px', cursor: deleting ? 'default' : 'pointer', fontSize: '13px', fontWeight: 700 }}>
               {deleting ? `삭제 중… ${deleteProgress ?? ''}` : `선택 삭제 (${selectedIds.length})`}
             </button>
@@ -258,18 +274,30 @@ export default function ProductGrid() {
         </div>
       </div>
 
-      <ProductFilterPanel categoryOptions={categoryOptions} onSearch={handleSearch} />
+      <ProductFilterPanel categoryOptions={categoryOptions} brandOptions={brandOptions}
+        brandsLoading={brandsLoading} brandsError={brandsError} onRetryBrands={() => { void refetchBrands(); }} onSearch={handleSearch} />
+
+      {numericPreviewIds && <ProductNumericPreviewModal productIds={numericPreviewIds} onClose={() => setNumericPreviewIds(null)} />}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <span role="status" style={{ color: '#64748b', fontSize: 12 }}>{isFetching ? '검색 결과 갱신 중…' : isError ? '조회 실패' : `검색 결과 ${totalElements.toLocaleString()}개`}</span>
+        <Segmented aria-label="상품 행 간격" value={density} onChange={setDensity}
+          options={[{ value: 'compact', label: '촘촘하게' }, { value: 'comfortable', label: '넓게 보기' }]} />
+      </div>
+      {isError && <Alert type="error" showIcon message="상품 목록을 불러오지 못했습니다."
+        description="잠시 후 다시 시도해 주세요."
+        action={<button className="pw-detail-button" onClick={() => { void refetch(); }}>재시도</button>} />}
 
       <div style={{ flex: 1, position: 'relative', overflow: 'auto', paddingBottom: 4 }}>
-        {isLoading && (
+        {(isLoading || isPlaceholderData) && (
           <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,255,255,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10 }}>
             <div style={{ padding: '16px 32px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', fontSize: '15px', fontWeight: 600, color: 'var(--product-primary)' }}>로딩 중...</div>
           </div>
         )}
-        {!isLoading && rows.length === 0 && (
+        {!isLoading && !isError && rows.length === 0 && (
           <div style={{ padding: 48, textAlign: 'center', color: '#94a3b8' }}>조건에 맞는 상품이 없습니다.</div>
         )}
-        <Table fluid minTableWidth={1080} style={{ width: '100%', tableLayout: 'fixed' }}>
+        <Table fluid minTableWidth={1450} style={{ width: '100%', tableLayout: 'fixed' }}>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id}>
@@ -285,7 +313,7 @@ export default function ProductGrid() {
             {table.getRowModel().rows.map((row) => (
               <TableRow key={row.id}>
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id} style={{ height: 56, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: cell.column.id === 'productInfo' ? 'left' : 'center' }}>
+                  <TableCell key={cell.id} style={{ height: density === 'compact' ? 54 : 82, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: cell.column.id === 'productInfo' ? 'left' : 'center' }}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}

@@ -102,7 +102,7 @@ class MarketSalePriceResolverTest {
 
 		BigDecimal price = resolver().resolveForProduct(product, MarketType.COUPANG);
 
-		assertThat(price).isEqualByComparingTo("21700");
+		assertThat(price).isEqualByComparingTo("21600");
 	}
 
 	@Test
@@ -115,7 +115,7 @@ class MarketSalePriceResolverTest {
 		BigDecimal price = resolver().resolveForProduct(product, MarketType.COUPANG,
 			new MarketSalePriceOverrides(new BigDecimal("30"), null, null));
 
-		assertThat(price).isEqualByComparingTo("23800");
+		assertThat(price).isEqualByComparingTo("23700");
 	}
 
 	@Test
@@ -147,6 +147,29 @@ class MarketSalePriceResolverTest {
 			.costPrice(new BigDecimal(costPrice))
 			.marginRate(marginRate != null ? new BigDecimal(marginRate) : null)
 			.build());
+	}
+
+	@Test
+	void explicitDomesticFeeIsUsedInSyncAndNotReplacedByDefaultShipping() {
+		when(marketFeeService.feeRate(MarketType.COUPANG)).thenReturn(BigDecimal.ZERO);
+		var inputs = new PricingInputs(new BigDecimal("12340"), 1, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+			BigDecimal.ZERO, null);
+		assertThat(resolver().resolve(inputs, MarketType.COUPANG)).isEqualTo(12400);
+	}
+
+	@Test
+	void fullPricingOverridesDoNotRemoveVendorShippingPolicy() {
+		givenProduct("12340", "0");
+		when(product.getVendor()).thenReturn(com.sbshop.agent.core.domain.product.enums.VendorType.COK);
+		when(marketFeeService.feeRate(MarketType.COUPANG)).thenReturn(BigDecimal.ZERO);
+		var vendorPolicies = org.mockito.Mockito.mock(VendorPricePolicyService.class);
+		when(vendorPolicies.find(product.getVendor())).thenReturn(java.util.Optional.of(
+			com.sbshop.agent.core.domain.pricing.VendorPricePolicy.builder().domesticFee(BigDecimal.ZERO).build()));
+		var resolver = new MarketSalePriceResolver(marginCalculator, marketFeeService, pricePolicyService,
+			vendorPolicies);
+		assertThat(resolver.resolveForProduct(product, MarketType.COUPANG,
+			new MarketSalePriceOverrides(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO)))
+			.isEqualByComparingTo("12400");
 	}
 
 	private PricePolicy policy(String marginRate, String couponRate, String minMarginPrice) {

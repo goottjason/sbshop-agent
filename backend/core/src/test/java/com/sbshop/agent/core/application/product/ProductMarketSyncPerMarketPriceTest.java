@@ -67,7 +67,7 @@ class ProductMarketSyncPerMarketPriceTest {
 
 		service.syncPriceStockPerMarket(PRODUCT_ID, pricing, StockStatus.IN_STOCK, true);
 
-		verify(coupangClient).syncPriceAndStock(eq("CP123"), any(), eq(67900), eq(999), eq(false), any());
+		verify(coupangClient).syncPriceAndStock(eq("CP123"), any(), eq(67800), eq(999), eq(false), any());
 		verify(storeClient).syncPriceAndStock(eq("OP99"), any(), eq(65400), eq(999), eq(false), any());
 	}
 
