@@ -160,6 +160,14 @@ interface MarketPlusHandoff {
   guide: string;
 }
 
+export interface FieldSyncResponse {
+  success: boolean;
+  batchId: string;
+  synced: string[];
+  skipped: string[];
+  failed: Record<string, string>;
+}
+
 export const productApi = {
   fetchProducts: (query: ProductQuery) =>
     apiClient.get<ProductPage<ProductList>>('/api/v1/products', { params: query }),
@@ -201,4 +209,7 @@ export const productApi = {
 
   syncMarketLive: (id: number, marketType: string) =>
     apiClient.post<MarketItemInfo>(`/api/v1/products/${id}/markets/${marketType}/sync`),
+
+  fieldSync: (id: number, fields: string[], markets: string[]) =>
+    apiClient.post<FieldSyncResponse>(`/api/v1/products/${id}/field-sync`, { fields, markets }),
 };

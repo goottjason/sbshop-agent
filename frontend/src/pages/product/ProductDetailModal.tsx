@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Image, Collapse, Tooltip, Popconfirm } from 'antd';
+import { Modal, Image, Collapse, Tooltip, Popconfirm, Checkbox, Button, Typography } from 'antd';
 import { UploadOutlined, LinkOutlined, CloudDownloadOutlined } from '@ant-design/icons';
 import { productApi, type ProductDetail, type ImageUploadResult, type ProductEditFields } from '../../api/productApi';
 import { MarketLiveCompare } from './MarketLiveCompare';
 import { notify } from '../../utils/notify';
+import { marketLabel } from '../../utils/marketLabels';
+import {
+  SYNC_MARKETS, SYNC_MARKET_CHIP_LABEL, SYNC_FIELD_LABEL, SYNC_FIELD_TO_MARKET_FIELD,
+  LOCKED_MARKET, changedSyncableFields, marketSupportsAnyField, fieldSupportedByMarket,
+  mergeSyncResult, buildSyncRows, type SyncableField, type FieldSyncResult,
+} from './productFieldSync';
 
 type Fields = Partial<ProductEditFields>;
 
@@ -60,12 +66,46 @@ function toFields(d: ProductDetail): Fields {
   };
 }
 
-function EditRow({ label, value, type = 'text', full = false, link = false, onChange }: {
+function toUpdateCommand(fields: Fields): Record<string, unknown> {
+  const rest: Record<string, unknown> = { ...fields };
+  delete rest.productName;
+  delete rest.salePrice;
+  return { ...rest, name: fields.productName };
+}
+
+function SyncChips({ field }: { field: SyncableField }) {
+  return (
+    <span style={{ display: 'inline-flex', gap: 3 }}>
+      {SYNC_MARKETS.map((m) => {
+        const supported = fieldSupportedByMarket(field, m);
+        return (
+          <Tooltip
+            key={m}
+            title={supported
+              ? `저장 후 ${marketLabel(m)}에 반영할 수 있습니다`
+              : `${marketLabel(m)} 미지원 — 코드 등록 API 부재`}
+          >
+            <span style={{
+              fontSize: 10, fontWeight: 700, lineHeight: 1, padding: '2px 4px', borderRadius: 3,
+              color: supported ? GREEN : '#9ca3af',
+              background: supported ? '#dcfce7' : '#f3f4f6',
+              textDecoration: supported ? 'none' : 'line-through',
+              border: `1px solid ${supported ? '#bbf7d0' : '#e5e7eb'}`,
+            }}>{SYNC_MARKET_CHIP_LABEL[m]}</span>
+          </Tooltip>
+        );
+      })}
+    </span>
+  );
+}
+
+function EditRow({ label, value, type = 'text', full = false, link = false, chips, onChange }: {
   label: string;
   value: string | number | undefined;
   type?: 'text' | 'number';
   full?: boolean;
   link?: boolean;
+  chips?: SyncableField;
   onChange: (v: string | number | undefined) => void;
 }) {
   const href = link ? safeHttpUrl(value) : null;
@@ -73,6 +113,7 @@ function EditRow({ label, value, type = 'text', full = false, link = false, onCh
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', gridColumn: full ? '1 / -1' : undefined, borderBottom: '1px solid #f4f4f5' }}>
       <span style={{ color: '#9ca3af', fontSize: 13 }}>•</span>
       <span style={{ color: '#6b7280', fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}>{label}</span>
+      {chips && <SyncChips field={chips} />}
       <input
         className="pd-inp"
         type={type}
@@ -133,11 +174,19 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [changedFields, setChangedFields] = useState<SyncableField[]>([]);
+  const [syncMarkets, setSyncMarkets] = useState<Set<string>>(new Set());
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<FieldSyncResult | null>(null);
+  const [retryTarget, setRetryTarget] = useState<string | null>(null);
+
   useEffect(() => {
     if (!open || productId == null) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setUrlInput('');
+    setChangedFields([]);
+    setSyncResult(null);
     productApi.fetchProductDetail(productId)
       .then((res) => {
         const d = res.data as ProductDetail;
@@ -168,16 +217,23 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
   const handleSave = async () => {
     if (productId == null) return;
     setSaving(true);
+    const changed = changedSyncableFields(baseline, fields);
     try {
       const origSale = detail?.priceInfo?.salePrice;
       if (fields.salePrice != null && fields.salePrice !== origSale) {
         await productApi.updatePriceStock(productId, fields.salePrice, null);
       }
-      const { productName, ...rest } = fields;
-      await productApi.updateProduct(productId, { ...rest, name: productName });
+      await productApi.updateProduct(productId, toUpdateCommand(fields));
       notify.success('상품 정보가 저장되었습니다.');
       onSaved();
-      onClose();
+      if (changed.length > 0) {
+        await refreshDetail();
+        setChangedFields(changed);
+        setSyncResult(null);
+        setSyncMarkets(new Set(SYNC_MARKETS.filter((m) => marketSupportsAnyField(m, changed))));
+      } else {
+        onClose();
+      }
     } catch (e) {
       notify.error(`상품 정보 저장 실패: ${extractErrorMessage(e)}`);
     } finally {
@@ -233,10 +289,41 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
     finally { setUploading(false); }
   };
 
+  const toggleSyncMarket = (market: string, checked: boolean) => {
+    setSyncMarkets((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(market); else next.delete(market);
+      return next;
+    });
+  };
+
+  const requestFieldSync = async (markets: string[]) => {
+    if (productId == null || changedFields.length === 0 || markets.length === 0) return;
+    const marketFields = changedFields.map((f) => SYNC_FIELD_TO_MARKET_FIELD[f]);
+    try {
+      const res = await productApi.fieldSync(productId, marketFields, markets);
+      setSyncResult((prev) => mergeSyncResult(prev, res.data, markets));
+    } catch (e) {
+      notify.error(`마켓 반영 요청 실패: ${extractErrorMessage(e)}`);
+    }
+  };
+
+  const handleApplyToMarkets = async () => {
+    const targets = Array.from(syncMarkets);
+    if (targets.length === 0) { notify.warning('반영할 마켓을 선택하세요.'); return; }
+    setSyncing(true);
+    try { await requestFieldSync(targets); } finally { setSyncing(false); }
+  };
+
+  const handleRetryMarket = async (market: string) => {
+    setRetryTarget(market);
+    try { await requestFieldSync([market]); } finally { setRetryTarget(null); }
+  };
+
   const row = (label: string, name: keyof Fields, type: 'text' | 'number' = 'text', full = false,
-    link = false) => (
+    link = false, chips?: SyncableField) => (
     <EditRow label={label} value={fields[name] as string | number | undefined} type={type} full={full}
-      link={link} onChange={(v) => set(name, v as Fields[typeof name])} />
+      link={link} chips={chips} onChange={(v) => set(name, v as Fields[typeof name])} />
   );
 
   const selectRow = (label: string, name: keyof Fields, options: Opt[], full = false) => (
@@ -320,9 +407,9 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
 
           <div style={sectionTitle}>기본 정보</div>
           <div style={grid2}>
-            {row('브랜드', 'brand')}
+            {row('브랜드', 'brand', 'text', false, false, 'brand')}
             {selectRow('카테고리', 'category', CATEGORY_OPTIONS)}
-            {row('상품명', 'productName', 'text', true)}
+            {row('상품명', 'productName', 'text', true, false, 'productName')}
             {row('기본명', 'baseName')}
             {row('원문명', 'originalName')}
           </div>
@@ -347,11 +434,76 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
           <div style={sectionTitle}>소싱</div>
           <div style={grid2}>
             {selectRow('소싱처', 'vendor', VENDOR_OPTIONS)}
-            {row('제조사', 'manufacturer')}
+            {row('제조사', 'manufacturer', 'text', false, false, 'manufacturer')}
             {row('원산지', 'origin')}
             {row('HS코드', 'hsCode')}
             {row('소스 URL', 'sourceUrl', 'text', true, true)}
           </div>
+
+          {changedFields.length > 0 && (
+            <div style={{ marginTop: 16, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: GREEN, marginBottom: 8 }}>
+                변경된 필드: {changedFields.map((f) => SYNC_FIELD_LABEL[f]).join(', ')}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14, marginBottom: 10 }}>
+                {SYNC_MARKETS.map((m) => {
+                  const supported = marketSupportsAnyField(m, changedFields);
+                  return (
+                    <Checkbox
+                      key={m}
+                      checked={supported && syncMarkets.has(m)}
+                      disabled={!supported}
+                      onChange={(e) => toggleSyncMarket(m, e.target.checked)}
+                    >
+                      {marketLabel(m)}(즉시)
+                      {!supported && <span style={{ color: '#9ca3af', marginLeft: 4, fontSize: 12 }}>— 변경 필드 미지원, 건너뜀</span>}
+                    </Checkbox>
+                  );
+                })}
+                <Tooltip title="쿠팡은 수정 시 심사로 전환됩니다 — 추후 지원">
+                  <Checkbox disabled>{marketLabel(LOCKED_MARKET)}</Checkbox>
+                </Tooltip>
+                <Button
+                  size="small"
+                  style={{ marginLeft: 'auto', background: GREEN, borderColor: GREEN, color: '#fff' }}
+                  loading={syncing}
+                  disabled={Array.from(syncMarkets).every((m) => !marketSupportsAnyField(m, changedFields))}
+                  onClick={handleApplyToMarkets}
+                >
+                  마켓에 반영하기
+                </Button>
+              </div>
+
+              {syncResult && (
+                <div style={{ borderTop: '1px solid #bbf7d0', paddingTop: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6 }}>반영 결과</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {buildSyncRows(syncResult).map((r) => (
+                      <div key={r.market} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                        <span style={{ minWidth: 56, fontWeight: 600, color: '#374151' }}>{marketLabel(r.market)}</span>
+                        {r.status === 'synced' && <span style={{ color: GREEN, fontWeight: 600 }}>✓ 반영됨</span>}
+                        {r.status === 'skipped' && <span style={{ color: '#9ca3af' }}>− 건너뜀(마켓이 막아둔 상품)</span>}
+                        {r.status === 'failed' && (
+                          <>
+                            <Typography.Paragraph
+                              type="danger"
+                              style={{ fontSize: 12, margin: 0, flex: 1 }}
+                              ellipsis={{ rows: 1, expandable: true, symbol: '펼치기' }}
+                            >
+                              ✕ {r.reason}
+                            </Typography.Paragraph>
+                            <Button size="small" loading={retryTarget === r.market} onClick={() => handleRetryMarket(r.market)}>
+                              재시도
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div style={sectionTitle}>메모</div>
           <textarea className="pd-ta" rows={2} value={fields.memo ?? ''} onChange={(e) => set('memo', e.target.value)} placeholder="메모" />
