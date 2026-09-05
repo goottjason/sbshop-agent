@@ -5,12 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.sourcing.dto.MarketCategory;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
+import com.sbshop.agent.core.domain.market.client.dto.MarketEditField;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.enums.ProductCategory;
 import com.sbshop.agent.infrastructure.client.cafe24.client.Cafe24RestClient;
+import com.sbshop.agent.infrastructure.client.cafe24.component.Cafe24BrandCodeResolver;
 import com.sbshop.agent.infrastructure.client.cafe24.component.Cafe24CategoryResolver;
 import com.sbshop.agent.infrastructure.client.common.util.HtmlImageExtractor;
 import java.math.BigDecimal;
@@ -18,8 +20,10 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -33,6 +37,7 @@ public class Cafe24MarketClient implements MarketClient {
 	private final Cafe24RestClient cafe24RestClient;
 	private final HtmlImageExtractor imageExtractor;
 	private final Cafe24CategoryResolver categoryResolver;
+	private final Cafe24BrandCodeResolver brandCodeResolver;
 
 	private static final int CATALOG_LIMIT = 100;
 	private static final int CATALOG_OFFSET_CAP = 5000;
@@ -266,6 +271,45 @@ public class Cafe24MarketClient implements MarketClient {
 					variants.get(0).put("quantity", quantity);
 				}
 			}
+		}
+		return currentRawData;
+	}
+
+	@Override
+	public Map<String, Object> syncProductFields(Product product, String marketItemId,
+		Map<String, Object> currentRawData, Set<MarketEditField> fields) {
+		Set<MarketEditField> supported = new HashSet<>(fields);
+		supported.remove(MarketEditField.MANUFACTURER);
+		if (supported.isEmpty()) {
+			throw new UnsupportedOperationException("[카페24] 필드 수정 미지원: " + fields);
+		}
+
+		Map<String, Object> productData = new HashMap<>();
+		productData.put("shop_no", 1);
+		if (supported.contains(MarketEditField.PRODUCT_NAME)) {
+			String name = product.getProductName();
+			if (name != null && !name.isBlank()) {
+				productData.put("product_name", name);
+			}
+		}
+		if (supported.contains(MarketEditField.BRAND)) {
+			String brand = product.getBrand();
+			if (brand != null && !brand.isBlank()) {
+				productData.put("brand_code", brandCodeResolver.resolve(brand));
+			}
+		}
+
+		Map<String, Object> requestBody = new HashMap<>();
+		requestBody.put("request", productData);
+		cafe24RestClient.put("/admin/products/" + marketItemId, requestBody);
+		log.info("[카페24] 필드 동기화 완료: {}, fields={}", marketItemId, supported);
+
+		if (currentRawData != null) {
+			productData.forEach((key, value) -> {
+				if (!"shop_no".equals(key)) {
+					currentRawData.put(key, value);
+				}
+			});
 		}
 		return currentRawData;
 	}

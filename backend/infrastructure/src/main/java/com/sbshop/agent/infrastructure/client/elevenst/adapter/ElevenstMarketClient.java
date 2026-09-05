@@ -2,12 +2,14 @@ package com.sbshop.agent.infrastructure.client.elevenst.adapter;
 
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
+import com.sbshop.agent.core.domain.market.client.dto.MarketEditField;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.infrastructure.client.elevenst.client.ElevenstMarketRestClient;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +33,10 @@ public class ElevenstMarketClient implements MarketClient {
 	private static final Pattern CATALOG_RECORD = Pattern.compile("(?s)<(Product|product)>.*?</\\1>");
 	private static final Set<String> CATALOG_SUCCESS_CODES = Set.of("200", "0");
 	private static final boolean CATALOG_ENABLED = false;
+	private static final Map<MarketEditField, String> FIELD_TAGS = new EnumMap<>(Map.of(
+		MarketEditField.PRODUCT_NAME, "prdNm",
+		MarketEditField.BRAND, "brand",
+		MarketEditField.MANUFACTURER, "makerNm"));
 	private static final String CATALOG_DISABLED_REASON = "11번가 전체 상품 조회는 엔드포인트·HTTP 동사·요청 본문 스키마가 실호출로 확정될 때까지 비활성입니다 "
 		+ "(D-208 인증 거부로 미검증 — 컬렉션 POST의 쓰기 위험을 배제할 수 없습니다)";
 
@@ -290,6 +296,64 @@ public class ElevenstMarketClient implements MarketClient {
 			}
 		}
 		return currentRawData;
+	}
+
+	@Override
+	public Map<String, Object> syncProductFields(Product product, String marketItemId,
+		Map<String, Object> currentRawData, Set<MarketEditField> fields) {
+		String currentXml;
+		try {
+			currentXml = restClient.get("/rest/prodmarketservice/prodmarket/" + marketItemId);
+			if (currentXml == null || currentXml.isEmpty()) {
+				throw new RuntimeException("11번가 기존 상품 XML 조회 실패");
+			}
+		} catch (RuntimeException e) {
+			log.error("[Elevenst] 11번가 상품 전문 조회 실패(필드수정): {}", e.getMessage());
+			throw e;
+		}
+
+		String updatedXml = currentXml;
+		for (MarketEditField field : fields) {
+			String tag = FIELD_TAGS.get(field);
+			if (tag == null) {
+				continue;
+			}
+			updatedXml = replaceXmlCdataField(updatedXml, tag, fieldValue(product, field));
+		}
+		updatedXml = injectElevenstRequiredFields(updatedXml);
+
+		String resp = restClient.put("/rest/prodservices/product/" + marketItemId, updatedXml);
+		log.info("[Elevenst] 필드수정 PUT resp: {}", resp);
+		if (resp == null
+			|| (!resp.contains("<resultCode>200</resultCode>") && !resp.contains("<resultCode>210</resultCode>"))) {
+			throw new RuntimeException("[Elevenst] 상품수정(필드) 실패: " + resp);
+		}
+		log.info("[Elevenst] 필드수정 완료(전체 XML 라운드트립): {} fields={}", marketItemId, fields);
+		if (currentRawData != null) {
+			for (MarketEditField field : fields) {
+				String tag = FIELD_TAGS.get(field);
+				String value = fieldValue(product, field);
+				if (tag != null && value != null && !value.isBlank()) {
+					currentRawData.put(tag, value);
+				}
+			}
+		}
+		return currentRawData;
+	}
+
+	private String fieldValue(Product product, MarketEditField field) {
+		return switch (field) {
+			case PRODUCT_NAME -> product.getProductName();
+			case BRAND, MANUFACTURER -> product.getBrand();
+		};
+	}
+
+	static String replaceXmlCdataField(String xml, String tag, String value) {
+		if (value == null || value.isBlank()) {
+			return xml;
+		}
+		return xml.replaceAll("(?s)<" + tag + ">.*?</" + tag + ">",
+			"<" + tag + "><![CDATA[" + Matcher.quoteReplacement(value) + "]]></" + tag + ">");
 	}
 
 	@Override

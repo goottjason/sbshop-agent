@@ -31,7 +31,7 @@ class Cafe24MarketClientCatalogTest {
 
 	@BeforeEach
 	void setUp() {
-		client = new Cafe24MarketClient(new ObjectMapper(), restClient, null, null);
+		client = new Cafe24MarketClient(new ObjectMapper(), restClient, null, null, null);
 	}
 
 	private static String page(String... products) {

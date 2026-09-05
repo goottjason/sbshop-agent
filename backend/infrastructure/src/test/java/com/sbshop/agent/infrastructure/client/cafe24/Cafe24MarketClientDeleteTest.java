@@ -32,7 +32,7 @@ class Cafe24MarketClientDeleteTest {
 
 	@BeforeEach
 	void setUp() {
-		client = new Cafe24MarketClient(new ObjectMapper(), cafe24RestClient, imageExtractor, categoryResolver);
+		client = new Cafe24MarketClient(new ObjectMapper(), cafe24RestClient, imageExtractor, categoryResolver, null);
 	}
 
 	@Test

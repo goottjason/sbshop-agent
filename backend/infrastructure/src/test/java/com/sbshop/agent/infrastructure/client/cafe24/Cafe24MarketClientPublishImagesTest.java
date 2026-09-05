@@ -48,7 +48,7 @@ class Cafe24MarketClientPublishImagesTest {
 
 	@BeforeEach
 	void setUp() {
-		client = new Cafe24MarketClient(new ObjectMapper(), cafe24RestClient, imageExtractor, categoryResolver);
+		client = new Cafe24MarketClient(new ObjectMapper(), cafe24RestClient, imageExtractor, categoryResolver, null);
 	}
 
 	private Product product(List<String> hostedImages) {

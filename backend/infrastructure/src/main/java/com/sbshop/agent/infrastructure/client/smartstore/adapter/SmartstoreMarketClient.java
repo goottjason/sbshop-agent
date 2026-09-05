@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.config.MarketRegistrationDefaults;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
 import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
+import com.sbshop.agent.core.domain.market.client.dto.MarketEditField;
 import com.sbshop.agent.core.domain.market.client.dto.MarketItemInfo;
 import com.sbshop.agent.core.domain.market.client.dto.MarketPublishContext;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -22,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
@@ -248,6 +250,75 @@ public class SmartstoreMarketClient implements MarketClient {
 		restClient.put(path, requestBody);
 		log.info("[스토어] 바코드 전송 완료: {} barcode={}", marketItemId, barcode);
 		return true;
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
+	public Map<String, Object> syncProductFields(Product product, String marketItemId,
+		Map<String, Object> currentRawData, Set<MarketEditField> fields) {
+		String path = "/v2/products/origin-products/" + marketItemId;
+		Map<String, Object> originProduct;
+		try {
+			JsonNode originNode = objectMapper.readTree(restClient.get(path)).path("originProduct");
+			originProduct = objectMapper.convertValue(originNode, Map.class);
+		} catch (Exception e) {
+			throw new IllegalStateException("스토어 상품 조회 실패 — 필드 수정 중단: " + marketItemId, e);
+		}
+		if (originProduct == null || originProduct.isEmpty()) {
+			throw new IllegalStateException("스토어 상품 조회 응답에 originProduct 없음: " + marketItemId);
+		}
+
+		if (fields.contains(MarketEditField.PRODUCT_NAME)) {
+			String name = product.getProductName();
+			if (name != null && !name.isBlank()) {
+				originProduct.put("name", name);
+			}
+		}
+
+		Map<String, Object> attr = (Map<String, Object>)originProduct
+			.computeIfAbsent("detailAttribute", k -> new HashMap<String, Object>());
+
+		if (fields.contains(MarketEditField.BRAND) || fields.contains(MarketEditField.MANUFACTURER)) {
+			Map<String, Object> searchInfo = (Map<String, Object>)attr
+				.computeIfAbsent("naverShoppingSearchInfo", k -> new HashMap<String, Object>());
+			if (fields.contains(MarketEditField.BRAND)) {
+				String brand = product.getBrand();
+				if (brand != null && !brand.isBlank()) {
+					searchInfo.put("brandName", brand);
+				}
+			}
+			if (fields.contains(MarketEditField.MANUFACTURER)) {
+				String manufacturer = manufacturerValue(product);
+				if (manufacturer != null && !manufacturer.isBlank()) {
+					searchInfo.put("manufacturerName", manufacturer);
+				}
+			}
+		}
+
+		backfillConsumptionDate(attr);
+		backfillUnitPriceYn(attr, product);
+		normalizeReadOnlyStatusType(originProduct);
+
+		Map<String, Object> requestBody = new HashMap<>();
+		requestBody.put("originProduct", originProduct);
+		restClient.put(path, requestBody);
+		log.info("[스토어] 필드 수정 완료: {} fields={}", marketItemId, fields);
+
+		if (currentRawData != null) {
+			currentRawData.putAll(originProduct);
+			return currentRawData;
+		}
+		return originProduct;
+	}
+
+	private static String manufacturerValue(Product product) {
+		if (product.getSourcingInfo() != null) {
+			String value = product.getSourcingInfo().getManufacturer();
+			if (value != null && !value.isBlank()) {
+				return value;
+			}
+		}
+		return product.getBrand();
 	}
 
 	@Override
