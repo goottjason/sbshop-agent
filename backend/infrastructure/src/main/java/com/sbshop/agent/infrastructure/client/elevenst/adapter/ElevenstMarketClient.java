@@ -480,31 +480,7 @@ public class ElevenstMarketClient implements MarketClient {
 		}
 		return ElevenstProductNotice.buildBlock(
 			ElevenstProductNotice.specOf(ElevenstProductNotice.NoticeType.HEALTH_FUNCTIONAL_FOOD),
-			noticeValuesByLabel(notice));
-	}
-
-	private Map<String, String> noticeValuesByLabel(Map<String, String> notice) {
-		Map<String, String> byLabel = new HashMap<>();
-		byLabel.put("제품명", pickNotice(notice, "productName"));
-		byLabel.put("식품의 유형", pickNotice(notice, "foodType"));
-		byLabel.put("제조업소의 명칭과 소재지", pickNotice(notice, "producer"));
-		byLabel.put("제조연월일 및 유통기한", pickNotice(notice, "expirationDate"));
-		byLabel.put("포장단위별 내용물의 용량(중량), 수량", pickNotice(notice, "capacity"));
-		byLabel.put("원재료명 및 함량", pickNotice(notice, "ingredients"));
-		byLabel.put("영양성분", pickNotice(notice, "nutrition"));
-		byLabel.put("섭취량 및 섭취방법", pickNotice(notice, "intakeMethod"));
-		byLabel.put("질병의 예방 및 치료를 위한 의약품이 아니라는 내용의 표현",
-			"본 제품은 질병의 예방 및 치료를 위한 의약품이 아닙니다.");
-		byLabel.put("유전자재조합식품에 해당하는 경우의 표시", pickNotice(notice, "gmoInfo"));
-		byLabel.put("수입식품에 해당하는 경우 \"수입식품안전관리특별법에 따른 수입신고를 필함\"의 문구",
-			pickNotice(notice, "importDeclaration"));
-		byLabel.put("소비자상담 관련 전화번호", pickNotice(notice, "customerServiceNumber"));
-		return byLabel;
-	}
-
-	private String pickNotice(Map<String, String> notice, String key) {
-		String v = notice.get(key);
-		return v == null || v.isBlank() ? ElevenstProductNotice.PLACEHOLDER_VALUE : v;
+			ElevenstProductNotice.valuesFromNoticeFields(notice));
 	}
 
 	private String nvl(String value, String fallback) {

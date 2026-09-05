@@ -58,9 +58,9 @@ class ElevenstNoticeInjectionWiringTest {
 	}
 
 	@Test
-	@DisplayName("D-298 안전장치: 코드표 미확보 상태에서는 PUT 전문에 고시 블록을 넣지 않는다 "
-		+ "— 지금 통과 중인 1,681건의 행위를 바꾸지 않는다")
-	void doesNotInjectNoticeWhileTableUnresolved() {
+	@DisplayName("D-298: 정상 PUT(첫 시도 성공)에는 고시 블록을 넣지 않는다 "
+		+ "— 통과 중인 1,681건의 마켓 저장 고시를 건드리지 않는다")
+	void doesNotInjectNoticeOnSuccessfulPut() {
 		String xml = capturePutXml();
 
 		assertThat(xml).doesNotContain("ProductNotification");

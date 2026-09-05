@@ -126,16 +126,17 @@ class ElevenstNoticeRetryTest {
 	}
 
 	@Test
-	@DisplayName("D-298 안전장치: 코드표 미확보 상태에서는 고시 거부를 받아도 재시도하지 않는다 "
-		+ "— 지금 배포돼도 행위 불변")
-	void doesNotRetryWhileProductionTableUnresolved() {
+	@DisplayName("D-298: 코드표 확보 후에는 운영 기본 spec(건기식 891032)으로 재시도한다")
+	void retriesWithProductionTableOnceResolved() {
 		when(restClient.get(eq(GET_PATH))).thenReturn(CURRENT_XML);
-		when(restClient.put(eq(PUT_PATH), anyString())).thenReturn(NOTICE_REJECT);
+		when(restClient.put(eq(PUT_PATH), anyString())).thenReturn(NOTICE_REJECT, OK);
 
-		assertThatThrownBy(() -> syncBrand(productionClient))
-			.isInstanceOf(RuntimeException.class);
+		syncBrand(productionClient);
 
-		verify(restClient, times(1)).put(eq(PUT_PATH), anyString());
+		List<String> bodies = capturePutBodies(2);
+		assertThat(bodies.get(0)).doesNotContain("ProductNotification");
+		assertThat(bodies.get(1)).contains("<ProductNotification><type>891032</type>");
+		assertThat(bodies.get(1).split("<item>", -1)).hasSize(14);
 	}
 
 	@Test

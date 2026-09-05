@@ -128,13 +128,62 @@ class ElevenstProductNoticeTest {
 	}
 
 	@Test
-	@DisplayName("D-298: 운영 코드표는 아직 미확보 상태다 — 표가 도착하면 이 테스트가 빨개져서 갱신을 강제한다")
-	void productionTableIsStillUnresolved() {
+	@DisplayName("D-298: 운영 코드표가 공식 엑셀 기준으로 채워져 있다 "
+		+ "— 건기식 891032 13항목 · 가공식품 891031 11항목")
+	void productionTableIsResolved() {
+		NoticeSpec health = ElevenstProductNotice.specOf(NoticeType.HEALTH_FUNCTIONAL_FOOD);
+		NoticeSpec processed = ElevenstProductNotice.specOf(NoticeType.PROCESSED_FOOD);
+
+		assertThat(health.isResolved()).isTrue();
+		assertThat(health.typeCode()).isEqualTo("891032");
+		assertThat(health.items()).hasSize(13);
+
+		assertThat(processed.isResolved()).isTrue();
+		assertThat(processed.typeCode()).isEqualTo("891031");
+		assertThat(processed.items()).hasSize(11);
+	}
+
+	@Test
+	@DisplayName("D-298: 표의 항목코드는 유형 안에서 유일하고 라벨과 함께 비어 있지 않다")
+	void tableCodesAreUniqueAndNonBlank() {
 		for (NoticeType type : NoticeType.values()) {
-			assertThat(ElevenstProductNotice.specOf(type).isResolved())
-				.as("유형 %s 의 코드표가 채워졌다면 이 테스트와 주입 경로 테스트를 함께 갱신하라", type)
-				.isFalse();
+			List<NoticeItem> items = ElevenstProductNotice.specOf(type).items();
+			assertThat(items).allSatisfy(i -> {
+				assertThat(i.code()).isNotBlank();
+				assertThat(i.label()).isNotBlank();
+			});
+			assertThat(items.stream().map(NoticeItem::code).distinct().count())
+				.as("유형 %s 의 항목코드 중복", type)
+				.isEqualTo(items.size());
 		}
+	}
+
+	@Test
+	@DisplayName("D-298: 건기식 표의 실제 항목코드가 공식 엑셀 값과 일치한다 (표본)")
+	void healthFunctionalFoodCodesMatchOfficialTable() {
+		List<NoticeItem> items = ElevenstProductNotice.specOf(NoticeType.HEALTH_FUNCTIONAL_FOOD).items();
+		Map<String, String> codeByLabel = items.stream()
+			.collect(java.util.stream.Collectors.toMap(NoticeItem::label, NoticeItem::code));
+
+		assertThat(codeByLabel).containsEntry("제품명", "176317774");
+		assertThat(codeByLabel).containsEntry("기능정보", "23755783");
+		assertThat(codeByLabel).containsEntry("소비자상담 관련 전화번호", "23756754");
+		assertThat(codeByLabel).containsEntry("소비기한 및 보관방법", "23759354");
+		assertThat(codeByLabel).containsEntry("영양정보", "23757103");
+		assertThat(codeByLabel).containsEntry("소비자안전을 위한 주의사항", "176312674");
+	}
+
+	@Test
+	@DisplayName("D-298: 운영 건기식 spec 으로 만든 블록은 13항목이고 '의약품이 아니다' 항목은 고정 문구로 채운다")
+	void productionHealthBlockHasThirteenItemsAndFixedDrugDisclaimer() {
+		String out = ElevenstProductNotice.buildBlock(
+			ElevenstProductNotice.specOf(NoticeType.HEALTH_FUNCTIONAL_FOOD), Map.of());
+
+		assertThat(out).contains("<type>891032</type>");
+		assertThat(countItems(out)).isEqualTo(13);
+		assertThat(out).contains("<code>23759747</code>"
+			+ "<name><![CDATA[본 제품은 질병의 예방 및 치료를 위한 의약품이 아닙니다.]]></name>");
+		assertThat(out).contains("<code>176317774</code><name><![CDATA[상세설명 참조]]></name>");
 	}
 
 	@Test

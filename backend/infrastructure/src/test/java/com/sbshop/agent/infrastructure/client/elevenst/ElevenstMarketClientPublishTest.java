@@ -121,12 +121,26 @@ class ElevenstMarketClientPublishTest {
 	}
 
 	@Test
-	@DisplayName("D-298 안전장치: 코드표 미확보 동안에는 고시 블록을 아예 안 싣는다 "
-		+ "— 추측 코드로 만든 블록을 내보내는 것보다 낫다")
-	void omitsNotificationWhileCodeTableUnresolved() {
+	@DisplayName("D-298: 신규등록 고시 블록이 현행 규격(건기식 891032, 13항목)으로 나가고 "
+		+ "기존 notice 값이 새 항목코드에 매핑된다")
+	void sendsNotificationInCurrentSpecShape() {
 		String xml = capturePublishedXml();
 
-		assertThat(xml).doesNotContain("ProductNotification");
+		assertThat(xml).contains("<ProductNotification><type>891032</type>");
+		assertThat(xml.split("<item>", -1)).hasSize(14);
+		assertThat(xml).contains("<code>176317774</code><name><![CDATA[비타민D3 K2]]></name>");
+		assertThat(xml).contains("<code>23757245</code><name><![CDATA[비타민D3, 비타민K2]]></name>");
+	}
+
+	@Test
+	@DisplayName("D-298: 대응 값이 없는 항목은 플레이스홀더, '의약품이 아니다' 항목은 고정 문구로 채운다")
+	void fillsUnmappedNoticeItemsWithDefaults() {
+		String xml = capturePublishedXml();
+
+		assertThat(xml).contains("<code>23759747</code>"
+			+ "<name><![CDATA[본 제품은 질병의 예방 및 치료를 위한 의약품이 아닙니다.]]></name>");
+		assertThat(xml).contains("<code>23755783</code><name><![CDATA[상세설명 참조]]></name>");
+		assertThat(xml).contains("<code>176312674</code><name><![CDATA[상세설명 참조]]></name>");
 	}
 
 	@Test
