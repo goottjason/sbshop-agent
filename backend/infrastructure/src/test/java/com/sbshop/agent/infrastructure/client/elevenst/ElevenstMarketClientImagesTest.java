@@ -45,7 +45,7 @@ class ElevenstMarketClientImagesTest {
     @DisplayName("D-296: 상세HTML 은 CDATA 로 감싸 전용 상세설명 API 로 나간다")
     void successPostsDetailWithCdata() {
         when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"), anyString()))
-            .thenReturn("<Product/>");
+            .thenReturn("<ProductDetailCont><resultCode>000</resultCode><message>상품 상세 내용이 수정되었습니다.</message></ProductDetailCont>");
         when(restClient.get(eq("/rest/prodmarketservice/prodmarket/PRD9"))).thenReturn(CURRENT_XML);
         when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString()))
             .thenReturn("<ClientMessage><resultCode>200</resultCode></ClientMessage>");

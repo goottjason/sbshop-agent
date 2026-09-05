@@ -30,6 +30,20 @@ class Cafe24OriginResolverTest {
 	}
 
 	@Test
+	@DisplayName("D-295② 라이브 실측: origin_place_name 이 [지역,국가] 배열이어도 마지막 요소로 완전일치한다")
+	void resolvesWhenPlaceNameIsArray() {
+		when(cafe24RestClient.get("/admin/origin?origin_place_name=미국&limit=100"))
+			.thenReturn("{\"origin\":[{\"origin_place_no\":358,\"origin_place_name\":[\"아메리카\",\"미국\"],\"foreign\":\"T\"},"
+				+ "{\"origin_place_no\":2613,\"origin_place_name\":[\"아메리카\",\"미국령 소군도\"],\"foreign\":\"T\"}]}");
+
+		Origin origin = resolver.resolve("미국");
+
+		assertThat(origin.classification()).isEqualTo("T");
+		assertThat(origin.placeNo()).isEqualTo(358);
+		assertThat(origin.placeValue()).isNull();
+	}
+
+	@Test
 	@DisplayName("D-295②: 해외 원산지는 구분 T 와 원산지 번호로 해석한다 — 기타정보는 비운다")
 	void resolvesForeignOrigin() {
 		when(cafe24RestClient.get("/admin/origin?origin_place_name=미국&limit=100"))

@@ -48,7 +48,7 @@ class ElevenstMarketClientRepresentativeImageTest {
         + "— D-296 이후 상세설명은 이 전문에 실리지 않는다")
     void roundTripsAndInjectsRequiredFields() {
         when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"), anyString()))
-            .thenReturn("<Product/>");
+            .thenReturn("<ProductDetailCont><resultCode>000</resultCode><message>상품 상세 내용이 수정되었습니다.</message></ProductDetailCont>");
         when(restClient.get(eq("/rest/prodmarketservice/prodmarket/PRD9"))).thenReturn(CURRENT_XML);
         when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString()))
             .thenReturn("<ClientMessage><resultCode>200</resultCode></ClientMessage>");

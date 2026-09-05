@@ -293,7 +293,7 @@ public class ElevenstMarketClient implements MarketClient {
 		if (resp == null || resp.isBlank()) {
 			return false;
 		}
-		return !resp.contains("<Products") && resp.contains("<Product");
+		return resp.contains("<resultCode>000</resultCode>");
 	}
 
 	private void updateImagesByFullXml(String marketItemId, List<String> hostedImages) {

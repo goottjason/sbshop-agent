@@ -63,13 +63,20 @@ public class Cafe24OriginResolver {
 			origins = root.path("origin");
 		}
 		for (JsonNode origin : origins) {
-			if (!name.equals(origin.path("origin_place_name").asText(""))) {
+			if (!name.equals(placeName(origin.path("origin_place_name")))) {
 				continue;
 			}
 			String classification = "T".equalsIgnoreCase(origin.path("foreign").asText("")) ? "T" : "F";
 			return Optional.of(new Origin(classification, origin.path("origin_place_no").asInt(), null));
 		}
 		return Optional.empty();
+	}
+
+	private static String placeName(JsonNode node) {
+		if (node.isArray()) {
+			return node.size() == 0 ? "" : node.get(node.size() - 1).asText("");
+		}
+		return node.asText("");
 	}
 
 	private Origin other(String name) {

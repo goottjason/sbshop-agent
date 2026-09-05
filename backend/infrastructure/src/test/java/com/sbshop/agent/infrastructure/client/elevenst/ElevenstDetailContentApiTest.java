@@ -50,7 +50,7 @@ class ElevenstDetailContentApiTest {
 	@Test
 	@DisplayName("D-296: 상세설명은 전용 부분수정 API(POST updateProductDetailCont)로 보낸다")
 	void sendsDetailThroughDedicatedApi() {
-		when(restClient.post(eq(DETAIL_PATH), anyString())).thenReturn("<Product/>");
+		when(restClient.post(eq(DETAIL_PATH), anyString())).thenReturn("<ProductDetailCont><resultCode>000</resultCode><message>상품 상세 내용이 수정되었습니다.</message></ProductDetailCont>");
 
 		client.syncImagesAndHtml(null, "PRD9", raw, List.of(), "<p>새 상세</p>");
 
@@ -66,7 +66,7 @@ class ElevenstDetailContentApiTest {
 	@Test
 	@DisplayName("D-296/D-299: 상세설명만 바꿀 때는 전체 XML 라운드트립을 아예 타지 않는다")
 	void detailOnlyDoesNotRoundTripFullXml() {
-		when(restClient.post(eq(DETAIL_PATH), anyString())).thenReturn("<Product/>");
+		when(restClient.post(eq(DETAIL_PATH), anyString())).thenReturn("<ProductDetailCont><resultCode>000</resultCode><message>상품 상세 내용이 수정되었습니다.</message></ProductDetailCont>");
 
 		client.syncImagesAndHtml(null, "PRD9", raw, List.of(), "<p>새 상세</p>");
 
@@ -77,7 +77,7 @@ class ElevenstDetailContentApiTest {
 	@Test
 	@DisplayName("D-296: 상세설명 URL 은 https ai.esmplus.com 으로 승격해서 보낸다")
 	void upgradesEsmplusImageHostInDetail() {
-		when(restClient.post(eq(DETAIL_PATH), anyString())).thenReturn("<Product/>");
+		when(restClient.post(eq(DETAIL_PATH), anyString())).thenReturn("<ProductDetailCont><resultCode>000</resultCode><message>상품 상세 내용이 수정되었습니다.</message></ProductDetailCont>");
 
 		client.syncImagesAndHtml(null, "PRD9", raw, List.of(),
 			"<img src=\"http://ai.esmplus.com/a.jpg\">");
@@ -86,6 +86,18 @@ class ElevenstDetailContentApiTest {
 		verify(restClient).post(eq(DETAIL_PATH), body.capture());
 		assertThat(body.getValue()).contains("https://ai.esmplus.com/a.jpg");
 		assertThat(body.getValue()).doesNotContain("http://ai.esmplus.com");
+	}
+
+	@Test
+	@DisplayName("D-296 라이브 실측: 성공 봉투는 ProductDetailCont+resultCode 000 — 000 아닌 resultCode 는 실패다")
+	void throwsWhenResultCodeIsNotZeroZeroZero() {
+		when(restClient.post(eq(DETAIL_PATH), anyString()))
+			.thenReturn("<?xml version=\"1.0\" encoding=\"euc-kr\" standalone=\"yes\"?>"
+				+ "<ProductDetailCont><resultCode>500</resultCode><message>수정 권한이 없습니다.</message></ProductDetailCont>");
+
+		assertThatThrownBy(() -> client.syncImagesAndHtml(null, "PRD9", raw, List.of(), "<p>새 상세</p>"))
+			.isInstanceOf(RuntimeException.class)
+			.hasMessageContaining("수정 권한이 없습니다.");
 	}
 
 	@Test
@@ -112,7 +124,7 @@ class ElevenstDetailContentApiTest {
 	@DisplayName("D-299: 이미지까지 바꿔 전체 XML PUT 을 탈 때도 상세설명은 그 전문에 싣지 않는다 "
 		+ "— 마켓에 저장된 htmlDetail 이 그대로 남아야 한다")
 	void fullXmlPutKeepsMarketHtmlDetailUntouched() {
-		when(restClient.post(eq(DETAIL_PATH), anyString())).thenReturn("<Product/>");
+		when(restClient.post(eq(DETAIL_PATH), anyString())).thenReturn("<ProductDetailCont><resultCode>000</resultCode><message>상품 상세 내용이 수정되었습니다.</message></ProductDetailCont>");
 		when(restClient.get(eq(PRODMARKET_PATH))).thenReturn(CURRENT_XML);
 		when(restClient.put(eq(PRODUCT_PUT_PATH), anyString()))
 			.thenReturn("<ClientMessage><resultCode>200</resultCode></ClientMessage>");
