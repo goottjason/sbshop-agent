@@ -44,8 +44,11 @@ class ElevenstMarketClientRepresentativeImageTest {
 	}
 
 	@Test
-    @DisplayName("전체전문 GET 후 새 prdImage01·htmlDetail 치환 + 주소코드(5/3) 주입해 PUT")
+    @DisplayName("전체전문 GET 후 새 prdImage01 치환 + 주소코드(5/3) 주입해 PUT "
+        + "— D-296 이후 상세설명은 이 전문에 실리지 않는다")
     void roundTripsAndInjectsRequiredFields() {
+        when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"), anyString()))
+            .thenReturn("<Product/>");
         when(restClient.get(eq("/rest/prodmarketservice/prodmarket/PRD9"))).thenReturn(CURRENT_XML);
         when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString()))
             .thenReturn("<ClientMessage><resultCode>200</resultCode></ClientMessage>");
@@ -56,7 +59,8 @@ class ElevenstMarketClientRepresentativeImageTest {
         verify(restClient).put(eq("/rest/prodservices/product/PRD9"), body.capture());
         String sent = body.getValue();
         assertThat(sent).contains("<prdImage01><![CDATA[http://new/rep.jpg]]></prdImage01>");
-        assertThat(sent).contains("<![CDATA[<p>새상세</p>]]>");
+        assertThat(sent).contains("<![CDATA[<p>old</p>]]>");
+        assertThat(sent).doesNotContain("<p>새상세</p>");
         assertThat(sent).doesNotContain("http://old/rep.jpg");
         assertThat(sent).contains("<addrSeqOut>5</addrSeqOut>");
         assertThat(sent).contains("<addrSeqIn>3</addrSeqIn>");
@@ -65,25 +69,25 @@ class ElevenstMarketClientRepresentativeImageTest {
     }
 
 	@Test
-    @DisplayName("GET 실패(빈 응답) → RuntimeException, PUT 미호출")
+    @DisplayName("이미지 경로: GET 실패(빈 응답) → RuntimeException, PUT 미호출")
     void throwsWhenGetFails() {
         when(restClient.get(eq("/rest/prodmarketservice/prodmarket/PRD9"))).thenReturn("");
 
         assertThatThrownBy(() ->
-            client.syncImagesAndHtml(null, "PRD9", raw, List.of("http://new/rep.jpg"), "<p>x</p>"))
+            client.syncImagesAndHtml(null, "PRD9", raw, List.of("http://new/rep.jpg"), null))
             .isInstanceOf(RuntimeException.class);
         verify(restClient, never()).put(anyString(), anyString());
     }
 
 	@Test
-    @DisplayName("PUT 응답이 resultCode 200/210 아니면 RuntimeException(가짜성공 차단)")
+    @DisplayName("이미지 경로: PUT 응답이 resultCode 200/210 아니면 RuntimeException(가짜성공 차단)")
     void throwsWhenPutNotSuccess() {
         when(restClient.get(eq("/rest/prodmarketservice/prodmarket/PRD9"))).thenReturn(CURRENT_XML);
         when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString()))
             .thenReturn("<ClientMessage><resultCode>500</resultCode><message>원재료 유형 코드 필수</message></ClientMessage>");
 
         assertThatThrownBy(() ->
-            client.syncImagesAndHtml(null, "PRD9", raw, List.of("http://new/rep.jpg"), "<p>x</p>"))
+            client.syncImagesAndHtml(null, "PRD9", raw, List.of("http://new/rep.jpg"), null))
             .isInstanceOf(RuntimeException.class);
     }
 }

@@ -42,8 +42,10 @@ class ElevenstMarketClientImagesTest {
 	}
 
 	@Test
-    @DisplayName("성공(resultCode 200) → 상세HTML CDATA 포함 전문 PUT")
-    void successPutsUpdatedXmlWithCdata() {
+    @DisplayName("D-296: 상세HTML 은 CDATA 로 감싸 전용 상세설명 API 로 나간다")
+    void successPostsDetailWithCdata() {
+        when(restClient.post(eq("/rest/prodservices/updateProductDetailCont/PRD9"), anyString()))
+            .thenReturn("<Product/>");
         when(restClient.get(eq("/rest/prodmarketservice/prodmarket/PRD9"))).thenReturn(CURRENT_XML);
         when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString()))
             .thenReturn("<ClientMessage><resultCode>200</resultCode></ClientMessage>");
@@ -51,18 +53,18 @@ class ElevenstMarketClientImagesTest {
         client.syncImagesAndHtml(null, "PRD9", raw, List.of("u0"), "<p>hi</p>");
 
         ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
-        verify(restClient).put(eq("/rest/prodservices/product/PRD9"), body.capture());
+        verify(restClient).post(eq("/rest/prodservices/updateProductDetailCont/PRD9"), body.capture());
         assertThat(body.getValue()).contains("<![CDATA[<p>hi</p>]]>");
     }
 
 	@Test
-    @DisplayName("PUT 실패 응답(200/210 아님) → RuntimeException")
+    @DisplayName("이미지 PUT 실패 응답(200/210 아님) → RuntimeException")
     void errorResponseThrowsRuntimeException() {
         when(restClient.get(eq("/rest/prodmarketservice/prodmarket/PRD9"))).thenReturn(CURRENT_XML);
         when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString()))
             .thenReturn("<ClientMessage><resultCode>500</resultCode></ClientMessage>");
 
-        assertThatThrownBy(() -> client.syncImagesAndHtml(null, "PRD9", raw, List.of("u0"), "<p>hi</p>"))
+        assertThatThrownBy(() -> client.syncImagesAndHtml(null, "PRD9", raw, List.of("u0"), null))
             .isInstanceOf(RuntimeException.class);
     }
 }

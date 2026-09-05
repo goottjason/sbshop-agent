@@ -28,6 +28,7 @@ public class ElevenstMarketClient implements MarketClient {
 	private final ElevenstMarketRestClient restClient;
 
 	private static final String CATALOG_PATH = "/rest/prodmarketservice/prodmarket";
+	private static final String DETAIL_CONT_PATH = "/rest/prodservices/updateProductDetailCont/";
 	private static final int CATALOG_LIMIT = 100;
 	private static final int CATALOG_MAX_PAGES = 1000;
 	private static final Pattern CATALOG_RECORD = Pattern.compile("(?s)<(Product|product)>.*?</\\1>");
@@ -250,6 +251,50 @@ public class ElevenstMarketClient implements MarketClient {
 	@Override
 	public Map<String, Object> syncImagesAndHtml(Product product, String marketItemId,
 		Map<String, Object> currentRawData, List<String> hostedImages, String newDetailHtml) {
+		boolean hasDetail = newDetailHtml != null && !newDetailHtml.isBlank();
+		boolean hasImages = hostedImages != null && !hostedImages.isEmpty();
+
+		if (hasDetail) {
+			updateDetailContent(marketItemId, newDetailHtml);
+		}
+		if (hasImages) {
+			updateImagesByFullXml(marketItemId, hostedImages);
+		}
+
+		if (currentRawData != null) {
+			if (hasDetail) {
+				currentRawData.put("htmlDetail", newDetailHtml);
+			}
+			if (hasImages) {
+				currentRawData.put("prdImage01", hostedImages.get(0));
+			}
+		}
+		return currentRawData;
+	}
+
+	private void updateDetailContent(String marketItemId, String newDetailHtml) {
+		String safeHtml = newDetailHtml.replace("http://ai.esmplus.com", "https://ai.esmplus.com");
+		String body = "<?xml version=\"1.0\" encoding=\"euc-kr\"?>\n<ProductDetailCont>\n"
+			+ "  <prdDescContClob><![CDATA[" + safeHtml + "]]></prdDescContClob>\n"
+			+ "</ProductDetailCont>";
+		String resp = restClient.post(DETAIL_CONT_PATH + marketItemId, body);
+		log.info("[Elevenst] 상세설명 전용수정 resp: {}", resp);
+		if (!isDetailContentSuccess(resp)) {
+			String reason = extractXmlValue(resp == null ? "" : resp, "message");
+			throw new RuntimeException("[Elevenst] 상세설명 수정 실패: "
+				+ (reason.isEmpty() ? String.valueOf(resp) : reason));
+		}
+		log.info("[Elevenst] 상세설명 전용 API 수정 완료: {}", marketItemId);
+	}
+
+	private static boolean isDetailContentSuccess(String resp) {
+		if (resp == null || resp.isBlank()) {
+			return false;
+		}
+		return !resp.contains("<Products") && resp.contains("<Product");
+	}
+
+	private void updateImagesByFullXml(String marketItemId, List<String> hostedImages) {
 		String currentXml;
 		try {
 			currentXml = restClient.get("/rest/prodmarketservice/prodmarket/" + marketItemId);
@@ -262,22 +307,16 @@ public class ElevenstMarketClient implements MarketClient {
 		}
 		log.info("[D092][11번가] prodmarket GET (len={})", currentXml.length());
 
-		String updatedXml = currentXml;
-		String safeHtml = (newDetailHtml == null ? "" : newDetailHtml).replace("http://ai.esmplus.com",
-			"https://ai.esmplus.com");
-		updatedXml = updatedXml.replaceAll("(?s)<htmlDetail>.*?</htmlDetail>",
-			"<htmlDetail><![CDATA[" + Matcher.quoteReplacement(safeHtml) + "]]></htmlDetail>");
-		if (hostedImages != null && !hostedImages.isEmpty()) {
-			updatedXml = updatedXml.replaceAll("(?s)<prdImage01>.*?</prdImage01>",
-				"<prdImage01><![CDATA[" + hostedImages.get(0) + "]]></prdImage01>");
-			for (int i = 1; i < hostedImages.size() && i <= 4; i++) {
-				String tag = "prdImage0" + (i + 1);
-				String newTag = "<" + tag + "><![CDATA[" + hostedImages.get(i) + "]]></" + tag + ">";
-				if (updatedXml.contains("<" + tag + ">")) {
-					updatedXml = updatedXml.replaceAll("(?s)<" + tag + ">.*?</" + tag + ">", newTag);
-				} else {
-					updatedXml = updatedXml.replace("</prdImage01>", "</prdImage01>\n  " + newTag);
-				}
+		String updatedXml = currentXml.replaceAll("(?s)<prdImage01>.*?</prdImage01>",
+			"<prdImage01><![CDATA[" + Matcher.quoteReplacement(hostedImages.get(0)) + "]]></prdImage01>");
+		for (int i = 1; i < hostedImages.size() && i <= 4; i++) {
+			String tag = "prdImage0" + (i + 1);
+			String newTag = "<" + tag + "><![CDATA[" + hostedImages.get(i) + "]]></" + tag + ">";
+			if (updatedXml.contains("<" + tag + ">")) {
+				updatedXml = updatedXml.replaceAll("(?s)<" + tag + ">.*?</" + tag + ">",
+					Matcher.quoteReplacement(newTag));
+			} else {
+				updatedXml = updatedXml.replace("</prdImage01>", "</prdImage01>\n  " + newTag);
 			}
 		}
 		updatedXml = injectElevenstRequiredFields(updatedXml);
@@ -286,16 +325,9 @@ public class ElevenstMarketClient implements MarketClient {
 		log.info("[D092][11번가] 상품수정 PUT resp: {}", resp);
 		if (resp == null
 			|| (!resp.contains("<resultCode>200</resultCode>") && !resp.contains("<resultCode>210</resultCode>"))) {
-			throw new RuntimeException("[Elevenst] 상품수정(이미지/상세) 실패: " + resp);
+			throw new RuntimeException("[Elevenst] 상품수정(이미지) 실패: " + resp);
 		}
-		log.info("[Elevenst] 이미지/상세HTML 재게시 완료(전체 XML 라운드트립): {}", marketItemId);
-		if (currentRawData != null) {
-			currentRawData.put("htmlDetail", newDetailHtml);
-			if (hostedImages != null && !hostedImages.isEmpty()) {
-				currentRawData.put("prdImage01", hostedImages.get(0));
-			}
-		}
-		return currentRawData;
+		log.info("[Elevenst] 대표이미지 재게시 완료(전체 XML 라운드트립): {}", marketItemId);
 	}
 
 	@Override
