@@ -46,7 +46,7 @@ class Cafe24FieldSyncTest {
 	@BeforeEach
 	void setUp() {
 		client = new Cafe24MarketClient(new ObjectMapper(), cafe24RestClient, imageExtractor,
-			categoryResolver, brandCodeResolver);
+			categoryResolver, brandCodeResolver, null);
 	}
 
 	private Product product(String name, String brand) {

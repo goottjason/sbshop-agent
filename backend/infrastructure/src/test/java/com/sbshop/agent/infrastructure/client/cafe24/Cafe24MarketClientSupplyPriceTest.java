@@ -14,6 +14,7 @@ import com.sbshop.agent.core.domain.product.enums.MeasureUnit;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import com.sbshop.agent.infrastructure.client.cafe24.adapter.Cafe24MarketClient;
 import com.sbshop.agent.infrastructure.client.cafe24.client.Cafe24RestClient;
+import com.sbshop.agent.infrastructure.client.cafe24.component.Cafe24BrandCodeResolver;
 import com.sbshop.agent.infrastructure.client.cafe24.component.Cafe24CategoryResolver;
 import com.sbshop.agent.infrastructure.client.common.util.HtmlImageExtractor;
 import java.math.BigDecimal;
@@ -36,6 +37,8 @@ class Cafe24MarketClientSupplyPriceTest {
 	private HtmlImageExtractor imageExtractor;
 	@Mock
 	private Cafe24CategoryResolver categoryResolver;
+	@Mock
+	private Cafe24BrandCodeResolver brandCodeResolver;
 
 	private Cafe24MarketClient client;
 
@@ -43,7 +46,7 @@ class Cafe24MarketClientSupplyPriceTest {
 
 	@BeforeEach
 	void setUp() {
-		client = new Cafe24MarketClient(new ObjectMapper(), cafe24RestClient, imageExtractor, categoryResolver, null);
+		client = new Cafe24MarketClient(new ObjectMapper(), cafe24RestClient, imageExtractor, categoryResolver, brandCodeResolver, null);
 	}
 
 	private Product product(BigDecimal costPrice) {

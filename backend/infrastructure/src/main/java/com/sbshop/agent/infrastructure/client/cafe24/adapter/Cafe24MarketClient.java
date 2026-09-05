@@ -14,10 +14,12 @@ import com.sbshop.agent.core.domain.product.enums.ProductCategory;
 import com.sbshop.agent.infrastructure.client.cafe24.client.Cafe24RestClient;
 import com.sbshop.agent.infrastructure.client.cafe24.component.Cafe24BrandCodeResolver;
 import com.sbshop.agent.infrastructure.client.cafe24.component.Cafe24CategoryResolver;
+import com.sbshop.agent.infrastructure.client.cafe24.component.Cafe24OriginResolver;
 import com.sbshop.agent.infrastructure.client.common.util.HtmlImageExtractor;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -38,12 +40,15 @@ public class Cafe24MarketClient implements MarketClient {
 	private final HtmlImageExtractor imageExtractor;
 	private final Cafe24CategoryResolver categoryResolver;
 	private final Cafe24BrandCodeResolver brandCodeResolver;
+	private final Cafe24OriginResolver originResolver;
 
 	private static final int CATALOG_LIMIT = 100;
 	private static final int CATALOG_OFFSET_CAP = 5000;
 	private static final int CATALOG_MAX_PAGES = 1000;
 	private static final int CATALOG_RATE_LIMIT_RETRIES = 3;
 	private static final long CATALOG_BACKOFF_MS = 1000L;
+	private static final BigDecimal MAX_PRODUCT_WEIGHT_KG = new BigDecimal("999999.99");
+	private static final int MAX_PRODUCT_TAGS = 100;
 	private static final String CATALOG_FIELDS = "product_no,product_code,custom_product_code,display,selling";
 
 	@Override
@@ -79,14 +84,23 @@ public class Cafe24MarketClient implements MarketClient {
 			productData.put("display", "T");
 			productData.put("selling", "T");
 			productData.put("product_condition", "N");
-			if (product.getBrand() != null)
-				productData.put("brand", product.getBrand());
+			String brandCode = resolveBrandCodeQuietly(product);
+			if (brandCode != null)
+				productData.put("brand_code", brandCode);
+			String productWeight = formatWeight(product);
+			if (productWeight != null)
+				productData.put("product_weight", productWeight);
 			if (product.getDetailHtml() != null)
 				productData.put("description", product.getDetailHtml());
 
 			String origin = context.extraString("originPlace");
-			if (origin != null && !origin.isBlank())
-				productData.put("origin_place_value", origin);
+			if (origin != null && !origin.isBlank()) {
+				Cafe24OriginResolver.Origin resolved = originResolver.resolve(origin);
+				productData.put("origin_classification", resolved.classification());
+				productData.put("origin_place_no", resolved.placeNo());
+				if (resolved.placeValue() != null)
+					productData.put("origin_place_value", resolved.placeValue());
+			}
 
 			String categoryNo = context.hasCategory() ? context.categoryId() : resolveCategoryOrThrow(product);
 			Map<String, Object> category = new HashMap<>();
@@ -118,6 +132,8 @@ public class Cafe24MarketClient implements MarketClient {
 			identifiers.put("product_no", productNo);
 			identifiers.put("product_code", productCode);
 
+			registerTagsQuietly(productNo, product.getSearchKeywords());
+
 			if (!hostedImages.isEmpty()) {
 				try {
 					uploadMainImage(productNo, hostedImages.get(0));
@@ -136,6 +152,55 @@ public class Cafe24MarketClient implements MarketClient {
 		} catch (Exception e) {
 			log.error("[카페24] 상품 등록 실패: {}", e.getMessage());
 			throw new RuntimeException("카페24 상품 등록 오류", e);
+		}
+	}
+
+	private String resolveBrandCodeQuietly(Product product) {
+		String brand = product.getBrand();
+		if (brand == null || brand.isBlank()) {
+			return null;
+		}
+		try {
+			String code = brandCodeResolver.resolve(brand);
+			return code == null || code.isBlank() ? null : code;
+		} catch (RuntimeException e) {
+			log.warn("[카페24] 브랜드 코드 해석 실패 — 브랜드 없이 등록한다: sbCode={} brand={} 사유={}",
+				product.getSbCode(), brand, e.getMessage());
+			return null;
+		}
+	}
+
+	private String formatWeight(Product product) {
+		BigDecimal weight = product.getLogisticsInfo() == null ? null : product.getLogisticsInfo().getWeight();
+		if (weight == null || weight.signum() <= 0 || weight.compareTo(MAX_PRODUCT_WEIGHT_KG) > 0) {
+			return null;
+		}
+		return weight.setScale(2, RoundingMode.HALF_UP).toPlainString();
+	}
+
+	private void registerTagsQuietly(String productNo, String searchKeywords) {
+		if (searchKeywords == null || searchKeywords.isBlank()) {
+			return;
+		}
+		List<String> tags = Arrays.stream(searchKeywords.split(","))
+			.map(String::trim)
+			.filter(tag -> !tag.isEmpty())
+			.distinct()
+			.limit(MAX_PRODUCT_TAGS)
+			.toList();
+		if (tags.isEmpty()) {
+			return;
+		}
+		Map<String, Object> request = new HashMap<>();
+		request.put("shop_no", 1);
+		request.put("tags", tags);
+		try {
+			cafe24RestClient.post("/admin/products/" + productNo + "/tags",
+				Map.of("request", request));
+			log.info("[카페24] 상품 태그 등록 완료: product_no={} tags={}", productNo, tags);
+		} catch (RuntimeException e) {
+			log.warn("[카페24] 상품 태그 등록 실패 — 상품 등록은 유지한다: product_no={} 사유={}",
+				productNo, e.getMessage());
 		}
 	}
 

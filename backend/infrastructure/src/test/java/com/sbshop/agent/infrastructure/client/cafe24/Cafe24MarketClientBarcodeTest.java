@@ -44,7 +44,7 @@ class Cafe24MarketClientBarcodeTest {
 	@BeforeEach
 	void setUp() {
 		client = new Cafe24MarketClient(new ObjectMapper(), cafe24RestClient, imageExtractor,
-			categoryResolver, null);
+			categoryResolver, null, null);
 	}
 
 	private Product product(String barcode) {
