@@ -24,6 +24,13 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 	Optional<String> findMaxSbCodeByPrefix(@Param("prefix")
 	String prefix);
 
+	@Query("SELECT p.id FROM Product p WHERE p.deletedAt IS NULL "
+		+ "AND p.sourcingInfo.sourceUrl IS NOT NULL AND p.sourcingInfo.sourceUrl <> '' "
+		+ "AND p.brand IS NOT NULL AND p.brand <> '' "
+		+ "AND (LOCATE(' ', p.originalName) = 0 OR p.brand <> SUBSTRING(p.originalName, 1, LOCATE(' ', p.originalName) - 1)) "
+		+ "ORDER BY p.id")
+	List<Long> findFieldSyncTargetIds();
+
 	@Query("SELECT p FROM Product p WHERE p.sourcingInfo.vendor = :vendor AND p.deletedAt IS NULL")
 	List<Product> findByVendor(@Param("vendor")
 	VendorType vendor);

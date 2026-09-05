@@ -44,11 +44,23 @@ public class ProductFieldSyncUseCase {
 
 	@Transactional
 	public FieldSyncOutcome sync(Long productId, Set<MarketEditField> fields, Set<MarketType> markets) {
+		String batchId = processStatusService.startBatch(JobType.FIELD_SYNC,
+			List.of(String.valueOf(productId)));
+		try {
+			MarketRepublishResult result = syncOne(batchId, productId, fields, markets);
+			return new FieldSyncOutcome(batchId, result);
+		} finally {
+			processStatusService.releaseBatch(batchId);
+		}
+	}
+
+	@Transactional
+	public MarketRepublishResult syncOne(String batchId, Long productId,
+		Set<MarketEditField> fields, Set<MarketType> markets) {
 		Product product = productReader.findById(productId)
 			.orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다: " + productId));
 
 		String code = String.valueOf(productId);
-		String batchId = processStatusService.startBatch(JobType.FIELD_SYNC, List.of(code));
 
 		List<MarketType> synced = new ArrayList<>();
 		List<MarketType> skipped = new ArrayList<>();
@@ -111,8 +123,7 @@ public class ProductFieldSyncUseCase {
 
 		MarketRepublishResult result = new MarketRepublishResult(synced, skipped, failed);
 		recordOutcome(batchId, code, product, fields, result);
-		processStatusService.releaseBatch(batchId);
-		return new FieldSyncOutcome(batchId, result);
+		return result;
 	}
 
 	private void recordOutcome(String batchId, String code, Product product,

@@ -52,4 +52,5 @@ public final class ActionLogConstants {
 	public static final String BANNED_INGREDIENT_SYNC = "BANNED_INGREDIENT_SYNC";
 
 	private ActionLogConstants() {}
+	public static final String BATCH_FIELD_SYNC = "BATCH_FIELD_SYNC";
 }
