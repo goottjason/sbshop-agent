@@ -181,7 +181,7 @@ public class ProductMarketSyncService {
 		}
 	}
 
-	private static String writeBlockedReason(MarketRegistration reg) {
+	static String writeBlockedReason(MarketRegistration reg) {
 		if (reg.getUnsyncReason() == UnsyncReason.DELETED_ON_MARKET) {
 			return "마켓에서 삭제된 상품";
 		}

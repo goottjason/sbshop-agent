@@ -73,6 +73,12 @@ public interface MarketClient {
 			getSupportedMarket() + " 바코드 전송 미지원");
 	}
 
+	default Map<String, Object> syncProductFields(Product product, String marketItemId,
+		Map<String, Object> currentRawData, java.util.Set<com.sbshop.agent.core.domain.market.client.dto.MarketEditField> fields) {
+		throw new UnsupportedOperationException(
+			getSupportedMarket() + " 필드 수정 미지원");
+	}
+
 	default boolean repairProductNotice(Product product, String marketItemId) {
 		throw new UnsupportedOperationException(
 			getSupportedMarket() + " 고시정보 보정 미지원");
