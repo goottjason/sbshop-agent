@@ -57,6 +57,8 @@
 
 - 선행 DDL: 기존 상품 변경 이력/target 및 다중 마켓 inspection gate.
 - 신규 DDL: `backend/docs/ddl/2026-09-07-market-stock-sync.sql` (3개 queue 테이블, 부분 유일성/조회 index, target.stock_task_id 열/index).
+- 운영에서는 기존 `sb_product_change_target` 소유 역할로 DDL을 단일 트랜잭션에서 적용하고, 애플리케이션 역할에 새 3개 테이블 DML 및 2개 identity sequence usage/select만 부여했다. 애플리케이션 DB 역할은 바꾸지 않았다. 최초 권한 오류는 트랜잭션 전체 롤백을 확인한 후 이 절차로 재적용했다.
+- 배포 이미지: API·프론트 모두 `b3413ef14443fe85f96452adc7256af22f677bd2`. 실제 운영 DB 39개 엔티티 read-only validate, 백엔드 전체 2,613건 및 별도 PostgreSQL 수량 서비스 26건 통과. 운영 검증은 미접수 검토까지이며 외부 수량 PUT을 실행한 결과가 아니다.
 - scheduler 설정: `products.stock-sync.dispatch-ms` 기본 10000, `products.stock-sync.poll-ms` 기본 1000. 기존 `marketInspectionTaskScheduler` 사용.
 - 수량/가격/편집/API scoped 회귀 및 최종 PostgreSQL 서비스 검증 결과는 부모 통합 보고에 기록한다. `backend/tools/verify-market-stock-postgres.py`는 localhost에만 노출되는 임시 PostgreSQL 16 DB를 생성해 실제 서비스의 잠금·rollback·재시도 검사를 실행하고 삭제한다.
 - 운영 마켓 쓰기·등록·재전송은 이 구현/검증 작업에서 수행하지 않았다.

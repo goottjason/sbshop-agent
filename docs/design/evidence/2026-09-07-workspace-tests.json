@@ -1,0 +1,46 @@
+{
+  "revision": "b3413ef14443fe85f96452adc7256af22f677bd2",
+  "command": "./gradlew test --continue --offline",
+  "modules": {
+    "api": {
+      "tests": 357,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "core": {
+      "tests": 1536,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "infrastructure": {
+      "tests": 641,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "worker": {
+      "tests": 79,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "total": {
+    "tests": 2613,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "firstRunFailure": "Freshness test application was incorrectly auto-detected by the existing blank R2 context test. Test configuration isolation and explicit production application configuration fixed it. The final complete suite was rerun and passed.",
+  "frontendTypecheck": "passed",
+  "frontendBuild": "passed",
+  "postgresServiceTests": {
+    "stock": 26,
+    "failures": 0,
+    "database": "isolated PostgreSQL 16.14"
+  },
+  "operatingMarketWritesPerformedByTests": false,
+  "checkedAt": "2026-09-07T14:08:20.678014+00:00"
+}

@@ -1,0 +1,38 @@
+{
+  "status": "passed",
+  "checkedAt": "2026-09-07T14:17:12Z",
+  "ddlAuto": "validate",
+  "database": {
+    "stockTables": 3,
+    "stockTargetColumn": 1,
+    "activeTaskUniqueIndex": 1,
+    "stockTasks": 0,
+    "stockWriteIntents": 0,
+    "stockCommittedReviews": 0,
+    "stockPreviewReviews": 1
+  },
+  "containers": {
+    "api": {
+      "revision": "b3413ef14443fe85f96452adc7256af22f677bd2",
+      "running": true,
+      "restarts": 0
+    },
+    "frontend": {
+      "revision": "b3413ef14443fe85f96452adc7256af22f677bd2",
+      "running": true,
+      "restarts": 0
+    }
+  },
+  "observer": {
+    "flags": {
+      "collect": true,
+      "upload": true
+    },
+    "collectEnabled": true,
+    "uploadEnabled": true,
+    "state": "RUNNING",
+    "error": null,
+    "heartbeatAgeSeconds": 1,
+    "browserTabs": 1
+  }
+}

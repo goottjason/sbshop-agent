@@ -1,0 +1,81 @@
+{
+  "errors": [],
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/sbshop-agent/api/v1/products/search",
+      "query": "?page=0&size=50&sort=workspacePriority,asc",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/sbshop-agent/api/v1/products/search",
+      "query": "?page=0&size=50&sort=workspacePriority,asc",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/sbshop-agent/api/v1/products/search",
+      "query": "?page=0&size=50&sort=priceInfo.salePrice,asc",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/sbshop-agent/api/v1/products/changes/values-preview/fields",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/sbshop-agent/api/v1/products/changes/values-preview",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/sbshop-agent/api/v1/products/changes/numeric-preview/fields",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/sbshop-agent/api/v1/products/changes/numeric-preview",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/sbshop-agent/api/v1/market-stock-sync/reviews",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/sbshop-agent/api/v1/market-stock-sync/reviews",
+      "query": "",
+      "status": 200
+    }
+  ],
+  "checks": [
+    "운영 기본 정렬: 조치 필요 우선 → 콘텐츠 적용 오래된 순",
+    "실제 IHB 수집 이력과 아직 DB 적용하지 않은 시각 구분",
+    "90일 경과/적용 기록 없음 검색",
+    "콘텐츠 조건과 판매가 정렬 조합",
+    "운영 선택 상품의 비숫자 일괄 편집·변경 전후 미리보기(저장 미실행)",
+    "판매용 설정 수량 일괄 선택·4.9개→4개 계산 미리보기(저장 미실행)",
+    "운영 쿠팡·카페24 판매용 수량 검토와 제외 사유 표시(접수 미실행)"
+  ],
+  "status": "passed",
+  "checkedAt": "2026-09-07T14:16:21Z",
+  "actualOperatingApi": true,
+  "productId": 328,
+  "sbCode": "210121IHB031",
+  "unchangedRevision": 0,
+  "freshness": {
+    "text": "이미지 수집됨 · 적용 기록 없음\n상세 수집됨 · 적용 기록 없음",
+    "title": "이미지 수집 2026. 9. 7. 오후 10:07:41 / DB 적용 기록 없음\n상세 수집 2026. 9. 7. 오후 10:07:41 / DB 적용 기록 없음\n클릭하여 수집·비교"
+  },
+  "stockReviewText": "마켓 판매용 수량 반영\n판매용 설정 수량을 검토해 반영하고, 마켓에서 재조회한 수량으로 완료 여부를 확인합니다.\n소싱처가 재고 있음이면 판매용 설정 수량(기본 300개), 명시 품절이면 0개가 목표입니다. 쿠팡 단일 옵션과 카페24 본상품의 확인 가능한 품목을 지원하며, 제외 대상과 실패 사유는 작업에 표시합니다.\n\n선택한 상품 1개 · 검토당 최대 500개\n\n쿠팡\n카페24\n\n선택 상품 수량 검토\n\n최근 수량 검토·작업 내역\n\n검토 유효 시간: 오후 11:46:20 · 0건 판매용 수량 일치\n\nSB코드 / 마켓\t반영할 판매용 수량\t마켓 재조회 수량\t상태·사유\t전송 이력\t\nSB코드 / 마켓\n\t\n반영할 판매용 수량\n\t\n마켓 재조회 수량\n\t\n상태·사유\n\t\n전송 이력\n\n210121IHB031\n쿠팡 · 11658777183\t300개\t미확인\t실행 전 확인 대상\n소싱처 실재고와 별도인 판매용 수량을 전송합니다. 현재 판매 상태·품목을 먼저 확인합니다.\n\t—\n210121IHB031\n카페24 · 10619\t300개\t미확인\t실행 전 확인 대상\n소싱처 실재고와 별도인 판매용 수량을 전송합니다. 현재 판매 상태·품목을 먼저 확인합니다.\n\t—\n1\n검토한 수량 반영 접수",
+  "productSaves": 0,
+  "marketWriteCommits": 0
+}

@@ -1,0 +1,54 @@
+{
+  "revision": "b3413ef14443fe85f96452adc7256af22f677bd2",
+  "phase": "HEALTHY",
+  "worktree": "/home/ubuntu/projects/sbshop-workspace-release-b3413ef1",
+  "builtAt": "2026-09-07T14:07:17.043023+00:00",
+  "oldImages": {
+    "api": {
+      "id": "sha256:20566ef0b701fe715b0f819fd23b32c7a0b2290f0847ff96642c618298ef9bae",
+      "revision": "8f9356312d136eac9951b62dc8e2817526442574"
+    },
+    "frontend": {
+      "id": "sha256:f1c6fe5cc48a6d4a69abf4e0a60b7e9d3050f23d02c1da84b63e81b75017039a",
+      "revision": "a2ef2e512461ddeaea2f7b7e6a58b5a9ae286ed3"
+    }
+  },
+  "backupSha256": "bb6bea5cac1bcd9be3bcb8dfa009ff2f52fb3bbade198304b23fb905de20d268",
+  "backupBytes": 9581492,
+  "appliedDDL": "2026-09-07-market-stock-sync.sql",
+  "migrationPermissions": {
+    "runAsExistingOwner": true,
+    "applicationRoleUnchanged": true,
+    "grants": "DML on three stock tables; usage/select on their two sequences"
+  },
+  "initialMigrationFailure": {
+    "reason": "Application role does not own the existing change target table",
+    "transactionRolledBack": true,
+    "existingApplicationUnaffected": true
+  },
+  "schemaValidationEntities": 39,
+  "activatedAt": "2026-09-07T14:10:04.502228+00:00",
+  "proxyRecovery": {
+    "nginxConfigTest": "passed",
+    "nginxReload": "completed",
+    "reason": "upstream IP cache after container recreation"
+  },
+  "checks": {
+    "productsStatus": 200,
+    "stockReviewsStatus": 200,
+    "totalProducts": 2854
+  },
+  "containers": {
+    "api": {
+      "revision": "b3413ef14443fe85f96452adc7256af22f677bd2",
+      "restarts": 0,
+      "startedAt": "2026-09-07T14:10:04.28253921Z"
+    },
+    "frontend": {
+      "revision": "b3413ef14443fe85f96452adc7256af22f677bd2",
+      "restarts": 0,
+      "startedAt": "2026-09-07T14:10:04.285653937Z"
+    }
+  },
+  "healthyAt": "2026-09-07T14:12:12.164354+00:00"
+}

@@ -1,0 +1,102 @@
+{
+  "status": "passed",
+  "actualOperatingApi": true,
+  "checks": [
+    {
+      "method": "GET",
+      "path": "/products?page=0&size=5",
+      "status": 200,
+      "elapsedMs": 1039
+    },
+    {
+      "method": "GET",
+      "path": "/products?page=0&size=5&sort=workspacePriority,asc",
+      "status": 200,
+      "elapsedMs": 549
+    },
+    {
+      "method": "GET",
+      "path": "/products?page=0&size=5&contentAgeDays=90&contentAgeField=ANY&sort=contentOldest,asc",
+      "status": 200,
+      "elapsedMs": 711
+    },
+    {
+      "method": "GET",
+      "path": "/products?page=0&size=5&contentAgeDays=90&contentAgeField=IMAGES&sort=contentOldest,asc",
+      "status": 200,
+      "elapsedMs": 138
+    },
+    {
+      "method": "GET",
+      "path": "/products?page=0&size=5&contentAgeDays=90&contentAgeField=DETAIL_HTML&sort=contentOldest,asc",
+      "status": 200,
+      "elapsedMs": 194
+    },
+    {
+      "method": "POST",
+      "path": "/products/search?page=0&size=20&sort=sbCode,asc",
+      "status": 200,
+      "elapsedMs": 183
+    },
+    {
+      "method": "POST",
+      "path": "/products/search?page=0&size=5&sort=brand,asc",
+      "status": 200,
+      "elapsedMs": 431
+    },
+    {
+      "method": "POST",
+      "path": "/products/search?page=0&size=5&sort=productName,asc",
+      "status": 200,
+      "elapsedMs": 373
+    },
+    {
+      "method": "POST",
+      "path": "/products/search?page=0&size=5&sort=priceInfo.salePrice,desc",
+      "status": 200,
+      "elapsedMs": 385
+    },
+    {
+      "method": "GET",
+      "path": "/products/changes/values-preview/fields",
+      "status": 200,
+      "elapsedMs": 104
+    },
+    {
+      "method": "GET",
+      "path": "/products/changes/numeric-preview/fields",
+      "status": 200,
+      "elapsedMs": 164
+    },
+    {
+      "method": "GET",
+      "path": "/market-stock-sync/reviews",
+      "status": 200,
+      "elapsedMs": 93
+    }
+  ],
+  "totalProducts": 2854,
+  "content90DaysOrNoApplication": {
+    "ANY": 2854,
+    "IMAGES": 2854,
+    "DETAIL_HTML": 2854
+  },
+  "multiCodeProducts": [
+    {
+      "id": 328,
+      "sbCode": "210121IHB031"
+    }
+  ],
+  "source328Freshness": {
+    "imagesCollectedAt": "2026-09-07T13:07:41.734625Z",
+    "imagesAppliedAt": null,
+    "detailHtmlCollectedAt": "2026-09-07T13:07:41.734625Z",
+    "detailHtmlAppliedAt": null
+  },
+  "bulkValueFieldCount": 17,
+  "numericSalesQuantityPresent": true,
+  "stockReviewCount": 0,
+  "productWrites": 0,
+  "marketCommits": 0,
+  "checkedAt": "2026-09-07T14:12:14Z"
+}
