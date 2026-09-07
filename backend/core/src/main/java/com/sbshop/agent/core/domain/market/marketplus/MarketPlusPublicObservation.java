@@ -28,9 +28,9 @@ public class MarketPlusPublicObservation {
 	private String mallId;
 	@Column(nullable = false, length = 200)
 	private String sellerAccount;
-	@Column(nullable = false, length = 30)
+	@Column(name = "cafe24_product_no", nullable = false, length = 30)
 	private String cafe24ProductNo;
-	@Column(nullable = false, length = 30)
+	@Column(name = "cafe24_product_code", nullable = false, length = 30)
 	private String cafe24ProductCode;
 	@Column(nullable = false, length = 200)
 	private String externalId;
