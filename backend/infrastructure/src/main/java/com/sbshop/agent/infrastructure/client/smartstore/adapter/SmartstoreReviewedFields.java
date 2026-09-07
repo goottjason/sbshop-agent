@@ -74,7 +74,7 @@ final class SmartstoreReviewedFields {
 		String block = null;
 		try {
 			requireWritable(p);
-		} catch (IllegalStateException e) {
+		} catch (UnsupportedOperationException | IllegalStateException e) {
 			block = e.getMessage();
 		}
 		return new MarketFieldsRead(values, account, "ORIGIN:" + id, MarketFieldsRead.Approval.NOT_REQUIRED, block);
@@ -183,17 +183,19 @@ final class SmartstoreReviewedFields {
 
 	private void requireWritable(ObjectNode p) {
 		String state = p.path("statusType").asText();
+		if (Set.of("WAIT", "UNADMISSION", "REJECTION", "SUSPENSION", "CLOSE", "PROHIBITION", "DELETE").contains(state))
+			throw new UnsupportedOperationException("스마트스토어 판매 상태 " + state + ": 필드 쓰기를 보류합니다.");
 		if (!Set.of("SALE", "OUTOFSTOCK").contains(state))
 			throw new IllegalStateException("스마트스토어 판매 상태 " + state + ": 필드 쓰기를 보류합니다.");
 		if ("OUTOFSTOCK".equals(state)) {
 			JsonNode q = p.path("stockQuantity");
 			if (!q.isIntegralNumber() || q.longValue() != 0)
-				throw new IllegalStateException("일시 품절의 0개 재고를 확인할 수 없어 전체 상품 수정을 보류합니다.");
+				throw new UnsupportedOperationException("일시 품절의 0개 재고를 확인할 수 없어 전체 상품 수정을 보류합니다.");
 			JsonNode option = p.path("detailAttribute").path("optionInfo");
 			for (String key : List.of("optionCombinations", "optionStandards"))
 				for (JsonNode item : option.path(key))
 					if (!item.path("stockQuantity").isIntegralNumber() || item.path("stockQuantity").longValue() != 0)
-						throw new IllegalStateException("품절 옵션의 수량을 확인할 수 없어 판매 상태 변환을 보류합니다.");
+						throw new UnsupportedOperationException("품절 옵션의 수량을 확인할 수 없어 판매 상태 변환을 보류합니다.");
 		}
 	}
 

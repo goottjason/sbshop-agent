@@ -19,6 +19,9 @@ public class ProductReaderImpl implements ProductReader {
 
 	private final ProductRepository productRepository;
 
+	@jakarta.persistence.PersistenceContext
+	private jakarta.persistence.EntityManager entityManager;
+
 	@Override
 	public Optional<Product> findById(Long id) {
 		return productRepository.findById(id);
@@ -39,6 +42,7 @@ public class ProductReaderImpl implements ProductReader {
 	@org.springframework.transaction.annotation.Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
 	public Page<Product> search(ProductSearchCondition condition, Pageable pageable,
 		com.sbshop.agent.core.domain.market.marketplus.MarketPlusSearchScope scope) {
+		disableSearchJit();
 		String virtual = pageable.getSort().isUnsorted() ? "workspacePriority" : null;
 		for (var order : pageable.getSort()) {
 			if (order.getProperty().equals("workspacePriority") || order.getProperty().equals("contentOldest")) {
@@ -54,6 +58,23 @@ public class ProductReaderImpl implements ProductReader {
 			: Pageable.unpaged();
 		var page = productRepository.findAll(ProductSpecifications.matching(condition, scope, virtual), queryPage);
 		return new org.springframework.data.domain.PageImpl<>(page.getContent(), pageable, page.getTotalElements());
+	}
+
+	/** PostgreSQL JIT compiled this short product search for ~9s while execution needed ~57ms.
+	 * SET LOCAL is confined to the existing repeatable-read search transaction and resets at its end.
+	 * Do not change database defaults, pooled session settings, or a caller's write transaction.
+	 */
+	private void disableSearchJit() {
+		if (!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()
+			|| !org.springframework.transaction.support.TransactionSynchronizationManager.isCurrentTransactionReadOnly())
+			return;
+		entityManager.unwrap(org.hibernate.Session.class).doWork(connection -> {
+			if (!"PostgreSQL".equals(connection.getMetaData().getDatabaseProductName()))
+				return;
+			try (var statement = connection.createStatement()) {
+				statement.execute("SET LOCAL jit = off");
+			}
+		});
 	}
 
 	@Override

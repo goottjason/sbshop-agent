@@ -20,6 +20,7 @@ public class OcadoReviewedCatalogClient {
 	private final ObjectMapper mapper;
 	private final URI endpoint;
 	private final HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER)
+		.version(HttpClient.Version.HTTP_1_1)
 		.connectTimeout(Duration.ofSeconds(10)).build();
 
 	public OcadoReviewedCatalogClient(ObjectMapper mapper,

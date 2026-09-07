@@ -125,6 +125,10 @@ class OcadoReviewedCatalogClientTest {
 		var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
 		server.createContext("/scrape/reviewed/ocado", exchange -> {
 			calls.incrementAndGet();
+			// Uvicorn loses the POST body when Java attempts h2c; the sidecar only supports HTTP/1.1.
+			assertThat(exchange.getProtocol()).isEqualTo("HTTP/1.1");
+			assertThat(exchange.getRequestHeaders().getFirst("Upgrade")).isNull();
+			assertThat(exchange.getRequestHeaders().getFirst("HTTP2-Settings")).isNull();
 			var request = mapper.readTree(exchange.getRequestBody());
 			assertThat(request.path("mode").asText()).isEqualTo("PRICE_STOCK");
 			assertThat(request.path("url").asText()).isEqualTo(source);

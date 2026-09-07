@@ -125,6 +125,10 @@ public class ProductSourceWorker {
 		java.math.BigDecimal cost = null;
 		if (fetched.goodsPriceKrw() != null) {
 			try {
+				// Source adapters normalize FX before converting goods, never only at persistence time.
+				if (fetched.exchangeRate() == null || fetched.exchangeRate().signum() <= 0
+					|| fetched.exchangeRate().stripTrailingZeros().scale() > 2)
+					throw new IllegalArgumentException("소싱 환율의 저장 정밀도 검증이 완료되지 않았습니다. 새로 수집하세요.");
 				if (captured.shipping() == null || !Objects.equals(captured.shipping().currency(), fetched.currency()))
 					throw new IllegalArgumentException("소싱 통화와 배송비 정책이 없거나 일치하지 않습니다.");
 				if (captured.bundleQuantity() == null || captured.bundleQuantity() < 1)
@@ -146,7 +150,7 @@ public class ProductSourceWorker {
 		notices.add("품절·재입고는 확인된 재고 상태만 반영합니다. 상품 부재·차단·미확인 응답을 품절 또는 0개로 변환하지 않습니다.");
 		return new Proposed(
 			new Values(cost, cost == null ? null : fetched.exchangeRate(), fetched.stockStatus(), fetched.stock()),
-			cost != null, stock, notices);
+			cost != null, stock, notices, fetched.pricingEvidence());
 	}
 
 	private void finish(Claim claim, String payload, boolean images, boolean detail, String failure, boolean throttled,

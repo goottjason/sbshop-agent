@@ -202,6 +202,58 @@ class ProductSourceServiceIntegrationTest {
 	}
 
 	@Test
+	void normalizedFxReviewAndSaveUseSameLandedCostAndRetainOriginalRateEvidence() throws Exception {
+		Product p = product();
+		tx.executeWithoutResult(s -> products.findById(p.getId()).orElseThrow().update(ProductUpdateCommand.builder()
+			.vendor(VendorType.FTN)
+			.sourceUrl("https://www.fortnumandmason.com/fortnum-s-fig-fennel-chutney-250g").build()));
+		var shipping = VendorPricePolicy.builder().vendor(VendorType.FTN).shipCurrency("GBP")
+			.shipBaseAmount(money("2.95")).shipBaseWeightG(1000).build();
+		when(vendorPolicies.find(VendorType.FTN)).thenReturn(Optional.of(shipping));
+		var evidence = new PricingEvidence(money("999.99"), "GBP", money("1822.551899"), money("1822.55"),
+			money("1822532"));
+		when(source.fetch(eq(VendorType.FTN), anyString())).thenReturn(new Observed(evidence.goodsPriceKrw(),
+			evidence.normalizedExchangeRate(), "GBP", StockStatus.IN_STOCK, null,
+			List.of("수집 원본 환율 1822.551899 → 1822.55 (소수 2자리 반올림)."), evidence));
+		var collected = ready(products.findById(p.getId()).orElseThrow());
+		var stored = mapper.readValue(snapshots.findById(collected.id()).orElseThrow().getProposed(), Proposed.class);
+		assertThat(stored.pricingEvidence()).isEqualTo(evidence);
+		BigDecimal expected = com.sbshop.agent.core.domain.pricing.LandedCostCalculator.buyPricePerUnit(
+			evidence.goodsPriceKrw(), money("0.3"), 3, shipping, evidence.normalizedExchangeRate());
+		assertThat(collected.proposed().costPrice()).isEqualByComparingTo(expected);
+		assertThat(collected.proposed().exchangeRate()).isEqualByComparingTo("1822.55");
+		assertThat(products.findById(p.getId()).orElseThrow().getPriceInfo().getCostPrice())
+			.isEqualByComparingTo("10000");
+		var review = review(collected, Field.PRICE);
+		assertThat(review.items().getFirst().state()).isEqualTo(ProductEditPlanner.State.READY);
+		assertThat(review.items().getFirst().command().exchangeRate())
+			.isEqualByComparingTo("1822.55");
+		assertThat(service.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("SAVED");
+		var saved = products.findById(p.getId()).orElseThrow();
+		assertThat(saved.getPriceInfo().getExchangeRate()).isEqualByComparingTo("1822.55");
+		assertThat(saved.getPriceInfo().getCostPrice()).isEqualByComparingTo(expected);
+		assertThat(saved.getSalesQuantity()).isEqualTo(300);
+		assertThat(saved.getSalePrice().remainder(money("100"))).isEqualByComparingTo(BigDecimal.ZERO);
+		assertThat(snapshots.findById(collected.id()).orElseThrow().getPriceAppliedAt()).isNotNull();
+	}
+
+	@Test
+	void unnormalizedPortObservationCannotBeStoredAndOldSnapshotJsonRemainsReadable() throws Exception {
+		Product p = product();
+		when(source.fetch(any(), anyString())).thenReturn(new Observed(money("12000"), money("1822.551899"),
+			"KRW", StockStatus.IN_STOCK, null, List.of()));
+		var collected = ready(p);
+		assertThat(collected.state()).isEqualTo(ProductSourceSnapshot.State.PARTIAL);
+		assertThat(collected.proposed().costPrice()).isNull();
+		assertThat(review(collected, Field.PRICE).items().getFirst().state())
+			.isEqualTo(ProductEditPlanner.State.EXCLUDED);
+		var old = mapper.readValue("{\"values\":{\"costPrice\":12000,\"exchangeRate\":1,\"stockStatus\":\"IN_STOCK\","
+			+ "\"stock\":null},\"priceAvailable\":true,\"stockAvailable\":true,\"notices\":[]}", Proposed.class);
+		assertThat(old.pricingEvidence()).isNull();
+		assertThat(old.priceAvailable()).isTrue();
+	}
+
+	@Test
 	void sourceStockSavePreservesSalesQuantityAndMissingActualQuantityAndIsIdempotent() {
 		Product p = product();
 		var s = ready(p);

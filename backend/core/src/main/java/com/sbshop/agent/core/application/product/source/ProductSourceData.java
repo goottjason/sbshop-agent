@@ -33,9 +33,21 @@ public final class ProductSourceData {
 	}
 	public record Captured(Values current, BigDecimal weightKg, Integer bundleQuantity, Shipping shipping) {
 	}
-	public record Proposed(Values values, boolean priceAvailable, boolean stockAvailable, List<String> notices) {
+	/** Exact catalog price and FX evidence captured before review; no raw source page is retained. */
+	public record PricingEvidence(BigDecimal sourcePrice, String currency, BigDecimal observedExchangeRate,
+		BigDecimal normalizedExchangeRate, BigDecimal goodsPriceKrw) {
+	}
+	public record Proposed(Values values, boolean priceAvailable, boolean stockAvailable, List<String> notices,
+		PricingEvidence pricingEvidence) {
+		public Proposed(Values values, boolean priceAvailable, boolean stockAvailable, List<String> notices) {
+			this(values, priceAvailable, stockAvailable, notices, null);
+		}
 	}
 	public record Observed(BigDecimal goodsPriceKrw, BigDecimal exchangeRate, String currency,
-		StockStatus stockStatus, Integer stock, List<String> notices) {
+		StockStatus stockStatus, Integer stock, List<String> notices, PricingEvidence pricingEvidence) {
+		public Observed(BigDecimal goodsPriceKrw, BigDecimal exchangeRate, String currency,
+			StockStatus stockStatus, Integer stock, List<String> notices) {
+			this(goodsPriceKrw, exchangeRate, currency, stockStatus, stock, notices, null);
+		}
 	}
 }

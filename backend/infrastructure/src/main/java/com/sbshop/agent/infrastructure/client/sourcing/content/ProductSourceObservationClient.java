@@ -37,30 +37,24 @@ public class ProductSourceObservationClient implements ProductSourceObservationS
 			return vitabiotics(sourceUrl);
 		if (vendor == VendorType.FTN || vendor == VendorType.COK || vendor == VendorType.OCD) {
 			var observed = catalog.fetchPriceStock(vendor, sourceUrl);
-			BigDecimal rate = null, goods = null;
+			ProductSourceData.PricingEvidence pricing = null;
 			List<String> notices = new ArrayList<>();
 			try {
-				rate = fx.toKrw(observed.currency());
-				if (rate == null || rate.signum() <= 0)
-					throw new IllegalArgumentException();
-				goods = observed.price().multiply(rate).setScale(0, RoundingMode.HALF_UP);
+				pricing = pricing(observed.price(), observed.currency(), fx.toKrw(observed.currency()), notices);
 			} catch (ProductContentThrottledException e) {
 				throw e;
 			} catch (Exception e) {
-				rate = null;
 				notices.add("최신 환율을 확인하지 못했습니다. 가격은 유지합니다.");
 			}
-			return new ProductSourceData.Observed(goods, rate, observed.currency(), observed.status(), observed.stock(),
-				notices);
+			return new ProductSourceData.Observed(pricing == null ? null : pricing.goodsPriceKrw(),
+				pricing == null ? null : pricing.normalizedExchangeRate(), observed.currency(), observed.status(),
+				observed.stock(), notices, pricing);
 		}
 		if (vendor != VendorType.IHB)
 			throw new ProductContentFailureException(ProductContentFailureException.Code.SOURCE_UNAVAILABLE);
 		String id = URI.create(sourceUrl).getPath().replaceAll("/$", "").replaceAll(".*/", "");
 		try {
-			var request = HttpRequest.newBuilder(URI.create("https://catalog.app.iherb.com/product/" + id))
-				.timeout(Duration.ofSeconds(30)).header("User-Agent", "Mozilla/5.0")
-				.header("Accept", "application/json").header("Accept-Language", "en-US,en;q=0.9")
-				.header("Referer", "https://www.iherb.com/").GET().build();
+			var request = iherbRequest(id);
 			com.sbshop.agent.core.application.product.source.ProductSourceHttpGuard.check();
 			var response = http.send(request, info -> info.statusCode() == 200
 				? new IherbProductContentSource.LimitedBodySubscriber(1_000_000)
@@ -80,6 +74,17 @@ public class ProductSourceObservationClient implements ProductSourceObservationS
 		} catch (Exception e) {
 			throw new ProductContentFailureException(ProductContentFailureException.Code.SOURCE_REQUEST_FAILED);
 		}
+	}
+
+	static HttpRequest iherbRequest(String id) {
+		if (id == null || !id.matches("[0-9]+"))
+			throw new ProductContentFailureException(ProductContentFailureException.Code.SOURCE_IDENTITY_MISMATCH);
+		// Same catalog request headers as the already verified IHB content path.
+		return HttpRequest.newBuilder(URI.create("https://catalog.app.iherb.com/product/" + id))
+			.timeout(Duration.ofSeconds(30)).header("User-Agent",
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+			.header("Accept", "application/json").header("Accept-Language", "en-US,en;q=0.9")
+			.header("Referer", "https://www.iherb.com/").GET().build();
 	}
 
 	public ProductSourceData.Observed parseIherb(JsonNode data, String expectedId) {
@@ -121,32 +126,44 @@ public class ProductSourceObservationClient implements ProductSourceObservationS
 		}
 		return new ProductSourceData.Observed(price, BigDecimal.ONE, "KRW",
 			data.path("isAvailableToPurchase").booleanValue() ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK, stock,
-			notices);
+			notices, price == null ? null : new ProductSourceData.PricingEvidence(price, "KRW", BigDecimal.ONE,
+				BigDecimal.ONE, price));
 	}
 
 	private ProductSourceData.Observed vitabiotics(String url) {
 		var variant = vtb.fetch(url).variant();
 		if (!variant.path("available").isBoolean())
 			throw new ProductContentFailureException(ProductContentFailureException.Code.SOURCE_STOCK_INVALID);
-		BigDecimal goods = null, rate = null;
+		ProductSourceData.PricingEvidence pricing = null;
 		List<String> notices = new ArrayList<>();
 		if (variant.path("price").isIntegralNumber() && variant.path("price").decimalValue().signum() > 0) {
 			try {
 				vtb.currency(); // Shopify prices use the presentment currency; the existing GBP assumption is verified.
-				rate = fx.toKrw("GBP");
-				if (rate == null || rate.signum() <= 0)
-					throw new IllegalArgumentException();
-				goods = variant.path("price").decimalValue().movePointLeft(2).multiply(rate).setScale(0,
-					RoundingMode.HALF_UP);
+				pricing = pricing(variant.path("price").decimalValue().movePointLeft(2), "GBP", fx.toKrw("GBP"),
+					notices);
 			} catch (ProductContentThrottledException e) {
 				throw e;
 			} catch (Exception e) {
 				notices.add("VTB 가격 통화 또는 최신 환율을 확인하지 못했습니다. 가격은 유지합니다.");
-				rate = null;
 			}
 		} else
 			notices.add("VTB 규격의 양수 정수 가격을 확인하지 못했습니다. 가격은 유지합니다.");
-		return new ProductSourceData.Observed(goods, rate, "GBP", variant.path("available").booleanValue()
-			? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK, null, notices);
+		return new ProductSourceData.Observed(pricing == null ? null : pricing.goodsPriceKrw(),
+			pricing == null ? null : pricing.normalizedExchangeRate(), "GBP", variant.path("available").booleanValue()
+				? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK, null, notices, pricing);
+	}
+
+	private static ProductSourceData.PricingEvidence pricing(BigDecimal sourcePrice, String currency,
+		BigDecimal observedRate, List<String> notices) {
+		if (sourcePrice == null || sourcePrice.signum() <= 0 || observedRate == null || observedRate.signum() <= 0)
+			throw new IllegalArgumentException();
+		BigDecimal rate = observedRate.setScale(2, RoundingMode.HALF_UP);
+		if (rate.signum() <= 0 || rate.compareTo(new BigDecimal("99999999.99")) > 0)
+			throw new IllegalArgumentException();
+		if (rate.compareTo(observedRate) != 0)
+			notices.add("수집 원본 환율 " + observedRate.toPlainString() + " → " + rate.toPlainString()
+				+ " (소수 2자리 반올림). 상품 원가와 배송비는 이 저장 가능한 환율로 계산했습니다.");
+		return new ProductSourceData.PricingEvidence(sourcePrice, currency, observedRate, rate,
+			sourcePrice.multiply(rate).setScale(0, RoundingMode.HALF_UP));
 	}
 }

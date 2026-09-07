@@ -5,11 +5,18 @@ import static org.mockito.Mockito.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sbshop.agent.core.domain.market.client.dto.PreparedMarketFields;
+import com.sbshop.agent.core.domain.market.sync.MarketTransferFailure;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.infrastructure.client.smartstore.client.SmartstoreRestClient;
 import java.util.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.ResourceAccessException;
 
 class SmartstoreReviewedFieldsTest {
 	final ObjectMapper mapper = new ObjectMapper();
@@ -133,6 +140,94 @@ class SmartstoreReviewedFieldsTest {
 			.hasMessageContaining("채널 전용 상품명");
 		assertThat(fields.read("123", null, "SB-123", Set.of("detailHtml")).values()).containsEntry("detailHtml",
 			"<p>기존</p>");
+		verify(rest, never()).put(any(), any());
+	}
+
+	private SmartstoreMarketClient adapter() {
+		return new SmartstoreMarketClient(null, null, null, null, rest, mapper);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"WAIT", "UNADMISSION", "REJECTION", "SUSPENSION", "CLOSE", "PROHIBITION", "DELETE"})
+	void explicitStoppedStatesRemainNonRetryableThroughAdapterAndNeverReachWriteIntent(String state) {
+		var adapter = adapter();
+		var prepared = adapter.prepareProductFields(product, "123", null, Set.of("detailHtml"));
+		current.put("statusType", state);
+		publish();
+		assertThatThrownBy(() -> adapter.prepareProductFields(product, "123", null, Set.of("detailHtml")))
+			.isExactlyInstanceOf(UnsupportedOperationException.class).hasMessageContaining(state);
+		var read = adapter.readProductFields("123", null, "SB-123", Set.of("detailHtml"));
+		assertThat(read.values()).containsEntry("detailHtml", "<p>기존</p>");
+		assertThat(read.writeBlockReason()).contains(state);
+		var guard = mock(Runnable.class);
+		assertThatThrownBy(() -> adapter.writePreparedProductFields("123", null, "SB-123", prepared, guard))
+			.isExactlyInstanceOf(UnsupportedOperationException.class).hasMessageContaining(state);
+		verifyNoInteractions(guard);
+		verify(rest, never()).put(any(), any());
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"null", "\"0\"", "0.0", "1", "-1"})
+	void unverifiedStockoutQuantityIsBlockedWithoutTreatingTheProductAsAvailable(String quantity) throws Exception {
+		current.put("statusType", "OUTOFSTOCK");
+		current.set("stockQuantity", mapper.readTree(quantity));
+		publish();
+		assertThatThrownBy(() -> adapter().prepareProductFields(product, "123", null, Set.of("detailHtml")))
+			.isExactlyInstanceOf(UnsupportedOperationException.class).hasMessageContaining("0개 재고");
+		assertThat(adapter().readProductFields("123", null, "SB-123", Set.of("detailHtml")).writeBlockReason())
+			.contains("0개 재고");
+		verify(rest, never()).put(any(), any());
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"optionCombinations", "optionStandards"})
+	void stockoutOptionWithUnknownQuantityRemainsNonRetryableThroughAdapter(String option) {
+		current.put("statusType", "OUTOFSTOCK").put("stockQuantity", 0);
+		current.withObject("/detailAttribute/optionInfo").putArray(option).addObject().putNull("stockQuantity");
+		publish();
+		assertThatThrownBy(() -> adapter().prepareProductFields(product, "123", null, Set.of("detailHtml")))
+			.isExactlyInstanceOf(UnsupportedOperationException.class).hasMessageContaining("품절 옵션");
+		assertThat(adapter().readProductFields("123", null, "SB-123", Set.of("detailHtml")).writeBlockReason())
+			.contains("품절 옵션");
+		verify(rest, never()).put(any(), any());
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"", "FUTURE_UNKNOWN_STATE"})
+	void missingOrUnknownStatusRetainsUncertainResponseClassification(String status) {
+		current.put("statusType", status);
+		if (status.isEmpty())
+			current.remove("statusType");
+		publish();
+		assertThatThrownBy(() -> adapter().prepareProductFields(product, "123", null, Set.of("detailHtml")))
+			.isInstanceOfSatisfying(MarketTransferFailure.class,
+				failure -> assertThat(failure.getCode()).isEqualTo("INVALID_RESPONSE"));
+		verify(rest, never()).put(any(), any());
+	}
+
+	@Test
+	void transportAndServerFailuresRemainRetryableAnd429RetainsRetryAfter() {
+		var adapter = adapter();
+		when(rest.get(path)).thenThrow(new ResourceAccessException("timeout"));
+		assertThatThrownBy(() -> adapter.prepareProductFields(product, "123", null, Set.of("detailHtml")))
+			.isInstanceOfSatisfying(MarketTransferFailure.class,
+				failure -> assertThat(failure.getCode()).isEqualTo("TRANSPORT_ERROR"));
+		doThrow(new HttpServerErrorException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE)).when(rest)
+			.get(path);
+		assertThatThrownBy(() -> adapter.prepareProductFields(product, "123", null, Set.of("detailHtml")))
+			.isInstanceOfSatisfying(MarketTransferFailure.class,
+				failure -> assertThat(failure.getCode()).isEqualTo("HTTP_503"));
+		var headers = new HttpHeaders();
+		headers.set("Retry-After", "120");
+		doThrow(HttpClientErrorException.create(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "rate limited",
+			headers,
+			new byte[0], java.nio.charset.StandardCharsets.UTF_8)).when(rest).get(path);
+		var before = java.time.Instant.now();
+		assertThatThrownBy(() -> adapter.prepareProductFields(product, "123", null, Set.of("detailHtml")))
+			.isInstanceOfSatisfying(MarketTransferFailure.class, failure -> {
+				assertThat(failure.getCode()).isEqualTo("HTTP_429");
+				assertThat(failure.getRetryAfter()).isAfter(before.plusSeconds(100));
+			});
 		verify(rest, never()).put(any(), any());
 	}
 
