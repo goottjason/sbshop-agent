@@ -35,6 +35,84 @@ import org.springframework.util.MultiValueMap;
 @Component
 @RequiredArgsConstructor
 public class SmartstoreMarketClient implements MarketClient {
+	private SmartstoreReviewedFields reviewedFields() {
+		return new SmartstoreReviewedFields(restClient, objectMapper, this::uploadReviewedImages);
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.PreparedMarketFields prepareProductFields(Product product,
+		String listingId, String optionId, Set<String> fields) {
+		try {
+			return reviewedFields().prepare(product, listingId, optionId, fields);
+		} catch (Exception e) {
+			if (e instanceof UnsupportedOperationException unsupported)
+				throw unsupported;
+			if (e instanceof IllegalArgumentException invalid)
+				throw invalid;
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.MarketFieldsRead readProductFields(String listingId,
+		String optionId, String expectedSbCode, Set<String> fields) {
+		try {
+			return reviewedFields().read(listingId, optionId, expectedSbCode, fields);
+		} catch (Exception e) {
+			if (e instanceof UnsupportedOperationException unsupported)
+				throw unsupported;
+			if (e instanceof IllegalArgumentException invalid)
+				throw invalid;
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	@Override
+	public void writePreparedProductFields(String listingId, String optionId, String expectedSbCode,
+		com.sbshop.agent.core.domain.market.client.dto.PreparedMarketFields prepared, Runnable beforeWrite) {
+		var guardFailure = new java.util.concurrent.atomic.AtomicReference<RuntimeException>();
+		try {
+			reviewedFields().write(listingId, optionId, expectedSbCode, prepared, () -> {
+				try {
+					beforeWrite.run();
+				} catch (RuntimeException abort) {
+					guardFailure.set(abort);
+					throw abort;
+				}
+			});
+		} catch (Exception e) {
+			if (e == guardFailure.get())
+				throw guardFailure.get();
+			if (e instanceof UnsupportedOperationException unsupported)
+				throw unsupported;
+			if (e instanceof IllegalArgumentException invalid)
+				throw invalid;
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	private List<String> uploadReviewedImages(List<String> images) {
+		MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+		for (String url : images) {
+			byte[] bytes = downloadImage(url);
+			if (bytes == null || bytes.length == 0)
+				throw new IllegalStateException("검토 이미지 다운로드에 실패했습니다.");
+			body.add("imageFiles", new ByteArrayResource(bytes) {
+				@Override
+				public String getFilename() {
+					return "image.jpg";
+				}
+			});
+		}
+		JsonNode response = restClient.uploadImages(body);
+		if (response == null || !response.path("images").isArray() || response.path("images").size() != images.size())
+			throw new IllegalStateException("네이버 이미지 전체 업로드를 확인하지 못했습니다.");
+		List<String> urls = new ArrayList<>();
+		for (JsonNode item : response.path("images"))
+			urls.add(item.path("url").asText());
+		return urls;
+	}
+
 	@Override
 	public com.sbshop.agent.core.domain.market.client.dto.PreparedMarketPublication preparePublication(Product product,
 		java.math.BigDecimal price) {
@@ -142,6 +220,149 @@ public class SmartstoreMarketClient implements MarketClient {
 		} catch (Exception e) {
 			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
 		}
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.MarketStockRead readStockQuantity(String id,
+		String optionId, String expectedSbCode) {
+		return observeStock(id, optionId, expectedSbCode, null).read();
+	}
+
+	/** API 2.88: STOCK-only PATCH for origin inventory; exact single-option PUT preserves defaulted fields. */
+	@Override
+	public void writeStockQuantity(String id, String optionId, String expectedSbCode, int quantity,
+		String expectedAccountReference, Runnable beforeWrite) {
+		if (quantity < 0 || quantity > 99999999)
+			throw new IllegalArgumentException("스마트스토어 재고수량은 0~99,999,999의 정수여야 합니다.");
+		if (expectedAccountReference == null || !expectedAccountReference.equals(inspectionAccountReference()))
+			throw new UnsupportedOperationException("스마트스토어 연동 계정이 변경되었습니다.");
+		var current = observeStock(id, optionId, expectedSbCode, quantity);
+		if (!current.read().writable() || !expectedAccountReference.equals(current.read().accountReference()))
+			throw new UnsupportedOperationException(current.read().reason());
+		// A failed/expired durable intent must escape unwrapped and prevent either outbound write.
+		beforeWrite.run();
+		try {
+			if (!expectedAccountReference.equals(inspectionAccountReference()))
+				throw new IllegalStateException("전송 직전에 스마트스토어 계정이 변경되었습니다.");
+			String response = current.optionRequest() == null
+				? restClient.patch("/v1/products/origin-products/multi-update",
+					Map.of("multiProductUpdateRequestVos", List.of(Map.of("originProductNo", Long.parseLong(id),
+						"multiUpdateTypes", List.of("STOCK"), "stockQuantity", quantity))))
+				: restClient.put("/v1/products/origin-products/" + id + "/option-stock",
+					Map.of("optionInfo", current.optionRequest()));
+			// CommonResponse.code has no documented success enum. A receipt never supplies quantity proof.
+			JsonNode receipt = response == null ? null : objectMapper.readTree(response);
+			if (receipt == null || !receipt.isObject())
+				throw new IllegalStateException("스마트스토어 수량 전송 응답이 불명확합니다. 실제 수량을 다시 조회하세요.");
+			String code = receipt.path("code").asText();
+			Integer rejection = Map.of("BAD_REQUEST", 400, "UNAUTHORIZED", 401, "FORBIDDEN", 403,
+				"NOT_FOUND", 404, "INTERNAL_SERVER_ERROR", 500).get(code);
+			if (rejection != null) {
+				String detail = com.sbshop.agent.core.application.product.ProductMarketSyncService
+					.sanitizeMarketMessage(
+						code + ": " + receipt.path("message").asText("마켓이 수량 요청을 거절했습니다."));
+				throw new com.sbshop.agent.core.domain.market.sync.MarketTransferFailure("HTTP_" + rejection,
+					detail, null, null);
+			}
+			if (!expectedAccountReference.equals(inspectionAccountReference()))
+				throw new IllegalStateException("수량 전송 중 스마트스토어 계정이 변경되었습니다. 재확인이 필요합니다.");
+		} catch (com.sbshop.agent.core.domain.market.sync.MarketTransferFailure e) {
+			throw e;
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	private record StockObservation(com.sbshop.agent.core.domain.market.client.dto.MarketStockRead read,
+		Map<String, Object> optionRequest) {
+	}
+
+	private StockObservation observeStock(String id, String expectedOption, String sbCode, Integer desiredQuantity) {
+		requirePriceId(id);
+		String account = inspectionAccountReference();
+		try {
+			JsonNode root = objectMapper.readTree(restClient.get("/v2/products/origin-products/" + id));
+			JsonNode product = root.path("originProduct");
+			JsonNode sellerCode = product.path("detailAttribute").path("sellerCodeInfo").path("sellerManagementCode");
+			// The official GET response omits origin id; exact GET path + account + SB identify its origin.
+			if (root.has("code") || !product.isObject()
+				|| product.has("id") && !id.equals(product.path("id").asText())
+				|| sbCode == null || sbCode.isBlank() || !sellerCode.isTextual()
+				|| !sbCode.equals(sellerCode.textValue()))
+				throw new IllegalStateException("스마트스토어 계정·원상품·SB코드 연결을 확인할 수 없습니다.");
+			JsonNode options = product.path("detailAttribute").path("optionInfo");
+			if (!options.isMissingNode() && !options.isNull() && !options.isObject())
+				throw new IllegalStateException("스마트스토어 옵션 구조를 확인할 수 없습니다.");
+			JsonNode combinations = options.path("optionCombinations"), standards = options.path("optionStandards");
+			for (JsonNode list : List.of(combinations, standards)) {
+				if (!list.isMissingNode() && !list.isNull() && !list.isArray())
+					throw new IllegalStateException("스마트스토어 옵션 목록 형식이 올바르지 않습니다.");
+			}
+			if (combinations.size() + standards.size() > 1)
+				throw new UnsupportedOperationException("여러 스마트스토어 옵션의 SB별 대응 확인이 필요합니다. 첫 옵션이나 총수량을 임의로 전송하지 않습니다.");
+			String optionId = "ORIGIN:" + id;
+			int quantity;
+			boolean usable = true;
+			Map<String, Object> request = null;
+			if (combinations.isEmpty() && standards.isEmpty()) {
+				quantity = stockInteger(product.path("stockQuantity"));
+			} else {
+				boolean standard = !standards.isEmpty();
+				JsonNode option = (standard ? standards : combinations).get(0);
+				String rawId = option.path("id").asText();
+				requirePriceId(rawId);
+				if (!option.path("usable").isBoolean())
+					throw new IllegalStateException("스마트스토어 옵션 사용 여부가 확인되지 않았습니다.");
+				if (option.hasNonNull("skuYn") && !option.path("skuYn").isBoolean())
+					throw new IllegalStateException("옵션 SKU 재고 관리 여부를 확인할 수 없습니다.");
+				if (option.path("skuYn").asBoolean(false))
+					throw new UnsupportedOperationException("풀필먼트 SKU와 연결된 옵션은 수량 관리 주체 확인이 필요합니다.");
+				if (standard && (!options.path("useStockManagement").isBoolean()
+					|| !options.path("useStockManagement").booleanValue()))
+					throw new UnsupportedOperationException("표준형 옵션 재고 관리가 활성화되지 않았습니다. 설정을 자동 변경하지 않습니다.");
+				quantity = stockInteger(option.path("stockQuantity"));
+				usable = option.path("usable").booleanValue();
+				optionId = (standard ? "STANDARD:" : "COMBINATION:") + rawId;
+				Map<String, Object> item = new java.util.LinkedHashMap<>();
+				item.put("id", Long.parseLong(rawId));
+				item.put("stockQuantity", desiredQuantity == null ? quantity : desiredQuantity);
+				item.put("usable", usable);
+				if (!standard) {
+					JsonNode price = option.path("price");
+					if (!price.isIntegralNumber() || !price.canConvertToInt())
+						throw new IllegalStateException("조합형 옵션가를 정확히 보존할 수 없어 수량 전송을 보류합니다.");
+					item.put("price", price.intValue());
+				}
+				request = new java.util.LinkedHashMap<>();
+				request.put(standard ? "optionStandards" : "optionCombinations", List.of(item));
+				if (options.hasNonNull("useStockManagement")) {
+					if (!options.path("useStockManagement").isBoolean())
+						throw new IllegalStateException("옵션 재고 관리 설정을 확인할 수 없습니다.");
+					request.put("useStockManagement", options.path("useStockManagement").booleanValue());
+				}
+			}
+			if (expectedOption != null && !expectedOption.equals(optionId))
+				throw new IllegalStateException("스마트스토어 옵션 종류·번호가 변경되었습니다. 다시 검토하세요.");
+			if (account == null || !account.equals(inspectionAccountReference()))
+				throw new IllegalStateException("조회 중 스마트스토어 계정이 변경되었습니다.");
+			String status = product.path("statusType").asText();
+			boolean writable = usable && Set.of("SALE", "OUTOFSTOCK").contains(status);
+			var proof = new com.sbshop.agent.core.domain.market.client.dto.MarketStockRead(quantity, writable,
+				writable ? "스마트스토어 원상품·단일 옵션 수량 확인" : "상품 상태 " + status + " 또는 옵션 사용 중지: 판매 재개·사용 설정 변경 없이 보류합니다.",
+				account, optionId);
+			return new StockObservation(proof, request);
+		} catch (UnsupportedOperationException blocked) {
+			throw blocked;
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	private int stockInteger(JsonNode quantity) {
+		if (!quantity.isIntegralNumber() || !quantity.canConvertToInt() || quantity.intValue() < 0
+			|| quantity.intValue() > 99999999)
+			throw new IllegalStateException("스마트스토어 재고수량이 유효한 0~99,999,999 정수가 아닙니다.");
+		return quantity.intValue();
 	}
 
 	private static void requirePriceId(String id) {

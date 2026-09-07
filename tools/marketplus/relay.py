@@ -129,8 +129,11 @@ class Client:
     def target(self):
         return digest({'baseUrl': self.base_url, 'username': self.username})
 
+    def allowed(self, path, payload):
+        return (path, payload is None) in ((READINESS, True), (IMPORT, False))
+
     def request(self, path, payload=None):
-        if (path, payload is None) not in ((READINESS, True), (IMPORT, False)):
+        if not self.allowed(path, payload):
             raise ValueError('이력 확인·저장 요청만 허용됩니다.')
         request = Request(self.base_url + path,
                           data=None if payload is None else json.dumps(payload, ensure_ascii=False).encode(),

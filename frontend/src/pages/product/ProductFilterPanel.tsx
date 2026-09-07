@@ -21,6 +21,7 @@ export interface ProductFilters {
   registeredMarkets: string[];
   missingMarkets: string[];
   pendingChangesOnly: boolean;
+  anyMarketSyncIssue: boolean;
   marketPlusIssue: MarketPlusIssueFilter;
   vendors: string[];
   stockStatuses: string[];
@@ -93,6 +94,7 @@ export function ProductFilterPanel({ categoryOptions, brandOptions, brandsLoadin
           <Button size="small" onClick={() => apply({ ...filters, vendors: ['IHB'], stockStatuses: ['IN_STOCK'], markets: [],
             registeredMarkets: ['COUPANG'], missingMarkets: ['ELEVEN_STREET'] })}>IHB · 재고 있음 · 쿠팡 등록 · 11번가 미등록</Button>
           <Checkbox checked={filters.pendingChangesOnly} onChange={(event) => set('pendingChangesOnly', event.target.checked)}>미반영 DB 변경 있음</Checkbox>
+          <Checkbox checked={filters.anyMarketSyncIssue} onChange={event => set('anyMarketSyncIssue', event.target.checked)}>어느 마켓이든 반영 실패·확인 필요</Checkbox>
           <Button size="small" onClick={() => apply({ ...filters, marketPlusIssue: 'ANY_ISSUE' })}>G마켓·옥션 전송 이슈</Button>
           <Button size="small" onClick={() => apply({ ...filters, contentAgeDays: 90, contentAgeField: 'ANY' })}>이미지·상세 90일 경과 / 적용 기록 없음</Button>
         </div>
@@ -147,6 +149,7 @@ export function ProductFilterPanel({ categoryOptions, brandOptions, brandsLoadin
               onClose={() => apply({ ...filters, registeredMarkets: filters.registeredMarkets.filter((item) => item !== market) })}>{marketLabel(market)} 등록</Tag>)}
             {filters.missingMarkets.map((market) => <Tag key={'missing-' + market} color="orange" closable
               onClose={() => apply({ ...filters, missingMarkets: filters.missingMarkets.filter((item) => item !== market) })}>{marketLabel(market)} 미등록·해제</Tag>)}
+            {filters.anyMarketSyncIssue && <Tag color="red" closable onClose={() => apply({ ...filters, anyMarketSyncIssue: false })}>마켓 반영 실패·확인 필요</Tag>}
             {filters.pendingChangesOnly && <Tag color="gold" closable onClose={() => apply({ ...filters, pendingChangesOnly: false })}>미반영 DB 변경</Tag>}
             {filters.contentAgeDays != null && <Tag color="gold" closable onClose={() => apply({ ...filters, contentAgeDays: null })}>
               {filters.contentAgeField === 'IMAGES' ? '이미지' : filters.contentAgeField === 'DETAIL_HTML' ? '상세 HTML' : '이미지·상세'} {filters.contentAgeDays}일 경과 / 적용 기록 없음

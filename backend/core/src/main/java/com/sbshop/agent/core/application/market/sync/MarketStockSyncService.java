@@ -30,7 +30,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 @RequiredArgsConstructor
 public class MarketStockSyncService {
-	public static final Set<MarketType> SUPPORTED = Set.of(MarketType.COUPANG, MarketType.CAFE24);
+	public static final Set<MarketType> SUPPORTED = Set.of(MarketType.COUPANG, MarketType.CAFE24,
+		MarketType.SMART_STORE);
 	private final MarketStockReviewRepository reviews;
 	private final MarketStockTaskRepository tasks;
 	private final MarketStockAttemptRepository attempts;
@@ -90,8 +91,10 @@ public class MarketStockSyncService {
 		try {
 			var links = registrations.findByProductId(target.getProductId());
 			String reviewed = mapper.readTree(target.getSnapshot()).path("connectionFingerprint").asText();
+			boolean sourceStatus = mapper.readTree(target.getSnapshot()).path("command").hasNonNull("stockStatus");
 			return !reviewed.isBlank() && reviewed.equals(editPlanner.fingerprint(links))
-				&& editPolicy.rule("salesQuantity", links).editable();
+				&& (sourceStatus ? editPolicy.sourceObservationRule("stockStatus", links).editable()
+					: editPolicy.rule("salesQuantity", links).editable());
 		} catch (Exception ignored) {
 			return false;
 		}
@@ -100,8 +103,6 @@ public class MarketStockSyncService {
 	public static boolean handlesSavedQuantityTarget(
 		com.sbshop.agent.core.domain.product.edit.ProductChangeTarget target,
 		ObjectMapper mapper) {
-		if (!MarketType.COUPANG.name().equals(target.getMarket()))
-			return false;
 		try {
 			var changes = mapper.readTree(target.getSnapshot()).path("changes");
 			if (!changes.isArray() || changes.isEmpty())
@@ -111,7 +112,7 @@ public class MarketStockSyncService {
 				String field = change.path("field").asText();
 				if ("memo".equals(field))
 					continue;
-				if (!"salesQuantity".equals(field))
+				if (!Set.of("salesQuantity", "stockStatus").contains(field))
 					return false;
 				quantity = true;
 			}

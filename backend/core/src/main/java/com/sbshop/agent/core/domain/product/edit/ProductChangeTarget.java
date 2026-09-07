@@ -28,6 +28,16 @@ public class ProductChangeTarget {
 	private String snapshot;
 	private Long priceTaskId;
 	private Long stockTaskId;
+	private Long fieldTaskId;
+
+	public void dispatchedToFields(Long id) {
+		fieldTaskId = id;
+		state = "DISPATCHED";
+	}
+
+	public void fieldOutcome(String value) {
+		state = value;
+	}
 
 	public void dispatchedToStock(Long id) {
 		stockTaskId = id;

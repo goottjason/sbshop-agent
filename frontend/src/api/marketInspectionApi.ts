@@ -19,6 +19,7 @@ export interface DailyInspectionStatus {
 const root = '/api/v1/products/connection-inspections';
 export const marketInspectionApi = {
   daily: (signal?: AbortSignal) => apiClient.get<DailyInspectionStatus>(`${root}/daily`, { signal }),
+  dailyMarkets: (signal?: AbortSignal) => apiClient.get<{ market: string; status: DailyInspectionStatus }[]>(`${root}/daily/markets`, { signal }),
   dailyBatches: (id: string, signal?: AbortSignal) => apiClient.get<InspectionBatch[]>(`${root}/daily/${id}/batches`, { signal }),
   availability: (signal?: AbortSignal, market?: string) => apiClient.get<{ supported: boolean; accountVerified: boolean; detail: string }>(`${root}/availability`, { signal, params: market ? { market } : undefined }),
   recent: (signal?: AbortSignal) => apiClient.get<InspectionBatch[]>(root, { signal }),

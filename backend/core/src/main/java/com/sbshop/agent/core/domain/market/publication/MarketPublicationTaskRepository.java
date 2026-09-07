@@ -12,7 +12,7 @@ public interface MarketPublicationTaskRepository extends JpaRepository<MarketPub
 	Optional<MarketPublicationTask> lock(@Param("id")
 	String id);
 
-	@Query("select t from MarketPublicationTask t where t.market=:market and t.state in ('QUEUED','POST_STARTED','VERIFY') and t.nextRunAt<=:now order by t.nextRunAt,t.createdAt")
+	@Query("select t from MarketPublicationTask t where t.market=:market and t.state in ('QUEUED','POST_STARTED','VERIFY','AWAITING_APPROVAL') and t.nextRunAt<=:now order by t.nextRunAt,t.createdAt")
 	List<MarketPublicationTask> due(@Param("market")
 	String market, @Param("now")
 	Instant now, Pageable page);

@@ -21,7 +21,6 @@ import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.process.enums.JobType;
 import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
-import com.sbshop.agent.core.domain.product.enums.VendorType;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -62,18 +61,11 @@ class BatchControllerTriggerCharacterizationTest {
 	@Test
 	@DisplayName("crawl-and-update: CRAWL_AND_UPDATE_PRICE_STOCK jobType + STARTED 로그 + {batchId, count, message}")
 	void crawlAndUpdate_characterization() {
-		when(processStatusService.startBatch(eq(JobType.CRAWL_AND_UPDATE_PRICE_STOCK), any()))
-			.thenReturn("batch-1");
-		CrawlAndUpdateRequest req = new CrawlAndUpdateRequest(List.of(10L, 20L), null, null, null);
-
-		ResponseEntity<Map<String, String>> resp = controller.crawlAndUpdate(req);
-
-		verify(processStatusService).startBatch(JobType.CRAWL_AND_UPDATE_PRICE_STOCK, List.of("10", "20"));
-		verify(actionLogService).record(eq(ActionLogConstants.BATCH_CRAWL_UPDATE), isNull(),
-			eq(ActionStatus.STARTED), eq("배치 크롤 업데이트 시작 (batchId=batch-1, 2건)"));
-		assertThat(resp.getBody())
-			.containsEntry("batchId", "batch-1")
-			.containsEntry("message", "크롤 기반 일괄 업데이트가 시작되었습니다.");
+		var response = controller.crawlAndUpdate(new CrawlAndUpdateRequest(List.of(10L, 20L), null, null, null));
+		assertThat(response.getStatusCode().value()).isEqualTo(409);
+		assertThat(response.getBody()).containsEntry("code", "SOURCE_REVIEW_REQUIRED")
+			.containsEntry("reviewPath", "/api/v1/products/source-refresh/collections");
+		Mockito.verifyNoInteractions(batchPriceStockService, processStatusService);
 	}
 
 	@Test
@@ -117,40 +109,20 @@ class BatchControllerTriggerCharacterizationTest {
 	@Test
 	@DisplayName("by-supplier 정상: {batchId, count, message} 동일 키셋 (message 포함)")
 	void updateBySupplier_characterization() {
-		when(batchPriceStockService.getProductIdsByVendor(VendorType.IHB))
-			.thenReturn(List.of(1L, 2L, 3L));
-		when(processStatusService.startBatch(eq(JobType.CRAWL_AND_UPDATE_PRICE_STOCK), any()))
-			.thenReturn("batch-4");
-		SupplierBatchRequest req = new SupplierBatchRequest("ihb", null, null, null);
-
-		ResponseEntity<Map<String, String>> resp = controller.updateBySupplier(req);
-
-		verify(processStatusService).startBatch(
-			JobType.CRAWL_AND_UPDATE_PRICE_STOCK, List.of("1", "2", "3"));
-		verify(actionLogService).record(eq(ActionLogConstants.BATCH_BY_SUPPLIER), isNull(),
-			eq(ActionStatus.STARTED),
-			eq("소싱업체별 배치 시작 (IHB, batchId=batch-4, 3건)"));
-		assertThat(resp.getBody())
-			.containsOnlyKeys("batchId", "count", "message")
-			.containsEntry("batchId", "batch-4")
-			.containsEntry("count", "3")
-			.containsEntry("message", "소싱업체별 일괄 업데이트가 시작되었습니다.");
+		var response = controller.updateBySupplier(new SupplierBatchRequest("IHB", null, null, null));
+		assertThat(response.getStatusCode().value()).isEqualTo(409);
+		assertThat(response.getBody()).containsEntry("code", "SOURCE_REVIEW_REQUIRED")
+			.containsEntry("reviewPath", "/api/v1/products/source-refresh/collections");
+		Mockito.verifyNoInteractions(batchPriceStockService, processStatusService);
 	}
 
 	@Test
 	@DisplayName("by-supplier 0건: {batchId, count, message} 동일 키셋 (batchId=\"\", count=\"0\")")
 	void updateBySupplier_emptyProducts_characterization() {
-		when(batchPriceStockService.getProductIdsByVendor(VendorType.IHB)).thenReturn(List.of());
-		SupplierBatchRequest req = new SupplierBatchRequest("ihb", null, null, null);
-
-		ResponseEntity<Map<String, String>> resp = controller.updateBySupplier(req);
-
-		Mockito.verifyNoInteractions(processStatusService);
-		Mockito.verifyNoInteractions(actionLogService);
-		assertThat(resp.getBody())
-			.containsOnlyKeys("batchId", "count", "message")
-			.containsEntry("batchId", "")
-			.containsEntry("count", "0")
-			.containsEntry("message", "해당 소싱업체의 상품이 없습니다.");
+		var response = controller.updateBySupplier(new SupplierBatchRequest("IHB", null, null, null));
+		assertThat(response.getStatusCode().value()).isEqualTo(409);
+		assertThat(response.getBody()).containsEntry("code", "SOURCE_REVIEW_REQUIRED")
+			.containsEntry("reviewPath", "/api/v1/products/source-refresh/collections");
+		Mockito.verifyNoInteractions(batchPriceStockService, processStatusService);
 	}
 }

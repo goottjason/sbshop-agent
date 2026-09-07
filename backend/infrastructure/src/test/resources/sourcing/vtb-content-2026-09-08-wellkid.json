@@ -1,0 +1,36 @@
+{
+  "id": 3831274405957,
+  "handle": "wellkid-multi-vitamin-liquid",
+  "url": "/products/wellkid-multi-vitamin-liquid",
+  "title": "Wellkid Multi-vitamin Liquid",
+  "description": "<div class=\"shogun-root\" data-shogun-id=\"5d19e210b5b8770053eabdde\" data-shogun-site-id=\"b23d627c-4b96-4b75-82fe-ff35ddcb6cdc\" data-shogun-page-id=\"5d19e210b5b8770053eabdde\" data-shogun-page-version-id=\"62b825a1a0c74200cd113aba\" data-shogun-platform-type=\"shopify\" data-shogun-variant-id=\"62b825a1a0c74200cd113cdc\" data-region=\"main\">\n  \n\n<div id=\"s-8b28399d-dcc7-4621-8a1b-6a46acef70e1\" class=\"shg-c  \">\n  <div class=\"shg-rich-text shg-theme-text-content\"><p>Formulated just for kids, this is an easy way to complement your child’s diet with 15 important nutrients.</p></div>\n\n</div>\n\n\n</div>\n",
+  "images": [
+    "//cdn.shopify.com/s/files/1/0027/7263/1621/products/preview-gallery-Wellkid_Multi-vit-Liquid_Bottle__Front__CTWKD150L5WL5E.png?v=1579194911",
+    "//cdn.shopify.com/s/files/1/0027/7263/1621/products/preview-gallery-Wellkid_Multi-vit-Liquid_Bottle__Front__CTWKD150L5WL5E_c42730dc-f015-406c-8469-b7057420bb66.png?v=1579194915",
+    "//cdn.shopify.com/s/files/1/0027/7263/1621/files/WellkidMultiVitaminLiquidBack_CTWKD150L5WL7E.png?v=1686301689",
+    "//cdn.shopify.com/s/files/1/0027/7263/1621/products/ProductMediaImage_WKD_Multi-vitamin_Liquid.jpg?v=1686301689"
+  ],
+  "featured_image": "//cdn.shopify.com/s/files/1/0027/7263/1621/products/preview-gallery-Wellkid_Multi-vit-Liquid_Bottle__Front__CTWKD150L5WL5E.png?v=1579194911",
+  "variants": [
+    {
+      "id": 29084133851205,
+      "title": "150ml",
+      "price": 745,
+      "available": true,
+      "featured_image": {
+        "id": 13551302836281,
+        "product_id": 3831274405957,
+        "position": 1,
+        "created_at": "2020-01-16T17:15:11+00:00",
+        "updated_at": "2020-01-16T17:15:11+00:00",
+        "alt": null,
+        "width": 580,
+        "height": 580,
+        "src": "https://cdn.shopify.com/s/files/1/0027/7263/1621/products/preview-gallery-Wellkid_Multi-vit-Liquid_Bottle__Front__CTWKD150L5WL5E.png?v=1579194911",
+        "variant_ids": [
+          29084133851205
+        ]
+      }
+    }
+  ]
+}

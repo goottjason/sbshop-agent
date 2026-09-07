@@ -432,7 +432,7 @@ class MarketInspectionServiceIntegrationTest {
 	void fullQueueWaitsWithoutLosingEnrollmentPosition() {
 		link(product());
 		enableDaily();
-		doReturn(20000L).when(tasks).activeCount();
+		doReturn(20000L).when(tasks).activeCountForMarket("SMART_STORE");
 		daily.tickAt(dailyStart);
 		var waiting = sweeps.findTopByOrderByRunDateDesc().orElseThrow();
 		assertThat(waiting.getCursorRegistrationId()).isZero();
@@ -529,5 +529,134 @@ class MarketInspectionServiceIntegrationTest {
 		assertThatThrownBy(() -> service.create(List.of(p.getId()), id, "admin", MarketType.CAFE24))
 			.isInstanceOf(com.sbshop.agent.core.application.product.edit.ProductEditConflictException.class);
 		assertThat(tasks.count()).isEqualTo(1);
+	}
+
+	MarketClient dailyMarket(MarketType market, Product p) {
+		var c = mock(MarketClient.class);
+		when(clients.hasClient(market)).thenReturn(true);
+		when(clients.getClient(market)).thenReturn(c);
+		when(c.inspectionAccountReference()).thenReturn(market.name() + "-account");
+		registrations.saveAndFlush(MarketRegistration.builder().productId(p.getId()).marketType(market)
+			.marketIdentifiers(
+				market == MarketType.COUPANG ? "{\"sellerProductId\":\"123\"}"
+					: market == MarketType.ELEVEN_STREET ? "{\"prdNo\":\"123\"}" : "{\"product_no\":\"123\"}")
+			.build());
+		return c;
+	}
+
+	@Test
+	void sameDateHasIndependentAllDirectMarketSweepsWithoutExtendingQ24() {
+		var p = product();
+		link(p);
+		dailyMarket(MarketType.COUPANG, p);
+		dailyMarket(MarketType.CAFE24, p);
+		dailyMarket(MarketType.ELEVEN_STREET, p);
+		enableDaily();
+		for (var m : DailyMarketInspectionService.SUPPORTED)
+			daily.tickAt(dailyStart, m);
+		assertThat(sweeps.count()).isEqualTo(4);
+		assertThat(tasks.count()).isEqualTo(4);
+		for (var m : DailyMarketInspectionService.SUPPORTED) {
+			daily.tickAt(dailyStart.plusSeconds(60), m);
+			assertThat(daily.status(m).latest().enrolled()).isEqualTo(1);
+		}
+		assertThat(sweeps.count()).isEqualTo(4);
+		assertThat(tasks.count()).isEqualTo(4);
+		assertThat(daily.status(MarketType.SMART_STORE).accountVerified()).isTrue();
+		assertThat(daily.status(MarketType.COUPANG).accountVerified()).isFalse();
+		assertThat(daily.status(MarketType.CAFE24).accountVerified()).isFalse();
+		assertThat(gates.findById("COUPANG_ORIGIN_READ").orElseThrow().getVerifiedAccountReference()).isNull();
+		assertThat(gates.findById("CAFE24_ORIGIN_READ").orElseThrow().getVerifiedAccountReference()).isNull();
+	}
+
+	@Test
+	void coupangDailyAbsenceKeepsConnectionUntilHistoricalAccountConfirmed() {
+		var p = product();
+		dailyMarket(MarketType.COUPANG, p);
+		enableDaily();
+		daily.tickAt(dailyStart, MarketType.COUPANG);
+		var claim = service.claim(MarketType.COUPANG);
+		service.finish(claim, new MarketListingObservation(MarketListingObservation.State.DELETED, "HTTP_404_NOT_FOUND",
+			"부재", "COUPANG-account", "GET /seller-products/123", Instant.now()));
+		assertThat(registrations.findByProductIdAndMarketType(p.getId(), MarketType.COUPANG).orElseThrow()
+			.getConnectionState()).isEqualTo(MarketConnectionState.LINKED);
+		assertThat(daily.status(MarketType.COUPANG).latest().totals().needsAttention()).isEqualTo(1);
+		assertThat(daily.status(MarketType.COUPANG).latest().totals().detached()).isZero();
+	}
+
+	@Test
+	void coupangExplicitDeletedDetachesButCafe24StoppedRemainsConnected() {
+		var p = product();
+		dailyMarket(MarketType.COUPANG, p);
+		dailyMarket(MarketType.CAFE24, p);
+		enableDaily();
+		daily.tickAt(dailyStart, MarketType.COUPANG);
+		daily.tickAt(dailyStart, MarketType.CAFE24);
+		service.finish(service.claim(MarketType.COUPANG),
+			new MarketListingObservation(MarketListingObservation.State.DELETED, "상품삭제", "명시 삭제", "COUPANG-account",
+				"GET /seller-products/123", Instant.now()));
+		service.finish(service.claim(MarketType.CAFE24),
+			new MarketListingObservation(MarketListingObservation.State.STOPPED, "SELLING_F", "판매 중지 원인 미확인",
+				"CAFE24-account", "GET /products/123", Instant.now()));
+		assertThat(registrations.findByProductIdAndMarketType(p.getId(), MarketType.COUPANG).orElseThrow()
+			.getConnectionState()).isEqualTo(MarketConnectionState.DETACHED_DELETED);
+		assertThat(
+			registrations.findByProductIdAndMarketType(p.getId(), MarketType.CAFE24).orElseThrow().getConnectionState())
+			.isEqualTo(MarketConnectionState.LINKED);
+		assertThat(daily.status(MarketType.COUPANG).latest().totals().detached()).isEqualTo(1);
+		assertThat(daily.status(MarketType.CAFE24).latest().totals().detached()).isZero();
+	}
+
+	@Test
+	void changedCoupangAccountPausesOnlyItsExistingDailyCursor() {
+		var first = product();
+		var cp = dailyMarket(MarketType.COUPANG, first);
+		dailyMarket(MarketType.CAFE24, first);
+		for (int i = 0; i < 2; i++) {
+			var p = product();
+			registrations.saveAndFlush(MarketRegistration.builder().productId(p.getId()).marketType(MarketType.COUPANG)
+				.marketIdentifiers("{\"sellerProductId\":\"" + p.getId() + "\"}").build());
+		}
+		enableDaily();
+		daily.tickAt(dailyStart, MarketType.COUPANG);
+		var before = daily.status(MarketType.COUPANG).latest();
+		when(cp.inspectionAccountReference()).thenReturn("new-coupang-account");
+		daily.tickAt(dailyStart.plusSeconds(60), MarketType.COUPANG);
+		daily.tickAt(dailyStart.plusSeconds(60), MarketType.CAFE24);
+		assertThat(daily.status(MarketType.COUPANG).latest().enrolled()).isEqualTo(before.enrolled());
+		assertThat(daily.status(MarketType.COUPANG).detail()).contains("계정이 변경");
+		assertThat(daily.status(MarketType.CAFE24).latest().enrolled()).isEqualTo(1);
+	}
+
+	@Test
+	void saturatedSmartstoreQueueDoesNotBlockCoupangDailyEnrollment() {
+		var p = product();
+		link(p);
+		dailyMarket(MarketType.COUPANG, p);
+		enableDaily();
+		doReturn(20000L).when(tasks).activeCountForMarket("SMART_STORE");
+		daily.tickAt(dailyStart, MarketType.SMART_STORE);
+		daily.tickAt(dailyStart, MarketType.COUPANG);
+		assertThat(daily.status().latest().enrolled()).isZero();
+		assertThat(daily.status(MarketType.COUPANG).latest().enrolled()).isEqualTo(1);
+	}
+
+	@Test
+	void otherMarketDailyEnqueueFailureRollsBackOnlyItsSweepAndTasks() {
+		var p = product();
+		dailyMarket(MarketType.COUPANG, p);
+		dailyMarket(MarketType.CAFE24, p);
+		enableDaily();
+		jdbc.execute(
+			"alter table sb_market_inspection_batch add constraint daily_market_fixture check (market <> 'COUPANG')");
+		try {
+			assertThatThrownBy(() -> daily.tickAt(dailyStart, MarketType.COUPANG)).isInstanceOf(RuntimeException.class);
+			daily.tickAt(dailyStart, MarketType.CAFE24);
+			assertThat(sweeps.findTopByMarketOrderByRunDateDesc("COUPANG")).isEmpty();
+			assertThat(tasks.count()).isEqualTo(1);
+			assertThat(daily.status(MarketType.CAFE24).latest().enrolled()).isEqualTo(1);
+		} finally {
+			jdbc.execute("alter table sb_market_inspection_batch drop constraint daily_market_fixture");
+		}
 	}
 }

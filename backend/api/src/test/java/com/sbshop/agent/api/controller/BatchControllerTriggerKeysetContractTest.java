@@ -17,7 +17,6 @@ import com.sbshop.agent.core.application.product.ProductBrandBackfillService;
 import com.sbshop.agent.core.application.product.dto.PriceStockItem;
 import com.sbshop.agent.core.domain.process.enums.JobType;
 import com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand;
-import com.sbshop.agent.core.domain.product.enums.VendorType;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -56,16 +55,11 @@ class BatchControllerTriggerKeysetContractTest {
 	@Test
 	@DisplayName("crawl-and-update 응답은 batchId·count·message 공통 키셋이고 count는 대상 상품 수다")
 	void crawlAndUpdate_hasCommonKeyset() {
-		when(processStatusService.startBatch(eq(JobType.CRAWL_AND_UPDATE_PRICE_STOCK), any()))
-			.thenReturn("batch-1");
-
-		ResponseEntity<Map<String, String>> resp = controller.crawlAndUpdate(
-			new CrawlAndUpdateRequest(List.of(10L, 20L), null, null, null));
-
-		assertThat(resp.getBody())
-			.containsOnlyKeys("batchId", "count", "message")
-			.containsEntry("batchId", "batch-1")
-			.containsEntry("count", "2");
+		var response = controller.crawlAndUpdate(new CrawlAndUpdateRequest(List.of(10L, 20L), null, null, null));
+		assertThat(response.getStatusCode().value()).isEqualTo(409);
+		assertThat(response.getBody()).containsEntry("code", "SOURCE_REVIEW_REQUIRED")
+			.containsEntry("reviewPath", "/api/v1/products/source-refresh/collections");
+		Mockito.verifyNoInteractions(batchPriceStockService, processStatusService);
 	}
 
 	@Test
@@ -117,29 +111,20 @@ class BatchControllerTriggerKeysetContractTest {
 	@Test
 	@DisplayName("by-supplier 응답은 batchId·count·message 공통 키셋을 유지한다")
 	void updateBySupplier_hasCommonKeyset() {
-		when(batchPriceStockService.getProductIdsByVendor(VendorType.IHB)).thenReturn(List.of(1L, 2L, 3L));
-		when(processStatusService.startBatch(eq(JobType.CRAWL_AND_UPDATE_PRICE_STOCK), any()))
-			.thenReturn("batch-4");
-
-		ResponseEntity<Map<String, String>> resp = controller.updateBySupplier(
-			new SupplierBatchRequest("ihb", null, null, null));
-
-		assertThat(resp.getBody())
-			.containsOnlyKeys("batchId", "count", "message")
-			.containsEntry("batchId", "batch-4")
-			.containsEntry("count", "3");
+		var response = controller.updateBySupplier(new SupplierBatchRequest("IHB", null, null, null));
+		assertThat(response.getStatusCode().value()).isEqualTo(409);
+		assertThat(response.getBody()).containsEntry("code", "SOURCE_REVIEW_REQUIRED")
+			.containsEntry("reviewPath", "/api/v1/products/source-refresh/collections");
+		Mockito.verifyNoInteractions(batchPriceStockService, processStatusService);
 	}
 
 	@Test
 	@DisplayName("by-supplier 0건 응답도 batchId·count·message 공통 키셋을 유지한다")
 	void updateBySupplier_empty_hasCommonKeyset() {
-		when(batchPriceStockService.getProductIdsByVendor(VendorType.IHB)).thenReturn(List.of());
-
-		ResponseEntity<Map<String, String>> resp = controller.updateBySupplier(
-			new SupplierBatchRequest("ihb", null, null, null));
-
-		assertThat(resp.getBody())
-			.containsOnlyKeys("batchId", "count", "message")
-			.containsEntry("count", "0");
+		var response = controller.updateBySupplier(new SupplierBatchRequest("IHB", null, null, null));
+		assertThat(response.getStatusCode().value()).isEqualTo(409);
+		assertThat(response.getBody()).containsEntry("code", "SOURCE_REVIEW_REQUIRED")
+			.containsEntry("reviewPath", "/api/v1/products/source-refresh/collections");
+		Mockito.verifyNoInteractions(batchPriceStockService, processStatusService);
 	}
 }

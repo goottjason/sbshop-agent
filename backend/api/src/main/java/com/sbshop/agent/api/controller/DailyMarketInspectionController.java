@@ -16,6 +16,11 @@ public class DailyMarketInspectionController {
 		return service.status();
 	}
 
+	@GetMapping("/markets")
+	public List<DailyMarketInspectionService.MarketDailyStatus> markets() {
+		return service.statuses();
+	}
+
 	@GetMapping("/{id}/batches")
 	public List<MarketInspectionService.BatchView> batches(@PathVariable
 	String id) {

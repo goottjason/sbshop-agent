@@ -12,6 +12,12 @@ from __future__ import annotations
 
 from typing import Optional
 from pydantic import BaseModel, Field
+from typing import Literal
+
+
+class ReviewedOcadoRequest(BaseModel):
+    url: str = Field(..., min_length=1, max_length=2000, strict=True)
+    mode: Literal["CONTENT", "PRICE_STOCK"]
 
 
 class ScrapeRequest(BaseModel):

@@ -35,7 +35,10 @@ public class SmartstoreRestClient {
 		var http = java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(10)).build();
 		var factory = new org.springframework.http.client.JdkClientHttpRequestFactory(http);
 		factory.setReadTimeout(java.time.Duration.ofSeconds(30));
-		return RestClient.builder().requestFactory(factory).build();
+		return com.sbshop.agent.infrastructure.client.common.MarketPreparationTransport
+			.guarded(RestClient.builder().requestFactory(factory),
+				com.sbshop.agent.core.domain.order.enums.MarketType.SMART_STORE)
+			.build();
 	}
 
 	private String accessToken;

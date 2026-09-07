@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "checks": [
+    "조회 실패 표시와 안전한 GET 재시도",
+    "카페24 확인·MP 성공/실패/충돌·최종 미확인 분리",
+    "과거 revision 경고와 HTML 원문 실행 방지",
+    "마켓·변경 필드 조합 필터",
+    "계정·상품 준비 정보와 미검증 자동 재전송 차단"
+  ],
+  "fixtureOnly": true,
+  "servedImages": []
+}

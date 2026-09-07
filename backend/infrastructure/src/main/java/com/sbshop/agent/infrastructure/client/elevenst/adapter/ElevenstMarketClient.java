@@ -29,6 +29,58 @@ public class ElevenstMarketClient implements MarketClient {
 
 	private final ElevenstMarketRestClient restClient;
 
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.PreparedMarketFields prepareProductFields(Product product,
+		String listingId, String optionId, Set<String> fields) {
+		try {
+			return new ElevenstReviewedFields(restClient).prepare(product, listingId, fields);
+		} catch (Exception e) {
+			if (e instanceof UnsupportedOperationException unsupported)
+				throw unsupported;
+			if (e instanceof IllegalArgumentException invalid)
+				throw invalid;
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.MarketFieldsRead readProductFields(String listingId,
+		String optionId, String expectedSbCode, Set<String> fields) {
+		try {
+			return new ElevenstReviewedFields(restClient).read(listingId, expectedSbCode, fields);
+		} catch (Exception e) {
+			if (e instanceof UnsupportedOperationException unsupported)
+				throw unsupported;
+			if (e instanceof IllegalArgumentException invalid)
+				throw invalid;
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	@Override
+	public void writePreparedProductFields(String listingId, String optionId, String expectedSbCode,
+		com.sbshop.agent.core.domain.market.client.dto.PreparedMarketFields prepared, Runnable beforeWrite) {
+		var guardFailure = new java.util.concurrent.atomic.AtomicReference<RuntimeException>();
+		try {
+			new ElevenstReviewedFields(restClient).write(listingId, expectedSbCode, prepared, () -> {
+				try {
+					beforeWrite.run();
+				} catch (RuntimeException abort) {
+					guardFailure.set(abort);
+					throw abort;
+				}
+			});
+		} catch (Exception e) {
+			if (e == guardFailure.get())
+				throw guardFailure.get();
+			if (e instanceof UnsupportedOperationException unsupported)
+				throw unsupported;
+			if (e instanceof IllegalArgumentException invalid)
+				throw invalid;
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
 	private static final String CATALOG_PATH = "/rest/prodmarketservice/prodmarket";
 	private static final String DETAIL_CONT_PATH = "/rest/prodservices/updateProductDetailCont/";
 	private static final int CATALOG_LIMIT = 100;

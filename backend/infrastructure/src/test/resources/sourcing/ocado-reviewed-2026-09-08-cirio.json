@@ -1,0 +1,21 @@
+{
+  "contractVersion": "ocado-reviewed-v1",
+  "ok": true,
+  "vendor": "OCD",
+  "mode": "CONTENT",
+  "requestedUrl": "https://www.ocado.com/products/cirio-tomato-puree-80259011",
+  "sourceUrl": "https://www.ocado.com/products/cirio-italian-tomato-puree/80259011",
+  "externalId": "80259011",
+  "name": "Cirio Italian Tomato Puree",
+  "price": "1.50",
+  "currency": "GBP",
+  "inStock": true,
+  "stock": null,
+  "images": [
+    "https://www.ocado.com/images-v3/eafa5127-d256-497b-9609-4869092accd6/685ba7e9-cecc-456a-950b-ac676937f42a/500x500.jpg"
+  ],
+  "detailHtml": "<div><h2>Product Information</h2><div>Tomato Puree!<br>Our rich double concentrated tomato paste has a great texture and strong flavour. Perfect for enhancing the taste of soups, appetisers, stews and many more dishes.</div></div><div><h2>Features</h2><div>Tomato paste</div></div><div><h2>Further description</h2><div>Cirio is the sponsor of the Italian Chefs Federation</div></div><div><h2>Country of origin</h2><div>Produce of the EU</div></div><div><h2>Nutritional data</h2><div><table><tbody><tr><th>Typical Values</th><th>per 100 g</th></tr><tr><td>Energy</td><td>412 kJ / 98 kcal</td></tr><tr><td>Fat</td><td>0,4 g</td></tr><tr><td>of which saturates</td><td>0,1 g</td></tr><tr><td>Carbohydrate</td><td>17,1 g</td></tr><tr><td>of which sugars</td><td>14,8 g</td></tr><tr><td>Fibre</td><td>4,4 g</td></tr><tr><td>Protein</td><td>4,2 g</td></tr><tr><td>Salt</td><td>0,06 g</td></tr></tbody></table></div></div><div><h2>Storage</h2><div>Keep Refrigerated</div></div><div><h2>Package type</h2><div>Tube</div></div><div><h2>Recycling information</h2><div>Packing - Recyclable</div></div><div><h2>Other Information</h2><div>Full Product Name:<br>Double Concentrated Tomato Puree 28%.<br><br>Storage:<br>Best before: see end of box.<br>Once opened store in the fridge for max 3 weeks.<br></div></div><div><h2>Ingredients</h2><div>Tomatoes</div></div><div><h2>Brand</h2><div>Cirio</div></div><div><h2>Brand details</h2><div>The Authentic Italian taste<br>In 1856 Francesco Cirio was the first to preserve premium Italian tomatoes and vegetables. Since then, Cirio has been an essential ingredient in every Italian household. Just like our Cirio Supercirio.</div></div><div><h2>Manufacturer</h2><div>Produced for:<br>Conserve Italia Soc. Coop. Agricola,<br>Via P. Poggi 11,<br>40068 San Lazzaro Di Savena (BO),<br>Italy.<br><br>Mediterranean Growers Ltd,<br>Premiere House,<br>Elstree Way,<br>Borehamwood,<br>Hertfordshire,<br>WD6 1JH.</div></div><div><h2>Return to Address</h2><div>Mediterranean Growers Ltd,<br>Premiere House,<br>Elstree Way,<br>Borehamwood,<br>Hertfordshire,<br>WD6 1JH.<br>www.cirio1856.com</div></div>",
+  "imagesComplete": true,
+  "detailComplete": true,
+  "scrapedAt": "2026-09-07T15:56:15.210794+00:00"
+}

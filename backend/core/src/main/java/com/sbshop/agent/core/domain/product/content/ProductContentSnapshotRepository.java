@@ -10,6 +10,9 @@ public interface ProductContentSnapshotRepository extends JpaRepository<ProductC
 
 	Optional<ProductContentSnapshot> findFirstByStateOrderByRequestedAtAscIdAsc(ProductContentSnapshot.State state);
 
+	Optional<ProductContentSnapshot> findFirstByStateAndVendorOrderByRequestedAtAscIdAsc(
+		ProductContentSnapshot.State state, String vendor);
+
 	long countByStateIn(List<ProductContentSnapshot.State> states);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)

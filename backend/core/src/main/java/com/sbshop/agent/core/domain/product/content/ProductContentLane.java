@@ -29,7 +29,7 @@ public class ProductContentLane {
 	public void release(Instant now) {
 		this.snapshotId = null;
 		this.leaseUntil = null;
-		this.nextAllowedAt = now.plusSeconds(5);
+		deferUntil(now.plusSeconds(5));
 	}
 
 	public void throttle(Instant now) {
@@ -38,6 +38,11 @@ public class ProductContentLane {
 
 	public void throttle(Instant now, Instant serverRetryAfter) {
 		Instant minimum = now.plusSeconds(300);
-		this.nextAllowedAt = serverRetryAfter != null && serverRetryAfter.isAfter(minimum) ? serverRetryAfter : minimum;
+		deferUntil(serverRetryAfter != null && serverRetryAfter.isAfter(minimum) ? serverRetryAfter : minimum);
+	}
+
+	private void deferUntil(Instant next) {
+		if (nextAllowedAt == null || next.isAfter(nextAllowedAt))
+			nextAllowedAt = next;
 	}
 }

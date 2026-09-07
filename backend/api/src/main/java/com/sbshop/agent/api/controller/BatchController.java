@@ -20,7 +20,6 @@ import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
 import com.sbshop.agent.core.domain.process.enums.JobType;
 import com.sbshop.agent.core.domain.process.enums.ProcessStatusType;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -57,23 +56,13 @@ public class BatchController {
 		if (request.productIds() == null || request.productIds().isEmpty()) {
 			throw new IllegalArgumentException("productIds는 필수이며 비어 있을 수 없습니다.");
 		}
-		List<String> productCodes = request.productIds().stream()
-			.map(String::valueOf)
-			.toList();
-		String batchId = startBatchWithLog(
-			JobType.CRAWL_AND_UPDATE_PRICE_STOCK,
-			productCodes, ActionLogConstants.BATCH_CRAWL_UPDATE,
-			id -> "배치 크롤 업데이트 시작 (batchId=" + id + ", " + productCodes.size() + "건)");
-		batchPriceStockService.crawlAndUpdatePriceStock(
-			batchId, request.productIds(),
-			request.marginRate() != null ? request.marginRate() : new BigDecimal("15"),
-			request.couponRate() != null ? request.couponRate() : new BigDecimal("20"),
-			request.minMarginPrice() != null ? request.minMarginPrice() : new BigDecimal("5000"),
-			ActionLogConstants.BATCH_CRAWL_UPDATE);
-		return ResponseEntity.ok(Map.of(
-			"batchId", batchId,
-			"count", String.valueOf(productCodes.size()),
-			"message", "크롤 기반 일괄 업데이트가 시작되었습니다."));
+		return sourceReviewRequired();
+	}
+
+	private ResponseEntity<Map<String, String>> sourceReviewRequired() {
+		return ResponseEntity.status(409).body(Map.of("code", "SOURCE_REVIEW_REQUIRED",
+			"message", "소싱 가격·재고는 수집 내용을 검토한 뒤 저장해야 합니다. 상품관리 또는 배치 화면의 소싱 갱신 검토를 사용하세요.",
+			"reviewPath", "/api/v1/products/source-refresh/collections"));
 	}
 
 	@PostMapping("/manual-update-price-stock")
@@ -124,28 +113,7 @@ public class BatchController {
 		if (request.supplierCode() == null || request.supplierCode().isBlank()) {
 			throw new IllegalArgumentException("supplierCode는 필수입니다.");
 		}
-		VendorType vendor = VendorType.valueOf(request.supplierCode().toUpperCase());
-		List<Long> productIds = batchPriceStockService.getProductIdsByVendor(vendor);
-		if (productIds.isEmpty()) {
-			return ResponseEntity.ok(Map.of(
-				"batchId", "", "count", "0", "message", "해당 소싱업체의 상품이 없습니다."));
-		}
-		List<String> productCodes = productIds.stream().map(String::valueOf).toList();
-		String batchId = startBatchWithLog(
-			JobType.CRAWL_AND_UPDATE_PRICE_STOCK,
-			productCodes, ActionLogConstants.BATCH_BY_SUPPLIER,
-			id -> "소싱업체별 배치 시작 (" + vendor.name() + ", batchId=" + id
-				+ ", " + productCodes.size() + "건)");
-		batchPriceStockService.crawlAndUpdatePriceStock(
-			batchId, productIds,
-			request.marginRate() != null ? request.marginRate() : new BigDecimal("15"),
-			request.couponRate() != null ? request.couponRate() : new BigDecimal("20"),
-			request.minMarginPrice() != null ? request.minMarginPrice() : new BigDecimal("5000"),
-			ActionLogConstants.BATCH_BY_SUPPLIER);
-		return ResponseEntity.ok(Map.of(
-			"batchId", batchId,
-			"count", String.valueOf(productIds.size()),
-			"message", "소싱업체별 일괄 업데이트가 시작되었습니다."));
+		return sourceReviewRequired();
 	}
 
 	@PostMapping("/backfill-barcode")

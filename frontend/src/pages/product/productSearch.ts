@@ -2,7 +2,7 @@ import type { ProductFilters } from './ProductFilterPanel';
 
 export const EMPTY_PRODUCT_FILTERS: ProductFilters = {
   keyword: '', sbCodes: [], brands: [], categories: [], includeUncategorized: false,
-  registeredMarkets: [], missingMarkets: [], pendingChangesOnly: false,
+  registeredMarkets: [], missingMarkets: [], pendingChangesOnly: false, anyMarketSyncIssue: false,
   marketPlusIssue: 'ALL',
   markets: [], vendors: [], stockStatuses: [], inStockOnly: false, sourceGone: 'ALL',
   contentAgeDays: null, contentAgeField: 'ANY',

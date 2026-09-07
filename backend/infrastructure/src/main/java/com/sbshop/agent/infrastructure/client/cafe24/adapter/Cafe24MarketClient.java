@@ -35,6 +35,115 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class Cafe24MarketClient implements MarketClient {
+	@org.springframework.beans.factory.annotation.Autowired
+	private Cafe24ReviewedPublication reviewedPublication;
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.PreparedMarketPublication preparePublication(Product product,
+		BigDecimal price) {
+		try {
+			return reviewedPublication.prepare(product, price);
+		} catch (Exception e) {
+			throw publicationFailure(e);
+		}
+	}
+
+	@Override
+	public Map<String, String> submitPreparedPublication(Product product, String operationId, String payload,
+		Runnable beforeWrite) {
+		return reviewedPublication.submit(product, operationId, payload, beforeWrite);
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.VerifiedMarketPublication readPreparedPublication(String id,
+		String sbCode, String payload) {
+		try {
+			return reviewedPublication.readPublication(id, sbCode, payload);
+		} catch (Exception e) {
+			throw publicationFailure(e);
+		}
+	}
+
+	@Override
+	public void finalizePreparedPublication(String id, String sbCode, String payload, Runnable beforeWrite) {
+		var abort = new java.util.concurrent.atomic.AtomicReference<RuntimeException>();
+		try {
+			reviewedPublication.finalizePublication(id, sbCode, payload, () -> {
+				try {
+					beforeWrite.run();
+				} catch (RuntimeException e) {
+					abort.set(e);
+					throw e;
+				}
+			});
+		} catch (Exception e) {
+			if (e == abort.get())
+				throw abort.get();
+			throw publicationFailure(e);
+		}
+	}
+
+	private RuntimeException publicationFailure(Exception e) {
+		return e instanceof com.sbshop.agent.core.domain.market.sync.MarketTransferFailure failure ? failure
+			: com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+	}
+
+	private Cafe24ReviewedFields reviewedFields() {
+		return new Cafe24ReviewedFields(cafe24RestClient, objectMapper);
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.PreparedMarketFields prepareProductFields(Product product,
+		String listingId, String optionId, Set<String> fields) {
+		try {
+			return reviewedFields().prepare(product, listingId, optionId, fields);
+		} catch (Exception e) {
+			if (e instanceof UnsupportedOperationException unsupported)
+				throw unsupported;
+			if (e instanceof IllegalArgumentException invalid)
+				throw invalid;
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.MarketFieldsRead readProductFields(String listingId,
+		String optionId, String expectedSbCode, Set<String> fields) {
+		try {
+			return reviewedFields().read(listingId, optionId, expectedSbCode, fields);
+		} catch (Exception e) {
+			if (e instanceof UnsupportedOperationException unsupported)
+				throw unsupported;
+			if (e instanceof IllegalArgumentException invalid)
+				throw invalid;
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	@Override
+	public void writePreparedProductFields(String listingId, String optionId, String expectedSbCode,
+		com.sbshop.agent.core.domain.market.client.dto.PreparedMarketFields prepared, Runnable beforeWrite) {
+		var guardFailure = new java.util.concurrent.atomic.AtomicReference<RuntimeException>();
+		try {
+			reviewedFields().write(listingId, optionId, expectedSbCode, prepared, () -> {
+				try {
+					beforeWrite.run();
+				} catch (RuntimeException abort) {
+					guardFailure.set(abort);
+					throw abort;
+				}
+			});
+		} catch (Exception e) {
+			if (e == guardFailure.get())
+				throw guardFailure.get();
+			if (e instanceof UnsupportedOperationException unsupported)
+				throw unsupported;
+			if (e instanceof IllegalArgumentException invalid)
+				throw invalid;
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
 	@Override
 	public com.sbshop.agent.core.domain.market.client.dto.MarketPriceRead readSalePrice(String id, String optionId) {
 		requirePriceId(id);

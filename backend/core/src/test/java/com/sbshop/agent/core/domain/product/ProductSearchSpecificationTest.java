@@ -61,6 +61,46 @@ class ProductSearchSpecificationTest {
 	}
 
 	@Test
+	void marketIssueFilterUsesLatestCurrentRevisionAndExactConnectionBeforePagination() {
+		Product failed = save("FAILED", ProductCategory.FOOD), recovered = save("RECOVERED", ProductCategory.FOOD);
+		var first = register(failed, MarketType.COUPANG);
+		var second = register(recovered, MarketType.COUPANG);
+		priceTask(failed, first, "BLOCKED");
+		priceTask(recovered, second, "UNKNOWN");
+		priceTask(recovered, second, "CONFIRMED_PRICE");
+		entityManager.flush();
+		var found = productRepository.findAll(MarketSyncIssueSpecifications::matching, PageRequest.of(0, 1));
+		assertThat(found.getTotalElements()).isEqualTo(1);
+		assertThat(found.getContent()).extracting(Product::getSbCode).containsExactly("FAILED");
+		entityManager.find(Product.class, failed.getId())
+			.update(ProductUpdateCommand.builder().memo("새 DB 버전").build());
+		entityManager.flush();
+		assertThat(productRepository.findAll(MarketSyncIssueSpecifications::matching)).isEmpty();
+	}
+
+	@Test
+	void oldConnectionIdentifiersCannotAppearAsCurrentMarketIssue() {
+		Product p = save("RECONNECTED", ProductCategory.FOOD);
+		var r = register(p, MarketType.COUPANG);
+		var task = priceTask(p, r, "BLOCKED");
+		org.springframework.test.util.ReflectionTestUtils.setField(task, "identifiers",
+			"{\"sellerProductId\":\"other\"}");
+		entityManager.flush();
+		assertThat(productRepository.findAll(MarketSyncIssueSpecifications::matching)).isEmpty();
+	}
+
+	private com.sbshop.agent.core.domain.market.sync.MarketPriceTask priceTask(Product p, MarketRegistration r,
+		String state) {
+		var now = java.time.Instant.now();
+		var task = new com.sbshop.agent.core.domain.market.sync.MarketPriceTask(java.util.UUID.randomUUID().toString(),
+			p.getId(), p.getSbCode(), r.getId(), p.getRevision(), "COUPANG", "123", null,
+			r.getMarketIdentifiers(), "fixture-account", new BigDecimal("12300"), null, now);
+		task.finish(state, "fixture", now, now);
+		entityManager.persist(task);
+		return task;
+	}
+
+	@Test
 	void combinedMarketConnectionsApplyBeforePagination() {
 		Product wanted = saveWithStock("WANTED", 4, StockStatus.IN_STOCK);
 		Product both = saveWithStock("BOTH", 4, StockStatus.IN_STOCK);

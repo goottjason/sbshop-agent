@@ -123,6 +123,29 @@ class ProductEditServiceIntegrationTest {
 	}
 
 	@Test
+	void smartstoreMixedPriceQuantityAndHtmlSaveOnceAndDispatchThreeIndependentTargets() throws Exception {
+		var p = create();
+		link(p, MarketType.SMART_STORE, "{\"originProductNo\":\"123\"}");
+		var values = mapper.createObjectNode().put("salePrice", 18000).put("salesQuantity", 4).put("detailHtml",
+			"<p>최신 상세</p>");
+		var review = edits.previewSingle(p.getId(), p.getRevision(), values, "admin");
+		assertThat(review.items().getFirst().state()).isEqualTo(ProductEditPlanner.State.READY);
+		var saved = edits.commit(review.reviewId(), "admin").items().getFirst();
+		assertThat(saved.state()).isEqualTo("SAVED");
+		assertThat(targets.findAll()).hasSize(3)
+			.allSatisfy(t -> assertThat(t.getHistoryId()).isEqualTo(saved.historyId()));
+		var groups = new java.util.HashSet<java.util.Set<String>>();
+		for (var target : targets.findAll()) {
+			var fields = new java.util.HashSet<String>();
+			mapper.readTree(target.getSnapshot()).path("changes").forEach(c -> fields.add(c.path("field").asText()));
+			groups.add(fields);
+		}
+		assertThat(groups).containsExactlyInAnyOrder(java.util.Set.of("salePrice"), java.util.Set.of("salesQuantity"),
+			java.util.Set.of("detailHtml"));
+		assertThat(products.findById(p.getId()).orElseThrow().getRevision()).isEqualTo(p.getRevision() + 1);
+	}
+
+	@Test
 	void bulkValuesKeepLockedProductsAtomicAndStoreOnlyExplicitChanges() {
 		Product locked = create(), editable = create();
 		link(locked, MarketType.COUPANG, "{\"sellerProductId\":\"45\"}");
@@ -424,7 +447,8 @@ class ProductEditServiceIntegrationTest {
 			assertThat(edits.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("SAVED");
 			var target = targets.findByProductIdAndMarket(product.getId(), "COUPANG");
 			assertThat(target).hasSize(1);
-			assertThat(mapper.readTree(target.getFirst().getSnapshot()).path("changes")).hasSize(2);
+			assertThat(mapper.readTree(target.getFirst().getSnapshot()).path("changes")).hasSize(1);
+			assertThat(products.findById(product.getId()).orElseThrow().getMemo()).isEqualTo("기존 단일 대상");
 		}
 	}
 

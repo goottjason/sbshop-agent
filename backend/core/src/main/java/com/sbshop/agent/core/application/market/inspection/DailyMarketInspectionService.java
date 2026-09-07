@@ -19,7 +19,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 @RequiredArgsConstructor
+@lombok.extern.slf4j.Slf4j
 public class DailyMarketInspectionService {
+	public static final Set<MarketType> SUPPORTED = Set.of(MarketType.SMART_STORE, MarketType.COUPANG,
+		MarketType.CAFE24, MarketType.ELEVEN_STREET);
 	private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
 	private static final LocalTime START = LocalTime.of(3, 0);
 	private final MarketInspectionService queue;
@@ -44,24 +47,40 @@ public class DailyMarketInspectionService {
 		String detail, SweepView latest) {
 	}
 
+	public record MarketDailyStatus(String market, DailyStatus status) {
+	}
+
 	public void tick() {
-		tickAt(queue.now());
+		Instant now = queue.now();
+		for (var market : SUPPORTED.stream().sorted().toList()) {
+			try {
+				tickAt(now, market);
+			} catch (Exception e) {
+				log.error("정기 마켓 상태 조회 접수 실패. 저장된 위치부터 재시도합니다: {}", market, e);
+			}
+		}
 	}
 
 	// Package-private deterministic clock entry for the date-boundary integration tests.
 	void tickAt(Instant instant) {
+		tickAt(instant, MarketType.SMART_STORE);
+	}
+
+	void tickAt(Instant instant, MarketType market) {
+		if (!SUPPORTED.contains(market))
+			throw new IllegalArgumentException("지원하지 않는 정기 마켓입니다.");
 		if (!enabled)
 			return;
-		queue.ensureGate();
+		queue.ensureGate(market);
 		var tx = new TransactionTemplate(transactions);
 		tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
 		tx.executeWithoutResult(s -> {
-			gates.lock(MarketInspectionGate.SMART_STORE_SCOPE).orElseThrow();
-			String account = queue.account();
-			if (!connections.accountVerified(account))
+			gates.lock(market.name() + "_ORIGIN_READ").orElseThrow();
+			String account = queue.account(market);
+			if (account == null || market == MarketType.SMART_STORE && !connections.accountVerified(account))
 				return;
 			var local = instant.atZone(ZONE);
-			var sweep = sweeps.findTopByOrderByRunDateDesc().orElse(null);
+			var sweep = sweeps.findTopByMarketOrderByRunDateDesc(market.name()).orElse(null);
 			if (sweep != null && !"FINISHED".equals(sweep.getState())) {
 				if (!account.equals(sweep.getAccountReference()))
 					return;
@@ -72,17 +91,18 @@ public class DailyMarketInspectionService {
 				}
 			}
 			if (sweep == null || "FINISHED".equals(sweep.getState())) {
-				if (local.toLocalTime().isBefore(START) || sweeps.existsByRunDate(local.toLocalDate()))
+				if (local.toLocalTime().isBefore(START)
+					|| sweeps.existsByMarketAndRunDate(market.name(), local.toLocalDate()))
 					return;
 				sweep = sweeps
 					.saveAndFlush(new MarketInspectionSweep(UUID.randomUUID().toString(), local.toLocalDate(), account,
-						registrations.lastRegistrationId(MarketType.SMART_STORE), instant));
+						registrations.lastRegistrationId(market), instant, market.name()));
 			}
-			long room = 20000 - tasks.activeCount();
+			long room = 20000 - tasks.activeCountForMarket(market.name());
 			if (room <= 0)
 				return;
 			int limit = (int)Math.min(room, Math.max(1, Math.min(5000, pageSize)));
-			var page = registrations.dailyInspectionPage(MarketType.SMART_STORE, sweep.getCursorRegistrationId(),
+			var page = registrations.dailyInspectionPage(market, sweep.getCursorRegistrationId(),
 				sweep.getUpperRegistrationId(), PageRequest.of(0, limit));
 			if (page.isEmpty()) {
 				sweep.enrolled(instant);
@@ -96,7 +116,7 @@ public class DailyMarketInspectionService {
 					.getBytes(StandardCharsets.UTF_8))
 				.toString();
 			queue.enqueueLocked(page.stream().map(r -> r.getProductId()).toList(), requestId,
-				"system:daily-connection-inspection", "DAILY", account, sweep.getId());
+				"system:daily-connection-inspection", "DAILY", account, sweep.getId(), market);
 			sweep.advance(cursor, page.size(), instant);
 			if (cursor == sweep.getUpperRegistrationId() || page.size() < limit)
 				sweep.enrolled(instant);
@@ -105,15 +125,33 @@ public class DailyMarketInspectionService {
 
 	@Transactional(readOnly = true)
 	public DailyStatus status() {
-		boolean verified = connections.accountVerified(queue.account());
-		var sweep = sweeps.findTopByOrderByRunDateDesc().orElse(null);
+		return status(MarketType.SMART_STORE);
+	}
+
+	@Transactional(readOnly = true)
+	public List<MarketDailyStatus> statuses() {
+		return SUPPORTED.stream().sorted().map(m -> new MarketDailyStatus(m.name(), status(m))).toList();
+	}
+
+	@Transactional(readOnly = true)
+	public DailyStatus status(MarketType market) {
+		if (!SUPPORTED.contains(market))
+			throw new IllegalArgumentException("지원하지 않는 정기 마켓입니다.");
+		String account = queue.account(market);
+		boolean verified = market == MarketType.SMART_STORE && connections.accountVerified(account);
+		boolean mayEnroll = account != null && (market != MarketType.SMART_STORE || verified);
+		var sweep = sweeps.findTopByMarketOrderByRunDateDesc(market.name()).orElse(null);
 		Instant now = queue.now();
 		var local = now.atZone(ZONE);
 		Instant next = local.toLocalDate().atTime(START).atZone(ZONE).toInstant();
 		boolean unfinished = sweep != null && !"FINISHED".equals(sweep.getState());
-		String detail = !enabled ? "정기 확인이 꺼져 있습니다." : !verified ? "확인한 계정과 현재 연동 계정이 달라 정기 확인을 보류합니다."
-			: unfinished ? "진행 중인 정기 확인을 이어서 처리합니다." : "매일 오전 3시부터 전체 활성 연결을 순서대로 확인합니다.";
-		if (!enabled || !verified || unfinished)
+		String detail = !enabled ? "정기 확인이 꺼져 있습니다." : !mayEnroll ? "확인한 계정과 현재 연동 계정이 다르거나 계정이 없어 정기 확인을 보류합니다."
+			: unfinished && !Objects.equals(account, sweep.getAccountReference())
+				? "진행 중인 회차의 계정이 변경되어 접수를 보류합니다. 기존 계정 귀속 확인이 필요합니다."
+				: unfinished ? "진행 중인 정기 확인을 이어서 처리합니다." : "매일 오전 3시부터 전체 활성 연결을 순서대로 확인합니다.";
+		if (market != MarketType.SMART_STORE)
+			detail += " 과거 계정 귀속은 미확인입니다. 일반 부재 응답만으로 삭제하지 않고 명시된 상품 상태만 판정합니다.";
+		if (!enabled || !mayEnroll || unfinished)
 			next = null;
 		else if (sweep != null && !sweep.getRunDate().isBefore(local.toLocalDate()))
 			next = sweep.getRunDate().plusDays(1).atTime(START).atZone(ZONE).toInstant();

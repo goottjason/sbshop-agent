@@ -204,6 +204,8 @@ public class Product extends BaseEntity {
 			this.detailHtml = command.detailHtml();
 		if (command.memo() != null)
 			this.memo = command.memo();
+		if (command.stockStatus() != null)
+			this.stockStatus = command.stockStatus();
 
 		updatePriceInfo(command);
 		updateLogisticsInfo(command);
@@ -436,6 +438,11 @@ public class Product extends BaseEntity {
 	/** 크롤이 성공했음을 남기고 이전 실패 기록을 지운다 — 복구된 상품이 계속 실패로 보이면 안 된다. */
 	public void recordCrawlSuccess() {
 		this.lastCrawlAt = java.time.LocalDateTime.now();
+		this.lastCrawlError = null;
+	}
+
+	public void recordReviewedCrawlSuccess(java.time.Instant collectedAt) {
+		this.lastCrawlAt = java.time.LocalDateTime.ofInstant(collectedAt, java.time.ZoneId.systemDefault());
 		this.lastCrawlError = null;
 	}
 

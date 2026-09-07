@@ -5,6 +5,8 @@ import com.sbshop.agent.core.application.product.content.ProductContentData.*;
 import com.sbshop.agent.core.domain.product.content.*;
 import com.sbshop.agent.core.domain.product.content.ProductContentSnapshot.State;
 import java.time.Instant;
+import com.sbshop.agent.core.application.product.source.ProductSourceVendorGate;
+import com.sbshop.agent.core.application.product.source.ProductSourceHttpGuard;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +26,7 @@ public class ProductContentWorker {
 	private final ObjectMapper mapper;
 	private final PlatformTransactionManager transactions;
 
-	public record Claim(String id, String token, String sourceUrl, String captured) {
+	public record Claim(String id, String token, String sourceUrl, String vendor, String captured) {
 	}
 
 	@Scheduled(fixedDelayString = "${products.content.worker-delay-ms:5000}", initialDelayString = "${products.content.worker-initial-delay-ms:30000}")
@@ -44,9 +46,13 @@ public class ProductContentWorker {
 			// The durable claim has committed before any HTTP/download/upload starts.
 			if (TransactionSynchronizationManager.isActualTransactionActive())
 				throw new IllegalStateException("외부 수집 중 DB transaction을 유지할 수 없습니다.");
-			var fetched = source.fetch(ProductContentUrls.source(claim.sourceUrl()));
+			var fetched = ProductSourceHttpGuard.scoped(
+				() -> ProductSourceVendorGate.beforeHttp(lanes, transactions, claim.vendor(), claim.token()),
+				() -> source.fetch(ProductContentUrls.source(
+					com.sbshop.agent.core.domain.product.enums.VendorType.valueOf(claim.vendor()), claim.sourceUrl())));
 			var captured = mapper.readValue(claim.captured(), Captured.class);
-			var proposal = proposal(captured, fetched);
+			var proposal = proposal(captured, fetched,
+				com.sbshop.agent.core.domain.product.enums.VendorType.valueOf(claim.vendor()));
 			String payload = mapper.writeValueAsString(proposal);
 			if (payload.length() > 2_500_000)
 				throw new IllegalArgumentException("수집 내용이 저장 한도를 초과했습니다.");
@@ -78,20 +84,35 @@ public class ProductContentWorker {
 			if (lane.getLeaseUntil() != null && now.isBefore(lane.getLeaseUntil()))
 				return null;
 			snapshots.findLocked(lane.getSnapshotId()).filter(s -> s.getState() == State.COLLECTING)
-				.ifPresent(s -> s.fail(State.FAILED, "수집 작업이 중단되었거나 시간 제한을 초과했습니다. 성공으로 간주하지 않습니다. 새로 수집하세요."));
+				.ifPresent(s -> {
+					ProductSourceVendorGate.finish(lanes, s.getVendor(), s.getClaimToken(), now, false, null);
+					s.fail(State.FAILED, "수집 작업이 중단되었거나 시간 제한을 초과했습니다. 성공으로 간주하지 않습니다. 새로 수집하세요.");
+				});
 			lane.release(now);
 			return null;
 		}
-		var snapshot = snapshots.findFirstByStateOrderByRequestedAtAscIdAsc(State.QUEUED).orElse(null);
-		if (snapshot == null)
-			return null;
-		String token = UUID.randomUUID().toString();
-		snapshot.claim(token);
-		lane.claim(snapshot.getId(), now);
-		return new Claim(snapshot.getId(), token, snapshot.getSourceUrl(), snapshot.getCaptured());
+		// Choose the oldest available vendor rather than letting one vendor's 429 stop every source.
+		var candidates = Arrays.stream(com.sbshop.agent.core.domain.product.enums.VendorType.values())
+			.filter(ProductContentUrls::supports)
+			.map(v -> snapshots.findFirstByStateAndVendorOrderByRequestedAtAscIdAsc(State.QUEUED, v.name()))
+			.flatMap(Optional::stream)
+			.sorted(Comparator.comparing(ProductContentSnapshot::getRequestedAt)
+				.thenComparing(ProductContentSnapshot::getId))
+			.toList();
+		for (var snapshot : candidates) {
+			String token = UUID.randomUUID().toString();
+			if (!ProductSourceVendorGate.claim(lanes, snapshot.getVendor(), token, now))
+				continue;
+			snapshot.claim(token);
+			lane.claim(snapshot.getId(), now);
+			return new Claim(snapshot.getId(), token, snapshot.getSourceUrl(), snapshot.getVendor(),
+				snapshot.getCaptured());
+		}
+		return null;
 	}
 
-	private Proposed proposal(Captured captured, ProductContentSource.Fetch fetched) {
+	private Proposed proposal(Captured captured, ProductContentSource.Fetch fetched,
+		com.sbshop.agent.core.domain.product.enums.VendorType vendor) {
 		if (fetched == null)
 			throw new IllegalArgumentException("수집 결과 없음");
 		List<String> sourceImages = fetched.sourceImages() == null ? List.of() : fetched.sourceImages();
@@ -100,7 +121,7 @@ public class ProductContentWorker {
 			&& sourceImages.size() == hostedImages.size();
 		var notices = new ArrayList<>(fetched.notices() == null ? List.of() : fetched.notices());
 		if (images) {
-			sourceImages.forEach(ProductContentUrls::sourceImage);
+			sourceImages.forEach(url -> ProductContentUrls.sourceImage(vendor, url));
 			hostedImages.forEach(ProductContentUrls::hostedImage);
 		}
 		String html = null;
@@ -128,19 +149,19 @@ public class ProductContentWorker {
 		Instant serverRetryAfter) {
 		var lane = lanes.findLocked("IHB").orElseThrow();
 		var snapshot = snapshots.findLocked(claim.id()).orElseThrow();
+		boolean sourceLeaseValid = ProductSourceVendorGate.finish(lanes, claim.vendor(), claim.token(), Instant.now(),
+			throttled, serverRetryAfter);
 		if (!Objects.equals(lane.getSnapshotId(), claim.id())
 			|| !Objects.equals(snapshot.getClaimToken(), claim.token())
 			|| snapshot.getState() != State.COLLECTING)
 			return;
 		Instant now = Instant.now();
-		if (lane.getLeaseUntil() == null || !now.isBefore(lane.getLeaseUntil())) {
+		if (!sourceLeaseValid || lane.getLeaseUntil() == null || !now.isBefore(lane.getLeaseUntil())) {
 			snapshot.fail(State.FAILED, "수집 시간 제한을 초과했습니다. 늦게 도착한 결과는 적용하지 않았습니다. 새로 수집하세요.");
 		} else if (failure != null)
 			snapshot.fail(State.FAILED, failure);
 		else
 			snapshot.complete(payload, images, detail, now);
 		lane.release(now);
-		if (throttled)
-			lane.throttle(now, serverRetryAfter);
 	}
 }

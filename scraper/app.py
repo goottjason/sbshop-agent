@@ -11,10 +11,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
 from models import (
     CandidateCard, DiscoverFailure, DiscoverRequest, DiscoverResult,
-    ProductDetail, ScrapeRequest, ScrapeResult,
+    ProductDetail, ScrapeRequest, ScrapeResult, ReviewedOcadoRequest,
 )
 from scrapers.base import VendorScraper
 from scrapers.fortnum import FortnumScraper
@@ -23,6 +24,7 @@ from scrapers.iherb import IherbScraper
 from scrapers import vitabiotics as vtb_mod
 from scrapers.vitabiotics_stock import VitabioticsScraper
 from scrapers.jsonld import CostcoUkScraper, OcadoScraper, TescoScraper
+from scrapers.ocado_reviewed import fetch_reviewed, ReviewedFailure
 
 # 벤더 스크래퍼 레지스트리 — supports(url)로 첫 매칭 사용(Java SourcingAgentFactory와 대칭).
 SCRAPERS: list[VendorScraper] = [
@@ -35,6 +37,16 @@ SCRAPERS: list[VendorScraper] = [
 ]
 
 app = FastAPI(title="sbshop-scraper", version="0.1.0")
+
+
+@app.post("/scrape/reviewed/ocado")
+def scrape_reviewed_ocado(req: ReviewedOcadoRequest):
+    try:
+        return fetch_reviewed(req.url, req.mode)
+    except ReviewedFailure as error:
+        headers = {"Retry-After": str(error.retry_after)} if error.retry_after is not None else None
+        return JSONResponse(status_code=error.http_status,
+                            content={"ok": False, "errorCode": error.code}, headers=headers)
 
 
 def _dispatch(url: str) -> VendorScraper | None:

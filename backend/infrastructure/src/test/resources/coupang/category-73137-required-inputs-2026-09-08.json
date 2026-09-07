@@ -1,0 +1,356 @@
+{
+  "code": "SUCCESS",
+  "message": "",
+  "data": {
+    "isAllowSingleItem": true,
+    "attributes": [
+      {
+        "attributeTypeName": "개당 캡슐/정",
+        "dataType": "NUMBER",
+        "inputType": "INPUT",
+        "inputValues": [],
+        "basicUnit": "개",
+        "usableUnits": [
+          "정",
+          "회분"
+        ],
+        "required": "MANDATORY",
+        "groupNumber": "1",
+        "exposed": "EXPOSED"
+      },
+      {
+        "attributeTypeName": "개당 중량",
+        "dataType": "NUMBER",
+        "inputType": "INPUT",
+        "inputValues": [],
+        "basicUnit": "g",
+        "usableUnits": [
+          "g",
+          "kg"
+        ],
+        "required": "MANDATORY",
+        "groupNumber": "1",
+        "exposed": "EXPOSED"
+      },
+      {
+        "attributeTypeName": "개당 용량",
+        "dataType": "NUMBER",
+        "inputType": "INPUT",
+        "inputValues": [],
+        "basicUnit": "ml",
+        "usableUnits": [
+          "L",
+          "ml"
+        ],
+        "required": "MANDATORY",
+        "groupNumber": "1",
+        "exposed": "EXPOSED"
+      },
+      {
+        "attributeTypeName": "수량",
+        "dataType": "NUMBER",
+        "inputType": "INPUT",
+        "inputValues": [],
+        "basicUnit": "개",
+        "usableUnits": [
+          "개",
+          "박스",
+          "세트"
+        ],
+        "required": "MANDATORY",
+        "groupNumber": "NONE",
+        "exposed": "EXPOSED"
+      }
+    ],
+    "noticeCategories": [
+      {
+        "noticeCategoryName": "농수축산물",
+        "noticeCategoryDetailNames": [
+          {
+            "noticeCategoryDetailName": "품목 또는 명칭",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "포장단위별 내용물의 용량(중량),수량,크기",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "생산자(수입자)",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "원산지",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "제조연월일, 소비기한 또는 품질유지기한",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "세부 품목군별 표시사항",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "수입식품 문구 여부",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "상품구성",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "보관방법,취급방법",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "소비자안전을 위한 주의사항",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "소비자상담관련 전화번호",
+            "required": "MANDATORY"
+          }
+        ]
+      },
+      {
+        "noticeCategoryName": "가공식품",
+        "noticeCategoryDetailNames": [
+          {
+            "noticeCategoryDetailName": "제품명",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "식품의 유형",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "생산자 및 소재지",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "제조연월일, 소비기한 또는 품질유지기한",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "포장단위별 내용물의 용량(중량), 수량",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "원재료명 및 함량",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "영양성분",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "유전자변형식품에 해당하는 경우의 표시",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "소비자안전을 위한 주의사항",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "수입식품 문구",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "소비자상담관련 전화번호",
+            "required": "MANDATORY"
+          }
+        ]
+      },
+      {
+        "noticeCategoryName": "건강기능식품",
+        "noticeCategoryDetailNames": [
+          {
+            "noticeCategoryDetailName": "제품명",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "제조업소의 명칭과 소재지",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "소비기한 및 보관방법",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "포장단위별 내용물의 용량(중량), 수량",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "원료명 및 함량",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "영양정보",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "기능정보",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "섭취량, 섭취방법, 섭취 시 주의사항 및 부작용 발생 가능성",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "의약품 여부",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "유전자변형건강식품에 해당하는 경우의 표시",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "수입 건강기능식품 문구",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "소비자안전을 위한 주의사항",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "소비자상담관련 전화번호",
+            "required": "MANDATORY"
+          }
+        ]
+      },
+      {
+        "noticeCategoryName": "기타 재화(유통기간)",
+        "noticeCategoryDetailNames": [
+          {
+            "noticeCategoryDetailName": "품명 및 모델명",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "인증사항",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "제조연월일, 유통기한 또는 품질유지기한",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "제조국(원산지)",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "제조자(수입자)",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "소비자상담 관련 전화번호",
+            "required": "MANDATORY"
+          }
+        ]
+      },
+      {
+        "noticeCategoryName": "기타 재화",
+        "noticeCategoryDetailNames": [
+          {
+            "noticeCategoryDetailName": "품명 및 모델명",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "인증/허가 사항",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "제조국(원산지)",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "제조자(수입자)",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "소비자상담 관련 전화번호",
+            "required": "MANDATORY"
+          }
+        ]
+      },
+      {
+        "noticeCategoryName": "기타 가공식품",
+        "noticeCategoryDetailNames": [
+          {
+            "noticeCategoryDetailName": "식품의 유형",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "생산자/소재지(수입품의 경우 생산자, 수입자 및 제조국)",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "제조연월일, 유통기한 또는 품질유지기한",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "포장단위별 용량(중량), 수량",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "원재료명 및 함량",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "영양성분",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "유전자재조합식품 여부",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "표시광고사전심의필 유무 및 부작용 발생 가능성",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "수입식품 문구",
+            "required": "MANDATORY"
+          },
+          {
+            "noticeCategoryDetailName": "소비자상담관련 전화번호",
+            "required": "MANDATORY"
+          }
+        ]
+      }
+    ],
+    "requiredDocumentNames": [
+      {
+        "templateName": "기타인증서류",
+        "required": "OPTIONAL"
+      },
+      {
+        "templateName": "수입신고필증(병행수입 선택시)",
+        "required": "MANDATORY_PARALLEL_IMPORTED"
+      },
+      {
+        "templateName": "UN 38.3 Test Report",
+        "required": "MANDATORY_BATTERY_UN_TEST"
+      },
+      {
+        "templateName": "MSDS Test Report",
+        "required": "MANDATORY_BATTERY_MSDS_TEST"
+      },
+      {
+        "templateName": "MANDATORY INGREDIENTS PIC",
+        "required": "MANDATORY_INGREDIENTS_PIC"
+      }
+    ],
+    "certifications": [
+      {
+        "certificationType": "NOT_REQUIRED",
+        "name": "인증대상아님",
+        "dataType": "NONE",
+        "required": "OPTIONAL"
+      }
+    ],
+    "allowedOfferConditions": [
+      "NEW"
+    ],
+    "isExpirationDateRequiredForRocketGrowth": true
+  }
+}

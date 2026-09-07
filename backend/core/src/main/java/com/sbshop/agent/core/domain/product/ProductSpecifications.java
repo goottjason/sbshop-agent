@@ -63,6 +63,11 @@ public final class ProductSpecifications {
 			addInStockOnly(predicates, condition, root, cb);
 			addSourceGone(predicates, condition, root, cb);
 			addContentAge(predicates, condition.contentAgeField(), cutoff, root, query, cb);
+			if (condition.anyMarketSyncIssue())
+				predicates.add(cb.or(MarketSyncIssueSpecifications.matching(root, query, cb),
+					MarketPlusIssueSpecifications.matching(root, query, cb,
+						com.sbshop.agent.core.domain.market.marketplus.MarketPlusIssueFilter.ANY_ISSUE,
+						marketPlusScope)));
 			if (condition.marketPlusIssue() != com.sbshop.agent.core.domain.market.marketplus.MarketPlusIssueFilter.ALL)
 				predicates.add(MarketPlusIssueSpecifications.matching(root, query, cb, condition.marketPlusIssue(),
 					marketPlusScope));
@@ -194,7 +199,7 @@ public final class ProductSpecifications {
 		Subquery<Long> subquery = query.subquery(Long.class);
 		Root<ProductChangeTarget> target = subquery.from(ProductChangeTarget.class);
 		subquery.select(target.get("id")).where(cb.equal(target.get("productId"), root.get("id")),
-			target.get("state").in("PENDING_DISPATCH", "DISPATCHED", "ACTION_REQUIRED"));
+			target.get("state").in("PENDING_DISPATCH", "DISPATCHED", "ACTION_REQUIRED", "AWAITING_REVIEW"));
 		return cb.exists(subquery);
 	}
 

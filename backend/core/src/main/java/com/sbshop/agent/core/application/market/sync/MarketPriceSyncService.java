@@ -52,7 +52,8 @@ public class MarketPriceSyncService {
 				if (!"PENDING_DISPATCH".equals(target.getState()))
 					return;
 				MarketType market = MarketType.valueOf(target.getMarket());
-				if (MarketStockSyncService.handlesSavedQuantityTarget(target, mapper))
+				if (MarketStockSyncService.handlesSavedQuantityTarget(target, mapper)
+					|| MarketFieldSyncService.handlesSavedFieldsTarget(target, mapper))
 					return;
 				if (!SUPPORTED.contains(market) || !priceOnly(target)) {
 					target.priceOutcome("ACTION_REQUIRED");

@@ -125,6 +125,8 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 					.GET()
 					.build();
 
+				if (contentReview)
+					com.sbshop.agent.core.application.product.source.ProductSourceHttpGuard.check();
 				HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 				if (response.statusCode() == 200) {
 					return parser.apply(response.body(), url);

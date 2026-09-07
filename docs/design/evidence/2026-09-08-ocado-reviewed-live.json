@@ -1,0 +1,35 @@
+{
+  "observedAt": "2026-09-08T00:57:00+09:00",
+  "execution": "existing scraper container, isolated /tmp module; no service-code replacement, database write, or marketplace write",
+  "products": [
+    {
+      "sourceUrl": "https://www.ocado.com/products/cirio-italian-tomato-puree/80259011",
+      "externalId": "80259011",
+      "price": "1.50",
+      "currency": "GBP",
+      "inStock": true,
+      "stock": null,
+      "imageCount": 1,
+      "detailLength": 2121,
+      "elapsedSeconds": 6.5,
+      "ok": true
+    },
+    {
+      "sourceUrl": "https://www.ocado.com/products/mornflake-jumbo-oats/450106011",
+      "externalId": "450106011",
+      "price": "1.30",
+      "currency": "GBP",
+      "inStock": true,
+      "stock": null,
+      "imageCount": 1,
+      "detailLength": 2860,
+      "elapsedSeconds": 6.1,
+      "ok": true
+    }
+  ],
+  "representativeImageRead": {
+    "httpStatus": 200,
+    "contentType": "image/jpeg",
+    "bytes": 25163
+  }
+}

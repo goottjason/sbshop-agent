@@ -41,6 +41,78 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class CoupangMarketClient implements MarketClient {
+
+	private CoupangReviewedPublication reviewedPublication;
+
+	@org.springframework.beans.factory.annotation.Autowired
+	void configureReviewedPublication(CoupangReviewedPublication publication) {
+		this.reviewedPublication = publication;
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.PreparedMarketPublication preparePublication(Product product,
+		BigDecimal price) {
+		return reviewedPublication.prepare(product, price);
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.PreparedMarketPublication preparePublication(Product product,
+		BigDecimal price, MarketPublishContext context) {
+		return reviewedPublication.prepare(product, price, context);
+	}
+
+	@Override
+	public Map<String, Object> describePublication(Product product, String categoryId) {
+		return reviewedPublication.describe(product, categoryId);
+	}
+
+	@Override
+	public Optional<MarketPublishContext> previousPublicationContext(Product product, String categoryId,
+		String marketDetailedInfo) {
+		return reviewedPublication.previous(product, categoryId, marketDetailedInfo);
+	}
+
+	@Override
+	public Map<String, String> submitPreparedPublication(Product product, String operationId, String payload) {
+		return reviewedPublication.submit(product, operationId, payload, () -> {});
+	}
+
+	@Override
+	public Map<String, String> submitPreparedPublication(Product product, String operationId, String payload,
+		Runnable beforeWrite) {
+		return reviewedPublication.submit(product, operationId, payload, beforeWrite);
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.VerifiedMarketPublication readPreparedPublication(
+		String listingId, String sbCode, String payload) {
+		return reviewedPublication.read(listingId, sbCode, payload);
+	}
+
+	@Override
+	public boolean verifyPreparedPublication(String listingId, String sbCode, String payload) {
+		return reviewedPublication.read(listingId, sbCode, payload).verified();
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.PreparedMarketFields prepareProductFields(Product product,
+		String listingId, String optionId, Set<String> fields) {
+		return new CoupangReviewedFields(restClient, objectMapper).prepare(product, listingId, optionId, fields);
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.MarketFieldsRead readProductFields(String listingId,
+		String optionId, String expectedSbCode, Set<String> fields) {
+		return new CoupangReviewedFields(restClient, objectMapper).read(listingId, optionId, expectedSbCode, fields);
+	}
+
+	@Override
+	public void writePreparedProductFields(String listingId, String optionId, String expectedSbCode,
+		com.sbshop.agent.core.domain.market.client.dto.PreparedMarketFields prepared, Runnable beforeWrite) {
+		new CoupangReviewedFields(restClient, objectMapper).write(listingId, optionId, expectedSbCode, prepared,
+			beforeWrite);
+	}
+
 	@Override
 	public com.sbshop.agent.core.domain.market.client.dto.MarketPriceRead readSalePrice(String id, String optionId) {
 		requirePriceId(id);

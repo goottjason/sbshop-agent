@@ -4,19 +4,21 @@ import {
   useReactTable, getCoreRowModel, flexRender, createColumnHelper,
   type RowSelectionState,
 } from '@tanstack/react-table';
-import { Alert, App as AntApp, Modal as AntModal, Pagination, InputNumber, Segmented, Select, Dropdown } from 'antd';
+import { Alert, App as AntApp, Modal as AntModal, Pagination, Segmented, Select, Dropdown } from 'antd';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/Table';
 import { productApi, type ProductList, type ProductQuery } from '../../api/productApi';
-import { batchApi } from '../../api/batchApi';
 import { MarketBadgeCell } from './MarketBadgeCell';
 import { ProductFilterPanel, type ProductFilters } from './ProductFilterPanel';
 import { EMPTY_PRODUCT_FILTERS, sourceProductUrl } from './productSearch';
 import { ProductDetailModal } from './ProductDetailModal';
 import { ProductNumericPreviewModal } from './ProductNumericPreviewModal';
+import { ProductSourceRefreshModal } from './ProductSourceRefreshModal';
 import { ProductContentRefreshModal } from './ProductContentRefreshModal';
 import { ProductContentFreshnessCell } from './ProductContentFreshnessCell';
 import { ProductBulkValuesModal } from './ProductBulkValuesModal';
 import { ProductStockSync } from './ProductStockSync';
+import { ProductFieldSyncModal } from './ProductFieldSyncModal';
+import { ProductMarketPlusPublicRefresh } from './ProductMarketPlusPublicRefresh';
 import { ProductInspectionJobs } from './ProductInspectionJobs';
 import { ProductPriceSync } from './ProductPriceSync';
 import { ProductRegistrationJobs } from './ProductRegistrationJobs';
@@ -46,6 +48,7 @@ function toQuery(page: number, size: number, keyword: string, f: ProductFilters)
   if (f.markets.length > 0) q.markets = f.markets;
   if (f.registeredMarkets.length > 0) q.registeredMarkets = f.registeredMarkets;
   if (f.missingMarkets.length > 0) q.missingMarkets = f.missingMarkets;
+  if (f.anyMarketSyncIssue) q.anyMarketSyncIssue = true;
   if (f.pendingChangesOnly) q.pendingChangesOnly = true;
   if (f.marketPlusIssue !== 'ALL') q.marketPlusIssue = f.marketPlusIssue;
   if (f.inStockOnly) q.inStockOnly = true;
@@ -70,18 +73,17 @@ export default function ProductGrid() {
   const [deleteProgress, setDeleteProgress] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
-  const [bulkOpen, setBulkOpen] = useState(false);
+  const [sourceRefreshIds, setSourceRefreshIds] = useState<number[] | null>(null);
   const [numericPreviewIds, setNumericPreviewIds] = useState<number[] | null>(null);
   const [bulkValuesIds, setBulkValuesIds] = useState<number[] | null>(null);
   const [registrationIds, setRegistrationIds] = useState<number[] | null>(null);
   const [priceSyncIds, setPriceSyncIds] = useState<number[] | null>(null);
+  const [fieldSyncIds, setFieldSyncIds] = useState<number[] | null>(null);
+  const [publicCheckIds, setPublicCheckIds] = useState<number[] | null>(null);
   const [stockSyncIds, setStockSyncIds] = useState<number[] | null>(null);
   const [inspectionIds, setInspectionIds] = useState<number[] | null>(null);
   const [contentRefreshIds, setContentRefreshIds] = useState<number[] | null>(null);
-  const [bulkSubmitting, setBulkSubmitting] = useState(false);
-  const [marginRate, setMarginRate] = useState<number | null>(15);
-  const [couponRate, setCouponRate] = useState<number | null>(20);
-  const [minMarginPrice, setMinMarginPrice] = useState<number | null>(5000);
+
 
   const query = useMemo(() => ({ ...toQuery(page, pageSize, keyword, filters), sort }), [page, pageSize, keyword, filters, sort]);
 
@@ -247,22 +249,6 @@ export default function ProductGrid() {
     });
   };
 
-  const handleBulkUpdate = async () => {
-    if (selectedIds.length === 0) { notify.warning('업데이트할 상품을 선택하세요.'); return; }
-    setBulkSubmitting(true);
-    try {
-      const res = await batchApi.crawlAndUpdate(selectedIds, marginRate ?? 15, couponRate ?? 20, minMarginPrice ?? 5000);
-      const batchId = (res.data as Record<string, string> | undefined)?.batchId;
-      notify.success(`가격/재고 업데이트 배치 시작 (${selectedIds.length}건${batchId ? ` · ${batchId}` : ''}). 진행 현황에서 결과를 확인하세요.`);
-      setBulkOpen(false);
-      setRowSelection({});
-    } catch {
-      notify.error('배치 시작 실패 — 소싱 URL이 없는 상품이 포함됐을 수 있습니다.');
-    } finally {
-      setBulkSubmitting(false);
-    }
-  };
-
   return (
     <div className={`product-theme pw-density-${density}`} style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '14px 20px', background: '#f4f6f7' }}>
       <style>{`
@@ -289,8 +275,8 @@ export default function ProductGrid() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button className="pw-detail-button" onClick={() => setContentRefreshIds(!isPlaceholderData && !isError ? [...selectedIds] : [])}>이미지·상세 갱신{selectedIds.length > 0 && !isPlaceholderData && !isError ? ` (${selectedIds.length})` : ''}</button>
           <button className="pw-detail-button" onClick={() => setRegistrationIds(!isPlaceholderData && !isError ? [...selectedIds] : [])}>미등록 마켓 등록·작업</button>
-          <Dropdown trigger={['click']} menu={{ items: [{ key: 'price', label: '판매가 반영·작업' }, { key: 'stock', label: '판매용 수량 반영·작업' }],
-            onClick: ({ key }) => { const ids = !isPlaceholderData && !isError ? [...selectedIds] : []; if (key === 'price') setPriceSyncIds(ids); else setStockSyncIds(ids); } }}>
+          <Dropdown trigger={['click']} menu={{ items: [{ key: 'price', label: '판매가 반영·작업' }, { key: 'stock', label: '판매용 수량 반영·작업' }, { key: 'fields', label: '이미지·상세·기본정보 반영·작업' }, { key: 'public', label: 'G마켓·옥션 공개가격 재조회' }],
+            onClick: ({ key }) => { const ids = !isPlaceholderData && !isError ? [...selectedIds] : []; if (key === 'price') setPriceSyncIds(ids); else if (key === 'stock') setStockSyncIds(ids); else if (key === 'public') setPublicCheckIds(ids); else setFieldSyncIds(ids); } }}>
             <button className="pw-detail-button">마켓 반영·작업 ▾</button>
           </Dropdown>
           <button className="pw-detail-button" onClick={() => setInspectionIds(!isPlaceholderData && !isError ? [...selectedIds] : [])}>마켓 상태 확인·작업</button>
@@ -301,8 +287,8 @@ export default function ProductGrid() {
             </Dropdown>
           )}
           {selectedIds.length > 0 && !isPlaceholderData && !isError && (
-            <button onClick={() => setBulkOpen(true)} style={{ padding: '8px 16px', backgroundColor: 'var(--product-primary)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 700, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>
-              선택 가격/재고 업데이트 ({selectedIds.length})
+            <button onClick={() => setSourceRefreshIds([...selectedIds])} style={{ padding: '8px 16px', backgroundColor: 'var(--product-primary)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 700, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>
+              소싱 가격·재고 비교 ({selectedIds.length})
             </button>
           )}
           {selectedIds.length > 0 && !isPlaceholderData && !isError && (
@@ -326,8 +312,11 @@ export default function ProductGrid() {
       {bulkValuesIds && <ProductBulkValuesModal productIds={bulkValuesIds} onClose={() => setBulkValuesIds(null)} onSaved={() => { void refetch(); }} />}
       {registrationIds && <ProductRegistrationJobs productIds={registrationIds} onClose={() => { setRegistrationIds(null); void refetch(); }} />}
       {priceSyncIds && <ProductPriceSync productIds={priceSyncIds} onClose={() => { setPriceSyncIds(null); void refetch(); }} />}
+      {publicCheckIds && <ProductMarketPlusPublicRefresh productIds={publicCheckIds} onClose={() => { setPublicCheckIds(null); void refetch(); }} />}
+      {fieldSyncIds && <ProductFieldSyncModal productIds={fieldSyncIds} onClose={() => { setFieldSyncIds(null); void refetch(); }} />}
       {stockSyncIds && <ProductStockSync productIds={stockSyncIds} onClose={() => { setStockSyncIds(null); void refetch(); }} />}
       {inspectionIds && <ProductInspectionJobs productIds={inspectionIds} onClose={() => { setInspectionIds(null); void refetch(); }} />}
+      {sourceRefreshIds && <ProductSourceRefreshModal productIds={sourceRefreshIds} onClose={() => setSourceRefreshIds(null)} onSaved={() => { void refetch(); }} />}
       {contentRefreshIds && <ProductContentRefreshModal productIds={contentRefreshIds} onClose={() => setContentRefreshIds(null)} onSaved={() => { void refetch(); }} />}
 
       <div className="pw-result-controls">
@@ -404,35 +393,7 @@ export default function ProductGrid() {
         />
       </div>
 
-      <AntModal
-        rootClassName="product-theme"
-        title={`선택 상품 가격/재고 업데이트 (${selectedIds.length}개)`}
-        open={bulkOpen}
-        onCancel={() => setBulkOpen(false)}
-        onOk={handleBulkUpdate}
-        okText="적용"
-        cancelText="취소"
-        confirmLoading={bulkSubmitting}
-        okButtonProps={{ style: { background: 'var(--product-primary)', borderColor: 'var(--product-primary)' } }}
-      >
-        <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '8px 10px', marginBottom: 14 }}>
-          선택 상품을 소싱처에서 크롤해 마켓별 실수수료로 판매가를 재산정하고 연동 마켓에 반영합니다. 비동기 배치로 실행되며, 소싱 URL이 없는 상품은 실패할 수 있습니다.
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <span style={{ color: '#374151' }}>마진율 (%)</span>
-            <InputNumber min={0} value={marginRate} onChange={setMarginRate} style={{ width: 160 }} />
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <span style={{ color: '#374151' }}>쿠폰율 (구매시 할인율, %)</span>
-            <InputNumber min={0} value={couponRate} onChange={setCouponRate} style={{ width: 160 }} />
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <span style={{ color: '#374151' }}>최소 마진가 (원)</span>
-            <InputNumber min={0} step={100} value={minMarginPrice} onChange={setMinMarginPrice} style={{ width: 160 }} />
-          </label>
-        </div>
-      </AntModal>
+
 
       <ProductDetailModal
         productId={detailId}

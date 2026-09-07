@@ -1,0 +1,47 @@
+{
+  "status": "passed",
+  "checks": [
+    "조회 실패 차단·GET 재시도·DB 옵션만 제안",
+    "과거 후보 선택만으로 자동 적용하지 않음",
+    "과거 자료 명시 불러오기·현 메타 필터·카테고리 명시 선택",
+    "조건부 비해당만 허용·필수 서류·HTTPS URL 검증",
+    "인증 미선택·코드 누락 차단·명시 코드 전달",
+    "배타 옵션 그룹·숫자 허용 단위 검증",
+    "카테고리 변경·조회 실패 시 이전 입력 무효화",
+    "GET 메타만 사용·유효한 context만 부모에 전달"
+  ],
+  "metadataQueries": [
+    null,
+    null,
+    "100",
+    "200",
+    "200",
+    null,
+    "100"
+  ],
+  "context": {
+    "categoryId": "100",
+    "categoryPath": "추천 식품 카테고리",
+    "noticeFields": {
+      "제품명": "이전 등록의 상품명"
+    },
+    "extraFields": {
+      "noticeCategoryName": "식품",
+      "attributes": {
+        "수량": "2개",
+        "개당 용량": "250ml"
+      },
+      "certifications": {
+        "NOT_REQUIRED": ""
+      },
+      "documentUrls": {
+        "판매 허가서": "https://fixture.example/permit.pdf"
+      },
+      "documentNotApplicable": {
+        "배터리 시험서": "true"
+      }
+    }
+  },
+  "fixtureOnly": true,
+  "servedImages": []
+}

@@ -23,6 +23,8 @@ public class ProductEditPolicy {
 		"minMarginPrice", "exchangeRate", "deliveryFee");
 
 	public Rule rule(String field, List<MarketRegistration> links) {
+		if (field.equals("stockStatus"))
+			return new Rule(field, Permission.LOCKED, "소싱 재고 상태는 수집 증거를 검토한 전용 경로에서만 변경합니다.");
 		links = links.stream().filter(MarketRegistration::hasActiveConnections).toList();
 		if (field.equals("memo"))
 			return new Rule(field, Permission.INTERNAL, "내부 메모는 외부마켓에 전송하지 않습니다.");
@@ -39,23 +41,59 @@ public class ProductEditPolicy {
 			.anyMatch(r -> r.getMarketType() == MarketType.COUPANG && !r.getConnectionState().detached()))
 			return new Rule(field, Permission.LOCKED,
 				"쿠팡 연결 기록이 있습니다. 등록 후 카테고리 직접 변경이 제한됩니다. 삭제·오류 표시는 연결 해제 근거가 아닙니다.");
-		if (field.equals("salesQuantity") && links.stream()
-			.allMatch(r -> r.getMarketType() == MarketType.COUPANG && r.connectionWriteBlock() == null
-				&& r.extractLiveLookupId().matches("[1-9][0-9]{0,17}")
-				&& r.identifier("vendorItemId") != null && r.identifier("vendorItemId").matches("[1-9][0-9]{0,17}")))
+		if (field.equals("salesQuantity") && links.stream().allMatch(r -> r.connectionWriteBlock() == null
+			&& r.extractLiveLookupId().matches("[1-9][0-9]{0,17}")
+			&& (r.getMarketType() == MarketType.SMART_STORE || r.getMarketType() == MarketType.COUPANG
+				&& r.identifier("vendorItemId") != null && r.identifier("vendorItemId").matches("[1-9][0-9]{0,17}"))))
 			return new Rule(field, Permission.EDITABLE,
-				"쿠팡 판매용 수량 변경을 저장하고 별도 수량 큐에서 SB코드·옵션·판매 상태 확인 후 반영합니다. 수집 오류·판매정지는 보류하며 DB 저장은 마켓 성공이 아닙니다.");
+				"판매용 수량을 별도 큐에서 SB코드·옵션·판매 상태 확인 후 반영합니다. 다중 옵션·판매정지는 보류하며 DB 저장은 마켓 성공이 아닙니다.");
+		if (links.stream().allMatch(r -> reviewedFieldSupported(field, r)))
+			return new Rule(field, Permission.EDITABLE,
+				links.stream().anyMatch(r -> r.getMarketType() == MarketType.COUPANG)
+					? "검토 필드 변경을 저장합니다. 쿠팡은 준비된 전송값과 심사 요청 동의 후 전송하며 승인·실제 값 재조회 전에는 반영 성공이 아닙니다."
+					: "검토한 필드만 전송하고 실제 값을 다시 조회합니다. DB 저장은 마켓 반영 성공이 아닙니다.");
 		if (field.equals("salesQuantity"))
 			return new Rule(field, Permission.VERIFICATION_REQUIRED,
 				"판매용 설정 수량은 DB 재고와 분리되어 있습니다. 연결 마켓의 수량 반영 계약을 확인한 후 편집합니다.");
 		if (field.equals("stock"))
 			return new Rule(field, Permission.VERIFICATION_REQUIRED,
 				"기존 DB 재고와 판매용 설정 수량을 분리하고 마켓별 재고 계약을 확인한 후 편집을 제공합니다.");
+
 		if (field.equals("barcode"))
 			return new Rule(field, Permission.VERIFICATION_REQUIRED,
 				"연결된 마켓의 바코드 수정 가능 여부와 기존 값을 확인한 뒤 편집을 제공합니다.");
 		return new Rule(field, Permission.VERIFICATION_REQUIRED,
 			"연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.");
+	}
+
+	private boolean reviewedFieldSupported(String field, MarketRegistration r) {
+		if (r.connectionWriteBlock() != null)
+			return false;
+		if (r.getMarketType() == MarketType.COUPANG && (r.identifier("vendorItemId") == null
+			|| !r.identifier("vendorItemId").matches("[1-9][0-9]{0,17}")))
+			return false;
+		if (r.getMarketType() == MarketType.COUPANG || r.getMarketType() == MarketType.SMART_STORE)
+			return Set.of("name", "brand", "manufacturer", "barcode", "hostedImages", "detailHtml").contains(field);
+		if (r.getMarketType() == MarketType.ELEVEN_STREET)
+			return field.equals("detailHtml");
+		return nativeCafe24(r) && Set.of("name", "brand", "weight", "barcode", "detailHtml").contains(field);
+	}
+
+	private boolean nativeCafe24(MarketRegistration r) {
+		return r.getMarketType() == MarketType.CAFE24
+			&& (r.identifier(MarketRegistration.GMARKET_IDENTIFIER_KEY) == null
+				|| r.connectionStateFor(MarketType.GMARKET).detached())
+			&& (r.identifier(MarketRegistration.AUCTION_IDENTIFIER_KEY) == null
+				|| r.connectionStateFor(MarketType.AUCTION).detached());
+	}
+
+	/** Only a persisted source observation may use this rule; ordinary editors always use rule(). */
+	public Rule sourceObservationRule(String field, List<MarketRegistration> links) {
+		if (!Set.of("stockStatus", "stock").contains(field))
+			return rule(field, links);
+		Rule connection = rule("costPrice", links);
+		return connection.editable() ? new Rule(field, Permission.INTERNAL,
+			"검토한 소싱 관측값입니다. 실재고는 판매용 설정 수량으로 대체하지 않습니다.") : connection;
 	}
 
 	public List<Connection> connections(List<MarketRegistration> links) {

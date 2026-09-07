@@ -39,8 +39,14 @@ public class IherbProductContentSource implements ProductContentSource {
 			throw new ProductContentFailureException(ProductContentFailureException.Code.SOURCE_IDENTITY_MISMATCH);
 		if (dto.baseName() == null || dto.baseName().isBlank())
 			throw new ProductContentFailureException(ProductContentFailureException.Code.SOURCE_NAME_MISSING);
+		return prepare(dto.sourceImages(), dto.rawSourceHtml(), ProductContentUrls::sourceImage);
+	}
+
+	/** Shared bounded download/hosting pipeline; each provider supplies its own exact URL allow-list. */
+	public Fetch prepare(List<String> requestedImages, String description,
+		java.util.function.Function<String, String> imageUrl) {
 		List<String> notices = new ArrayList<>();
-		List<String> images = dto.sourceImages() == null ? List.of() : dto.sourceImages();
+		List<String> images = requestedImages == null ? List.of() : requestedImages;
 		List<String> hosted = List.of();
 		boolean imagesComplete = false;
 		if (images.isEmpty())
@@ -51,7 +57,8 @@ public class IherbProductContentSource implements ProductContentSource {
 			List<ImageUploadFile> files = new ArrayList<>();
 			try {
 				for (int i = 0; i < images.size(); i++)
-					files.add(download(ProductContentUrls.sourceImage(images.get(i)), i));
+					files.add(download(imageUrl.apply(images.get(i)), i));
+				com.sbshop.agent.core.application.product.source.ProductSourceHttpGuard.check();
 				Map<String, String> uploaded = storage.uploadImages(files);
 				List<String> ordered = new ArrayList<>();
 				for (ImageUploadFile file : files)
@@ -72,7 +79,7 @@ public class IherbProductContentSource implements ProductContentSource {
 					} catch (IOException ignored) {}
 			}
 		}
-		String html = sanitize(dto.rawSourceHtml());
+		String html = sanitize(description);
 		boolean detailComplete = html != null && !html.isBlank() && !Jsoup.parseBodyFragment(html).text().isBlank();
 		if (!detailComplete)
 			notices.add("소싱 상세 설명이 비어 있거나 허용 크기를 초과하여 상세 HTML 적용을 제외했습니다.");
@@ -91,6 +98,7 @@ public class IherbProductContentSource implements ProductContentSource {
 	private ImageUploadFile download(String url, int index) throws Exception {
 		var request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(25))
 			.header("User-Agent", "Mozilla/5.0").header("Accept", "image/*").GET().build();
+		com.sbshop.agent.core.application.product.source.ProductSourceHttpGuard.check();
 		var response = http.send(request, boundedImageBody());
 		if (response.statusCode() == 429)
 			throw new ProductContentThrottledException(

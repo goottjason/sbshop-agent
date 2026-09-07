@@ -25,6 +25,7 @@ public record ProductSearchCondition(
 	List<MarketType> registeredMarkets,
 	List<MarketType> missingMarkets,
 	boolean pendingChangesOnly,
+	boolean anyMarketSyncIssue,
 	com.sbshop.agent.core.domain.market.marketplus.MarketPlusIssueFilter marketPlusIssue,
 	boolean inStockOnly,
 	boolean includeUncategorized,

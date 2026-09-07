@@ -27,6 +27,7 @@ class MarketStockSchemaPostgresTest {
 				postgres.getPassword());
 			var statement = connection.createStatement()) {
 			statement.execute(Files.readString(Path.of("../docs/ddl/2026-09-07-market-stock-sync.sql")));
+			statement.execute(Files.readString(Path.of("../docs/ddl/2026-09-07-market-field-sync.sql")));
 		}
 	}
 

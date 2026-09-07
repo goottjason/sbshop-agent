@@ -169,8 +169,39 @@ public class ProductEditService {
 		return commitOne(new ProductEditReview(reviewId, actor, expiresAt.minusSeconds(1800), ""), plan, actor);
 	}
 
+	/** Caller owns an immutable, actor-bound source snapshot and joins its applied timestamp in this transaction. */
+	@Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+	public CommitItem commitReviewedSource(String reviewId, String actor, Instant expiresAt, Instant collectedAt,
+		boolean stockReviewed, ProductEditPlanner.Plan plan) {
+		requireActor(actor);
+		if (plan.state() != ProductEditPlanner.State.READY)
+			return new CommitItem(plan.productId(), plan.sbCode(), plan.state().name(), null,
+				String.join(" / ", plan.reasons()));
+		Product product = products.findForEdit(plan.productId())
+			.orElseThrow(() -> new ProductEditConflictException("상품 없음"));
+		var saved = histories.findByReviewIdAndProductId(reviewId, product.getId());
+		if (saved.isPresent())
+			return success(plan, saved.get().getId(), "이미 저장된 소싱 검토입니다. 중복 적용하지 않았습니다.");
+		if (product.isDeleted() || !Instant.now().isBefore(expiresAt) || product.getRevision() != plan.revision()
+			|| collectedAt == null || collectedAt.isAfter(Instant.now()))
+			throw new ProductEditConflictException("상품 버전 또는 소싱 검토 만료");
+		var links = registrations.findByProductId(product.getId());
+		if (!planner.fingerprint(links).equals(plan.connectionFingerprint()))
+			throw new ProductEditConflictException("연결 상태 변경");
+		var current = planner.planSourceObservation(product, mapper.valueToTree(plan.command()), links);
+		if (current.state() != ProductEditPlanner.State.READY
+			|| !comparable(current.changes()).equals(comparable(plan.changes()))
+			|| !current.prices().equals(plan.prices()))
+			throw new ProductEditConflictException("소싱 편집 정책 또는 파생값 변경");
+		if (stockReviewed)
+			product.recordReviewedCrawlSuccess(collectedAt);
+		var history = persist(reviewId, actor, product, plan);
+		return success(plan, history.getId(), hasMarketChanges(plan) ? "DB 저장 완료 · 마켓 미반영 대상으로 기록됨" : "DB 저장 완료");
+	}
+
 	private boolean hasMarketChanges(ProductEditPlanner.Plan plan) {
-		return !plan.connections().isEmpty() && plan.changes().stream().anyMatch(c -> !c.field().equals("memo"));
+		return !plan.connections().isEmpty()
+			&& plan.changes().stream().anyMatch(c -> !Set.of("memo", "stock").contains(c.field()));
 	}
 
 	private ProductChangeHistory persist(String reviewId, String actor, Product product, ProductEditPlanner.Plan plan) {
@@ -194,14 +225,17 @@ public class ProductEditService {
 	private List<String> targetSnapshots(ProductEditPlanner.Plan plan) {
 		Set<String> fields = plan.changes().stream().map(ProductEditPlanner.Change::field)
 			.filter(field -> !field.equals("memo")).collect(Collectors.toSet());
-		boolean split = fields.contains("salesQuantity")
-			&& fields.stream().anyMatch(ProductEditPolicy.PRICE_FIELDS::contains)
-			&& fields.stream()
-				.allMatch(field -> field.equals("salesQuantity") || ProductEditPolicy.PRICE_FIELDS.contains(field));
-		if (!split)
-			return List.of(json(plan));
-		return List.of(targetSnapshot(plan, ProductEditPolicy.PRICE_FIELDS),
-			targetSnapshot(plan, Set.of("salesQuantity")));
+		var result = new ArrayList<String>();
+		Set<String> quantities = Set.of("salesQuantity", "stockStatus");
+		if (fields.stream().anyMatch(ProductEditPolicy.PRICE_FIELDS::contains))
+			result.add(targetSnapshot(plan, ProductEditPolicy.PRICE_FIELDS));
+		if (fields.stream().anyMatch(quantities::contains))
+			result.add(targetSnapshot(plan, quantities));
+		Set<String> other = fields.stream().filter(field -> !ProductEditPolicy.PRICE_FIELDS.contains(field)
+			&& !quantities.contains(field) && !field.equals("stock")).collect(Collectors.toSet());
+		if (!other.isEmpty())
+			result.add(targetSnapshot(plan, other));
+		return List.copyOf(result);
 	}
 
 	private String targetSnapshot(ProductEditPlanner.Plan plan, Set<String> fields) {

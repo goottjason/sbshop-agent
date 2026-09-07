@@ -99,6 +99,8 @@ class ProductContentServiceIntegrationTest {
 		registrations.deleteAll();
 		products.deleteAll();
 		lanes.saveAndFlush(new ProductContentLane("IHB"));
+		for (String vendor : List.of("IHB", "VTB", "FTN", "COK"))
+			lanes.saveAndFlush(new ProductContentLane("SOURCE_" + vendor));
 		when(source.fetch(anyString())).thenReturn(new ProductContentSource.Fetch(List.of(ORIGINAL), List.of(NEW),
 			"<p>새 소싱 설명</p>", true, true, List.of()));
 	}
@@ -201,7 +203,7 @@ class ProductContentServiceIntegrationTest {
 		var failed = completed(product(VendorType.IHB));
 		assertThat(failed.state()).isEqualTo(State.FAILED); assertThat(failed.collectedAt()).isNull();
 		assertThat(failed.fields()).allMatch(field -> !field.available() && field.collectedAt() == null);
-		tx.executeWithoutResult(s -> lanes.findLocked("IHB").orElseThrow().release(Instant.now().minusSeconds(10)));
+		tx.executeWithoutResult(s -> { for(String id:List.of("IHB","SOURCE_IHB")) ReflectionTestUtils.setField(lanes.findLocked(id).orElseThrow(), "nextAllowedAt", Instant.now().minusSeconds(1)); });
 		when(source.fetch(anyString())).thenReturn(new ProductContentSource.Fetch(List.of(), List.of(), "<p>새 상세</p>", false, true, List.of("이미지 실패")));
 		var partial = completed(product(VendorType.IHB));
 		assertThat(partial.state()).isEqualTo(State.PARTIAL);
@@ -221,7 +223,11 @@ class ProductContentServiceIntegrationTest {
 		assertThat(service.collection(snapshots.findById(snapshot.id()).orElseThrow().getCollectionId(), "admin")
 			.items().getFirst().fields())
 			.allMatch(field -> !field.editable());
-		tx.executeWithoutResult(s -> lanes.findLocked("IHB").orElseThrow().release(Instant.now().minusSeconds(10)));
+		tx.executeWithoutResult(s -> {
+			for (String id : List.of("IHB", "SOURCE_IHB"))
+				ReflectionTestUtils.setField(lanes.findLocked(id).orElseThrow(), "nextAllowedAt",
+					Instant.now().minusSeconds(1));
+		});
 		var recaptured = completed(product);
 		assertThat(review(recaptured, Field.DETAIL_HTML).items().getFirst().state())
 			.isEqualTo(ProductEditPlanner.State.EXCLUDED);
@@ -279,7 +285,8 @@ class ProductContentServiceIntegrationTest {
 		worker.tick();
 		worker.tick();
 		verify(source, times(1)).fetch(anyString());
-		assertThat(lanes.findById("IHB").orElseThrow().getNextAllowedAt()).isAfter(Instant.now().plusSeconds(290));
+		assertThat(lanes.findById("SOURCE_IHB").orElseThrow().getNextAllowedAt())
+			.isAfter(Instant.now().plusSeconds(290));
 		assertThat(snapshots.countByStateIn(List.of(State.FAILED))).isEqualTo(1);
 		assertThat(snapshots.countByStateIn(List.of(State.QUEUED))).isEqualTo(1);
 	}
@@ -291,7 +298,7 @@ class ProductContentServiceIntegrationTest {
 		when(source.fetch(anyString())).thenThrow(new ProductContentThrottledException(serverAt));
 		worker.tick();
 		worker.tick();
-		assertThat(lanes.findById("IHB").orElseThrow().getNextAllowedAt()).isEqualTo(serverAt);
+		assertThat(lanes.findById("SOURCE_IHB").orElseThrow().getNextAllowedAt()).isEqualTo(serverAt);
 		verify(source, times(1)).fetch(anyString());
 	}
 
@@ -312,7 +319,11 @@ class ProductContentServiceIntegrationTest {
 	void oneConflictedProductDoesNotRollBackAnotherProductsReviewedContent() {
 		var first = product(VendorType.IHB);
 		var firstSnapshot = completed(first);
-		tx.executeWithoutResult(s -> lanes.findLocked("IHB").orElseThrow().release(Instant.now().minusSeconds(10)));
+		tx.executeWithoutResult(s -> {
+			for (String id : List.of("IHB", "SOURCE_IHB"))
+				ReflectionTestUtils.setField(lanes.findLocked(id).orElseThrow(), "nextAllowedAt",
+					Instant.now().minusSeconds(1));
+		});
 		var second = product(VendorType.IHB);
 		var secondSnapshot = completed(second);
 		var reviewed = service.review(new ProductContentService.ReviewRequest(List.of(

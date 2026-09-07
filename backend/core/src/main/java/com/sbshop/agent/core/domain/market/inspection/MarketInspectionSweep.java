@@ -6,7 +6,7 @@ import lombok.*;
 
 /** Daily enrollment cursor. Batch creation and cursor advancement commit together. */
 @Entity
-@Table(name = "sb_market_inspection_sweep", uniqueConstraints = @UniqueConstraint(columnNames = "run_date"))
+@Table(name = "sb_market_inspection_sweep", uniqueConstraints = @UniqueConstraint(columnNames = {"market", "run_date"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MarketInspectionSweep {
@@ -15,6 +15,8 @@ public class MarketInspectionSweep {
 	private String id;
 	@Column(nullable = false)
 	private LocalDate runDate;
+	@Column(nullable = false, length = 50)
+	private String market;
 	@Column(nullable = false, length = 200)
 	private String accountReference;
 	@Column(nullable = false)
@@ -34,7 +36,12 @@ public class MarketInspectionSweep {
 	private Instant finishedAt;
 
 	public MarketInspectionSweep(String id, LocalDate day, String account, long upperId, Instant now) {
+		this(id, day, account, upperId, now, "SMART_STORE");
+	}
+
+	public MarketInspectionSweep(String id, LocalDate day, String account, long upperId, Instant now, String market) {
 		this.id = id;
+		this.market = market;
 		runDate = day;
 		accountReference = account;
 		upperRegistrationId = upperId;

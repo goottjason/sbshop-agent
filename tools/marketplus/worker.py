@@ -14,6 +14,7 @@ import time
 import uuid
 from browser import Browser, BrowserError, collector
 from relay import Client, RelayError, atomic_save, read_collection, upload
+from public_queue import PublicClient, process_one
 
 COLLECTION_ERRORS = {'LOGIN_REQUIRED', 'HISTORY_PAGE_REQUIRED', 'HISTORY_PAGE_NOT_STABLE',
                      'HISTORY_START_PAGE_MISMATCH', 'HISTORY_DATE_RANGE_REVIEW_REQUIRED',
@@ -183,6 +184,11 @@ def main():
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     browser = Browser(args.webdriver_url, root / 'browser-session.json')
     make_client = lambda: Client(args.base_url, os.environ.get('SBSHOP_RELAY_USERNAME'), os.environ.get('SBSHOP_RELAY_PASSWORD'))
+    make_public_client = lambda: PublicClient(args.base_url, os.environ.get('SBSHOP_RELAY_USERNAME'), os.environ.get('SBSHOP_RELAY_PASSWORD'))
+    def public_tick():
+        result = process_one(root, browser, make_public_client)
+        atomic_save(root / 'public-check-status.json', result)
+        return result
     stopping = False
     def stop(signum, frame):
         nonlocal stopping
@@ -195,9 +201,16 @@ def main():
         except BlockingIOError:
             parser.exit(1, '같은 수집 작업이 이미 실행 중입니다.\n')
         while not stopping:
-            status = cycle(root, browser, args.mall_id, args.max_pages, make_client,
-                           accounts={'gmarket': os.environ.get('MARKETPLUS_GMARKET_ACCOUNT', ''),
-                                     'auction': os.environ.get('MARKETPLUS_AUCTION_ACCOUNT', '')})
+            public_tick()  # Independent of history login/collect flags; queued requests cannot be starved by them.
+            with (root / 'browser-lease.lock').open('a') as browser_lock:
+                try:
+                    fcntl.flock(browser_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    time.sleep(5)
+                    continue
+                status = cycle(root, browser, args.mall_id, args.max_pages, make_client,
+                               accounts={'gmarket': os.environ.get('MARKETPLUS_GMARKET_ACCOUNT', ''),
+                                         'auction': os.environ.get('MARKETPLUS_AUCTION_ACCOUNT', '')})
             print(json.dumps({k: status[k] for k in ('state', 'error', 'lastAttemptAt', 'finishedAt')}, ensure_ascii=False), flush=True)
             if args.once:
                 break
@@ -205,7 +218,8 @@ def main():
             end = time.monotonic() + delay
             # Keep the interactive session alive without reloading or reading the market page.
             while not stopping and time.monotonic() < end:
-                time.sleep(min(30, max(0, end - time.monotonic())))
+                time.sleep(min(5, max(0, end - time.monotonic())))
+                status['publicCheck'] = public_tick()
                 status['heartbeatAt'] = time.time()
                 save_status(root / 'status.json', status)
                 # Explicit operator flag changes take effect without waiting for the next full interval.

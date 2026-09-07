@@ -573,4 +573,81 @@ class MarketStockSyncIntegrationTest {
 		verify(client, never()).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
 	}
 
+	void smartstoreRegistration() {
+		registrations.deleteAll();
+		reg = registrations
+			.saveAndFlush(MarketRegistration.builder().productId(product.getId()).marketType(MarketType.SMART_STORE)
+				.marketIdentifiers("{\"originProductNo\":\"123\"}").build());
+		when(clients.hasClient(MarketType.SMART_STORE)).thenReturn(true);
+		when(clients.getClient(MarketType.SMART_STORE)).thenReturn(client);
+	}
+
+	@Test
+	void smartstoreQuantityQueueConfirmsOnlyExactOriginQuantityAndKeepsSourceStockSeparate() {
+		smartstoreRegistration();
+		var r = service.preview(List.of(product.getId()), Set.of(MarketType.SMART_STORE), "admin");
+		assertThat(r.items().getFirst().expectedQuantity()).isEqualTo(300);
+		service.commit(r.id(), "admin");
+		when(client.readStockQuantity("123", null, product.getSbCode()))
+			.thenReturn(new MarketStockRead(300, true, "origin", "account-A", "ORIGIN:123"));
+		service.processOne(MarketType.SMART_STORE);
+		assertThat(state(r.id())).isEqualTo("CONFIRMED_QUANTITY");
+		verify(client, never()).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+		assertThat(registrations.findById(reg.getId()).orElseThrow().getIsSynced()).isNotEqualTo(true);
+	}
+
+	@Test
+	void smartstoreUncertainWriteReusesFrozenOptionIdentityAndReadsBeforeResending() {
+		smartstoreRegistration();
+		var r = service.preview(List.of(product.getId()), Set.of(MarketType.SMART_STORE), "admin");
+		service.commit(r.id(), "admin");
+		when(client.readStockQuantity("123", null, product.getSbCode()))
+			.thenReturn(new MarketStockRead(10, true, "option", "account-A", "COMBINATION:456"));
+		when(client.readStockQuantity("123", "COMBINATION:456", product.getSbCode()))
+			.thenReturn(new MarketStockRead(300, true, "option", "account-A", "COMBINATION:456"));
+		doAnswer(call -> {
+			call.<Runnable>getArgument(5).run();
+			throw new MarketTransferFailure("TRANSPORT_ERROR", "timeout", null, null);
+		})
+			.when(client).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+		service.processOne(MarketType.SMART_STORE);
+		assertThat(state(r.id())).isEqualTo("VERIFY");
+		release();
+		service.processOne(MarketType.SMART_STORE);
+		assertThat(state(r.id())).isEqualTo("CONFIRMED_QUANTITY");
+		verify(client, times(1)).writeStockQuantity(eq("123"), eq("COMBINATION:456"), eq(product.getSbCode()), eq(300),
+			eq("account-A"), any());
+		verify(client).readStockQuantity("123", "COMBINATION:456", product.getSbCode());
+	}
+
+	@Test
+	void smartstore429BlocksTheExistingSmartstorePriceLaneToo() {
+		smartstoreRegistration();
+		var stock = service.preview(List.of(product.getId()), Set.of(MarketType.SMART_STORE), "admin");
+		service.commit(stock.id(), "admin");
+		var price = priceSync.preview(List.of(product.getId()), Set.of(MarketType.SMART_STORE), "admin");
+		priceSync.commit(price.id(), "admin");
+		when(client.readStockQuantity("123", null, product.getSbCode()))
+			.thenThrow(new MarketTransferFailure("HTTP_429", "limit", Instant.now().plusSeconds(900), null));
+		service.processOne(MarketType.SMART_STORE);
+		assertThat(priceSync.claim(MarketType.SMART_STORE)).isNull();
+		assertThat(state(stock.id())).isEqualTo("VERIFY");
+	}
+
+	@Test
+	void smartstoreOptionIdentityChangeCannotConfirmOrWriteToAnotherOption() {
+		smartstoreRegistration();
+		var r = service.preview(List.of(product.getId()), Set.of(MarketType.SMART_STORE), "admin");
+		service.commit(r.id(), "admin");
+		when(client.readStockQuantity("123", null, product.getSbCode()))
+			.thenReturn(new MarketStockRead(10, true, "option", "account-A", "COMBINATION:456"));
+		service.processOne(MarketType.SMART_STORE);
+		release();
+		when(client.readStockQuantity("123", "COMBINATION:456", product.getSbCode()))
+			.thenReturn(new MarketStockRead(300, true, "changed", "account-A", "STANDARD:456"));
+		service.processOne(MarketType.SMART_STORE);
+		assertThat(state(r.id())).isEqualTo("UNKNOWN");
+		assertThat(tasks.findByReviewIdOrderById(r.id()).getFirst().getWrites()).isEqualTo(1);
+	}
+
 }

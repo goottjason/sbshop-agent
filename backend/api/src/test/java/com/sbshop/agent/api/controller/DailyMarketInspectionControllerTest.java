@@ -37,4 +37,10 @@ class DailyMarketInspectionControllerTest {
         mvc.perform(get(root + "/missing/batches")).andExpect(status().isNotFound());
         verifyNoInteractions(selected);
     }
+
+	@Test void marketStatusesAreReadOnlyAndPreserveUnconfirmedHistoricalAccount()throws Exception {
+        when(daily.statuses()).thenReturn(List.of(new DailyMarketInspectionService.MarketDailyStatus("COUPANG",new DailyMarketInspectionService.DailyStatus(true,false,"매일 03:00",null,"과거 계정 미확인",null))));
+        mvc.perform(get(root+"/markets")).andExpect(status().isOk()).andExpect(jsonPath("$[0].market").value("COUPANG")).andExpect(jsonPath("$[0].status.accountVerified").value(false));
+        verify(daily).statuses();verifyNoMoreInteractions(daily);verifyNoInteractions(selected);
+    }
 }

@@ -76,6 +76,7 @@ export interface ProductQuery {
   registeredMarkets?: string[];
   missingMarkets?: string[];
   pendingChangesOnly?: boolean;
+  anyMarketSyncIssue?: boolean;
   marketPlusIssue?: import('./marketPlusTransmissionApi').MarketPlusIssueFilter;
   inStockOnly?: boolean;
   sourceGone?: 'GONE_ONLY' | 'ALIVE_ONLY';

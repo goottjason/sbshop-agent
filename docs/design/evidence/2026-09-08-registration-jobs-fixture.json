@@ -1,0 +1,99 @@
+{
+  "status": "passed",
+  "checks": [
+    "쿠팡 필수 입력 이전 등록 준비 차단",
+    "명시 선택한 상품별 context만 준비 API 전달",
+    "카페24 수량·판매 시작 계획과 마켓별 검토 표시",
+    "최종 동의 후 선택 마켓만 접수",
+    "생성 불명 결과는 상품번호 재조회만 접수"
+  ],
+  "calls": [
+    {
+      "url": "/api/v1/products/registrations",
+      "method": "get"
+    },
+    {
+      "url": "/api/v1/products/registrations/candidates",
+      "method": "post",
+      "data": {
+        "productIds": [
+          1
+        ],
+        "markets": [
+          "SMART_STORE",
+          "COUPANG",
+          "ELEVEN_STREET",
+          "CAFE24",
+          "GMARKET",
+          "AUCTION"
+        ]
+      }
+    },
+    {
+      "url": "/api/v1/products/1/publication-inputs",
+      "method": "get"
+    },
+    {
+      "url": "/api/v1/products/1/publication-inputs",
+      "method": "get"
+    },
+    {
+      "url": "/api/v1/products/registrations/reviews",
+      "method": "post",
+      "data": {
+        "selected": [
+          {
+            "productId": 1,
+            "market": "COUPANG",
+            "context": {
+              "categoryId": "100",
+              "categoryPath": "검토 식품 카테고리",
+              "noticeFields": {
+                "제품명": "검토 상품"
+              },
+              "extraFields": {
+                "noticeCategoryName": "식품",
+                "attributes": {},
+                "certifications": {
+                  "NOT_REQUIRED": ""
+                },
+                "documentUrls": {},
+                "documentNotApplicable": {}
+              }
+            }
+          },
+          {
+            "productId": 1,
+            "market": "CAFE24"
+          }
+        ]
+      }
+    },
+    {
+      "url": "/api/v1/products/registrations",
+      "method": "get"
+    },
+    {
+      "url": "/api/v1/products/registrations/reviews/review-CAFE24/commit",
+      "method": "post"
+    },
+    {
+      "url": "/api/v1/products/registrations",
+      "method": "get"
+    },
+    {
+      "url": "/api/v1/products/registrations/uncertain-cafe/recheck",
+      "method": "post",
+      "data": {
+        "listingId": "789"
+      }
+    },
+    {
+      "url": "/api/v1/products/registrations",
+      "method": "get"
+    }
+  ],
+  "fixtureOnly": true,
+  "servedImages": [],
+  "artifacts": "/var/folders/k4/50wgr4zs7f19tp57ygzthxy80000gn/T/sbshop-bulk-values-browser-02U2aQ"
+}

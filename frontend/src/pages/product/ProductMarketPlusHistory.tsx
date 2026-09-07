@@ -6,6 +6,7 @@ import { marketPlusTransmissionApi, type MarketPlusImportResult } from '../../ap
 import { marketLabel } from '../../utils/marketLabels';
 import { parseMarketPlusImportFile, type ImportFile } from './marketPlusImportFile';
 import { MarketPlusReadinessNotice } from './MarketPlusReadinessNotice';
+import { ProductMarketPlusFieldProgress } from './ProductMarketPlusFieldProgress';
 
 const time = (value: string) => new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
 
@@ -58,6 +59,7 @@ export function ProductMarketPlusHistory({ productId, initialExpanded = false }:
   return <div style={{ margin: '12px 0' }}>
     <Button size="small" onClick={() => setExpanded(!expanded)}>지마켓·옥션 전송 이력 {expanded ? '접기' : '보기'}</Button>
     {expanded && <>
+      <ProductMarketPlusFieldProgress productId={productId} />
       <MarketPlusReadinessNotice />
       <Alert style={{ marginTop: 8 }} type="info" showIcon message="마켓플러스에서 수집한 전송 결과입니다."
         description="전송 성공은 현재 판매 상태나 모든 항목의 일치를 보장하지 않습니다. 수집하지 않은 기간·페이지의 이력은 표시되지 않습니다." />

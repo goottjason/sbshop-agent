@@ -14,6 +14,7 @@ from urllib.request import Request, build_opener, ProxyHandler
 from zoneinfo import ZoneInfo
 from datetime import datetime
 from relay import atomic_save, NoRedirect
+import public_fields
 
 HISTORY = 'https://mp.cafe24.com/mp/queue/productList'
 LOGIN = 'https://eclogin.cafe24.com/Shop/?mode=mp'
@@ -38,10 +39,10 @@ class Browser:
         self.opener = build_opener(ProxyHandler({}), NoRedirect())
         self.session = None
 
-    def request(self, path, payload=None):
+    def request(self, path, payload=None, method=None):
         try:
             req = Request(self.endpoint + path, data=None if payload is None else json.dumps(payload).encode(),
-                          headers={'Content-Type': 'application/json'}, method='GET' if payload is None else 'POST')
+                          headers={'Content-Type': 'application/json'}, method=method or ('GET' if payload is None else 'POST'))
             with self.opener.open(req, timeout=40) as response:
                 data = json.loads(response.read(2_000_000))
             if not isinstance(data, dict) or 'value' not in data:
@@ -95,6 +96,54 @@ class Browser:
     def execute(self, javascript):
         # Scripts are packaged code, not contents taken from the market page or collection files.
         return self.request(f'/session/{self.session}/execute/sync', {'script': 'return ' + javascript.rstrip().rstrip(';') + ';', 'args': []})
+
+    def observe_public(self, target):
+        """Read one API-provided current connection; no external write or inferred deletion."""
+        if not isinstance(target, dict):
+            raise BrowserError('PUBLIC_CONTEXT_REQUIRED')
+        market, external = target.get('market'), target.get('externalId')
+        if market == 'GMARKET' and isinstance(external, str) and re.fullmatch(r'[1-9][0-9]{0,19}', external):
+            destination = 'https://item.gmarket.co.kr/Item?goodscode=' + external
+        elif market == 'AUCTION' and isinstance(external, str) and re.fullmatch(r'[A-Za-z0-9]{1,20}', external):
+            destination = 'https://itempage3.auction.co.kr/DetailView.aspx?ItemNo=' + external
+        else:
+            raise BrowserError('PUBLIC_CONTEXT_INVALID')
+        if (target.get('publicUrl') != destination or type(target.get('registrationId')) is not int
+                or target['registrationId'] <= 0 or type(target.get('expectedRevision')) is not int
+                or target['expectedRevision'] < 0 or not isinstance(target.get('sellerAccount'), str)
+                or not re.fullmatch(r'[1-9][0-9]{0,18}', str(target.get('cafe24ProductNo', '')))
+                or not re.fullmatch(r'P[A-Z0-9]{7,29}', str(target.get('cafe24ProductCode', '')))):
+            raise BrowserError('PUBLIC_CONTEXT_INVALID')
+        original = self.request(f'/session/{self.session}/window')
+        owned = None
+        self.public_http_status = None
+        try:
+            created = self.request(f'/session/{self.session}/window/new', {'type': 'tab'})
+            owned = created['handle']
+            if owned == original:
+                raise BrowserError('BROWSER_NEW_TAB_NOT_VERIFIED')
+            self.request(f'/session/{self.session}/window', {'handle': owned})
+            self.request(f'/session/{self.session}/url', {'url': destination})
+            # Chrome exposes the actual navigation response status when supported; 0/missing is unknown.
+            status = self.execute("(() => performance.getEntriesByType('navigation')[0]?.responseStatus ?? null)()")
+            if type(status) is int and 100 <= status <= 599:
+                self.public_http_status = status
+            if self.public_http_status is not None and self.public_http_status >= 400:
+                raise BrowserError('HTTP_ERROR')
+            raw = self.execute((SCRIPTS / 'marketplace-public-fields.js').read_text())
+            try:
+                snapshot = json.loads(raw) if isinstance(raw, str) else raw
+                capture = public_fields.parse(snapshot, market, external, target['sellerAccount'])
+            except (ValueError, TypeError) as error:
+                raise BrowserError(str(error) if isinstance(error, public_fields.PublicFieldError) else 'PUBLIC_PAGE_UNVERIFIED') from None
+            return {key: target[key] for key in ('registrationId', 'expectedRevision', 'cafe24ProductNo', 'cafe24ProductCode')} | {'observation': capture}
+        finally:
+            handles = self.request(f'/session/{self.session}/window/handles')
+            if owned and owned != original and owned in handles:
+                self.request(f'/session/{self.session}/window', {'handle': owned})
+                self.request(f'/session/{self.session}/window', method='DELETE')
+            if original in handles:
+                self.request(f'/session/{self.session}/window', {'handle': original})
 
     def raw_snapshot(self):
         url = urlsplit(self.url())

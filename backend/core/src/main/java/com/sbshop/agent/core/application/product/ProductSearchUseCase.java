@@ -32,7 +32,8 @@ public class ProductSearchUseCase {
 	}
 
 	public Page<Product> searchProducts(ProductSearchCondition condition, Pageable pageable) {
-		if (condition.marketPlusIssue() != com.sbshop.agent.core.domain.market.marketplus.MarketPlusIssueFilter.ALL) {
+		if (condition.anyMarketSyncIssue() || condition
+			.marketPlusIssue() != com.sbshop.agent.core.domain.market.marketplus.MarketPlusIssueFilter.ALL) {
 			var scope = marketPlus.requireSearchScope();
 			var result = productReader.search(condition, pageable, scope);
 			if (!scope.equals(marketPlus.requireSearchScope()))

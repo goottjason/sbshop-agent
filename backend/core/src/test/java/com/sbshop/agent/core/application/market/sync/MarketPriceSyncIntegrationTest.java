@@ -260,7 +260,7 @@ class MarketPriceSyncIntegrationTest {
 	}
 
 	@Test
-	void unsupportedFieldNeverEntersAutomaticPriceQueue() {
+	void fieldTargetIsLeftForFieldDispatcherWithoutEnteringPriceQueue() {
 		var history = changeHistories.saveAndFlush(new com.sbshop.agent.core.domain.product.edit.ProductChangeHistory(
 			UUID.randomUUID().toString(), product.getId(), 0, product.getRevision(), "admin", "[]", "{}"));
 		var target = changeTargets.saveAndFlush(
@@ -268,7 +268,7 @@ class MarketPriceSyncIntegrationTest {
 				reg.getId(), product.getRevision(), MARKET.name(), "{\"changes\":[{\"field\":\"barcode\"}]}"));
 		service.dispatchSavedPrices();
 		assertThat(tasks.count()).isZero();
-		assertThat(changeTargets.findById(target.getId()).orElseThrow().getState()).isEqualTo("ACTION_REQUIRED");
+		assertThat(changeTargets.findById(target.getId()).orElseThrow().getState()).isEqualTo("PENDING_DISPATCH");
 	}
 
 	@Test

@@ -41,6 +41,20 @@ public class ProductEditPlanner {
 		MarketType.ELEVEN_STREET, MarketType.CAFE24);
 
 	public Plan plan(Product product, ObjectNode requested, List<MarketRegistration> links) {
+		return plan(product, requested, links, false);
+	}
+
+	public Plan planSourceObservation(Product product, ObjectNode requested, List<MarketRegistration> links) {
+		requested.fieldNames().forEachRemaining(field -> {
+			if (!requested.get(field).isNull()
+				&& !Set.of("stockStatus", "stock", "costPrice", "exchangeRate", "salePrice").contains(field))
+				throw new IllegalArgumentException("소싱 관측 검토에 허용되지 않은 필드: " + field);
+		});
+		return plan(product, requested, links, true);
+	}
+
+	private Plan plan(Product product, ObjectNode requested, List<MarketRegistration> links,
+		boolean sourceObservation) {
 		ObjectNode before = ProductEditValues.read(product, mapper);
 		requested.fieldNames().forEachRemaining(key -> {
 			if (!before.has(key))
@@ -52,10 +66,13 @@ public class ProductEditPlanner {
 		var priceResults = new ArrayList<Price>();
 		Set<String> derived = new HashSet<>();
 		changed.fieldNames().forEachRemaining(key -> {
-			var rule = policy.rule(key, links);
+			var rule = sourceObservation ? policy.sourceObservationRule(key, links) : policy.rule(key, links);
 			if (!rule.editable())
 				reasons.add(key + ": " + rule.reason());
 		});
+		if (changed.has("barcode") && changed.path("barcode").asText("").isBlank()
+			&& links.stream().anyMatch(r -> r.getMarketType() == MarketType.COUPANG && r.hasActiveConnections()))
+			reasons.add("쿠팡 바코드 삭제는 없음 사유를 함께 검토해야 하므로 현재 빈 값 저장을 허용하지 않습니다.");
 		if (reasons.isEmpty()) {
 			try {
 				normalizeNumbers(product, changed, notices);
@@ -101,6 +118,28 @@ public class ProductEditPlanner {
 				ObjectNode effectiveChanges = ProductEditValues.changed(before, changed);
 				changed.removeAll();
 				changed.setAll(effectiveChanges);
+				boolean connected = links.stream().anyMatch(MarketRegistration::hasActiveConnections);
+				if (changed.has("name") && changed.path("name").asText().length() > 100
+					&& links.stream().anyMatch(r -> r.hasActiveConnections()
+						&& Set.of(MarketType.COUPANG, MarketType.SMART_STORE).contains(r.getMarketType())))
+					throw new IllegalArgumentException("연결된 쿠팡·스마트스토어 상품명은 100자 이내로 검토하세요.");
+				if (connected && changed.has("detailHtml") && changed.path("detailHtml").asText("").isBlank())
+					throw new IllegalArgumentException("연결 상품의 상세 HTML은 비울 수 없습니다.");
+				if (connected && changed.has("hostedImages")
+					&& (!changed.path("hostedImages").isArray() || changed.path("hostedImages").isEmpty()))
+					throw new IllegalArgumentException("연결 상품의 대표 이미지를 유지하세요.");
+				if (changed.has("barcode") && changed.path("barcode").asText("").isBlank()
+					&& links.stream()
+						.anyMatch(r -> r.getMarketType() == MarketType.COUPANG && r.hasActiveConnections()))
+					throw new IllegalArgumentException("쿠팡 바코드 삭제는 없음 사유 검토가 필요합니다.");
+				// Composition and minimum-price correction cannot bypass the connected-field policy.
+				for (String key : derived) {
+					if (!changed.has(key))
+						continue;
+					var rule = sourceObservation ? policy.sourceObservationRule(key, links) : policy.rule(key, links);
+					if (!rule.editable())
+						reasons.add(key + ": " + rule.reason());
+				}
 			} catch (IllegalArgumentException e) {
 				reasons.add(e.getMessage());
 			}

@@ -38,7 +38,21 @@ public record ProductUpdateCommand(
 	String searchKeywords,
 	String detailHtml,
 	String memo,
-	Integer salesQuantity) {
+	Integer salesQuantity,
+	com.sbshop.agent.core.domain.product.enums.StockStatus stockStatus) {
+	public ProductUpdateCommand(String brand, String name, String baseName, String originalName,
+		ProductCategory category, BigDecimal costPrice, BigDecimal exchangeRate, BigDecimal deliveryFee,
+		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice, BigDecimal salePrice,
+		Integer stock, BigDecimal weight, Integer bundleQuantity, String barcode, BigDecimal capacity,
+		MeasureUnit measureUnit, VendorType vendor, String sourceUrl, String manufacturer, String origin,
+		String hsCode, List<String> sourceImages, List<String> hostedImages, String searchKeywords,
+		String detailHtml, String memo, Integer salesQuantity) {
+		this(brand, name, baseName, originalName, category, costPrice, exchangeRate, deliveryFee, marginRate,
+			couponRate, minMarginPrice, salePrice, stock, weight, bundleQuantity, barcode, capacity, measureUnit,
+			vendor, sourceUrl, manufacturer, origin, hsCode, sourceImages, hostedImages, searchKeywords,
+			detailHtml, memo, salesQuantity, null);
+	}
+
 	public ProductUpdateCommand(
 		String brand,
 		String name,

@@ -3,13 +3,6 @@ package com.sbshop.agent.worker.scheduler;
 import com.sbshop.agent.core.application.process.ProcessStatusService;
 import com.sbshop.agent.core.application.product.BatchPriceStockService;
 import com.sbshop.agent.core.application.product.StockCrawlerRouter;
-import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
-import com.sbshop.agent.core.domain.process.enums.JobType;
-import com.sbshop.agent.core.domain.product.enums.VendorType;
-import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -23,26 +16,8 @@ public class BatchScheduler {
 	private final ProcessStatusService processStatusService;
 	private final StockCrawlerRouter stockCrawlerRouter;
 
+	/** No scheduler is registered. Re-enabling automatic source writes requires a reviewed policy contract. */
 	public void scheduleDailyPriceUpdate() {
-		Set<VendorType> supported = stockCrawlerRouter.supportedVendors();
-		log.info("정기 가격/재고 업데이트 시작 — 크롤러 보유 소싱처: {}", supported);
-		List<Long> productIds = new ArrayList<>();
-		for (VendorType vendor : supported) {
-			productIds.addAll(batchPriceStockService.getProductIdsByVendor(vendor));
-		}
-		if (productIds.isEmpty()) {
-			log.info("정기 업데이트 대상 상품이 없습니다.");
-			return;
-		}
-		List<String> productCodes = productIds.stream().map(String::valueOf).toList();
-		String batchId = processStatusService.startBatch(
-			JobType.CRAWL_AND_UPDATE_PRICE_STOCK,
-			productCodes);
-		batchPriceStockService.crawlAndUpdatePriceStock(
-			batchId, productIds,
-			new BigDecimal("15"), new BigDecimal("20"), new BigDecimal("5000"),
-			ActionLogConstants.BATCH_CRAWL_UPDATE);
-		log.info("정기 가격/재고 업데이트 배치 시작: batchId={}, count={}, 소싱처={}",
-			batchId, productIds.size(), supported);
+		throw new UnsupportedOperationException("소싱 가격·재고 즉시 배치는 중단되었습니다. 수집 결과를 검토한 뒤 저장하세요.");
 	}
 }

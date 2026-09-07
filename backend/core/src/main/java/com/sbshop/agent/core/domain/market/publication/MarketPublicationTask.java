@@ -48,6 +48,23 @@ public class MarketPublicationTask {
 	private Instant leaseUntil;
 	@Column(nullable = false)
 	private int attempts;
+	@Column(nullable = false)
+	private boolean postAuthorized;
+
+	@Column(nullable = false)
+	private int setupWrites;
+
+	public void authorizePost() {
+		postAuthorized = true;
+	}
+
+	public void authorizeSetup() {
+		setupWrites++;
+	}
+
+	public void retrySetup() {
+		setupWrites = 0;
+	}
 
 	public MarketPublicationTask(String id, Long productId, Long registrationId, long revision, String market,
 		String actor, String sbCode, String connectionSnapshot, String prepared, String reason, Instant now) {
@@ -102,6 +119,8 @@ public class MarketPublicationTask {
 
 	public void finish(String state, String detail, Instant now, Instant next) {
 		this.state = state;
+		if ("AWAITING_APPROVAL".equals(state))
+			attempts = 0;
 		this.detail = detail.substring(0, Math.min(1000, detail.length()));
 		checkedAt = now;
 		nextRunAt = next;
@@ -109,5 +128,7 @@ public class MarketPublicationTask {
 		leaseUntil = null;
 		if (java.util.Set.of("REGISTERED", "STALE", "UNKNOWN_CREATE", "ACTION_REQUIRED").contains(state))
 			finishedAt = now;
+		else
+			finishedAt = null;
 	}
 }

@@ -16,13 +16,65 @@ import java.util.Optional;
 
 public interface MarketClient {
 
+	default com.sbshop.agent.core.domain.market.client.dto.PreparedMarketFields prepareProductFields(Product product,
+		String listingId, String optionId, java.util.Set<String> fields) {
+		throw new UnsupportedOperationException("이 마켓·필드의 검토 전송 계약이 확인되지 않았습니다.");
+	}
+
+	default com.sbshop.agent.core.domain.market.client.dto.MarketFieldsRead readProductFields(String listingId,
+		String optionId, String expectedSbCode, java.util.Set<String> fields) {
+		throw new UnsupportedOperationException("이 마켓·필드의 현재 값 조회 계약이 확인되지 않았습니다.");
+	}
+
+	/** Merge only the fixed field delta into a fresh, identity-checked remote document. */
+	default void writePreparedProductFields(String listingId, String optionId, String expectedSbCode,
+		com.sbshop.agent.core.domain.market.client.dto.PreparedMarketFields prepared, Runnable beforeWrite) {
+		throw new UnsupportedOperationException("이 마켓·필드의 전송 계약이 확인되지 않았습니다.");
+	}
+
 	default com.sbshop.agent.core.domain.market.client.dto.PreparedMarketPublication preparePublication(Product product,
 		java.math.BigDecimal price) {
 		throw new UnsupportedOperationException("등록 요청을 고정하고 결과를 검증하는 계약 확인이 필요합니다.");
 	}
 
+	default com.sbshop.agent.core.domain.market.client.dto.PreparedMarketPublication preparePublication(Product product,
+		java.math.BigDecimal price, MarketPublishContext context) {
+		if (context != null && !context.equals(MarketPublishContext.empty()))
+			throw new UnsupportedOperationException("이 마켓은 별도 등록 입력값 검토를 지원하지 않습니다.");
+		return preparePublication(product, price);
+	}
+
+	default Optional<MarketPublishContext> previousPublicationContext(Product product, String categoryId,
+		String marketDetailedInfo) {
+		return Optional.empty();
+	}
+
+	default Map<String, Object> describePublication(Product product, String categoryId) {
+		throw new UnsupportedOperationException("이 마켓의 등록 메타 입력 계약이 확인되지 않았습니다.");
+	}
+
 	default Map<String, String> submitPreparedPublication(Product product, String operationId, String payload) {
 		throw new UnsupportedOperationException("검토한 등록 요청의 전송 계약 확인이 필요합니다.");
+	}
+
+	/** Invoke once immediately before the actual POST; never wrap a guard cancellation. */
+	default Map<String, String> submitPreparedPublication(Product product, String operationId, String payload,
+		Runnable beforeWrite) {
+		beforeWrite.run();
+		return submitPreparedPublication(product, operationId, payload);
+	}
+
+	/** Idempotent setup of our positively identified new listing; never called for a manually guessed ID. */
+	default void finalizePreparedPublication(String listingId, String sbCode, String payload, Runnable beforeWrite) {
+		throw new UnsupportedOperationException("이 마켓의 검토 등록 후처리 계약이 없습니다.");
+	}
+
+	default com.sbshop.agent.core.domain.market.client.dto.VerifiedMarketPublication readPreparedPublication(
+		String listingId, String sbCode, String payload) {
+		boolean verified = verifyPreparedPublication(listingId, sbCode, payload);
+		return new com.sbshop.agent.core.domain.market.client.dto.VerifiedMarketPublication(verified,
+			verified ? Map.of("originProductNo", listingId) : Map.of(),
+			verified ? "별도 조회에서 검토한 등록 필드를 확인했습니다." : "등록 조회 필드가 검토와 다릅니다.", false);
 	}
 
 	default boolean verifyPreparedPublication(String listingId, String sbCode, String payload) {

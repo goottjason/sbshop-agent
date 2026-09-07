@@ -8,4 +8,8 @@ public interface MarketInspectionSweepRepository extends JpaRepository<MarketIns
 	Optional<MarketInspectionSweep> findTopByOrderByRunDateDesc();
 
 	boolean existsByRunDate(LocalDate date);
+
+	Optional<MarketInspectionSweep> findTopByMarketOrderByRunDateDesc(String market);
+
+	boolean existsByMarketAndRunDate(String market, LocalDate date);
 }

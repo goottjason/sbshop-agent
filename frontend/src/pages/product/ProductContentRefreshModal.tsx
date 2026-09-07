@@ -186,7 +186,7 @@ export function ProductContentRefreshModal({ productIds, onClose, onSaved }: {
       <Alert type="info" showIcon message="수집 내용을 비교해 선택한 항목만 DB에 적용합니다. 마켓 반영은 별도입니다." />
       <details className="pw-content-notices">
         <summary>수집·적용 안내</summary>
-        <p>현재 iHerb 상품을 지원합니다. 상세 HTML은 현재 상품명·묶음수량 등을 사용한 자동 생성 규칙을 따릅니다. 함께 갱신할 항목은 한 번에 선택하세요. 일부를 적용하면 남은 항목은 다시 수집해야 합니다. 연결에 따른 필드 잠금은 유지됩니다.</p>
+        <p>현재 iHerb·Vitabiotics·포트넘앤메이슨·코스트코 UK·Ocado 상품을 지원합니다. Ocado는 브라우저 접근이 차단되면 수집 실패로 남기고 기존 값을 유지합니다. VTB의 다중 규격 상품은 이미지·설명 전체의 규격 대응 확인이 필요할 수 있습니다. 상세 HTML은 현재 상품명·묶음수량 등을 사용한 자동 생성 규칙을 따릅니다. 함께 갱신할 항목은 한 번에 선택하세요. 일부를 적용하면 남은 항목은 다시 수집해야 합니다. 연결에 따른 필드 잠금은 유지됩니다.</p>
       </details>
       <div className="pw-content-toolbar">
         <Button loading={busy} disabled={!productIds.length || productIds.length > 50 || !!unknownRequest || inProgress > 0}

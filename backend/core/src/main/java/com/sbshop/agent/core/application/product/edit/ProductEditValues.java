@@ -22,7 +22,7 @@ public final class ProductEditValues {
 		var b = ProductUpdateCommand.builder().brand(p.getBrand()).name(p.getProductName()).baseName(p.getBaseName())
 			.originalName(p.getOriginalName()).category(p.getCategory()).sourceImages(p.getSourceImages())
 			.hostedImages(p.getHostedImages()).searchKeywords(p.getSearchKeywords()).detailHtml(p.getDetailHtml())
-			.memo(p.getMemo()).salesQuantity(p.getSalesQuantity());
+			.memo(p.getMemo()).salesQuantity(p.getSalesQuantity()).stockStatus(p.getStockStatus());
 		var price = p.getPriceInfo();
 		if (price != null)
 			b.costPrice(price.getCostPrice()).exchangeRate(price.getExchangeRate()).deliveryFee(price.getDeliveryFee())

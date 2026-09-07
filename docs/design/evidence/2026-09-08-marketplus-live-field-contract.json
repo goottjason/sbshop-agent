@@ -1,0 +1,512 @@
+{
+  "gmarket": {
+    "probe": {
+      "schemaVersion": 1,
+      "kind": "READ_ONLY_SELECTOR_PROBE",
+      "capturedAt": "2026-09-07T15:20:52.432Z",
+      "market": "GMARKET",
+      "url": "https://item.gmarket.co.kr/Item?goodscode=3490115053",
+      "productIds": [],
+      "price": [],
+      "quantity": [],
+      "sellers": [],
+      "images": [],
+      "frames": []
+    },
+    "capture": {
+      "schemaVersion": 1,
+      "source": "LIVE_CHROME_PUBLIC_MARKET",
+      "capturedAt": "2026-09-07T15:20:52.443Z",
+      "market": "GMARKET",
+      "externalId": "3490115053",
+      "url": "https://item.gmarket.co.kr/Item?goodscode=3490115053",
+      "productIds": [],
+      "sellerAccounts": [],
+      "prices": [],
+      "quantities": [],
+      "errorPage": true,
+      "quantityBasis": "NOT_VERIFIED",
+      "notices": [
+        "공개 페이지 표시값이며 판매 상태나 삭제 여부를 확정하지 않습니다.",
+        "대표·추가 이미지와 상세 HTML은 검증된 영역 선택자가 확보된 후 수집합니다."
+      ]
+    }
+  },
+  "auction": {
+    "probe": {
+      "schemaVersion": 1,
+      "kind": "READ_ONLY_SELECTOR_PROBE",
+      "capturedAt": "2026-09-07T15:20:56.990Z",
+      "market": "AUCTION",
+      "url": "https://itempage3.auction.co.kr/DetailView.aspx?ItemNo=D888859044",
+      "productIds": [],
+      "price": [],
+      "quantity": [],
+      "sellers": [],
+      "images": [],
+      "frames": []
+    },
+    "capture": {
+      "schemaVersion": 1,
+      "source": "LIVE_CHROME_PUBLIC_MARKET",
+      "capturedAt": "2026-09-07T15:20:57.002Z",
+      "market": "AUCTION",
+      "externalId": "D888859044",
+      "url": "https://itempage3.auction.co.kr/DetailView.aspx?ItemNo=D888859044",
+      "productIds": [],
+      "sellerAccounts": [],
+      "prices": [],
+      "quantities": [],
+      "errorPage": true,
+      "quantityBasis": "NOT_VERIFIED",
+      "notices": [
+        "공개 페이지 표시값이며 판매 상태나 삭제 여부를 확정하지 않습니다.",
+        "대표·추가 이미지와 상세 HTML은 검증된 영역 선택자가 확보된 후 수집합니다."
+      ]
+    }
+  },
+  "marketplus": {
+    "buttons": [
+      {
+        "attributes": [],
+        "className": "btn btn-lg btn-sub-primary",
+        "disabled": false,
+        "id": "laterAgain",
+        "name": "button",
+        "tag": "BUTTON",
+        "text": "나중에 할게요"
+      },
+      {
+        "attributes": [],
+        "className": "btn btn-lg btn-point",
+        "disabled": false,
+        "id": "completeLimit",
+        "name": "button",
+        "tag": "BUTTON",
+        "text": "조정했어요, 다시 전송해 볼게요"
+      }
+    ],
+    "controls": [
+      {
+        "checked": false,
+        "className": "fChk",
+        "id": "",
+        "label": null,
+        "name": "template_data[auction|shouldbe2480][modify_partial][prd_name]",
+        "parent": {
+          "className": "",
+          "id": "",
+          "name": null,
+          "tag": "LABEL"
+        },
+        "section": {
+          "className": " required",
+          "id": "",
+          "name": null,
+          "tag": "TR"
+        },
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "564|product"
+      },
+      {
+        "checked": true,
+        "className": "check is_default",
+        "id": "",
+        "label": null,
+        "name": "template_data[auction|shouldbe2480][market_data][is_default_prd_name]",
+        "parent": {
+          "className": "fToggle fMarketBasic eSelected",
+          "id": "",
+          "name": null,
+          "tag": "LABEL"
+        },
+        "section": {
+          "className": " required",
+          "id": "",
+          "name": null,
+          "tag": "TR"
+        },
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "F"
+      },
+      {
+        "checked": false,
+        "className": "fText",
+        "id": "prd_name",
+        "label": null,
+        "name": "template_data[auction|shouldbe2480][prd_name]",
+        "parent": {
+          "className": "view_form",
+          "id": "",
+          "name": null,
+          "tag": "DIV"
+        },
+        "section": {
+          "className": " required",
+          "id": "",
+          "name": null,
+          "tag": "TR"
+        },
+        "tag": "INPUT",
+        "type": "text",
+        "value": null
+      },
+      {
+        "checked": false,
+        "className": "fChk",
+        "id": "",
+        "label": null,
+        "name": "template_data[auction|shouldbe2480][modify_partial][selling_price]",
+        "parent": {
+          "className": "",
+          "id": "",
+          "name": null,
+          "tag": "LABEL"
+        },
+        "section": {
+          "className": " required",
+          "id": "",
+          "name": null,
+          "tag": "TR"
+        },
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "565|product"
+      },
+      {
+        "checked": false,
+        "className": "check is_default",
+        "id": "",
+        "label": null,
+        "name": "template_data[auction|shouldbe2480][market_data][is_default_selling_price]",
+        "parent": {
+          "className": "fToggle fMarketBasic",
+          "id": "",
+          "name": null,
+          "tag": "LABEL"
+        },
+        "section": {
+          "className": " required",
+          "id": "",
+          "name": null,
+          "tag": "TR"
+        },
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "T"
+      },
+      {
+        "checked": false,
+        "className": "fChk",
+        "id": "",
+        "label": null,
+        "name": "template_data[auction|shouldbe2480][modify_partial][imgs.basic1]",
+        "parent": {
+          "className": "",
+          "id": "",
+          "name": null,
+          "tag": "LABEL"
+        },
+        "section": {
+          "className": " required",
+          "id": "",
+          "name": null,
+          "tag": "TR"
+        },
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "566|product"
+      },
+      {
+        "checked": true,
+        "className": "check is_default",
+        "id": "",
+        "label": null,
+        "name": "template_data[auction|shouldbe2480][market_data][is_default_image]",
+        "parent": {
+          "className": "fToggle fMarketBasic eSelected",
+          "id": "",
+          "name": null,
+          "tag": "LABEL"
+        },
+        "section": {
+          "className": " required",
+          "id": "",
+          "name": null,
+          "tag": "TR"
+        },
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "F"
+      },
+      {
+        "checked": false,
+        "className": "fChk",
+        "id": "",
+        "label": null,
+        "name": "template_data[auction|shouldbe2480][modify_partial][additional_image]",
+        "parent": {
+          "className": "",
+          "id": "",
+          "name": null,
+          "tag": "LABEL"
+        },
+        "section": {
+          "className": " notRequired",
+          "id": "",
+          "name": null,
+          "tag": "TR"
+        },
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "567|product"
+      },
+      {
+        "checked": true,
+        "className": "check is_default",
+        "id": "",
+        "label": null,
+        "name": "template_data[auction|shouldbe2480][market_data][is_default_add_image]",
+        "parent": {
+          "className": "fToggle fMarketBasic eSelected",
+          "id": "",
+          "name": null,
+          "tag": "LABEL"
+        },
+        "section": {
+          "className": " notRequired",
+          "id": "",
+          "name": null,
+          "tag": "TR"
+        },
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "F"
+      },
+      {
+        "checked": false,
+        "className": "fChk",
+        "id": "",
+        "label": null,
+        "name": "template_data[auction|shouldbe2480][modify_partial][description]",
+        "parent": {
+          "className": "",
+          "id": "",
+          "name": null,
+          "tag": "LABEL"
+        },
+        "section": {
+          "className": " required",
+          "id": "",
+          "name": null,
+          "tag": "TR"
+        },
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "568|product"
+      },
+      {
+        "checked": false,
+        "className": "check is_default",
+        "id": "",
+        "label": null,
+        "name": "template_data[auction|shouldbe2480][market_data][is_default_detail_info]",
+        "parent": {
+          "className": "fToggle fMarketBasic",
+          "id": "",
+          "name": null,
+          "tag": "LABEL"
+        },
+        "section": {
+          "className": " required",
+          "id": "",
+          "name": null,
+          "tag": "TR"
+        },
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "T"
+      },
+      {
+        "checked": false,
+        "className": "fChk",
+        "id": "",
+        "label": null,
+        "name": "template_data[auction|shouldbe2480][modify_partial][option_stock]",
+        "parent": {
+          "className": "",
+          "id": "",
+          "name": null,
+          "tag": "LABEL"
+        },
+        "section": {
+          "className": " required",
+          "id": "",
+          "name": null,
+          "tag": "TR"
+        },
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "583|product"
+      },
+      {
+        "checked": false,
+        "className": "check is_default",
+        "id": "",
+        "label": null,
+        "name": "template_data[auction|shouldbe2480][market_data][is_default_option_stock]",
+        "parent": {
+          "className": "fToggle fMarketBasic",
+          "id": "",
+          "name": null,
+          "tag": "LABEL"
+        },
+        "section": {
+          "className": " required",
+          "id": "",
+          "name": null,
+          "tag": "TR"
+        },
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "T"
+      },
+      {
+        "checked": false,
+        "className": "fChk",
+        "id": "",
+        "label": null,
+        "name": "template_data[auction|shouldbe2480][modify_partial][market_data.prd_name_additional]",
+        "parent": {
+          "className": "",
+          "id": "",
+          "name": null,
+          "tag": "LABEL"
+        },
+        "section": {
+          "className": " notRequired",
+          "id": "",
+          "name": null,
+          "tag": "TR"
+        },
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "576|sales"
+      }
+    ],
+    "forms": [
+      {
+        "action": "https://mp.cafe24.com/mp/product/front/detail",
+        "id": "product_info",
+        "method": "get",
+        "name": ""
+      },
+      {
+        "action": "https://mp.cafe24.com/mp/product/front/detail",
+        "id": "base_template_form",
+        "method": "get",
+        "name": "base_template_form"
+      },
+      {
+        "action": "https://mp.cafe24.com/mp/product/front/detail",
+        "id": "eImageUploadMarket",
+        "method": "post",
+        "name": ""
+      },
+      {
+        "action": "https://mp.cafe24.com/mp/product/front/detail",
+        "id": "eDocumentUpload",
+        "method": "post",
+        "name": ""
+      },
+      {
+        "action": "https://zipcodesearch.cafe24.com/zipcode_search_new.php",
+        "id": "zipcodeSearch",
+        "method": "post",
+        "name": "zipcodeSearch"
+      },
+      {
+        "action": "https://mp.cafe24.com/mp/product/front/detail",
+        "id": "upload_form",
+        "method": "post",
+        "name": ""
+      },
+      {
+        "action": "https://mp.cafe24.com/mp/product/front/detail",
+        "id": "eImageUpload",
+        "method": "post",
+        "name": ""
+      },
+      {
+        "action": "https://mp.cafe24.com/mp/product/front/detail",
+        "id": "eBatchImageUpload",
+        "method": "post",
+        "name": ""
+      }
+    ],
+    "resources": [
+      {
+        "type": "xmlhttprequest",
+        "url": "https://mp.cafe24.com/mp/oneclick/rest/product"
+      },
+      {
+        "type": "xmlhttprequest",
+        "url": "https://mp.cafe24.com/mp/product/rest/messageList"
+      },
+      {
+        "type": "xmlhttprequest",
+        "url": "https://mp.cafe24.com/mp/template/rest/html"
+      },
+      {
+        "type": "xmlhttprequest",
+        "url": "https://mp.cafe24.com/mp/product/rest/category"
+      },
+      {
+        "type": "xmlhttprequest",
+        "url": "https://mp.cafe24.com/mp/category/rest/factory"
+      },
+      {
+        "type": "xmlhttprequest",
+        "url": "https://mp.cafe24.com/mp/product/action/getFroalaEditor"
+      },
+      {
+        "type": "xmlhttprequest",
+        "url": "https://mp.cafe24.com/mp/category/rest/factory"
+      }
+    ],
+    "scripts": [
+      "https://mp.cafe24.com/pkg/common/ko/js/common.js",
+      "https://mp.cafe24.com/pkg/market/ko/js/jquery1.4.4.js",
+      "https://mp.cafe24.com/pkg/market/ko/js/jquery-ui.min.js",
+      "https://mp.cafe24.com/pkg/market/ko/js/i18n.js",
+      "https://younzara.shopcafe.cafe24.com/mp/js/v1/dist/bundle.product.matched.item.js",
+      "https://younzara.shopcafe.cafe24.com/mp/js/v1/dist/bundle.product.detail.modify_partial.js",
+      "https://img.echosting.cafe24.com/editors/froala/lib/codemirror_5.56.0/codemirror.js",
+      "https://img.echosting.cafe24.com/editors/froala/lib/codemirror_5.56.0/mode/xml.js",
+      "https://img.echosting.cafe24.com/editors/froala/lib/codemirror_5.56.0/addon/search/search.js",
+      "https://img.echosting.cafe24.com/editors/froala/lib/codemirror_5.56.0/addon/search/searchcursor.js",
+      "https://img.echosting.cafe24.com/editors/froala/lib/codemirror_5.56.0/addon/dialog/dialog.js",
+      "https://img.echosting.cafe24.com/editors/froala/js/polyfill.min.js",
+      "https://img.echosting.cafe24.com/editors/froala/3.2.2/js/froala_editor.pkgd.min.js",
+      "https://img.echosting.cafe24.com/editors/froala/js/i18n/ko_KR.js",
+      "https://younzara.shopcafe.cafe24.com/mp/ind-script/optimizer.php",
+      "https://younzara.shopcafe.cafe24.com/mp/js/v1/dist/bundle.util.findzip.js",
+      "https://younzara.shopcafe.cafe24.com/mp/js/v1/dist/bundle.product.detail.js",
+      "https://img.echosting.cafe24.com/js/suio.js"
+    ],
+    "tabs": [],
+    "title": "마켓 상품수정-Cafe24-마켓플러스",
+    "url": "https://mp.cafe24.com/mp/product/front/detail"
+  },
+  "scope": {
+    "cafe24ProductNo": "10186",
+    "cafe24ProductCode": "P0000PBU",
+    "auctionId": "D888859044",
+    "gmarketId": "3490115053",
+    "readOnly": true,
+    "externalWrites": 0,
+    "notes": "한 상품 옥션 화면의 실제 설정입니다. 다른 상품 또는 G마켓 상속 설정으로 일반화하지 않습니다."
+  }
+}

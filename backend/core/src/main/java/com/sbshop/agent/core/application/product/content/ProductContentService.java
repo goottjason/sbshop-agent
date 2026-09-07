@@ -10,7 +10,6 @@ import com.sbshop.agent.core.domain.market.repository.MarketRegistrationReposito
 import com.sbshop.agent.core.domain.product.*;
 import com.sbshop.agent.core.domain.product.content.*;
 import com.sbshop.agent.core.domain.product.content.ProductContentSnapshot.State;
-import com.sbshop.agent.core.domain.product.enums.VendorType;
 import java.time.Instant;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
@@ -114,11 +113,11 @@ public class ProductContentService {
 				source == null || source.getVendor() == null ? null : source.getVendor().name(), now, capturedJson);
 			if (product == null)
 				snapshot.fail(State.FAILED, "상품이 없거나 폐기되었습니다.");
-			else if (source == null || source.getVendor() != VendorType.IHB)
-				snapshot.fail(State.UNSUPPORTED, "이 소싱처의 이미지·상세정보 수집 계약이 확인되지 않았습니다. 현재 IHB만 지원합니다.");
+			else if (source == null || !ProductContentUrls.supports(source.getVendor()))
+				snapshot.fail(State.UNSUPPORTED, "이 소싱처의 이미지·상세정보 수집 계약이 확인되지 않았습니다. 현재 IHB·VTB·FTN·COK·OCD를 지원합니다.");
 			else {
 				try {
-					ProductContentUrls.source(source.getSourceUrl());
+					ProductContentUrls.source(source.getVendor(), source.getSourceUrl());
 				} catch (IllegalArgumentException e) {
 					snapshot.fail(State.FAILED, e.getMessage());
 				}
@@ -269,7 +268,8 @@ public class ProductContentService {
 			snapshot.getRequestedAt(),
 			snapshot.getCollectedAt(), snapshot.getExpiresAt(), appliedAt, captured.current(),
 			proposal == null ? null : proposal.values(),
-			fields, proposal == null ? List.of("현재 IHB 수집을 지원합니다. 다른 소싱처는 계약 확인 후 추가합니다.") : proposal.notices());
+			fields, proposal == null ? List.of("현재 IHB·VTB·FTN·COK·OCD 수집을 지원합니다. 다른 소싱처는 계약 확인 후 추가합니다.")
+				: proposal.notices());
 	}
 
 	private FieldView field(Field field, boolean available, List<String> keys, List<MarketRegistration> links,

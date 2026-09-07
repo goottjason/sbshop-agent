@@ -24,8 +24,8 @@ export function ProductInspectionJobs({ productIds, onClose }: { productIds: num
   const availability = useQuery({ queryKey: ['inspection-availability', market], retry: false,
     queryFn: async ({ signal }) => (await marketInspectionApi.availability(signal, market)).data });
   const daily = useQuery({ queryKey: ['inspection-daily'], retry: false, refetchInterval: 5000,
-    queryFn: async ({ signal }) => (await marketInspectionApi.daily(signal)).data });
-  const schedule = daily.isError ? undefined : daily.data;
+    queryFn: async ({ signal }) => (await marketInspectionApi.dailyMarkets(signal)).data });
+  const schedule = daily.isError ? undefined : daily.data?.find(row => row.market === market)?.status;
   const sweep = schedule?.latest;
   const dailyBatches = useQuery({ queryKey: ['inspection-daily-batches', sweep?.id], enabled: !!sweep,
     retry: false, refetchInterval: sweep?.state === 'FINISHED' ? false : 5000,
@@ -68,10 +68,16 @@ export function ProductInspectionJobs({ productIds, onClose }: { productIds: num
       description="스마트스토어·쿠팡·11번가·카페24를 선택해 조회합니다. G마켓·옥션은 별도 API 자료 확인 중입니다. 품절은 연결을 유지하며, 삭제·영구 판매금지가 확정되면 근거를 보존하고 연결을 해제합니다. 정보 동기화 완료를 뜻하지 않습니다. 창을 닫아도 접수된 작업은 계속됩니다." />
     {availability.isError ? <Alert type="error" message="조회 지원 정보 확인 실패" action={<Button onClick={() => { void availability.refetch(); }}>재시도</Button>} />
       : availability.data && !availability.data.accountVerified && <Alert type="warning" message={availability.data.detail} />}
+    {!daily.isError && daily.data && <Space wrap style={{ marginTop: 12 }} aria-label="마켓별 정기 확인 선택">
+      {daily.data.map(row => <Button key={row.market} size="small" type={market === row.market ? 'primary' : 'default'} disabled={busy}
+        onClick={() => { setMarket(row.market); setError(null); }}>
+        {marketNames[row.market] ?? row.market} · {row.status.latest ? `확인 필요 ${row.status.latest.totals.needsAttention}` : '접수 대기'}
+      </Button>)}
+    </Space>}
     {daily.isError ? <Alert style={{ marginTop: 12 }} type="error" message="정기 확인 현황 조회 실패. 일정과 처리 결과를 확인할 수 없습니다."
-      action={<Button onClick={() => { void daily.refetch(); }}>재시도</Button>} /> : schedule && <div aria-label="스마트스토어 정기 확인 현황" style={{ marginTop: 12, padding: 14, border: '1px solid #dbe3eb', borderRadius: 8 }}>
-      <Space wrap><strong>스마트스토어 정기 확인</strong><Tag color={schedule.enabled && schedule.accountVerified ? 'blue' : 'orange'}>
-        {!schedule.enabled ? '사용 안 함' : schedule.accountVerified ? schedule.schedule : '계정 확인 · 보류'}
+      action={<Button onClick={() => { void daily.refetch(); }}>재시도</Button>} /> : schedule && <div aria-label={`${marketNames[market]} 정기 확인 현황`} style={{ marginTop: 12, padding: 14, border: '1px solid #dbe3eb', borderRadius: 8 }}>
+      <Space wrap><strong>{marketNames[market]} 정기 확인</strong><Tag color={schedule.enabled && (schedule.accountVerified || market !== 'SMART_STORE') ? 'blue' : 'orange'}>
+        {!schedule.enabled ? '사용 안 함' : market !== 'SMART_STORE' || schedule.accountVerified ? schedule.schedule : '계정 확인 · 보류'}
       </Tag></Space>
       <div style={{ color: '#475569', margin: '6px 0' }}>{schedule.detail}</div>
       {schedule.nextDueAt && <div>확인 예정: {new Date(schedule.nextDueAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (한국시간)</div>}

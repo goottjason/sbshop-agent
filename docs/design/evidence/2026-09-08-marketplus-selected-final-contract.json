@@ -1,0 +1,143 @@
+{
+  "capturedAt": "2026-09-07T16:05:04.384Z",
+  "method": "LIVE_DOM_AND_FUNCTION_SOURCE_READ_ONLY",
+  "identity": {
+    "mallId": "younzara",
+    "shopNo": 1,
+    "cafe24ProductNo": 10186,
+    "cafe24ProductCode": "P0000PBU",
+    "marketKey": "auction|shouldbe2480",
+    "marketListingId": "D888859044",
+    "entityId": "65b25bf7dbece"
+  },
+  "selectionFields": [
+    {
+      "field": "prd_name",
+      "schema": "564",
+      "selectorValue": "564|product",
+      "enabled": true,
+      "checked": false
+    },
+    {
+      "field": "selling_price",
+      "schema": "565",
+      "selectorValue": "565|product",
+      "enabled": true,
+      "checked": false
+    },
+    {
+      "field": "imgs.basic1",
+      "schema": "566",
+      "selectorValue": "566|product",
+      "enabled": false,
+      "checked": false
+    },
+    {
+      "field": "additional_image",
+      "schema": "567",
+      "selectorValue": "567|product",
+      "enabled": false,
+      "checked": false
+    },
+    {
+      "field": "description",
+      "schema": "568",
+      "selectorValue": "568|product",
+      "enabled": true,
+      "checked": false
+    },
+    {
+      "field": "option_stock",
+      "schema": "583",
+      "selectorValue": "583|product",
+      "enabled": true,
+      "checked": false
+    },
+    {
+      "field": "market_data.prd_name_additional",
+      "schema": "576",
+      "selectorValue": "576|sales",
+      "enabled": true,
+      "checked": false
+    }
+  ],
+  "connectedColumns": {
+    "market_data.prd_name_additional": {
+      "connect_column": "prd_name"
+    },
+    "prd_name": {
+      "connect_column": "market_data.prd_name_additional"
+    }
+  },
+  "currentSerializedValues": {
+    "[current_stock]": "500",
+    "[market_data][is_default_add_image]": "F",
+    "[market_data][is_default_detail_info]": "T",
+    "[market_data][is_default_image]": "F",
+    "[market_data][is_default_option_stock]": "T",
+    "[market_data][is_default_prd_name]": "F",
+    "[market_data][is_default_selling_price]": "T",
+    "[market_data][is_option_stock]": "F",
+    "[prd_name]": "Enzymedica 소화효소 Digest Basic Enzyme 180캡슐",
+    "[selling_price]": "95500",
+    "[template_no]": "516481"
+  },
+  "description": {
+    "duplicateTextareas": [
+      {
+        "id": "",
+        "length": 2892,
+        "sha256": "46520c04fa404ade6889b081fa8a709b06391df408cf8450e5c5d3b24aaaeee9"
+      },
+      {
+        "id": "template_data[auction|shouldbe2480][description]",
+        "length": 2844,
+        "sha256": "8352144f64a8e210fd2de05b9f508423276058ec485d62e4ea6dbab9a2b7ae9b"
+      }
+    ],
+    "editorDomLength": 3096,
+    "editorDomSha256": "1ad06cbe056faa54e3a86c3c4c0ec240a15efc66abe0f75d416d59ac6077ed61",
+    "codeViewActive": false,
+    "autoSaveURLConfigured": false,
+    "isolatedNormalization": {
+      "library": "Froala 3.2.2",
+      "publicLibrarySha256": "5686a04bc217e95a37b8a65a5b58cc422e50a1f2544e6f89617533c3266ee679",
+      "networkDisabled": true,
+      "originalMatches": true,
+      "htmlOptionsMatch": true,
+      "passes": [
+        {
+          "pass": 1,
+          "length": 2844,
+          "sha256": "8352144f64a8e210fd2de05b9f508423276058ec485d62e4ea6dbab9a2b7ae9b"
+        },
+        {
+          "pass": 2,
+          "length": 2844,
+          "sha256": "8352144f64a8e210fd2de05b9f508423276058ec485d62e4ea6dbab9a2b7ae9b"
+        }
+      ]
+    }
+  },
+  "handlerSourceSha256": {
+    "oProductDetail.saveProduct": "19379ff78046715f030fb688bbecb27a7dd37c652e8b58dc8855ac8955a93ab0",
+    "oProductDetail.saveProductCall": "bb4c8d88436eb165df96af4a0415766c7db004e076fea2e15cb2a74e23bc43c5",
+    "oProductDetail.getJsonFormData": "686fc3f2d64e5199d183559373dd416773a3db3a093a2ed300bee0e02740419c",
+    "oProductDetail.setDefaultData": "fe0cc6472e0a52bc72043b843f7f237976658080de0d92f5fc1ab2ba38313421",
+    "oProductDetail.saveBeforeClickMarketData": "93fc189cd6c2e5e55fd40fc0abe5d5a76576f6faec970f2713dd04f6bed264ef",
+    "oProductDetail.setEditorSchemaByMarketKey": "3d01b20f2946d6448b1ffa7611315f971d6e1df57cd26ece925d3096a84388b3",
+    "oProductDetail.saveMarketTemplateSchemaCheck": "e7d265288efcec5c636adb46d2c70b40976c55b0a4fa095194abb1787927408a",
+    "oProductDetail.setTemplateSchema": "ae9ca00089148c4fb20007c0d3baa1cdd215becc16cd58dc104fed13c03b557c",
+    "applyContentToFroala": "ad420a68c0d0703dd91882d5587660fdf8f1633e085687290eb18e9da88138ad",
+    "decodeUriAttribute": "48e536a47520abfcb4320e9e82f88ef3cd102d9c5f4c76f9b0cce45ef2626489",
+    "getContentFromFroala": "8d54299cd22f4206d9db962b11cab21f66baf487ec9db7294108353820347e85",
+    "setValueBeforeSubmit": "047bdf55630c688f67c4a0f59ae1aa173d397e5def684cf0b9d0fcb4f95dc7bd"
+  },
+  "limitations": [
+    "No save/send/partial button or REST POST executed.",
+    "Browser form data is not proof of final marketplace payload when inherited fields are T.",
+    "Representative/additional-image selections disabled on this listing.",
+    "Stock mode F has documented maximum-stock substitution; hidden current_stock is not confirmed outbound quantity.",
+    "This contract is one Auction listing, not all Gmarket/Auction listings."
+  ]
+}

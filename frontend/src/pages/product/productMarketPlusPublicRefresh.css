@@ -1,0 +1,9 @@
+.mp-public-refresh { display:grid; gap:12px; }
+.mp-public-refresh p { margin:4px 0; }
+.mp-public-refresh-controls { display:flex; flex-wrap:wrap; gap:14px; align-items:center; }
+.mp-public-refresh summary { cursor:pointer; color:#475569; padding:5px 0; }
+.mp-public-refresh-table { overflow:auto; max-height:58vh; }
+.mp-public-refresh table { border-collapse:collapse; width:100%; min-width:850px; font-size:13px; }
+.mp-public-refresh th,.mp-public-refresh td { padding:9px; text-align:left; vertical-align:top; border-bottom:1px solid #e2e8f0; }
+.mp-public-refresh th { position:sticky; top:0; background:#f8fafc; z-index:1; }
+.mp-public-refresh small { display:block; color:#64748b; font-size:12px; }

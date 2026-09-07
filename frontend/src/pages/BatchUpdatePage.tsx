@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Form, Input, InputNumber, Button, Radio, Card, Progress, Space, Typography, Select,
+  Form, Input, Button, Radio, Card, Progress, Space, Typography, Select,
   ConfigProvider, Alert, App as AntApp,
 } from 'antd';
 import { batchApi } from '../api/batchApi';
 import { notify } from '../utils/notify';
 import { fetchVendorPricePolicies, type VendorPricePolicy } from '../api/vendorPricePolicyApi';
 import BatchResultTable from '../components/batch/BatchResultTable';
+import { ProductSourceRefreshModal } from './product/ProductSourceRefreshModal';
+import { ProductSourceBatchPicker } from './product/ProductSourceBatchPicker';
 
 interface BatchSummary {
   batchId: string;
@@ -44,12 +46,6 @@ const readRetryParams = (): CrawlParams | null => {
     return null;
   }
 };
-
-const crawlParams = (values: { marginRate: number; couponRate: number; minMarginPrice: number }): CrawlParams => ({
-  marginRate: values.marginRate,
-  couponRate: values.couponRate,
-  minMarginPrice: values.minMarginPrice,
-});
 
 const GREEN = '#166534';
 
@@ -150,6 +146,8 @@ const BatchUpdatePage = () => {
   const { modal } = AntApp.useApp();
   const [mode, setMode] = useState<BatchMode>('supplier');
   const [loading, setLoading] = useState(false);
+  const [sourceIds, setSourceIds] = useState<number[] | null>(null);
+  const [sourceVendor, setSourceVendor] = useState<string | null>(null);
   const [form] = Form.useForm();
 
   const { data: vendorPolicies = [] } = useQuery<VendorPricePolicy[]>({
@@ -172,7 +170,7 @@ const BatchUpdatePage = () => {
 
   const [batchId, setBatchId] = useState<string | null>(() => localStorage.getItem(ACTIVE_BATCH_KEY));
   const [retryParams, setRetryParams] = useState<CrawlParams | null>(() => readRetryParams());
-  const [retrying, setRetrying] = useState(false);
+  const retrying = false;
 
   const mountedRef = useRef(true);
   const batchIdRef = useRef<string | null>(batchId);
@@ -227,27 +225,12 @@ const BatchUpdatePage = () => {
   }, []);
 
   const retryProducts = useCallback(async (productCodes: string[]) => {
-    if (!retryParams) return;
-    const ids = productCodes.map((c) => parseInt(c, 10)).filter((n) => !isNaN(n));
-    if (ids.length === 0) {
-      notify.warning('다시 실행할 상품을 찾지 못했습니다');
-      return;
+    const ids = [...new Set(productCodes.map(Number))];
+    if (!ids.length || ids.length > 50 || ids.some(id => !Number.isSafeInteger(id) || id < 1)) {
+      notify.warning('다시 검토할 상품을 1~50개 선택하세요.'); return;
     }
-    setRetrying(true);
-    try {
-      const res = await batchApi.crawlAndUpdate(
-        ids, retryParams.marginRate, retryParams.couponRate, retryParams.minMarginPrice);
-      const startedId = (res.data as { batchId?: string }).batchId;
-      if (startedId) {
-        notify.success(`문제 ${ids.length}건 재실행 시작 (batchId: ${startedId})`);
-        startTracking(startedId, retryParams);
-      }
-    } catch {
-      notify.error('재실행 시작 실패');
-    } finally {
-      setRetrying(false);
-    }
-  }, [retryParams, startTracking]);
+    setSourceIds(ids);
+  }, []);
 
   useEffect(() => {
     const es = new EventSource(SSE_URL);
@@ -349,40 +332,15 @@ const BatchUpdatePage = () => {
       confirmManualUpdate(items);
       return;
     }
-    setLoading(true);
-    try {
-      if (mode === 'supplier') {
-        const res = await batchApi.updateBySupplier(
-          values.supplierCode || 'IHB',
-          values.marginRate,
-          values.couponRate,
-          values.minMarginPrice
-        );
-        const data = res.data as { batchId?: string; count?: string; message?: string };
-        if (data.batchId) {
-          notify.success(`배치 시작: ${data.count}개 상품 (batchId: ${data.batchId})`);
-          startTracking(data.batchId, crawlParams(values));
-        } else {
-          notify.info(data.message || '해당 소싱업체의 상품이 없습니다.');
-        }
-      } else {
-        const ids = (values.productIds || '').split(',').map((s) => parseInt(s.trim())).filter((n) => !isNaN(n));
-        if (ids.length === 0) {
-          notify.warning('상품 ID를 입력하세요');
-          return;
-        }
-        const res = await batchApi.crawlAndUpdate(ids, values.marginRate, values.couponRate, values.minMarginPrice);
-        const startedId = (res.data as { batchId?: string }).batchId;
-        notify.success(`배치 시작 (batchId: ${startedId})`);
-        if (startedId) {
-          startTracking(startedId, crawlParams(values));
-        }
-      }
-    } catch {
-      notify.error('배치 시작 실패');
-    } finally {
-      setLoading(false);
+    if (mode === 'supplier') {
+      setSourceVendor(values.supplierCode || 'IHB'); return;
     }
+    const parts = (values.productIds || '').split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean);
+    const ids = [...new Set(parts.map(Number))];
+    if (!ids.length || ids.length > 50 || parts.some(value => !/^[1-9][0-9]*$/.test(value)) || ids.some(id => !Number.isSafeInteger(id))) {
+      notify.warning('상품 ID를 쉼표 또는 줄바꿈으로 구분하여 1~50개 입력하세요.'); return;
+    }
+    setSourceIds(ids);
   };
 
   const isComplete = !!summary && summary.total > 0 && summary.done >= summary.total;
@@ -407,8 +365,8 @@ const BatchUpdatePage = () => {
           onChange={(e) => setMode(e.target.value as BatchMode)}
           style={{ marginBottom: 16 }}
         >
-          <Radio.Button value="supplier">소싱업체별 자동 산정</Radio.Button>
-          <Radio.Button value="crawl">상품ID 지정 자동 산정</Radio.Button>
+          <Radio.Button value="supplier">소싱업체별 수집·검토</Radio.Button>
+          <Radio.Button value="crawl">상품ID 지정 수집·검토</Radio.Button>
           <Radio.Button value="direct">값 직접 지정</Radio.Button>
         </Radio.Group>
 
@@ -416,11 +374,11 @@ const BatchUpdatePage = () => {
           type={isDirect ? 'warning' : 'info'}
           showIcon
           style={{ marginBottom: 20 }}
-          message={isDirect ? '값 직접 지정 — 입력한 판매가를 그대로 적용합니다' : '자동 산정 — 소싱처 크롤 가격으로 판매가를 계산합니다'}
+          message={isDirect ? '값 직접 지정 — 입력한 판매가를 그대로 적용합니다' : '소싱 갱신 — 수집 내용을 비교한 뒤 선택 저장합니다'}
           description={
             isDirect
               ? '마진율·쿠폰율·최소 마진가는 사용하지 않습니다. 입력한 판매가가 그대로 저장되고 마켓에 반영되므로, 적용 전 확인창의 목록을 반드시 확인하세요.'
-              : '소싱처에서 매입가·재고를 크롤한 뒤 아래 마진율·쿠폰율·최소 마진가로 판매가를 산정해 반영합니다.'
+              : '상품별 기존 가격 정책을 유지합니다. 마진·쿠폰·최소마진 변경은 상품관리의 가격 계산 검토에서 진행하세요. 판매용 설정 수량은 이 수집에서 바꾸지 않습니다.'
           }
         />
 
@@ -456,17 +414,8 @@ const BatchUpdatePage = () => {
                   <Input placeholder="1, 2, 3" style={{ width: 240 }} />
                 </Form.Item>
               )}
-              <Form.Item name="marginRate" label="마진율 (%)" style={{ marginBottom: 0 }}>
-                <InputNumber min={0} max={100} style={{ width: 120 }} />
-              </Form.Item>
-              <Form.Item name="couponRate" label="쿠폰율 (%)" style={{ marginBottom: 0 }}>
-                <InputNumber min={0} max={100} style={{ width: 120 }} />
-              </Form.Item>
-              <Form.Item name="minMarginPrice" label="최소 마진가 (원)" style={{ marginBottom: 0 }}>
-                <InputNumber min={0} style={{ width: 150 }} />
-              </Form.Item>
               <Form.Item style={{ marginBottom: 0 }}>
-                <Button type="primary" htmlType="submit" loading={loading} style={{ fontWeight: 600 }}>배치 실행</Button>
+                <Button type="primary" htmlType="submit" loading={loading} style={{ fontWeight: 600 }}>수집·검토 대상 확인</Button>
               </Form.Item>
             </div>
           )}
@@ -543,6 +492,8 @@ const BatchUpdatePage = () => {
           </Space>
         </Card>
       )}
+      {sourceIds && <ProductSourceRefreshModal productIds={sourceIds} onClose={() => setSourceIds(null)} onSaved={() => { void refetchSummary(); }} />}
+      {sourceVendor && <ProductSourceBatchPicker vendor={sourceVendor} onClose={() => setSourceVendor(null)} />}
     </div>
     </ConfigProvider>
   );

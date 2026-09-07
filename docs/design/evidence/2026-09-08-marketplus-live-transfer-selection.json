@@ -1,0 +1,188 @@
+{
+  "anchors": [
+    {
+      "attributes": [
+        [
+          "data-selling_status",
+          "G"
+        ]
+      ],
+      "className": "eBtnStep eBtnStepTwo eSaveTemporary btnSubmit",
+      "href": "https://mp.cafe24.com/mp/product/front/detail",
+      "id": "",
+      "name": null,
+      "tag": "A",
+      "text": "전체저장"
+    },
+    {
+      "attributes": [],
+      "className": "eBtnStep eBtnStepTwo eSaveDetail btnSubmit",
+      "href": "https://mp.cafe24.com/mp/product/front/detail",
+      "id": "",
+      "name": null,
+      "tag": "A",
+      "text": "전체전송"
+    },
+    {
+      "attributes": [],
+      "className": "eBtnStep eBtnStepTwo eSaveDetailPartial btnSubmit btnPrimary",
+      "href": "https://mp.cafe24.com/mp/product/front/detail",
+      "id": "",
+      "name": null,
+      "tag": "A",
+      "text": "선택항목전송"
+    }
+  ],
+  "checkboxes": [
+    {
+      "checked": false,
+      "className": "",
+      "disabled": false,
+      "id": "selectAllCheck",
+      "name": null,
+      "tag": "INPUT"
+    }
+  ],
+  "connectedColumns": {
+    "market_data.prd_name_additional": {
+      "connect_column": "prd_name"
+    },
+    "prd_name": {
+      "connect_column": "market_data.prd_name_additional"
+    }
+  },
+  "templates": [
+    "auction|shouldbe2480"
+  ],
+  "context": {
+    "ids": {
+      "mall_id": [
+        "younzara",
+        "younzara"
+      ],
+      "prd_code": [
+        "P0000PBU"
+      ],
+      "prd_entity_code": [
+        "65b25bf7dbece"
+      ],
+      "prd_no": [
+        "10186"
+      ],
+      "set_no": [],
+      "shop_no": [
+        "1",
+        "1"
+      ]
+    },
+    "links": [],
+    "modify": true,
+    "mongo": {
+      "auction|shouldbe2480": {
+        "market_prd_code": "D888859044",
+        "prd_entity_code": "65b25bf7dbece",
+        "shop_no": 1,
+        "sync_status": "S"
+      }
+    },
+    "register": false,
+    "selectedMarkets": [
+      {
+        "disabled": false,
+        "marketKey": "auction|shouldbe2480",
+        "shopNo": "1"
+      }
+    ],
+    "templates": [
+      {
+        "marketKey": "auction|shouldbe2480",
+        "visible": true
+      }
+    ],
+    "values": [
+      {
+        "checked": false,
+        "disabled": false,
+        "length": 11,
+        "name": "template_data[auction|shouldbe2480][modify_partial][selling_price]",
+        "type": "checkbox",
+        "value": "565|product",
+        "visible": true
+      },
+      {
+        "checked": false,
+        "disabled": false,
+        "length": 1,
+        "name": "template_data[auction|shouldbe2480][market_data][is_default_selling_price]",
+        "type": "checkbox",
+        "value": "T",
+        "visible": true
+      },
+      {
+        "checked": false,
+        "disabled": false,
+        "length": 5,
+        "name": "template_data[auction|shouldbe2480][selling_price]",
+        "type": "text",
+        "value": "95500",
+        "visible": false
+      },
+      {
+        "checked": false,
+        "disabled": false,
+        "length": 62,
+        "name": "template_data[auction|shouldbe2480][imgs][basic1]",
+        "type": "hidden",
+        "value": "https://younzara.cafe24.com/web/product/big/201005IHB002-0.jpg",
+        "visible": false
+      },
+      {
+        "checked": false,
+        "disabled": false,
+        "length": 11,
+        "name": "template_data[auction|shouldbe2480][modify_partial][description]",
+        "type": "checkbox",
+        "value": null,
+        "visible": true
+      },
+      {
+        "checked": false,
+        "disabled": false,
+        "length": 1,
+        "name": "template_data[auction|shouldbe2480][market_data][is_default_detail_info]",
+        "type": "checkbox",
+        "value": "T",
+        "visible": true
+      },
+      {
+        "checked": null,
+        "disabled": false,
+        "length": 2892,
+        "name": "template_data[auction|shouldbe2480][description]",
+        "type": "textarea",
+        "value": null,
+        "visible": false
+      },
+      {
+        "checked": null,
+        "disabled": false,
+        "length": 2844,
+        "name": "template_data[auction|shouldbe2480][description]",
+        "type": "textarea",
+        "value": null,
+        "visible": false
+      },
+      {
+        "checked": false,
+        "disabled": false,
+        "length": 1,
+        "name": "template_data[auction|shouldbe2480][market_data][is_default_option_stock]",
+        "type": "checkbox",
+        "value": "T",
+        "visible": true
+      }
+    ]
+  },
+  "scope": "LIVE_CHROME_READ_ONLY_ONE_AUCTION_PRODUCT",
+  "externalWrites": 0
+}

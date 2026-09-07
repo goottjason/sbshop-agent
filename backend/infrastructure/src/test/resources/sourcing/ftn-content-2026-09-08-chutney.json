@@ -1,0 +1,66 @@
+{
+  "data": {
+    "products": {
+      "items": [
+        {
+          "__typename": "SimpleProduct",
+          "sku": "2187474",
+          "url_key": "fortnum-s-fig-fennel-chutney-250g",
+          "name": "Fig & Fennel Chutney, 250g",
+          "canonical_url": "fortnum-s-fig-fennel-chutney-250g.html",
+          "stock_status": "IN_STOCK",
+          "description": {
+            "html": "Sweet fig and comforting fennel combine to make this deliciously versatile jar. A ploughman’s lunch and cheeseboard essential."
+          },
+          "media_gallery": [
+            {
+              "__typename": "ProductImage",
+              "url": "https://www.fortnumandmason.com/media/catalog/product/cache/74c1057f7991b4edb2bc7bdaa94de933/2/1/2187474_ayr25_fig_and_fennel_chutney_250g_mob_sq_a.jpg",
+              "label": "fortnum-s-fig-fennel-chutney-two-hundred-and-fifty-g.jpeg",
+              "position": 1,
+              "disabled": false
+            },
+            {
+              "__typename": "ProductImage",
+              "url": "https://www.fortnumandmason.com/media/catalog/product/cache/74c1057f7991b4edb2bc7bdaa94de933/2/1/2187474_ayr25_fig_and_fennel_chutney_250g_mob_sq_b.jpg",
+              "label": "fortnum-s-fig-fennel-chutney-two-hundred-and-fifty-g.jpeg",
+              "position": 2,
+              "disabled": false
+            },
+            {
+              "__typename": "ProductImage",
+              "url": "https://www.fortnumandmason.com/media/catalog/product/cache/74c1057f7991b4edb2bc7bdaa94de933/2/1/2187474_ayr25_fig_and_fennel_chutney_250g_mob_sq_c.jpg",
+              "label": "fortnum-s-fig-fennel-chutney-two-hundred-and-fifty-g.jpeg",
+              "position": 3,
+              "disabled": false
+            },
+            {
+              "__typename": "ProductImage",
+              "url": "https://www.fortnumandmason.com/media/catalog/product/cache/74c1057f7991b4edb2bc7bdaa94de933/a/d/add_some_extraordinary_fig_and_fennel_dloftus1150.jpg",
+              "label": "fortnum-s-fig-fennel-chutney-250g.jpeg",
+              "position": 4,
+              "disabled": false
+            }
+          ],
+          "image": {
+            "url": "https://www.fortnumandmason.com/media/catalog/product/cache/74c1057f7991b4edb2bc7bdaa94de933/2/1/2187474_ayr25_fig_and_fennel_chutney_250g_mob_sq_a.jpg"
+          },
+          "price_range": {
+            "minimum_price": {
+              "final_price": {
+                "value": 7.95,
+                "currency": "GBP"
+              }
+            },
+            "maximum_price": {
+              "final_price": {
+                "value": 7.95,
+                "currency": "GBP"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
