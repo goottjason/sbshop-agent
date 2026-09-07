@@ -1,0 +1,13 @@
+.pbv-add { display: flex; align-items: center; gap: 12px; margin: 16px 0; font-size: 12px; color: #64748b; }
+.pbv-add > .ant-select { width: 320px; max-width: 75%; }
+.pbv-empty { padding: 24px; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; text-align: center; }
+.pbv-field { border: 1px solid #e1e7ea; border-radius: 8px; margin: 12px 0; padding: 14px; }
+.pbv-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.pbv-heading > .ant-checkbox-wrapper { margin-left: auto; }
+.pbv-heading > button { margin-left: auto; }
+.pbv-heading > .ant-checkbox-wrapper + button { margin-left: 0; }
+.pbv-field > .ant-select { width: 100%; }
+.pbv-hint { margin: 7px 0 0; color: #92400e; font-size: 12px; }
+.pbv-preview { margin-top: 10px; }
+.pbv-preview > summary { color: #475569; font-size: 12px; cursor: pointer; padding: 5px 0; }
+.pbv-preview > summary:focus-visible { outline: 2px solid #166534; outline-offset: 3px; }

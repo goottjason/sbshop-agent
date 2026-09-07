@@ -78,6 +78,26 @@ public class ProductEditService {
 		return store(List.of(planner.plan(product, values, registrations.findByProductId(productId))), actor);
 	}
 
+	@Transactional
+	public Review previewValues(ProductBulkValuesRequest request, String actor) {
+		requireActor(actor);
+		var byId = products.findAllById(request.productIds()).stream().filter(p -> !p.isDeleted())
+			.collect(Collectors.toMap(Product::getId, p -> p));
+		var links = registrations.findByProductIdIn(request.productIds()).stream()
+			.collect(Collectors.groupingBy(MarketRegistration::getProductId));
+		var plans = new ArrayList<ProductEditPlanner.Plan>();
+		long payloadLength = 2;
+		for (Long id : request.productIds()) {
+			var plan = byId.containsKey(id)
+				? planner.plan(byId.get(id), request.values(), links.getOrDefault(id, List.of())) : planner.missing(id);
+			payloadLength += json(plan).length() + 1;
+			if (payloadLength > 5_000_000)
+				throw new IllegalArgumentException("검토 내용이 너무 큽니다. 상품 선택 범위를 줄이세요.");
+			plans.add(plan);
+		}
+		return store(plans, actor);
+	}
+
 	private Review store(List<ProductEditPlanner.Plan> plans, String actor) {
 		requireActor(actor);
 		String payload = json(plans);
@@ -160,12 +180,41 @@ public class ProductEditService {
 		var history = histories.save(new ProductChangeHistory(reviewId, product.getId(), beforeRevision,
 			product.getRevision(), actor, json(plan.changes()), json(plan)));
 		if (hasMarketChanges(plan)) {
+			var snapshots = targetSnapshots(plan);
 			for (var connection : plan.connections()) {
-				targets.save(new ProductChangeTarget(history.getId(), product.getId(), connection.registrationId(),
-					product.getRevision(), connection.market(), json(plan)));
+				for (String snapshot : snapshots)
+					targets.save(new ProductChangeTarget(history.getId(), product.getId(), connection.registrationId(),
+						product.getRevision(), connection.market(), snapshot));
 			}
 		}
 		return history;
+	}
+
+	/** Independent dispatchers need disjoint commands while the reviewed database edit remains atomic. */
+	private List<String> targetSnapshots(ProductEditPlanner.Plan plan) {
+		Set<String> fields = plan.changes().stream().map(ProductEditPlanner.Change::field)
+			.filter(field -> !field.equals("memo")).collect(Collectors.toSet());
+		boolean split = fields.contains("salesQuantity")
+			&& fields.stream().anyMatch(ProductEditPolicy.PRICE_FIELDS::contains)
+			&& fields.stream()
+				.allMatch(field -> field.equals("salesQuantity") || ProductEditPolicy.PRICE_FIELDS.contains(field));
+		if (!split)
+			return List.of(json(plan));
+		return List.of(targetSnapshot(plan, ProductEditPolicy.PRICE_FIELDS),
+			targetSnapshot(plan, Set.of("salesQuantity")));
+	}
+
+	private String targetSnapshot(ProductEditPlanner.Plan plan, Set<String> fields) {
+		ObjectNode snapshot = mapper.valueToTree(plan);
+		var changes = plan.changes().stream().filter(change -> fields.contains(change.field())).toList();
+		ObjectNode command = mapper.createObjectNode();
+		for (var change : changes)
+			command.set(change.field(), snapshot.path("command").get(change.field()));
+		snapshot.set("changes", mapper.valueToTree(changes));
+		snapshot.set("command", command);
+		if (!fields.stream().anyMatch(ProductEditPolicy.PRICE_FIELDS::contains))
+			snapshot.putArray("prices");
+		return json(snapshot);
 	}
 
 	@Transactional(readOnly = true)

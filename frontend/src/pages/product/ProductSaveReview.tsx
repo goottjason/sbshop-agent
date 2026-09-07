@@ -30,7 +30,7 @@ export function ProductSaveReview({ review, onClose, onSaved, commit = productEd
       disabled={ready === 0 || (!!result && !retry)} onClick={() => { void save(); }}>{retry ? '같은 변경으로 저장 재시도' : `검토한 ${ready}개 상품 저장`}</Button></>}>
     <Alert type="info" showIcon message="상품별로 모든 변경값을 함께 저장합니다."
       description="제외된 상품은 저장하지 않습니다. 검토 후 상품·연결·가격 정책이 바뀌면 다시 검토해야 합니다. DB 저장과 마켓 반영 결과는 별도로 관리합니다." />
-    <p className="pw-change-note">검토 유효 시각: {new Date(review.expiresAt).toLocaleString('ko-KR')} · 마켓 미반영 기록은 저장됩니다. 자동 마켓 전송은 아직 제공되지 않습니다.</p>
+    <p className="pw-change-note">검토 유효 시각: {new Date(review.expiresAt).toLocaleString('ko-KR')} · 지원되는 변경은 마켓 반영 작업으로 자동 접수되며, 마켓별 결과는 별도로 확인합니다.</p>
     {error && <Alert type="error" showIcon message="저장 결과를 확인하지 못했습니다. 같은 변경으로 재시도하세요."
       description="서버에 이미 저장됐다면 중복 적용하지 않고 기존 저장 결과를 반환합니다." />}
     <div className="pw-preview-results"><table><thead><tr><th>상품</th><th>변경 전 → 저장할 값</th><th>상태·마켓 영향</th></tr></thead>

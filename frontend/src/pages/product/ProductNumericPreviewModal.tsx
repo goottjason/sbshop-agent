@@ -74,7 +74,8 @@ export function ProductNumericPreviewModal({ productIds, onClose }: Props) {
         </div>;
       })}
       <Button disabled={!available.length} onClick={() => setChanges((current) => [...current, { field: available[0].field, operation: 'SET', value: '' }])}>변경 필드 추가</Button>
-      <p className="pw-change-note">판매가는 계산 후 100원 단위로 반올림합니다. 재고·묶음수량의 비율 계산은 소수 부분을 버립니다. 수량 직접 지정·증감은 정수로 입력하세요. 마진율·쿠폰율의 증감은 %p 기준입니다.</p>
+      <p className="pw-change-note">판매가는 100원 단위로 반올림합니다. 판매용 설정 수량은 0~999,999개이며 소수 부분을 버립니다. 기존 DB 재고·묶음수량은 비율 계산의 소수 부분만 버리고, 직접 지정·증감은 정수로 입력합니다. 마진율·쿠폰율의 증감은 %p 기준입니다.</p>
+      {used.includes('SALES_QUANTITY') && <p className="pw-change-note">판매용 설정 수량은 소싱처의 기존 DB 재고와 별개입니다. 현재 연결 마켓의 수정 제한을 검토한 뒤 저장하며, DB 저장 후 마켓별 반영 결과를 확인하세요.</p>}
     </div>
     {reviewError && <Alert type="error" message="저장 검토를 불러오지 못했습니다. 다시 검토해 주세요." />}
     {preview.isError && <Alert type="error" showIcon message="미리보기를 계산하지 못했습니다."

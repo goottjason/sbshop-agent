@@ -13,7 +13,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers
-@SpringBootTest
+@SpringBootTest(classes = com.sbshop.agent.api.ApiApplication.class)
 @org.springframework.test.annotation.DirtiesContext(classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_CLASS)
 class ApiContextLoadSmokeTest {
 

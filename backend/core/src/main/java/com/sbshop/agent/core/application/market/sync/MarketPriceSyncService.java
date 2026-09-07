@@ -52,6 +52,8 @@ public class MarketPriceSyncService {
 				if (!"PENDING_DISPATCH".equals(target.getState()))
 					return;
 				MarketType market = MarketType.valueOf(target.getMarket());
+				if (MarketStockSyncService.handlesSavedQuantityTarget(target, mapper))
+					return;
 				if (!SUPPORTED.contains(market) || !priceOnly(target)) {
 					target.priceOutcome("ACTION_REQUIRED");
 					return;
@@ -263,6 +265,12 @@ public class MarketPriceSyncService {
 			var task = tasks.findById(c.taskId()).orElseThrow();
 			if (!gate.owns(c.token(), now) || !task.owns(c.token(), now))
 				return false;
+			if (gate.getNextAllowedAt().isAfter(now)) {
+				task.finish("VERIFY", "공유 호출 제한 대기 중입니다. 제한 해제 후 가격을 다시 조회합니다.", now, gate.getNextAllowedAt());
+				attempts.save(new MarketPriceAttempt(task.getId(), "THROTTLED", task.getDetail(), now));
+				gate.release(gate.getNextAllowedAt());
+				return false;
+			}
 			String invalid = invalid(task);
 			if (invalid != null || task.getWrites() >= 3) {
 				task.observed(observed, now);
@@ -287,6 +295,12 @@ public class MarketPriceSyncService {
 			var gate = gates.lock(gateId(c.market())).orElseThrow();
 			var task = tasks.findById(c.taskId()).orElseThrow();
 			Instant now = now();
+			if (error != null && error.rateLimited()) {
+				Instant cooldown = now.plusSeconds(Math.min(300, 10L << Math.min(5, Math.max(0, task.getReads() - 1))));
+				if (error.getRetryAfter() != null && error.getRetryAfter().isAfter(cooldown))
+					cooldown = error.getRetryAfter();
+				gate.deferUntil(cooldown);
+			}
 			if (!gate.owns(c.token(), now) || !task.owns(c.token(), now))
 				return;
 			String invalid = invalid(task), finalState = invalid == null ? state : "STALE",

@@ -68,7 +68,7 @@ class ProductEditServiceIntegrationTest {
 	ProductRepository products;
 	@Autowired
 	MarketRegistrationRepository registrations;
-	@Autowired
+	@MockitoSpyBean
 	ProductChangeHistoryRepository histories;
 	@Autowired
 	ProductEditReviewRepository reviews;
@@ -123,6 +123,132 @@ class ProductEditServiceIntegrationTest {
 	}
 
 	@Test
+	void bulkValuesKeepLockedProductsAtomicAndStoreOnlyExplicitChanges() {
+		Product locked = create(), editable = create();
+		link(locked, MarketType.COUPANG, "{\"sellerProductId\":\"45\"}");
+		var request = new ProductBulkValuesRequest(List.of(locked.getId(), editable.getId(), Long.MAX_VALUE),
+			mapper.createObjectNode().put("category", "COSMETICS").put("memo", "검토한 공통 메모"));
+		var review = edits.previewValues(request, "admin");
+		assertThat(review.items()).extracting(ProductEditPlanner.Plan::state).containsExactly(
+			ProductEditPlanner.State.EXCLUDED, ProductEditPlanner.State.READY, ProductEditPlanner.State.NOT_FOUND);
+		assertThat(products.findById(editable.getId()).orElseThrow().getMemo()).isEqualTo(editable.getMemo());
+		var result = edits.commit(review.reviewId(), "admin");
+		assertThat(result.items()).extracting(ProductEditService.CommitItem::state).containsExactly("EXCLUDED", "SAVED",
+			"NOT_FOUND");
+		Product after = products.findById(editable.getId()).orElseThrow();
+		assertThat(after.getCategory()).isEqualTo(ProductCategory.COSMETICS);
+		assertThat(after.getMemo()).isEqualTo("검토한 공통 메모");
+		assertThat(after.getBrand()).isEqualTo(editable.getBrand());
+		assertThat(after.getDetailHtml()).isEqualTo(editable.getDetailHtml());
+		assertThat(products.findById(locked.getId()).orElseThrow().getMemo()).isEqualTo(locked.getMemo());
+		assertThat(edits.commit(review.reviewId(), "admin").items().get(1).historyId())
+			.isEqualTo(result.items().get(1).historyId());
+		assertThat(histories.count()).isEqualTo(1);
+		assertThat(edits.history(editable.getId()).getFirst().changes()).extracting(ProductEditPlanner.Change::field)
+			.containsExactlyInAnyOrder("category", "memo");
+	}
+
+	@Test
+	void bulkBrandAndUnitUseExistingNameCompositionAndPreserveOtherFields() {
+		Product product = create();
+		var review = edits.previewValues(new ProductBulkValuesRequest(List.of(product.getId()),
+			mapper.createObjectNode().put("brand", "새 브랜드").put("measureUnit", "ML")), "admin");
+		assertThat(review.items().getFirst().changes()).anySatisfy(change -> {
+			assertThat(change.field()).isEqualTo("name");
+			assertThat(change.derived()).isTrue();
+			assertThat(change.after()).contains("새 브랜드", "25.5밀리리터", "3개");
+		});
+		assertThat(edits.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("SAVED");
+		assertThat(products.findById(product.getId()).orElseThrow().getSalePrice())
+			.isEqualByComparingTo(product.getSalePrice());
+		assertThat(histories.findAll().getFirst().getReviewDetails()).contains("새 브랜드", "derived");
+	}
+
+	@Test
+	void bulkValuesEnforceActorRevisionAndExpiryThroughExistingCommit() {
+		Product changed = create(), editable = create();
+		var review = edits.previewValues(new ProductBulkValuesRequest(List.of(changed.getId(), editable.getId()),
+			mapper.createObjectNode().put("memo", "새 메모")), "admin");
+		assertThatThrownBy(() -> edits.commit(review.reviewId(), "another-admin"))
+			.isInstanceOf(ProductEditConflictException.class);
+		tx.executeWithoutResult(s -> products.findById(changed.getId()).orElseThrow()
+			.update(ProductUpdateCommand.builder().memo("다른 변경").build()));
+		assertThat(edits.commit(review.reviewId(), "admin").items()).extracting(ProductEditService.CommitItem::state)
+			.containsExactly("CONFLICT", "SAVED");
+		Product expired = create();
+		var old = edits.previewValues(
+			new ProductBulkValuesRequest(List.of(expired.getId()), mapper.createObjectNode().put("memo", "만료 검토")),
+			"admin");
+		tx.executeWithoutResult(s -> org.springframework.test.util.ReflectionTestUtils.setField(
+			reviews.findById(old.reviewId()).orElseThrow(), "expiresAt", java.time.Instant.now().minusSeconds(1)));
+		assertThat(edits.commit(old.reviewId(), "admin").items().getFirst().state()).isEqualTo("CONFLICT");
+		assertThat(products.findById(expired.getId()).orElseThrow().getMemo()).isEqualTo(expired.getMemo());
+	}
+
+	@Test
+	void bulkHistoryFailureRollsBackOnlyItsProductAndSameReviewRetriesSafely() {
+		Product a = create(), b = create();
+		var review = edits.previewValues(
+			new ProductBulkValuesRequest(List.of(a.getId(), b.getId()), mapper.createObjectNode().put("memo", "일괄 메모")),
+			"admin");
+		doThrow(new IllegalStateException("fixture history storage failure")).when(histories)
+			.save(argThat(h -> h.getProductId().equals(b.getId())));
+		var first = edits.commit(review.reviewId(), "admin");
+		assertThat(first.items()).extracting(ProductEditService.CommitItem::state).containsExactly("SAVED", "FAILED");
+		assertThat(products.findById(b.getId()).orElseThrow().getMemo()).isEqualTo(b.getMemo());
+		assertThat(histories.count()).isEqualTo(1);
+		reset(histories);
+		var retry = edits.commit(review.reviewId(), "admin");
+		assertThat(retry.items()).extracting(ProductEditService.CommitItem::state).containsExactly("SAVED", "SAVED");
+		assertThat(retry.items().getFirst().historyId()).isEqualTo(first.items().getFirst().historyId());
+		assertThat(histories.count()).isEqualTo(2);
+	}
+
+	@Test
+	void explicitEmptyMemoAndImageListClearOnlyReviewedFields() {
+		Product product = create();
+		tx.executeWithoutResult(
+			s -> products.findById(product.getId()).orElseThrow().update(ProductUpdateCommand.builder()
+				.memo("지울 메모").hostedImages(List.of("https://example.com/old.jpg")).build()));
+		var values = mapper.createObjectNode().put("memo", "");
+		values.putArray("hostedImages");
+		var review = edits.previewValues(new ProductBulkValuesRequest(List.of(product.getId()), values), "admin");
+		assertThat(edits.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("SAVED");
+		Product after = products.findById(product.getId()).orElseThrow();
+		assertThat(after.getMemo()).isEmpty();
+		assertThat(after.getHostedImages()).isEmpty();
+		assertThat(after.getDetailHtml()).isEqualTo(product.getDetailHtml());
+	}
+
+	@Test
+	void oversizedBulkHtmlIsRejectedBeforeAnyReviewIsStored() {
+		var ids = java.util.stream.LongStream.rangeClosed(1, 500).boxed().toList();
+		assertThatThrownBy(() -> edits.previewValues(new ProductBulkValuesRequest(ids,
+			mapper.createObjectNode().put("detailHtml", "x".repeat(1_000_000))), "admin"))
+			.isInstanceOf(IllegalArgumentException.class).hasMessageContaining("너무 큽니다");
+		assertThat(reviews.count()).isZero();
+		assertThat(histories.count()).isZero();
+		assertThat(new ProductBulkValuesRequest(ids, mapper.createObjectNode().put("memo", "정상 공통 메모")).productIds())
+			.hasSize(500);
+	}
+
+	@Test
+	void bulkReviewStopsWhenBeforeValuesExceedTheReviewBudget() {
+		var ids = new ArrayList<Long>();
+		for (int i = 0; i < 6; i++) {
+			Product product = create();
+			ids.add(product.getId());
+			tx.executeWithoutResult(s -> products.findById(product.getId()).orElseThrow().update(
+				ProductUpdateCommand.builder().detailHtml("x".repeat(950_000)).build()));
+		}
+		assertThatThrownBy(() -> edits.previewValues(new ProductBulkValuesRequest(ids,
+			mapper.createObjectNode().put("detailHtml", "짧은 새 설명")), "admin"))
+			.isInstanceOf(IllegalArgumentException.class).hasMessageContaining("너무 큽니다");
+		assertThat(reviews.count()).isZero();
+		assertThat(histories.count()).isZero();
+	}
+
+	@Test
 	void previewProtectsMinimumAndCommitIsIdempotentWithDurablePendingMarkets() {
 		Product p = create();
 		link(p, MarketType.CAFE24, "{\"product_no\":\"42\",\"gmarket_goodsNo\":\"007\"}");
@@ -164,6 +290,154 @@ class ProductEditServiceIntegrationTest {
 		}
 		assertThat(histories.count()).isEqualTo(1);
 		assertThat(products.findById(p.getId()).orElseThrow().getStock()).isEqualTo(4);
+	}
+
+	@Test
+	void mixedPriceAndSalesQuantityShareOneAtomicHistoryWithDisjointDispatchTargets() throws Exception {
+		Product p = create();
+		var reg = link(p, MarketType.COUPANG, "{\"sellerProductId\":\"45\",\"vendorItemId\":\"67\"}");
+		var review = edits.previewSingle(p.getId(), p.getRevision(), mapper.createObjectNode()
+			.put("salePrice", 18000).put("costPrice", 11000).put("salesQuantity", 42).put("memo", "함께 검토한 변경"),
+			"admin");
+		assertThat(review.items().getFirst().state()).isEqualTo(ProductEditPlanner.State.READY);
+		var saved = edits.commit(review.reviewId(), "admin").items().getFirst();
+		assertThat(saved.state()).isEqualTo("SAVED");
+		Product after = products.findById(p.getId()).orElseThrow();
+		assertThat(after.getRevision()).isEqualTo(p.getRevision() + 1);
+		assertThat(after.getSalePrice()).isEqualByComparingTo("18000");
+		assertThat(after.getPriceInfo().getCostPrice()).isEqualByComparingTo("11000");
+		assertThat(after.getSalesQuantity()).isEqualTo(42);
+		assertThat(after.getMemo()).isEqualTo("함께 검토한 변경");
+		assertThat(histories.findAll()).singleElement().satisfies(history -> {
+			assertThat(history.getBeforeRevision()).isEqualTo(p.getRevision());
+			assertThat(history.getAfterRevision()).isEqualTo(after.getRevision());
+			assertThat(history.getChanges()).contains("salePrice", "costPrice", "salesQuantity", "memo");
+		});
+		var pending = targets.findAll();
+		assertThat(pending).hasSize(2).allSatisfy(target -> {
+			assertThat(target.getHistoryId()).isEqualTo(saved.historyId());
+			assertThat(target.getProductRevision()).isEqualTo(after.getRevision());
+			assertThat(target.getRegistrationId()).isEqualTo(reg.getId());
+			assertThat(target.getMarket()).isEqualTo("COUPANG");
+			assertThat(target.getState()).isEqualTo("PENDING_DISPATCH");
+		});
+		for (var target : pending) {
+			var snapshot = mapper.readTree(target.getSnapshot());
+			Set<String> commandKeys = new HashSet<>();
+			snapshot.path("command").fieldNames().forEachRemaining(commandKeys::add);
+			Set<String> changeKeys = new HashSet<>();
+			snapshot.path("changes").forEach(change -> changeKeys.add(change.path("field").asText()));
+			assertThat(commandKeys).isEqualTo(changeKeys);
+			if (commandKeys.contains("salesQuantity")) {
+				assertThat(commandKeys).containsExactly("salesQuantity");
+				assertThat(snapshot.path("command").path("salesQuantity").asInt()).isEqualTo(42);
+				assertThat(snapshot.path("prices")).isEmpty();
+				assertThat(com.sbshop.agent.core.application.market.sync.MarketStockSyncService
+					.handlesSavedQuantityTarget(target, mapper)).isTrue();
+			} else {
+				assertThat(commandKeys).containsExactlyInAnyOrder("salePrice", "costPrice");
+				assertThat(snapshot.path("command").path("salePrice").asInt()).isEqualTo(18000);
+				assertThat(snapshot.path("command").path("costPrice").asInt()).isEqualTo(11000);
+				assertThat(snapshot.path("prices")).hasSize(4);
+				assertThat(com.sbshop.agent.core.application.market.sync.MarketStockSyncService
+					.handlesSavedQuantityTarget(target, mapper)).isFalse();
+			}
+		}
+		assertThat(edits.commit(review.reviewId(), "admin").items().getFirst().historyId())
+			.isEqualTo(saved.historyId());
+		assertThat(histories.count()).isEqualTo(1);
+		assertThat(targets.count()).isEqualTo(2);
+		assertThat(products.findById(p.getId()).orElseThrow().getRevision()).isEqualTo(after.getRevision());
+	}
+
+	@Test
+	void numericBulkSalesQuantityRespectsMarketPolicyKeepsSourceStockAndSplitsPriceTargets() {
+		Product coupang = create(), unlinked = create(), cafe24 = create();
+		link(coupang, MarketType.COUPANG, "{\"sellerProductId\":\"45\",\"vendorItemId\":\"67\"}");
+		link(cafe24, MarketType.CAFE24, "{\"product_no\":\"42\"}");
+		var review = edits.previewNumeric(new ProductNumericPreviewUseCase.Request(
+			List.of(coupang.getId(), unlinked.getId(), cafe24.getId()), List.of(
+				new NumericChange(ProductNumericField.SALE_PRICE, NumericChange.Operation.SET, new BigDecimal("18000")),
+				new NumericChange(ProductNumericField.SALES_QUANTITY, NumericChange.Operation.SET,
+					new BigDecimal("4.8"))),
+			null), "admin");
+		assertThat(review.items()).extracting(ProductEditPlanner.Plan::state).containsExactly(
+			ProductEditPlanner.State.READY, ProductEditPlanner.State.READY, ProductEditPlanner.State.EXCLUDED);
+		assertThat(review.items().getFirst().notices())
+			.anySatisfy(note -> assertThat(note).contains("4.8", "→ 4", "버림"));
+		var saved = edits.commit(review.reviewId(), "admin");
+		assertThat(saved.items()).extracting(ProductEditService.CommitItem::state).containsExactly("SAVED", "SAVED",
+			"EXCLUDED");
+		for (Product original : List.of(coupang, unlinked)) {
+			Product after = products.findById(original.getId()).orElseThrow();
+			assertThat(after.getSalesQuantity()).isEqualTo(4);
+			assertThat(after.getStock()).isEqualTo(original.getStock());
+			assertThat(after.getRevision()).isEqualTo(original.getRevision() + 1);
+		}
+		assertThat(products.findById(cafe24.getId()).orElseThrow().getSalesQuantity())
+			.isEqualTo(cafe24.getSalesQuantity());
+		assertThat(products.findById(cafe24.getId()).orElseThrow().getSalePrice())
+			.isEqualByComparingTo(cafe24.getSalePrice());
+		assertThat(targets.findAll()).hasSize(2).allMatch(target -> target.getProductId().equals(coupang.getId()));
+		assertThat(targets.findAll().stream()
+			.filter(target -> com.sbshop.agent.core.application.market.sync.MarketStockSyncService
+				.handlesSavedQuantityTarget(target, mapper)))
+			.hasSize(1);
+		assertThat(edits.commit(review.reviewId(), "admin").items())
+			.extracting(ProductEditService.CommitItem::historyId)
+			.containsExactlyElementsOf(saved.items().stream().map(ProductEditService.CommitItem::historyId).toList());
+		assertThat(histories.count()).isEqualTo(2);
+		assertThat(targets.count()).isEqualTo(2);
+	}
+
+	@Test
+	void secondSplitTargetFailureRollsBackBothFieldsHistoryAndFirstTarget() {
+		Product p = create();
+		link(p, MarketType.COUPANG, "{\"sellerProductId\":\"45\",\"vendorItemId\":\"67\"}");
+		var review = edits.previewSingle(p.getId(), p.getRevision(), mapper.createObjectNode()
+			.put("salePrice", 18000).put("salesQuantity", 42), "admin");
+		doThrow(new IllegalStateException("second target storage failure")).when(targets)
+			.save(argThat(target -> com.sbshop.agent.core.application.market.sync.MarketStockSyncService
+				.handlesSavedQuantityTarget(target, mapper)));
+		assertThat(edits.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("FAILED");
+		Product rolledBack = products.findById(p.getId()).orElseThrow();
+		assertThat(rolledBack.getRevision()).isEqualTo(p.getRevision());
+		assertThat(rolledBack.getSalePrice()).isEqualByComparingTo(p.getSalePrice());
+		assertThat(rolledBack.getSalesQuantity()).isEqualTo(p.getSalesQuantity());
+		assertThat(histories.count()).isZero();
+		assertThat(targets.count()).isZero();
+		reset(targets);
+		assertThat(edits.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("SAVED");
+		assertThat(histories.count()).isEqualTo(1);
+		assertThat(targets.count()).isEqualTo(2);
+	}
+
+	@Test
+	void priceOnlyAndQuantityOnlyEditsStillProduceOneTargetEach() throws Exception {
+		Product price = create(), quantity = create();
+		link(price, MarketType.COUPANG, "{\"sellerProductId\":\"45\",\"vendorItemId\":\"67\"}");
+		link(quantity, MarketType.COUPANG, "{\"sellerProductId\":\"46\",\"vendorItemId\":\"68\"}");
+		for (Product product : List.of(price, quantity)) {
+			String field = product.getId().equals(price.getId()) ? "salePrice" : "salesQuantity";
+			var review = edits.previewSingle(product.getId(), product.getRevision(), mapper.createObjectNode()
+				.put(field, field.equals("salePrice") ? 18000 : 42).put("memo", "기존 단일 대상"), "admin");
+			assertThat(edits.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("SAVED");
+			var target = targets.findByProductIdAndMarket(product.getId(), "COUPANG");
+			assertThat(target).hasSize(1);
+			assertThat(mapper.readTree(target.getFirst().getSnapshot()).path("changes")).hasSize(2);
+		}
+	}
+
+	@Test
+	void unsupportedFieldInPriceQuantityEditStillExcludesTheWholeProduct() {
+		Product p = create();
+		link(p, MarketType.COUPANG, "{\"sellerProductId\":\"45\",\"vendorItemId\":\"67\"}");
+		var review = edits.previewSingle(p.getId(), p.getRevision(), mapper.createObjectNode()
+			.put("salePrice", 18000).put("salesQuantity", 42).put("stock", 10), "admin");
+		assertThat(edits.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("EXCLUDED");
+		assertThat(products.findById(p.getId()).orElseThrow().getRevision()).isEqualTo(p.getRevision());
+		assertThat(histories.count()).isZero();
+		assertThat(targets.count()).isZero();
 	}
 
 	@Test

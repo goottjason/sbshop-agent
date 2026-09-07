@@ -101,6 +101,9 @@ public class ProductNumericPreviewUseCase {
 			if (request.changes().stream().anyMatch(change -> change.field() == ProductNumericField.STOCK)) {
 				notes.add("기존 DB 재고의 계산입니다. 기본 300개의 판매용 설정 수량과는 별개입니다.");
 			}
+			if (request.changes().stream().anyMatch(change -> change.field() == ProductNumericField.SALES_QUANTITY)) {
+				notes.add("판매용 설정 수량은 0~999,999개이며 소수 부분은 버립니다. 소싱처의 기존 DB 재고와 별개이고, 연결 마켓의 수정 제한과 반영 결과는 별도로 확인합니다.");
+			}
 			if (request.changes().stream().anyMatch(change -> change.field() == ProductNumericField.WEIGHT)) {
 				notes.add("무게 표준은 kg입니다. 기존 값은 출처별 단위 확인 전까지 미확인이며, 이 계산은 단위를 변환하지 않습니다. 소수 5자리는 저장 정밀도입니다.");
 			}

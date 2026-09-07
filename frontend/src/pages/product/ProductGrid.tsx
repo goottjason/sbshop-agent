@@ -4,7 +4,7 @@ import {
   useReactTable, getCoreRowModel, flexRender, createColumnHelper,
   type RowSelectionState,
 } from '@tanstack/react-table';
-import { Alert, App as AntApp, Modal as AntModal, Pagination, InputNumber, Segmented } from 'antd';
+import { Alert, App as AntApp, Modal as AntModal, Pagination, InputNumber, Segmented, Select, Dropdown } from 'antd';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/Table';
 import { productApi, type ProductList, type ProductQuery } from '../../api/productApi';
 import { batchApi } from '../../api/batchApi';
@@ -14,6 +14,9 @@ import { EMPTY_PRODUCT_FILTERS, sourceProductUrl } from './productSearch';
 import { ProductDetailModal } from './ProductDetailModal';
 import { ProductNumericPreviewModal } from './ProductNumericPreviewModal';
 import { ProductContentRefreshModal } from './ProductContentRefreshModal';
+import { ProductContentFreshnessCell } from './ProductContentFreshnessCell';
+import { ProductBulkValuesModal } from './ProductBulkValuesModal';
+import { ProductStockSync } from './ProductStockSync';
 import { ProductInspectionJobs } from './ProductInspectionJobs';
 import { ProductPriceSync } from './ProductPriceSync';
 import { ProductRegistrationJobs } from './ProductRegistrationJobs';
@@ -47,6 +50,8 @@ function toQuery(page: number, size: number, keyword: string, f: ProductFilters)
   if (f.marketPlusIssue !== 'ALL') q.marketPlusIssue = f.marketPlusIssue;
   if (f.inStockOnly) q.inStockOnly = true;
   if (f.sourceGone && f.sourceGone !== 'ALL') q.sourceGone = f.sourceGone;
+  if (f.contentAgeDays != null) q.contentAgeDays = f.contentAgeDays;
+  q.contentAgeField = f.contentAgeField;
   return q;
 }
 
@@ -54,6 +59,7 @@ export default function ProductGrid() {
   const { modal } = AntApp.useApp();
   const [filters, setFilters] = useState<ProductFilters>(EMPTY_PRODUCT_FILTERS);
   const [density, setDensity] = useState('compact');
+  const [sort, setSort] = useState('workspacePriority,asc');
   const [keyword, setKeyword] = useState('');
   const [detailId, setDetailId] = useState<number | null>(null);
   const [marketPlusHistoryId, setMarketPlusHistoryId] = useState<number | null>(null);
@@ -66,8 +72,10 @@ export default function ProductGrid() {
   const [pageSize, setPageSize] = useState(50);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [numericPreviewIds, setNumericPreviewIds] = useState<number[] | null>(null);
+  const [bulkValuesIds, setBulkValuesIds] = useState<number[] | null>(null);
   const [registrationIds, setRegistrationIds] = useState<number[] | null>(null);
   const [priceSyncIds, setPriceSyncIds] = useState<number[] | null>(null);
+  const [stockSyncIds, setStockSyncIds] = useState<number[] | null>(null);
   const [inspectionIds, setInspectionIds] = useState<number[] | null>(null);
   const [contentRefreshIds, setContentRefreshIds] = useState<number[] | null>(null);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
@@ -75,7 +83,7 @@ export default function ProductGrid() {
   const [couponRate, setCouponRate] = useState<number | null>(20);
   const [minMarginPrice, setMinMarginPrice] = useState<number | null>(5000);
 
-  const query = useMemo(() => toQuery(page, pageSize, keyword, filters), [page, pageSize, keyword, filters]);
+  const query = useMemo(() => ({ ...toQuery(page, pageSize, keyword, filters), sort }), [page, pageSize, keyword, filters, sort]);
 
   const { data, isLoading, isFetching, isPlaceholderData, isError, error: searchError, refetch } = useQuery({
     queryKey: ['products', query],
@@ -190,6 +198,9 @@ export default function ProductGrid() {
     }),
     columnHelper.accessor('bundleQuantity', { id: 'bundleQuantity', header: '묶음', size: 60,
       cell: (info) => info.getValue() != null ? `${info.getValue()}개` : '—' }),
+    columnHelper.display({ id: 'contentFreshness', header: '콘텐츠 DB 적용', size: 170,
+      cell: ({ row }) => <ProductContentFreshnessCell value={row.original.contentFreshness} sbCode={row.original.sbCode}
+        disabled={isPlaceholderData || isError} onOpen={() => setContentRefreshIds([row.original.id])} /> }),
     columnHelper.display({
       id: 'markets', header: '마켓', size: 340,
       cell: ({ row }) => <><MarketBadgeCell product={row.original} onPublished={refetch} onViewHistory={() => setMarketPlusHistoryId(row.original.id)} />
@@ -278,10 +289,16 @@ export default function ProductGrid() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button className="pw-detail-button" onClick={() => setContentRefreshIds(!isPlaceholderData && !isError ? [...selectedIds] : [])}>이미지·상세 갱신{selectedIds.length > 0 && !isPlaceholderData && !isError ? ` (${selectedIds.length})` : ''}</button>
           <button className="pw-detail-button" onClick={() => setRegistrationIds(!isPlaceholderData && !isError ? [...selectedIds] : [])}>미등록 마켓 등록·작업</button>
-          <button className="pw-detail-button" onClick={() => setPriceSyncIds(!isPlaceholderData && !isError ? [...selectedIds] : [])}>마켓 가격 반영·작업</button>
+          <Dropdown trigger={['click']} menu={{ items: [{ key: 'price', label: '판매가 반영·작업' }, { key: 'stock', label: '판매용 수량 반영·작업' }],
+            onClick: ({ key }) => { const ids = !isPlaceholderData && !isError ? [...selectedIds] : []; if (key === 'price') setPriceSyncIds(ids); else setStockSyncIds(ids); } }}>
+            <button className="pw-detail-button">마켓 반영·작업 ▾</button>
+          </Dropdown>
           <button className="pw-detail-button" onClick={() => setInspectionIds(!isPlaceholderData && !isError ? [...selectedIds] : [])}>마켓 상태 확인·작업</button>
           {selectedIds.length > 0 && !isPlaceholderData && !isError && (
-            <button className="pw-detail-button" onClick={() => setNumericPreviewIds([...selectedIds])}>일괄 변경 미리보기 ({selectedIds.length})</button>
+            <Dropdown trigger={['click']} menu={{ items: [{ key: 'values', label: '기본정보·이미지·상세 편집' }, { key: 'numeric', label: '가격·수량 계산' }],
+              onClick: ({ key }) => { if (key === 'numeric') setNumericPreviewIds([...selectedIds]); else setBulkValuesIds([...selectedIds]); } }}>
+              <button className="pw-detail-button">일괄 편집 ({selectedIds.length}) ▾</button>
+            </Dropdown>
           )}
           {selectedIds.length > 0 && !isPlaceholderData && !isError && (
             <button onClick={() => setBulkOpen(true)} style={{ padding: '8px 16px', backgroundColor: 'var(--product-primary)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 700, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>
@@ -306,15 +323,27 @@ export default function ProductGrid() {
       </p>}
 
       {numericPreviewIds && <ProductNumericPreviewModal productIds={numericPreviewIds} onClose={() => setNumericPreviewIds(null)} />}
+      {bulkValuesIds && <ProductBulkValuesModal productIds={bulkValuesIds} onClose={() => setBulkValuesIds(null)} onSaved={() => { void refetch(); }} />}
       {registrationIds && <ProductRegistrationJobs productIds={registrationIds} onClose={() => { setRegistrationIds(null); void refetch(); }} />}
       {priceSyncIds && <ProductPriceSync productIds={priceSyncIds} onClose={() => { setPriceSyncIds(null); void refetch(); }} />}
+      {stockSyncIds && <ProductStockSync productIds={stockSyncIds} onClose={() => { setStockSyncIds(null); void refetch(); }} />}
       {inspectionIds && <ProductInspectionJobs productIds={inspectionIds} onClose={() => { setInspectionIds(null); void refetch(); }} />}
       {contentRefreshIds && <ProductContentRefreshModal productIds={contentRefreshIds} onClose={() => setContentRefreshIds(null)} onSaved={() => { void refetch(); }} />}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+      <div className="pw-result-controls">
         <span role="status" style={{ color: '#64748b', fontSize: 12 }}>{isFetching ? '검색 결과 갱신 중…' : isError ? '조회 실패' : `검색 결과 ${totalElements.toLocaleString()}개`}</span>
+        <div>
+        <Select aria-label="상품 정렬" value={sort} style={{ minWidth: 280 }}
+          onChange={value => { setSort(value); setPage(0); setRowSelection({}); }} options={[
+            { value: 'workspacePriority,asc', label: '조치 필요 우선 → 콘텐츠 적용 오래된 순' },
+            { value: 'contentOldest,asc', label: '콘텐츠 적용 오래된 순' },
+            { value: 'sbCode,asc', label: 'SB코드 오름차순' }, { value: 'sbCode,desc', label: 'SB코드 내림차순' },
+            { value: 'brand,asc', label: '브랜드 오름차순' }, { value: 'productName,asc', label: '상품명 오름차순' },
+            { value: 'priceInfo.salePrice,asc', label: '판매가 낮은 순' }, { value: 'priceInfo.salePrice,desc', label: '판매가 높은 순' },
+          ]} />
         <Segmented aria-label="상품 행 간격" value={density} onChange={setDensity}
           options={[{ value: 'compact', label: '촘촘하게' }, { value: 'comfortable', label: '넓게 보기' }]} />
+        </div>
       </div>
       {isError && <Alert type="error" showIcon message="상품 목록을 불러오지 못했습니다."
         description={isAxiosError(searchError) && searchError.response?.status === 400 && typeof searchError.response.data?.message === 'string'
@@ -330,7 +359,7 @@ export default function ProductGrid() {
         {!isLoading && !isError && rows.length === 0 && (
           <div style={{ padding: 48, textAlign: 'center', color: '#94a3b8' }}>조건에 맞는 상품이 없습니다.</div>
         )}
-        <Table fluid minTableWidth={1450} style={{ width: '100%', tableLayout: 'fixed' }}>
+        <Table fluid minTableWidth={1620} style={{ width: '100%', tableLayout: 'fixed' }}>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id}>

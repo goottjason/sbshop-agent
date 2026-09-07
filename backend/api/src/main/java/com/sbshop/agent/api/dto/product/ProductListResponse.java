@@ -29,7 +29,8 @@ public record ProductListResponse(
 	String sourceGoneAt,
 	String lastCrawlError,
 	String lastCrawlAt,
-	Map<String, MarketBadgeState> marketRegistrations, long pendingChanges) {
+	Map<String, MarketBadgeState> marketRegistrations, long pendingChanges,
+	com.sbshop.agent.core.domain.product.dto.ProductContentFreshness contentFreshness) {
 
 	public static ProductListResponse from(Product p) {
 		return new ProductListResponse(
@@ -53,7 +54,7 @@ public record ProductListResponse(
 			p.getSourceGoneAt() != null ? p.getSourceGoneAt().toString() : null,
 			p.getLastCrawlError(),
 			p.getLastCrawlAt() != null ? p.getLastCrawlAt().toString() : null,
-			null, 0);
+			null, 0, com.sbshop.agent.core.domain.product.dto.ProductContentFreshness.EMPTY);
 	}
 
 	public static ProductListResponse from(Product p, Map<String, MarketBadgeState> marketRegistrations) {
@@ -62,6 +63,12 @@ public record ProductListResponse(
 
 	public static ProductListResponse from(Product p, Map<String, MarketBadgeState> marketRegistrations,
 		long pendingChanges) {
+		return from(p, marketRegistrations, pendingChanges,
+			com.sbshop.agent.core.domain.product.dto.ProductContentFreshness.EMPTY);
+	}
+
+	public static ProductListResponse from(Product p, Map<String, MarketBadgeState> marketRegistrations,
+		long pendingChanges, com.sbshop.agent.core.domain.product.dto.ProductContentFreshness contentFreshness) {
 		return new ProductListResponse(
 			p.getId(),
 			p.getSbCode(),
@@ -83,6 +90,6 @@ public record ProductListResponse(
 			p.getSourceGoneAt() != null ? p.getSourceGoneAt().toString() : null,
 			p.getLastCrawlError(),
 			p.getLastCrawlAt() != null ? p.getLastCrawlAt().toString() : null,
-			marketRegistrations, pendingChanges);
+			marketRegistrations, pendingChanges, contentFreshness);
 	}
 }

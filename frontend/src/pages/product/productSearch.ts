@@ -5,6 +5,7 @@ export const EMPTY_PRODUCT_FILTERS: ProductFilters = {
   registeredMarkets: [], missingMarkets: [], pendingChangesOnly: false,
   marketPlusIssue: 'ALL',
   markets: [], vendors: [], stockStatuses: [], inStockOnly: false, sourceGone: 'ALL',
+  contentAgeDays: null, contentAgeField: 'ANY',
 };
 
 export function parseSbCodes(text: string): string[] {

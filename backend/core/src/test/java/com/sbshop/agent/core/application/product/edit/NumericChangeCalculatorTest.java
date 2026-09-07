@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -98,6 +99,32 @@ class NumericChangeCalculatorTest {
 		assertThat(result.after()).isEqualTo(after);
 		assertThat(result.rounded()).isTrue();
 		assertThat(result.reason()).isEqualTo("100원 단위 반올림");
+	}
+
+	@Test
+	void salesQuantityUsesItsOwnRangeAndTruncatesEveryOperationOnlyWhenAllowed() {
+		for (var operation : NumericChange.Operation.values()) {
+			String value = switch (operation) {
+				case SET -> "4.5";
+				case ADD -> "1.5";
+				case PERCENT -> "50";
+			};
+			var accepted = calculate(ProductNumericField.SALES_QUANTITY, "3", operation, value,
+				NumericChange.FractionPolicy.APPLY_FIELD_RULES);
+			assertThat(accepted.status()).isEqualTo(NumericChangeCalculator.Status.VALID);
+			assertThat(accepted.calculated()).isEqualTo("4.5");
+			assertThat(accepted.after()).isEqualTo("4");
+			assertThat(accepted.reason()).contains("버림");
+			assertThat(calculate(ProductNumericField.SALES_QUANTITY, "3", operation, value,
+				NumericChange.FractionPolicy.REJECT).status()).isEqualTo(NumericChangeCalculator.Status.INVALID);
+		}
+		for (String valid : List.of("0", "999999"))
+			assertThat(calculate(ProductNumericField.SALES_QUANTITY, "300", NumericChange.Operation.SET, valid,
+				NumericChange.FractionPolicy.APPLY_FIELD_RULES).after()).isEqualTo(valid);
+		for (String invalid : List.of("-1", "1000000", "999999.5"))
+			assertThat(calculate(ProductNumericField.SALES_QUANTITY, "300", NumericChange.Operation.SET, invalid,
+				NumericChange.FractionPolicy.APPLY_FIELD_RULES).status())
+				.isEqualTo(NumericChangeCalculator.Status.INVALID);
 	}
 
 	@Test

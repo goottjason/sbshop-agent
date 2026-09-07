@@ -26,6 +26,11 @@ public class ProductSearchUseCase {
 			.collect(java.util.stream.Collectors.toMap(row -> (Long)row[0], row -> ((Number)row[1]).longValue()));
 	}
 
+	public java.util.Map<Long, com.sbshop.agent.core.domain.product.dto.ProductContentFreshness> getContentFreshness(
+		List<Long> ids) {
+		return ids.isEmpty() ? java.util.Map.of() : productReader.findContentFreshness(ids);
+	}
+
 	public Page<Product> searchProducts(ProductSearchCondition condition, Pageable pageable) {
 		if (condition.marketPlusIssue() != com.sbshop.agent.core.domain.market.marketplus.MarketPlusIssueFilter.ALL) {
 			var scope = marketPlus.requireSearchScope();

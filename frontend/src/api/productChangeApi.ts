@@ -1,7 +1,7 @@
 import { apiClient } from './axios';
 
 export type NumericField = 'SALE_PRICE' | 'COST_PRICE' | 'EXCHANGE_RATE' | 'DELIVERY_FEE' | 'MIN_MARGIN_PRICE'
-  | 'MARGIN_RATE' | 'COUPON_RATE' | 'STOCK' | 'WEIGHT' | 'BUNDLE_QUANTITY' | 'CAPACITY';
+  | 'MARGIN_RATE' | 'COUPON_RATE' | 'SALES_QUANTITY' | 'STOCK' | 'WEIGHT' | 'BUNDLE_QUANTITY' | 'CAPACITY';
 export type ChangeOperation = 'SET' | 'ADD' | 'PERCENT';
 export interface NumericFieldOption {
   field: NumericField;

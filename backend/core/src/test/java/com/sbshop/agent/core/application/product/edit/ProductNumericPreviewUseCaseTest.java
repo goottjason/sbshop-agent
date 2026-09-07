@@ -80,6 +80,32 @@ class ProductNumericPreviewUseCaseTest {
 	}
 
 	@Test
+	void salesQuantityCatalogAndPreviewUseConfiguredQuantityInsteadOfSourceStock() {
+		Product product = product(1L, "20000");
+		when(product.getSalesQuantity()).thenReturn(300);
+		when(product.getLogisticsInfo()).thenReturn(LogisticsInfo.builder().stock(3).build());
+		when(reader.findAllByIds(List.of(1L))).thenReturn(List.of(product));
+		assertThat(preview.fields()).anySatisfy(field -> {
+			assertThat(field.field()).isEqualTo(ProductNumericField.SALES_QUANTITY);
+			assertThat(field.label()).isEqualTo("판매용 설정 수량");
+			assertThat(field.scale()).isZero();
+			assertThat(field.operations()).containsExactly(NumericChange.Operation.values());
+		});
+		var result = preview.preview(new ProductNumericPreviewUseCase.Request(List.of(1L), List.of(
+			new NumericChange(ProductNumericField.SALES_QUANTITY, NumericChange.Operation.PERCENT,
+				new BigDecimal("-98.5"))),
+			null));
+		assertThat(result.items().getFirst().fields()).singleElement().satisfies(field -> {
+			assertThat(field.before()).isEqualTo("300");
+			assertThat(field.calculated()).isEqualTo("4.5");
+			assertThat(field.after()).isEqualTo("4");
+			assertThat(field.rounded()).isTrue();
+		});
+		assertThat(result.items().getFirst().notes()).anyMatch(note -> note.contains("기존 DB 재고와 별개"));
+		verify(product, never()).update(any());
+	}
+
+	@Test
 	void aSingleInvalidFieldExcludesTheProductFromNumericValidCount() {
 		Product product = product(1L, "100");
 		when(reader.findAllByIds(List.of(1L))).thenReturn(List.of(product));

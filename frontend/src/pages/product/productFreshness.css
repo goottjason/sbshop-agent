@@ -1,0 +1,8 @@
+.pw-freshness-cell { display: flex; flex-direction: column; gap: 3px; width: 100%; border: 0; padding: 3px 0; background: transparent; text-align: left; color: #64748b; font-size: 11px; cursor: pointer; }
+.pw-freshness-cell > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pw-freshness-cell b { color: #475569; font-weight: 500; }
+.pw-freshness-cell:hover { color: #166534; }
+.pw-freshness-cell:focus-visible { outline: 2px solid #166534; border-radius: 4px; }
+.pw-freshness-cell:disabled { cursor: default; opacity: .6; }
+.pw-result-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.pw-result-controls > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

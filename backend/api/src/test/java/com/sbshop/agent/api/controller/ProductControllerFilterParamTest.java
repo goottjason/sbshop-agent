@@ -236,7 +236,8 @@ class ProductControllerFilterParamTest {
 		assertThat(condition.keyword()).isEqualTo("비타민");
 		assertThat(condition.vendors()).containsExactly(VendorType.IHB);
 		assertThat(condition.stockStatuses()).containsExactly(StockStatus.IN_STOCK);
-		assertThat(pageableCaptor.getValue()).isEqualTo(PageRequest.of(2, 20));
+		assertThat(pageableCaptor.getValue())
+			.isEqualTo(PageRequest.of(2, 20, org.springframework.data.domain.Sort.by("workspacePriority")));
 		verifyNoInteractions(productManageUseCase, productInfoCrawlerPort, imageDownloadClient, actionLogService);
 	}
 

@@ -9,9 +9,11 @@ import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:http';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const fixture = process.argv[2] ?? 'productContentRefresh.browser.tsx';
+if (!/^[A-Za-z0-9._-]+\.browser\.tsx$/.test(fixture)) throw new Error('Expected a local browser fixture filename');
 const out = await mkdtemp(join(tmpdir(), 'sbshop-content-browser-'));
 await build({ root, configFile: false, plugins: [react()], logLevel: 'warn', define: { 'process.env.NODE_ENV': JSON.stringify('production') },
-  build: { outDir: join(out, 'dist'), emptyOutDir: true, lib: { entry: join(root, 'tests/productContentRefresh.browser.tsx'), formats: ['iife'], name: 'ContentFixture', fileName: () => 'fixture.js' } } });
+  build: { outDir: join(out, 'dist'), emptyOutDir: true, lib: { entry: join(root, 'tests', fixture), formats: ['iife'], name: 'ContentFixture', fileName: () => 'fixture.js' } } });
 const files = await readdir(join(out, 'dist'));
 const css = (await Promise.all(files.filter(file => file.endsWith('.css')).map(file => readFile(join(out, 'dist', file), 'utf8')))).join('\n');
 const js = await readFile(join(out, 'dist/fixture.js'), 'utf8');

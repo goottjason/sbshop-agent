@@ -28,7 +28,9 @@ public record ProductSearchCondition(
 	com.sbshop.agent.core.domain.market.marketplus.MarketPlusIssueFilter marketPlusIssue,
 	boolean inStockOnly,
 	boolean includeUncategorized,
-	SourceGoneFilter sourceGone) {
+	SourceGoneFilter sourceGone,
+	Integer contentAgeDays,
+	ProductContentAgeField contentAgeField) {
 
 	public ProductSearchCondition {
 		keyword = blankToNull(keyword);
@@ -51,6 +53,9 @@ public record ProductSearchCondition(
 		sourceGone = (sourceGone == null) ? SourceGoneFilter.ALL : sourceGone;
 		marketPlusIssue = marketPlusIssue == null
 			? com.sbshop.agent.core.domain.market.marketplus.MarketPlusIssueFilter.ALL : marketPlusIssue;
+		if (contentAgeDays != null && (contentAgeDays < 1 || contentAgeDays > 36500))
+			throw new IllegalArgumentException("콘텐츠 경과일은 1~36,500일 범위로 입력하세요.");
+		contentAgeField = contentAgeField == null ? ProductContentAgeField.ANY : contentAgeField;
 	}
 
 	public static ProductSearchCondition none() {

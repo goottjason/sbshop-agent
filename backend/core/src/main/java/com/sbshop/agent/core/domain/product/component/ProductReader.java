@@ -24,5 +24,8 @@ public interface ProductReader {
 
 	List<Product> findAllByIds(List<Long> ids);
 
+	java.util.Map<Long, com.sbshop.agent.core.domain.product.dto.ProductContentFreshness> findContentFreshness(
+		List<Long> ids);
+
 	String getNextSbCodeSequence(String prefix);
 }

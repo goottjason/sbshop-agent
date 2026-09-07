@@ -3,7 +3,9 @@ package com.sbshop.agent.core.domain.product;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.MarketConnectionState;
 import com.sbshop.agent.core.domain.product.edit.ProductChangeTarget;
+import com.sbshop.agent.core.domain.product.content.ProductContentSnapshot;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
+import com.sbshop.agent.core.domain.product.dto.ProductContentAgeField;
 import com.sbshop.agent.core.domain.product.dto.ProductSearchCondition;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -12,6 +14,9 @@ import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
+import jakarta.persistence.criteria.Expression;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +37,13 @@ public final class ProductSpecifications {
 
 	public static Specification<Product> matching(ProductSearchCondition condition,
 		com.sbshop.agent.core.domain.market.marketplus.MarketPlusSearchScope marketPlusScope) {
+		return matching(condition, marketPlusScope, null);
+	}
+
+	public static Specification<Product> matching(ProductSearchCondition condition,
+		com.sbshop.agent.core.domain.market.marketplus.MarketPlusSearchScope marketPlusScope, String workspaceSort) {
+		Instant cutoff = condition.contentAgeDays() == null ? null
+			: Instant.now().minus(condition.contentAgeDays(), ChronoUnit.DAYS);
 		return (root, query, cb) -> {
 			List<Predicate> predicates = new ArrayList<>();
 			predicates.add(cb.isNull(root.get("deletedAt")));
@@ -50,11 +62,81 @@ public final class ProductSpecifications {
 			addStockStatuses(predicates, condition, root, cb);
 			addInStockOnly(predicates, condition, root, cb);
 			addSourceGone(predicates, condition, root, cb);
+			addContentAge(predicates, condition.contentAgeField(), cutoff, root, query, cb);
 			if (condition.marketPlusIssue() != com.sbshop.agent.core.domain.market.marketplus.MarketPlusIssueFilter.ALL)
 				predicates.add(MarketPlusIssueSpecifications.matching(root, query, cb, condition.marketPlusIssue(),
 					marketPlusScope));
+			if (workspaceSort != null && query.getResultType() != Long.class && query.getResultType() != long.class)
+				addWorkspaceOrder(workspaceSort, condition.contentAgeField(), root, query, cb);
 			return cb.and(predicates.toArray(new Predicate[0]));
 		};
+	}
+
+	private static void addContentAge(List<Predicate> predicates, ProductContentAgeField field, Instant cutoff,
+		Root<Product> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
+		if (cutoff == null)
+			return;
+		var alternatives = new ArrayList<Predicate>();
+		if (field != ProductContentAgeField.DETAIL_HTML)
+			alternatives.add(oldOrUnapplied(latestApplied("imagesAppliedAt", root, query, cb), cutoff, cb));
+		if (field != ProductContentAgeField.IMAGES)
+			alternatives.add(oldOrUnapplied(latestApplied("detailAppliedAt", root, query, cb), cutoff, cb));
+		predicates.add(cb.or(alternatives.toArray(Predicate[]::new)));
+	}
+
+	private static Predicate oldOrUnapplied(Expression<Instant> last, Instant cutoff, CriteriaBuilder cb) {
+		return cb.or(cb.isNull(last), cb.lessThanOrEqualTo(last, cutoff));
+	}
+
+	private static Subquery<Instant> latestApplied(String field, Root<Product> product, CriteriaQuery<?> query,
+		CriteriaBuilder cb) {
+		Subquery<Instant> subquery = query.subquery(Instant.class);
+		Root<ProductContentSnapshot> snapshot = subquery.from(ProductContentSnapshot.class);
+		subquery.select(cb.greatest(snapshot.<Instant>get(field)))
+			.where(cb.equal(snapshot.get("productId"), product.get("id")), cb.isNotNull(snapshot.get(field)),
+				cb.equal(snapshot.get("sourceUrl"), product.get("sourcingInfo").get("sourceUrl")),
+				cb.equal(snapshot.get("vendor"), product.get("sourcingInfo").get("vendor").as(String.class)));
+		return subquery;
+	}
+
+	private static void addWorkspaceOrder(String sort, ProductContentAgeField field, Root<Product> root,
+		CriteriaQuery<?> query, CriteriaBuilder cb) {
+		Expression<Instant> oldest;
+		if (field == ProductContentAgeField.IMAGES)
+			oldest = latestApplied("imagesAppliedAt", root, query, cb);
+		else if (field == ProductContentAgeField.DETAIL_HTML)
+			oldest = latestApplied("detailAppliedAt", root, query, cb);
+		else {
+			var images = latestApplied("imagesAppliedAt", root, query, cb);
+			var detail = latestApplied("detailAppliedAt", root, query, cb);
+			oldest = cb.<Instant>selectCase()
+				.when(cb.or(cb.isNull(images), cb.isNull(detail)), cb.nullLiteral(Instant.class))
+				.when(cb.lessThanOrEqualTo(images, detail), images).otherwise(detail);
+		}
+		var orders = new ArrayList<jakarta.persistence.criteria.Order>();
+		if ("workspacePriority".equals(sort))
+			orders.add(cb.asc(cb.<Integer>selectCase().when(actionRequired(root, query, cb), 0).otherwise(1)));
+		orders.add(cb.asc(cb.<Integer>selectCase().when(cb.isNull(oldest), 0).otherwise(1)));
+		orders.add(cb.asc(oldest));
+		orders.add(cb.asc(root.get("id")));
+		query.orderBy(orders);
+	}
+
+	private static Predicate actionRequired(Root<Product> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
+		Subquery<Long> failed = query.subquery(Long.class);
+		Root<MarketRegistration> registration = failed.from(MarketRegistration.class);
+		var identifiers = java.util.Arrays.stream(MarketType.values()).map(market -> cb.and(
+			cb.equal(registration.get("marketType"), market),
+			cb.or(java.util.Arrays.stream(MarketRegistration.marketCodeKeys(market))
+				.map(key -> identifierPresent(cb, registration.get("marketIdentifiers"), key))
+				.toArray(Predicate[]::new))))
+			.toArray(Predicate[]::new);
+		failed.select(registration.get("id")).where(cb.equal(registration.get("productId"), root.get("id")),
+			cb.equal(registration.get("connectionState"), MarketConnectionState.LINKED),
+			cb.isNotNull(registration.get("lastSyncError")), cb.or(identifiers));
+		return cb.or(pendingChanges(root, query, cb), cb.exists(failed), cb.isNotNull(root.get("sourceGoneAt")),
+			cb.and(cb.isNotNull(root.get("lastCrawlError")),
+				cb.greaterThan(cb.length(cb.trim(root.get("lastCrawlError"))), 0)));
 	}
 
 	/** 폐기 후보(원본 소멸)만 / 정상만 걸러낸다. 판정 기준은 {@code sourceGoneAt} 의 존재다. */
@@ -104,12 +186,16 @@ public final class ProductSpecifications {
 		condition.registeredMarkets().forEach(market -> predicates.add(registeredIn(market, root, query, cb)));
 		condition.missingMarkets().forEach(market -> predicates.add(cb.not(registeredIn(market, root, query, cb))));
 		if (condition.pendingChangesOnly()) {
-			Subquery<Long> subquery = query.subquery(Long.class);
-			Root<ProductChangeTarget> target = subquery.from(ProductChangeTarget.class);
-			subquery.select(target.get("id")).where(cb.equal(target.get("productId"), root.get("id")),
-				target.get("state").in("PENDING_DISPATCH", "DISPATCHED", "ACTION_REQUIRED"));
-			predicates.add(cb.exists(subquery));
+			predicates.add(pendingChanges(root, query, cb));
 		}
+	}
+
+	private static Predicate pendingChanges(Root<Product> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
+		Subquery<Long> subquery = query.subquery(Long.class);
+		Root<ProductChangeTarget> target = subquery.from(ProductChangeTarget.class);
+		subquery.select(target.get("id")).where(cb.equal(target.get("productId"), root.get("id")),
+			target.get("state").in("PENDING_DISPATCH", "DISPATCHED", "ACTION_REQUIRED"));
+		return cb.exists(subquery);
 	}
 
 	private static Predicate registeredIn(MarketType market, Root<Product> product,

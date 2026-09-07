@@ -270,4 +270,21 @@ class MarketPriceSyncIntegrationTest {
 		assertThat(tasks.count()).isZero();
 		assertThat(changeTargets.findById(target.getId()).orElseThrow().getState()).isEqualTo("ACTION_REQUIRED");
 	}
+
+	@Test
+	void latePrice429PreservesNewerLeaseAndPreventsItsWriteUntilCooldown() {
+		var r = queue();
+		var old = service.claim(MARKET);
+		release();
+		var newer = service.claim(MARKET);
+		Instant until = Instant.now().plusSeconds(900);
+		service.finish(old, "VERIFY", "late 429", null, new MarketTransferFailure("HTTP_429", "limit", until, null));
+		var gate = gates.findById(MarketInspectionGate.SMART_STORE_SCOPE).orElseThrow();
+		assertThat(gate.getLeaseToken()).isEqualTo(newer.token());
+		assertThat(gate.getNextAllowedAt()).isAfterOrEqualTo(until);
+		assertThat(service.beginWrite(newer, BigDecimal.TEN)).isFalse();
+		assertThat(tasks.findByReviewIdOrderById(r.id()).getFirst().getWrites()).isZero();
+		assertThat(service.claim(MARKET)).isNull();
+	}
+
 }

@@ -29,14 +29,15 @@ public final class NumericChangeCalculator {
 				+ " ~ " + text(field.maximum()) + ")를 벗어납니다.");
 		}
 		boolean salePrice = field == ProductNumericField.SALE_PRICE;
-		boolean quantityPercentage = field.integerQuantity() && change.operation() == NumericChange.Operation.PERCENT;
+		boolean truncateQuantity = field == ProductNumericField.SALES_QUANTITY
+			|| field.integerQuantity() && change.operation() == NumericChange.Operation.PERCENT;
 		BigDecimal after;
 		String roundingReason;
 		if (salePrice) {
 			// 원 단위로 먼저 반올림하면 12349.5가 12400이 되는 이중 반올림이 발생한다.
 			after = SalePriceRounding.nearestHundred(calculated);
 			roundingReason = "100원 단위 반올림";
-		} else if (quantityPercentage) {
+		} else if (truncateQuantity) {
 			after = calculated.setScale(0, RoundingMode.DOWN);
 			roundingReason = "소수 부분 버림 (정수 수량)";
 		} else {

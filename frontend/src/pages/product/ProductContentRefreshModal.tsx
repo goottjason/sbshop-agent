@@ -8,6 +8,7 @@ import {
 } from '../../api/productContentApi';
 import type { EditReview } from '../../api/productChangeApi';
 import { ProductSaveReview } from './ProductSaveReview';
+import { ProductHtmlPreview } from './ProductHtmlPreview';
 import { sourceProductUrl } from './productSearch';
 import { createRequestId } from '../../utils/requestId';
 import './productWorkspace.css';
@@ -58,18 +59,6 @@ function ImageSet({ content, label }: { content: ProductContentValues | null; la
   })}</div></Image.PreviewGroup>;
 }
 
-function HtmlPreview({ html, label }: { html: string | null | undefined; label: string }) {
-  if (!html) return <p className="pw-content-empty">상세 HTML 없음</p>;
-  // 서버에서 수집한 HTML에도 페이지 실행·폼 전송·프레임 접근을 허용하지 않는다.
-  const srcDoc = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: http: data:; style-src 'unsafe-inline'; font-src 'none'; form-action 'none'; base-uri 'none'">${html}`;
-  return <>
-    <iframe title={`${label} 상세 HTML 미리보기`} sandbox="" referrerPolicy="no-referrer" srcDoc={srcDoc} className="pw-content-html" />
-    <details className="pw-content-source"><summary>HTML 원문 보기 · {html.length.toLocaleString()}자</summary>
-      <textarea aria-label={`${label} 상세 HTML 원문`} readOnly value={html} rows={8} spellCheck={false} />
-    </details>
-  </>;
-}
-
 function SnapshotCard({ snapshot, selected, disabled, initiallyExpanded, onSelection }: {
   snapshot: ProductContentSnapshot; selected: ProductContentField[]; disabled: boolean;
   initiallyExpanded: boolean;
@@ -110,10 +99,10 @@ function SnapshotCard({ snapshot, selected, disabled, initiallyExpanded, onSelec
           <div className="pw-content-compare-grid">
             <div><h4>수집 요청 당시 DB</h4>{rule.field === 'IMAGES'
               ? <ImageSet content={snapshot.current} label="기존" />
-              : <HtmlPreview html={snapshot.current.detailHtml} label="기존" />}</div>
+              : <ProductHtmlPreview html={snapshot.current.detailHtml} label="기존" />}</div>
             <div><h4>이번에 수집한 내용{!rule.available && ' · 적용 불가'}</h4>{rule.field === 'IMAGES'
               ? <ImageSet content={snapshot.proposed} label="수집" />
-              : <HtmlPreview html={snapshot.proposed?.detailHtml} label="수집" />}</div>
+              : <ProductHtmlPreview html={snapshot.proposed?.detailHtml} label="수집" />}</div>
           </div>
         </details>
       </section>)}</details>}

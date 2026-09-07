@@ -16,5 +16,7 @@ public interface ProductChangeTargetRepository
 
 	List<ProductChangeTarget> findByPriceTaskId(Long taskId);
 
+	List<ProductChangeTarget> findByStockTaskId(Long taskId);
+
 	List<ProductChangeTarget> findByProductIdAndMarket(Long productId, String market);
 }

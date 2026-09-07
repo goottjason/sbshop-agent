@@ -27,6 +27,16 @@ public class ProductChangeTarget {
 	@Column(nullable = false, columnDefinition = "TEXT")
 	private String snapshot;
 	private Long priceTaskId;
+	private Long stockTaskId;
+
+	public void dispatchedToStock(Long id) {
+		stockTaskId = id;
+		state = "DISPATCHED";
+	}
+
+	public void stockOutcome(String value) {
+		state = value;
+	}
 
 	public void dispatchedToPrice(Long id) {
 		priceTaskId = id;

@@ -14,7 +14,7 @@ export function ProductEditHistory({ productId }: { productId: number }) {
       : history.data.map(item => <div key={item.id} style={{ borderTop: '1px solid #e2e8f0', padding: '10px 0' }}>
         <strong>{new Date(item.createdAt).toLocaleString('ko-KR')} · {item.actor}</strong>
         {item.changes.map(c => <p key={c.field} className="pw-change-note" style={{ overflowWrap: 'anywhere', maxHeight: 100, overflow: 'auto' }}>{editFieldLabel(c.field)}: {editValue(c.field, c.before)} → {editValue(c.field, c.after)}</p>)}
-        {item.targets.map(t => <Tag key={t.id} color={['CONFIRMED_PRICE', 'SUPERSEDED_BY_CURRENT'].includes(t.state) ? 'green' : 'orange'}>{marketLabel(t.market)} · {({ PENDING_DISPATCH: '반영 대기', DISPATCHED: '전송·재조회 진행', ACTION_REQUIRED: '반영 확인·조치 필요', CONFIRMED_PRICE: '판매가 일치 확인', SUPERSEDED_BY_CURRENT: '최신 가격 반영으로 대체', CANCELLED_DETACHED: '연결 해제로 반영 취소' } as Record<string, string>)[t.state] ?? t.state}</Tag>)}
+        {item.targets.map(t => <Tag key={t.id} color={['CONFIRMED_PRICE', 'CONFIRMED_QUANTITY', 'SUPERSEDED_BY_CURRENT'].includes(t.state) ? 'green' : 'orange'}>{marketLabel(t.market)} · {({ PENDING_DISPATCH: '반영 대기', DISPATCHED: '전송·재조회 진행', ACTION_REQUIRED: '반영 확인·조치 필요', CONFIRMED_PRICE: '판매가 일치 확인', CONFIRMED_QUANTITY: '판매용 수량 일치 확인', SUPERSEDED_BY_CURRENT: '최신 변경 반영으로 대체', CANCELLED_DETACHED: '연결 해제로 반영 취소' } as Record<string, string>)[t.state] ?? t.state}</Tag>)}
       </div>))}
   </div>;
 }

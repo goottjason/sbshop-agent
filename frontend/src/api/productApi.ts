@@ -1,6 +1,14 @@
 import { apiClient } from './axios';
 
+export interface ProductContentFreshness {
+  imagesCollectedAt: string | null;
+  imagesAppliedAt: string | null;
+  detailHtmlCollectedAt: string | null;
+  detailHtmlAppliedAt: string | null;
+}
+
 export interface ProductList {
+  contentFreshness?: ProductContentFreshness | null;
   pendingChanges?: number;
   id: number;
   sbCode: string;
@@ -54,6 +62,9 @@ export interface ProductPage<T> {
 export interface ProductQuery {
   page: number;
   size: number;
+  sort?: string;
+  contentAgeDays?: number;
+  contentAgeField?: 'ANY' | 'IMAGES' | 'DETAIL_HTML';
   keyword?: string;
   sbCodes?: string[];
   brands?: string[];
@@ -184,8 +195,8 @@ export interface FieldSyncResponse {
 }
 
 export const productApi = {
-  fetchProducts: ({ page, size, ...condition }: ProductQuery) =>
-    apiClient.post<ProductPage<ProductList>>('/api/v1/products/search', condition, { params: { page, size } }),
+  fetchProducts: ({ page, size, sort, ...condition }: ProductQuery) =>
+    apiClient.post<ProductPage<ProductList>>('/api/v1/products/search', condition, { params: { page, size, sort } }),
 
   fetchCategories: () =>
     apiClient.get<string[]>('/api/v1/products/categories'),

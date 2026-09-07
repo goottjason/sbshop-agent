@@ -51,9 +51,15 @@ public class MarketInspectionGate {
 		return token.equals(leaseToken) && leaseUntil != null && leaseUntil.isAfter(now);
 	}
 
+	/** A late 429 must delay subsequent work without stealing a newer worker's lease. */
+	public void deferUntil(Instant next) {
+		if (next != null && next.isAfter(nextAllowedAt))
+			nextAllowedAt = next;
+	}
+
 	public void release(Instant next) {
 		leaseToken = null;
 		leaseUntil = null;
-		nextAllowedAt = next;
+		deferUntil(next);
 	}
 }

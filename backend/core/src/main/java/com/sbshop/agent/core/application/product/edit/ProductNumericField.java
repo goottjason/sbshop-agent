@@ -14,6 +14,7 @@ public enum ProductNumericField {
 	MIN_MARGIN_PRICE("최소 마진가", "원", 15, 2, false),
 	MARGIN_RATE("마진율", "%p", 5, 2, false),
 	COUPON_RATE("쿠폰율", "%p", 5, 2, false),
+	SALES_QUANTITY("판매용 설정 수량", "개", 6, 0, true),
 	STOCK("기존 DB 재고 수량", "개", 10, 0, true),
 	WEIGHT("무게", "기존 단위 확인 필요", ProductWeight.PRECISION, ProductWeight.SCALE, false),
 	BUNDLE_QUANTITY("묶음수량", "개", 10, 0, true),
@@ -54,6 +55,8 @@ public enum ProductNumericField {
 	}
 
 	public BigDecimal maximum() {
+		if (this == SALES_QUANTITY)
+			return BigDecimal.valueOf(999999);
 		return integerQuantity ? BigDecimal.valueOf(Integer.MAX_VALUE)
 			: BigDecimal.TEN.pow(precision - scale).subtract(BigDecimal.ONE.movePointLeft(scale));
 	}
@@ -76,6 +79,7 @@ public enum ProductNumericField {
 			case MIN_MARGIN_PRICE -> price == null ? null : price.getMinMarginPrice();
 			case MARGIN_RATE -> price == null ? null : price.getMarginRate();
 			case COUPON_RATE -> price == null ? null : price.getCouponRate();
+			case SALES_QUANTITY -> decimal(product.getSalesQuantity());
 			case STOCK -> logistics == null ? null : decimal(logistics.getStock());
 			case WEIGHT -> logistics == null ? null : logistics.getWeight();
 			case BUNDLE_QUANTITY -> logistics == null ? null : decimal(logistics.getBundleQuantity());

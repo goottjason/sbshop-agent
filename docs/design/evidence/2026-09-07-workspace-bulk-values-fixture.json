@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "checks": [
+    "실제 그리드 선택 → 일괄 편집 메뉴 → 비숫자 편집 진입",
+    "빈 입력 검토 차단·명시한 메모만 비우기·선택 제외 필드 보존",
+    "상세 HTML 명시적 미리보기·sandbox/CSP 실행 차단",
+    "명시한 4개 필드만 전송·상품명 파생 변경·잠긴 상품 전체 제외 표시",
+    "저장 응답 유실 시 동일 검토 재시도·상품별 결과·그리드 갱신",
+    "직접 DB 수정·마켓 전송 우회 요청 없음"
+  ],
+  "fixtureOnly": true,
+  "servedImages": [
+    "/fixtures/new-main.svg",
+    "/fixtures/old-main.svg"
+  ]
+}

@@ -39,6 +39,18 @@ public interface MarketClient {
 		throw new UnsupportedOperationException("이 마켓의 가격 단독 수정·재조회 계약 확인이 필요합니다.");
 	}
 
+	default com.sbshop.agent.core.domain.market.client.dto.MarketStockRead readStockQuantity(String listingId,
+		String optionId, String expectedSbCode) {
+		throw new UnsupportedOperationException("이 마켓의 수량 단독 수정·재조회 계약 확인이 필요합니다.");
+	}
+
+	/** Revalidate exact identity/status, then invoke the durable intent guard immediately before PUT.
+	 * A normal return is only a receipt; the caller must obtain separate quantity readback proof. */
+	default void writeStockQuantity(String listingId, String optionId, String expectedSbCode, int quantity,
+		String expectedAccountReference, Runnable beforeWrite) {
+		throw new UnsupportedOperationException("이 마켓의 수량 단독 수정·재조회 계약 확인이 필요합니다.");
+	}
+
 	MarketType getSupportedMarket();
 
 	default String inspectionAccountReference() {

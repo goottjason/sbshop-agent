@@ -12,6 +12,12 @@ import org.springframework.data.repository.query.Param;
 public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product> {
 	Product save(Product product);
 
+	@Query("SELECT s.productId, MAX(s.imagesCollectedAt), MAX(s.imagesAppliedAt), MAX(s.detailCollectedAt), MAX(s.detailAppliedAt) "
+		+ "FROM ProductContentSnapshot s, Product p WHERE s.productId = p.id AND p.id IN :ids "
+		+ "AND s.sourceUrl = p.sourcingInfo.sourceUrl AND s.vendor = CAST(p.sourcingInfo.vendor AS string) GROUP BY s.productId")
+	List<Object[]> findContentFreshness(@Param("ids")
+	List<Long> ids);
+
 	@org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
 	@Query("SELECT p FROM Product p WHERE p.id = :id")
 	Optional<Product> findForEdit(@Param("id")

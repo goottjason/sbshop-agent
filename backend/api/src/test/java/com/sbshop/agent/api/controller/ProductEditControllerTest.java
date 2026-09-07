@@ -76,4 +76,51 @@ class ProductEditControllerTest {
 			.andExpect(status().isBadRequest());
 		verifyNoInteractions(edits);
 	}
+
+	@Test
+	void bulkValuesUseAuthenticatedActorAndOnlyExplicitValues() throws Exception {
+		when(edits.previewValues(any(), eq("admin"))).thenReturn(new ProductEditService.Review(token, Instant.now().plusSeconds(1800), List.of()));
+		mvc.perform(post("/api/v1/products/changes/values-preview").principal(() -> "admin").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"productIds\":[1,2],\"values\":{\"memo\":\"확인\"},\"actor\":\"other\"}"))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.reviewId").value(token));
+		verify(edits).previewValues(argThat(request -> request.productIds().equals(List.of(1L, 2L)) && request.values().size() == 1 && request.values().get("memo").asText().equals("확인")), eq("admin"));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"{}", "{\"productIds\":[],\"values\":{\"memo\":\"x\"}}",
+		"{\"productIds\":[1,1],\"values\":{\"memo\":\"x\"}}",
+		"{\"productIds\":[1],\"values\":{}}", "{\"productIds\":[1],\"values\":{\"revision\":1}}",
+		"{\"productIds\":[1],\"values\":{\"salePrice\":1}}",
+		"{\"productIds\":[1],\"values\":{\"memo\":null}}",
+		"{\"productIds\":[1],\"values\":{\"memo\":{\"nested\":true}}}",
+		"{\"productIds\":[1],\"values\":{\"category\":\"WRONG\"}}", "{\"productIds\":[1],\"values\":{\"name\":\"\"}}",
+		"{\"productIds\":[1],\"values\":{\"hostedImages\":[\"javascript:alert(1)\"]}}",
+		"{\"productIds\":[1],\"values\":{\"sourceUrl\":\"/relative\"}}",
+		"{\"productIds\":[1.9],\"values\":{\"memo\":\"잘못된 상품 ID\"}}",
+		"{\"productIds\":[\"1\"],\"values\":{\"memo\":\"문자열 상품 ID\"}}"})
+	void invalidBulkValuesAreRejectedBeforeService(String body) throws Exception {
+		mvc.perform(post("/api/v1/products/changes/values-preview").principal(() -> "admin")
+			.contentType(MediaType.APPLICATION_JSON).content(body))
+			.andExpect(status().isBadRequest());
+		verifyNoInteractions(edits);
+	}
+
+	@Test
+	void bulkValuesRejectMoreThanFiveHundredProducts() throws Exception {
+		String ids = java.util.stream.LongStream.rangeClosed(1, 501).mapToObj(Long::toString)
+			.collect(java.util.stream.Collectors.joining(","));
+		mvc.perform(post("/api/v1/products/changes/values-preview").principal(() -> "admin")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"productIds\":[" + ids + "],\"values\":{\"memo\":\"x\"}}"))
+			.andExpect(status().isBadRequest());
+		verifyNoInteractions(edits);
+	}
+
+	@Test
+	void bulkCatalogAdvertisesOnlyAllowedNonNumericFields() throws Exception {
+		mvc.perform(get("/api/v1/products/changes/values-preview/fields").principal(() -> "admin"))
+			.andExpect(status().isOk()).andExpect(jsonPath("$[?(@.field=='memo')].maxLength").value(2000))
+			.andExpect(jsonPath("$[?(@.field=='salePrice')]").isEmpty())
+			.andExpect(jsonPath("$[?(@.field=='revision')]").isEmpty());
+	}
 }

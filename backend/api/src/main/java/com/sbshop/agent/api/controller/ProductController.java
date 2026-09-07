@@ -94,11 +94,26 @@ public class ProductController {
 		boolean includeUncategorized,
 		@RequestParam(required = false)
 		SourceGoneFilter sourceGone,
-		@PageableDefault(size = 50)
+		@RequestParam(required = false)
+		Integer contentAgeDays,
+		@RequestParam(defaultValue = "ANY")
+		com.sbshop.agent.core.domain.product.dto.ProductContentAgeField contentAgeField,
+		@PageableDefault(size = 50, sort = "workspacePriority")
 		Pageable pageable) {
 		ProductSearchCondition condition = buildSearchCondition(keyword, marketFilter, categories,
-			vendors, stockStatuses, markets, inStockOnly, includeUncategorized, sourceGone);
+			vendors, stockStatuses, markets, inStockOnly, includeUncategorized, sourceGone, contentAgeDays,
+			contentAgeField);
 		return searchResponse(condition, pageable);
+	}
+
+	/** Keeps callers of the earlier controller signature compatible with optional freshness filters. */
+	public ResponseEntity<Page<ProductListResponse>> getProducts(String keyword, String marketFilter,
+		List<ProductCategory> categories, List<VendorType> vendors, List<StockStatus> stockStatuses,
+		List<MarketType> markets, boolean inStockOnly, boolean includeUncategorized, SourceGoneFilter sourceGone,
+		Pageable pageable) {
+		return getProducts(keyword, marketFilter, categories, vendors, stockStatuses, markets, inStockOnly,
+			includeUncategorized, sourceGone, null, com.sbshop.agent.core.domain.product.dto.ProductContentAgeField.ANY,
+			pageable);
 	}
 
 	/** 많은 SB코드와 쉼표를 포함한 브랜드명을 URL 길이/파라미터 분할 문제 없이 검색한다. */
@@ -106,7 +121,7 @@ public class ProductController {
 	public ResponseEntity<Page<ProductListResponse>> searchProducts(
 		@RequestBody
 		ProductSearchCondition condition,
-		@PageableDefault(size = 50)
+		@PageableDefault(size = 50, sort = "workspacePriority")
 		Pageable pageable) {
 		return searchResponse(condition, pageable);
 	}
@@ -119,11 +134,14 @@ public class ProductController {
 			.summaries(registrationsByProduct.values().stream().flatMap(List::stream).toList());
 		Map<Long, Long> pending = productSearchUseCase
 			.getPendingChangeCounts(products.getContent().stream().map(Product::getId).toList());
+		var freshness = productSearchUseCase
+			.getContentFreshness(products.getContent().stream().map(Product::getId).toList());
 		return ResponseEntity.ok(products.map(
 			p -> ProductListResponse.from(p,
 				buildMarketMap(registrationsByProduct.getOrDefault(p.getId(), List.of()),
 					transmissions.getOrDefault(p.getId(), Map.of())),
-				pending.getOrDefault(p.getId(), 0L))));
+				pending.getOrDefault(p.getId(), 0L), freshness.getOrDefault(p.getId(),
+					com.sbshop.agent.core.domain.product.dto.ProductContentFreshness.EMPTY))));
 	}
 
 	@GetMapping("/categories")
@@ -285,7 +303,8 @@ public class ProductController {
 	private ProductSearchCondition buildSearchCondition(
 		String keyword, String marketFilter, List<ProductCategory> categories,
 		List<VendorType> vendors, List<StockStatus> stockStatuses, List<MarketType> markets,
-		boolean inStockOnly, boolean includeUncategorized, SourceGoneFilter sourceGone) {
+		boolean inStockOnly, boolean includeUncategorized, SourceGoneFilter sourceGone, Integer contentAgeDays,
+		com.sbshop.agent.core.domain.product.dto.ProductContentAgeField contentAgeField) {
 		MarketType marketFilterType = null;
 		boolean registered = false;
 		if (marketFilter != null && !marketFilter.isBlank()) {
@@ -304,6 +323,8 @@ public class ProductController {
 			.inStockOnly(inStockOnly)
 			.includeUncategorized(includeUncategorized)
 			.sourceGone(sourceGone)
+			.contentAgeDays(contentAgeDays)
+			.contentAgeField(contentAgeField)
 			.build();
 	}
 

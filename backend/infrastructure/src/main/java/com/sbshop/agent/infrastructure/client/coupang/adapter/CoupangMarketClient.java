@@ -86,6 +86,68 @@ public class CoupangMarketClient implements MarketClient {
 		}
 	}
 
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.MarketStockRead readStockQuantity(String id,
+		String optionId, String expectedSbCode) {
+		requirePriceId(id);
+		requirePriceId(optionId);
+		String account = inspectionAccountReference();
+		try {
+			JsonNode root = objectMapper.readTree(restClient.get(SELLER_PRODUCT_BASE + id));
+			JsonNode p = root.path("data"), items = p.path("items");
+			if (!"SUCCESS".equals(root.path("code").asText()) || !id.equals(p.path("sellerProductId").asText())
+				|| !restClient.resolveVendorId().equals(p.path("vendorId").asText())
+				|| !items.isArray() || items.size() != 1
+				|| !optionId.equals(items.get(0).path("vendorItemId").asText())
+				|| expectedSbCode == null || expectedSbCode.isBlank()
+				|| !expectedSbCode.equals(items.get(0).path("externalVendorSku").asText()))
+				throw new IllegalStateException("쿠팡 판매자·SB코드·상품·단일 옵션 연결을 확인할 수 없습니다.");
+			JsonNode inventoryRoot = objectMapper
+				.readTree(restClient.get(VENDOR_ITEM_BASE + optionId + "/inventories"));
+			JsonNode inventory = inventoryRoot.path("data"), quantity = inventory.path("amountInStock");
+			if (!"SUCCESS".equals(inventoryRoot.path("code").asText())
+				|| !optionId.equals(inventory.path("sellerItemId").asText())
+				|| !quantity.isIntegralNumber() || !quantity.canConvertToInt() || quantity.intValue() < 0
+				|| !inventory.path("onSale").isBoolean())
+				throw new IllegalStateException("쿠팡 옵션 재고수량·판매 상태 응답을 확인할 수 없습니다.");
+			if (account == null || account.isBlank() || !account.equals(inspectionAccountReference()))
+				throw new IllegalStateException("조회 계정이 변경되었습니다.");
+			boolean writable = "승인완료".equals(p.path("statusName").asText()) && inventory.path("onSale").booleanValue();
+			return new com.sbshop.agent.core.domain.market.client.dto.MarketStockRead(quantity.intValue(), writable,
+				writable ? "쿠팡 승인·판매 중 단일 옵션 수량 확인" : "승인·판매 상태 확인이 필요합니다. 판매정지·금지 상품은 자동 재개하지 않습니다.",
+				account, optionId);
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	@Override
+	public void writeStockQuantity(String id, String optionId, String expectedSbCode, int quantity,
+		String expectedAccountReference, Runnable beforeWrite) {
+		if (quantity < 0)
+			throw new IllegalArgumentException("판매용 수량은 0 이상의 정수여야 합니다.");
+		if (expectedAccountReference == null || !expectedAccountReference.equals(inspectionAccountReference()))
+			throw new UnsupportedOperationException("쿠팡 연동 계정이 변경되었습니다.");
+		var current = readStockQuantity(id, optionId, expectedSbCode);
+		if (!current.writable() || !expectedAccountReference.equals(current.accountReference())
+			|| !expectedAccountReference.equals(inspectionAccountReference()))
+			throw new UnsupportedOperationException("쿠팡 계정·승인·판매 상태가 변경되어 수량 전송을 보류합니다.");
+		// This callback commits the queue intent and rechecks its lease after the remote reads.
+		beforeWrite.run();
+		try {
+			if (!expectedAccountReference.equals(inspectionAccountReference()))
+				throw new IllegalStateException("전송 직전에 쿠팡 연동 계정이 변경되었습니다.");
+			String response = restClient.put(VENDOR_ITEM_BASE + optionId + "/quantities/" + quantity, null);
+			JsonNode receipt = objectMapper.readTree(response);
+			if (receipt == null || !"SUCCESS".equals(receipt.path("code").asText()))
+				throw new IllegalStateException("쿠팡 수량 전송 응답에 성공 접수가 없습니다. 실제 수량을 재조회하세요.");
+			if (!expectedAccountReference.equals(inspectionAccountReference()))
+				throw new IllegalStateException("수량 전송 중 쿠팡 계정이 변경되었습니다. 결과 재확인이 필요합니다.");
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
 	private static void requirePriceId(String id) {
 		if (id == null || !id.matches("[1-9][0-9]{0,17}"))
 			throw new IllegalArgumentException("쿠팡 상품·옵션 번호가 올바르지 않습니다.");

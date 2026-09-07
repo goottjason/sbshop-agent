@@ -26,6 +26,8 @@ export interface ProductFilters {
   stockStatuses: string[];
   inStockOnly: boolean;
   sourceGone: 'ALL' | 'GONE_ONLY' | 'ALIVE_ONLY';
+  contentAgeDays: number | null;
+  contentAgeField: 'ANY' | 'IMAGES' | 'DETAIL_HTML';
 }
 
 interface Props {
@@ -92,10 +94,19 @@ export function ProductFilterPanel({ categoryOptions, brandOptions, brandsLoadin
             registeredMarkets: ['COUPANG'], missingMarkets: ['ELEVEN_STREET'] })}>IHB · 재고 있음 · 쿠팡 등록 · 11번가 미등록</Button>
           <Checkbox checked={filters.pendingChangesOnly} onChange={(event) => set('pendingChangesOnly', event.target.checked)}>미반영 DB 변경 있음</Checkbox>
           <Button size="small" onClick={() => apply({ ...filters, marketPlusIssue: 'ANY_ISSUE' })}>G마켓·옥션 전송 이슈</Button>
+          <Button size="small" onClick={() => apply({ ...filters, contentAgeDays: 90, contentAgeField: 'ANY' })}>이미지·상세 90일 경과 / 적용 기록 없음</Button>
         </div>
         <details className="pw-more-filters">
-          <summary>카테고리 · 마켓 연결 · 전송 이슈 · 원본 상태</summary>
+          <summary>카테고리 · 마켓 연결 · 전송 이슈 · 콘텐츠 갱신 · 원본 상태</summary>
           <div className="pw-filter-grid">
+            <div className="pw-filter">
+              <label htmlFor="pw-content-age">콘텐츠 DB 적용 시각</label>
+              <Select id="pw-content-age" value={filters.contentAgeDays ?? 0} onChange={value => set('contentAgeDays', value || null)}
+                options={[{ value: 0, label: '전체' }, ...[30, 60, 90, 180, 365].map(value => ({ value, label: `${value}일 경과 또는 적용 기록 없음` }))]} />
+              <Select aria-label="갱신 시각 비교 항목" value={filters.contentAgeField} onChange={value => set('contentAgeField', value)}
+                options={[{ value: 'ANY', label: '이미지 또는 상세 HTML' }, { value: 'IMAGES', label: '이미지' }, { value: 'DETAIL_HTML', label: '상세 HTML' }]} />
+              <small>새 내용을 수집만 한 경우 DB 적용 시각은 바뀌지 않습니다.</small>
+            </div>
             <div className="pw-filter">
               <label htmlFor="pw-marketplus-issue">G마켓·옥션 전송 결과</label>
               <Select id="pw-marketplus-issue" value={filters.marketPlusIssue} onChange={value => set('marketPlusIssue', value)} options={MARKETPLUS_ISSUE_OPTIONS} />
@@ -137,6 +148,9 @@ export function ProductFilterPanel({ categoryOptions, brandOptions, brandsLoadin
             {filters.missingMarkets.map((market) => <Tag key={'missing-' + market} color="orange" closable
               onClose={() => apply({ ...filters, missingMarkets: filters.missingMarkets.filter((item) => item !== market) })}>{marketLabel(market)} 미등록·해제</Tag>)}
             {filters.pendingChangesOnly && <Tag color="gold" closable onClose={() => apply({ ...filters, pendingChangesOnly: false })}>미반영 DB 변경</Tag>}
+            {filters.contentAgeDays != null && <Tag color="gold" closable onClose={() => apply({ ...filters, contentAgeDays: null })}>
+              {filters.contentAgeField === 'IMAGES' ? '이미지' : filters.contentAgeField === 'DETAIL_HTML' ? '상세 HTML' : '이미지·상세'} {filters.contentAgeDays}일 경과 / 적용 기록 없음
+            </Tag>}
             {filters.marketPlusIssue !== 'ALL' && <Tag color="red" closable onClose={() => apply({ ...filters, marketPlusIssue: 'ALL' })}>G마켓·옥션 {MARKETPLUS_ISSUE_OPTIONS.find(o => o.value === filters.marketPlusIssue)?.label}</Tag>}
             {filters.sbCodes.length > 0
             ? <Tag closable onClose={() => apply({ ...filters, sbCodes: [] })}>SB코드 {filters.sbCodes.length}개 · 다른 검색 조건과 함께 적용</Tag>

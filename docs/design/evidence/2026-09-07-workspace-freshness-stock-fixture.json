@@ -1,0 +1,20 @@
+{
+  "status": "passed",
+  "checks": [
+    "기본 정렬을 서버 전체 검색에 전달",
+    "수집 성공과 DB 적용 시각을 구분해 표시",
+    "90일·미적용 빠른 조건 전달 및 이전 선택 초기화",
+    "판매가 정렬 전환과 기존 필터 동시 전달",
+    "선택 상품·마켓 수량 검토와 판매용 300개 표시",
+    "접수 응답 유실 시 같은 검토 재시도·조회 실패에 성공 숨김",
+    "실제 수량 일치와 마켓 전달 보류 사유를 따로 표시",
+    "수량 작업 조회·전송 이력 열람"
+  ],
+  "fixtureOnly": true,
+  "servedImages": [
+    "/fixtures/new-detail.svg",
+    "/fixtures/new-main.svg",
+    "/fixtures/old-detail.svg",
+    "/fixtures/old-main.svg"
+  ]
+}

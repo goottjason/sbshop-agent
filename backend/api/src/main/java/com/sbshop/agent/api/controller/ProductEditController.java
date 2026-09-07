@@ -2,6 +2,7 @@ package com.sbshop.agent.api.controller;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sbshop.agent.core.application.product.edit.ProductEditService;
+import com.sbshop.agent.core.application.product.edit.ProductBulkValuesRequest;
 import com.sbshop.agent.core.application.product.edit.ProductNumericPreviewUseCase;
 import java.security.Principal;
 import java.util.List;
@@ -56,6 +57,17 @@ public class ProductEditController {
 	public ProductEditService.Review numeric(@RequestBody
 	ProductNumericPreviewUseCase.Request request, Principal actor) {
 		return edits.previewNumeric(request, actor.getName());
+	}
+
+	@GetMapping("/changes/values-preview/fields")
+	public List<ProductBulkValuesRequest.Field> valueFields() {
+		return ProductBulkValuesRequest.fields();
+	}
+
+	@PostMapping("/changes/values-preview")
+	public ProductEditService.Review values(@RequestBody
+	ProductBulkValuesRequest request, Principal actor) {
+		return edits.previewValues(request, actor.getName());
 	}
 
 	@PostMapping("/changes/commit")
