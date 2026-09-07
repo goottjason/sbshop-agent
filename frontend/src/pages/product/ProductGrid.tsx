@@ -13,6 +13,7 @@ import { ProductFilterPanel, type ProductFilters } from './ProductFilterPanel';
 import { EMPTY_PRODUCT_FILTERS, sourceProductUrl } from './productSearch';
 import { ProductDetailModal } from './ProductDetailModal';
 import { ProductNumericPreviewModal } from './ProductNumericPreviewModal';
+import { ProductContentRefreshModal } from './ProductContentRefreshModal';
 import { ProductInspectionJobs } from './ProductInspectionJobs';
 import { ProductPriceSync } from './ProductPriceSync';
 import { ProductRegistrationJobs } from './ProductRegistrationJobs';
@@ -68,6 +69,7 @@ export default function ProductGrid() {
   const [registrationIds, setRegistrationIds] = useState<number[] | null>(null);
   const [priceSyncIds, setPriceSyncIds] = useState<number[] | null>(null);
   const [inspectionIds, setInspectionIds] = useState<number[] | null>(null);
+  const [contentRefreshIds, setContentRefreshIds] = useState<number[] | null>(null);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [marginRate, setMarginRate] = useState<number | null>(15);
   const [couponRate, setCouponRate] = useState<number | null>(20);
@@ -251,7 +253,7 @@ export default function ProductGrid() {
   };
 
   return (
-    <div className={`product-theme pw-density-${density}`} style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px 24px', background: '#f4f6f7' }}>
+    <div className={`product-theme pw-density-${density}`} style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '14px 20px', background: '#f4f6f7' }}>
       <style>{`
         .pg-size {
           appearance: none; -webkit-appearance: none; -moz-appearance: none;
@@ -266,7 +268,7 @@ export default function ProductGrid() {
         .pg-size:focus { outline: none; border-color: var(--product-primary); box-shadow: 0 0 0 3px rgba(22,101,52,0.12); }
         @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
       `}</style>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: '19px', fontWeight: 800, color: 'var(--product-primary)', letterSpacing: -0.2 }}>상품 관리</h2>
           <span style={{ fontSize: 12, color: '#64748b', background: '#eef2f7', borderRadius: 999, padding: '3px 10px', fontWeight: 600 }}>
@@ -274,6 +276,7 @@ export default function ProductGrid() {
           </span>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button className="pw-detail-button" onClick={() => setContentRefreshIds(!isPlaceholderData && !isError ? [...selectedIds] : [])}>이미지·상세 갱신{selectedIds.length > 0 && !isPlaceholderData && !isError ? ` (${selectedIds.length})` : ''}</button>
           <button className="pw-detail-button" onClick={() => setRegistrationIds(!isPlaceholderData && !isError ? [...selectedIds] : [])}>미등록 마켓 등록·작업</button>
           <button className="pw-detail-button" onClick={() => setPriceSyncIds(!isPlaceholderData && !isError ? [...selectedIds] : [])}>마켓 가격 반영·작업</button>
           <button className="pw-detail-button" onClick={() => setInspectionIds(!isPlaceholderData && !isError ? [...selectedIds] : [])}>마켓 상태 확인·작업</button>
@@ -298,16 +301,17 @@ export default function ProductGrid() {
         brandsLoading={brandsLoading} brandsError={brandsError} onRetryBrands={() => { void refetchBrands(); }} onSearch={handleSearch} />
       <MarketPlusReadinessNotice />
       <MarketPlusObserverNotice />
-      {filters.marketPlusIssue !== 'ALL' && <Alert type="info" showIcon style={{ marginBottom: 12 }}
-        message="현재 연결의 G마켓·옥션 전송 이슈를 검색합니다."
-        description="수집한 이력만 대상으로 하므로 미수집 상품의 정상 여부는 판단할 수 없습니다. 같은 시각·같은 전송 종류의 성공과 실패는 결과 충돌로 구분합니다." />}
+      {filters.marketPlusIssue !== 'ALL' && <p className="pw-change-note" style={{ margin: '0 0 8px' }}>
+        현재 연결에서 수집한 G마켓·옥션 전송 이슈 기준입니다. 미수집 상품의 정상 여부는 확인할 수 없으며, 같은 시각·종류의 성공과 실패는 결과 충돌로 표시합니다.
+      </p>}
 
       {numericPreviewIds && <ProductNumericPreviewModal productIds={numericPreviewIds} onClose={() => setNumericPreviewIds(null)} />}
       {registrationIds && <ProductRegistrationJobs productIds={registrationIds} onClose={() => { setRegistrationIds(null); void refetch(); }} />}
       {priceSyncIds && <ProductPriceSync productIds={priceSyncIds} onClose={() => { setPriceSyncIds(null); void refetch(); }} />}
       {inspectionIds && <ProductInspectionJobs productIds={inspectionIds} onClose={() => { setInspectionIds(null); void refetch(); }} />}
+      {contentRefreshIds && <ProductContentRefreshModal productIds={contentRefreshIds} onClose={() => setContentRefreshIds(null)} onSaved={() => { void refetch(); }} />}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <span role="status" style={{ color: '#64748b', fontSize: 12 }}>{isFetching ? '검색 결과 갱신 중…' : isError ? '조회 실패' : `검색 결과 ${totalElements.toLocaleString()}개`}</span>
         <Segmented aria-label="상품 행 간격" value={density} onChange={setDensity}
           options={[{ value: 'compact', label: '촘촘하게' }, { value: 'comfortable', label: '넓게 보기' }]} />
@@ -317,7 +321,7 @@ export default function ProductGrid() {
           ? searchError.response.data.message : '잠시 후 다시 시도해 주세요.'}
         action={<button className="pw-detail-button" onClick={() => { void refetch(); }}>재시도</button>} />}
 
-      <div style={{ flex: 1, position: 'relative', overflow: 'auto', paddingBottom: 4 }}>
+      <div style={{ flex: 1, minHeight: 180, position: 'relative', overflow: 'auto', paddingBottom: 4 }}>
         {(isLoading || isPlaceholderData) && (
           <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,255,255,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10 }}>
             <div style={{ padding: '16px 32px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', fontSize: '15px', fontWeight: 600, color: 'var(--product-primary)' }}>로딩 중...</div>

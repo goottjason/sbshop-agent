@@ -519,6 +519,20 @@ public class Product extends BaseEntity {
 			command.rawSourceHtml());
 	}
 
+	/** Reuses the registered product template with frozen DB inputs and a sanitized source fragment. */
+	public static String generateRefreshedDetailHtml(String name, String originalName, int bundleCount,
+		BigDecimal capacity, MeasureUnit unit, List<String> images, String sanitizedSourceHtml) {
+		List<String> safeImages = images == null ? List.of() : images;
+		return generateTemplateHtml(escapeContentText(name), escapeContentText(originalName), bundleCount,
+			capacity, unit, safeImages.isEmpty() ? "" : safeImages.getFirst(),
+			safeImages.size() > 1 ? safeImages.subList(1, safeImages.size()) : List.of(), sanitizedSourceHtml);
+	}
+
+	private static String escapeContentText(String value) {
+		return value == null ? "" : value.replace("&", "&amp;").replace("<", "&lt;")
+			.replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;");
+	}
+
 	private static String assembleMarketName(String brand, String baseName, BigDecimal capacity,
 		MeasureUnit unit, int bundleCount) {
 		String unitDesc = unit != null && unit != MeasureUnit.UNKNOWN ? unit.getDescription() : "";

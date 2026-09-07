@@ -30,7 +30,11 @@ public class ProductSyncScheduler {
 		}
 
 		log.info("iHerb 상품 {}개 재고 동기화 시작", productIds.size());
-		productSyncService.syncStockForPreparingOrders(productIds);
-		log.info("iHerb 상품 재고 주기적 동기화 완료");
+		var result = productSyncService.syncStockForPreparingOrders(productIds);
+		if (result.complete()) {
+			log.info("iHerb 상품 {}", result.summary());
+		} else {
+			log.warn("iHerb 상품 {} · 실패 사유는 활동 로그에서 확인하세요.", result.summary());
+		}
 	}
 }

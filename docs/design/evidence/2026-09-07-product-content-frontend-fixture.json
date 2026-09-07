@@ -1,0 +1,23 @@
+{
+  "status": "passed",
+  "checks": [
+    "실제 ProductGrid 5개 체크박스 선택 → 콘텐츠 갱신 모달 진입",
+    "수집 응답 유실 시 같은 요청 ID로 복구",
+    "다건 비교는 펼친 상품만 HTML을 로딩",
+    "잠금·부분 수집 실패·미지원·만료 상태 구분",
+    "로컬 HTTP 구형·최신 대표/추가 이미지 4개 실제 디코딩 확인",
+    "수집 HTML 스크립트 차단 및 CSP 확인",
+    "잠김·미수집·만료 필드 일괄 선택 제외",
+    "콘텐츠 DB 적용 결과 후 실제 ProductGrid 조회 갱신",
+    "콘텐츠 저장 응답 유실 시 같은 검토 ID로 재시도",
+    "DB 적용과 외부 마켓 반영을 구분",
+    "창을 다시 열 때 사용할 수집 복구 정보 저장"
+  ],
+  "fixtureOnly": true,
+  "servedImages": [
+    "/fixtures/new-detail.svg",
+    "/fixtures/new-main.svg",
+    "/fixtures/old-detail.svg",
+    "/fixtures/old-main.svg"
+  ]
+}

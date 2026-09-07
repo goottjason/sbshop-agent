@@ -40,7 +40,8 @@ class ProductSyncServiceRestockDateTest {
 	@BeforeEach
 	void setUp() {
 		service = new ProductSyncService(
-			productRepository, productStockCrawlerPort, orderLineItemRepository, actionLogService);
+			productRepository, productStockCrawlerPort, orderLineItemRepository, actionLogService,
+			new StockSyncTestTransactionManager());
 	}
 
 	@Test
@@ -49,6 +50,7 @@ class ProductSyncServiceRestockDateTest {
 		Product product = Mockito.mock(Product.class);
 		when(product.getSourcingUrl()).thenReturn(SOURCE_URL);
 		when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+		when(productRepository.findForEdit(PRODUCT_ID)).thenReturn(Optional.of(product));
 		when(productStockCrawlerPort.checkStockWithDetails(SOURCE_URL))
 			.thenReturn(new StockCheckResult(StockStatus.OUT_OF_STOCK, BigDecimal.TEN, 0, null));
 
@@ -63,6 +65,7 @@ class ProductSyncServiceRestockDateTest {
 		Product product = Mockito.mock(Product.class);
 		when(product.getSourcingUrl()).thenReturn(SOURCE_URL);
 		when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+		when(productRepository.findForEdit(PRODUCT_ID)).thenReturn(Optional.of(product));
 		when(productStockCrawlerPort.checkStockWithDetails(SOURCE_URL))
 			.thenReturn(new StockCheckResult(StockStatus.IN_STOCK, BigDecimal.TEN, 100, null));
 
@@ -78,6 +81,7 @@ class ProductSyncServiceRestockDateTest {
 		Product product = Mockito.mock(Product.class);
 		when(product.getSourcingUrl()).thenReturn(SOURCE_URL);
 		when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+		when(productRepository.findForEdit(PRODUCT_ID)).thenReturn(Optional.of(product));
 		when(productStockCrawlerPort.checkStockWithDetails(SOURCE_URL))
 			.thenReturn(new StockCheckResult(StockStatus.OUT_OF_STOCK, BigDecimal.TEN, 0, newDate));
 

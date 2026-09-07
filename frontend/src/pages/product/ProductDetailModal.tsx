@@ -1,12 +1,13 @@
 import { ProductConnections } from './ProductConnections';
 import { ProductMarketPlusHistory } from './ProductMarketPlusHistory';
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Image, Collapse, Tooltip, Popconfirm, Checkbox, Button, Typography, Alert, Tag } from 'antd';
+import { Modal, Image, Collapse, Tooltip, Checkbox, Button, Typography, Alert, Tag } from 'antd';
 import { UploadOutlined, LinkOutlined, CloudDownloadOutlined } from '@ant-design/icons';
 import { productApi, type ProductDetail, type ImageUploadResult, type ProductEditFields } from '../../api/productApi';
 import { MarketLiveCompare } from './MarketLiveCompare';
 import { productEditApi, type EditWorkspace, type EditReview } from '../../api/productChangeApi';
 import { ProductSaveReview } from './ProductSaveReview';
+import { ProductContentRefreshModal } from './ProductContentRefreshModal';
 import { ProductEditHistory } from './ProductEditHistory';
 import { ProductPricePreview } from './ProductPricePreview';
 import { notify } from '../../utils/notify';
@@ -186,6 +187,7 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
   const [urlInput, setUrlInput] = useState('');
   const [workspace, setWorkspace] = useState<EditWorkspace | null>(null);
   const [saveReview, setSaveReview] = useState<EditReview | null>(null);
+  const [contentRefreshOpen, setContentRefreshOpen] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -203,6 +205,7 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
     setWorkspace(null);
     setDetail(null);
     setSaveReview(null);
+    setContentRefreshOpen(false);
     let active = true;
     setUrlInput('');
     setChangedFields([]);
@@ -282,21 +285,6 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
     } catch {
       notify.error('이미지 업로드 실패 — 서버 스토리지(R2) 설정을 확인하세요.');
     } finally { setUploading(false); }
-  };
-
-  const handleCrawl = async () => {
-    if (productId == null) return;
-    if (detail?.sourcingInfo?.vendor !== 'IHB') {
-      notify.warning('이 벤더는 아직 소스이미지 크롤을 지원하지 않습니다 (현재 iHerb 상품만 지원).');
-      return;
-    }
-    setUploading(true);
-    try {
-      await productApi.crawlAndUpload(productId);
-      notify.success('소스이미지 크롤·업로드 완료');
-      await refreshDetail();
-    } catch { notify.error('소스 이미지 크롤·업로드에 실패했습니다.'); }
-    finally { setUploading(false); }
   };
 
   const toggleSyncMarket = (market: string, checked: boolean) => {
@@ -552,13 +540,11 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
               <button className="pd-imgbtn" disabled={uploading || !canEdit('hostedImages')} onClick={() => fileInputRef.current?.click()}>
                 <UploadOutlined /> 파일 업로드
               </button>
-              <Popconfirm title="소스 이미지 크롤·업로드"
-                description="크롤한 이미지를 R2에 업로드하고 연동된 모든 마켓에 재게시합니다. 진행할까요?"
-                okText="진행" cancelText="취소" onConfirm={handleCrawl}>
-                <Tooltip title={d.sourcingInfo?.vendor !== 'IHB' ? '현재 iHerb 상품만 지원' : ''}>
-                  <button className="pd-imgbtn" disabled={uploading || !canEdit('hostedImages')}><CloudDownloadOutlined /> 소스 이미지 크롤</button>
-                </Tooltip>
-              </Popconfirm>
+              <Tooltip title={dirty ? '작성 중인 변경을 저장한 후 수집 내용을 비교하세요.' : '최신 이미지·상세정보를 수집하고 비교합니다. 적용 시 필드별 편집 정책을 확인합니다.'}>
+                <button className="pd-imgbtn" disabled={uploading || saving || dirty} onClick={() => setContentRefreshOpen(true)}>
+                  <CloudDownloadOutlined /> 소싱 이미지·상세 비교
+                </button>
+              </Tooltip>
             </div>
             <textarea className="pd-ta" rows={2} placeholder="이미지 URL을 줄바꿈 또는 쉼표로 구분해 입력"
               value={urlInput} onChange={(e) => setUrlInput(e.target.value)} />
@@ -585,6 +571,8 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
       )}
     </Modal>
     {saveReview && <ProductSaveReview review={saveReview} onClose={() => setSaveReview(null)} onSaved={() => { onSaved(); setHistoryKey(v => v + 1); void refreshDetail(); }} />}
+    {contentRefreshOpen && productId != null && <ProductContentRefreshModal productIds={[productId]} onClose={() => setContentRefreshOpen(false)}
+      onSaved={() => { onSaved(); setHistoryKey(v => v + 1); void refreshDetail(); }} />}
     </>
   );
 }

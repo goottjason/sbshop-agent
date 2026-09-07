@@ -39,7 +39,8 @@ class ProductSyncServiceAsyncTest {
 	@BeforeEach
 	void setUp() {
 		service = new ProductSyncService(
-			productRepository, productStockCrawlerPort, orderLineItemRepository, actionLogService);
+			productRepository, productStockCrawlerPort, orderLineItemRepository, actionLogService,
+			new StockSyncTestTransactionManager());
 	}
 
 	@Test

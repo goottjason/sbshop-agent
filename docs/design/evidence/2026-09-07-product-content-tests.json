@@ -1,0 +1,32 @@
+{
+  "api": {
+    "tests": 329,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "core": {
+    "tests": 1494,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "infrastructure": {
+    "tests": 609,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "worker": {
+    "tests": 79,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "total": {
+    "tests": 2511,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  }
+}

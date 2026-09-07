@@ -138,6 +138,17 @@ public class ProductEditService {
 		return success(plan, history.getId(), hasMarketChanges(plan) ? "DB 저장 완료 · 마켓 미반영 대상으로 기록됨" : "DB 저장 완료");
 	}
 
+	/** The content workflow stores its own immutable review and joins history/timestamps in the caller's transaction. */
+	@Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+	public CommitItem commitReviewedContent(String reviewId, String actor, Instant expiresAt,
+		ProductEditPlanner.Plan plan) {
+		requireActor(actor);
+		if (plan.state() != ProductEditPlanner.State.READY)
+			return new CommitItem(plan.productId(), plan.sbCode(), plan.state().name(), null,
+				String.join(" / ", plan.reasons()));
+		return commitOne(new ProductEditReview(reviewId, actor, expiresAt.minusSeconds(1800), ""), plan, actor);
+	}
+
 	private boolean hasMarketChanges(ProductEditPlanner.Plan plan) {
 		return !plan.connections().isEmpty() && plan.changes().stream().anyMatch(c -> !c.field().equals("memo"));
 	}

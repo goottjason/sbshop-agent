@@ -8,7 +8,10 @@ import { editFieldLabel, editValue } from './productEditDisplay';
 
 const stateLabels: Record<string, string> = { READY: '저장 가능', UNCHANGED: '변경 없음', EXCLUDED: '저장 제외', NOT_FOUND: '상품 없음', SAVED: 'DB 저장 완료', CONFLICT: '다시 검토 필요', FAILED: '저장 실패' };
 
-export function ProductSaveReview({ review, onClose, onSaved }: { review: EditReview; onClose: () => void; onSaved: () => void }) {
+export function ProductSaveReview({ review, onClose, onSaved, commit = productEditApi.commit }: {
+  review: EditReview; onClose: () => void; onSaved: () => void;
+  commit?: (reviewId: string) => ReturnType<typeof productEditApi.commit>;
+}) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<EditCommit | null>(null);
   const [error, setError] = useState(false);
@@ -17,7 +20,7 @@ export function ProductSaveReview({ review, onClose, onSaved }: { review: EditRe
   const save = async () => {
     setBusy(true); setError(false);
     try {
-      const response = (await productEditApi.commit(review.reviewId)).data;
+      const response = (await commit(review.reviewId)).data;
       setResult(response);
       if (response.items.some(i => i.state === 'SAVED')) onSaved();
     } catch { setError(true); } finally { setBusy(false); }

@@ -100,6 +100,10 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 	}
 
 	public IherbProductInfo crawlProductInfo(String url) {
+		return crawlProductInfo(url, true);
+	}
+
+	private IherbProductInfo crawlProductInfo(String url, boolean limitImages) {
 		String productId = extractProductId(url);
 		if (productId == null) {
 			log.error("아이허브 상품 ID 추출 실패. url={}", url);
@@ -111,6 +115,7 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 			try {
 				HttpRequest request = HttpRequest.newBuilder()
 					.uri(URI.create(apiUrl))
+					.timeout(Duration.ofSeconds(30))
 					.header("User-Agent",
 						"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 					.header("Accept", "application/json")
@@ -121,11 +126,20 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 
 				HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 				if (response.statusCode() == 200) {
-					return parseProductInfo(response.body(), url);
+					return parseProductInfo(response.body(), url, limitImages);
+				} else if (response.statusCode() == 429) {
+					throw new com.sbshop.agent.core.application.product.content.ProductContentThrottledException(
+						com.sbshop.agent.infrastructure.client.smartstore.client.InspectionRetryAfter.parse(
+							response.headers().firstValue("Retry-After").orElse(null), java.time.Instant.now()));
 				} else if (response.statusCode() == 403) {
 					log.warn("아이허브 403 차단. 재시도 중... ({}/3)", i + 1);
 					Thread.sleep(2000L * (i + 1));
 				}
+			} catch (com.sbshop.agent.core.application.product.content.ProductContentThrottledException e) {
+				throw e;
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new IllegalStateException("아이허브 콘텐츠 수집 중단", e);
 			} catch (Exception e) {
 				if (i == 3)
 					log.error("아이허브 상품 정보 크롤링 실패: {}", url, e);
@@ -137,6 +151,12 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 	@Override
 	public ScrapedProductDto crawlProductInfoAsDto(String url) {
 		IherbProductInfo info = crawlProductInfo(url);
+		return info != null ? toScrapedDto(info) : null;
+	}
+
+	/** Refresh reviews must see every source image; the registration path retains its legacy five-image cap. */
+	public ScrapedProductDto crawlProductContentAsDto(String url) {
+		IherbProductInfo info = crawlProductInfo(url, false);
 		return info != null ? toScrapedDto(info) : null;
 	}
 
@@ -165,6 +185,10 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 	}
 
 	IherbProductInfo parseProductInfo(String body, String sourceUrl) {
+		return parseProductInfo(body, sourceUrl, true);
+	}
+
+	IherbProductInfo parseProductInfo(String body, String sourceUrl, boolean limitImages) {
 		try {
 			JsonNode root = objectMapper.readTree(body);
 
@@ -188,13 +212,18 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 				String part = partNumber.toLowerCase().replace("-", "");
 				int count = 0;
 				for (JsonNode idxNode : imageIndices) {
-					if (count >= 5)
+					if (limitImages && count >= 5)
 						break;
+					if (!limitImages
+						&& (!idxNode.isIntegralNumber() || !idxNode.canConvertToInt() || idxNode.intValue() < 0))
+						throw new IllegalArgumentException("아이허브 이미지 인덱스 형식을 확인할 수 없습니다.");
 					imageLinks.add(String.format(
 						"https://cloudinary.images-iherb.com/image/upload/f_auto,q_auto:eco/images/%s/%s/l/%d.jpg",
 						brandLike, part, idxNode.asInt()));
 					count++;
 				}
+				if (!limitImages && new java.util.HashSet<>(imageLinks).size() != imageLinks.size())
+					throw new IllegalArgumentException("아이허브 이미지 인덱스가 중복되었습니다.");
 			}
 
 			String categoryPath = root.path("userCategoryPath").asText("");
@@ -227,7 +256,11 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 				throw new IllegalStateException("응답이 JSON 객체가 아니다");
 			}
 
-			boolean isAvailable = root.path("isAvailableToPurchase").asBoolean(false);
+			JsonNode availableNode = root.path("isAvailableToPurchase");
+			if (!availableNode.isBoolean()) {
+				throw new IllegalStateException("판매 가능 여부(isAvailableToPurchase)가 boolean이 아니다");
+			}
+			boolean isAvailable = availableNode.booleanValue();
 			StockStatus status = isAvailable ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK;
 
 			BigDecimal costPrice = null;
@@ -252,13 +285,13 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 				}
 			}
 
-			int stock = 0;
+			Integer stock = null;
 			JsonNode stockNode = root.path("stockQuantity");
-			if (!stockNode.isMissingNode()) {
-				stock = stockNode.asInt(0);
-			}
-			if (stock == 0 && isAvailable) {
-				stock = 100;
+			if (!stockNode.isMissingNode() && !stockNode.isNull()) {
+				if (!stockNode.isIntegralNumber() || !stockNode.canConvertToInt() || stockNode.intValue() < 0) {
+					throw new IllegalStateException("재고 수량(stockQuantity)이 유효한 비음수 정수가 아니다");
+				}
+				stock = stockNode.intValue();
 			}
 
 			LocalDate restockDate = null;
