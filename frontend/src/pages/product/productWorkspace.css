@@ -58,6 +58,10 @@ a.pw-product-name:hover { color: var(--product-primary); text-decoration: underl
 .pw-content-card-title > a { margin-left: auto; }
 .pw-content-times { font-size: 12px; color: #64748b; margin: 6px 0; line-height: 1.6; }
 .pw-content-warning { color: #92400e; background: #fffbeb; padding: 6px 8px; border-radius: 5px; margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pw-content-notices { margin-top: 6px; color: #64748b; font-size: 12px; }
+.pw-content-notices > summary { cursor: pointer; width: fit-content; padding: 3px 0; }
+.pw-content-notices > summary:focus-visible { outline: 2px solid #166534; outline-offset: 3px; }
+.pw-content-notices > p { margin: 5px 0; padding-left: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .pw-content-field { margin-top: 14px; padding-top: 12px; border-top: 1px solid #edf0f2; }
 .pw-content-comparison > summary, .pw-content-history > summary, .pw-content-source > summary { width: fit-content; cursor: pointer; color: #475569; font-size: 12px; padding: 4px 0; }
 .pw-content-comparison > summary:focus-visible, .pw-content-history > summary:focus-visible, .pw-content-source > summary:focus-visible { outline: 2px solid #166534; outline-offset: 3px; }

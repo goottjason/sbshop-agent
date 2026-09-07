@@ -25,8 +25,11 @@ const snapshot = (id: number): ProductContentSnapshot => ({
   fields: ['IMAGES', 'DETAIL_HTML'].map(field => ({ field: field as 'IMAGES' | 'DETAIL_HTML', available: true, editable: true, reason: '연결 없는 상품', collectedAt: now, appliedAt: null })), notices: [],
 });
 const items = [1, 2, 3, 4, 5].map(snapshot);
+items[0].notices = ['수집 설명의 실행 코드와 외부 링크를 제거합니다.', '상품명과 묶음수량은 수집 요청 당시 DB 값을 사용합니다.',
+  '대표·추가 이미지도 바꾸려면 이미지 항목을 함께 선택하세요.', '수집 완료 후 DB 적용과 외부 마켓 반영을 별도로 확인하세요.'];
 items[1].fields.forEach(field => { field.editable = false; field.reason = '현재 마켓 연결로 수정 잠금'; });
 items[2].state = 'PARTIAL'; items[2].reason = '이미지 호스팅 실패 · HTML만 수집'; items[2].fields[0].available = false; items[2].fields[0].collectedAt = null;
+items[2].notices = ['추가 이미지 2번 다운로드 실패: HTTP 503 응답'];
 items[3].state = 'UNSUPPORTED'; items[3].vendor = 'AMZ'; items[3].reason = '현재 지원하지 않는 소싱처'; items[3].collectedAt = null; items[3].proposed = null;
 items[3].expiresAt = null;
 items[3].fields.forEach(field => { field.available = false; field.collectedAt = null; });
@@ -119,10 +122,18 @@ async function run() {
     checks.push('수집 응답 유실 시 같은 요청 ID로 복구');
     if (document.querySelectorAll('iframe').length) throw new Error('Closed comparisons loaded HTML');
     checks.push('다건 비교는 펼친 상품만 HTML을 로딩');
+    const notes = document.querySelector<HTMLDetailsElement>('.pw-content-card > .pw-content-notices');
+    if (!notes || notes.open || !notes.querySelector('summary')?.textContent?.includes('(4)')) throw new Error('Collection notices not compact by default');
+    notes.querySelector('summary')!.click();
+    await wait(() => notes.open && notes.querySelectorAll('p').length === 4, 'collection notices expandable');
+    notes.querySelector('summary')!.click();
+    await wait(() => !notes.open, 'collection notices collapsed');
+    const failedNotes = document.querySelectorAll('.pw-content-card')[2].querySelector<HTMLDetailsElement>('.pw-content-notices');
+    if (!failedNotes?.open || !document.body.innerText.includes('추가 이미지 2번 다운로드 실패: HTTP 503 응답')) throw new Error('Partial collection failure details hidden');
     if (!document.body.innerText.includes('수정 잠금·확인 필요 항목 있음') || !document.body.innerText.includes('이미지 호스팅 실패') || !document.body.innerText.includes('소싱처 미지원')) throw new Error('Incomplete state labels');
     if (document.querySelectorAll('.pw-content-card')[3].textContent?.includes('유효 시간이 지났습니다')) throw new Error('Null expiry mislabelled as expired');
     checks.push('잠금·부분 수집 실패·미지원·만료 상태 구분');
-    const first = document.querySelector('.pw-content-card > details') as HTMLDetailsElement;
+    const first = document.querySelector('.pw-content-card > .pw-content-comparison') as HTMLDetailsElement;
     first.querySelector('summary')!.click();
     await wait(() => document.querySelectorAll('iframe').length === 2, 'comparison HTML');
     await wait(() => [...document.querySelectorAll<HTMLImageElement>('.pw-content-images img')].length === 4

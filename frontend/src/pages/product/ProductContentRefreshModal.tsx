@@ -91,7 +91,10 @@ function SnapshotCard({ snapshot, selected, disabled, initiallyExpanded, onSelec
     <p className="pw-content-times">수집 요청 {date(snapshot.requestedAt)} · 수집 성공 {date(snapshot.collectedAt)} · DB 적용 {date(snapshot.appliedAt)}</p>
     {snapshot.reason && <p className={hasFailure ? 'pw-content-warning' : 'pw-change-note'}>{snapshot.reason}</p>}
     {expired && <Alert type="warning" showIcon message="검토 유효 시간이 지났습니다. 최신 내용을 다시 수집하세요." />}
-    {snapshot.notices.map(notice => <p className="pw-content-warning" key={notice}>{notice}</p>)}
+    {snapshot.notices.length > 0 && <details className="pw-content-notices" open={hasFailure || undefined}>
+      <summary>수집 참고 사항 ({snapshot.notices.length})</summary>
+      {snapshot.notices.map(notice => <p className={hasFailure ? 'pw-content-warning' : undefined} key={notice}>{notice}</p>)}
+    </details>}
     {collecting(snapshot) ? <p><Spin size="small" /> 수집 작업을 기다리는 중입니다. 창을 닫아도 서버에서 계속 진행합니다.</p> :
       <details className="pw-content-comparison" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}><summary>비교 및 적용 항목 선택</summary>{expanded && snapshot.fields.map(rule => <section key={rule.field} className="pw-content-field">
         <div className="pw-content-field-title"><Checkbox checked={selected.includes(rule.field)}
@@ -191,8 +194,11 @@ export function ProductContentRefreshModal({ productIds, onClose, onSaved }: {
         <Button disabled={busy} onClick={onClose}>닫기</Button>
         <Button type="primary" loading={busy} disabled={!selected.length || collection.isError} onClick={() => { void prepare(); }}>선택 내용 적용 검토</Button>
       </div>}>
-      <Alert type="info" showIcon message="소싱처에서 수집한 이미지·상세정보를 비교하고 적용할 항목을 선택합니다."
-        description="현재 iHerb 상품을 지원합니다. 상세 HTML은 현재 상품명·묶음수량 등을 사용한 자동 생성 규칙을 따릅니다. 함께 갱신할 항목은 한 번에 선택하세요. 일부를 적용하면 남은 항목은 다시 수집해야 합니다. DB 적용 후 마켓 반영은 별도로 확인하며, 연결에 따른 필드 잠금은 유지됩니다." />
+      <Alert type="info" showIcon message="수집 내용을 비교해 선택한 항목만 DB에 적용합니다. 마켓 반영은 별도입니다." />
+      <details className="pw-content-notices">
+        <summary>수집·적용 안내</summary>
+        <p>현재 iHerb 상품을 지원합니다. 상세 HTML은 현재 상품명·묶음수량 등을 사용한 자동 생성 규칙을 따릅니다. 함께 갱신할 항목은 한 번에 선택하세요. 일부를 적용하면 남은 항목은 다시 수집해야 합니다. 연결에 따른 필드 잠금은 유지됩니다.</p>
+      </details>
       <div className="pw-content-toolbar">
         <Button loading={busy} disabled={!productIds.length || productIds.length > 50 || !!unknownRequest || inProgress > 0}
           onClick={() => { void collect(); }}>{collectionId || historical ? '선택 상품 다시 수집' : `선택 ${productIds.length}개 상품 최신 내용 수집`}</Button>
