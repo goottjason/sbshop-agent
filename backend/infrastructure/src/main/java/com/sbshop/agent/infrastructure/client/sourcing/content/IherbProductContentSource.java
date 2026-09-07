@@ -32,9 +32,13 @@ public class IherbProductContentSource implements ProductContentSource {
 	@Override
 	public Fetch fetch(String sourceUrl) {
 		var dto = crawler.crawlProductContentAsDto(ProductContentUrls.source(sourceUrl));
-		if (dto == null || dto.vendor() != com.sbshop.agent.core.domain.product.enums.VendorType.IHB
-			|| !Objects.equals(sourceUrl, dto.sourceUrl()) || dto.baseName() == null || dto.baseName().isBlank())
-			throw new IllegalArgumentException("소싱처와 상품정보를 검증할 수 없습니다.");
+		if (dto == null)
+			throw new ProductContentFailureException(ProductContentFailureException.Code.SOURCE_UNAVAILABLE);
+		if (dto.vendor() != com.sbshop.agent.core.domain.product.enums.VendorType.IHB
+			|| !Objects.equals(sourceUrl, dto.sourceUrl()))
+			throw new ProductContentFailureException(ProductContentFailureException.Code.SOURCE_IDENTITY_MISMATCH);
+		if (dto.baseName() == null || dto.baseName().isBlank())
+			throw new ProductContentFailureException(ProductContentFailureException.Code.SOURCE_NAME_MISSING);
 		List<String> notices = new ArrayList<>();
 		List<String> images = dto.sourceImages() == null ? List.of() : dto.sourceImages();
 		List<String> hosted = List.of();

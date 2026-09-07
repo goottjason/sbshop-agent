@@ -55,7 +55,8 @@ public class ProductContentWorker {
 		} catch (Exception e) {
 			boolean throttled = e instanceof ProductContentThrottledException;
 			Instant serverRetryAfter = e instanceof ProductContentThrottledException limit ? limit.retryAfter() : null;
-			String reason = throttled ? e.getMessage() : "소싱 콘텐츠 수집에 실패했습니다. 차단·응답 형식·이미지 호스팅 상태를 확인 후 새로 수집하세요.";
+			String reason = throttled || e instanceof ProductContentFailureException ? e.getMessage()
+				: "소싱 콘텐츠 수집에 실패했습니다. 차단·응답 형식·이미지 호스팅 상태를 확인 후 새로 수집하세요.";
 			log.warn("콘텐츠 수집 실패 snapshot={}, type={}", claim.id(), e.getClass().getSimpleName());
 			try {
 				tx.executeWithoutResult(

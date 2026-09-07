@@ -56,3 +56,13 @@ Snapshot에는 `id`, `productId`, `sbCode`, `revision`, `sourceUrl`, `vendor`, `
 기존 주문 상품의 소싱 재고 수집도 보완했다. 크롤 예외를 삼킨 뒤 전체 성공으로 기록하던 흐름을 상품별 실제 결과와 실패/취소 사유로 바꿨다. 수집 전후 짧은 별도 transaction을 사용하고 중간에 상품 버전·URL이 바뀌면 저장하지 않는다. 누락된 가격·재고 관측은 기존 DB값을 지우지 않으며 판매용 수량 300과 구별한다. IHB 응답에 실제 boolean 판매가능값이 없으면 실패하고, 재고가 없으면 임의 0/100으로 만들지 않는다. 명시된 정상 품절·0은 보존한다. 기존 주문 수집 경로 전체를 새 마켓 검토 큐로 전환한 것은 아니다.
 
 독립 리뷰에서 발견한 최신 이미지 5장 잘림과 서버 Retry-After 무시도 수정했다. 콘텐츠 전용 조회는 전체 이미지 인덱스를 검증하고 기존 등록의 5장 규칙은 보존한다. 카탈로그·이미지 양쪽의 Retry-After 초/HTTP날짜를 다음 실행 시각까지 전달하며, 600초 안내가 최소 5분보다 우선함을 DB 작업 검사로 확인했다.
+
+## 실제 카탈로그 응답 계약 수정
+
+운영 상품 328의 수집 검증에서 HTTP 200 카탈로그 응답에 기존 parser가 기대한 `productName`과 `htmlDescription`이 없는 점을 확인했다. 이때 `baseName`이 빈 값으로 변환되어 새 수집이 실패했으며, DB 콘텐츠·수집 성공 시각·적용 시각은 변경되지 않았다.
+
+2026-09-07 확인된 실제 공개 응답(id 18566)을 기준으로 콘텐츠 전용 parser를 분리했다. `displayName`은 응답의 상품 존재를 확인하는 데 사용한다. 생성 HTML의 상품명은 계속 요청 당시 DB 값으로 고정한다. `id`, 요청 URL의 상품 ID, 응답 `url`의 상품 ID가 모두 일치해야 한다. `primaryImageIndex`가 검증된 `imageIndices` 안에 있어야 하고 대표 이미지를 첫 번째로 배치한다. 대표값 누락 시 첫 사진을 임의 선택하지 않는다.
+
+상세 본문은 확인된 `description`, `ingredients`, `suggestedUse`, `supplementFacts`, `warnings`, `disclaimer`, `specialNote` 문자열 항목으로 구성한 뒤 기존 허용 목록 정제를 적용한다. 다른 형태의 대체 필드를 추정하지 않는다. 확인한 표본은 1건이고 추가 2건은 조회 실패로 응답 구조를 검증하지 못했으므로, 미확인 형식은 명시적으로 실패하도록 유지한다. 기존 신규 상품등록 parser의 필드 조합은 이 수정에서 변경하지 않았다.
+
+안전한 고정 사유인 `SOURCE_NAME_MISSING`, `SOURCE_IDENTITY_MISMATCH`, `SOURCE_IMAGES_INVALID`, `SOURCE_DETAILS_INVALID`, `SOURCE_HTTP_FAILED` 등을 수집 결과에 보존한다. 원본 응답·임의 예외 메시지를 사용자 화면에 노출하지 않는다. 실제 응답에서 계약 검증에 필요한 필드만 남긴 fixture와 HTTP 경로 회귀를 포함한 scoped 검사 **31건(Core 14 / 인프라 17)**이 통과했다. 이는 수정 후 운영 수집 재검증 완료와 구분한다.

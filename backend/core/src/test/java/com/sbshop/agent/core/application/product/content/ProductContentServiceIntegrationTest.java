@@ -296,6 +296,19 @@ class ProductContentServiceIntegrationTest {
 	}
 
 	@Test
+	void safeSourceSchemaFailureIsVisibleAndKeepsSuccessAndApplicationTimestampsUnset() {
+		var collection = collect(product(VendorType.IHB));
+		when(source.fetch(anyString()))
+			.thenThrow(new ProductContentFailureException(ProductContentFailureException.Code.SOURCE_NAME_MISSING));
+		worker.tick();
+		var snapshot = service.collection(collection.id(), "admin").items().getFirst();
+		assertThat(snapshot.state()).isEqualTo(State.FAILED);
+		assertThat(snapshot.reason()).contains("SOURCE_NAME_MISSING", "displayName");
+		assertThat(snapshot.collectedAt()).isNull();
+		assertThat(snapshot.appliedAt()).isNull();
+	}
+
+	@Test
 	void oneConflictedProductDoesNotRollBackAnotherProductsReviewedContent() {
 		var first = product(VendorType.IHB);
 		var firstSnapshot = completed(first);

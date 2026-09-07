@@ -100,10 +100,11 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 	}
 
 	public IherbProductInfo crawlProductInfo(String url) {
-		return crawlProductInfo(url, true);
+		return crawlProductInfo(url, this::parseProductInfo, false);
 	}
 
-	private IherbProductInfo crawlProductInfo(String url, boolean limitImages) {
+	private <T> T crawlProductInfo(String url, java.util.function.BiFunction<String, String, T> parser,
+		boolean contentReview) {
 		String productId = extractProductId(url);
 		if (productId == null) {
 			log.error("아이허브 상품 ID 추출 실패. url={}", url);
@@ -126,23 +127,32 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 
 				HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 				if (response.statusCode() == 200) {
-					return parseProductInfo(response.body(), url, limitImages);
+					return parser.apply(response.body(), url);
 				} else if (response.statusCode() == 429) {
 					throw new com.sbshop.agent.core.application.product.content.ProductContentThrottledException(
 						com.sbshop.agent.infrastructure.client.smartstore.client.InspectionRetryAfter.parse(
 							response.headers().firstValue("Retry-After").orElse(null), java.time.Instant.now()));
+				} else if (contentReview) {
+					throw com.sbshop.agent.core.application.product.content.ProductContentFailureException
+						.http(response.statusCode());
 				} else if (response.statusCode() == 403) {
 					log.warn("아이허브 403 차단. 재시도 중... ({}/3)", i + 1);
 					Thread.sleep(2000L * (i + 1));
 				}
 			} catch (com.sbshop.agent.core.application.product.content.ProductContentThrottledException e) {
 				throw e;
+			} catch (com.sbshop.agent.core.application.product.content.ProductContentFailureException e) {
+				throw e;
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 				throw new IllegalStateException("아이허브 콘텐츠 수집 중단", e);
 			} catch (Exception e) {
-				if (i == 3)
+				if (i == 3) {
+					if (contentReview)
+						throw new com.sbshop.agent.core.application.product.content.ProductContentFailureException(
+							com.sbshop.agent.core.application.product.content.ProductContentFailureException.Code.SOURCE_REQUEST_FAILED);
 					log.error("아이허브 상품 정보 크롤링 실패: {}", url, e);
+				}
 			}
 		}
 		return null;
@@ -156,8 +166,9 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 
 	/** Refresh reviews must see every source image; the registration path retains its legacy five-image cap. */
 	public ScrapedProductDto crawlProductContentAsDto(String url) {
-		IherbProductInfo info = crawlProductInfo(url, false);
-		return info != null ? toScrapedDto(info) : null;
+		return crawlProductInfo(url,
+			new com.sbshop.agent.infrastructure.client.sourcing.content.IherbContentCatalogParser(objectMapper)::parse,
+			true);
 	}
 
 	@Override
