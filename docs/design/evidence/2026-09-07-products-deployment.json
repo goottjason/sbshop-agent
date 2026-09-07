@@ -1,0 +1,46 @@
+{
+  "revision": "545f06fde58fe5ada76c36a4398c94be86c85a1d",
+  "previousRevision": "02142157ac4f4196983027cc0b8b24590f24c215",
+  "startedAt": "2026-09-07T11:24:11.267481+00:00",
+  "phase": "VERIFIED",
+  "oldImages": {
+    "api": {
+      "id": "sha256:8ab62753bd337211a269f8a67b197db87a33627ec39776fc768cee1968348f01",
+      "tag": "sbshop-agent-sbshop-api"
+    },
+    "frontend": {
+      "id": "sha256:43e596f97e093ffc38b21464058721dd5362045b034366b606f09aa60cb9d471",
+      "tag": "sbshop-agent-sbshop-frontend"
+    }
+  },
+  "appliedDDL": [
+    "product-edit-review",
+    "market-connection-lifecycle",
+    "market-inspection-jobs",
+    "market-inspection-daily",
+    "market-inspection-multiple-markets",
+    "market-price-sync",
+    "market-reviewed-publication",
+    "market-search-identifiers",
+    "marketplus-transmissions"
+  ],
+  "credentialBefore": {
+    "mallId": "younzara",
+    "active": false,
+    "updatedAt": "2026-09-07T10:10:00.518974"
+  },
+  "backupSha256": "00e9d94298136717ea6629e894f23c7b7c8f9f1428a9923b46d0d15a5e03f423",
+  "accountActivation": {
+    "mallId": "younzara",
+    "before": false,
+    "after": true,
+    "reason": "User requested MarketPlus collection and integration; live mall/shop/seller identity verified. Existing product/order code does not use this flag."
+  },
+  "startupFailure": "Missing cafe24product_code: implicit naming differs from reviewed DDL",
+  "newWorkflowRowsBeforeRollback": 0,
+  "schemaValidationEntities": 32,
+  "fixedStartedAt": "2026-09-07T11:36:06.992040+00:00",
+  "verifiedAt": "2026-09-07T11:54:24.000858+00:00",
+  "observerCollection": true,
+  "observerUpload": true
+}

@@ -1,0 +1,70 @@
+{
+  "observations": 402,
+  "uniqueFingerprints": 402,
+  "observedProducts": 289,
+  "outcomes": [
+    {
+      "market": "AUCTION",
+      "outcome": "FAILURE",
+      "count": 113
+    },
+    {
+      "market": "AUCTION",
+      "outcome": "SUCCESS",
+      "count": 95
+    },
+    {
+      "market": "GMARKET",
+      "outcome": "FAILURE",
+      "count": 89
+    },
+    {
+      "market": "GMARKET",
+      "outcome": "SUCCESS",
+      "count": 105
+    }
+  ],
+  "inspectionTasks": [
+    {
+      "market": "SMART_STORE",
+      "state": "CONFIRMED",
+      "count": 462
+    },
+    {
+      "market": "SMART_STORE",
+      "state": "QUEUED",
+      "count": 2381
+    },
+    {
+      "market": "SMART_STORE",
+      "state": "SKIPPED",
+      "count": 2
+    }
+  ],
+  "connectionChanges": [
+    {
+      "market": "SMART_STORE",
+      "result": "OBSERVED",
+      "observed_state": "OUT_OF_STOCK",
+      "count": 3
+    },
+    {
+      "market": "SMART_STORE",
+      "result": "OBSERVED",
+      "observed_state": "STOPPED",
+      "count": 438
+    },
+    {
+      "market": "SMART_STORE",
+      "result": "OBSERVED",
+      "observed_state": "PRESENT",
+      "count": 21
+    }
+  ],
+  "editHistoryRows": 0,
+  "priceTasks": 0,
+  "publicationTasks": 0,
+  "products": 3195,
+  "registrations": 9920,
+  "checkedAt": "2026-09-07T11:52:58.447223+00:00"
+}

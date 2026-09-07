@@ -54,7 +54,7 @@ def inventory(root):
     return result
 
 
-def drain(root, client, now=time.time):
+def drain(root, client, now=time.time, progress=lambda _: None):
     gate_path = root / 'upload-gate.json'
     gate = json.loads(gate_path.read_text()) if gate_path.exists() else {}
     if gate.get('blocked') or gate.get('nextAttemptAt', 0) > now():
@@ -69,7 +69,10 @@ def drain(root, client, now=time.time):
             continue  # An invalid capture cannot starve other completed files.
         if state and state['status'] in ('UPLOADED', 'UPLOADED_WITH_REJECTIONS', 'BLOCKED'):
             continue
-        state = upload(data, client, state, lambda value: atomic_save(receipt, value), clock=now)
+        def persist(value):
+            atomic_save(receipt, value)
+            progress(value)
+        state = upload(data, client, state, persist, clock=now)
         if state['status'] == 'WAITING_RETRY':
             gate = {'nextAttemptAt': state['nextAttemptAt'], 'reason': state.get('lastError')}
             break
@@ -101,7 +104,20 @@ def cycle(root, browser, mall, max_pages, make_client, clock=time.time, accounts
         except (BrowserError, ValueError, OSError, KeyError, TypeError) as error:
             status['error'] = collection_error(error)
         if uploading:
-            status['upload'] = drain(root, make_client(), clock)
+            last_inventory = 0
+            def upload_progress(receipt):
+                nonlocal last_inventory
+                status['heartbeatAt'] = clock()
+                stamps = [p.get('acknowledgedAt', 0) for p in receipt.get('pages', {}).values()]
+                acknowledged = max([status.get('lastUploadedAt') or 0, *stamps])
+                if acknowledged:
+                    status['lastUploadedAt'] = acknowledged
+                # A large backlog must remain visibly alive without reparsing all captures per row/page.
+                if status['upload'] is None or clock() - last_inventory >= 5:
+                    status['upload'] = inventory(root)
+                    last_inventory = clock()
+                save_status(previous_path, status)
+            status['upload'] = drain(root, make_client(), clock, upload_progress)
             acknowledged = status['upload'].get('lastAcknowledgedAt')
             if acknowledged:
                 status['lastUploadedAt'] = max(status.get('lastUploadedAt') or 0, acknowledged)

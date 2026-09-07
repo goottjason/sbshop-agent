@@ -66,6 +66,18 @@ class WorkerTest(unittest.TestCase):
     def test_no_capture_does_not_invent_successful_upload_timestamp(self):
         self.flags(False, True)
         self.assertIsNone(self.cycle().get('lastUploadedAt'))
+    def test_upload_backlog_updates_heartbeat_and_receipt_time_before_cycle_finishes(self):
+        self.flags(False, True); self.capture('a.json'); self.capture('b.json')
+        ticks = iter(range(2000, 3000)); observed = []
+        real_save = worker.save_status
+        def save(path, value):
+            observed.append(copy.deepcopy(value)); real_save(path, value)
+        with patch.object(worker, 'save_status', side_effect=save):
+            final = worker.cycle(self.root, self.browser, 'testmall', 1, lambda: self.client, clock=lambda: next(ticks))
+        running = [s for s in observed if s['state'] == 'RUNNING' and s.get('lastUploadedAt')]
+        self.assertTrue(running)
+        self.assertGreater(running[-1]['heartbeatAt'], running[0]['lastAttemptAt'])
+        self.assertEqual(2, final['upload']['uploaded'])
     def test_interrupted_file_does_not_prevent_valid_later_file_upload(self):
         broken = collection(); broken['status'] = 'RUNNING'
         atomic_save(self.root / 'captures' / 'a.json', broken)

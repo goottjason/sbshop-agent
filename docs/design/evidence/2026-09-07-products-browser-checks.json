@@ -1,0 +1,91 @@
+{
+  "checks": {
+    "errors": [],
+    "requests": [
+      {
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/transmissions/readiness",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/2197/marketplus-transmissions",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/observer/status",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/observer/status",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/observer/status",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/observer/status",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/observer/status",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/observer/status",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/observer/status",
+        "status": 200
+      }
+    ]
+  },
+  "marketWindowRestored": true,
+  "temporaryAdminSessionRemoved": true,
+  "totalProducts": 2854,
+  "multiSbCodeResults": [
+    "220714IHB015",
+    "230813IHB084"
+  ],
+  "compoundFilterResults": 6,
+  "marketPlusIssueResults": 150
+}

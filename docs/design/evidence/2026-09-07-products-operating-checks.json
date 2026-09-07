@@ -1,0 +1,118 @@
+{
+  "worker": {
+    "lastAttemptAt": 1788781907.8878236,
+    "heartbeatAt": 1788782053.401558,
+    "state": "OBSERVED_PARTIAL",
+    "collectEnabled": true,
+    "uploadEnabled": true,
+    "collections": [
+      {
+        "outcome": "SUCCESS",
+        "status": "PARTIAL",
+        "stopReason": "PAGE_LIMIT",
+        "pages": 10,
+        "rows": 200,
+        "context": {
+          "tab": "전송완료",
+          "filters": [
+            {
+              "placeholder": "YYYY-MM-DD",
+              "value": "2026-08-07"
+            },
+            {
+              "placeholder": "YYYY-MM-DD",
+              "value": "2026-09-07"
+            },
+            {
+              "placeholder": "",
+              "value": ""
+            },
+            {
+              "placeholder": "전체",
+              "value": ""
+            }
+          ]
+        }
+      },
+      {
+        "outcome": "FAILURE",
+        "status": "PARTIAL",
+        "stopReason": "PAGE_LIMIT",
+        "pages": 10,
+        "rows": 200,
+        "context": {
+          "tab": "전송실패",
+          "filters": [
+            {
+              "placeholder": "YYYY-MM-DD",
+              "value": "2026-08-07"
+            },
+            {
+              "placeholder": "YYYY-MM-DD",
+              "value": "2026-09-07"
+            },
+            {
+              "placeholder": "",
+              "value": ""
+            },
+            {
+              "placeholder": "전체",
+              "value": ""
+            }
+          ]
+        }
+      }
+    ],
+    "upload": {
+      "uploaded": 86,
+      "withRejections": 0,
+      "pending": 0,
+      "blocked": 0,
+      "nextAttemptAt": 0,
+      "lastAcknowledgedAt": 1788781963.1630542,
+      "error": null
+    },
+    "error": null,
+    "lastCollectedAt": 1788781956.5785367,
+    "lastUploadedAt": 1788781963.1630542,
+    "accountVerification": {
+      "mallIds": [
+        "younzara"
+      ],
+      "accounts": [
+        {
+          "market": "auction",
+          "account": "shouldbe2480",
+          "shopNo": "1",
+          "accountRecord": "76766"
+        },
+        {
+          "market": "gmarket",
+          "account": "younzara",
+          "shopNo": "1",
+          "accountRecord": "76767"
+        }
+      ]
+    },
+    "finishedAt": 1788781963.345993
+  },
+  "readiness": {
+    "ready": true,
+    "reasons": []
+  },
+  "containers": {
+    "api": {
+      "status": "running",
+      "started": "2026-09-07T11:36:06.711318722Z",
+      "restarts": 0,
+      "revision": "545f06fde58fe5ada76c36a4398c94be86c85a1d"
+    },
+    "frontend": {
+      "status": "running",
+      "started": "2026-09-07T11:36:06.713371407Z",
+      "restarts": 0,
+      "revision": "545f06fde58fe5ada76c36a4398c94be86c85a1d"
+    }
+  },
+  "checkedAt": "2026-09-07T11:54:24.000858+00:00"
+}
