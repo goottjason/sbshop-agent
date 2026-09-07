@@ -15,9 +15,23 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class MarketRegistrationTxService {
 	private final MarketRegistrationRepository marketRegistrationRepository;
+	private final com.sbshop.agent.core.domain.product.ProductRepository productRepository;
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public MarketRegistration savePending(Long productId, MarketType marketType, String marketProductName) {
+		return savePending(productId, marketType, marketProductName, null);
+	}
+
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	public MarketRegistration savePending(Long productId, MarketType marketType, String marketProductName,
+		Long expectedRevision) {
+		if (expectedRevision != null) {
+			var product = productRepository.findForEdit(productId)
+				.orElseThrow(() -> new IllegalArgumentException("상품 없음"));
+			if (product.isDeleted() || product.getRevision() != expectedRevision)
+				throw new com.sbshop.agent.core.application.product.edit.ProductEditConflictException(
+					"등록 준비 중 상품이 변경되었습니다. 다시 검토하세요.");
+		}
 		return marketRegistrationRepository.findByProductIdAndMarketType(productId, marketType)
 			.orElseGet(() -> insertPending(productId, marketType, marketProductName));
 	}

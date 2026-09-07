@@ -1,0 +1,98 @@
+{
+  "stage": "MarketPlus issue search",
+  "operatingDeployment": false,
+  "backend": {
+    "core": [
+      {
+        "suite": "com.sbshop.agent.core.application.market.marketplus.MarketPlusReadinessTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0
+      },
+      {
+        "suite": "com.sbshop.agent.core.application.product.ProductNotFoundExceptionTest",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0
+      },
+      {
+        "suite": "com.sbshop.agent.core.domain.product.ProductSearchSpecificationTest",
+        "tests": 32,
+        "failures": 0,
+        "errors": 0
+      },
+      {
+        "suite": "com.sbshop.agent.core.application.product.ProductMarketPlusSearchTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0
+      },
+      {
+        "suite": "com.sbshop.agent.core.application.market.marketplus.MarketPlusTransmissionIntegrationTest",
+        "tests": 23,
+        "failures": 0,
+        "errors": 0
+      }
+    ],
+    "api": [
+      {
+        "suite": "com.sbshop.agent.api.dto.product.MarketBadgeStateTest",
+        "tests": 12,
+        "failures": 0,
+        "errors": 0
+      },
+      {
+        "suite": "com.sbshop.agent.api.controller.ProductControllerMarketMapTest",
+        "tests": 10,
+        "failures": 0,
+        "errors": 0
+      },
+      {
+        "suite": "com.sbshop.agent.api.controller.MarketPlusTransmissionControllerTest",
+        "tests": 6,
+        "failures": 0,
+        "errors": 0
+      },
+      {
+        "suite": "com.sbshop.agent.api.controller.ProductControllerFilterParamTest",
+        "tests": 13,
+        "failures": 0,
+        "errors": 0
+      }
+    ]
+  },
+  "frontend": {
+    "typeScript": "passed",
+    "eslintErrors": 0,
+    "eslintWarnings": [
+      "Existing TanStack Table React Compiler compatibility warning"
+    ],
+    "viteBuild": "passed with existing chunk-size warning"
+  },
+  "browser": {
+    "kind": "Actual React components in headless Chrome with mocked API responses",
+    "result": "passed",
+    "checks": [
+      "unready configuration remains visible while ordinary product search works",
+      "compound filters and pasted codes preserved, page reset, selection cleared, 400 shown without zero results or automatic retry",
+      "configuration recheck and product retry recover with accurate count and failure badge",
+      "conflict-only request and unverified badge agree",
+      "closing issue tag preserves other filters",
+      "readiness network failure is visible and retryable",
+      "history displays backend error and recovers by refresh",
+      "no external product mutation"
+    ]
+  },
+  "postgres": {
+    "engine": "PostgreSQL 16.14, isolated local container",
+    "suite": "com.sbshop.agent.core.application.market.marketplus.MarketPlusTransmissionIntegrationTest",
+    "tests": 23,
+    "failures": 0,
+    "errors": 0,
+    "overlapsCoreTests": true,
+    "identifierPresenceCases": 15,
+    "identifierEqualityCases": 17,
+    "compoundFixtureProducts": 10000
+  },
+  "javaSpotless": "passed for 18 changed Java files"
+}

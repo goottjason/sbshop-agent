@@ -15,6 +15,7 @@ import java.util.List;
 
 public record ProductDetailResponse(
 	Long id,
+	long revision,
 	String sbCode,
 	String brand,
 	String productName,
@@ -32,7 +33,7 @@ public record ProductDetailResponse(
 	String detailHtml,
 	String memo,
 	StockStatus stockStatus,
-	LocalDate restockDate) {
+	LocalDate restockDate, Integer salesQuantity) {
 
 	public record PriceInfoDto(
 		BigDecimal costPrice,
@@ -103,6 +104,7 @@ public record ProductDetailResponse(
 	public static ProductDetailResponse from(Product p) {
 		return new ProductDetailResponse(
 			p.getId(),
+			p.getRevision(),
 			p.getSbCode(),
 			p.getBrand(),
 			p.getProductName(),
@@ -120,6 +122,6 @@ public record ProductDetailResponse(
 			p.getDetailHtml(),
 			p.getMemo(),
 			p.getStockStatus(),
-			p.getRestockDate());
+			p.getRestockDate(), p.getSalesQuantity());
 	}
 }

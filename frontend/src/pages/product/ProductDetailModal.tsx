@@ -1,14 +1,19 @@
+import { ProductConnections } from './ProductConnections';
+import { ProductMarketPlusHistory } from './ProductMarketPlusHistory';
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Image, Collapse, Tooltip, Popconfirm, Checkbox, Button, Typography } from 'antd';
+import { Modal, Image, Collapse, Tooltip, Popconfirm, Checkbox, Button, Typography, Alert, Tag } from 'antd';
 import { UploadOutlined, LinkOutlined, CloudDownloadOutlined } from '@ant-design/icons';
 import { productApi, type ProductDetail, type ImageUploadResult, type ProductEditFields } from '../../api/productApi';
 import { MarketLiveCompare } from './MarketLiveCompare';
+import { productEditApi, type EditWorkspace, type EditReview } from '../../api/productChangeApi';
+import { ProductSaveReview } from './ProductSaveReview';
+import { ProductEditHistory } from './ProductEditHistory';
 import { ProductPricePreview } from './ProductPricePreview';
 import { notify } from '../../utils/notify';
 import { marketLabel } from '../../utils/marketLabels';
 import {
   SYNC_MARKETS, SYNC_MARKET_CHIP_LABEL, SYNC_FIELD_LABEL, SYNC_FIELD_TO_MARKET_FIELD,
-  LOCKED_MARKET, changedSyncableFields, marketSupportsAnyField, fieldSupportedByMarket,
+  LOCKED_MARKET, marketSupportsAnyField, fieldSupportedByMarket,
   mergeSyncResult, buildSyncRows, type SyncableField, type FieldSyncResult,
 } from './productFieldSync';
 
@@ -58,7 +63,7 @@ function toFields(d: ProductDetail): Fields {
   return {
     brand: d.brand, productName: d.productName, baseName: d.baseName, originalName: d.originalName,
     category: d.category, costPrice: d.priceInfo?.costPrice, salePrice: d.priceInfo?.salePrice,
-    marginRate: d.priceInfo?.marginRate, stock: d.logisticsInfo?.stock, weight: d.logisticsInfo?.weight,
+    marginRate: d.priceInfo?.marginRate, stock: d.logisticsInfo?.stock, salesQuantity: d.salesQuantity, weight: d.logisticsInfo?.weight,
     bundleQuantity: d.logisticsInfo?.bundleQuantity, barcode: d.productSpec?.barcode,
     capacity: d.productSpec?.capacity, measureUnit: d.productSpec?.measureUnit,
     vendor: d.sourcingInfo?.vendor, manufacturer: d.sourcingInfo?.manufacturer,
@@ -70,7 +75,6 @@ function toFields(d: ProductDetail): Fields {
 function toUpdateCommand(fields: Fields): Record<string, unknown> {
   const rest: Record<string, unknown> = { ...fields };
   delete rest.productName;
-  delete rest.salePrice;
   return { ...rest, name: fields.productName };
 }
 
@@ -100,23 +104,27 @@ function SyncChips({ field }: { field: SyncableField }) {
   );
 }
 
-function EditRow({ label, value, type = 'text', full = false, link = false, chips, onChange }: {
+function EditRow({ label, value, type = 'text', full = false, link = false, chips, disabled = false, reason, restriction, onChange }: {
   label: string;
   value: string | number | undefined;
   type?: 'text' | 'number';
   full?: boolean;
   link?: boolean;
   chips?: SyncableField;
+  disabled?: boolean;
+  reason?: string;
+  restriction?: string;
   onChange: (v: string | number | undefined) => void;
 }) {
   const href = link ? safeHttpUrl(value) : null;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', gridColumn: full ? '1 / -1' : undefined, borderBottom: '1px solid #f4f4f5' }}>
+    <div style={{ display: 'flex', minWidth: 0, alignItems: 'center', gap: 8, padding: '7px 0', gridColumn: full ? '1 / -1' : undefined, borderBottom: '1px solid #f4f4f5' }}>
       <span style={{ color: '#9ca3af', fontSize: 13 }}>•</span>
       <span style={{ color: '#6b7280', fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}>{label}</span>
-      {chips && <SyncChips field={chips} />}
+      {disabled && <Tooltip title={reason}><Tag style={{ margin: 0 }}>{restriction ?? '확인 필요'}</Tag></Tooltip>}
+      {chips && !disabled && <SyncChips field={chips} />}
       <input
-        className="pd-inp"
+        className="pd-inp" disabled={disabled} title={reason}
         type={type}
         value={value ?? ''}
         onChange={(e) => onChange(type === 'number' ? (e.target.value === '' ? undefined : Number(e.target.value)) : e.target.value)}
@@ -138,20 +146,24 @@ function EditRow({ label, value, type = 'text', full = false, link = false, chip
   );
 }
 
-function EditSelectRow({ label, value, options, full = false, onChange }: {
+function EditSelectRow({ label, value, options, full = false, disabled = false, reason, restriction, onChange }: {
   label: string;
   value: string | undefined;
   options: Opt[];
   full?: boolean;
+  disabled?: boolean;
+  reason?: string;
+  restriction?: string;
   onChange: (v: string) => void;
 }) {
   const hasValue = value != null && value !== '';
   const known = options.some((o) => o.value === value);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', gridColumn: full ? '1 / -1' : undefined, borderBottom: '1px solid #f4f4f5' }}>
+    <div style={{ display: 'flex', minWidth: 0, alignItems: 'center', gap: 8, padding: '7px 0', gridColumn: full ? '1 / -1' : undefined, borderBottom: '1px solid #f4f4f5' }}>
       <span style={{ color: '#9ca3af', fontSize: 13 }}>•</span>
       <span style={{ color: '#6b7280', fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}>{label}</span>
-      <select className="pd-inp pd-sel" value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+      {disabled && <Tooltip title={reason}><Tag style={{ margin: 0 }}>{restriction ?? '확인 필요'}</Tag></Tooltip>}
+      <select disabled={disabled} title={reason} className="pd-inp pd-sel" value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
         <option value="">— 선택 —</option>
         {hasValue && !known && <option value={value}>{value}</option>}
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -172,6 +184,9 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
   const [fields, setFields] = useState<Fields>({});
   const [baseline, setBaseline] = useState<Fields>({});
   const [urlInput, setUrlInput] = useState('');
+  const [workspace, setWorkspace] = useState<EditWorkspace | null>(null);
+  const [saveReview, setSaveReview] = useState<EditReview | null>(null);
+  const [historyKey, setHistoryKey] = useState(0);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -185,19 +200,26 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
     if (!open || productId == null) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
+    setWorkspace(null);
+    setDetail(null);
+    setSaveReview(null);
+    let active = true;
     setUrlInput('');
     setChangedFields([]);
     setSyncResult(null);
-    productApi.fetchProductDetail(productId)
-      .then((res) => {
+    Promise.all([productApi.fetchProductDetail(productId), productEditApi.workspace(productId)])
+      .then(([res, edit]) => {
+        if (!active) return;
+        setWorkspace(edit.data);
         const d = res.data as ProductDetail;
         const f = toFields(d);
         setDetail(d);
         setFields(f);
         setBaseline(f);
       })
-      .catch(() => notify.error('상품 상세 조회에 실패했습니다.'))
-      .finally(() => setLoading(false));
+      .catch(() => { if (active) notify.error('상품 상세·편집 정책 조회에 실패했습니다.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [open, productId]);
 
   const set = <K extends keyof Fields>(name: K, value: Fields[K]) => setFields((f) => ({ ...f, [name]: value }));
@@ -207,7 +229,8 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
   const refreshDetail = async () => {
     if (productId == null) return;
     try {
-      const res = await productApi.fetchProductDetail(productId);
+      const [res, edit] = await Promise.all([productApi.fetchProductDetail(productId), productEditApi.workspace(productId)]);
+      setWorkspace(edit.data);
       const f = toFields(res.data as ProductDetail);
       setDetail(res.data as ProductDetail);
       setFields(f);
@@ -215,31 +238,17 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
     } catch { notify.error('상세 정보 갱신 실패'); }
   };
 
+  const policyReady = workspace?.productId === productId && workspace.revision === detail?.revision;
+  const editRule = (name: string) => workspace?.fields.find(f => f.field === (name === 'productName' ? 'name' : name));
+  const canEdit = (name: string) => policyReady && ['EDITABLE', 'INTERNAL'].includes(editRule(name)?.permission ?? '');
   const handleSave = async () => {
-    if (productId == null) return;
+    if (productId == null || !detail || !policyReady) return;
     setSaving(true);
-    const changed = changedSyncableFields(baseline, fields);
     try {
-      const origSale = detail?.priceInfo?.salePrice;
-      if (fields.salePrice != null && fields.salePrice !== origSale) {
-        await productApi.updatePriceStock(productId, fields.salePrice, null);
-      }
-      await productApi.updateProduct(productId, toUpdateCommand(fields));
-      notify.success('상품 정보가 저장되었습니다.');
-      onSaved();
-      if (changed.length > 0) {
-        await refreshDetail();
-        setChangedFields(changed);
-        setSyncResult(null);
-        setSyncMarkets(new Set(SYNC_MARKETS.filter((m) => marketSupportsAnyField(m, changed))));
-      } else {
-        onClose();
-      }
-    } catch (e) {
-      notify.error(`상품 정보 저장 실패: ${extractErrorMessage(e)}`);
-    } finally {
-      setSaving(false);
-    }
+      const response = await productEditApi.previewSingle(productId, detail.revision, toUpdateCommand(fields));
+      setSaveReview(response.data);
+    } catch (e) { notify.error(`저장 검토 실패: ${extractErrorMessage(e)}`); }
+    finally { setSaving(false); }
   };
 
   const handleFilesSelected = async (files: FileList | null) => {
@@ -324,25 +333,26 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
   const row = (label: string, name: keyof Fields, type: 'text' | 'number' = 'text', full = false,
     link = false, chips?: SyncableField) => (
     <EditRow label={label} value={fields[name] as string | number | undefined} type={type} full={full}
-      link={link} chips={chips} onChange={(v) => set(name, v as Fields[typeof name])} />
+      link={link} chips={chips} disabled={!canEdit(name)} reason={editRule(name)?.reason} restriction={editRule(name)?.permission === 'LOCKED' ? '수정 잠금' : undefined} onChange={(v) => set(name, v as Fields[typeof name])} />
   );
 
   const selectRow = (label: string, name: keyof Fields, options: Opt[], full = false) => (
-    <EditSelectRow label={label} value={fields[name] as string | undefined} options={options} full={full}
+    <EditSelectRow label={label} value={fields[name] as string | undefined} options={options} full={full} disabled={!canEdit(name)} reason={editRule(name)?.reason} restriction={editRule(name)?.permission === 'LOCKED' ? '수정 잠금' : undefined}
       onChange={(v) => set(name, (v === '' ? undefined : v) as Fields[typeof name])} />
   );
 
   const sectionTitle: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: GREEN, letterSpacing: 0.3, margin: '14px 0 2px' };
-  const grid2: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 28px' };
+  const grid2: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0 28px' };
 
   const d = detail;
 
   return (
+    <>
     <Modal
       rootClassName="product-theme"
       open={open}
       onCancel={onClose}
-      width={660}
+      width={820}
       centered
       title={null}
       styles={{ body: { maxHeight: '72vh', overflowY: 'auto', padding: '4px 28px 8px' } }}
@@ -357,14 +367,15 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
             style={{ flex: 1, padding: '11px 0', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
             닫기
           </button>
-          <button onClick={handleSave} disabled={saving || loading || !d || !dirty}
+          <button onClick={handleSave} disabled={saving || loading || !d || !dirty || !policyReady}
             style={{ flex: 1.4, padding: '11px 0', background: saving || loading || !d || !dirty ? '#9ca3af' : GREEN, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: saving || loading || !d || !dirty ? 'default' : 'pointer' }}>
-            {saving ? '저장 중…' : '저장'}
+            {saving ? '검토 중…' : '변경 검토'}
           </button>
         </div>
       }
     >
       <style>{`
+        @media (max-width: 600px) { .pd-fields-grid { grid-template-columns: minmax(0, 1fr) !important; } }
         .pd-inp { flex: 1; min-width: 0; border: none; border-bottom: 1px solid transparent; background: transparent;
           text-align: right; font-weight: 600; color: #111827; font-size: 13px; outline: none; padding: 2px 0; }
         .pd-inp:hover { border-bottom-color: #e5e7eb; }
@@ -407,7 +418,7 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
           <div style={{ borderBottom: '2px solid #1f2937', margin: '16px 0 4px' }} />
 
           <div style={sectionTitle}>기본 정보</div>
-          <div style={grid2}>
+          <div className="pd-fields-grid" style={grid2}>
             {row('브랜드', 'brand', 'text', false, false, 'brand')}
             {selectRow('카테고리', 'category', CATEGORY_OPTIONS)}
             {row('상품명', 'productName', 'text', true, false, 'productName')}
@@ -416,7 +427,7 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
           </div>
 
           <div style={sectionTitle}>가격</div>
-          <div style={grid2}>
+          <div className="pd-fields-grid" style={grid2}>
             {row('원가', 'costPrice', 'number')}
             {row('판매가', 'salePrice', 'number')}
             {row('마진율(%)', 'marginRate', 'number')}
@@ -425,12 +436,19 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
             key={[productId, baseline.costPrice, baseline.salePrice, baseline.marginRate, baseline.bundleQuantity, baseline.vendor].join('-')}
             productId={productId} />}
 
+          {productId != null && <ProductEditHistory key={`${productId}:${historyKey}`} productId={productId} />}
+          {productId != null && <ProductConnections key={productId} productId={productId} disabled={dirty} onChanged={() => { setHistoryKey(k => k + 1); void refreshDetail(); onSaved(); }} />}
+          {productId != null && <ProductMarketPlusHistory key={`marketplus:${productId}`} productId={productId} />}
+          {workspace && <Alert type="info" showIcon message={workspace.connections.length ? '마켓 연결 기록에 따라 필드별 수정 조건을 적용합니다.' : '현재 연결 기록이 없는 상품입니다.'}
+            description={workspace.connections.map(c => `${marketLabel(c.market)}: ${c.reason}`).join(' ')} />}
+          {!policyReady && <Alert type="warning" message="상품과 편집 정책을 다시 확인해야 합니다." action={<Button onClick={() => { void refreshDetail(); }}>다시 조회</Button>} />}
           <div style={sectionTitle}>물류 · 스펙</div>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             무게 변경 시 kg로 입력하세요 (125g = 0.125kg). 기존 무게는 소싱처의 단위를 확인한 뒤 수정하세요.
           </Typography.Text>
-          <div style={grid2}>
-            {row('재고', 'stock', 'number')}
+          <div className="pd-fields-grid" style={grid2}>
+            {row('DB 재고', 'stock', 'number')}
+            {row('판매용 설정 수량', 'salesQuantity', 'number')}
             {row('무게', 'weight', 'number')}
             {row('묶음수량', 'bundleQuantity', 'number')}
             {row('바코드', 'barcode')}
@@ -439,7 +457,7 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
           </div>
 
           <div style={sectionTitle}>소싱</div>
-          <div style={grid2}>
+          <div className="pd-fields-grid" style={grid2}>
             {selectRow('소싱처', 'vendor', VENDOR_OPTIONS)}
             {row('제조사', 'manufacturer', 'text', false, false, 'manufacturer')}
             {row('원산지', 'origin')}
@@ -531,21 +549,21 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
               <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
                 onChange={(e) => handleFilesSelected(e.target.files)} />
-              <button className="pd-imgbtn" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+              <button className="pd-imgbtn" disabled={uploading || !canEdit('hostedImages')} onClick={() => fileInputRef.current?.click()}>
                 <UploadOutlined /> 파일 업로드
               </button>
               <Popconfirm title="소스 이미지 크롤·업로드"
                 description="크롤한 이미지를 R2에 업로드하고 연동된 모든 마켓에 재게시합니다. 진행할까요?"
                 okText="진행" cancelText="취소" onConfirm={handleCrawl}>
                 <Tooltip title={d.sourcingInfo?.vendor !== 'IHB' ? '현재 iHerb 상품만 지원' : ''}>
-                  <button className="pd-imgbtn" disabled={uploading}><CloudDownloadOutlined /> 소스 이미지 크롤</button>
+                  <button className="pd-imgbtn" disabled={uploading || !canEdit('hostedImages')}><CloudDownloadOutlined /> 소스 이미지 크롤</button>
                 </Tooltip>
               </Popconfirm>
             </div>
             <textarea className="pd-ta" rows={2} placeholder="이미지 URL을 줄바꿈 또는 쉼표로 구분해 입력"
               value={urlInput} onChange={(e) => setUrlInput(e.target.value)} />
             <div style={{ marginTop: 8 }}>
-              <button className="pd-imgbtn" disabled={uploading} style={{ borderColor: GREEN, color: GREEN }} onClick={handleUploadByUrl}>
+              <button className="pd-imgbtn" disabled={uploading || !canEdit('hostedImages')} style={{ borderColor: GREEN, color: GREEN }} onClick={handleUploadByUrl}>
                 <LinkOutlined /> URL로 등록
               </button>
             </div>
@@ -566,5 +584,7 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
         </>
       )}
     </Modal>
+    {saveReview && <ProductSaveReview review={saveReview} onClose={() => setSaveReview(null)} onSaved={() => { onSaved(); setHistoryKey(v => v + 1); void refreshDetail(); }} />}
+    </>
   );
 }

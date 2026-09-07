@@ -1,0 +1,135 @@
+{
+  "checkedAt": "2026-09-07T11:06:15.402126+00:00",
+  "databaseAccess": "READ_ONLY",
+  "uploaded": false,
+  "state": {
+    "lastAttemptAt": 1788779114.1799223,
+    "heartbeatAt": 1788779164.169311,
+    "state": "OBSERVED_PARTIAL",
+    "collectEnabled": true,
+    "uploadEnabled": false,
+    "collections": [
+      {
+        "outcome": "SUCCESS",
+        "status": "PARTIAL",
+        "stopReason": "PAGE_LIMIT",
+        "pages": 10,
+        "rows": 200,
+        "context": {
+          "tab": "전송완료",
+          "filters": [
+            {
+              "placeholder": "YYYY-MM-DD",
+              "value": "2026-08-07"
+            },
+            {
+              "placeholder": "YYYY-MM-DD",
+              "value": "2026-09-07"
+            },
+            {
+              "placeholder": "",
+              "value": ""
+            },
+            {
+              "placeholder": "전체",
+              "value": ""
+            }
+          ]
+        }
+      },
+      {
+        "outcome": "FAILURE",
+        "status": "PARTIAL",
+        "stopReason": "PAGE_LIMIT",
+        "pages": 10,
+        "rows": 200,
+        "context": {
+          "tab": "전송실패",
+          "filters": [
+            {
+              "placeholder": "YYYY-MM-DD",
+              "value": "2026-08-07"
+            },
+            {
+              "placeholder": "YYYY-MM-DD",
+              "value": "2026-09-07"
+            },
+            {
+              "placeholder": "",
+              "value": ""
+            },
+            {
+              "placeholder": "전체",
+              "value": ""
+            }
+          ]
+        }
+      }
+    ],
+    "upload": {
+      "uploaded": 0,
+      "withRejections": 0,
+      "pending": 80,
+      "blocked": 0,
+      "nextAttemptAt": 0,
+      "lastAcknowledgedAt": null,
+      "error": null
+    },
+    "error": null,
+    "lastCollectedAt": 1788779164.0860271,
+    "lastUploadedAt": null,
+    "accountVerification": {
+      "mallIds": [
+        "younzara"
+      ],
+      "accounts": [
+        {
+          "market": "auction",
+          "account": "shouldbe2480",
+          "shopNo": "1",
+          "accountRecord": "76766"
+        },
+        {
+          "market": "gmarket",
+          "account": "younzara",
+          "shopNo": "1",
+          "accountRecord": "76767"
+        }
+      ]
+    },
+    "finishedAt": 1788779164.169311
+  },
+  "credential": {
+    "mallId": "younzara",
+    "active": false
+  },
+  "captureFiles": 80,
+  "fileStates": {
+    "PARTIAL": 80
+  },
+  "uniqueObservations": 402,
+  "matchedObservations": {
+    "GMARKET_FAILURE": 89,
+    "AUCTION_FAILURE": 113,
+    "AUCTION_SUCCESS": 95,
+    "GMARKET_SUCCESS": 105
+  },
+  "matchedProducts": 289,
+  "rejected": {},
+  "rejectedExamples": [],
+  "invalidRegistrationJson": 0,
+  "failureReasons": [
+    {
+      "detail": "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+      "count": 200
+    },
+    {
+      "detail": "[실패] 마켓에서 응답이 없습니다. 재전송하여 주시기 바랍니다.",
+      "count": 1
+    },
+    {
+      "detail": "[실패] 일시적으로 서버 에러가 발생했습니다. 잠시 후 다시 시도해 주시고 문제가 지속될 시 고객센터로 문의해 주세요.",
+      "count": 1
+    }
+  ]
+}

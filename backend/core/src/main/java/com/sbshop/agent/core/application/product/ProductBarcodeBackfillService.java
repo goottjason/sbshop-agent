@@ -26,6 +26,7 @@ public class ProductBarcodeBackfillService {
 	private static final long HTTP_VENDOR_THROTTLE_MS = 1500L;
 
 	private final ProductReader productReader;
+	private final com.sbshop.agent.core.application.product.edit.ProductEditService productEditService;
 	private final ProductWriter productWriter;
 	private final ProductRepository productRepository;
 	private final ProductDetailCrawlerPort productDetailCrawlerPort;
@@ -72,8 +73,9 @@ public class ProductBarcodeBackfillService {
 				BarcodeValidator.Result checked = BarcodeValidator.validate(detail.upc());
 
 				if (checked.valid()) {
-					product.update(ProductUpdateCommand.builder().barcode(checked.normalized()).build());
-					productWriter.save(product);
+					productEditService.saveExisting(productId,
+						ProductUpdateCommand.builder().barcode(checked.normalized()).build(), product.getRevision(),
+						"system:ProductBarcodeBackfillService");
 					processStatusService.markSuccess(batchId, code,
 						"[%s] 바코드 수집 %s".formatted(product.getSbCode(), checked.normalized()));
 					filled++;

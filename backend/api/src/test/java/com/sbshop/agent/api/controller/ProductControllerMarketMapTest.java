@@ -45,6 +45,8 @@ class ProductControllerMarketMapTest {
 	private MarketRegistrationRepository marketRegistrationRepository;
 	@Mock
 	private ActionLogService actionLogService;
+	@Mock
+	private com.sbshop.agent.core.application.market.marketplus.MarketPlusTransmissionService marketPlusTransmissions;
 
 	@Mock
 	private Product product1;
@@ -53,11 +55,32 @@ class ProductControllerMarketMapTest {
 
 	private ProductController controller() {
 		return new ProductController(productSearchUseCase, productManageUseCase,
-			imageDownloadClient, productInfoCrawlerPort, marketRegistrationRepository, actionLogService);
+			imageDownloadClient, productInfoCrawlerPort, marketRegistrationRepository, actionLogService,
+			marketPlusTransmissions);
 	}
 
 	private ResponseEntity<Page<ProductListResponse>> listAll() {
 		return controller().getProducts(null, null, null, null, null, null, false, false, null, PageRequest.of(0, 50));
+	}
+
+	@Test
+	void observedFailureAndSuccessHaveDistinctDownstreamStatesWithoutGreenSuccess() {
+		when(product1.getId()).thenReturn(1L);
+		when(productSearchUseCase.searchProducts(any(), any())).thenReturn(new PageImpl<>(List.of(product1), PageRequest.of(0, 50), 1));
+		var cafe = reg(1L, MarketType.CAFE24, "{\"product_no\":\"77\",\"gmarket_goodsNo\":\"007\",\"auction_goodsNo\":\"A8\"}");
+		cafe.markSynced();
+		when(marketRegistrationRepository.findByProductIdIn(List.of(1L))).thenReturn(List.of(cafe));
+		var time = java.time.Instant.parse("2026-09-06T07:02:00Z");
+		when(marketPlusTransmissions.summaries(any())).thenReturn(Map.of(1L, Map.of(
+			MarketType.GMARKET, new com.sbshop.agent.core.application.market.marketplus.MarketPlusTransmissionService.Summary("FAILURE", "SOURCE_STATE_REVIEW_REQUIRED", "[실패] 원문", time, time.plusSeconds(60)),
+			MarketType.AUCTION, new com.sbshop.agent.core.application.market.marketplus.MarketPlusTransmissionService.Summary("SUCCESS", "TRANSFERRED_UNVERIFIED", "[성공] 완료", time, time.plusSeconds(60)))));
+		var result = listAll().getBody().getContent().getFirst().marketRegistrations();
+		assertThat(result.get("GMARKET").status()).isEqualTo("TRANSFER_FAILED");
+		assertThat(result.get("GMARKET").transmission().detail()).isEqualTo("[실패] 원문");
+		assertThat(result.get("AUCTION").status()).isEqualTo("UNVERIFIED");
+		assertThat(result.get("AUCTION").transmission().outcome()).isEqualTo("SUCCESS");
+		assertThat(result.get("CAFE24").transmission()).isNull();
+		verify(marketPlusTransmissions).summaries(List.of(cafe));
 	}
 
 	private MarketRegistration reg(Long productId, MarketType type, String identifiersJson) {
@@ -66,6 +89,35 @@ class ProductControllerMarketMapTest {
 			.marketType(type)
 			.marketIdentifiers(identifiersJson)
 			.build();
+	}
+
+	@Test
+	void searchJsonBindsCompoundMarketsAndPendingFlag() throws Exception {
+		when(productSearchUseCase.searchProducts(any(), any())).thenReturn(Page.empty(PageRequest.of(0, 50)));
+		var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(controller())
+			.setCustomArgumentResolvers(new org.springframework.data.web.PageableHandlerMethodArgumentResolver())
+			.setControllerAdvice(new com.sbshop.agent.api.exception.GlobalExceptionHandler()).build();
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/products/search")
+			.contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+			.content("{\"registeredMarkets\":[\"COUPANG\"],\"missingMarkets\":[\"ELEVEN_STREET\"],\"pendingChangesOnly\":true}"))
+			.andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+		var condition = org.mockito.ArgumentCaptor.forClass(com.sbshop.agent.core.domain.product.dto.ProductSearchCondition.class);
+		verify(productSearchUseCase).searchProducts(condition.capture(), any());
+		assertThat(condition.getValue().registeredMarkets()).containsExactly(MarketType.COUPANG);
+		assertThat(condition.getValue().missingMarkets()).containsExactly(MarketType.ELEVEN_STREET);
+		assertThat(condition.getValue().pendingChangesOnly()).isTrue();
+	}
+
+	@Test
+	void contradictorySearchJsonReturns400WithoutQueryingProducts() throws Exception {
+		var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(controller())
+			.setCustomArgumentResolvers(new org.springframework.data.web.PageableHandlerMethodArgumentResolver())
+			.setControllerAdvice(new com.sbshop.agent.api.exception.GlobalExceptionHandler()).build();
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/products/search")
+			.contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+			.content("{\"registeredMarkets\":[\"COUPANG\"],\"missingMarkets\":[\"COUPANG\"]}"))
+			.andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
+		verify(productSearchUseCase, never()).searchProducts(any(), any());
 	}
 
 	@Test
@@ -94,14 +146,15 @@ class ProductControllerMarketMapTest {
 	}
 
 	@Test
-	@DisplayName("G마켓/옥션은 Cafe24 등록행에 백필된 식별자에서 배지 링크를 파생한다")
+	@DisplayName("카페24가 동기화 성공이어도 G마켓/옥션 상품번호만으로 반영 성공을 표시하지 않는다")
 	void getProducts_derivesGmarketAuctionFromCafe24() {
 		when(product1.getId()).thenReturn(1L);
 		Page<Product> page = new PageImpl<>(List.of(product1), PageRequest.of(0, 50), 1);
 		when(productSearchUseCase.searchProducts(any(), any())).thenReturn(page);
-		when(marketRegistrationRepository.findByProductIdIn(List.of(1L)))
-			.thenReturn(List.of(reg(1L, MarketType.CAFE24,
-				"{\"product_no\":\"10615\",\"gmarket_goodsNo\":\"3490122824\",\"auction_goodsNo\":\"D888857683\"}")));
+		var cafe = reg(1L, MarketType.CAFE24,
+			"{\"product_no\":\"10615\",\"gmarket_goodsNo\":\"3490122824\",\"auction_goodsNo\":\"D888857683\"}");
+		cafe.markSynced();
+		when(marketRegistrationRepository.findByProductIdIn(List.of(1L))).thenReturn(List.of(cafe));
 
 		ResponseEntity<Page<ProductListResponse>> res =
 			listAll();
@@ -111,6 +164,11 @@ class ProductControllerMarketMapTest {
 		assertThat(links.get("AUCTION").url())
 			.isEqualTo("http://itempage3.auction.co.kr/DetailView.aspx?ItemNo=D888857683");
 		assertThat(links).containsKey(MarketType.CAFE24.name());
+		for (String child : List.of("GMARKET", "AUCTION")) {
+			assertThat(links.get(child).status()).isEqualTo("UNVERIFIED");
+			assertThat(links.get(child).reason()).isEqualTo("MARKETPLUS_RESULT_UNVERIFIED");
+			assertThat(links.get(child).errorAt()).isNull();
+		}
 	}
 
 	@Test
@@ -128,6 +186,22 @@ class ProductControllerMarketMapTest {
 		Map<String, MarketBadgeState> map = res.getBody().getContent().get(0).marketRegistrations();
 		assertThat(map).containsKey("CAFE24");
 		assertThat(map).doesNotContainKey("GMARKET");
+	}
+
+	@Test
+	void cafe24FailureDoesNotInventDownstreamFailureOrSuccess() {
+		when(product1.getId()).thenReturn(1L);
+		when(productSearchUseCase.searchProducts(any(), any()))
+			.thenReturn(new PageImpl<>(List.of(product1), PageRequest.of(0, 50), 1));
+		var cafe = reg(1L, MarketType.CAFE24,
+			"{\"product_no\":\"77\",\"gmarket_goodsNo\":\"007\",\"auction_goodsNo\":\"A8\"}");
+		cafe.recordSyncError(com.sbshop.agent.core.domain.market.SyncErrorType.TRANSIENT_ERROR);
+		when(marketRegistrationRepository.findByProductIdIn(List.of(1L))).thenReturn(List.of(cafe));
+		var result = listAll().getBody().getContent().getFirst().marketRegistrations();
+		assertThat(result.get("CAFE24").status()).isEqualTo("FAILED");
+		assertThat(result.get("GMARKET").status()).isEqualTo("UNVERIFIED");
+		assertThat(result.get("AUCTION").status()).isEqualTo("UNVERIFIED");
+		assertThat(result.get("GMARKET").errorAt()).isNull();
 	}
 
 	@Test
@@ -163,5 +237,18 @@ class ProductControllerMarketMapTest {
 		MarketBadgeState state = res.getBody().getContent().get(0).marketRegistrations().get("COUPANG");
 		assertThat(state.status()).isEqualTo("SYNCED");
 		assertThat(state.url()).isEqualTo("https://www.coupang.com/vp/products/123?vendorItemId=456");
+	}
+
+	@Test
+	void detachedChildIsNotDisplayedAsRegisteredWhileSiblingStaysLinked() {
+		when(product1.getId()).thenReturn(1L);
+		when(productSearchUseCase.searchProducts(any(), any())).thenReturn(new PageImpl<>(List.of(product1), PageRequest.of(0, 50), 1));
+		var cafe = reg(1L, MarketType.CAFE24, "{\"product_no\":\"77\",\"gmarket_goodsNo\":\"007\",\"auction_goodsNo\":\"A8\"}");
+		cafe.detachConnection(MarketType.GMARKET, com.sbshop.agent.core.domain.market.MarketConnectionState.DETACHED_PROHIBITED);
+		when(marketRegistrationRepository.findByProductIdIn(List.of(1L))).thenReturn(List.of(cafe));
+		var result = listAll().getBody().getContent().getFirst().marketRegistrations();
+		assertThat(result.get("GMARKET").status()).isEqualTo("PROHIBITED");
+		assertThat(result.get("CAFE24").status()).isEqualTo("SYNCED");
+		assertThat(result.get("AUCTION").status()).isEqualTo("UNVERIFIED");
 	}
 }

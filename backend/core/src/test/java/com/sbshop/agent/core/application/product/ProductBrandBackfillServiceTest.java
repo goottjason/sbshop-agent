@@ -2,7 +2,6 @@ package com.sbshop.agent.core.application.product;
 
 import com.sbshop.agent.core.application.product.port.BrandLookupOutcome;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -39,6 +38,19 @@ import org.springframework.context.ApplicationEventPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class ProductBrandBackfillServiceTest {
+	@Mock
+	private com.sbshop.agent.core.application.product.edit.ProductEditService edits;
+
+	@org.junit.jupiter.api.BeforeEach
+	void routeEditsThroughPolicyService() {
+		org.mockito.Mockito.lenient().doAnswer(call -> {
+			var product = productReader.findById(call.getArgument(0, Long.class)).orElseThrow();
+			product.update(call.getArgument(1, com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand.class));
+			return null;
+		}).when(edits).saveExisting(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
+	}
+
 	@Mock
 	private ProductReader productReader;
 	@Mock
@@ -100,7 +112,8 @@ class ProductBrandBackfillServiceTest {
 		service.backfillBrands("b1", List.of(1L), "ACT");
 
 		assertThat(product.getBrand()).isEqualTo("네이처스웨이");
-		verify(productWriter).save(product);
+		verify(edits).saveExisting(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
 		verify(processStatusService).markSuccess(eq("b1"), eq("1"), contains("네이처스웨이"));
 	}
 
@@ -114,7 +127,8 @@ class ProductBrandBackfillServiceTest {
 		service.backfillBrands("b1", List.of(2L), "ACT");
 
 		assertThat(product.getBrand()).isEqualTo("Garden");
-		verify(productWriter, never()).save(any());
+		verify(edits, never()).saveExisting(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
 		verify(processStatusService).markSuccess(eq("b1"), eq("2"), contains("건너뜀"));
 	}
 
@@ -128,7 +142,8 @@ class ProductBrandBackfillServiceTest {
 		service.backfillBrands("b1", List.of(3L), "ACT");
 
 		assertThat(product.getBrand()).isEqualTo("Nature's");
-		verify(productWriter, never()).save(any());
+		verify(edits, never()).saveExisting(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
 		verify(processStatusService).markSuccess(eq("b1"), eq("3"), contains("건너뜀"));
 	}
 
@@ -163,7 +178,8 @@ class ProductBrandBackfillServiceTest {
 		Product product = product("SB-11", "Enzymedica", "Enzymedica Digest Gold");
 		when(productReader.findById(11L)).thenReturn(Optional.of(product));
 		when(productDetailCrawlerPort.fetchDetail(anyString())).thenReturn(detail(true, "Enzymedica"));
-		when(coupangBrandLookupPort.findOfficialBrandName("Enzymedica")).thenReturn(BrandLookupOutcome.matched("엔자이메디카"));
+		when(coupangBrandLookupPort.findOfficialBrandName("Enzymedica"))
+			.thenReturn(BrandLookupOutcome.matched("엔자이메디카"));
 
 		service.backfillBrands("b1", List.of(11L), "T");
 
@@ -217,7 +233,8 @@ class ProductBrandBackfillServiceTest {
 		verify(processStatusService).markFailed(eq("b1"), eq("4"), contains("timeout"));
 		assertThat(ok.getBrand()).isEqualTo("노르딕내추럴스");
 		verify(processStatusService).markSuccess(eq("b1"), eq("5"), contains("노르딕내추럴스"));
-		verify(productWriter, times(1)).save(any());
+		verify(edits, times(1)).saveExisting(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
 	}
 
 	@Test

@@ -1,0 +1,36 @@
+{
+  "checkedAt": "2026-09-07T11:08:38.586620+00:00",
+  "target": "ISOLATED_COPY_OF_PRODUCTION",
+  "productionDDLApplied": false,
+  "ddlCount": 9,
+  "successfulPasses": 2,
+  "preservedTables": {
+    "sb_product": {
+      "before": {
+        "rows": 3195,
+        "hash": "b30501ec22349e95863ca794ed924d20"
+      },
+      "after": {
+        "rows": 3195,
+        "hash": "b30501ec22349e95863ca794ed924d20"
+      }
+    },
+    "sb_market_registration": {
+      "before": {
+        "rows": 9920,
+        "hash": "99f7b0a8741b7783c9e3d07acbadab0d"
+      },
+      "after": {
+        "rows": 9920,
+        "hash": "99f7b0a8741b7783c9e3d07acbadab0d"
+      }
+    }
+  },
+  "salesQuantityDefault": {
+    "rows": 3195,
+    "all300": true
+  },
+  "newObservationTable": "sb_marketplus_transmission",
+  "backupFile": "/home/ubuntu/backups/sbshop-products-rehearsal-20260907/ec4aebf2d8.dump",
+  "backupSha256": "f23fec667c24f8c3a16d1bc589fe963d7ac13bc66dd8d575a64e79962c876f1c"
+}

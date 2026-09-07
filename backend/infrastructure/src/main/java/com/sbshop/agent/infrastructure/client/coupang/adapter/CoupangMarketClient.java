@@ -41,6 +41,55 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class CoupangMarketClient implements MarketClient {
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.MarketPriceRead readSalePrice(String id, String optionId) {
+		requirePriceId(id);
+		requirePriceId(optionId);
+		String account = inspectionAccountReference();
+		try {
+			JsonNode root = objectMapper.readTree(restClient.get(SELLER_PRODUCT_BASE + id));
+			JsonNode p = root.path("data"), items = p.path("items");
+			if (!"SUCCESS".equals(root.path("code").asText()) || !id.equals(p.path("sellerProductId").asText())
+				|| !restClient.resolveVendorId().equals(p.path("vendorId").asText())
+				|| !items.isArray() || items.size() != 1
+				|| !optionId.equals(items.get(0).path("vendorItemId").asText()))
+				throw new IllegalStateException("쿠팡 판매자·상품·단일 옵션 연결을 확인할 수 없습니다.");
+			JsonNode inventoryRoot = objectMapper.readTree(restClient
+				.get("/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/" + optionId + "/inventories"));
+			JsonNode inventory = inventoryRoot.path("data");
+			if (!"SUCCESS".equals(inventoryRoot.path("code").asText())
+				|| !optionId.equals(inventory.path("sellerItemId").asText())
+				|| !inventory.path("salePrice").isIntegralNumber()
+				|| inventory.path("salePrice").decimalValue().signum() <= 0)
+				throw new IllegalStateException("쿠팡 옵션 가격 응답을 확인할 수 없습니다.");
+			if (account == null || !account.equals(inspectionAccountReference()))
+				throw new IllegalStateException("조회 계정이 변경되었습니다.");
+			boolean writable = "승인완료".equals(p.path("statusName").asText())
+				&& inventory.path("onSale").asBoolean(false);
+			return new com.sbshop.agent.core.domain.market.client.dto.MarketPriceRead(
+				inventory.path("salePrice").decimalValue(), writable,
+				writable ? "쿠팡 옵션 실판매가 조회" : "승인·판매 상태를 확인한 후 가격을 반영하세요.", account);
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	@Override
+	public void writeSalePrice(String id, String optionId, java.math.BigDecimal price) {
+		try {
+			requirePriceId(id);
+			requirePriceId(optionId);
+			restClient.put("/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/" + optionId + "/prices/"
+				+ price.intValueExact(), null);
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	private static void requirePriceId(String id) {
+		if (id == null || !id.matches("[1-9][0-9]{0,17}"))
+			throw new IllegalArgumentException("쿠팡 상품·옵션 번호가 올바르지 않습니다.");
+	}
 
 	private static final Set<String> PLACEHOLDER_ATTRIBUTE_VALUES = Set.of("수량", "용량", "중량", "정", "개", "캡슐");
 
@@ -123,6 +172,45 @@ public class CoupangMarketClient implements MarketClient {
 	}
 
 	@Override
+	public String inspectionAccountReference() {
+		try {
+			return com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.account("COUPANG",
+				restClient.resolveVendorId());
+		} catch (RuntimeException e) {
+			return null;
+		}
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation inspectListing(String id) {
+		String account = inspectionAccountReference();
+		String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + id;
+		if (id == null || !id.matches("[0-9]+") || account == null)
+			return com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation
+				.unknown("조회 상품번호 또는 계정 확인 필요");
+		try {
+			JsonNode root = objectMapper.readTree(restClient.get(path));
+			JsonNode data = root.path("data");
+			if (!"SUCCESS".equals(root.path("code").asText()) || !data.isObject()
+				|| !id.equals(data.path("sellerProductId").asText())
+				|| !restClient.resolveVendorId().equals(data.path("vendorId").asText())
+				|| !account.equals(inspectionAccountReference()))
+				throw new IllegalStateException("상품번호·판매자·응답 불일치");
+			String code = data.path("statusName").asText("");
+			var state = switch (code) {
+				case "상품삭제" -> com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.DELETED;
+				case "심사중", "임시저장", "승인대기중", "승인완료", "부분승인완료", "승인반려" ->
+					com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.PRESENT;
+				default -> com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.UNKNOWN;
+			};
+			return new com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation(state, code,
+				"쿠팡 등록 상태: " + code + " · 개별 옵션의 판매 상태와 구분합니다.", account, "GET " + path, java.time.Instant.now());
+		} catch (Exception e) {
+			return com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.failure(e, account, "GET " + path);
+		}
+	}
+
+	@Override
 	public com.sbshop.agent.core.domain.market.MarketPresence checkPresence(String marketItemId) {
 		String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/" + marketItemId;
 		String responseJson;
@@ -135,8 +223,8 @@ public class CoupangMarketClient implements MarketClient {
 		}
 		try {
 			JsonNode data = objectMapper.readTree(responseJson).path("data");
-			if (data.isMissingNode() || data.isNull()) {
-				return com.sbshop.agent.core.domain.market.MarketPresence.ABSENT;
+			if (!data.isObject() || data.isEmpty()) {
+				return com.sbshop.agent.core.domain.market.MarketPresence.UNKNOWN;
 			}
 			String statusName = data.path("statusName").asText(null);
 			return com.sbshop.agent.core.domain.market.MarketFailureClassifier.indicatesDeletedStatus(statusName)

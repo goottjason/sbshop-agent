@@ -1,7 +1,6 @@
 package com.sbshop.agent.core.application.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -35,6 +34,19 @@ import org.springframework.context.ApplicationEventPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class ProductBarcodeBackfillServiceTest {
+	@Mock
+	private com.sbshop.agent.core.application.product.edit.ProductEditService edits;
+
+	@org.junit.jupiter.api.BeforeEach
+	void routeEditsThroughPolicyService() {
+		org.mockito.Mockito.lenient().doAnswer(call -> {
+			var product = productReader.findById(call.getArgument(0, Long.class)).orElseThrow();
+			product.update(call.getArgument(1, com.sbshop.agent.core.domain.product.dto.ProductUpdateCommand.class));
+			return null;
+		}).when(edits).saveExisting(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
+	}
+
 	@Mock
 	private ProductReader productReader;
 	@Mock
@@ -87,7 +99,8 @@ class ProductBarcodeBackfillServiceTest {
 		service.backfillBarcodes("b1", List.of(1L), "ACT");
 
 		assertThat(product.getProductSpec().getBarcode()).isEqualTo("068958016375");
-		verify(productWriter).save(product);
+		verify(edits).saveExisting(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
 		verify(processStatusService).markSuccess(eq("b1"), eq("1"), contains("068958016375"));
 	}
 
@@ -100,7 +113,8 @@ class ProductBarcodeBackfillServiceTest {
 		service.backfillBarcodes("b1", List.of(2L), "ACT");
 
 		verify(productDetailCrawlerPort, never()).fetchDetail(anyString());
-		verify(productWriter, never()).save(any());
+		verify(edits, never()).saveExisting(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
 		verify(processStatusService).markSuccess(eq("b1"), eq("2"), contains("건너뜀"));
 	}
 
@@ -119,7 +133,8 @@ class ProductBarcodeBackfillServiceTest {
 		verify(processStatusService).markFailed(eq("b1"), eq("3"), contains("크롤 실패"));
 		assertThat(ok.getProductSpec().getBarcode()).isEqualTo("5021265244171");
 		verify(processStatusService).markSuccess(eq("b1"), eq("4"), contains("5021265244171"));
-		verify(productWriter, times(1)).save(any());
+		verify(edits, times(1)).saveExisting(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
 	}
 
 	@Test
@@ -132,7 +147,8 @@ class ProductBarcodeBackfillServiceTest {
 		service.backfillBarcodes("b1", List.of(5L), "ACT");
 
 		assertThat(product.getProductSpec().getBarcode()).isEmpty();
-		verify(productWriter, never()).save(any());
+		verify(edits, never()).saveExisting(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
 		verify(processStatusService).markFailed(eq("b1"), eq("5"), contains("체크디짓"));
 	}
 
@@ -145,7 +161,8 @@ class ProductBarcodeBackfillServiceTest {
 
 		service.backfillBarcodes("b1", List.of(6L), "ACT");
 
-		verify(productWriter, never()).save(any());
+		verify(edits, never()).saveExisting(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
 		verify(processStatusService).markFailed(eq("b1"), eq("6"), contains("바코드 값 없음"));
 	}
 
@@ -159,7 +176,8 @@ class ProductBarcodeBackfillServiceTest {
 		service.backfillBarcodes("b1", List.of(9L), "ACT");
 
 		assertThat(product.getProductSpec().getBarcode()).isEqualTo("835776002206");
-		verify(productWriter).save(product);
+		verify(edits).saveExisting(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
 	}
 
 	@Test

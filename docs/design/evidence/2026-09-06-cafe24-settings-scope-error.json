@@ -1,0 +1,10 @@
+{
+  "date": "2026-09-06",
+  "mode": "READ_ONLY",
+  "method": "GET",
+  "resource": "/api/v2/admin/products/setting?shop_no=1",
+  "status": 403,
+  "errorCode": 403,
+  "message": "The permission necessary for access tokens is not included. (insufficient_scope)",
+  "tokenRefreshPerformed": false
+}

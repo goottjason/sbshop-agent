@@ -22,6 +22,10 @@ public record ProductSearchCondition(
 	List<VendorType> vendors,
 	List<StockStatus> stockStatuses,
 	List<MarketType> markets,
+	List<MarketType> registeredMarkets,
+	List<MarketType> missingMarkets,
+	boolean pendingChangesOnly,
+	com.sbshop.agent.core.domain.market.marketplus.MarketPlusIssueFilter marketPlusIssue,
 	boolean inStockOnly,
 	boolean includeUncategorized,
 	SourceGoneFilter sourceGone) {
@@ -39,7 +43,14 @@ public record ProductSearchCondition(
 		vendors = nullToEmpty(vendors);
 		stockStatuses = nullToEmpty(stockStatuses);
 		markets = nullToEmpty(markets);
+		registeredMarkets = nullToEmpty(registeredMarkets).stream().distinct().toList();
+		missingMarkets = nullToEmpty(missingMarkets).stream().distinct().toList();
+		if (registeredMarkets.stream().anyMatch(missingMarkets::contains)) {
+			throw new IllegalArgumentException("같은 마켓을 등록과 미등록 조건에 동시에 지정할 수 없습니다.");
+		}
 		sourceGone = (sourceGone == null) ? SourceGoneFilter.ALL : sourceGone;
+		marketPlusIssue = marketPlusIssue == null
+			? com.sbshop.agent.core.domain.market.marketplus.MarketPlusIssueFilter.ALL : marketPlusIssue;
 	}
 
 	public static ProductSearchCondition none() {

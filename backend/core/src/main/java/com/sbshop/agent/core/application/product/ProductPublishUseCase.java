@@ -67,7 +67,10 @@ public class ProductPublishUseCase {
 		MarketClient client = marketClientRouter.getClient(marketType);
 
 		MarketRegistration registration = registrationTxService.savePending(productId, marketType,
-			product.getProductName());
+			product.getProductName(), product.getRevision());
+		if (registration.connectionWriteBlock() != null)
+			throw new IllegalStateException(
+				"해제된 연결의 재등록은 사유 검토 후 별도로 진행해야 합니다: " + registration.connectionWriteBlock());
 
 		if (!force) {
 			guardAgainstDuplicatePublish(registration, productId, marketType);

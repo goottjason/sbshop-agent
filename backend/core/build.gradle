@@ -15,6 +15,7 @@ dependencies {
 
     // hypersistence-utils for JSON columns (@JdbcTypeCode(SqlTypes.JSON))
     implementation 'io.hypersistence:hypersistence-utils-hibernate-63:3.7.1'
+    testRuntimeOnly 'org.postgresql:postgresql'
 }
 
 bootJar { enabled = false }

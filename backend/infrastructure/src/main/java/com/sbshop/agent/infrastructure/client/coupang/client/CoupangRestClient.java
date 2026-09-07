@@ -5,7 +5,6 @@ import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.infrastructure.client.coupang.CoupangHmacUtil;
 import com.sbshop.agent.infrastructure.client.coupang.config.CoupangProperties;
-import java.net.http.HttpClient;
 import java.util.Locale;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -26,11 +24,18 @@ public class CoupangRestClient {
 
 	private final CoupangProperties properties;
 	private final MarketCredentialRepository marketCredentialRepository;
-	private final RestClient restClient = RestClient.create();
-	private final RestClient bodilessWriteClient = RestClient.builder()
-		.requestFactory(new JdkClientHttpRequestFactory(
-			HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build()))
-		.build();
+	private final RestClient restClient = boundedRestClient(false);
+	private final RestClient bodilessWriteClient = boundedRestClient(true);
+
+	private static RestClient boundedRestClient(boolean bodilessWrite) {
+		var http = java.net.http.HttpClient.newBuilder()
+			.version(
+				bodilessWrite ? java.net.http.HttpClient.Version.HTTP_1_1 : java.net.http.HttpClient.Version.HTTP_2)
+			.connectTimeout(java.time.Duration.ofSeconds(10)).build();
+		var factory = new org.springframework.http.client.JdkClientHttpRequestFactory(http);
+		factory.setReadTimeout(java.time.Duration.ofSeconds(30));
+		return RestClient.builder().requestFactory(factory).build();
+	}
 
 	public String get(String path) {
 		return request("GET", path, null);

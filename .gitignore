@@ -46,6 +46,8 @@ _workspace/
 # Test artifacts
 *.h2.db
 *.mv.db
+__pycache__/
+*.pyc
 
 # SSH Keys
 *.key

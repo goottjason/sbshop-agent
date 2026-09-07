@@ -36,6 +36,39 @@ public class Cafe24AuthController {
 	public record IssueTokenRequest(String code) {
 	}
 
+	public record PriceSettingsStatus(String state, String message) {
+	}
+
+	@GetMapping("/auth-url")
+	public java.util.Map<String, String> authorizationUrl() {
+		return java.util.Map.of("url", cafe24TokenManager.authorizationUrlForSavedCredential());
+	}
+
+	@GetMapping("/price-settings-status")
+	public PriceSettingsStatus priceSettingsStatus() {
+		try {
+			String body = cafe24RestClient.get("/admin/products/setting?shop_no=1");
+			var root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body);
+			if (root != null && root.has("error"))
+				return priceSettingsFailure(root.path("error").toString());
+			if (root == null || !root.path("product").isObject()
+				|| !"1".equals(root.path("product").path("shop_no").asText()))
+				return new PriceSettingsStatus("UNAVAILABLE", "가격 설정 응답을 확인하지 못했습니다. 다시 조회하세요.");
+			return new PriceSettingsStatus("READABLE", "가격 설정 조회 권한을 확인했습니다.");
+		} catch (Exception e) {
+			return priceSettingsFailure(fullMessage(e));
+		}
+	}
+
+	private PriceSettingsStatus priceSettingsFailure(String detail) {
+		if (detail.contains("insufficient_scope"))
+			return new PriceSettingsStatus("MISSING_SCOPE", "가격 설정 조회 권한(mall.read_store)이 없습니다. 앱 권한 확인 후 재인증하세요.");
+		if (detail.matches("(?s).*\\b401\\b.*") || detail.contains("invalid_token") || detail.contains("invalid_grant")
+			|| detail.contains("재인증"))
+			return new PriceSettingsStatus("AUTH_REQUIRED", "가격 설정 조회의 인증이 필요합니다. 카페24 연동 상태를 확인하세요.");
+		return new PriceSettingsStatus("UNAVAILABLE", "가격 설정을 조회하지 못했습니다. 잠시 후 다시 조회하세요.");
+	}
+
 	@GetMapping("/status")
 	public ResponseEntity<Cafe24Status> status() {
 		if (!cafe24TokenManager.isRefreshTokenPresent()) {
@@ -84,10 +117,10 @@ public class Cafe24AuthController {
 			return ResponseEntity.badRequest().body(new Cafe24Status(false, "인증 코드가 비어 있습니다."));
 		}
 		try {
-			exchangeAuthorizationCode(code);
+			cafe24TokenManager.issueInitialToken(code);
 			actionLogService.record(ActionLogConstants.CAFE24_AUTH, "CAFE24",
 				ActionStatus.SUCCESS, "Cafe24 재인증 성공");
-			return ResponseEntity.ok(new Cafe24Status(true, "리프레시 토큰이 발급·저장되었습니다. 정상 연동됩니다."));
+			return ResponseEntity.ok(new Cafe24Status(true, "토큰이 발급·저장되었습니다. 상품·주문 및 가격 설정 권한의 조회 결과를 확인하세요."));
 		} catch (Exception e) {
 			log.error("[Cafe24] 토큰 발급 실패", e);
 			actionLogService.record(ActionLogConstants.CAFE24_AUTH, "CAFE24",
@@ -119,14 +152,16 @@ public class Cafe24AuthController {
 			return null;
 		}
 		String s = input.trim();
-		int idx = s.indexOf("code=");
-		if (idx >= 0) {
-			s = s.substring(idx + "code=".length());
-			int amp = s.indexOf('&');
-			if (amp >= 0) {
-				s = s.substring(0, amp);
+		var match = java.util.regex.Pattern.compile("(?:^|[?&])code=([^&#]*)").matcher(s);
+		if (match.find()) {
+			try {
+				return java.net.URLDecoder.decode(match.group(1), java.nio.charset.StandardCharsets.UTF_8).trim();
+			} catch (IllegalArgumentException e) {
+				return null;
 			}
 		}
+		if (s.startsWith("https://") || s.startsWith("http://"))
+			return null;
 		return s.trim();
 	}
 

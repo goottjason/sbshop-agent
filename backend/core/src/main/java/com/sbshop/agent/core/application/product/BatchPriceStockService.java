@@ -49,6 +49,7 @@ public class BatchPriceStockService {
 
 	private final MarketFeeService marketFeeService;
 	private final VendorPricePolicyService vendorPricePolicyService;
+	private final com.sbshop.agent.core.application.product.edit.ProductEditService productEditService;
 
 	private static final long CRAWL_THROTTLE_MS = 500L;
 
@@ -340,8 +341,7 @@ public class BatchPriceStockService {
 					.orElseThrow(() -> new IllegalArgumentException("상품 없음: " + productId));
 
 				ProductUpdateCommand command = commands.get(i);
-				product.update(command);
-				productWriter.save(product);
+				productEditService.saveExisting(productId, command, product.getRevision(), "system:batch-full-edit");
 
 				processStatusService.markSuccess(batchId, String.valueOf(productId),
 					"[" + product.getSbCode() + "] 전체 필드 수정 완료");

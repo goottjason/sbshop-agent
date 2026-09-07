@@ -1,0 +1,59 @@
+# Optional isolated observer. Apply together with docker-compose.yml after inspecting its config.
+# Interactive login is through SSH-forwarded noVNC. Nothing listens on the public interface.
+# /state/enabled.json controls collection/upload separately; both default to paused.
+services:
+  sbshop-api:
+    environment:
+      MARKETPLUS_GMARKET_ACCOUNT: ${MARKETPLUS_GMARKET_ACCOUNT:-}
+      MARKETPLUS_AUCTION_ACCOUNT: ${MARKETPLUS_AUCTION_ACCOUNT:-}
+      MARKETPLUS_OBSERVER_STATUS_PATH: /marketplus-observer/status.json
+    volumes:
+      - marketplus-observer-status:/marketplus-observer:ro
+  marketplus-browser:
+    build:
+      context: .
+      dockerfile: Dockerfile.marketplus-browser
+    container_name: projects-sbshop-marketplus-browser-1
+    profiles: [marketplus]
+    environment:
+      TZ: Asia/Seoul
+      SE_NODE_MAX_SESSIONS: 1
+      SE_NODE_SESSION_TIMEOUT: 86400
+      SE_SESSION_REQUEST_TIMEOUT: 30
+      SE_VNC_NO_PASSWORD: "true"
+    ports:
+      - "127.0.0.1:17900:7900"
+    volumes:
+      - marketplus-browser-profile:/home/seluser/marketplus
+    shm_size: 2g
+    mem_limit: 3g
+    networks: [shared-net]
+    restart: unless-stopped
+  marketplus-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.marketplus-worker
+    container_name: projects-sbshop-marketplus-worker-1
+    profiles: [marketplus]
+    command: ["--mall-id", "${MARKETPLUS_MALL_ID:?Set the verified Cafe24 mall ID}"]
+    environment:
+      TZ: Asia/Seoul
+      SBSHOP_RELAY_USERNAME: ${ADMIN_USERNAME:-admin}
+      SBSHOP_RELAY_PASSWORD: ${ADMIN_PASSWORD:?Set the SB admin password}
+      MARKETPLUS_SHARED_STATUS: /status/status.json
+      MARKETPLUS_GMARKET_ACCOUNT: ${MARKETPLUS_GMARKET_ACCOUNT:-}
+      MARKETPLUS_AUCTION_ACCOUNT: ${MARKETPLUS_AUCTION_ACCOUNT:-}
+    volumes:
+      - marketplus-observer-state:/state
+      - marketplus-observer-status:/status
+    depends_on: [marketplus-browser]
+    networks: [shared-net]
+    restart: unless-stopped
+    mem_limit: 256m
+volumes:
+  marketplus-browser-profile:
+    name: sbshop-marketplus-browser-profile
+  marketplus-observer-state:
+    name: sbshop-marketplus-observer-state
+  marketplus-observer-status:
+    name: sbshop-marketplus-observer-status

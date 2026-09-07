@@ -1,0 +1,52 @@
+{
+  "state": {
+    "lastAttemptAt": 1788698673.125147,
+    "heartbeatAt": 1788698883.3138573,
+    "state": "PAUSED",
+    "collectEnabled": false,
+    "uploadEnabled": false,
+    "collections": [],
+    "upload": null,
+    "error": null,
+    "lastCollectedAt": null,
+    "lastUploadedAt": null,
+    "finishedAt": 1788698673.1538692
+  },
+  "browserPage": "https://eclogin.cafe24.com/Shop/",
+  "captureFiles": 0,
+  "sourceSha256": {
+    "browser.py": "749d70a32c6732b520fac60d2b66db65df6d8fded2ee9328ab51e240f9e9c4a2",
+    "worker.py": "17b73853ae2989e17968c93335e0397763047def092aef60ad296a1eeeb1e3da",
+    "relay.py": "4bd6da4a7c5ee4cad62b39d37f00b1cb5f237e5b73b6ddab84137750cd739f0c"
+  },
+  "containers": [
+    {
+      "name": "projects-sbshop-api-1",
+      "status": "running",
+      "imageId": "sha256:8ab62753bd337211a269f8a67b197db87a33627ec39776fc768cee1968348f01",
+      "startedAt": "2026-09-05T17:51:01.938377561Z",
+      "restarts": 0
+    },
+    {
+      "name": "projects-sbshop-frontend-1",
+      "status": "running",
+      "imageId": "sha256:43e596f97e093ffc38b21464058721dd5362045b034366b606f09aa60cb9d471",
+      "startedAt": "2026-09-05T17:51:01.940555846Z",
+      "restarts": 0
+    },
+    {
+      "name": "projects-sbshop-marketplus-browser-1",
+      "status": "running",
+      "imageId": "sha256:de30ecd30db19260fb11104e89543e52d61ca1dffa2503ba9446acb469fe7c89",
+      "startedAt": "2026-09-06T12:34:26.753679028Z",
+      "restarts": 0
+    },
+    {
+      "name": "projects-sbshop-marketplus-worker-1",
+      "status": "running",
+      "imageId": "sha256:83d20ae74aaf83a7cb353d8b288c8c68231fdd34d40a55ea1a69490348fe75b4",
+      "startedAt": "2026-09-06T12:44:32.5776055Z",
+      "restarts": 0
+    }
+  ]
+}

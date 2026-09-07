@@ -17,6 +17,10 @@ services:
       DB_NAME: ${DB_NAME:-sbshop}
       DB_USERNAME: ${DB_USERNAME:-sbshop}
       DB_PASSWORD: ${PG_PASSWORD:-canagent1234}
+      DDL_AUTO: ${DDL_AUTO:-update}
+      MARKETPLUS_GMARKET_ACCOUNT: ${MARKETPLUS_GMARKET_ACCOUNT:-}
+      MARKETPLUS_AUCTION_ACCOUNT: ${MARKETPLUS_AUCTION_ACCOUNT:-}
+      MARKETPLUS_OBSERVER_STATUS_PATH: /marketplus-observer/status.json
       COUPANG_ACCESS_KEY: ${COUPANG_ACCESS_KEY}
       COUPANG_SECRET_KEY: ${COUPANG_SECRET_KEY}
       SMARTSTORE_CLIENT_ID: ${SMARTSTORE_CLIENT_ID}
@@ -51,6 +55,8 @@ services:
       MARKET_CAFE24_CATEGORY_NO: ${MARKET_CAFE24_CATEGORY_NO:-23}
     depends_on:
       - sbshop-selenium
+    volumes:
+      - marketplus-observer-status:/marketplus-observer:ro
     networks:
       - shared-net
     restart: unless-stopped
@@ -87,3 +93,7 @@ services:
 networks:
   shared-net:
     external: true
+
+volumes:
+  marketplus-observer-status:
+    name: sbshop-marketplus-observer-status

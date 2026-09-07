@@ -1,0 +1,38 @@
+{
+  "mode": "READ_ONLY",
+  "checkedAt": "2026-09-06T11:33:36.788349+00:00",
+  "checks": [
+    {
+      "path": "/admin/orders?shop_no=1&date_type=order_date&start_date=2026-09-05&end_date=2026-09-06&limit=1&offset=0&fields=order_id",
+      "status": 200,
+      "apiVersion": "2026-09-01",
+      "ordersArrayPresent": true
+    },
+    {
+      "path": "/admin/products/10186?shop_no=1&fields=shop_no%2Cproduct_no%2Cprice%2Ctax_calculation%2Cmarket_sync%2Cselling",
+      "status": 200,
+      "apiVersion": "2026-09-01",
+      "product": {
+        "shop_no": 1,
+        "product_no": 10186,
+        "price": "96800.00",
+        "tax_calculation": "M",
+        "market_sync": "T",
+        "selling": "T"
+      }
+    },
+    {
+      "path": "/admin/products/14086?shop_no=1&fields=shop_no%2Cproduct_no%2Cprice%2Ctax_calculation%2Cmarket_sync%2Cselling",
+      "status": 200,
+      "apiVersion": "2026-09-01",
+      "product": {
+        "shop_no": 1,
+        "product_no": 14086,
+        "price": "179100.00",
+        "tax_calculation": "M",
+        "market_sync": "T",
+        "selling": "F"
+      }
+    }
+  ]
+}

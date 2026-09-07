@@ -16,7 +16,34 @@ import java.util.Optional;
 
 public interface MarketClient {
 
+	default com.sbshop.agent.core.domain.market.client.dto.PreparedMarketPublication preparePublication(Product product,
+		java.math.BigDecimal price) {
+		throw new UnsupportedOperationException("등록 요청을 고정하고 결과를 검증하는 계약 확인이 필요합니다.");
+	}
+
+	default Map<String, String> submitPreparedPublication(Product product, String operationId, String payload) {
+		throw new UnsupportedOperationException("검토한 등록 요청의 전송 계약 확인이 필요합니다.");
+	}
+
+	default boolean verifyPreparedPublication(String listingId, String sbCode, String payload) {
+		throw new UnsupportedOperationException("등록 결과 검증 계약 확인이 필요합니다.");
+	}
+
+	default com.sbshop.agent.core.domain.market.client.dto.MarketPriceRead readSalePrice(String listingId,
+		String optionId) {
+		throw new UnsupportedOperationException("이 마켓의 가격 단독 수정·재조회 계약 확인이 필요합니다.");
+	}
+
+	/** Returning from this method is receipt only. Callers must read back the price. */
+	default void writeSalePrice(String listingId, String optionId, java.math.BigDecimal price) {
+		throw new UnsupportedOperationException("이 마켓의 가격 단독 수정·재조회 계약 확인이 필요합니다.");
+	}
+
 	MarketType getSupportedMarket();
+
+	default String inspectionAccountReference() {
+		return null;
+	}
 
 	Map<String, String> publish(Product product);
 
@@ -26,10 +53,17 @@ public interface MarketClient {
 
 	MarketItemInfo extractMarketItem(String marketItemId);
 
+	default com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation inspectListing(
+		String marketItemId) {
+		return com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation
+			.unknown("이 마켓의 연결 해제 판정은 아직 검증되지 않았습니다.");
+	}
+
 	default com.sbshop.agent.core.domain.market.MarketPresence checkPresence(String marketItemId) {
 		try {
-			extractMarketItem(marketItemId);
-			return com.sbshop.agent.core.domain.market.MarketPresence.PRESENT;
+			return extractMarketItem(marketItemId) == null
+				? com.sbshop.agent.core.domain.market.MarketPresence.UNKNOWN
+				: com.sbshop.agent.core.domain.market.MarketPresence.PRESENT;
 		} catch (Exception e) {
 			return com.sbshop.agent.core.domain.market.MarketFailureClassifier.indicatesDeleted(e)
 				? com.sbshop.agent.core.domain.market.MarketPresence.ABSENT
@@ -74,7 +108,8 @@ public interface MarketClient {
 	}
 
 	default Map<String, Object> syncProductFields(Product product, String marketItemId,
-		Map<String, Object> currentRawData, java.util.Set<com.sbshop.agent.core.domain.market.client.dto.MarketEditField> fields) {
+		Map<String, Object> currentRawData,
+		java.util.Set<com.sbshop.agent.core.domain.market.client.dto.MarketEditField> fields) {
 		throw new UnsupportedOperationException(
 			getSupportedMarket() + " 필드 수정 미지원");
 	}

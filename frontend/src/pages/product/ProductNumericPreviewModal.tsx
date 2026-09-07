@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { productEditApi, type EditReview } from '../../api/productChangeApi';
+import { ProductSaveReview } from './ProductSaveReview';
 import { Alert, Button, Input, Modal, Select, Tag } from 'antd';
 import { productChangeApi, type ChangeOperation, type NumericField, type NumericPreviewRequest } from '../../api/productChangeApi';
 import { formatNumericPreviewValue } from './productNumericDisplay';
@@ -12,6 +14,11 @@ const marketLabels: Record<string, string> = {
 interface Props { productIds: number[]; onClose: () => void }
 
 export function ProductNumericPreviewModal({ productIds, onClose }: Props) {
+  const queryClient = useQueryClient();
+  const [saveReview, setSaveReview] = useState<EditReview | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewError, setReviewError] = useState(false);
+  const latestRequest = useRef('');
   const [changes, setChanges] = useState<NumericPreviewRequest['changes']>([{ field: 'SALE_PRICE', operation: 'SET', value: '' }]);
   const fields = useQuery({ queryKey: ['numeric-edit-fields'], queryFn: async ({ signal }) => (await productChangeApi.fields(signal)).data });
   const options = fields.data ?? [];
@@ -28,12 +35,23 @@ export function ProductNumericPreviewModal({ productIds, onClose }: Props) {
   const used = changes.map((entry) => entry.field);
   const available = options.filter((option) => !used.includes(option.field));
   const result = preview.data;
+  const requestKey = JSON.stringify(request);
+  useEffect(() => { latestRequest.current = requestKey; }, [requestKey]);
+  const reviewSave = async () => {
+    const requested = JSON.stringify(request);
+    setReviewing(true); setReviewError(false);
+    try {
+      const response = await productEditApi.preview(request);
+      if (latestRequest.current === requested) setSaveReview(response.data);
+    } catch { if (latestRequest.current === requested) setReviewError(true); }
+    finally { setReviewing(false); }
+  };
 
-  return <Modal open title={`일괄 변경 미리보기 · ${productIds.length}개 상품`} width={1050} onCancel={onClose}
+  return <><Modal open title={`일괄 변경 미리보기 · ${productIds.length}개 상품`} width={1050} onCancel={onClose}
     footer={<><Button onClick={onClose}>닫기</Button><Button type="primary" disabled={!validInput} loading={preview.isFetching}
-      onClick={() => { void preview.refetch(); }}>변경 전후 계산</Button></>}>
+      onClick={() => { void preview.refetch(); }}>변경 전후 계산</Button><Button disabled={!validInput} loading={reviewing} onClick={() => { void reviewSave(); }}>수정 제한·저장값 검토</Button></>}>
     <Alert type="info" showIcon message="변경 전후 값을 검토하는 화면입니다."
-      description="현재 단계에서는 계산 결과를 확인할 수 있습니다. 저장·마켓 반영은 별도 적용 단계에서 제공합니다." />
+      description="수치 계산 후 ‘수정 제한·저장값 검토’에서 마켓 제한과 최소마진·파생 변경을 확인하고 저장할 수 있습니다." />
     {productIds.length > 5000 && <Alert type="warning" message="한 번에 5,000개까지 미리볼 수 있습니다. 선택 범위를 줄여 주세요." />}
     {fields.isError && <Alert type="error" message="편집 필드 목록을 불러오지 못했습니다."
       action={<Button onClick={() => { void fields.refetch(); }}>재시도</Button>} />}
@@ -58,6 +76,7 @@ export function ProductNumericPreviewModal({ productIds, onClose }: Props) {
       <Button disabled={!available.length} onClick={() => setChanges((current) => [...current, { field: available[0].field, operation: 'SET', value: '' }])}>변경 필드 추가</Button>
       <p className="pw-change-note">판매가는 계산 후 100원 단위로 반올림합니다. 재고·묶음수량의 비율 계산은 소수 부분을 버립니다. 수량 직접 지정·증감은 정수로 입력하세요. 마진율·쿠폰율의 증감은 %p 기준입니다.</p>
     </div>
+    {reviewError && <Alert type="error" message="저장 검토를 불러오지 못했습니다. 다시 검토해 주세요." />}
     {preview.isError && <Alert type="error" showIcon message="미리보기를 계산하지 못했습니다."
       description="입력값과 연결 상태를 확인한 뒤 다시 계산해 주세요." />}
     {preview.isFetching && <p role="status">선택 상품의 현재 값으로 계산 중…</p>}
@@ -89,5 +108,5 @@ export function ProductNumericPreviewModal({ productIds, onClose }: Props) {
         </table>
       </div>
     </>}
-  </Modal>;
+  </Modal>{saveReview && <ProductSaveReview review={saveReview} onClose={() => setSaveReview(null)} onSaved={() => { void queryClient.invalidateQueries({ queryKey: ['products'] }); void queryClient.invalidateQueries({ queryKey: ['product-price-preview'] }); }} />}</>;
 }

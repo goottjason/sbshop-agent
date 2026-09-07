@@ -18,7 +18,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -68,21 +67,13 @@ class ElevenstFieldSyncTest {
 	}
 
 	@Test
-	@DisplayName("D-294: PRODUCT_NAME/BRAND/MANUFACTURER 3태그를 동시에 치환한다 (제조사=makerNm, 값은 brand 출처)")
-	void replacesThreeFieldsAtOnce() {
-		when(restClient.get(eq("/rest/prodmarketservice/prodmarket/PRD9"))).thenReturn(CURRENT_XML);
-		when(restClient.put(eq("/rest/prodservices/product/PRD9"), anyString()))
-			.thenReturn("<ClientMessage><resultCode>200</resultCode></ClientMessage>");
-
-		client.syncProductFields(product("새상품명", "새브랜드"), "PRD9", raw,
-			Set.of(MarketEditField.PRODUCT_NAME, MarketEditField.BRAND, MarketEditField.MANUFACTURER));
-
-		ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
-		verify(restClient).put(eq("/rest/prodservices/product/PRD9"), body.capture());
-		String xml = body.getValue();
-		assertThat(xml).contains("<prdNm><![CDATA[새상품명]]></prdNm>");
-		assertThat(xml).contains("<brand><![CDATA[새브랜드]]></brand>");
-		assertThat(xml).contains("<makerNm><![CDATA[새브랜드]]></makerNm>");
+	@DisplayName("제조사 수정 계약 미확인 시 부분 전송 없이 거절한다")
+	void refusesUnverifiedManufacturerBeforeAnyWrite() {
+		org.assertj.core.api.Assertions
+			.assertThatThrownBy(() -> client.syncProductFields(product("새상품명", "새브랜드"), "PRD9", raw,
+				Set.of(MarketEditField.PRODUCT_NAME, MarketEditField.BRAND, MarketEditField.MANUFACTURER)))
+			.isInstanceOf(UnsupportedOperationException.class).hasMessageContaining("makerNm");
+		verify(restClient, org.mockito.Mockito.never()).put(anyString(), anyString());
 	}
 
 	@Test

@@ -74,13 +74,13 @@ class ProductPublishOrphanPreventionTest {
 	void happyPath_savesPendingThenPublishesThenMarksSynced() {
 		MarketRegistration pending = MarketRegistration.builder()
 			.productId(PRODUCT_ID).marketType(MARKET).marketDetailedInfo("{}").build();
-		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품")).thenReturn(pending);
+		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품", 0L)).thenReturn(pending);
 		when(client.publish(eq(product), any())).thenReturn(Map.of("vendorItemId", "V123"));
 
 		useCase.publishToMarket(PRODUCT_ID, MARKET);
 
 		InOrder order = inOrder(registrationTxService, client);
-		order.verify(registrationTxService).savePending(PRODUCT_ID, MARKET, "테스트 상품");
+		order.verify(registrationTxService).savePending(PRODUCT_ID, MARKET, "테스트 상품", 0L);
 		order.verify(client).publish(eq(product), any());
 		order.verify(registrationTxService).markPublished(eq(pending), anyString());
 	}
@@ -90,7 +90,7 @@ class ProductPublishOrphanPreventionTest {
 	void publishSucceedsButUpdateFails_identifiersSurfacedAndErrorPropagated() {
 		MarketRegistration pending = MarketRegistration.builder()
 			.productId(PRODUCT_ID).marketType(MARKET).marketDetailedInfo("{}").build();
-		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품")).thenReturn(pending);
+		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품", 0L)).thenReturn(pending);
 		when(client.publish(eq(product), any())).thenReturn(Map.of("vendorItemId", "V999"));
 
 		doThrow(new RuntimeException("DB save failed"))
@@ -100,7 +100,7 @@ class ProductPublishOrphanPreventionTest {
 			.isInstanceOf(RuntimeException.class);
 
 		verify(client).publish(eq(product), any());
-		verify(registrationTxService).savePending(PRODUCT_ID, MARKET, "테스트 상품");
+		verify(registrationTxService).savePending(PRODUCT_ID, MARKET, "테스트 상품", 0L);
 	}
 
 	@Test
@@ -116,7 +116,8 @@ class ProductPublishOrphanPreventionTest {
 		assertThatThrownBy(() -> uc.publishToMarket(PRODUCT_ID, MARKET))
 			.isInstanceOf(IllegalArgumentException.class);
 
-		verify(registrationTxService, never()).savePending(any(), any(), anyString());
+		verify(registrationTxService, never()).savePending(any(), any(), anyString(),
+			org.mockito.ArgumentMatchers.anyLong());
 		verify(client, never()).publish(any());
 	}
 
@@ -125,7 +126,7 @@ class ProductPublishOrphanPreventionTest {
 	void publishToMarket_returnsOutcomeWithIdentifiers() {
 		MarketRegistration pending = MarketRegistration.builder()
 			.productId(PRODUCT_ID).marketType(MARKET).marketDetailedInfo("{}").build();
-		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품")).thenReturn(pending);
+		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품", 0L)).thenReturn(pending);
 		when(client.publish(eq(product), any())).thenReturn(Map.of("vendorItemId", "V123"));
 
 		MarketPublishOutcome outcome = useCase.publishToMarket(PRODUCT_ID, MARKET);

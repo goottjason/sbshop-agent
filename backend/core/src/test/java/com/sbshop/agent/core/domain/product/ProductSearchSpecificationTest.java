@@ -16,6 +16,10 @@ import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import com.sbshop.agent.core.domain.market.MarketConnectionState;
+import com.sbshop.agent.core.domain.market.UnsyncReason;
+import com.sbshop.agent.core.domain.product.edit.ProductChangeTarget;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -48,6 +52,113 @@ class ProductSearchSpecificationTest {
 
 	@Autowired
 	private EntityManager entityManager;
+
+	@BeforeEach
+	void registerJsonFunction() {
+		entityManager.createNativeQuery("CREATE ALIAS IF NOT EXISTS sb_market_has_identifier FOR "
+			+ "'com.sbshop.agent.core.domain.product.MarketSearchSqlFunctions.hasIdentifier'")
+			.executeUpdate();
+	}
+
+	@Test
+	void combinedMarketConnectionsApplyBeforePagination() {
+		Product wanted = saveWithStock("WANTED", 4, StockStatus.IN_STOCK);
+		Product both = saveWithStock("BOTH", 4, StockStatus.IN_STOCK);
+		Product soldOut = saveWithStock("SOLD_OUT", 0, StockStatus.OUT_OF_STOCK);
+		register(wanted, MarketType.COUPANG);
+		register(both, MarketType.COUPANG);
+		register(both, MarketType.ELEVEN_STREET);
+		register(soldOut, MarketType.COUPANG);
+		var condition = ProductSearchCondition.builder().vendors(List.of(VendorType.IHB))
+			.stockStatuses(List.of(StockStatus.IN_STOCK)).registeredMarkets(List.of(MarketType.COUPANG))
+			.missingMarkets(List.of(MarketType.ELEVEN_STREET)).build();
+		var page = productRepository.findAll(ProductSpecifications.matching(condition), PageRequest.of(0, 1));
+		assertThat(page.getTotalElements()).isEqualTo(1);
+		assertThat(page.getContent()).extracting(Product::getSbCode).containsExactly("WANTED");
+	}
+
+	@Test
+	void allRegisteredAndAllMissingAreIndependentConjunctions() {
+		Product both = save("BOTH", ProductCategory.FOOD);
+		Product one = save("ONE", ProductCategory.FOOD);
+		Product extra = save("EXTRA", ProductCategory.FOOD);
+		for (Product p : List.of(both, one, extra))
+			register(p, MarketType.COUPANG);
+		for (Product p : List.of(both, extra))
+			register(p, MarketType.SMART_STORE);
+		register(extra, MarketType.CAFE24);
+		assertThat(sbCodesOf(ProductSearchCondition.builder()
+			.registeredMarkets(List.of(MarketType.COUPANG, MarketType.SMART_STORE))
+			.missingMarkets(List.of(MarketType.CAFE24, MarketType.ELEVEN_STREET)).build())).containsExactly("BOTH");
+	}
+
+	@Test
+	void confirmedDetachmentIsMissingWhileStockoutAndUnconfirmedLegacyDeletionKeepConnection() {
+		for (var state : List.of(MarketConnectionState.DETACHED_DELETED, MarketConnectionState.DETACHED_PROHIBITED)) {
+			Product p = save(state.name(), ProductCategory.FOOD);
+			register(p, MarketType.SMART_STORE).detachConnection(MarketType.SMART_STORE, state);
+		}
+		Product oldDeletion = save("LEGACY_DELETED", ProductCategory.FOOD);
+		register(oldDeletion, MarketType.SMART_STORE).markAbsentFromMarket(UnsyncReason.DELETED_ON_MARKET);
+		Product stockout = saveWithStock("STOCKOUT", 0, StockStatus.OUT_OF_STOCK);
+		register(stockout, MarketType.SMART_STORE);
+		assertThat(
+			sbCodesOf(ProductSearchCondition.builder().registeredMarkets(List.of(MarketType.SMART_STORE)).build()))
+			.containsExactlyInAnyOrder("STOCKOUT", "LEGACY_DELETED");
+		assertThat(sbCodesOf(ProductSearchCondition.builder().missingMarkets(List.of(MarketType.SMART_STORE)).build()))
+			.containsExactlyInAnyOrder("DETACHED_DELETED", "DETACHED_PROHIBITED");
+	}
+
+	@Test
+	void childConnectionsRemainIndependentOfParentAndArchivedIds() {
+		Product independent = save("INDEPENDENT", ProductCategory.FOOD);
+		var r = register(independent, MarketType.CAFE24,
+			"{\"product_no\":\"1\",\"gmarket_goodsNo\":\"2\",\"auction_goodsNo\":\"A3\"}");
+		r.detachConnection(MarketType.CAFE24, MarketConnectionState.DETACHED_DELETED);
+		r.detachConnection(MarketType.GMARKET, MarketConnectionState.DETACHED_PROHIBITED);
+		Product archived = save("ARCHIVED", ProductCategory.FOOD);
+		register(archived, MarketType.CAFE24,
+			"{\"product_no\":\"2\",\"previousIdentifiers\":[{\"auction_goodsNo\":\"A4\"}]}");
+		Product direct = save("DIRECT", ProductCategory.FOOD);
+		register(direct, MarketType.AUCTION, "{\"goodsNo\":\"A5\"}");
+		assertThat(sbCodesOf(ProductSearchCondition.builder().registeredMarkets(List.of(MarketType.AUCTION))
+			.missingMarkets(List.of(MarketType.GMARKET, MarketType.CAFE24)).build()))
+			.containsExactlyInAnyOrder("INDEPENDENT", "DIRECT");
+	}
+
+	@Test
+	void emptyMalformedAndNonScalarIdentifiersAreNotConnections() {
+		int index = 0;
+		for (String json : List.of("{}", "invalid", "[]", "{\"originProductNo\":null}",
+			"{\"originProductNo\":\"   \"}", "{\"originProductNo\":true}", "{\"originProductNo\":{}}",
+			"{\"previousIdentifiers\":[{\"originProductNo\":\"99\"}]}")) {
+			register(save("EMPTY" + index++, ProductCategory.FOOD), MarketType.SMART_STORE, json);
+		}
+		register(save("NUMBER", ProductCategory.FOOD), MarketType.SMART_STORE, "{\"originProductNo\":123}");
+		assertThat(
+			sbCodesOf(ProductSearchCondition.builder().registeredMarkets(List.of(MarketType.SMART_STORE)).build()))
+			.containsExactly("NUMBER");
+	}
+
+	@Test
+	void pendingChangeFilterIncludesUnconfirmedStatesOnly() {
+		for (String state : List.of("PENDING_DISPATCH", "DISPATCHED", "ACTION_REQUIRED", "CONFIRMED_PRICE",
+			"CANCELLED_DETACHED", "SUPERSEDED_BY_CURRENT")) {
+			Product p = save(state, ProductCategory.FOOD);
+			var target = new ProductChangeTarget(1L, p.getId(), 1L, p.getRevision(), "COUPANG", "{}");
+			target.priceOutcome(state);
+			entityManager.persist(target);
+		}
+		assertThat(sbCodesOf(ProductSearchCondition.builder().pendingChangesOnly(true).build()))
+			.containsExactlyInAnyOrder("PENDING_DISPATCH", "DISPATCHED", "ACTION_REQUIRED");
+	}
+
+	@Test
+	void contradictoryMarketConditionsAreRejected() {
+		org.assertj.core.api.Assertions.assertThatThrownBy(() -> ProductSearchCondition.builder()
+			.registeredMarkets(List.of(MarketType.COUPANG)).missingMarkets(List.of(MarketType.COUPANG)).build())
+			.isInstanceOf(IllegalArgumentException.class);
+	}
 
 	@Test
 	@DisplayName("categories 단독: 나열된 카테고리에 속한 상품만 반환한다")
@@ -440,19 +551,21 @@ class ProductSearchSpecificationTest {
 		entityManager.clear();
 	}
 
-	private void register(Product product, MarketType marketType) {
-		register(product, marketType, "{}");
+	private MarketRegistration register(Product product, MarketType marketType) {
+		return register(product, marketType, "{\"" + MarketRegistration.marketCodeKeys(marketType)[0] + "\":\"123\"}");
 	}
 
-	private void register(Product product, MarketType marketType, String identifiersJson) {
-		entityManager.persist(MarketRegistration.builder()
+	private MarketRegistration register(Product product, MarketType marketType, String identifiersJson) {
+		var registration = MarketRegistration.builder()
 			.productId(product.getId())
 			.sbProductId(product.getId())
 			.marketType(marketType)
 			.marketProductName("테스트 상품")
 			.marketIdentifiers(identifiersJson)
 			.marketDetailedInfo("{}")
-			.build());
+			.build();
+		entityManager.persist(registration);
 		entityManager.flush();
+		return registration;
 	}
 }

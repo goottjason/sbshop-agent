@@ -46,7 +46,8 @@ class BatchCompletedEventPublishTest {
 			eventPublisher,
 			mock(ProductMarketSyncService.class),
 			mock(MarketFeeService.class),
-			mock(VendorPricePolicyService.class));
+			mock(VendorPricePolicyService.class),
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.product.edit.ProductEditService.class));
 	}
 
 	@Test

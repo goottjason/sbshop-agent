@@ -83,7 +83,8 @@ class BatchPriceStockAsyncPoolTest {
 				mock(ProductRepository.class), mock(StockCrawlerRouter.class),
 				mock(ProcessStatusService.class), mock(MarginCalculator.class), recordingPublisher,
 				mock(ProductMarketSyncService.class), mock(MarketFeeService.class),
-			mock(VendorPricePolicyService.class));
+				mock(VendorPricePolicyService.class),
+				org.mockito.Mockito.mock(com.sbshop.agent.core.application.product.edit.ProductEditService.class));
 		}
 	}
 }

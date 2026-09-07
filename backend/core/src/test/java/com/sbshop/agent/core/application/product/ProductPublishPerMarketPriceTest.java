@@ -54,7 +54,7 @@ class ProductPublishPerMarketPriceTest {
 		when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 		when(marketClientRouter.hasClient(MarketType.ELEVEN_STREET)).thenReturn(true);
 		when(marketClientRouter.getClient(MarketType.ELEVEN_STREET)).thenReturn(client);
-		when(registrationTxService.savePending(any(), any(), any())).thenReturn(registration);
+		when(registrationTxService.savePending(any(), any(), any(), org.mockito.ArgumentMatchers.anyLong())).thenReturn(registration);
 		when(marketSalePriceResolver.resolveForProduct(product, MarketType.ELEVEN_STREET))
 			.thenReturn(new BigDecimal("103000"));
 		when(client.publish(any(), any())).thenReturn(Map.of("elevenstId", "999"));

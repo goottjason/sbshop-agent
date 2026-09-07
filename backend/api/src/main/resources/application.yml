@@ -26,6 +26,12 @@ spring:
 server:
   port: 8080
 
+# 마켓플러스 계정 관리 화면에서 확인한 계정만 허용. 미설정 시 이력 가져오기를 거부한다.
+marketplus:
+  gmarket-account: ${MARKETPLUS_GMARKET_ACCOUNT:}
+  auction-account: ${MARKETPLUS_AUCTION_ACCOUNT:}
+  observer-status-path: ${MARKETPLUS_OBSERVER_STATUS_PATH:}
+
 cloud:
   cloudflare:
     r2:
@@ -119,3 +125,15 @@ logging:
   level:
     org.hibernate.SQL: DEBUG
     org.springframework.web: DEBUG
+
+products:
+  connection-inspection:
+    poll-ms: ${MARKET_INSPECTION_POLL_MS:1000}
+    # Q23 승인: 하루 한 번 접수. 시작 기본값 03:00(KST), 중단·대기 작업은 계속 복구한다.
+    daily-enabled: ${MARKET_INSPECTION_DAILY_ENABLED:true}
+    enrollment-poll-ms: ${MARKET_INSPECTION_ENROLLMENT_POLL_MS:60000}
+    enrollment-page-size: 500
+    # Q24 승인: 최초 연동 앱 참조를 DB에 한 번 고정. 이후 계정 변경에는 자동으로 동의하지 않는다.
+    single-account-confirmed: ${MARKET_INSPECTION_SINGLE_ACCOUNT_CONFIRMED:true}
+    # 초기화 전 명시적으로 확인한 참조를 제공할 때만 사용한다. DB에 고정된 참조가 우선한다.
+    verified-account-reference: ${MARKET_INSPECTION_VERIFIED_ACCOUNT_REFERENCE:}

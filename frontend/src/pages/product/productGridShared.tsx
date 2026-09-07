@@ -5,7 +5,7 @@ import { toKstDate, kstDateString } from '../../utils/datetime';
 export type SaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
 type BadgeVisual = 'registered' | 'registeredNoLink' | 'linkless' | 'pending' | 'missing' | 'blocked'
-  | 'deleted' | 'failed';
+  | 'deleted' | 'failed' | 'unverified';
 
 export const inputStyle: CSSProperties = {
   width: '100%', padding: '4px 6px', fontSize: '12px', border: '1px solid #d1d5db',
@@ -83,7 +83,9 @@ export function badgeVisual(product: ProductList, marketKey: string): BadgeVisua
   if (state) {
     if (state.status === 'DELETED') return 'deleted';
     if (state.status === 'FAILED') return 'failed';
+    if (state.status === 'TRANSFER_FAILED') return 'unverified';
     if (state.status === 'PENDING') return 'pending';
+    if (state.status === 'UNVERIFIED') return 'unverified';
     if (state.url) return 'registered';
     return NO_LINK_MARKET_KEYS.includes(marketKey) ? 'registeredNoLink' : 'linkless';
   }

@@ -1,6 +1,7 @@
 package com.sbshop.agent.infrastructure.client.cafe24;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -16,6 +17,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -188,8 +190,100 @@ class Cafe24TokenManagerTest {
 				"mall.read_shipping", "mall.write_shipping");
 	}
 
+	@Test
+	void authorizationCanReadPriceSettingsWithoutStoreWritePermission() {
+		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);
+		assertThat(
+			scopesOf(manager.generateAuthorizationUrl(credential("AT", LocalDateTime.now().plusHours(1), "RT1"))))
+			.contains("mall.read_store").doesNotContain("mall.write_store");
+	}
+
+	@Test
+	void savedAuthorizationEncodesClientAndRedirectAsSingleParameters() {
+		MarketCredential c = credential("AT", LocalDateTime.now().plusHours(1), "RT1");
+		c.setAccessKey("CLIENT+ID");
+		c.setRedirectUri("https://callback.example/?x=1&y=two+words");
+		when(repo.findByMarketType(MarketType.CAFE24)).thenReturn(Optional.of(c));
+		String url = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK).authorizationUrlForSavedCredential();
+		assertThat(url).startsWith("https://mymall.cafe24api.com/api/v2/oauth/authorize?")
+			.contains("client_id=CLIENT%2BID",
+				"redirect_uri=https%3A%2F%2Fcallback.example%2F%3Fx%3D1%26y%3Dtwo%2Bwords")
+			.doesNotContain("SECRET", "RT1");
+		assertThat(scopesOf(url)).contains("mall.read_store", "mall.read_order", "mall.read_category");
+	}
+
+	@Test
+	void missingSavedAccountHasActionableFailure() {
+		when(repo.findByMarketType(MarketType.CAFE24)).thenReturn(Optional.empty());
+		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);
+		assertThatThrownBy(manager::authorizationUrlForSavedCredential)
+			.isInstanceOf(IllegalArgumentException.class).hasMessageContaining("먼저 저장");
+	}
+
+	@Test
+	void partialCredentialsDoNotBreakStartup() {
+		MarketCredential c = credential(null, null, null);
+		c.setRedirectUri(null);
+		when(repo.findByMarketType(MarketType.CAFE24)).thenReturn(Optional.of(c));
+		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);
+		manager.init();
+		assertThatThrownBy(manager::authorizationUrlForSavedCredential).isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	void initialExchangeReadsAndPersistsInsideRefreshLockWithEncodedForm() {
+		var held = new AtomicBoolean(false);
+		MarketCredential c = credential("AT-OLD", LocalDateTime.now().plusHours(1), "RT-OLD");
+		c.setRedirectUri("https://callback.example/?x=1&y=2");
+		Instant expires = Instant.now().plusSeconds(7200);
+		TokenRefreshLock lock = new TokenRefreshLock() {
+			@Override
+			public <T> T runExclusively(long key, Supplier<T> action) {
+				assertThat(key).isEqualTo(0xCAFE24L);
+				held.set(true);
+				try {
+					return action.get();
+				} finally {
+					held.set(false);
+				}
+			}
+		};
+		when(repo.findByMarketType(MarketType.CAFE24)).thenAnswer(invocation -> {
+			assertThat(held.get()).isTrue();
+			return Optional.of(c);
+		});
+		when(tokenClient.exchange("mymall", "CID", "SECRET",
+			"grant_type=authorization_code&code=CODE%2B%25%26&redirect_uri=https%3A%2F%2Fcallback.example%2F%3Fx%3D1%26y%3D2"))
+			.thenAnswer(invocation -> {
+				assertThat(held.get()).isTrue();
+				return new Cafe24OAuthTokenClient.TokenResponse("AT-NEW", "RT-NEW", expires);
+			});
+		when(repo.save(c)).thenAnswer(invocation -> {
+			assertThat(held.get()).isTrue();
+			return c;
+		});
+		new Cafe24TokenManager(repo, tokenClient, lock).issueInitialToken("CODE+%&");
+		assertThat(held.get()).isFalse();
+		assertThat(c.getAccessToken()).isEqualTo("AT-NEW");
+		assertThat(c.getRefreshToken()).isEqualTo("RT-NEW");
+		assertThat(c.getTokenExpiresAt()).isEqualTo(LocalDateTime.ofInstant(expires, ZoneId.of("Asia/Seoul")));
+		verify(repo).save(c);
+	}
+
+	@Test
+	void failedReauthorizationDoesNotReplaceSavedTokens() {
+		MarketCredential c = credential("AT-OLD", LocalDateTime.now().plusHours(1), "RT-OLD");
+		when(repo.findByMarketType(MarketType.CAFE24)).thenReturn(Optional.of(c));
+		when(tokenClient.exchange(any(), any(), any(), any())).thenThrow(new IllegalStateException("invalid_grant"));
+		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);
+		assertThatThrownBy(() -> manager.issueInitialToken("expired-code")).hasMessageContaining("invalid_grant");
+		verify(repo, never()).save(any());
+		assertThat(c.getAccessToken()).isEqualTo("AT-OLD");
+		assertThat(c.getRefreshToken()).isEqualTo("RT-OLD");
+	}
+
 	private List<String> scopesOf(String authorizationUrl) {
 		String scope = authorizationUrl.substring(authorizationUrl.indexOf("&scope=") + "&scope=".length());
-		return List.of(scope.split(","));
+		return List.of(java.net.URLDecoder.decode(scope, java.nio.charset.StandardCharsets.UTF_8).split(","));
 	}
 }

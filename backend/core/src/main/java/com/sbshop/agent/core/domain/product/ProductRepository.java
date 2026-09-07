@@ -12,6 +12,11 @@ import org.springframework.data.repository.query.Param;
 public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product> {
 	Product save(Product product);
 
+	@org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT p FROM Product p WHERE p.id = :id")
+	Optional<Product> findForEdit(@Param("id")
+	Long id);
+
 	Optional<Product> findBySbCode(String sbCode);
 
 	List<Product> findBySbCodeIn(List<String> sbCodes);

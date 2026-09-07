@@ -60,7 +60,7 @@ class ProductMarketSyncServiceSoldOutTest {
 	}
 
 	@Test
-	@DisplayName("IN_STOCK → 클라이언트에 quantity=999, soldOut=false 전달")
+	@DisplayName("IN_STOCK → 클라이언트에 quantity=300, soldOut=false 전달")
 	void inStockCallsClientWithDefaultQuantityAndSoldOutFalse() {
 		MarketClient client = Mockito.mock(MarketClient.class);
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID))
@@ -70,7 +70,7 @@ class ProductMarketSyncServiceSoldOutTest {
 
 		service.syncPriceStock(PRODUCT_ID, 1000, StockStatus.IN_STOCK);
 
-		verify(client).syncPriceAndStock(eq("V1"), any(), eq(1000), eq(999), eq(false), any());
+		verify(client).syncPriceAndStock(eq("V1"), any(), eq(1000), eq(300), eq(false), any());
 	}
 
 	private MarketRegistration reg(MarketType type, String identifiersJson) {

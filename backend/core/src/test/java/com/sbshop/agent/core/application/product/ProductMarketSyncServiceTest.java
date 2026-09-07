@@ -60,7 +60,7 @@ class ProductMarketSyncServiceTest {
 
 		MarketRepublishResult result = service.syncPriceStock(PRODUCT_ID, 40700, StockStatus.IN_STOCK);
 
-		verify(coupangClient).syncPriceAndStock(eq("CP123"), any(), eq(40700), eq(999), eq(false), any());
+		verify(coupangClient).syncPriceAndStock(eq("CP123"), any(), eq(40700), eq(300), eq(false), any());
 		assertThat(result.synced()).containsExactly(MarketType.COUPANG);
 		assertThat(result.failed()).isEmpty();
 	}
@@ -97,23 +97,26 @@ class ProductMarketSyncServiceTest {
 
 		MarketRepublishResult result = service.syncPriceStock(PRODUCT_ID, 1000, StockStatus.IN_STOCK);
 
-		verify(storeClient).syncPriceAndStock(eq("OP99"), any(), eq(1000), eq(999), eq(false), any());
+		verify(storeClient).syncPriceAndStock(eq("OP99"), any(), eq(1000), eq(300), eq(false), any());
 		assertThat(result.synced()).containsExactly(MarketType.SMART_STORE);
 		assertThat(result.failed()).containsKey(MarketType.COUPANG);
 	}
 
 	@Test
-	@DisplayName("변경없음+Cafe24 직전 동기화 성공(isSynced) → Cafe24 재전송 스킵")
-	void changedFalse_cafe24Synced_skipsCafe24() {
+	@DisplayName("Cafe24 캐시 성공 표시는 현재 재고 증거가 아니므로 재조회 경로를 호출한다")
+	void changedFalse_cafe24Synced_stillChecksMarket() {
+		MarketClient cafeClient = Mockito.mock(MarketClient.class);
 		MarketRegistration cafe = cafe24Reg();
 		cafe.markSynced();
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID)).thenReturn(List.of(cafe));
+		when(marketClientRouter.hasClient(MarketType.CAFE24)).thenReturn(true);
+		when(marketClientRouter.getClient(MarketType.CAFE24)).thenReturn(cafeClient);
 
 		MarketRepublishResult result = service.syncPriceStock(PRODUCT_ID, 38300, StockStatus.OUT_OF_STOCK, false);
 
-		verify(marketClientRouter, never()).getClient(any());
-		assertThat(result.skipped()).containsExactly(MarketType.CAFE24);
-		assertThat(result.synced()).isEmpty();
+		verify(cafeClient).syncPriceAndStock(eq("21159"), any(), eq(38300), eq(1), eq(true), any());
+		assertThat(result.synced()).containsExactly(MarketType.CAFE24);
+		assertThat(result.skipped()).isEmpty();
 	}
 
 	@Test
@@ -142,11 +145,11 @@ class ProductMarketSyncServiceTest {
 
 		service.syncPriceStock(PRODUCT_ID, 40000, StockStatus.IN_STOCK, true);
 
-		verify(cafeClient).syncPriceAndStock(eq("21159"), any(), eq(40000), eq(999), eq(false), any());
+		verify(cafeClient).syncPriceAndStock(eq("21159"), any(), eq(40000), eq(300), eq(false), any());
 	}
 
 	@Test
-	@DisplayName("변경없음이어도 스킵은 Cafe24 한정 — 쿠팡 등 타 마켓은 항상 호출")
+	@DisplayName("변경없음이어도 쿠팡 등 타 마켓 호출을 유지한다")
 	void changedFalse_nonCafe24AlwaysCalled() {
 		MarketClient coupangClient = Mockito.mock(MarketClient.class);
 		MarketRegistration cp = reg(MarketType.COUPANG, "{\"vendorItemId\":\"CP123\"}");
@@ -157,7 +160,7 @@ class ProductMarketSyncServiceTest {
 
 		service.syncPriceStock(PRODUCT_ID, 40700, StockStatus.IN_STOCK, false);
 
-		verify(coupangClient).syncPriceAndStock(eq("CP123"), any(), eq(40700), eq(999), eq(false), any());
+		verify(coupangClient).syncPriceAndStock(eq("CP123"), any(), eq(40700), eq(300), eq(false), any());
 	}
 
 	@Test

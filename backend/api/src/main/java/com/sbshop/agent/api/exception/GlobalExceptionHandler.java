@@ -16,6 +16,10 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+	@ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+	public ResponseEntity<Map<String, Object>> handleUnreadableRequest() {
+		return ResponseEntity.badRequest().body(Map.of("message", "요청의 필드·숫자·마켓 형식을 확인하세요."));
+	}
 
 	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
 	public ResponseEntity<Map<String, Object>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
@@ -39,6 +43,13 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
 			"success", false,
 			"message", Objects.requireNonNullElse(e.getMessage(), "이미 마켓에 등록된 상품입니다.")));
+	}
+
+	@ExceptionHandler({com.sbshop.agent.core.application.product.edit.ProductEditConflictException.class,
+		org.springframework.dao.OptimisticLockingFailureException.class})
+	public ResponseEntity<Map<String, Object>> handleEditConflict(Exception e) {
+		return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("success", false,
+			"message", "상품이나 검토 상태가 변경되었습니다. 최신 내용을 조회해 다시 검토하세요."));
 	}
 
 	@ExceptionHandler(IllegalStateException.class)

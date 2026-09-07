@@ -35,6 +35,12 @@ public class ProductReaderImpl implements ProductReader {
 	}
 
 	@Override
+	public Page<Product> search(ProductSearchCondition condition, Pageable pageable,
+		com.sbshop.agent.core.domain.market.marketplus.MarketPlusSearchScope scope) {
+		return productRepository.findAll(ProductSpecifications.matching(condition, scope), pageable);
+	}
+
+	@Override
 	public List<ProductCategory> findDistinctCategories() {
 		return productRepository.findDistinctCategories();
 	}

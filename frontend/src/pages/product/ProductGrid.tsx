@@ -13,6 +13,13 @@ import { ProductFilterPanel, type ProductFilters } from './ProductFilterPanel';
 import { EMPTY_PRODUCT_FILTERS, sourceProductUrl } from './productSearch';
 import { ProductDetailModal } from './ProductDetailModal';
 import { ProductNumericPreviewModal } from './ProductNumericPreviewModal';
+import { ProductInspectionJobs } from './ProductInspectionJobs';
+import { ProductPriceSync } from './ProductPriceSync';
+import { ProductRegistrationJobs } from './ProductRegistrationJobs';
+import { ProductMarketPlusHistory } from './ProductMarketPlusHistory';
+import { MarketPlusReadinessNotice } from './MarketPlusReadinessNotice';
+import { MarketPlusObserverNotice } from './MarketPlusObserverNotice';
+import { isAxiosError } from 'axios';
 import { bulkDeleteProducts } from './productBulkApi';
 import { notify } from '../../utils/notify';
 
@@ -33,6 +40,10 @@ function toQuery(page: number, size: number, keyword: string, f: ProductFilters)
   if (f.vendors.length > 0) q.vendors = f.vendors;
   if (f.stockStatuses.length > 0) q.stockStatuses = f.stockStatuses;
   if (f.markets.length > 0) q.markets = f.markets;
+  if (f.registeredMarkets.length > 0) q.registeredMarkets = f.registeredMarkets;
+  if (f.missingMarkets.length > 0) q.missingMarkets = f.missingMarkets;
+  if (f.pendingChangesOnly) q.pendingChangesOnly = true;
+  if (f.marketPlusIssue !== 'ALL') q.marketPlusIssue = f.marketPlusIssue;
   if (f.inStockOnly) q.inStockOnly = true;
   if (f.sourceGone && f.sourceGone !== 'ALL') q.sourceGone = f.sourceGone;
   return q;
@@ -44,6 +55,7 @@ export default function ProductGrid() {
   const [density, setDensity] = useState('compact');
   const [keyword, setKeyword] = useState('');
   const [detailId, setDetailId] = useState<number | null>(null);
+  const [marketPlusHistoryId, setMarketPlusHistoryId] = useState<number | null>(null);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   // 삭제는 건별 마켓 API 호출이라 수십 초가 걸린다. 진행 표시가 없으면 사용자가 버튼을 다시 눌러
   // 확인 모달이 겹쳐 뜬다(D-256). 진행 중에는 버튼을 잠그고 몇 건째인지 보여준다.
@@ -53,6 +65,9 @@ export default function ProductGrid() {
   const [pageSize, setPageSize] = useState(50);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [numericPreviewIds, setNumericPreviewIds] = useState<number[] | null>(null);
+  const [registrationIds, setRegistrationIds] = useState<number[] | null>(null);
+  const [priceSyncIds, setPriceSyncIds] = useState<number[] | null>(null);
+  const [inspectionIds, setInspectionIds] = useState<number[] | null>(null);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [marginRate, setMarginRate] = useState<number | null>(15);
   const [couponRate, setCouponRate] = useState<number | null>(20);
@@ -60,10 +75,11 @@ export default function ProductGrid() {
 
   const query = useMemo(() => toQuery(page, pageSize, keyword, filters), [page, pageSize, keyword, filters]);
 
-  const { data, isLoading, isFetching, isPlaceholderData, isError, refetch } = useQuery({
+  const { data, isLoading, isFetching, isPlaceholderData, isError, error: searchError, refetch } = useQuery({
     queryKey: ['products', query],
     queryFn: async () => (await productApi.fetchProducts(query)).data,
     placeholderData: keepPreviousData,
+    retry: (count, error) => !(isAxiosError(error) && [400, 401, 403].includes(error.response?.status ?? 0)) && count < 2,
   });
 
   const { data: categoryOptions = [] } = useQuery({
@@ -174,7 +190,8 @@ export default function ProductGrid() {
       cell: (info) => info.getValue() != null ? `${info.getValue()}개` : '—' }),
     columnHelper.display({
       id: 'markets', header: '마켓', size: 340,
-      cell: ({ row }) => <MarketBadgeCell product={row.original} onPublished={refetch} />,
+      cell: ({ row }) => <><MarketBadgeCell product={row.original} onPublished={refetch} onViewHistory={() => setMarketPlusHistoryId(row.original.id)} />
+        {(row.original.pendingChanges ?? 0) > 0 && <button className="pw-detail-button" style={{ color: '#b45309', marginTop: 4 }} onClick={() => setDetailId(row.original.id)}>변경 반영 대기 {row.original.pendingChanges}건</button>}</>,
     }),
     columnHelper.display({ id: 'detail', header: '편집', size: 68,
       cell: ({ row }) => <button className="pw-detail-button" aria-label={`${row.original.sbCode} 상세 편집`} onClick={() => setDetailId(row.original.id)}>열기</button> }),
@@ -253,10 +270,13 @@ export default function ProductGrid() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: '19px', fontWeight: 800, color: 'var(--product-primary)', letterSpacing: -0.2 }}>상품 관리</h2>
           <span style={{ fontSize: 12, color: '#64748b', background: '#eef2f7', borderRadius: 999, padding: '3px 10px', fontWeight: 600 }}>
-            전체 {totalElements.toLocaleString()}건
+            {isError ? '조회 실패' : isLoading || isPlaceholderData ? '조회 중…' : `검색 ${totalElements.toLocaleString()}건`}
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button className="pw-detail-button" onClick={() => setRegistrationIds(!isPlaceholderData && !isError ? [...selectedIds] : [])}>미등록 마켓 등록·작업</button>
+          <button className="pw-detail-button" onClick={() => setPriceSyncIds(!isPlaceholderData && !isError ? [...selectedIds] : [])}>마켓 가격 반영·작업</button>
+          <button className="pw-detail-button" onClick={() => setInspectionIds(!isPlaceholderData && !isError ? [...selectedIds] : [])}>마켓 상태 확인·작업</button>
           {selectedIds.length > 0 && !isPlaceholderData && !isError && (
             <button className="pw-detail-button" onClick={() => setNumericPreviewIds([...selectedIds])}>일괄 변경 미리보기 ({selectedIds.length})</button>
           )}
@@ -276,8 +296,16 @@ export default function ProductGrid() {
 
       <ProductFilterPanel categoryOptions={categoryOptions} brandOptions={brandOptions}
         brandsLoading={brandsLoading} brandsError={brandsError} onRetryBrands={() => { void refetchBrands(); }} onSearch={handleSearch} />
+      <MarketPlusReadinessNotice />
+      <MarketPlusObserverNotice />
+      {filters.marketPlusIssue !== 'ALL' && <Alert type="info" showIcon style={{ marginBottom: 12 }}
+        message="현재 연결의 G마켓·옥션 전송 이슈를 검색합니다."
+        description="수집한 이력만 대상으로 하므로 미수집 상품의 정상 여부는 판단할 수 없습니다. 같은 시각·같은 전송 종류의 성공과 실패는 결과 충돌로 구분합니다." />}
 
       {numericPreviewIds && <ProductNumericPreviewModal productIds={numericPreviewIds} onClose={() => setNumericPreviewIds(null)} />}
+      {registrationIds && <ProductRegistrationJobs productIds={registrationIds} onClose={() => { setRegistrationIds(null); void refetch(); }} />}
+      {priceSyncIds && <ProductPriceSync productIds={priceSyncIds} onClose={() => { setPriceSyncIds(null); void refetch(); }} />}
+      {inspectionIds && <ProductInspectionJobs productIds={inspectionIds} onClose={() => { setInspectionIds(null); void refetch(); }} />}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <span role="status" style={{ color: '#64748b', fontSize: 12 }}>{isFetching ? '검색 결과 갱신 중…' : isError ? '조회 실패' : `검색 결과 ${totalElements.toLocaleString()}개`}</span>
@@ -285,7 +313,8 @@ export default function ProductGrid() {
           options={[{ value: 'compact', label: '촘촘하게' }, { value: 'comfortable', label: '넓게 보기' }]} />
       </div>
       {isError && <Alert type="error" showIcon message="상품 목록을 불러오지 못했습니다."
-        description="잠시 후 다시 시도해 주세요."
+        description={isAxiosError(searchError) && searchError.response?.status === 400 && typeof searchError.response.data?.message === 'string'
+          ? searchError.response.data.message : '잠시 후 다시 시도해 주세요.'}
         action={<button className="pw-detail-button" onClick={() => { void refetch(); }}>재시도</button>} />}
 
       <div style={{ flex: 1, position: 'relative', overflow: 'auto', paddingBottom: 4 }}>
@@ -329,9 +358,10 @@ export default function ProductGrid() {
             onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}>
             {[20, 50, 100, 200].map((n) => <option key={n} value={n}>{n}개씩 보기</option>)}
           </select>
-          <span style={{ fontSize: 12, color: '#94a3b8' }}>전체 {totalElements.toLocaleString()}건 · {page + 1}/{pageCount} 페이지</span>
+          <span style={{ fontSize: 12, color: '#94a3b8' }}>{isError ? '조회 실패' : isLoading || isPlaceholderData ? '조회 중…' : `검색 ${totalElements.toLocaleString()}건 · ${page + 1}/${pageCount} 페이지`}</span>
         </div>
         <Pagination
+          disabled={isLoading || isPlaceholderData || isError}
           current={page + 1}
           pageSize={pageSize}
           total={totalElements}
@@ -377,6 +407,9 @@ export default function ProductGrid() {
         onClose={() => setDetailId(null)}
         onSaved={() => refetch()}
       />
+      <AntModal title="상품 전송 이력" open={marketPlusHistoryId !== null} onCancel={() => setMarketPlusHistoryId(null)} footer={null} width={900} destroyOnHidden>
+        {marketPlusHistoryId !== null && <ProductMarketPlusHistory key={marketPlusHistoryId} productId={marketPlusHistoryId} initialExpanded />}
+      </AntModal>
     </div>
   );
 }

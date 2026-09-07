@@ -104,4 +104,11 @@ class CoupangBarcodeIdempotenceTest {
 
 		assertThat(client.checkPresence(ITEM_ID)).isEqualTo(MarketPresence.PRESENT);
 	}
+
+	@org.junit.jupiter.params.ParameterizedTest
+	@org.junit.jupiter.params.provider.ValueSource(strings = {"{}", "{\"data\":null}", "{\"data\":{}}", "{\"code\":\"ERROR\",\"message\":\"잠시 후 재시도\"}"})
+	void missingDataIsNotDeletion(String response) {
+		when(restClient.get(anyString())).thenReturn(response);
+		assertThat(client.checkPresence(ITEM_ID)).isEqualTo(MarketPresence.UNKNOWN);
+	}
 }

@@ -1,6 +1,8 @@
 package com.sbshop.agent.core.domain.product;
 
 import com.sbshop.agent.core.domain.market.MarketRegistration;
+import com.sbshop.agent.core.domain.market.MarketConnectionState;
+import com.sbshop.agent.core.domain.product.edit.ProductChangeTarget;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.dto.ProductSearchCondition;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
@@ -25,6 +27,11 @@ public final class ProductSpecifications {
 	private ProductSpecifications() {}
 
 	public static Specification<Product> matching(ProductSearchCondition condition) {
+		return matching(condition, null);
+	}
+
+	public static Specification<Product> matching(ProductSearchCondition condition,
+		com.sbshop.agent.core.domain.market.marketplus.MarketPlusSearchScope marketPlusScope) {
 		return (root, query, cb) -> {
 			List<Predicate> predicates = new ArrayList<>();
 			predicates.add(cb.isNull(root.get("deletedAt")));
@@ -37,11 +44,15 @@ public final class ProductSpecifications {
 			}
 			addMarketFilter(predicates, condition, root, query, cb);
 			addMarkets(predicates, condition, root, query, cb);
+			addConnectionConditions(predicates, condition, root, query, cb);
 			addCategories(predicates, condition, root, cb);
 			addVendors(predicates, condition, root);
 			addStockStatuses(predicates, condition, root, cb);
 			addInStockOnly(predicates, condition, root, cb);
 			addSourceGone(predicates, condition, root, cb);
+			if (condition.marketPlusIssue() != com.sbshop.agent.core.domain.market.marketplus.MarketPlusIssueFilter.ALL)
+				predicates.add(MarketPlusIssueSpecifications.matching(root, query, cb, condition.marketPlusIssue(),
+					marketPlusScope));
 			return cb.and(predicates.toArray(new Predicate[0]));
 		};
 	}
@@ -76,47 +87,57 @@ public final class ProductSpecifications {
 		if (condition.marketFilterType() == null) {
 			return;
 		}
-		Subquery<Long> subquery = query.subquery(Long.class);
-		Root<MarketRegistration> registration = subquery.from(MarketRegistration.class);
-		subquery.select(registration.get("productId"))
-			.where(cb.equal(registration.get("marketType"), condition.marketFilterType()));
-		Predicate registered = root.get("id").in(subquery);
+		Predicate registered = registeredIn(condition.marketFilterType(), root, query, cb);
 		predicates.add(condition.marketFilterRegistered() ? registered : cb.not(registered));
 	}
 
 	private static void addMarkets(List<Predicate> predicates, ProductSearchCondition condition,
 		Root<Product> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
-		if (condition.markets().isEmpty()) {
-			return;
+		if (!condition.markets().isEmpty()) {
+			predicates.add(cb.or(condition.markets().stream()
+				.map(market -> registeredIn(market, root, query, cb)).toArray(Predicate[]::new)));
 		}
+	}
+
+	private static void addConnectionConditions(List<Predicate> predicates, ProductSearchCondition condition,
+		Root<Product> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
+		condition.registeredMarkets().forEach(market -> predicates.add(registeredIn(market, root, query, cb)));
+		condition.missingMarkets().forEach(market -> predicates.add(cb.not(registeredIn(market, root, query, cb))));
+		if (condition.pendingChangesOnly()) {
+			Subquery<Long> subquery = query.subquery(Long.class);
+			Root<ProductChangeTarget> target = subquery.from(ProductChangeTarget.class);
+			subquery.select(target.get("id")).where(cb.equal(target.get("productId"), root.get("id")),
+				target.get("state").in("PENDING_DISPATCH", "DISPATCHED", "ACTION_REQUIRED"));
+			predicates.add(cb.exists(subquery));
+		}
+	}
+
+	private static Predicate registeredIn(MarketType market, Root<Product> product,
+		CriteriaQuery<?> query, CriteriaBuilder cb) {
 		Subquery<Long> subquery = query.subquery(Long.class);
 		Root<MarketRegistration> registration = subquery.from(MarketRegistration.class);
-		List<Predicate> alternatives = new ArrayList<>();
-		List<MarketType> registrationBacked = condition.markets().stream()
-			.filter(market -> !DERIVED_IDENTIFIER_KEYS.containsKey(market))
-			.toList();
-		if (!registrationBacked.isEmpty()) {
-			alternatives.add(registration.get("marketType").in(registrationBacked));
+		Predicate direct = cb.and(
+			cb.equal(registration.get("marketType"), market),
+			cb.equal(registration.get("connectionState"), MarketConnectionState.LINKED),
+			cb.or(java.util.Arrays.stream(MarketRegistration.marketCodeKeys(market))
+				.map(key -> identifierPresent(cb, registration.get("marketIdentifiers"), key))
+				.toArray(Predicate[]::new)));
+		String derivedKey = DERIVED_IDENTIFIER_KEYS.get(market);
+		Predicate connected = direct;
+		if (derivedKey != null) {
+			String stateField = market == MarketType.GMARKET ? "gmarketConnectionState" : "auctionConnectionState";
+			connected = cb.or(direct, cb.and(
+				cb.equal(registration.get("marketType"), MarketType.CAFE24),
+				cb.equal(registration.get(stateField), MarketConnectionState.LINKED),
+				identifierPresent(cb, registration.get("marketIdentifiers"), derivedKey)));
 		}
-		for (MarketType market : condition.markets()) {
-			String key = DERIVED_IDENTIFIER_KEYS.get(market);
-			if (key != null) {
-				alternatives.add(cb.and(
-					cb.equal(registration.get("marketType"), MarketType.CAFE24),
-					identifierPresent(cb, registration.get("marketIdentifiers"), key)));
-			}
-		}
-		subquery.select(registration.get("productId"))
-			.where(cb.or(alternatives.toArray(new Predicate[0])));
-		predicates.add(root.get("id").in(subquery));
+		subquery.select(registration.get("id"))
+			.where(cb.equal(registration.get("productId"), product.get("id")), connected);
+		return cb.exists(subquery);
 	}
 
 	private static Predicate identifierPresent(CriteriaBuilder cb, Path<String> identifiers, String key) {
-		String quotedKey = "\"" + key + "\"";
-		return cb.and(
-			cb.like(identifiers, "%" + quotedKey + "%"),
-			cb.notLike(identifiers, "%" + quotedKey + ":\"\"%"),
-			cb.notLike(identifiers, "%" + quotedKey + ": \"\"%"));
+		return cb.isTrue(cb.function("sb_market_has_identifier", Boolean.class, identifiers, cb.literal(key)));
 	}
 
 	private static void addCategories(List<Predicate> predicates, ProductSearchCondition condition,

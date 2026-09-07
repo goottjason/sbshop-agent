@@ -64,7 +64,8 @@ class BatchSoldOutSkipsCafe24ResendTest {
 	void setUp() {
 		service = new BatchPriceStockService(productReader, productWriter, productRepository,
 			stockCrawlerRouter, processStatusService, marginCalculator, eventPublisher,
-			productMarketSyncService, marketFeeService, vendorPricePolicyService);
+			productMarketSyncService, marketFeeService, vendorPricePolicyService,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.product.edit.ProductEditService.class));
 
 		lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 		lenient().when(product.getSourcingUrl()).thenReturn(URL);
@@ -87,7 +88,7 @@ class BatchSoldOutSkipsCafe24ResendTest {
 	}
 
 	@Test
-	@DisplayName("품절이 유지되는데 가격만 바뀌면 changed=false 로 넘겨 카페24 재전송을 막는다")
+	@DisplayName("품절 유지 시 changed=false를 전달하며 실제 재전송 여부는 마켓 재조회로 판정한다")
 	void crawlBatch_staysSoldOut_priceOnly_passesChangedFalse() throws InterruptedException {
 		when(product.getStockStatus()).thenReturn(StockStatus.OUT_OF_STOCK);
 		when(product.getSalePrice()).thenReturn(new BigDecimal("8800"));

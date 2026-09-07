@@ -4,6 +4,12 @@ import { SearchOutlined } from '@ant-design/icons';
 import { MARKET_FILTER_OPTIONS, VENDOR_OPTIONS, STOCK_STATUS_OPTIONS } from './productGridShared';
 import { EMPTY_PRODUCT_FILTERS, parseSbCodes } from './productSearch';
 import './productWorkspace.css';
+import type { MarketPlusIssueFilter } from '../../api/marketPlusTransmissionApi';
+
+const MARKETPLUS_ISSUE_OPTIONS: { value: MarketPlusIssueFilter; label: string }[] = [
+  { value: 'ALL', label: '전체' }, { value: 'ANY_ISSUE', label: '실패 또는 결과 충돌' },
+  { value: 'FAILURE', label: '전송 실패' }, { value: 'CONFLICT', label: '성공·실패 결과 충돌' },
+];
 
 export interface ProductFilters {
   keyword: string;
@@ -12,6 +18,10 @@ export interface ProductFilters {
   categories: string[];
   includeUncategorized: boolean;
   markets: string[];
+  registeredMarkets: string[];
+  missingMarkets: string[];
+  pendingChangesOnly: boolean;
+  marketPlusIssue: MarketPlusIssueFilter;
   vendors: string[];
   stockStatuses: string[];
   inStockOnly: boolean;
@@ -35,6 +45,12 @@ export function ProductFilterPanel({ categoryOptions, brandOptions, brandsLoadin
   const set = <K extends keyof ProductFilters>(key: K, value: ProductFilters[K]) =>
     setFilters((previous) => ({ ...previous, [key]: value }));
   const apply = (next: ProductFilters) => { setFilters(next); onSearch(next); };
+
+  const setMarkets = (key: 'registeredMarkets' | 'missingMarkets', value: string[]) => {
+    const opposite = key === 'registeredMarkets' ? 'missingMarkets' : 'registeredMarkets';
+    setFilters((previous) => ({ ...previous, [key]: value, [opposite]: previous[opposite].filter((market) => !value.includes(market)) }));
+  };
+  const marketLabel = (market: string) => MARKET_FILTER_OPTIONS.find((option) => option.id === market)?.label ?? market;
 
   return (
     <section className="pw-search" aria-label="상품 검색 및 필터">
@@ -70,9 +86,21 @@ export function ProductFilterPanel({ categoryOptions, brandOptions, brandsLoadin
               options={STOCK_STATUS_OPTIONS.map((option) => ({ value: option.id, label: option.label }))} />
           </div>
         </div>
+        <div className="pw-quick-filters" aria-label="빠른 검색 조건">
+          <span>빠른 조건</span>
+          <Button size="small" onClick={() => apply({ ...filters, vendors: ['IHB'], stockStatuses: ['IN_STOCK'], markets: [],
+            registeredMarkets: ['COUPANG'], missingMarkets: ['ELEVEN_STREET'] })}>IHB · 재고 있음 · 쿠팡 등록 · 11번가 미등록</Button>
+          <Checkbox checked={filters.pendingChangesOnly} onChange={(event) => set('pendingChangesOnly', event.target.checked)}>미반영 DB 변경 있음</Checkbox>
+          <Button size="small" onClick={() => apply({ ...filters, marketPlusIssue: 'ANY_ISSUE' })}>G마켓·옥션 전송 이슈</Button>
+        </div>
         <details className="pw-more-filters">
-          <summary>카테고리 · 마켓 연결 · 원본 상태</summary>
+          <summary>카테고리 · 마켓 연결 · 전송 이슈 · 원본 상태</summary>
           <div className="pw-filter-grid">
+            <div className="pw-filter">
+              <label htmlFor="pw-marketplus-issue">G마켓·옥션 전송 결과</label>
+              <Select id="pw-marketplus-issue" value={filters.marketPlusIssue} onChange={value => set('marketPlusIssue', value)} options={MARKETPLUS_ISSUE_OPTIONS} />
+              <small>현재 연결의 최근 수집 이력 기준입니다. 미수집 이력은 포함되지 않습니다.</small>
+            </div>
             <div className="pw-filter">
               <label htmlFor="pw-categories">카테고리</label>
               <Select id="pw-categories" mode="multiple" allowClear placeholder="모든 카테고리"
@@ -81,11 +109,18 @@ export function ProductFilterPanel({ categoryOptions, brandOptions, brandsLoadin
               <Checkbox checked={filters.includeUncategorized} onChange={(event) => set('includeUncategorized', event.target.checked)}>미분류 포함</Checkbox>
             </div>
             <div className="pw-filter">
-              <label htmlFor="pw-markets">마켓 연결 기록</label>
-              <Select id="pw-markets" mode="multiple" allowClear placeholder="마켓 제한 없음"
-                value={filters.markets} onChange={(value) => set('markets', value)}
+              <label htmlFor="pw-registered-markets">등록된 마켓 · 모두 충족</label>
+              <Select id="pw-registered-markets" mode="multiple" allowClear placeholder="등록 마켓 선택"
+                value={filters.registeredMarkets} onChange={(value) => setMarkets('registeredMarkets', value)}
                 options={MARKET_FILTER_OPTIONS.map((option) => ({ value: option.id, label: option.label }))} />
-              <small>선택한 마켓 중 하나 이상에 연결 기록이 있는 상품</small>
+              <small>DB 연결 기준. 일시 품절도 포함하며 실제 상태는 마켓 상태 확인에서 조회합니다.</small>
+            </div>
+            <div className="pw-filter">
+              <label htmlFor="pw-missing-markets">미등록·연결 해제 마켓 · 모두 충족</label>
+              <Select id="pw-missing-markets" mode="multiple" allowClear placeholder="미등록 마켓 선택"
+                value={filters.missingMarkets} onChange={(value) => setMarkets('missingMarkets', value)}
+                options={MARKET_FILTER_OPTIONS.map((option) => ({ value: option.id, label: option.label }))} />
+              <small>삭제·영구 금지로 해제된 연결도 포함합니다. 실제 등록 가능 여부는 등록 검토에서 확인합니다.</small>
             </div>
             <div className="pw-filter">
               <label htmlFor="pw-source-state">소싱처 원본 상태</label>
@@ -96,9 +131,16 @@ export function ProductFilterPanel({ categoryOptions, brandOptions, brandsLoadin
           </div>
         </details>
         <div className="pw-filter-footer">
-          <span>{filters.sbCodes.length > 0
+          <span className="pw-filter-tags">
+            {filters.registeredMarkets.map((market) => <Tag key={'registered-' + market} color="green" closable
+              onClose={() => apply({ ...filters, registeredMarkets: filters.registeredMarkets.filter((item) => item !== market) })}>{marketLabel(market)} 등록</Tag>)}
+            {filters.missingMarkets.map((market) => <Tag key={'missing-' + market} color="orange" closable
+              onClose={() => apply({ ...filters, missingMarkets: filters.missingMarkets.filter((item) => item !== market) })}>{marketLabel(market)} 미등록·해제</Tag>)}
+            {filters.pendingChangesOnly && <Tag color="gold" closable onClose={() => apply({ ...filters, pendingChangesOnly: false })}>미반영 DB 변경</Tag>}
+            {filters.marketPlusIssue !== 'ALL' && <Tag color="red" closable onClose={() => apply({ ...filters, marketPlusIssue: 'ALL' })}>G마켓·옥션 {MARKETPLUS_ISSUE_OPTIONS.find(o => o.value === filters.marketPlusIssue)?.label}</Tag>}
+            {filters.sbCodes.length > 0
             ? <Tag closable onClose={() => apply({ ...filters, sbCodes: [] })}>SB코드 {filters.sbCodes.length}개 · 다른 검색 조건과 함께 적용</Tag>
-            : '조건을 조합하고 검색을 누르세요.'}</span>
+            : '선택한 조건을 모두 만족하는 상품을 검색합니다.'}</span>
           <Button type="text" onClick={() => apply(EMPTY_PRODUCT_FILTERS)}>조건 초기화</Button>
         </div>
       </form>

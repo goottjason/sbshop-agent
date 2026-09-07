@@ -2,6 +2,8 @@ import type { ProductFilters } from './ProductFilterPanel';
 
 export const EMPTY_PRODUCT_FILTERS: ProductFilters = {
   keyword: '', sbCodes: [], brands: [], categories: [], includeUncategorized: false,
+  registeredMarkets: [], missingMarkets: [], pendingChangesOnly: false,
+  marketPlusIssue: 'ALL',
   markets: [], vendors: [], stockStatuses: [], inStockOnly: false, sourceGone: 'ALL',
 };
 

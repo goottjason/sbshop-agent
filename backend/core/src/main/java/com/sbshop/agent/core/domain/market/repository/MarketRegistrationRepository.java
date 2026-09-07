@@ -12,11 +12,27 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface MarketRegistrationRepository extends JpaRepository<MarketRegistration, Long> {
 
+	@org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT r FROM MarketRegistration r WHERE r.id = :id")
+	Optional<MarketRegistration> findForConnectionUpdate(@Param("id")
+	Long id);
+
 	List<MarketRegistration> findByProductId(Long productId);
 
 	List<MarketRegistration> findByProductIdIn(List<Long> productIds);
 
 	List<MarketRegistration> findByMarketType(MarketType marketType);
+
+	@Query("select coalesce(max(r.id), 0) from MarketRegistration r where r.marketType = :market")
+	long lastRegistrationId(@Param("market")
+	MarketType market);
+
+	@Query("select r from MarketRegistration r join Product p on p.id = r.productId where r.marketType = :market and r.connectionState = com.sbshop.agent.core.domain.market.MarketConnectionState.LINKED and p.deletedAt is null and r.id > :after and r.id <= :through order by r.id")
+	List<MarketRegistration> dailyInspectionPage(@Param("market")
+	MarketType market, @Param("after")
+	long after,
+		@Param("through")
+		long through, org.springframework.data.domain.Pageable pageable);
 
 	List<MarketRegistration> findByMarketTypeAndIsSyncedTrue(MarketType marketType);
 

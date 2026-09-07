@@ -35,7 +35,7 @@ class Cafe24OAuthTokenHttpClientTest {
 					+ "\"expires_at\":\"2026-07-11 15:00:00\"}",
 				MediaType.APPLICATION_JSON));
 
-		var client = new Cafe24OAuthTokenHttpClient(builder);
+		var client = new Cafe24OAuthTokenHttpClient(builder.build());
 		var resp = client.exchange("mymall", "CID", "SECRET",
 			"grant_type=refresh_token&refresh_token=RT1");
 

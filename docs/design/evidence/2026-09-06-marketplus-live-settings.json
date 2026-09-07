@@ -1,0 +1,1196 @@
+{
+  "mode": "READ_ONLY_CHROME",
+  "snapshots": [
+    {
+      "capturedAt": "2026-09-06T08:30:54.616Z",
+      "title": "공통 설정-Cafe24-마켓플러스",
+      "url": "https://mp.cafe24.com/mp/account/front/config",
+      "kind": "commonSettings",
+      "settings": {
+        "is_send_rtq": {
+          "value": "T",
+          "label": "쇼핑몰 상품 등록/수정 시 마켓 상품에도 자동으로 반영됩니다."
+        },
+        "use_sold_out": {
+          "value": "T",
+          "label": "마켓 상품의 판매 상태를 품절 또는 판매중지로 변경합니다."
+        },
+        "is_split_prd_name": {
+          "value": "T",
+          "label": "마켓 별 등록 가능한 최대 길이로 잘라서 전송합니다."
+        },
+        "is_move_prd_page": {
+          "value": "F",
+          "label": "이동하지 않기"
+        }
+      },
+      "ready": true
+    },
+    {
+      "capturedAt": "2026-09-06T08:30:55.804Z",
+      "title": "마켓계정수정-Cafe24-마켓플러스",
+      "url": "https://mp.cafe24.com/mp/account/regist/auction/76766",
+      "kind": "accountSettings",
+      "settings": {
+        "use_order": {
+          "value": "T",
+          "label": "상품정보 + 주문정보 연동"
+        },
+        "use_auto_selling": {
+          "value": "T",
+          "label": "사용함"
+        },
+        "selling_period_day": {
+          "value": "F",
+          "label": "무제한"
+        }
+      },
+      "ready": true
+    },
+    {
+      "capturedAt": "2026-09-06T08:30:57.063Z",
+      "title": "마켓계정수정-Cafe24-마켓플러스",
+      "url": "https://mp.cafe24.com/mp/account/regist/gmarket/76767",
+      "kind": "accountSettings",
+      "settings": {
+        "use_order": {
+          "value": "T",
+          "label": "상품정보 + 주문정보 연동"
+        },
+        "use_auto_selling": {
+          "value": "T",
+          "label": "사용함"
+        },
+        "selling_period_day": {
+          "value": "F",
+          "label": "무제한"
+        }
+      },
+      "ready": true
+    },
+    {
+      "capturedAt": "2026-09-06T08:30:58.246Z",
+      "title": "마켓 상품수정-Cafe24-마켓플러스",
+      "url": "https://mp.cafe24.com/mp/product/front/detail?product_no=10186&shop_no=1&prd_entity_no=65b25bf7dbece",
+      "kind": "productInheritance",
+      "productNo": "10186",
+      "fields": [
+        {
+          "name": "template_data[auction|shouldbe2480][market_data][is_default_prd_name]",
+          "value": "F",
+          "checked": true,
+          "displayedMode": "\"별도\""
+        },
+        {
+          "name": "template_data[auction|shouldbe2480][market_data][is_default_selling_price]",
+          "value": "T",
+          "checked": false,
+          "displayedMode": "\"기본\""
+        },
+        {
+          "name": "template_data[auction|shouldbe2480][market_data][is_default_image]",
+          "value": "F",
+          "checked": true,
+          "displayedMode": "\"별도\""
+        },
+        {
+          "name": "template_data[auction|shouldbe2480][market_data][is_default_add_image]",
+          "value": "F",
+          "checked": true,
+          "displayedMode": "\"별도\""
+        },
+        {
+          "name": "template_data[auction|shouldbe2480][market_data][is_default_detail_info]",
+          "value": "T",
+          "checked": false,
+          "displayedMode": "\"기본\""
+        },
+        {
+          "name": "template_data[auction|shouldbe2480][market_data][is_default_prd_condition]",
+          "value": "T",
+          "checked": false,
+          "displayedMode": "\"기본\""
+        },
+        {
+          "name": "template_data[auction|shouldbe2480][market_data][is_default_expiration_date]",
+          "value": "T",
+          "checked": false,
+          "displayedMode": "\"기본\""
+        },
+        {
+          "name": "template_data[auction|shouldbe2480][market_data][is_default_production_date]",
+          "value": "T",
+          "checked": false,
+          "displayedMode": "\"기본\""
+        },
+        {
+          "name": "template_data[auction|shouldbe2480][market_data][is_default_origin]",
+          "value": "T",
+          "checked": false,
+          "displayedMode": "\"기본\""
+        },
+        {
+          "name": "template_data[auction|shouldbe2480][market_data][is_default_buyer_limit_qty]",
+          "value": "T",
+          "checked": false,
+          "displayedMode": "\"기본\""
+        },
+        {
+          "name": "template_data[auction|shouldbe2480][market_data][is_default_tax_type]",
+          "value": "T",
+          "checked": false,
+          "displayedMode": "\"기본\""
+        },
+        {
+          "name": "template_data[auction|shouldbe2480][market_data][is_default_can_minor_buying]",
+          "value": "T",
+          "checked": false,
+          "displayedMode": "\"기본\""
+        },
+        {
+          "name": "template_data[auction|shouldbe2480][market_data][is_default_user_prd_code]",
+          "value": "T",
+          "checked": false,
+          "displayedMode": "\"기본\""
+        },
+        {
+          "name": "template_data[auction|shouldbe2480][market_data][is_default_option_stock]",
+          "value": "T",
+          "checked": false,
+          "displayedMode": "\"기본\""
+        },
+        {
+          "name": "template_data[auction|shouldbe2480][market_data][is_default_custom_option_data]",
+          "value": "T",
+          "checked": false,
+          "displayedMode": "\"기본\""
+        }
+      ],
+      "ready": true
+    },
+    {
+      "capturedAt": "2026-09-06T08:30:59.427Z",
+      "title": "상품관리이력-Cafe24-마켓플러스",
+      "url": "https://mp.cafe24.com/mp/queue/productList?page=1&_pv=3&queue_status=S",
+      "kind": "transmissionHistory",
+      "filters": [
+        {
+          "id": ":r1:",
+          "placeholder": "YYYY-MM-DD",
+          "value": "2026-08-06"
+        },
+        {
+          "id": ":r3:",
+          "placeholder": "YYYY-MM-DD",
+          "value": "2026-09-06"
+        },
+        {
+          "id": ":r6:",
+          "placeholder": "",
+          "value": ""
+        },
+        {
+          "id": "market_select",
+          "placeholder": "전체",
+          "value": ""
+        }
+      ],
+      "selectedTab": "전송완료",
+      "rows": [
+        {
+          "cells": [
+            "30447",
+            "shouldbe2480",
+            "P0000PBU",
+            "D888859044",
+            "Enzymedica 소화효소 Digest Basic Enzyme 180캡슐",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P0000PBU",
+              "productNo": "10186",
+              "shopNo": "1",
+              "entityNo": "65b25bf7dbece"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30446",
+            "shouldbe2480",
+            "P000BFNR",
+            "D726018202",
+            "(2팩) Frontier Co op 볶은 치커리 뿌리 340g",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFNR",
+              "productNo": "21311",
+              "shopNo": "1",
+              "entityNo": "654f792cd9882"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30445",
+            "shouldbe2480",
+            "P000BFRO",
+            "D727734870",
+            "(2개) 네이처스웨이 얼라이브 Max6 포텐시 멀티비타민",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFRO",
+              "productNo": "21412",
+              "shopNo": "1",
+              "entityNo": "6550d19eecd74"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30444",
+            "younzara",
+            "P0000PBU",
+            "3490115053",
+            "Enzymedica 소화효소 Digest Basic Enzyme 180캡슐",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P0000PBU",
+              "productNo": "10186",
+              "shopNo": "1",
+              "entityNo": "65b262417886f"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30443",
+            "shouldbe2480",
+            "P000BFPA",
+            "D726020959",
+            "(2개) 재로우 포뮬러스 징크 발란스 100캡슐",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFPA",
+              "productNo": "21346",
+              "shopNo": "1",
+              "entityNo": "654f79a3e342a"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30442",
+            "shouldbe2480",
+            "P0000PQP",
+            "D888858165",
+            "라이프 익스텐션 오메가 3 Super Omega 3 60캡슐",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P0000PQP",
+              "productNo": "10571",
+              "shopNo": "1",
+              "entityNo": "65b25bf300e29"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30441",
+            "shouldbe2480",
+            "P0000RIU",
+            "D888855902",
+            "쏜 리서치 철분제 Iron Bisglycinate 60캡슐",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P0000RIU",
+              "productNo": "11720",
+              "shopNo": "1",
+              "entityNo": "65b25b95dede7"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30440",
+            "shouldbe2480",
+            "P000BFPP",
+            "D727738967",
+            "(2통) 가든 오브 라이프 마이 카인드 골든밀크 105g",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFPP",
+              "productNo": "21361",
+              "shopNo": "1",
+              "entityNo": "6550d1afc2448"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30439",
+            "younzara",
+            "P0000RIU",
+            "3490113181",
+            "쏜 리서치 철분제 Iron Bisglycinate 60캡슐",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P0000RIU",
+              "productNo": "11720",
+              "shopNo": "1",
+              "entityNo": "65b261fa4f359"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30438",
+            "shouldbe2480",
+            "P0000PSY",
+            "D888857458",
+            "네츄럴 팩터스 CurcuminRich Theracurmin 120캡슐",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P0000PSY",
+              "productNo": "10632",
+              "shopNo": "1",
+              "entityNo": "65b25bec5babf"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30437",
+            "younzara",
+            "P0000PSY",
+            "3490122598",
+            "네츄럴 팩터스 CurcuminRich Theracurmin 120캡슐",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P0000PSY",
+              "productNo": "10632",
+              "shopNo": "1",
+              "entityNo": "65b2632f295df"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30436",
+            "shouldbe2480",
+            "P0000ZIS",
+            "D888855020",
+            "교릭 Kyolic Aged Garlic Extract Omega 3 90캡슐",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P0000ZIS",
+              "productNo": "17126",
+              "shopNo": "1",
+              "entityNo": "65b25b913c5de"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30435",
+            "younzara",
+            "P0000NRI",
+            "3490115659",
+            "Organic India 아슈와간다 Ashwagandha 180캡슐",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P0000NRI",
+              "productNo": "9238",
+              "shopNo": "1",
+              "entityNo": "65b2624409a73"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30434",
+            "younzara",
+            "P0000ZIS",
+            "3490112492",
+            "교릭 Kyolic Aged Garlic Extract Omega 3 90캡슐",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P0000ZIS",
+              "productNo": "17126",
+              "shopNo": "1",
+              "entityNo": "65b261e3e5f3d"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30433",
+            "shouldbe2480",
+            "P0000NYB",
+            "D888849000",
+            "Comvita 마누카꿀 Manuka Honey UMF 20 plus 250g",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P0000NYB",
+              "productNo": "9413",
+              "shopNo": "1",
+              "entityNo": "65b25adbcb892"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30432",
+            "shouldbe2480",
+            "P000BCDJ",
+            "D889189563",
+            "네이처스 패스 글루텐프리 콘플레이크 300g",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BCDJ",
+              "productNo": "19015",
+              "shopNo": "1",
+              "entityNo": "65b286782bd1a"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30431",
+            "shouldbe2480",
+            "P0000NRI",
+            "D888860360",
+            "Organic India 아슈와간다 Ashwagandha 180캡슐",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P0000NRI",
+              "productNo": "9238",
+              "shopNo": "1",
+              "entityNo": "65b25c4c24800"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30430",
+            "younzara",
+            "P0000NYB",
+            "3490309402",
+            "Comvita 마누카꿀 Manuka Honey UMF 20 plus 250g",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P0000NYB",
+              "productNo": "9413",
+              "shopNo": "1",
+              "entityNo": "65b27a1c05ae2"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30429",
+            "shouldbe2480",
+            "P000BDPO",
+            "D888809850",
+            "(2개) CGN 마그네슘 킬레이트 210mg 270정",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BDPO",
+              "productNo": "20008",
+              "shopNo": "1",
+              "entityNo": "65b255876cd18"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "30428",
+            "younzara",
+            "P000BCDJ",
+            "3490409181",
+            "네이처스 패스 글루텐프리 콘플레이크 300g",
+            "상품수정",
+            "[성공] 전송이 완료되었습니다.",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BCDJ",
+              "productNo": "19015",
+              "shopNo": "1",
+              "entityNo": "65b2867842b7a"
+            }
+          ]
+        }
+      ],
+      "ready": true
+    },
+    {
+      "capturedAt": "2026-09-06T08:31:33.879Z",
+      "title": "상품관리이력-Cafe24-마켓플러스",
+      "url": "https://mp.cafe24.com/mp/queue/productList?page=1&_pv=4&queue_status=F",
+      "kind": "transmissionHistory",
+      "filters": [
+        {
+          "id": ":r1:",
+          "placeholder": "YYYY-MM-DD",
+          "value": "2026-08-06"
+        },
+        {
+          "id": ":r3:",
+          "placeholder": "YYYY-MM-DD",
+          "value": "2026-09-06"
+        },
+        {
+          "id": ":r6:",
+          "placeholder": "",
+          "value": ""
+        },
+        {
+          "id": "market_select",
+          "placeholder": "전체",
+          "value": ""
+        }
+      ],
+      "selectedTab": "전송실패",
+      "rows": [
+        {
+          "cells": [
+            "5847",
+            "younzara",
+            "P0000UVU",
+            "3490363781",
+            "Now Foods Sports Whey Protein Isolate 무맛 2kg",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P0000UVU",
+              "productNo": "14086",
+              "shopNo": "1",
+              "entityNo": "65b280db74d0e"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5846",
+            "shouldbe2480",
+            "P0000UVU",
+            "D889144957",
+            "Now Foods Sports Whey Protein Isolate 무맛 2kg",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-06 16:02",
+            "2026-09-06 16:02"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P0000UVU",
+              "productNo": "14086",
+              "shopNo": "1",
+              "entityNo": "65b280db5ef4d"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5845",
+            "younzara",
+            "P000BECJ",
+            "3490259022",
+            "(3팩) 비타바이오틱스 웰맨 멀티비타민 구미스 60구미",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:11",
+            "2026-09-05 14:11"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BECJ",
+              "productNo": "20341",
+              "shopNo": "1",
+              "entityNo": "65b2741e4bbe3"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5844",
+            "younzara",
+            "P000BGAC",
+            "3320680394",
+            "(3팩) 트레디셔널 메디셔널 웨이틀리스 크랜베리",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:11",
+            "2026-09-05 14:11"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BGAC",
+              "productNo": "21634",
+              "shopNo": "1",
+              "entityNo": "65537ef8cf968"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5843",
+            "younzara",
+            "P000BEBR",
+            "3490287910",
+            "(3개) 비타바이오틱스 퍼펙틸 헤어 크러시 구미스",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:11",
+            "2026-09-05 14:11"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BEBR",
+              "productNo": "20323",
+              "shopNo": "1",
+              "entityNo": "65b277739e0e2"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5842",
+            "younzara",
+            "P000BFYF",
+            "3320727679",
+            "(2팩) 카스카디안팜 멀티그레인스퀘어 시리얼 348g",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:08",
+            "2026-09-05 14:08"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFYF",
+              "productNo": "21585",
+              "shopNo": "1",
+              "entityNo": "655383ffb5bc3"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5841",
+            "younzara",
+            "P000BFYE",
+            "3320727756",
+            "(2팩) 카스카디안팜 허니오트 크런치 시리얼 382g",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:08",
+            "2026-09-05 14:08"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFYE",
+              "productNo": "21584",
+              "shopNo": "1",
+              "entityNo": "65538400090a8"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5840",
+            "younzara",
+            "P000BFYC",
+            "3320728014",
+            "(2팩) 카스카디안팜 그라함 크런치 시리얼 272g",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:08",
+            "2026-09-05 14:08"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFYC",
+              "productNo": "21582",
+              "shopNo": "1",
+              "entityNo": "65538400b25ec"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5839",
+            "younzara",
+            "P000BFXQ",
+            "3320729217",
+            "(2팩) 밥스레드밀 글루텐프리 그래놀라 340g",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:08",
+            "2026-09-05 14:08"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFXQ",
+              "productNo": "21570",
+              "shopNo": "1",
+              "entityNo": "65538404585de"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5838",
+            "younzara",
+            "P000BFYG",
+            "3320727565",
+            "(2팩) 카스카디안팜 퓨얼리 오스 시리얼 243g",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:08",
+            "2026-09-05 14:08"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFYG",
+              "productNo": "21586",
+              "shopNo": "1",
+              "entityNo": "655383ff6c4c5"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5837",
+            "younzara",
+            "P000BFXC",
+            "3320733064",
+            "(2팩) 밥스레드밀 레드 퀴노아 369g",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:08",
+            "2026-09-05 14:08"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFXC",
+              "productNo": "21556",
+              "shopNo": "1",
+              "entityNo": "655384da6e62d"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5836",
+            "younzara",
+            "P000BFTX",
+            "3318233776",
+            "(2팩) 누내추럴 스위트너 스테비아 앤 몽크프룻 70입",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:05",
+            "2026-09-05 14:05"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFTX",
+              "productNo": "21473",
+              "shopNo": "1",
+              "entityNo": "65522b05d613f"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5835",
+            "younzara",
+            "P000BFWG",
+            "3318221301",
+            "(2병) 케발라 코코넛 아미노스 237ml",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:05",
+            "2026-09-05 14:05"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFWG",
+              "productNo": "21534",
+              "shopNo": "1",
+              "entityNo": "6552297b99bac"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5834",
+            "younzara",
+            "P000BFVK",
+            "3318231218",
+            "(2병) 바니버터 아몬드버터 블렌드 초콜릿 284g",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:05",
+            "2026-09-05 14:05"
+          ],
+          "marketIcons": [
+            "Gmarket_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFVK",
+              "productNo": "21512",
+              "shopNo": "1",
+              "entityNo": "65522ab5b4df1"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5833",
+            "shouldbe2480",
+            "P000BFQG",
+            "D727737817",
+            "(2개) 트와이닝 콜드워터 인퓨전스 프로바이오틱스",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:03",
+            "2026-09-05 14:03"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFQG",
+              "productNo": "21378",
+              "shopNo": "1",
+              "entityNo": "6550d1aaa50bf"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5832",
+            "shouldbe2480",
+            "P000BFRM",
+            "D727735120",
+            "(2개) 캘리포니아 골드 뉴트리션 우먼스 멀티비타민",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:03",
+            "2026-09-05 14:03"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFRM",
+              "productNo": "21410",
+              "shopNo": "1",
+              "entityNo": "6550d19fcd81d"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5831",
+            "shouldbe2480",
+            "P000BFQF",
+            "D727737912",
+            "(2개) 스완슨 크랜베리 플러스 프로바이오틱스 60캡슐",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:03",
+            "2026-09-05 14:03"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFQF",
+              "productNo": "21377",
+              "shopNo": "1",
+              "entityNo": "6550d1aaef379"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5830",
+            "shouldbe2480",
+            "P000BFRL",
+            "D727735201",
+            "(2개) 어메이징뉴트리션 데일리 멀티비타민 250정",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:03",
+            "2026-09-05 14:03"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFRL",
+              "productNo": "21409",
+              "shopNo": "1",
+              "entityNo": "6550d1a045dcf"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5829",
+            "shouldbe2480",
+            "P000BFRP",
+            "D727734773",
+            "(2개) 내추럴 팩터스 아세틸엘카르니틴 500mg 60캡슐",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:03",
+            "2026-09-05 14:03"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFRP",
+              "productNo": "21413",
+              "shopNo": "1",
+              "entityNo": "6550d19ea5683"
+            }
+          ]
+        },
+        {
+          "cells": [
+            "5828",
+            "shouldbe2480",
+            "P000BFSU",
+            "D727732143",
+            "(2개) 메이슨 네츄럴 다이제스트 엔자임 90정",
+            "상품수정",
+            "[실패] 연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다. (관련 설정: 기본 > 마켓계정관리 > 마켓수정 > 카페24 진열/판매 연동 설정)",
+            "2026-09-05 14:03",
+            "2026-09-05 14:03"
+          ],
+          "marketIcons": [
+            "Auction_svg_1"
+          ],
+          "products": [
+            {
+              "productCode": "P000BFSU",
+              "productNo": "21444",
+              "shopNo": "1",
+              "entityNo": "6550d195548d6"
+            }
+          ]
+        }
+      ],
+      "ready": true
+    }
+  ]
+}

@@ -27,6 +27,7 @@ public class ProductBrandBackfillService {
 	private static final long HTTP_VENDOR_THROTTLE_MS = 1500L;
 
 	private final ProductReader productReader;
+	private final com.sbshop.agent.core.application.product.edit.ProductEditService productEditService;
 	private final ProductWriter productWriter;
 	private final ProductRepository productRepository;
 	private final ProductDetailCrawlerPort productDetailCrawlerPort;
@@ -81,8 +82,9 @@ public class ProductBrandBackfillService {
 							"[%s] 크롤 결과가 기존과 동일(%s) → 건너뜀".formatted(product.getSbCode(), resolution.brand()));
 						skipped++;
 					} else {
-						product.update(ProductUpdateCommand.builder().brand(resolution.brand()).build());
-						productWriter.save(product);
+						productEditService.saveExisting(productId,
+							ProductUpdateCommand.builder().brand(resolution.brand()).build(), product.getRevision(),
+							"system:ProductBrandBackfillService");
 						String source = resolution.coupangMatched()
 							? "쿠팡 1위 · 후보=" + resolution.candidates()
 							: "쿠팡 미등록(크롤값)";

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchCredentials, saveCredential, getCafe24Status, issueCafe24Token } from '../api/marketApi';
+import { fetchCredentials, saveCredential, getCafe24Status, issueCafe24Token, getCafe24AuthorizationUrl, getCafe24PriceSettingsStatus } from '../api/marketApi';
 import type { MarketCredential } from '../api/marketApi';
 import { fetchPricePolicy, savePricePolicy } from '../api/pricePolicyApi';
 import { getAdminAuth, setAdminAuth } from '../api/axios';
@@ -50,11 +50,18 @@ const Settings = () => {
     queryClient.removeQueries({ queryKey: ['market-credentials'] });
   };
 
-  const { data: cafe24Status, isFetching: cafe24Checking, refetch: refetchCafe24Status } = useQuery({
+  const { data: cafe24Status, isFetching: cafe24Checking, isError: cafe24StatusError, refetch: refetchCafe24Status } = useQuery({
     queryKey: ['cafe24-status'],
     queryFn: getCafe24Status,
-    enabled: activeTab === 'CAFE24',
+    enabled: authed && activeTab === 'CAFE24',
     staleTime: 0,
+  });
+
+  const { data: cafe24Authorization, isFetching: cafe24AuthorizationLoading, isError: cafe24AuthorizationError, refetch: refetchCafe24Authorization } = useQuery({
+    queryKey: ['cafe24-authorization-url'], queryFn: getCafe24AuthorizationUrl, enabled: authed && activeTab === 'CAFE24', retry: false,
+  });
+  const { data: cafe24PriceSettings, isFetching: cafe24PriceChecking, isError: cafe24PriceError, refetch: refetchCafe24PriceSettings } = useQuery({
+    queryKey: ['cafe24-price-settings-status'], queryFn: getCafe24PriceSettingsStatus, enabled: authed && activeTab === 'CAFE24', retry: false,
   });
 
   const issueTokenMutation = useMutation({
@@ -63,15 +70,15 @@ const Settings = () => {
       alert(res.message);
       if (res.connected) setAuthCode('');
       refetchCafe24Status();
+      void refetchCafe24PriceSettings();
       queryClient.invalidateQueries({ queryKey: ['market-credentials'] });
     },
     onError: () => alert('토큰 발급 요청 중 오류가 발생했습니다.'),
   });
 
-  const cafe24AuthUrl =
-    formData.clientId && formData.accessKey && formData.redirectUri
-      ? `https://${formData.clientId}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${formData.accessKey}&state=shouldbeshopping&redirect_uri=${formData.redirectUri}&scope=mall.read_application,mall.write_application,mall.read_product,mall.write_product,mall.read_collection,mall.write_collection,mall.read_order,mall.write_order,mall.read_shipping,mall.write_shipping`
-      : '';
+  const cafe24AuthUrl = !cafe24AuthorizationError && !cafe24AuthorizationLoading ? cafe24Authorization?.url ?? '' : '';
+  const cafe24Connected = !cafe24StatusError && cafe24Status?.connected;
+  const cafe24PriceReadable = !cafe24PriceError && !cafe24PriceChecking && cafe24PriceSettings?.state === 'READABLE';
 
   const { data: credentials, isLoading } = useQuery({
     queryKey: ['market-credentials'],
@@ -105,6 +112,9 @@ const Settings = () => {
     mutationFn: (data: Partial<MarketCredential>) => saveCredential(activeTab, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['market-credentials'] });
+      queryClient.invalidateQueries({ queryKey: ['cafe24-authorization-url'] });
+      queryClient.invalidateQueries({ queryKey: ['cafe24-status'] });
+      queryClient.invalidateQueries({ queryKey: ['cafe24-price-settings-status'] });
       alert('설정이 저장되었습니다.');
     },
     onError: () => {
@@ -368,16 +378,16 @@ const Settings = () => {
                 style={{
                   marginTop: '12px', padding: '12px', borderRadius: '6px',
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-                  backgroundColor: cafe24Checking ? '#f3f4f6' : cafe24Status?.connected ? '#ecfdf5' : '#fef2f2',
-                  color: cafe24Checking ? '#374151' : cafe24Status?.connected ? '#065f46' : '#991b1b',
+                  backgroundColor: cafe24Checking ? '#f3f4f6' : cafe24Connected ? '#ecfdf5' : '#fef2f2',
+                  color: cafe24Checking ? '#374151' : cafe24Connected ? '#065f46' : '#991b1b',
                 }}
               >
                 <span>
                   {cafe24Checking
                     ? '⏳ 연동 상태 확인 중…'
-                    : cafe24Status?.connected
+                    : cafe24Connected
                       ? `✅ ${cafe24Status.message}`
-                      : `🚨 ${cafe24Status?.message || '연동 상태를 확인할 수 없습니다.'}`}
+                      : `🚨 ${!cafe24StatusError && cafe24Status?.message || '연동 상태를 확인할 수 없습니다.'}`}
                 </span>
                 <button type="button" onClick={() => refetchCafe24Status()} className="btn-primary"
                   style={{ padding: '6px 12px', fontSize: 13, whiteSpace: 'nowrap' }}>
@@ -385,23 +395,28 @@ const Settings = () => {
                 </button>
               </div>
 
-              {!cafe24Status?.connected && !cafe24Checking && (
+              <div style={{ marginTop: 8, padding: 12, borderRadius: 6, background: cafe24PriceReadable ? '#ecfdf5' : '#fffbeb' }}>
+                <strong>가격 설정 권한</strong> · {cafe24PriceChecking ? '조회 중…' : !cafe24PriceError && cafe24PriceSettings?.message || '조회 결과를 확인하지 못했습니다. 다시 조회하세요.'}
+                <button type="button" className="btn-primary" disabled={cafe24PriceChecking} onClick={() => { void refetchCafe24PriceSettings(); }} style={{ marginLeft: 10 }}>권한 다시 확인</button>
+              </div>
+
+              {(
                 <div style={{ marginTop: '12px', padding: '16px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px' }}>
                   <div style={{ fontWeight: 600, marginBottom: 12, color: '#92400e' }}>리프레시 토큰 발급 (재인증 / 권한 갱신)</div>
                   <div style={{ fontSize: 13, color: '#92400e', marginBottom: 12 }}>
-                    아래 순서로 재인증하면 필요한 권한(상품·주문 조회)이 모두 부여됩니다.
+                    저장된 계정으로 상품·주문·분류·가격 설정 등의 권한을 요청합니다. 개발자센터 앱의 허용 권한도 확인하고, 재인증 후 실제 조회 결과를 확인하세요.
                   </div>
                   {!cafe24AuthUrl ? (
                     <div style={{ color: '#b91c1c', fontWeight: 500 }}>
-                      ⚠️ Mall ID · Client ID · Redirect URI를 먼저 입력·저장해주세요.
+                      {cafe24AuthorizationLoading ? '저장된 계정의 인증 주소를 확인 중입니다…' : cafe24AuthorizationError ? '인증 주소를 가져오지 못했습니다. 계정 설정을 저장한 후 다시 확인하세요.' : 'Mall ID · Client ID · Redirect URI를 먼저 입력·저장해주세요.'}
+                      <button type="button" onClick={() => { void refetchCafe24Authorization(); }}>인증 주소 다시 조회</button>
                     </div>
                   ) : (
                     <>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                         <div style={{ fontSize: 13, color: '#666' }}>
                           <b>①</b> 아래 버튼으로 Cafe24 인증 페이지를 열어 승인하면
-                          <code style={{ margin: '0 4px' }}>{formData.redirectUri}?code=...</code>
-                          형태로 이동합니다. 그 주소(또는 code 값)를 복사해 <b>②</b>에 붙여넣고 발급하세요.
+                          저장된 Redirect URI로 이동합니다. 그 주소(또는 code 값)를 복사해 <b>②</b>에 붙여넣고 발급하세요. 계정 정보를 변경했다면 먼저 저장해야 합니다.
                         </div>
                         <div>
                           <a href={cafe24AuthUrl} target="_blank" rel="noopener noreferrer" className="btn-primary"

@@ -84,6 +84,12 @@ class MarketPresenceCheckTest {
 		verify(marketRegistrationRepository, never()).save(any());
 	}
 
+	@Test
+	void nullExtractionIsNotProofOfPresence() {
+		MarketClient fallback = org.mockito.Mockito.mock(MarketClient.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+		assertThat(fallback.checkPresence("123")).isEqualTo(MarketPresence.UNKNOWN);
+	}
+
 	private MarketRegistrationProbeService service() {
 		return new MarketRegistrationProbeService(marketRegistrationRepository, marketClientRouter);
 	}

@@ -73,7 +73,8 @@ class BatchResultDetailsTest {
 	void setUp() {
 		service = new BatchPriceStockService(productReader, productWriter, productRepository,
 			stockCrawlerRouter, processStatusService, marginCalculator, eventPublisher,
-			productMarketSyncService, marketFeeService, vendorPricePolicyService);
+			productMarketSyncService, marketFeeService, vendorPricePolicyService,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.product.edit.ProductEditService.class));
 
 		lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 		lenient().when(product.getSbCode()).thenReturn("231114IHB021");

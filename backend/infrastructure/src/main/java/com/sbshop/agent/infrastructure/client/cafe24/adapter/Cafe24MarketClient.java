@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,6 +35,71 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class Cafe24MarketClient implements MarketClient {
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.MarketPriceRead readSalePrice(String id, String optionId) {
+		requirePriceId(id);
+		String account = inspectionAccountReference();
+		try {
+			JsonNode root = objectMapper.readTree(cafe24RestClient.get("/admin/products/" + id + "?shop_no=1"));
+			JsonNode p = root.path("product");
+			if (root.has("error") || !id.equals(p.path("product_no").asText())
+				|| !"1".equals(p.path("shop_no").asText()))
+				throw new IllegalStateException("카페24 상품·쇼핑몰 식별자를 확인할 수 없습니다.");
+			java.math.BigDecimal price;
+			try {
+				price = new java.math.BigDecimal(p.path("price").asText());
+			} catch (NumberFormatException e) {
+				throw new IllegalStateException("조회 응답에 유효한 판매가가 없습니다.");
+			}
+			if (price.signum() <= 0)
+				throw new IllegalStateException("조회 응답에 유효한 판매가가 없습니다.");
+			String blocked = !"T".equals(p.path("selling").asText()) || !"F".equals(p.path("market_sync").asText())
+				? "판매 설정 또는 마켓플러스 자동 전달 범위의 확인이 필요합니다." : priceFieldBlock(p);
+			if (account == null || !account.equals(inspectionAccountReference()))
+				throw new IllegalStateException("조회 계정이 변경되었습니다.");
+			return new com.sbshop.agent.core.domain.market.client.dto.MarketPriceRead(price, blocked == null,
+				blocked == null ? "카페24 본상품 가격·세금 계산 설정 확인" : blocked, account);
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	/** Official product update contract: manual tax + basis B requires price_excluding_tax. */
+	private String priceFieldBlock(JsonNode product) throws com.fasterxml.jackson.core.JsonProcessingException {
+		String calculation = product.path("tax_calculation").asText();
+		if ("A".equals(calculation))
+			return null;
+		if (!"M".equals(calculation))
+			return "카페24 세금 계산 유형을 확인할 수 없어 가격 전송을 보류합니다.";
+		JsonNode response = objectMapper.readTree(cafe24RestClient.get("/admin/products/setting?shop_no=1"));
+		JsonNode settings = response.path("product");
+		if (response.has("error") || !"1".equals(settings.path("shop_no").asText()))
+			return "카페24 상품 설정의 쇼핑몰 번호·응답 확인이 필요합니다.";
+		return switch (settings.path("calculate_price_based_on").asText()) {
+			case "S", "A", "P" -> null;
+			case "B" -> "카페24 수동 세금·상품가 기준(B)은 세금 제외 가격(price_excluding_tax) 전송이 필요합니다. "
+				+ "세금 포함 목표 판매가를 임의로 변환하지 않고 보류합니다.";
+			default -> "카페24 판매가 계산 기준을 확인할 수 없어 가격 전송을 보류합니다.";
+		};
+	}
+
+	@Override
+	public void writeSalePrice(String id, String optionId, java.math.BigDecimal price) {
+		try {
+			requirePriceId(id);
+			if (price == null || price.signum() <= 0)
+				throw new IllegalArgumentException("카페24 판매가는 양의 정수여야 합니다.");
+			cafe24RestClient.put("/admin/products/" + id,
+				Map.of("shop_no", 1, "request", Map.of("price", price.intValueExact())));
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	private static void requirePriceId(String id) {
+		if (id == null || !id.matches("[1-9][0-9]{0,17}"))
+			throw new IllegalArgumentException("카페24 상품 번호가 올바르지 않습니다.");
+	}
 
 	private final ObjectMapper objectMapper;
 	private final Cafe24RestClient cafe24RestClient;
@@ -206,72 +272,72 @@ public class Cafe24MarketClient implements MarketClient {
 
 	@Override
 	public boolean syncBarcode(Product product, String marketItemId, Map<String, Object> currentRawData) {
-		String barcode = (product.getProductSpec() == null) ? null : product.getProductSpec().getBarcode();
-		if (barcode == null || barcode.isBlank()) {
-			log.info("[카페24] 바코드 없음 — 전송 생략: {}", marketItemId);
+		String barcode = product.getProductSpec() == null ? null : product.getProductSpec().getBarcode();
+		if (barcode == null || barcode.isBlank())
 			return false;
-		}
-		if (!hasOption(marketItemId)) {
-			throw new UnsupportedOperationException(
-				"카페24 바코드 전송 미지원 — 옵션 없는 단일 상품은 variants 수정이 차단된다(422): "
-					+ marketItemId);
-		}
-		String variantCode = fetchVariantCode(marketItemId);
-		if (variantCode == null) {
-			throw new IllegalStateException(
-				"카페24 바코드 전송 불가 — variant_code 를 찾을 수 없다: marketItemId=" + marketItemId);
-		}
-		Map<String, Object> request = new HashMap<>();
-		request.put("shop_no", 1);
-		request.put("gtin", barcode);
-		cafe24RestClient.put("/admin/products/" + marketItemId + "/variants/" + variantCode,
-			Map.of("request", request));
-		Map<String, Object> localVariant = firstVariant(currentRawData);
-		if (localVariant != null) {
-			localVariant.put("gtin", barcode);
-		}
-		log.info("[카페24] 바코드 전송 완료: {} variant={} gtin={}", marketItemId, variantCode, barcode);
-		return true;
-	}
-
-	private boolean hasOption(String marketItemId) {
+		if (!barcode.matches("[0-9]{1,14}"))
+			throw new IllegalArgumentException("카페24 GTIN은 최대 14자리 숫자 문자열이어야 합니다.");
 		try {
-			JsonNode root = objectMapper.readTree(
-				cafe24RestClient.get("/admin/products/" + marketItemId + "/options"));
-			return "T".equalsIgnoreCase(root.path("option").path("has_option").asText(""));
+			var access = new Cafe24VerifiedProductAccess(objectMapper, cafe24RestClient, marketItemId);
+			JsonNode p = access.product();
+			if (product.getSbCode() == null || !product.getSbCode().equals(p.path("custom_product_code").asText()))
+				throw new IllegalStateException("카페24 상품의 SB코드가 시스템상품과 일치하지 않습니다.");
+			access.requireNativeWrite(p);
+			if (!"T".equals(p.path("has_option").asText()))
+				throw new UnsupportedOperationException("카페24 무옵션 단일 상품의 GTIN 수정은 최신 버전 쓰기 검증이 필요해 보류합니다.");
+			if (!"T".equals(p.path("selling").asText()))
+				throw new UnsupportedOperationException("카페24 판매 중지 상품의 바코드 전송을 보류합니다.");
+			String code = access.singleVariant(p);
+			JsonNode before = access.variant(code);
+			if (!"T".equals(before.path("selling").asText()))
+				throw new UnsupportedOperationException("카페24 판매 중지 품목의 바코드 전송을 보류합니다.");
+			boolean written = !barcode.equals(before.path("gtin").asText());
+			if (written)
+				access.put(access.path() + "/variants/" + code, Map.of("gtin", barcode));
+			JsonNode verified = written ? access.variant(code) : before;
+			if (!barcode.equals(verified.path("gtin").asText()))
+				throw new IllegalStateException("카페24 GTIN 반영을 재조회로 확인하지 못했습니다. 성공으로 처리하지 않으며 재시도 시 먼저 조회합니다.");
+			Map<String, Object> snapshot = access.snapshot(currentRawData, null, verified, null, List.of("gtin"));
+			if (currentRawData != null)
+				currentRawData.putAll(snapshot);
+			return written;
+		} catch (UnsupportedOperationException e) {
+			throw e;
 		} catch (Exception e) {
-			throw new IllegalStateException(
-				"카페24 옵션 여부 조회 실패: marketItemId=" + marketItemId, e);
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
 		}
 	}
 
-	private String fetchVariantCode(String marketItemId) {
+	@Override
+	public String inspectionAccountReference() {
+		return cafe24RestClient.accountReference();
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation inspectListing(String id) {
+		String account = inspectionAccountReference();
+		String path = "/admin/products/" + id + "?shop_no=1";
+		if (id == null || !id.matches("[0-9]+") || account == null)
+			return com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation
+				.unknown("조회 상품번호 또는 계정 확인 필요");
 		try {
-			JsonNode root = objectMapper.readTree(
-				cafe24RestClient.get("/admin/products/" + marketItemId + "/variants"));
-			JsonNode variants = root.path("variants");
-			if (!variants.isArray() || variants.isEmpty()) {
-				return null;
-			}
-			String code = variants.get(0).path("variant_code").asText("");
-			return code.isBlank() ? null : code;
+			JsonNode root = objectMapper.readTree(cafe24RestClient.get(path));
+			JsonNode product = root.path("product");
+			if (root.has("error") || !product.isObject() || !id.equals(product.path("product_no").asText())
+				|| !"1".equals(product.path("shop_no").asText()) || !account.equals(inspectionAccountReference()))
+				throw new IllegalStateException("상품번호·쇼핑몰·응답 확인 실패");
+			String code = product.path("selling").asText("");
+			var state = switch (code) {
+				case "T" -> com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.PRESENT;
+				case "F" -> com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.STOPPED;
+				default -> com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.UNKNOWN;
+			};
+			return new com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation(state, "SELLING_" + code,
+				"카페24 본상품 판매 설정: " + code + " · G마켓·옥션 상태는 별도 확인이 필요합니다.", account, "GET " + path,
+				java.time.Instant.now());
 		} catch (Exception e) {
-			throw new IllegalStateException(
-				"카페24 variants 조회 실패: marketItemId=" + marketItemId, e);
+			return com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.failure(e, account, "GET " + path);
 		}
-	}
-
-	@SuppressWarnings("unchecked")
-	private static Map<String, Object> firstVariant(Map<String, Object> rawData) {
-		if (rawData == null) {
-			return null;
-		}
-		Object raw = rawData.get("variants");
-		if (!(raw instanceof List<?> variants) || variants.isEmpty()) {
-			return null;
-		}
-		Object first = variants.get(0);
-		return (first instanceof Map) ? (Map<String, Object>)first : null;
 	}
 
 	@Override
@@ -313,31 +379,99 @@ public class Cafe24MarketClient implements MarketClient {
 	@Override
 	public Map<String, Object> syncPriceAndStock(String marketItemId, Map<String, Object> currentRawData,
 		Integer price, int quantity, boolean soldOut) {
-		Map<String, Object> productData = new HashMap<>();
-		productData.put("shop_no", 1);
-		if (price != null) {
-			productData.put("price", price + ".00");
-		}
-		productData.put("supply_quantity", String.valueOf(quantity));
-		productData.put("selling", soldOut ? "F" : "T");
-		Map<String, Object> requestBody = new HashMap<>();
-		requestBody.put("request", productData);
-		cafe24RestClient.put("/admin/products/" + marketItemId, requestBody);
-		log.info("[카페24] 가격/재고/판매상태 동기화 완료: {}, price={}, qty={}, soldOut={}", marketItemId, price, quantity, soldOut);
+		return syncVerifiedPriceStock(marketItemId, currentRawData, price, quantity, soldOut, null);
+	}
 
-		if (currentRawData != null) {
+	@Override
+	public Map<String, Object> syncPriceAndStock(String marketItemId, Map<String, Object> currentRawData,
+		Integer price, int quantity, boolean soldOut, Product product) {
+		if (product == null || product.getSbCode() == null || product.getSbCode().isBlank())
+			throw new IllegalArgumentException("카페24 재고 반영 대상 시스템상품의 SB코드가 필요합니다.");
+		return syncVerifiedPriceStock(marketItemId, currentRawData, price, quantity, soldOut, product.getSbCode());
+	}
+
+	private Map<String, Object> syncVerifiedPriceStock(String marketItemId, Map<String, Object> currentRawData,
+		Integer price, int quantity, boolean soldOut, String expectedSbCode) {
+		if (quantity < 0 || (price != null && price <= 0))
+			throw new IllegalArgumentException("카페24 수량은 음수가 아닌 정수, 판매가는 양의 정수여야 합니다.");
+		try {
+			var access = new Cafe24VerifiedProductAccess(objectMapper, cafe24RestClient, marketItemId);
+			JsonNode p = access.product();
+			if (expectedSbCode != null && !expectedSbCode.equals(p.path("custom_product_code").asText()))
+				throw new IllegalStateException("카페24 재고 반영 대상의 SB코드가 시스템상품과 일치하지 않습니다.");
+			access.requireNativeWrite(p);
+			if (!soldOut && !"T".equals(p.path("selling").asText()))
+				throw new UnsupportedOperationException("카페24 판매 중지 원인이 확인되지 않아 자동 판매 재개를 보류합니다.");
+			String priceBlock = price == null ? null : priceFieldBlock(p);
+			if (priceBlock != null)
+				throw new UnsupportedOperationException(priceBlock);
+			String code = access.singleVariant(p);
+			JsonNode variant = access.variant(code);
+			JsonNode inventory = access.inventory(code);
+			if (!soldOut && (!"T".equals(variant.path("selling").asText())
+				|| !"T".equals(inventory.path("use_inventory").asText())
+				|| !"T".equals(inventory.path("display_soldout").asText())))
+				throw new UnsupportedOperationException("카페24 품목 판매·재고 관리·품절표시 설정 확인이 필요합니다. 설정을 임의로 켜지 않습니다.");
+			Map<String, Object> fields = new LinkedHashMap<>();
+			String selling = soldOut ? "F" : "T";
+			if (!selling.equals(p.path("selling").asText()))
+				fields.put("selling", selling);
 			if (price != null) {
-				currentRawData.put("price", price + ".00");
-			}
-			if (currentRawData.containsKey("variants")) {
-				@SuppressWarnings("unchecked") List<Map<String, Object>> variants = (List<Map<String, Object>>)currentRawData
-					.get("variants");
-				if (variants != null && !variants.isEmpty()) {
-					variants.get(0).put("quantity", quantity);
+				BigDecimal before;
+				try {
+					before = new BigDecimal(p.path("price").asText());
+				} catch (NumberFormatException e) {
+					throw new IllegalStateException("카페24 현재 판매가를 확인하지 못했습니다.");
 				}
+				if (before.signum() <= 0)
+					throw new IllegalStateException("카페24 현재 판매가를 확인하지 못했습니다.");
+				if (before.compareTo(BigDecimal.valueOf(price)) != 0)
+					fields.put("price", price);
 			}
+			// A source stockout stops sales while preserving the configured quantity for recovery.
+			if (!soldOut && access.quantity(inventory) != quantity) {
+				access.put(access.path() + "/variants/" + code + "/inventories", Map.of("quantity", quantity));
+				inventory = access.inventory(code);
+				requireInventoryMatch(access, inventory, quantity);
+			}
+			if (!fields.isEmpty())
+				access.put(access.path(), fields);
+			JsonNode verified = access.product();
+			access.requireNativeWrite(verified);
+			if (!p.path("product_code").equals(verified.path("product_code"))
+				|| !p.path("custom_product_code").equals(verified.path("custom_product_code")))
+				throw new IllegalStateException("카페24 재조회 중 상품코드·SB코드가 변경되어 결과를 확정하지 않습니다.");
+			if (!selling.equals(verified.path("selling").asText())
+				|| (price != null && !priceEquals(verified, price)))
+				throw new IllegalStateException("카페24 판매가·판매 상태 반영을 재조회로 확인하지 못했습니다. 일부 필드 반영 가능성이 있어 재조회 후 재시도하세요.");
+			inventory = access.inventory(code);
+			if (!soldOut)
+				requireInventoryMatch(access, inventory, quantity);
+			List<String> confirmed = new ArrayList<>(List.of("selling"));
+			if (!soldOut)
+				confirmed.add("quantity");
+			if (price != null)
+				confirmed.add("price");
+			return access.snapshot(currentRawData, verified, variant, inventory, confirmed);
+		} catch (UnsupportedOperationException e) {
+			throw e;
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
 		}
-		return currentRawData;
+	}
+
+	private static boolean priceEquals(JsonNode product, int expected) {
+		try {
+			return new BigDecimal(product.path("price").asText()).compareTo(BigDecimal.valueOf(expected)) == 0;
+		} catch (NumberFormatException e) {
+			return false;
+		}
+	}
+
+	private static void requireInventoryMatch(Cafe24VerifiedProductAccess access, JsonNode inventory, int quantity) {
+		if (access.quantity(inventory) != quantity || !"T".equals(inventory.path("use_inventory").asText())
+			|| !"T".equals(inventory.path("display_soldout").asText()))
+			throw new IllegalStateException("카페24 재고수량·설정 반영을 재조회로 확인하지 못했습니다. 일부 반영 가능성이 있어 재조회 후 재시도하세요.");
 	}
 
 	@Override

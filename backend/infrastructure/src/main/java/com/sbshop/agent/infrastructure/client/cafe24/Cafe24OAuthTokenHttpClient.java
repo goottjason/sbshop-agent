@@ -15,8 +15,16 @@ public class Cafe24OAuthTokenHttpClient implements Cafe24OAuthTokenClient {
 
 	private final RestClient restClient;
 
+	@org.springframework.beans.factory.annotation.Autowired
 	public Cafe24OAuthTokenHttpClient(RestClient.Builder builder) {
-		this.restClient = builder.build();
+		var http = java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(3)).build();
+		var factory = new org.springframework.http.client.JdkClientHttpRequestFactory(http);
+		factory.setReadTimeout(java.time.Duration.ofSeconds(8));
+		this.restClient = builder.clone().requestFactory(factory).build();
+	}
+
+	Cafe24OAuthTokenHttpClient(RestClient restClient) {
+		this.restClient = restClient;
 	}
 
 	@Override
@@ -38,7 +46,9 @@ public class Cafe24OAuthTokenHttpClient implements Cafe24OAuthTokenClient {
 					String errorBody = resp.getBody() != null
 						? new String(resp.getBody().readAllBytes(), StandardCharsets.UTF_8)
 						: "(empty body)";
-					throw new RuntimeException("Cafe24 API Error: " + errorBody);
+					throw new org.springframework.web.client.RestClientResponseException("Cafe24 API Error",
+						resp.getStatusCode().value(), resp.getStatusText(), resp.getHeaders(),
+						errorBody.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
 				})
 			.body(JsonNode.class);
 

@@ -31,7 +31,7 @@ public class Cafe24TokenManager implements Cafe24TokenRefreshPort {
 		if (c == null || c.getClientId() == null || c.getSecretKey() == null) {
 			log.warn("🚨 Cafe24 API 정보 미등록 — 설정 페이지에서 키를 입력하세요.");
 		} else if (c.getRefreshToken() == null || c.getRefreshToken().isBlank()) {
-			log.warn("🚨 Cafe24 재인증 필요 — 인증 URL: {}", generateAuthorizationUrl(c));
+			log.warn("🚨 Cafe24 재인증 필요 — 설정 페이지에서 저장된 계정의 인증 주소를 확인하세요.");
 		} else {
 			log.info("✅ Cafe24 자격증명 확인됨 — 토큰은 최초 사용 시 필요하면 갱신합니다.");
 		}
@@ -89,8 +89,14 @@ public class Cafe24TokenManager implements Cafe24TokenRefreshPort {
 	}
 
 	public String generateAuthorizationUrl(MarketCredential credential) {
+		if (credential == null || credential.getClientId() == null
+			|| !credential.getClientId().matches("[a-zA-Z0-9-]{1,100}")
+			|| credential.getAccessKey() == null || credential.getAccessKey().isBlank()
+			|| credential.getRedirectUri() == null || credential.getRedirectUri().isBlank())
+			throw new IllegalArgumentException("카페24 Mall ID·Client ID·Redirect URI를 먼저 저장하세요.");
 		String apiUrl = "https://" + credential.getClientId() + ".cafe24api.com/api/v2";
 		String scope = "mall.read_application,mall.write_application,"
+			+ "mall.read_store,"
 			+ "mall.read_product,mall.write_product,"
 			+ "mall.read_collection,mall.write_collection,"
 			+ "mall.read_category,mall.write_category,"
@@ -98,20 +104,31 @@ public class Cafe24TokenManager implements Cafe24TokenRefreshPort {
 			+ "mall.read_shipping,mall.write_shipping";
 		return String.format(
 			"%s/oauth/authorize?response_type=code&client_id=%s&state=shouldbeshopping&redirect_uri=%s&scope=%s",
-			apiUrl, credential.getAccessKey(), credential.getRedirectUri(), scope);
+			apiUrl, form(credential.getAccessKey()), form(credential.getRedirectUri()), form(scope));
+	}
+
+	public String authorizationUrlForSavedCredential() {
+		return generateAuthorizationUrl(getCredential());
+	}
+
+	private static String form(String value) {
+		return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
 	}
 
 	public void issueInitialToken(String code) {
-		MarketCredential credential = getCredential();
-		if (credential == null) {
-			throw new IllegalStateException("Cafe24 credential 미등록 — 재인증이 필요합니다");
-		}
-		String payload = String.format(
-			"grant_type=authorization_code&code=%s&redirect_uri=%s",
-			code, credential.getRedirectUri());
-		var resp = tokenClient.exchange(
-			credential.getClientId(), credential.getAccessKey(), credential.getSecretKey(), payload);
-		persist(credential, resp);
+		if (code == null || code.isBlank())
+			throw new IllegalArgumentException("인증 코드가 비어 있습니다.");
+		refreshLock.runExclusively(CAFE24_TOKEN_LOCK_KEY, () -> {
+			MarketCredential credential = getCredential();
+			if (credential == null)
+				throw new IllegalStateException("Cafe24 credential 미등록 — 재인증이 필요합니다");
+			String payload = String.format("grant_type=authorization_code&code=%s&redirect_uri=%s",
+				form(code), form(credential.getRedirectUri()));
+			var resp = tokenClient.exchange(credential.getClientId(), credential.getAccessKey(),
+				credential.getSecretKey(), payload);
+			persist(credential, resp);
+			return true;
+		});
 		log.info("🎉 [최초 인증 성공] 토큰 3종이 발급·저장되었습니다.");
 	}
 

@@ -75,6 +75,11 @@ public class ProductBarcodeSyncUseCase {
 		List<MarketOutcome> results = new ArrayList<>();
 		for (MarketRegistration reg : marketRegistrationRepository.findByProductId(productId)) {
 			MarketType market = reg.getMarketType();
+			String block = reg.connectionWriteBlock();
+			if (block != null) {
+				results.add(new MarketOutcome(market, "SKIPPED", block));
+				continue;
+			}
 			if (!marketClientRouter.hasClient(market)) {
 				results.add(new MarketOutcome(market, "SKIPPED", "클라이언트 없음"));
 				continue;
@@ -123,7 +128,9 @@ public class ProductBarcodeSyncUseCase {
 		reg.updateMarketDetailedInfo(objectMapper.writeValueAsString(rawData));
 		reg.enrichIdentifier("barcode", product.getProductSpec() == null
 			? null : product.getProductSpec().getBarcode());
-		reg.markSynced();
+		// One verified GTIN must not clear unrelated price/content or MarketPlus failures.
+		if (market != MarketType.CAFE24)
+			reg.markSynced();
 		marketRegistrationRepository.save(reg);
 		return new MarketOutcome(market, written ? "SENT" : "ALREADY", marketItemId);
 	}

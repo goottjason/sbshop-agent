@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.application.product.dto.MarketPlusHandoff;
+import com.sbshop.agent.core.domain.market.MarketConnectionState;
 import com.sbshop.agent.core.domain.market.MarketRegistration;
 import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -21,15 +22,13 @@ class MarketPlusHandoffServiceTest {
 
 	@Mock
 	private MarketRegistrationRepository marketRegistrationRepository;
-	@Mock
-	private MarketRegistration cafe24Registration;
 
 	@Test
 	@DisplayName("Cafe24 등록행의 product_code를 핸드오프 대상 코드로 돌려준다")
 	void resolve_returnsCafe24ProductCode() {
+		var cafe24Registration = registration("{\"product_code\":\"P000BGOU\"}");
 		when(marketRegistrationRepository.findByProductIdAndMarketType(PRODUCT_ID, MarketType.CAFE24))
 			.thenReturn(Optional.of(cafe24Registration));
-		when(cafe24Registration.identifier("product_code")).thenReturn("P000BGOU");
 
 		MarketPlusHandoff handoff = service().resolve(PRODUCT_ID, MarketType.GMARKET);
 
@@ -51,9 +50,9 @@ class MarketPlusHandoffServiceTest {
 	@Test
 	@DisplayName("Cafe24 등록행에 product_code가 없으면 거절한다 — 코드 없이는 목록에서 찾을 수 없다")
 	void resolve_rejectsWithoutProductCode() {
+		var cafe24Registration = registration("{}");
 		when(marketRegistrationRepository.findByProductIdAndMarketType(PRODUCT_ID, MarketType.CAFE24))
 			.thenReturn(Optional.of(cafe24Registration));
-		when(cafe24Registration.identifier("product_code")).thenReturn(null);
 
 		assertThatThrownBy(() -> service().resolve(PRODUCT_ID, MarketType.AUCTION))
 			.isInstanceOf(IllegalStateException.class)
@@ -69,5 +68,22 @@ class MarketPlusHandoffServiceTest {
 
 	private MarketPlusHandoffService service() {
 		return new MarketPlusHandoffService(marketRegistrationRepository);
+	}
+
+	@Test
+	void detachedChildCannotBeRepublishedButSiblingIsNotDetached() {
+		var cafe24 = registration("{\"product_code\":\"P000BGOU\",\"gmarket_goodsNo\":\"007\"}");
+		cafe24.detachConnection(MarketType.GMARKET, MarketConnectionState.DETACHED_PROHIBITED);
+		when(marketRegistrationRepository.findByProductIdAndMarketType(PRODUCT_ID, MarketType.CAFE24))
+			.thenReturn(Optional.of(cafe24));
+		assertThatThrownBy(() -> service().resolve(PRODUCT_ID, MarketType.GMARKET)).hasMessageContaining("해제된 연결");
+		assertThat(service().resolve(PRODUCT_ID, MarketType.AUCTION).cafe24ProductCode()).isEqualTo("P000BGOU");
+		cafe24.detachConnection(MarketType.CAFE24, MarketConnectionState.DETACHED_DELETED);
+		assertThatThrownBy(() -> service().resolve(PRODUCT_ID, MarketType.AUCTION)).hasMessageContaining("해제된 연결");
+	}
+
+	private MarketRegistration registration(String identifiers) {
+		return MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.CAFE24)
+			.marketIdentifiers(identifiers).build();
 	}
 }

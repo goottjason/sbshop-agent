@@ -12,8 +12,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class SmartstoreProductPayloadBuilder {
 
-	private static final int IN_STOCK_QUANTITY = Product.DEFAULT_IN_STOCK_QUANTITY;
-
 	private static final String NOTICE_TYPE_DIET_FOOD = "DIET_FOOD";
 	private static final String NOTICE_TYPE_FOOD = "FOOD";
 	private static final String SOURCE_NOTICE_PROCESSED = "PROCESSED_FOOD";
@@ -37,7 +35,7 @@ public class SmartstoreProductPayloadBuilder {
 		originProduct.put("name", product.getProductName());
 		originProduct.put("detailContent", product.getDetailHtml());
 		originProduct.put("salePrice", salePrice);
-		originProduct.put("stockQuantity", IN_STOCK_QUANTITY);
+		originProduct.put("stockQuantity", product.getSalesQuantity());
 		originProduct.put("images", images(product));
 		originProduct.put("deliveryInfo", deliveryInfo(context, shippingAddressId, returnAddressId));
 		originProduct.put("detailAttribute", detailAttribute(product, context, asTelephone));

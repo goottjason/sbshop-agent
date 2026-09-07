@@ -53,7 +53,7 @@ class Cafe24SkipRetriesFailedWriteTest {
 		lenient().when(marketClientRouter.getClient(any())).thenReturn(client);
 		lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 		lenient().when(client.syncPriceAndStock(anyString(), any(), any(), anyInt(), anyBoolean(), any()))
-			.thenReturn(Map.of());
+			.thenReturn(Map.of("_sbshop_verified_fields", Map.of("fields", List.of("quantity"))));
 		return new ProductMarketSyncService(marketRegistrationRepository, marketClientRouter,
 			marketSalePriceResolver, productReader);
 	}
@@ -86,28 +86,33 @@ class Cafe24SkipRetriesFailedWriteTest {
 	}
 
 	@Test
-	@DisplayName("D-286: 재전송에 성공하면 옛 오류가 지워져 다시 조용한 스킵으로 돌아간다")
-	void successfulRetryClearsTheError() {
+	@DisplayName("카페24 재고 재조회 성공은 범위가 불명확한 과거 오류·전체 동기화 시각을 지우지 않는다")
+	void successfulPartialRetryPreservesUnscopedError() {
 		MarketRegistration reg = cafe24();
 		reg.markSynced();
 		reg.recordSyncError(SyncErrorType.TRANSIENT_ERROR, "504 Gateway Timeout");
+		var previousSync = reg.getLastSyncedAt();
+		var previousError = reg.getLastSyncErrorAt();
 
 		syncUnchanged();
 
-		assertThat(reg.getLastSyncError()).isNull();
-		assertThat(reg.getLastSyncErrorAt()).isNull();
+		assertThat(reg.getLastSyncError()).isEqualTo(SyncErrorType.TRANSIENT_ERROR);
+		assertThat(reg.getLastSyncErrorAt()).isEqualTo(previousError);
+		assertThat(reg.getLastSyncedAt()).isEqualTo(previousSync);
+		assertThat(reg.getMarketDetailedInfo()).contains("_sbshop_verified_fields", "quantity");
 	}
 
 	@Test
-	@DisplayName("D-286: 지난 쓰기가 성공했고 값도 안 바뀌었으면 그대로 건너뛴다")
-	void unchangedAndHealthy_isStillSkipped() {
+	@DisplayName("카페24 과거 전체 성공 표지만으로 현재 필드 확인을 건너뛰지 않는다")
+	void unchangedWithOnlyLegacyProof_isVerifiedAgain() {
 		MarketRegistration reg = cafe24();
 		reg.markSynced();
 
 		MarketRepublishResult result = syncUnchanged();
 
-		assertThat(result.skipped()).containsExactly(MarketType.CAFE24);
-		verify(client, never()).syncPriceAndStock(anyString(), any(), any(), anyInt(), anyBoolean(), any());
+		assertThat(result.skipped()).isEmpty();
+		assertThat(result.synced()).containsExactly(MarketType.CAFE24);
+		verify(client).syncPriceAndStock(anyString(), any(), any(), anyInt(), anyBoolean(), any());
 	}
 
 	@Test

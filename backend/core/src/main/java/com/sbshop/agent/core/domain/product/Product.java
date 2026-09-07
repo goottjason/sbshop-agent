@@ -37,6 +37,10 @@ import java.sql.Types;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Product extends BaseEntity {
+
+	@jakarta.persistence.Version
+	@Column(name = "revision", nullable = false)
+	private long revision;
 	public static final int DEFAULT_IN_STOCK_QUANTITY = 999;
 
 	@Column(name = "sb_code", unique = true, nullable = false, length = 50)
@@ -104,6 +108,8 @@ public class Product extends BaseEntity {
 	@JdbcTypeCode(Types.VARCHAR)
 	@Column(name = "stock_status", length = 30)
 	private StockStatus stockStatus;
+	@Column(nullable = false)
+	private Integer salesQuantity = 300;
 
 	@Column(name = "restock_date")
 	private LocalDate restockDate;
@@ -169,7 +175,19 @@ public class Product extends BaseEntity {
 		return created;
 	}
 
+	/** A detached candidate: embedded values are replaced, never mutated, by update(). */
+	public Product copyForEditPreview() {
+		Product copy = new Product(sbCode, brand, productName, baseName, originalName, category,
+			priceInfo, logisticsInfo, productSpec, sourcingInfo, imageInfo, searchKeywords, detailHtml, memo);
+		copy.stockStatus = stockStatus;
+		copy.salesQuantity = salesQuantity;
+		copy.restockDate = restockDate;
+		return copy;
+	}
+
 	public void update(ProductUpdateCommand command) {
+		if (command.salesQuantity() != null)
+			salesQuantity = command.salesQuantity();
 		if (command.brand() != null)
 			this.brand = command.brand();
 		if (command.name() != null)

@@ -57,7 +57,9 @@ class ProductControllerActionLogDetailTest {
 
 	private ProductController controller() {
 		return new ProductController(productSearchUseCase, productManageUseCase,
-			imageDownloadClient, productInfoCrawlerPort, marketRegistrationRepository, actionLogService);
+			imageDownloadClient, productInfoCrawlerPort, marketRegistrationRepository, actionLogService,
+			org.mockito.Mockito
+				.mock(com.sbshop.agent.core.application.market.marketplus.MarketPlusTransmissionService.class));
 	}
 
 	private MarketRegistration reg(Long productId, MarketType type, String identifiersJson) {

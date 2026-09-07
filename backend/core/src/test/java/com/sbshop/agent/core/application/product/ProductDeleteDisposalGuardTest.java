@@ -116,6 +116,7 @@ class ProductDeleteDisposalGuardTest {
 			mock(com.sbshop.agent.core.domain.product.component.HtmlImageReplacer.class),
 			marketRegistrationRepository, marketClientRouter,
 			mock(ProductMarketSyncService.class), productDeleteTxService,
-			mock(com.sbshop.agent.core.application.actionlog.ActionLogService.class));
+			mock(com.sbshop.agent.core.application.actionlog.ActionLogService.class),
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.product.edit.ProductEditService.class));
 	}
 }

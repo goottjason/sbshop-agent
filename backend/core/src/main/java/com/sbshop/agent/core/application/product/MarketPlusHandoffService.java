@@ -20,6 +20,8 @@ public class MarketPlusHandoffService {
 			.findByProductIdAndMarketType(productId, MarketType.CAFE24)
 			.orElseThrow(() -> new IllegalStateException(
 				"카페24 등록이 먼저 필요합니다 — G마켓·옥션은 마켓플러스를 경유합니다"));
+		if (cafe24.connectionStateFor(marketType).detached() || cafe24.getConnectionState().detached())
+			throw new IllegalStateException("해제된 연결입니다. 과거 삭제·금지 사유를 확인한 뒤 재등록을 검토하세요.");
 
 		String productCode = cafe24.identifier("product_code");
 		if (productCode == null || productCode.isBlank()) {

@@ -1,0 +1,202 @@
+{
+  "path": "/admin/apps/front/develop",
+  "appMatches": true,
+  "scopes": [
+    {
+      "name": "authority[category]",
+      "value": "mall.read_category,mall.write_category",
+      "text": "읽기+쓰기권한",
+      "options": [
+        {
+          "value": "mall.read_category",
+          "text": "읽기권한"
+        },
+        {
+          "value": "mall.read_category,mall.write_category",
+          "text": "읽기+쓰기권한"
+        }
+      ]
+    },
+    {
+      "name": "authority[product]",
+      "value": "mall.read_product,mall.write_product",
+      "text": "읽기+쓰기권한",
+      "options": [
+        {
+          "value": "mall.read_product",
+          "text": "읽기권한"
+        },
+        {
+          "value": "mall.read_product,mall.write_product",
+          "text": "읽기+쓰기권한"
+        }
+      ]
+    },
+    {
+      "name": "authority[collection]",
+      "value": "mall.read_collection,mall.write_collection",
+      "text": "읽기+쓰기권한",
+      "options": [
+        {
+          "value": "mall.read_collection",
+          "text": "읽기권한"
+        },
+        {
+          "value": "mall.read_collection,mall.write_collection",
+          "text": "읽기+쓰기권한"
+        }
+      ]
+    },
+    {
+      "name": "authority[supply]",
+      "value": "mall.read_supply,mall.write_supply",
+      "text": "읽기+쓰기권한",
+      "options": [
+        {
+          "value": "mall.read_supply",
+          "text": "읽기권한"
+        },
+        {
+          "value": "mall.read_supply,mall.write_supply",
+          "text": "읽기+쓰기권한"
+        }
+      ]
+    },
+    {
+      "name": "authority[personal]",
+      "value": "mall.read_personal,mall.write_personal",
+      "text": "읽기+쓰기권한",
+      "options": [
+        {
+          "value": "mall.read_personal",
+          "text": "읽기권한"
+        },
+        {
+          "value": "mall.read_personal,mall.write_personal",
+          "text": "읽기+쓰기권한"
+        }
+      ]
+    },
+    {
+      "name": "authority[order]",
+      "value": "mall.read_order,mall.write_order",
+      "text": "읽기+쓰기권한",
+      "options": [
+        {
+          "value": "mall.read_order",
+          "text": "읽기권한"
+        },
+        {
+          "value": "mall.read_order,mall.write_order",
+          "text": "읽기+쓰기권한"
+        }
+      ]
+    },
+    {
+      "name": "authority[shipping]",
+      "value": "mall.read_shipping,mall.write_shipping",
+      "text": "읽기+쓰기권한",
+      "options": [
+        {
+          "value": "mall.read_shipping",
+          "text": "읽기권한"
+        },
+        {
+          "value": "mall.read_shipping,mall.write_shipping",
+          "text": "읽기+쓰기권한"
+        }
+      ]
+    },
+    {
+      "name": "authority[analytics]",
+      "value": "mall.read_analytics",
+      "text": "읽기권한",
+      "options": [
+        {
+          "value": "mall.read_analytics",
+          "text": "읽기권한"
+        }
+      ]
+    }
+  ],
+  "scopeSelector": [
+    {
+      "value": "category",
+      "text": "상품분류(Category)"
+    },
+    {
+      "value": "product",
+      "text": "상품(Product)"
+    },
+    {
+      "value": "collection",
+      "text": "판매분류(Collection)"
+    },
+    {
+      "value": "supply",
+      "text": "공급사 정보(Supply)"
+    },
+    {
+      "value": "personal",
+      "text": "개인화정보(Personal)"
+    },
+    {
+      "value": "order",
+      "text": "주문(Order)"
+    },
+    {
+      "value": "community",
+      "text": "게시판(Community)"
+    },
+    {
+      "value": "customer",
+      "text": "회원(Customer)"
+    },
+    {
+      "value": "notification",
+      "text": "알림(Notification)"
+    },
+    {
+      "value": "store",
+      "text": "상점(Store)"
+    },
+    {
+      "value": "promotion",
+      "text": "프로모션(Promotion)"
+    },
+    {
+      "value": "design",
+      "text": "디자인(Design)"
+    },
+    {
+      "value": "salesreport",
+      "text": "매출통계(Salesreport)"
+    },
+    {
+      "value": "shipping",
+      "text": "배송(Shipping)"
+    },
+    {
+      "value": "translation",
+      "text": "번역(Translation)"
+    },
+    {
+      "value": "analytics",
+      "text": "접속통계(Analytics)"
+    }
+  ],
+  "forms": [
+    {
+      "id": "js-form-update",
+      "name": "",
+      "action": "/admin/apps/action/modifier"
+    }
+  ],
+  "redirects": [
+    {
+      "name": "redirect_url",
+      "value": "https://younzara.cafe24.com/"
+    }
+  ],
+  "version": "2026-09-01"
+}

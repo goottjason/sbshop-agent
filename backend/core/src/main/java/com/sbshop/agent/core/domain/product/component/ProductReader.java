@@ -15,6 +15,9 @@ public interface ProductReader {
 
 	Page<Product> search(ProductSearchCondition condition, Pageable pageable);
 
+	Page<Product> search(ProductSearchCondition condition, Pageable pageable,
+		com.sbshop.agent.core.domain.market.marketplus.MarketPlusSearchScope marketPlusScope);
+
 	List<ProductCategory> findDistinctCategories();
 
 	List<String> findDistinctBrands();

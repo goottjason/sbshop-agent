@@ -46,7 +46,7 @@ public class ProductMarketSyncService {
 	public MarketRepublishResult syncPriceStock(Long productId, Integer price, StockStatus stockStatus,
 		boolean changed) {
 		boolean soldOut = stockStatus == StockStatus.OUT_OF_STOCK;
-		int quantity = soldOut ? 1 : Product.DEFAULT_IN_STOCK_QUANTITY;
+		int quantity = soldOut ? 1 : 300;
 
 		return syncInternal(productId, marketType -> price, quantity, soldOut, changed);
 	}
@@ -54,7 +54,7 @@ public class ProductMarketSyncService {
 	public MarketRepublishResult syncPriceStockPerMarket(Long productId, PricingInputs pricing,
 		StockStatus stockStatus, boolean changed) {
 		boolean soldOut = stockStatus == StockStatus.OUT_OF_STOCK;
-		int quantity = soldOut ? 1 : Product.DEFAULT_IN_STOCK_QUANTITY;
+		int quantity = soldOut ? 1 : 300;
 		return syncInternal(productId, marketType -> priceForMarket(pricing, marketType), quantity, soldOut,
 			changed);
 	}
@@ -81,6 +81,8 @@ public class ProductMarketSyncService {
 		List<MarketRegistration> registrations = marketRegistrationRepository.findByProductId(productId);
 
 		Product product = productReader.findById(productId).orElse(null);
+		if (!soldOut && product != null && product.getSalesQuantity() != null)
+			quantity = product.getSalesQuantity();
 		List<MarketType> synced = new ArrayList<>();
 		List<MarketType> skipped = new ArrayList<>();
 		Map<MarketType, String> failed = new LinkedHashMap<>();
@@ -88,12 +90,6 @@ public class ProductMarketSyncService {
 		for (MarketRegistration reg : registrations) {
 			MarketType marketType = reg.getMarketType();
 
-			if (marketType == MarketType.CAFE24 && !changed && Boolean.TRUE.equals(reg.getIsSynced())
-				&& reg.getLastSyncError() == null) {
-				skipped.add(marketType);
-				log.info("[가격재고동기화] 변경없음 스킵(Cafe24): productId={}", productId);
-				continue;
-			}
 			if (!marketClientRouter.hasClient(marketType)) {
 				skipped.add(marketType);
 				log.info("[가격재고동기화] 마켓 클라이언트 없음 — 스킵: productId={}, market={}", productId, marketType);
@@ -121,7 +117,9 @@ public class ProductMarketSyncService {
 				if (updated != null) {
 					reg.updateMarketDetailedInfo(objectMapper.writeValueAsString(updated));
 				}
-				reg.markSynced();
+				// Cafe24 readback proves only the requested native fields, not HTML or child markets.
+				if (marketType != MarketType.CAFE24)
+					reg.markSynced();
 				marketRegistrationRepository.save(reg);
 				synced.add(marketType);
 				log.info("[가격재고동기화] 성공: productId={}, market={}, marketItemId={}", productId, marketType, marketItemId);
@@ -182,6 +180,8 @@ public class ProductMarketSyncService {
 	}
 
 	static String writeBlockedReason(MarketRegistration reg) {
+		if (reg.connectionWriteBlock() != null)
+			return reg.connectionWriteBlock();
 		if (reg.getUnsyncReason() == UnsyncReason.DELETED_ON_MARKET) {
 			return "마켓에서 삭제된 상품";
 		}
@@ -207,7 +207,7 @@ public class ProductMarketSyncService {
 	private static final Pattern HTML_TAG_PATTERN = Pattern.compile("</?[a-zA-Z][^>]*>");
 	private static final int MAX_SYNC_ERROR_LENGTH = 480;
 
-	static String sanitizeMarketMessage(String message) {
+	public static String sanitizeMarketMessage(String message) {
 		if (message == null) {
 			return null;
 		}

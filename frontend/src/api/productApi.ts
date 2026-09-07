@@ -1,6 +1,7 @@
 import { apiClient } from './axios';
 
 export interface ProductList {
+  pendingChanges?: number;
   id: number;
   sbCode: string;
   brand: string;
@@ -29,14 +30,18 @@ export interface ProductList {
 }
 
 export type BadgeReason =
+	| 'SOURCE_STATE_REVIEW_REQUIRED' | 'TRANSFER_FAILED_REVIEW_REQUIRED' | 'TRANSFERRED_UNVERIFIED' | 'MARKETPLUS_CONFLICTING_RESULTS'
+	| 'MARKETPLUS_RESULT_UNVERIFIED'
+	| 'DETACHED_DELETED' | 'DETACHED_PROHIBITED'
   | 'DELETED_ON_MARKET' | 'NEVER_SYNCED'
   | 'VALIDATION_FAILED' | 'TRANSIENT_ERROR' | 'BLOCKED_BY_MARKET';
 
 export interface MarketBadgeState {
-  status: 'SYNCED' | 'PENDING' | 'DELETED' | 'FAILED';
+  status: 'SYNCED' | 'PENDING' | 'DELETED' | 'FAILED' | 'DETACHED' | 'PROHIBITED' | 'UNVERIFIED' | 'TRANSFER_FAILED';
   url: string | null;
   reason: BadgeReason | null;
   errorAt: string | null;
+  transmission?: { outcome: 'SUCCESS' | 'FAILURE' | 'CONFLICT'; detail: string; completedAt: string; capturedAt: string } | null;
 }
 
 export interface ProductPage<T> {
@@ -57,11 +62,17 @@ export interface ProductQuery {
   vendors?: string[];
   stockStatuses?: string[];
   markets?: string[];
+  registeredMarkets?: string[];
+  missingMarkets?: string[];
+  pendingChangesOnly?: boolean;
+  marketPlusIssue?: import('./marketPlusTransmissionApi').MarketPlusIssueFilter;
   inStockOnly?: boolean;
   sourceGone?: 'GONE_ONLY' | 'ALIVE_ONLY';
 }
 
 export interface ProductDetail {
+  salesQuantity?: number;
+  revision: number;
   id: number;
   sbCode: string;
   brand: string;
@@ -81,6 +92,7 @@ export interface ProductDetail {
 }
 
 export interface ProductEditFields {
+  salesQuantity?: number;
   brand: string;
   productName: string;
   baseName: string;

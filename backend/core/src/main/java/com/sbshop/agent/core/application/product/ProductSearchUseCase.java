@@ -16,8 +16,24 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ProductSearchUseCase {
 	private final ProductReader productReader;
+	private final com.sbshop.agent.core.domain.product.edit.ProductChangeTargetRepository changeTargets;
+	private final com.sbshop.agent.core.application.market.marketplus.MarketPlusTransmissionService marketPlus;
+
+	public java.util.Map<Long, Long> getPendingChangeCounts(List<Long> ids) {
+		if (ids.isEmpty())
+			return java.util.Map.of();
+		return changeTargets.countPending(ids).stream()
+			.collect(java.util.stream.Collectors.toMap(row -> (Long)row[0], row -> ((Number)row[1]).longValue()));
+	}
 
 	public Page<Product> searchProducts(ProductSearchCondition condition, Pageable pageable) {
+		if (condition.marketPlusIssue() != com.sbshop.agent.core.domain.market.marketplus.MarketPlusIssueFilter.ALL) {
+			var scope = marketPlus.requireSearchScope();
+			var result = productReader.search(condition, pageable, scope);
+			if (!scope.equals(marketPlus.requireSearchScope()))
+				throw new IllegalStateException("조회 중 마켓플러스 계정이 변경되었습니다. 다시 조회하세요.");
+			return result;
+		}
 		return productReader.search(condition, pageable);
 	}
 

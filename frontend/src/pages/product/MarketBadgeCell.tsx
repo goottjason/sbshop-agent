@@ -23,8 +23,8 @@ function extractError(e: unknown): string {
   return '알 수 없는 오류';
 }
 
-export function MarketBadgeCell({ product, onPublished }:
-  { product: ProductList; onPublished: () => void }) {
+export function MarketBadgeCell({ product, onPublished, onViewHistory }:
+  { product: ProductList; onPublished: () => void; onViewHistory?: () => void }) {
   const { modal } = AntApp.useApp();
   const regs = product.marketRegistrations ?? {};
   const [publishing, setPublishing] = useState<string | null>(null);
@@ -83,7 +83,7 @@ export function MarketBadgeCell({ product, onPublished }:
       const { data } = await productApi.getMarketPlusHandoff(product.id, marketKey);
       modal.confirm({
         title: `${label} 전송 (마켓플러스)`,
-        content: `${label}는 상품등록 API가 없어 마켓플러스에서 직접 보내야 합니다. ${data.guide}`,
+        content: `${label} 신규 등록은 마켓플러스에서 대상 마켓과 등록 내용을 확인한 뒤 진행합니다. ${data.guide}`,
         okText: '마켓플러스 열기', cancelText: '취소',
         onOk: () => {
           const copied = navigator.clipboard?.writeText(data.cafe24ProductCode);
@@ -110,6 +110,11 @@ export function MarketBadgeCell({ product, onPublished }:
     <>
     <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 3, alignItems: 'center', justifyContent: 'center' }}>
       {MARKET_BADGES.map((m) => {
+        if (regs[m.key]?.status === 'PROHIBITED' || regs[m.key]?.status === 'DETACHED') {
+          const prohibited = regs[m.key].status === 'PROHIBITED';
+          return <span key={m.key} title={`${m.label}: ${prohibited ? '판매금지' : '삭제 확인'}로 연결 해제. 상품 상세에서 과거 상품번호와 확인 이력을 볼 수 있습니다.`}
+            style={{ ...baseStyle, color: '#991b1b', background: '#fef2f2', border: '1px solid #fca5a5' }}>{m.label} {prohibited ? '금지' : '해제'}</span>;
+        }
         if (publishing === m.key) {
           return (
             <span key={m.key} title={`${m.label} 등록 진행 중`}
@@ -134,6 +139,32 @@ export function MarketBadgeCell({ product, onPublished }:
           );
         }
         const visual = badgeVisual(product, m.key);
+        const transmission = regs[m.key]?.transmission;
+        if (transmission && ESM_MARKET_KEYS.includes(m.key)) {
+          const failedTransfer = transmission.outcome === 'FAILURE';
+          const conflict = transmission.outcome === 'CONFLICT';
+          const label = failedTransfer ? '전송실패' : conflict ? '확인필요' : '전송완료';
+          const shortLabel = failedTransfer ? '실패' : conflict ? '미확인' : '전송됨';
+          const date = (value: string) => new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+          const title = `${m.label} · 저장된 최근 관측: ${label}\n${transmission.detail}\n전송 ${date(transmission.completedAt)} / 수집 ${date(transmission.capturedAt)}\n수집 범위 밖의 이력과 현재 판매 상태는 미확인입니다. 클릭하면 상품 상세의 전송 이력을 엽니다.`;
+          return <button key={m.key} type="button" title={title}
+            onClick={e => { e.stopPropagation(); onViewHistory?.(); }}
+            style={{ ...baseStyle, padding: '2px 3px', cursor: 'pointer', fontFamily: 'inherit',
+              color: failedTransfer || conflict ? '#9a3412' : '#1e40af', background: failedTransfer || conflict ? '#fff7ed' : '#eff6ff',
+              border: `1px solid ${failedTransfer || conflict ? '#fdba74' : '#93c5fd'}` }}>{m.label} {shortLabel}</button>;
+        }
+        if (visual === 'unverified') {
+          const title = `${m.label} 반영 미확인 — 연결된 상품번호는 있지만 최신 전송 결과와 판매 상태를 아직 확인하지 못했습니다. 카페24 저장 성공과 별도로 마켓플러스 상품관리이력 및 마켓 상태를 확인해야 합니다.`;
+          const style: CSSProperties = { ...baseStyle, padding: '2px 4px', color: '#475569', background: '#f1f5f9',
+            border: '1px dashed #94a3b8', textDecoration: 'none' };
+          return regs[m.key].url ? (
+            <a key={m.key} href={regs[m.key].url as string} target="_blank" rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()} title={`${title} 클릭하면 상품 페이지를 엽니다.`}
+              style={style}>{m.label} 미확인</a>
+          ) : (
+            <span key={m.key} title={title} style={style}>{m.label} 미확인</span>
+          );
+        }
         if (visual === 'deleted') {
           const why = UNSYNC_REASON_LABEL[regs[m.key].reason ?? ''] ?? '마켓에서 삭제되었습니다';
           return (

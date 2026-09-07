@@ -29,6 +29,118 @@ import org.hibernate.annotations.JdbcTypeCode;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MarketRegistration extends BaseEntity {
 
+	@jakarta.persistence.Version
+	@Column(nullable = false)
+	private long revision;
+	@Column(length = 36)
+	private String publicationOperationId;
+
+	public void beginReviewedPublication(String operationId) {
+		if (publicationOperationId != null || connectionState == MarketConnectionState.DETACHED_PROHIBITED
+			|| (connectionState == MarketConnectionState.LINKED && extractLiveLookupId() != null))
+			throw new IllegalStateException("등록 진행 중이거나 기존 연결·영구 판매금지가 있습니다.");
+		publicationOperationId = operationId;
+	}
+
+	public void cancelUnsentPublication(String operationId) {
+		if (operationId != null && operationId.equals(publicationOperationId))
+			publicationOperationId = null;
+	}
+
+	public void acceptReviewedPublication(String operationId, String identifiersJson) {
+		if (!java.util.Objects.equals(publicationOperationId, operationId) || operationId == null
+			|| connectionState == MarketConnectionState.DETACHED_PROHIBITED)
+			throw new IllegalStateException("현재 등록 의도 또는 판매금지 상태를 확인하세요.");
+		try {
+			var old = MAPPER.readTree(getMarketIdentifiers());
+			var next = (com.fasterxml.jackson.databind.node.ObjectNode)MAPPER.readTree(identifiersJson);
+			var archive = old.path(PREVIOUS_IDENTIFIERS_KEY).isArray()
+				? ((com.fasterxml.jackson.databind.node.ArrayNode)old.path(PREVIOUS_IDENTIFIERS_KEY)).deepCopy()
+				: MAPPER.createArrayNode();
+			var snapshot = ((com.fasterxml.jackson.databind.node.ObjectNode)old).deepCopy();
+			snapshot.remove(PREVIOUS_IDENTIFIERS_KEY);
+			snapshot.put("connectionState", connectionState.name());
+			snapshot.put("archivedAt", LocalDateTime.now().toString());
+			if (!snapshot.isEmpty())
+				archive.add(snapshot);
+			next.set(PREVIOUS_IDENTIFIERS_KEY, archive);
+			marketIdentifiers = MAPPER.writeValueAsString(next);
+			connectionState = MarketConnectionState.LINKED;
+			publicationOperationId = null;
+			isSynced = false;
+			unsyncReason = null;
+		} catch (Exception e) {
+			throw new IllegalStateException("이전 상품번호 보존 또는 새 연결 저장 실패", e);
+		}
+	}
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 32)
+	private MarketConnectionState connectionState = MarketConnectionState.LINKED;
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 32)
+	private MarketConnectionState gmarketConnectionState = MarketConnectionState.LINKED;
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 32)
+	private MarketConnectionState auctionConnectionState = MarketConnectionState.LINKED;
+
+	public MarketConnectionState connectionStateFor(MarketType channel) {
+		if (channel == marketType)
+			return connectionState;
+		if (marketType == MarketType.CAFE24 && channel == MarketType.GMARKET)
+			return gmarketConnectionState;
+		if (marketType == MarketType.CAFE24 && channel == MarketType.AUCTION)
+			return auctionConnectionState;
+		throw new IllegalArgumentException("이 등록의 마켓이 아닙니다.");
+	}
+
+	public String connectionIdentifier(MarketType channel) {
+		if (channel == marketType)
+			return marketType == MarketType.GMARKET || marketType == MarketType.AUCTION
+				? extractMarketCode() : extractLiveLookupId();
+		if (marketType == MarketType.CAFE24 && channel == MarketType.GMARKET)
+			return identifier(GMARKET_IDENTIFIER_KEY);
+		if (marketType == MarketType.CAFE24 && channel == MarketType.AUCTION)
+			return identifier(AUCTION_IDENTIFIER_KEY);
+		throw new IllegalArgumentException("이 등록의 마켓이 아닙니다.");
+	}
+
+	public boolean hasActiveConnections() {
+		return publicationOperationId != null || !connectionState.detached() || (marketType == MarketType.CAFE24 &&
+			((identifier(GMARKET_IDENTIFIER_KEY) != null && !gmarketConnectionState.detached()) ||
+				(identifier(AUCTION_IDENTIFIER_KEY) != null && !auctionConnectionState.detached())));
+	}
+
+	public String connectionWriteBlock() {
+		if (publicationOperationId != null)
+			return "신규 등록 결과를 확인 중입니다. 중복 등록·수정을 중지합니다.";
+		if (connectionState.detached())
+			return "연결 해제됨: " + connectionState;
+		if (marketType == MarketType.CAFE24 && (gmarketConnectionState.detached() || auctionConnectionState.detached()))
+			return "하위 마켓에 해제된 연결이 있습니다. 해당 마켓으로 전송되지 않는지 확인한 뒤 반영하세요.";
+		return null;
+	}
+
+	public void detachConnection(MarketType channel, MarketConnectionState target) {
+		if (target == null || !target.detached())
+			throw new IllegalArgumentException("연결 해제 원인이 필요합니다.");
+		if (connectionStateFor(channel) == MarketConnectionState.DETACHED_PROHIBITED
+			&& target != MarketConnectionState.DETACHED_PROHIBITED)
+			throw new IllegalStateException("영구 금지 이력을 삭제 상태로 바꿀 수 없습니다.");
+		if (channel == marketType) {
+			connectionState = target;
+			isSynced = false;
+		} else if (channel == MarketType.GMARKET)
+			gmarketConnectionState = target;
+		else if (channel == MarketType.AUCTION)
+			auctionConnectionState = target;
+	}
+
+	private void requireLinkedForIdentifierChange() {
+		if (connectionWriteBlock() != null)
+			throw new IllegalStateException("해제된 연결의 상품번호는 재등록 검토 없이 교체할 수 없습니다.");
+	}
+
 	public static final String GMARKET_IDENTIFIER_KEY = "gmarket_goodsNo";
 	public static final String AUCTION_IDENTIFIER_KEY = "auction_goodsNo";
 
@@ -112,6 +224,8 @@ public class MarketRegistration extends BaseEntity {
 	}
 
 	public void markSynced() {
+		if (connectionState.detached())
+			return;
 		this.isSynced = true;
 		this.lastSyncedAt = LocalDateTime.now();
 		this.unsyncReason = null;
@@ -121,6 +235,8 @@ public class MarketRegistration extends BaseEntity {
 	}
 
 	public void confirmPresentOnMarket() {
+		if (connectionState.detached())
+			return;
 		this.isSynced = true;
 		this.unsyncReason = null;
 	}
@@ -156,6 +272,7 @@ public class MarketRegistration extends BaseEntity {
 	}
 
 	public void replaceIdentifiersArchivingPrevious(String newIdentifiersJson) {
+		requireLinkedForIdentifierChange();
 		if (!hasIdentifiers()) {
 			this.marketIdentifiers = newIdentifiersJson;
 			return;
@@ -231,34 +348,27 @@ public class MarketRegistration extends BaseEntity {
 		return null;
 	}
 
+	/** Identifier aliases used by existing connections, independently of write API support. */
+	public static String[] marketCodeKeys(MarketType market) {
+		if (market == null)
+			return new String[] {};
+		return switch (market) {
+			case COUPANG -> new String[] {"vendorItemId", "sellerProductId"};
+			case SMART_STORE -> new String[] {"originProductNo", "channelProductNo"};
+			case ELEVEN_STREET -> new String[] {"elevenstId", "prdNo"};
+			case CAFE24 -> new String[] {"product_no", "product_code"};
+			case GMARKET, AUCTION -> new String[] {"goodsNo", "itemNo", "goodsCode"};
+			default -> new String[] {};
+		};
+	}
+
 	public String extractMarketCode() {
 		if (marketIdentifiers == null || marketIdentifiers.isEmpty()) {
 			return null;
 		}
 		try {
 			JsonNode node = MAPPER.readTree(marketIdentifiers);
-			String[] keys;
-			switch (marketType) {
-				case COUPANG:
-					keys = new String[] {"vendorItemId", "sellerProductId"};
-					break;
-				case SMART_STORE:
-					keys = new String[] {"originProductNo", "channelProductNo"};
-					break;
-				case ELEVEN_STREET:
-					keys = new String[] {"elevenstId", "prdNo"};
-					break;
-				case CAFE24:
-					keys = new String[] {"product_no", "product_code"};
-					break;
-				case GMARKET:
-				case AUCTION:
-					keys = new String[] {"goodsNo", "itemNo", "goodsCode"};
-					break;
-				default:
-					keys = new String[] {};
-					break;
-			}
+			String[] keys = marketCodeKeys(marketType);
 			for (String k : keys) {
 				String v = node.path(k).asText(null);
 				if (v != null && !v.isEmpty()) {
@@ -290,6 +400,7 @@ public class MarketRegistration extends BaseEntity {
 	}
 
 	public void updateMarketIdentifiers(String marketIdentifiers) {
+		requireLinkedForIdentifierChange();
 		this.marketIdentifiers = marketIdentifiers;
 	}
 
@@ -355,6 +466,7 @@ public class MarketRegistration extends BaseEntity {
 	}
 
 	public void enrichIdentifier(String key, String value) {
+		requireLinkedForIdentifierChange();
 		if (key == null || key.isEmpty() || value == null || value.isEmpty()) {
 			return;
 		}

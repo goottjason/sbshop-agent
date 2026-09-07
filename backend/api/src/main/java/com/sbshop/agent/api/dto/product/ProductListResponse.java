@@ -29,7 +29,7 @@ public record ProductListResponse(
 	String sourceGoneAt,
 	String lastCrawlError,
 	String lastCrawlAt,
-	Map<String, MarketBadgeState> marketRegistrations) {
+	Map<String, MarketBadgeState> marketRegistrations, long pendingChanges) {
 
 	public static ProductListResponse from(Product p) {
 		return new ProductListResponse(
@@ -53,10 +53,15 @@ public record ProductListResponse(
 			p.getSourceGoneAt() != null ? p.getSourceGoneAt().toString() : null,
 			p.getLastCrawlError(),
 			p.getLastCrawlAt() != null ? p.getLastCrawlAt().toString() : null,
-			null);
+			null, 0);
 	}
 
 	public static ProductListResponse from(Product p, Map<String, MarketBadgeState> marketRegistrations) {
+		return from(p, marketRegistrations, 0);
+	}
+
+	public static ProductListResponse from(Product p, Map<String, MarketBadgeState> marketRegistrations,
+		long pendingChanges) {
 		return new ProductListResponse(
 			p.getId(),
 			p.getSbCode(),
@@ -78,6 +83,6 @@ public record ProductListResponse(
 			p.getSourceGoneAt() != null ? p.getSourceGoneAt().toString() : null,
 			p.getLastCrawlError(),
 			p.getLastCrawlAt() != null ? p.getLastCrawlAt().toString() : null,
-			marketRegistrations);
+			marketRegistrations, pendingChanges);
 	}
 }

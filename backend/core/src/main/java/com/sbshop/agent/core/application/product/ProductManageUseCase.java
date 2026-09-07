@@ -45,6 +45,7 @@ public class ProductManageUseCase {
 	private final ProductMarketSyncService productMarketSyncService;
 	private final ProductDeleteTxService productDeleteTxService;
 	private final ActionLogService actionLogService;
+	private final com.sbshop.agent.core.application.product.edit.ProductEditService productEditService;
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Transactional
@@ -77,6 +78,7 @@ public class ProductManageUseCase {
 		Product product = productReader.findById(productId)
 			.orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다: " + productId));
 
+		productEditService.requireWritable(productId, List.of("hostedImages", "detailHtml"));
 		Map<String, String> uploadedUrlMap = imageStorageClient.uploadImages(imageFiles);
 		List<String> hostedImages = new ArrayList<>(uploadedUrlMap.values());
 
@@ -87,21 +89,15 @@ public class ProductManageUseCase {
 			.hostedImages(hostedImages)
 			.detailHtml(newHtml)
 			.build();
-		product.update(command);
-		productWriter.save(product);
+		productEditService.saveExisting(productId, command, product.getRevision(), "system:image-edit");
 
 		log.info("상품 이미지 업데이트 완료: id={}, images={}", productId, hostedImages.size());
 
 		return republishToMarkets(product, productId, hostedImages, newHtml);
 	}
 
-	@Transactional
 	public void updateProduct(Long productId, ProductUpdateCommand command) {
-		Product product = productReader.findById(productId)
-			.orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다: " + productId));
-		product.update(command);
-		productWriter.save(product);
-		log.info("상품 전체 업데이트 완료: id={}", productId);
+		productEditService.saveExisting(productId, command, null, "system:legacy-product-edit");
 	}
 
 	public ProductDeleteResult deleteProduct(Long productId) {

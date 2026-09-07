@@ -1,0 +1,31 @@
+{
+  "mode": "READ_ONLY",
+  "checkedAt": "2026-09-06T10:50:55.752589+00:00",
+  "mall": "younzara",
+  "path": "/api/v2/oauth/token/scopes",
+  "tokenExpiresAtKst": "2026-09-06T21:10:00",
+  "status": 200,
+  "scopes": [
+    "mall.read_application",
+    "mall.read_category",
+    "mall.read_collection",
+    "mall.read_order",
+    "mall.read_product",
+    "mall.read_shipping",
+    "mall.write_application",
+    "mall.write_category",
+    "mall.write_collection",
+    "mall.write_order",
+    "mall.write_product",
+    "mall.write_shipping"
+  ],
+  "responseKeys": [
+    "client_id",
+    "scopes",
+    "grant_type"
+  ],
+  "localPythonDrivers": {
+    "psycopg": false,
+    "psycopg2": true
+  }
+}

@@ -5,9 +5,11 @@ import java.util.List;
 public final class MarketFailureClassifier {
 
 	private static final List<String> DELETED_MARKERS = List.of(
-		"삭제된 상품", "삭제되었습니다", "존재하지 않는 상품", "등록된 상품이 없습니다",
-		"상품을 찾을 수 없", "조회된 상품이 없",
-		"data not found", "does not exist", "404 Not Found");
+		"삭제된 상품", "해당 상품은 삭제되었습니다", "존재하지 않는 상품", "등록된 상품이 없습니다",
+		"상품을 찾을 수 없", "조회된 상품이 없");
+	// 확인된 쿠팡 상품 단위 오류만 인식한다. 일반 404와 리소스/옵션 부재는 상품 삭제의 증거가 아니다.
+	private static final java.util.regex.Pattern PRODUCT_NOT_FOUND = java.util.regex.Pattern
+		.compile("Product\\([0-9]+\\) data not found\\.?");
 
 	private static final List<String> BLOCKED_MARKERS = List.of(
 		"심사가 진행중", "심사중", "판매중지", "판매 중지", "승인 대기", "승인대기", "권한이 없",
@@ -20,20 +22,25 @@ public final class MarketFailureClassifier {
 		"유효하지 않", "허용되지 않", "입력하지 않", "필수", "올바르지 않", "올바른",
 		"파싱", "형식이 잘못", "초과", "400 Bad Request");
 
-	private static final List<String> DELETED_STATUS_MARKERS = List.of("삭제");
-
 	private MarketFailureClassifier() {}
 
 	public static boolean indicatesDeletedStatus(String statusName) {
-		return containsAny(statusName, DELETED_STATUS_MARKERS);
+		return statusName != null && (statusName.equals("상품삭제") || statusName.equals("삭제"));
 	}
 
 	public static boolean indicatesDeleted(Throwable error) {
-		return anyInCauseChain(error, DELETED_MARKERS);
+		for (Throwable t = error; t != null; t = t.getCause()) {
+			if (indicatesDeleted(t.getMessage()))
+				return true;
+			if (t.getCause() == t)
+				break;
+		}
+		return false;
 	}
 
 	public static boolean indicatesDeleted(String message) {
-		return containsAny(message, DELETED_MARKERS);
+		return containsAny(message, DELETED_MARKERS)
+			|| (message != null && PRODUCT_NOT_FOUND.matcher(message).find());
 	}
 
 	public static SyncErrorType classifyError(Throwable error) {

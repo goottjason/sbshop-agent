@@ -65,3 +65,44 @@ export const productChangeApi = {
   preview: (request: NumericPreviewRequest, signal?: AbortSignal) =>
     apiClient.post<NumericPreviewResult>('/api/v1/products/changes/numeric-preview', request, { signal }),
 };
+
+export interface EditConnection {
+  registrationId: number;
+  market: string;
+  externalId: string | null;
+  state: 'RECORDED' | 'REVIEW_REQUIRED' | 'REGISTRATION_UNCONFIRMED';
+  reason: string;
+}
+export interface EditWorkspace {
+  productId: number;
+  revision: number;
+  fields: { field: string; permission: 'EDITABLE' | 'INTERNAL' | 'LOCKED' | 'VERIFICATION_REQUIRED'; reason: string }[];
+  connections: EditConnection[];
+}
+export interface EditChange { field: string; before: string | null; after: string | null; derived: boolean }
+export interface EditReview {
+  reviewId: string;
+  expiresAt: string;
+  items: {
+    productId: number; sbCode: string | null; revision: number;
+    state: 'READY' | 'UNCHANGED' | 'EXCLUDED' | 'NOT_FOUND';
+    changes: EditChange[]; connections: EditConnection[];
+    prices: { market: string; minimumPrice: string; salePrice: string }[];
+    reasons: string[]; notices?: string[];
+  }[];
+}
+export interface EditCommit {
+  reviewId: string;
+  items: { productId: number; sbCode: string | null; state: string; historyId: number | null; reason: string }[];
+}
+export interface EditHistory {
+  id: number; beforeRevision: number; afterRevision: number; actor: string; createdAt: string;
+  changes: EditChange[]; targets: { id: number; market: string; state: string }[];
+}
+export const productEditApi = {
+  workspace: (id: number, signal?: AbortSignal) => apiClient.get<EditWorkspace>(`/api/v1/products/${id}/edit-workspace`, { signal }),
+  history: (id: number, signal?: AbortSignal) => apiClient.get<EditHistory[]>(`/api/v1/products/${id}/change-history`, { signal }),
+  preview: (request: NumericPreviewRequest, signal?: AbortSignal) => apiClient.post<EditReview>('/api/v1/products/changes/preview', request, { signal }),
+  previewSingle: (id: number, expectedRevision: number, values: Record<string, unknown>) => apiClient.post<EditReview>(`/api/v1/products/${id}/changes/preview`, { expectedRevision, values }),
+  commit: (reviewId: string) => apiClient.post<EditCommit>('/api/v1/products/changes/commit', { reviewId }),
+};

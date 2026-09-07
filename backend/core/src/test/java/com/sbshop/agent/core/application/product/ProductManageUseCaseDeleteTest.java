@@ -69,7 +69,8 @@ class ProductManageUseCaseDeleteTest {
 	void setUp() {
 		useCase = new ProductManageUseCase(productReader, productWriter, imageStorageClient,
 			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService,
-			productDeleteTxService, actionLogService);
+			productDeleteTxService, actionLogService,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.product.edit.ProductEditService.class));
 		lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 	}
 

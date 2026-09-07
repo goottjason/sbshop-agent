@@ -16,6 +16,8 @@ import com.sbshop.agent.infrastructure.client.cafe24.client.Cafe24RestClient;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -46,6 +48,28 @@ class Cafe24AuthControllerTokenExchangeTest {
 		verify(cafe24TokenManager).issueInitialToken("ABC123");
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(response.getBody().connected()).isTrue();
+	}
+
+	@Test
+	void issueToken_decodesUrlCodeExactlyOnce() {
+		var response = controller().issueToken(new Cafe24AuthController.IssueTokenRequest(
+			"https://x?state=nonce&code=ABC%2B%2525%26code%3Dkept#fragment"));
+		verify(cafe24TokenManager).issueInitialToken("ABC+%25&code=kept");
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+	}
+
+	@Test
+	void issueToken_preservesLiteralCodeCharacters() {
+		controller().issueToken(new Cafe24AuthController.IssueTokenRequest("ABC+%25"));
+		verify(cafe24TokenManager).issueInitialToken("ABC+%25");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"https://x?error=denied", "https://x?othercode=ABC", "https://x?code=%invalid"})
+	void issueToken_rejectsUrlsWithoutUsableCode(String input) {
+		var response = controller().issueToken(new Cafe24AuthController.IssueTokenRequest(input));
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+		verify(cafe24TokenManager, never()).issueInitialToken(any());
 	}
 
 	@Test

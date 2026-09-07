@@ -17,6 +17,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers
 @SpringBootTest
+@org.springframework.test.annotation.DirtiesContext(classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_CLASS)
 class ProductDetailHtmlReadTest {
 
 	@Container
@@ -49,8 +50,8 @@ class ProductDetailHtmlReadTest {
 	void shouldReadProductWhoseDetailHtmlColumnContainsHtmlText() {
 		String html = "<img src=\"http://example.com/top.png\"><br /><b>테스트 상세</b>";
 		jdbcTemplate.update(
-			"INSERT INTO sb_product (id, sb_code, product_name, status, stock, detail_html) "
-				+ "VALUES (999999, 'TEST-D021', '타트체리 재현 상품', 'ACTIVE', 0, ?)",
+			"INSERT INTO sb_product (id, sb_code, product_name, status, stock, revision, sales_quantity, detail_html) "
+				+ "VALUES (999999, 'TEST-D021', '타트체리 재현 상품', 'ACTIVE', 0, 0, 300, ?)",
 			html);
 
 		Product loaded = entityManager.find(Product.class, 999999L);

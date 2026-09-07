@@ -52,7 +52,8 @@ class ProductManageUseCasePriceStockTest {
 	@BeforeEach
 	void setUp() {
 		useCase = new ProductManageUseCase(productReader, productWriter, imageStorageClient,
-			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService, null, null);
+			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService, null, null,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.application.product.edit.ProductEditService.class));
 		when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 	}
 

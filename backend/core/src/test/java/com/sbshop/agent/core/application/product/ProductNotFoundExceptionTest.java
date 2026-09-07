@@ -1,7 +1,6 @@
 package com.sbshop.agent.core.application.product;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.domain.common.exception.ResourceNotFoundException;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
@@ -23,6 +22,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ProductNotFoundExceptionTest {
+	private final com.sbshop.agent.core.application.product.edit.ProductEditService edits = org.mockito.Mockito
+		.mock(com.sbshop.agent.core.application.product.edit.ProductEditService.class);
 	@Mock
 	private ProductReader productReader;
 	@Mock
@@ -45,10 +46,14 @@ class ProductNotFoundExceptionTest {
 
 	@BeforeEach
 	void setUp() {
-		searchUseCase = new ProductSearchUseCase(productReader);
+		searchUseCase = new ProductSearchUseCase(productReader,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.domain.product.edit.ProductChangeTargetRepository.class),
+			org.mockito.Mockito
+				.mock(com.sbshop.agent.core.application.market.marketplus.MarketPlusTransmissionService.class));
 		manageUseCase = new ProductManageUseCase(productReader, productWriter, imageStorageClient,
-			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService, null, null);
-		when(productReader.findById(MISSING_ID)).thenReturn(Optional.empty());
+			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService, null, null,
+			edits);
+		org.mockito.Mockito.lenient().when(productReader.findById(MISSING_ID)).thenReturn(Optional.empty());
 	}
 
 	@Test
@@ -78,6 +83,9 @@ class ProductNotFoundExceptionTest {
 	@Test
 	@DisplayName("updateProduct: 미존재 id는 ResourceNotFoundException(404)을 던진다")
 	void updateProduct_missingId_throwsNotFound() {
+		org.mockito.Mockito.doThrow(new ResourceNotFoundException("상품을 찾을 수 없습니다"))
+			.when(edits).saveExisting(org.mockito.ArgumentMatchers.eq(MISSING_ID), org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.anyString());
 		assertThatThrownBy(() -> manageUseCase.updateProduct(MISSING_ID, ProductUpdateCommand.builder().build()))
 			.isInstanceOf(ResourceNotFoundException.class)
 			.hasMessageContaining("상품을 찾을 수 없습니다");

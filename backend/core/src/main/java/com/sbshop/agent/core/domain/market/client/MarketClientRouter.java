@@ -11,9 +11,28 @@ public class MarketClientRouter {
 
 	private final Map<MarketType, MarketClient> adapterMap;
 
-	public MarketClientRouter(List<MarketClient> adapters) {
+	public MarketClientRouter(List<MarketClient> adapters,
+		com.sbshop.agent.core.application.market.MarketConnectionWriteGuard guard) {
 		this.adapterMap = adapters.stream()
-			.collect(Collectors.toMap(MarketClient::getSupportedMarket, adapter -> adapter));
+			.collect(Collectors.toMap(MarketClient::getSupportedMarket, adapter -> guarded(adapter, guard)));
+	}
+
+	private MarketClient guarded(MarketClient adapter,
+		com.sbshop.agent.core.application.market.MarketConnectionWriteGuard guard) {
+		return (MarketClient)java.lang.reflect.Proxy.newProxyInstance(MarketClient.class.getClassLoader(),
+			new Class<?>[] {MarketClient.class}, (proxy, method, args) -> {
+				if ("submitPreparedPublication".equals(method.getName()))
+					guard.requirePublicationIntent(adapter.getSupportedMarket(),
+						(com.sbshop.agent.core.domain.product.Product)args[0], (String)args[1]);
+				if (com.sbshop.agent.core.application.market.MarketConnectionWriteGuard.WRITES
+					.contains(method.getName()))
+					guard.requireWritable(adapter.getSupportedMarket(), args == null ? new Object[0] : args);
+				try {
+					return method.invoke(adapter, args);
+				} catch (java.lang.reflect.InvocationTargetException e) {
+					throw e.getCause();
+				}
+			});
 	}
 
 	public MarketClient getClient(MarketType marketType) {

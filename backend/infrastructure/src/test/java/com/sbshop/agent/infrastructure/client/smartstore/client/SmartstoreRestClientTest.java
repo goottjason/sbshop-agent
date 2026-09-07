@@ -80,6 +80,32 @@ class SmartstoreRestClientTest {
 		};
 	}
 
+	@Test
+	void changingClientIdentityDoesNotReuseThePreviousAccountsToken() throws Exception {
+		var properties = new SmartstoreProperties();
+		properties.setClientId("ACCOUNT_A");
+		properties.setClientSecret("$2a$10$abcdefghijklmnopqrstuv");
+		properties.setApiUrl("https://api.example.com/external");
+		when(marketCredentialRepository.findByMarketType(MarketType.SMART_STORE)).thenReturn(Optional.empty());
+		var client = new SmartstoreRestClient(properties, new ObjectMapper(), marketCredentialRepository);
+		var builder = RestClient.builder();
+		var server = MockRestServiceServer.bindTo(builder).build();
+		server.expect(requestTo("https://api.example.com/external/v1/oauth2/token"))
+			.andRespond(withSuccess("{\"access_token\":\"token-a\",\"expires_in\":10800}", MediaType.APPLICATION_JSON));
+		server.expect(requestTo("https://api.example.com/external/v1/oauth2/token"))
+			.andExpect(request -> assertThat(((MockClientHttpRequest)request).getBodyAsString())
+				.contains("client_id=ACCOUNT_B"))
+			.andRespond(withSuccess("{\"access_token\":\"token-b\",\"expires_in\":10800}", MediaType.APPLICATION_JSON));
+		injectRestClient(client, builder.build());
+		String originalAccount = client.accountReference();
+		assertThat(client.getValidAccessToken()).isEqualTo("token-a");
+		assertThat(client.getValidAccessToken()).isEqualTo("token-a");
+		properties.setClientId("ACCOUNT_B");
+		assertThat(client.accountReference()).isNotEqualTo(originalAccount).doesNotContain("ACCOUNT_B");
+		assertThat(client.getValidAccessToken()).isEqualTo("token-b");
+		server.verify();
+	}
+
 	private static void injectRestClient(SmartstoreRestClient client, RestClient restClient)
 		throws Exception {
 		Field f = SmartstoreRestClient.class.getDeclaredField("restClient");

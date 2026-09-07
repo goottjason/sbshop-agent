@@ -31,6 +31,8 @@ import static org.mockito.ArgumentMatchers.eq;
 
 @ExtendWith(MockitoExtension.class)
 class ProductManageUseCaseRepublishTest {
+	private final com.sbshop.agent.core.application.product.edit.ProductEditService edits = org.mockito.Mockito
+		.mock(com.sbshop.agent.core.application.product.edit.ProductEditService.class);
 	@Mock
 	private ProductReader productReader;
 	@Mock
@@ -56,7 +58,8 @@ class ProductManageUseCaseRepublishTest {
 	@BeforeEach
 	void setUp() {
 		useCase = new ProductManageUseCase(productReader, productWriter, imageStorageClient,
-			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService, null, null);
+			htmlImageReplacer, marketRegistrationRepository, marketClientRouter, productMarketSyncService, null, null,
+			edits);
 
 		lenient().when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 		lenient().when(product.getSbCode()).thenReturn("SB1");
@@ -81,7 +84,8 @@ class ProductManageUseCaseRepublishTest {
 
 		verify(coupangClient).syncImagesAndHtml(any(), eq("CP123"), any(),
 			eq(List.of("https://r2.dev/a.jpg")), eq("<new/>"));
-		verify(productWriter).save(product);
+		verify(edits).saveExisting(eq(PRODUCT_ID), any(), org.mockito.ArgumentMatchers.anyLong(),
+			org.mockito.ArgumentMatchers.anyString());
 	}
 
 	@Test
@@ -96,7 +100,7 @@ class ProductManageUseCaseRepublishTest {
 
 		verify(marketClientRouter, never()).getClient(MarketType.GMARKET);
 		verify(marketClientRouter, never()).getClient(MarketType.AUCTION);
-		verify(productWriter).save(product);
+		verify(edits).saveExisting(eq(PRODUCT_ID), any(), org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
 	}
 
 	@Test
@@ -117,7 +121,8 @@ class ProductManageUseCaseRepublishTest {
 		useCase.updateImagesAndHtml(PRODUCT_ID, files());
 
 		verify(cafe24Client).syncImagesAndHtml(any(), any(), any(), anyList(), any());
-		verify(productWriter).save(product);
+		verify(edits).saveExisting(eq(PRODUCT_ID), any(), org.mockito.ArgumentMatchers.anyLong(),
+			org.mockito.ArgumentMatchers.anyString());
 	}
 
 	private MarketRegistration reg(MarketType type, String identifiersJson) {

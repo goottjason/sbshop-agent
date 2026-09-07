@@ -63,7 +63,7 @@ class ProductPublishPriceOverrideTest {
 		when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 		when(marketClientRouter.hasClient(MARKET)).thenReturn(true);
 		when(marketClientRouter.getClient(MARKET)).thenReturn(client);
-		when(registrationTxService.savePending(any(), any(), any())).thenReturn(registration);
+		when(registrationTxService.savePending(any(), any(), any(), org.mockito.ArgumentMatchers.anyLong())).thenReturn(registration);
 		MarketSalePriceOverrides overrides =
 			new MarketSalePriceOverrides(new BigDecimal("15"), new BigDecimal("20"), new BigDecimal("5000"));
 		when(marketSalePriceResolver.resolveForProduct(product, MARKET, overrides))
@@ -82,7 +82,7 @@ class ProductPublishPriceOverrideTest {
 		when(productReader.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
 		when(marketClientRouter.hasClient(MARKET)).thenReturn(true);
 		when(marketClientRouter.getClient(MARKET)).thenReturn(client);
-		when(registrationTxService.savePending(any(), any(), any())).thenReturn(registration);
+		when(registrationTxService.savePending(any(), any(), any(), org.mockito.ArgumentMatchers.anyLong())).thenReturn(registration);
 		when(marketSalePriceResolver.resolveForProduct(product, MARKET)).thenReturn(new BigDecimal("62200"));
 		when(client.publish(any(), any())).thenReturn(Map.of("elevenstId", "1"));
 

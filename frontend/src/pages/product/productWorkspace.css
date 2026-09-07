@@ -38,3 +38,6 @@ a.pw-product-name:hover { color: var(--product-primary); text-decoration: underl
 @media (max-width: 700px) { .pw-change-row { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 1000px) { .pw-filter-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 650px) { .pw-search { padding: 14px; } .pw-filter-grid { grid-template-columns: 1fr; } .pw-searchbar { flex-wrap: wrap; } .pw-searchbar > .ant-input-affix-wrapper { flex-basis: 100%; } }
+
+.pw-quick-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 14px; font-size: 12px; color: #64748b; }
+.pw-filter-tags { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }

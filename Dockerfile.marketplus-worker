@@ -1,0 +1,6 @@
+FROM python:3.12-slim
+WORKDIR /observer
+COPY tools/browser/ /observer/tools/browser/
+COPY tools/marketplus/ /observer/tools/marketplus/
+ENV PYTHONUNBUFFERED=1
+ENTRYPOINT ["python3", "/observer/tools/marketplus/worker.py"]

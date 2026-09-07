@@ -1,0 +1,44 @@
+{
+  "checkedAt": "2026-09-06T11:31:57.407448+00:00",
+  "mall": "younzara",
+  "mode": "REAUTHORIZE",
+  "persisted": true,
+  "exchangeStatus": 200,
+  "grantedScopes": [
+    "mall.read_application",
+    "mall.read_category",
+    "mall.read_collection",
+    "mall.read_order",
+    "mall.read_product",
+    "mall.read_shipping",
+    "mall.read_store",
+    "mall.write_application",
+    "mall.write_category",
+    "mall.write_collection",
+    "mall.write_order",
+    "mall.write_product",
+    "mall.write_shipping"
+  ],
+  "tokenExpiresAtKst": "2026-09-06T22:31:56+09:00",
+  "verification": [
+    {
+      "path": "/oauth/token/scopes",
+      "status": 200,
+      "apiVersion": null,
+      "requiredScopesPresent": true
+    },
+    {
+      "path": "/admin/products/setting?shop_no=1",
+      "status": 200,
+      "apiVersion": "2026-09-01",
+      "shopMatches": true,
+      "calculatePriceBasedOn": "S"
+    },
+    {
+      "path": "/admin/products?shop_no=1&limit=1&fields=shop_no,product_no,product_code",
+      "status": 200,
+      "apiVersion": "2026-09-01",
+      "productsArrayPresent": true
+    }
+  ]
+}

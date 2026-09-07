@@ -35,6 +35,119 @@ import org.springframework.util.MultiValueMap;
 @Component
 @RequiredArgsConstructor
 public class SmartstoreMarketClient implements MarketClient {
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.PreparedMarketPublication preparePublication(Product product,
+		java.math.BigDecimal price) {
+		String account = inspectionAccountReference();
+		try {
+			var context = mergeWithAuto(product,
+				new MarketPublishContext(null, null, price, List.of(), Map.of(), Map.of()));
+			Map<String, Object> body = payloadBuilder.build(product, context);
+			applyUploadedImages(body, product);
+			var node = (com.fasterxml.jackson.databind.node.ObjectNode)objectMapper.valueToTree(body);
+			var origin = (com.fasterxml.jackson.databind.node.ObjectNode)node.path("originProduct");
+			origin.put("stockQuantity", product.getSalesQuantity());
+			if (product.getSalesQuantity() == 0)
+				origin.put("statusType", "OUTOFSTOCK");
+			if (account == null || !account.equals(inspectionAccountReference()))
+				throw new IllegalStateException("등록 준비 중 마켓 계정이 변경되었습니다.");
+			return new com.sbshop.agent.core.domain.market.client.dto.PreparedMarketPublication(node.toString(),
+				account,
+				origin.path("name").asText(), origin.path("leafCategoryId").asText(), context.categoryPath(), price,
+				product.getSalesQuantity(),
+				origin.path("images").path("representativeImage").path("url").asText());
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	@Override
+	public Map<String, String> submitPreparedPublication(Product product, String operationId, String payload) {
+		try {
+			// Frozen request: no category lookup, image upload or payload reconstruction after approval.
+			JsonNode root = objectMapper.readTree(restClient.post("/v2/products", objectMapper.readTree(payload)));
+			String id = root.path("originProductNo").asText("");
+			requirePriceId(id);
+			if (root.has("code"))
+				throw new IllegalStateException("등록 응답의 결과 코드를 확인할 수 없습니다.");
+			Map<String, String> result = new HashMap<>();
+			result.put("originProductNo", id);
+			String channel = root.path("smartstoreChannelProductNo").asText("");
+			if (channel.matches("[1-9][0-9]{0,17}"))
+				result.put("channelProductNo", channel);
+			return result;
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	@Override
+	public boolean verifyPreparedPublication(String id, String sbCode, String payload) {
+		requirePriceId(id);
+		try {
+			JsonNode response = objectMapper.readTree(restClient.get("/v2/products/origin-products/" + id));
+			JsonNode actual = response.path("originProduct"),
+				expected = objectMapper.readTree(payload).path("originProduct");
+			if (response.has("code") || !actual.isObject()
+				|| (actual.hasNonNull("id") && !id.equals(actual.path("id").asText())))
+				return false;
+			if (!sbCode
+				.equals(actual.path("detailAttribute").path("sellerCodeInfo").path("sellerManagementCode").asText()))
+				return false;
+			if (!java.util.Set.of("SALE", "OUTOFSTOCK", "WAIT").contains(actual.path("statusType").asText()))
+				return false;
+			for (String field : List.of("name", "leafCategoryId", "salePrice", "stockQuantity", "detailContent",
+				"images")) {
+				if (!actual.hasNonNull(field) || !actual.path(field).equals(expected.path(field)))
+					return false;
+			}
+			return true;
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.MarketPriceRead readSalePrice(String id, String optionId) {
+		requirePriceId(id);
+		String account = inspectionAccountReference();
+		try {
+			JsonNode root = objectMapper.readTree(restClient.get("/v2/products/origin-products/" + id));
+			JsonNode p = root.path("originProduct");
+			if (root.has("code") || !p.isObject() || (p.hasNonNull("id") && !id.equals(p.path("id").asText())))
+				throw new IllegalStateException("원상품 응답의 식별자를 확인할 수 없습니다.");
+			String status = p.path("statusType").asText();
+			boolean writable = java.util.Set.of("SALE", "OUTOFSTOCK").contains(status);
+			if (!p.path("salePrice").isIntegralNumber() || p.path("salePrice").decimalValue().signum() <= 0)
+				throw new IllegalStateException("조회 응답에 유효한 판매가가 없습니다.");
+			if (account == null || !account.equals(inspectionAccountReference()))
+				throw new IllegalStateException("조회 계정이 변경되었습니다.");
+			return new com.sbshop.agent.core.domain.market.client.dto.MarketPriceRead(
+				p.path("salePrice").decimalValue(), writable,
+				writable ? "원상품 판매가 조회" : "상품 상태 " + status + ": 자동 쓰기를 중지합니다.", account);
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	@Override
+	public void writeSalePrice(String id, String optionId, java.math.BigDecimal price) {
+		try {
+			requirePriceId(id);
+			// Official v2.87 multi-update contract. No name, stock, status or discount is sent.
+			restClient.patch("/v1/products/origin-products/multi-update",
+				Map.of("multiProductUpdateRequestVos", List.of(
+					Map.of("originProductNo", Long.parseLong(id), "multiUpdateTypes", List.of("SALE_PRICE"),
+						"productSalePrice", Map.of("salePrice", price.intValueExact())))));
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	private static void requirePriceId(String id) {
+		if (id == null || !id.matches("[1-9][0-9]{0,17}"))
+			throw new IllegalArgumentException("원상품 번호가 올바르지 않습니다.");
+	}
 
 	private final SmartstoreProductPayloadBuilder payloadBuilder;
 	private final SmartstoreCategoryResolver categoryResolver;
@@ -92,6 +205,90 @@ public class SmartstoreMarketClient implements MarketClient {
 			log.error("[Smartstore] 상품 등록 실패: {}", e.getMessage());
 			throw new RuntimeException("Smartstore 상품 등록 오류", e);
 		}
+	}
+
+	@Override
+	public String inspectionAccountReference() {
+		return restClient.accountReference();
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.MarketPresence checkPresence(String marketItemId) {
+		return switch (inspectListing(marketItemId).state()) {
+			case DELETED -> com.sbshop.agent.core.domain.market.MarketPresence.ABSENT;
+			case UNKNOWN -> com.sbshop.agent.core.domain.market.MarketPresence.UNKNOWN;
+			default -> com.sbshop.agent.core.domain.market.MarketPresence.PRESENT;
+		};
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation inspectListing(String marketItemId) {
+		var unknown = com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation
+			.unknown("응답 또는 조회 계정을 확인할 수 없습니다. 연결을 유지합니다.");
+		if (marketItemId == null || !marketItemId.matches("[0-9]+"))
+			return unknown;
+		String account = restClient.accountReference();
+		if (account == null)
+			return unknown;
+		String path = "/v2/products/origin-products/" + marketItemId;
+		var result = inspectListingResponse(path, marketItemId, account);
+		return account.equals(restClient.accountReference()) ? result : unknown;
+	}
+
+	private com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation inspectListingResponse(String path,
+		String id, String account) {
+		var state = com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.UNKNOWN;
+		String code = "UNVERIFIED";
+		java.time.Instant retryAfter = null;
+		String detail = "응답 형식을 확인하지 못했습니다. 연결을 유지합니다.";
+		try {
+			JsonNode response = objectMapper.readTree(restClient.get(path));
+			JsonNode origin = response == null ? null : response.path("originProduct");
+			if (response != null && !response.has("code") && origin.isObject()
+				&& !origin.path("name").asText("").isBlank()
+				&& (!origin.hasNonNull("id") || id.equals(origin.path("id").asText()))) {
+				code = origin.path("statusType").asText("");
+				state = switch (code) {
+					case "DELETE" ->
+						com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.DELETED;
+					case "PROHIBITION" ->
+						com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.PROHIBITED;
+					case "OUTOFSTOCK" ->
+						com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.OUT_OF_STOCK;
+					case "SUSPENSION", "CLOSE" ->
+						com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.STOPPED;
+					case "WAIT", "SALE", "UNADMISSION", "REJECTION" ->
+						com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.PRESENT;
+					default -> com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.UNKNOWN;
+				};
+				detail = "마켓 상품 상태: " + code + " · 세부 사유 미제공";
+			}
+		} catch (Exception error) {
+			detail = "조회 오류로 확인하지 못했습니다. 연결을 유지하고 다시 조회하세요.";
+			for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+				if (cause instanceof org.springframework.web.client.ResourceAccessException)
+					code = "TRANSPORT_ERROR";
+				if (cause instanceof org.springframework.web.client.RestClientResponseException http) {
+					code = "HTTP_" + http.getStatusCode().value();
+					retryAfter = com.sbshop.agent.infrastructure.client.smartstore.client.InspectionRetryAfter.parse(
+						http.getResponseHeaders() == null ? null : http.getResponseHeaders().getFirst("Retry-After"),
+						java.time.Instant.now());
+					try {
+						String apiCode = objectMapper.readTree(http.getResponseBodyAsString()).path("code").asText("");
+						code += "/" + apiCode;
+						if (http.getStatusCode().value() == 404 && "NOT_FOUND".equals(apiCode)) {
+							state = com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.DELETED;
+							detail = "사유 미제공 · 마켓 상품번호 조회로 부재 확인";
+						}
+					} catch (Exception ignored) {}
+					break;
+				}
+				if (cause.getCause() == cause)
+					break;
+			}
+		}
+		return new com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation(state, code, detail,
+			account, "GET " + path, java.time.Instant.now(), retryAfter);
 	}
 
 	@Override

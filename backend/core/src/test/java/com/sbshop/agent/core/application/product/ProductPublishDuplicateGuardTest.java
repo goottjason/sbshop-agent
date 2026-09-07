@@ -77,7 +77,7 @@ class ProductPublishDuplicateGuardTest {
 	@Test
 	@DisplayName("D-223: 이미 살아있는 등록(synced+식별자)에 재게시하면 거부한다 — 유령 리스팅 방지")
 	void aliveRegistration_publishRejected() {
-		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품"))
+		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품", 0L))
 			.thenReturn(liveRegistration());
 
 		assertThatThrownBy(() -> useCase.publishToMarket(PRODUCT_ID, MARKET))
@@ -91,7 +91,7 @@ class ProductPublishDuplicateGuardTest {
 	@Test
 	@DisplayName("D-223: force=true 면 살아있어도 게시한다 — 명시적 강제만 허용")
 	void aliveRegistration_forceAllowsPublish() {
-		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품"))
+		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품", 0L))
 			.thenReturn(liveRegistration());
 		when(client.publish(eq(product), any())).thenReturn(Map.of("sellerProductId", "33333"));
 
@@ -105,7 +105,7 @@ class ProductPublishDuplicateGuardTest {
 	void deletedOnMarket_publishAllowed() {
 		MarketRegistration dead = liveRegistration();
 		dead.markAbsentFromMarket(UnsyncReason.DELETED_ON_MARKET);
-		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품")).thenReturn(dead);
+		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품", 0L)).thenReturn(dead);
 		when(client.publish(eq(product), any())).thenReturn(Map.of("sellerProductId", "33333"));
 
 		useCase.publishToMarket(PRODUCT_ID, MARKET);
@@ -129,7 +129,7 @@ class ProductPublishDuplicateGuardTest {
 		MarketRegistration pending = MarketRegistration.builder()
 			.productId(PRODUCT_ID).marketType(MARKET).marketIdentifiers("{}")
 			.marketDetailedInfo("{}").build();
-		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품")).thenReturn(pending);
+		when(registrationTxService.savePending(PRODUCT_ID, MARKET, "테스트 상품", 0L)).thenReturn(pending);
 		when(client.publish(eq(product), any())).thenReturn(Map.of("sellerProductId", "44444"));
 
 		useCase.publishToMarket(PRODUCT_ID, MARKET);

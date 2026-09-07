@@ -29,12 +29,22 @@ public class SmartstoreRestClient {
 	private final SmartstoreProperties properties;
 	private final ObjectMapper objectMapper;
 	private final MarketCredentialRepository marketCredentialRepository;
-	private final RestClient restClient = RestClient.create();
+	private final RestClient restClient = createRestClient();
+
+	private static RestClient createRestClient() {
+		var http = java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(10)).build();
+		var factory = new org.springframework.http.client.JdkClientHttpRequestFactory(http);
+		factory.setReadTimeout(java.time.Duration.ofSeconds(30));
+		return RestClient.builder().requestFactory(factory).build();
+	}
+
 	private String accessToken;
+	private String tokenClientId;
 	private volatile Instant tokenExpiresAt = Instant.EPOCH;
 
 	public synchronized String getValidAccessToken() {
-		if (accessToken == null || Instant.now().isAfter(tokenExpiresAt)) {
+		if (accessToken == null || Instant.now().isAfter(tokenExpiresAt)
+			|| !java.util.Objects.equals(tokenClientId, resolveClientId())) {
 			fetchAccessToken();
 		}
 		return accessToken;
@@ -44,12 +54,30 @@ public class SmartstoreRestClient {
 		return request("GET", path, null);
 	}
 
+	/** Stable non-secret reference for the SELF application used by product reads. */
+	public String accountReference() {
+		String clientId = resolveClientId();
+		if (blank(clientId))
+			return null;
+		try {
+			return "SMART_STORE:SELF:"
+				+ java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+					.digest(clientId.getBytes(StandardCharsets.UTF_8)));
+		} catch (java.security.NoSuchAlgorithmException e) {
+			throw new IllegalStateException(e);
+		}
+	}
+
 	public String post(String path, Object body) {
 		return request("POST", path, body);
 	}
 
 	public String put(String path, Object body) {
 		return request("PUT", path, body);
+	}
+
+	public String patch(String path, Object body) {
+		return request("PATCH", path, body);
 	}
 
 	public String delete(String path) {
@@ -94,6 +122,7 @@ public class SmartstoreRestClient {
 				.body(String.class);
 			JsonNode node = objectMapper.readTree(response);
 			accessToken = node.path("access_token").asText();
+			tokenClientId = clientId;
 			long expiresIn = node.path("expires_in").asLong(10800);
 			tokenExpiresAt = Instant.now().plusSeconds(Math.max(60, expiresIn - 60));
 			log.info("[Smartstore] OAuth2 토큰 발급 완료 (만료 {}s 후)", expiresIn);
@@ -141,6 +170,7 @@ public class SmartstoreRestClient {
 
 	private synchronized void invalidateToken() {
 		accessToken = null;
+		tokenClientId = null;
 		tokenExpiresAt = Instant.EPOCH;
 	}
 

@@ -36,6 +36,16 @@ export const getCafe24Status = async (): Promise<Cafe24Status> => {
   return data;
 };
 
+export const getCafe24AuthorizationUrl = async (): Promise<{ url: string }> => {
+  const { data } = await apiClient.get('/api/admin/sync/cafe24/auth-url');
+  return data;
+};
+
+export const getCafe24PriceSettingsStatus = async (): Promise<{ state: 'READABLE' | 'MISSING_SCOPE' | 'AUTH_REQUIRED' | 'UNAVAILABLE'; message: string }> => {
+  const { data } = await apiClient.get('/api/admin/sync/cafe24/price-settings-status');
+  return data;
+};
+
 export const issueCafe24Token = async (code: string): Promise<Cafe24Status> => {
   const { data } = await apiClient.post('/api/admin/sync/cafe24/issue-token', { code });
   return data;

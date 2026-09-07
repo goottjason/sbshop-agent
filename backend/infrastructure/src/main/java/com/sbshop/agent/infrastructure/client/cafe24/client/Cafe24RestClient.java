@@ -15,7 +15,20 @@ import org.springframework.web.client.RestClient;
 public class Cafe24RestClient {
 
 	private final Cafe24TokenManager tokenManager;
-	private final RestClient restClient = RestClient.create();
+	private final RestClient restClient = boundedRestClient();
+
+	public String accountReference() {
+		return com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.account("CAFE24",
+			tokenManager.getApiUrl());
+	}
+
+	private static RestClient boundedRestClient() {
+		var http = java.net.http.HttpClient.newBuilder().version(java.net.http.HttpClient.Version.HTTP_1_1)
+			.connectTimeout(java.time.Duration.ofSeconds(10)).build();
+		var factory = new org.springframework.http.client.JdkClientHttpRequestFactory(http);
+		factory.setReadTimeout(java.time.Duration.ofSeconds(30));
+		return RestClient.builder().requestFactory(factory).build();
+	}
 
 	public String get(String path) {
 		try {

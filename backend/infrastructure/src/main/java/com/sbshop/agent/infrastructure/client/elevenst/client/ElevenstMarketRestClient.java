@@ -40,6 +40,51 @@ public class ElevenstMarketRestClient {
 		return sendRequest(properties.getApiUrl() + path, "DELETE", null);
 	}
 
+	public String accountReference() {
+		return com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.account("ELEVEN_STREET",
+			resolveApiKey());
+	}
+
+	public String requestStrict(String method, String path, String body) {
+		HttpURLConnection conn = null;
+		try {
+			conn = (HttpURLConnection)URI.create(properties.getApiUrl() + path).toURL().openConnection();
+			conn.setRequestMethod(method);
+			conn.setRequestProperty("openapikey", resolveApiKey());
+			conn.setRequestProperty("Content-Type", "text/xml; charset=EUC-KR");
+			conn.setConnectTimeout(10000);
+			conn.setReadTimeout(30000);
+			if (body != null && !body.isEmpty()) {
+				conn.setDoOutput(true);
+				try (OutputStream out = conn.getOutputStream()) {
+					out.write(body.getBytes(EUC_KR));
+				}
+			}
+			int code = conn.getResponseCode();
+			byte[] bytes;
+			try (InputStream in = code >= 400 ? conn.getErrorStream() : conn.getInputStream()) {
+				bytes = in == null ? new byte[0] : in.readAllBytes();
+			}
+			if (code >= 300) {
+				var headers = new org.springframework.http.HttpHeaders();
+				conn.getHeaderFields().forEach((key, values) -> {
+					if (key != null)
+						headers.put(key, values);
+				});
+				throw new org.springframework.web.client.RestClientResponseException("11번가 HTTP " + code, code, "",
+					headers, bytes, EUC_KR);
+			}
+			if (bytes.length == 0)
+				throw new IllegalStateException("11번가 빈 응답");
+			return new String(bytes, EUC_KR);
+		} catch (IOException e) {
+			throw new org.springframework.web.client.ResourceAccessException("11번가 응답 확인 실패", e);
+		} finally {
+			if (conn != null)
+				conn.disconnect();
+		}
+	}
+
 	private String sendRequest(String urlStr, String method, String body) {
 		HttpURLConnection conn = null;
 		try {

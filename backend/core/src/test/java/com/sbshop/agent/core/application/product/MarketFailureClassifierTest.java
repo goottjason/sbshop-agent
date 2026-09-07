@@ -36,6 +36,22 @@ class MarketFailureClassifierTest {
 			"400 Bad Request: \"{\"message\":\"Product(14813281404) is invalid.\"}\"")).isFalse();
 	}
 
+	@org.junit.jupiter.params.ParameterizedTest
+	@org.junit.jupiter.params.provider.ValueSource(strings = {"404 Not Found", "GW.NOT_FOUND", "option does not exist",
+		"API route data not found", "토큰이 삭제되었습니다", "상품삭제 요청이 실패했습니다"})
+	void unrelatedResourceFailuresDoNotProveProductDeletion(String message) {
+		assertThat(MarketFailureClassifier.indicatesDeleted(message)).isFalse();
+		assertThat(
+			MarketFailureClassifier.indicatesDeleted(new RuntimeException("마켓 오류", new RuntimeException(message))))
+			.isFalse();
+	}
+
+	@Test
+	void deletionRequestStateDoesNotProveDeletion() {
+		assertThat(MarketFailureClassifier.indicatesDeletedStatus("삭제대기")).isFalse();
+		assertThat(MarketFailureClassifier.indicatesDeletedStatus("상품삭제실패")).isFalse();
+	}
+
 	@Test
 	@DisplayName("BLOCKED_BY_MARKET 신설: 심사중·판매중지는 재시도로 안 풀린다")
 	void blockedByMarket() {

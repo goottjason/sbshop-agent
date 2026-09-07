@@ -38,8 +38,7 @@ public class ElevenstMarketClient implements MarketClient {
 	private static final boolean CATALOG_ENABLED = false;
 	private static final Map<MarketEditField, String> FIELD_TAGS = new EnumMap<>(Map.of(
 		MarketEditField.PRODUCT_NAME, "prdNm",
-		MarketEditField.BRAND, "brand",
-		MarketEditField.MANUFACTURER, "makerNm"));
+		MarketEditField.BRAND, "brand"));
 	private static final String CATALOG_DISABLED_REASON = "11번가 전체 상품 조회는 엔드포인트·HTTP 동사·요청 본문 스키마가 실호출로 확정될 때까지 비활성입니다 "
 		+ "(D-208 인증 거부로 미검증 — 컬렉션 POST의 쓰기 위험을 배제할 수 없습니다)";
 
@@ -77,6 +76,44 @@ public class ElevenstMarketClient implements MarketClient {
 		} catch (Exception e) {
 			log.error("[Elevenst] 상품 등록 실패: {}", e.getMessage());
 			throw new RuntimeException("Elevenst 상품 등록 오류", e);
+		}
+	}
+
+	@Override
+	public String inspectionAccountReference() {
+		return restClient.accountReference();
+	}
+
+	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation inspectListing(String id) {
+		String account = inspectionAccountReference();
+		String path = "/rest/prodmarketservice/prodmarket/" + id;
+		if (id == null || !id.matches("[0-9]+") || account == null)
+			return com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation
+				.unknown("조회 상품번호 또는 계정 확인 필요");
+		try {
+			var root = com.sbshop.agent.infrastructure.client.common.MarketApiEvidence
+				.xml(restClient.requestStrict("GET", path, null));
+			if (!"Product".equals(com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.name(root))
+				|| !id.equals(com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, "prdNo"))
+				|| !com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, "resultCode").isEmpty()
+				|| !account.equals(inspectionAccountReference()))
+				throw new IllegalStateException("상품번호·응답 확인 실패");
+			String code = com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, "selStatCd");
+			var state = switch (code) {
+				case "101", "102", "103" ->
+					com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.PRESENT;
+				case "104" ->
+					com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.OUT_OF_STOCK;
+				case "105", "106" ->
+					com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.STOPPED;
+				case "108" -> com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.PROHIBITED;
+				default -> com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.UNKNOWN;
+			};
+			return new com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation(state, code,
+				"11번가 판매 상태: " + code + " · 세부 사유 미제공", account, "GET " + path, java.time.Instant.now());
+		} catch (Exception e) {
+			return com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.failure(e, account, "GET " + path);
 		}
 	}
 
@@ -330,6 +367,8 @@ public class ElevenstMarketClient implements MarketClient {
 	@Override
 	public Map<String, Object> syncProductFields(Product product, String marketItemId,
 		Map<String, Object> currentRawData, Set<MarketEditField> fields) {
+		if (fields.contains(MarketEditField.MANUFACTURER))
+			throw new UnsupportedOperationException("11번가 제조사 수정 필드 계약이 확인되지 않았습니다. makerNm은 전송하지 않습니다.");
 		String currentXml;
 		try {
 			currentXml = restClient.get("/rest/prodmarketservice/prodmarket/" + marketItemId);
@@ -404,8 +443,6 @@ public class ElevenstMarketClient implements MarketClient {
 			.append("]]>").append("</prdNmEng>");
 		sb.append("<brand>").append("<![CDATA[").append(product.getBrand() != null ? product.getBrand() : "")
 			.append("]]>").append("</brand>");
-		sb.append("<makerNm>").append("<![CDATA[").append(product.getBrand() != null ? product.getBrand() : "")
-			.append("]]>").append("</makerNm>");
 		sb.append("<dptNo>1012345</dptNo>");
 		String dispCtgrNo = context.categoryId();
 		if (dispCtgrNo != null && !dispCtgrNo.isBlank()) {

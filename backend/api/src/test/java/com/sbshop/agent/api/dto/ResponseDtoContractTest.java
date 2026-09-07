@@ -78,7 +78,7 @@ class ResponseDtoContractTest {
 	}
 
 	@Test
-	@DisplayName("F-MREG-4: MarketRegistrationResponse 직렬화가 엔티티와 바이트 동일 (원시 JSON 식별자 포함)")
+	@DisplayName("F-MREG-4: 기존 마켓 응답 계약 보존 — 연결 관리 내부 필드를 추가 노출하지 않는다")
 	void marketRegistrationResponse_mirrorsEntityJson() {
 		MarketRegistration entity = MarketRegistration.builder()
 			.productId(7L)
@@ -92,8 +92,13 @@ class ResponseDtoContractTest {
 		ReflectionTestUtils.setField(entity, "createdAt", LocalDateTime.of(2026, 7, 14, 0, 0));
 		ReflectionTestUtils.setField(entity, "updatedAt", LocalDateTime.of(2026, 7, 14, 1, 0));
 		entity.markSynced();
+		ReflectionTestUtils.setField(entity, "lastSyncedAt", LocalDateTime.of(2026, 7, 14, 2, 0));
 
-		assertThat(json(MarketRegistrationResponse.from(entity))).isEqualTo(json(entity));
+		assertThat(json(MarketRegistrationResponse.from(entity))).isEqualTo(
+			"{\"id\":9,\"status\":\"ACTIVE\",\"createdAt\":\"2026-07-14T00:00:00\",\"updatedAt\":\"2026-07-14T01:00:00\","
+				+ "\"productId\":7,\"sbProductId\":70,\"marketType\":\"COUPANG\",\"marketProductName\":\"테스트 상품\","
+				+ "\"marketIdentifiers\":{\"vendorItemId\":\"V123\",\"sellerProductId\":\"S456\"},\"marketDetailedInfo\":{\"price\":10000},"
+				+ "\"isSynced\":true,\"lastSyncedAt\":\"2026-07-14T02:00:00\",\"unsyncReason\":null,\"lastSyncError\":null,\"lastSyncErrorMessage\":null,\"lastSyncErrorAt\":null}");
 	}
 
 	@Test
@@ -107,6 +112,9 @@ class ResponseDtoContractTest {
 			.marketDetailedInfo("not-json")
 			.build();
 
-		assertThat(json(MarketRegistrationResponse.from(entity))).isEqualTo(json(entity));
+		assertThat(json(MarketRegistrationResponse.from(entity))).isEqualTo(
+			"{\"id\":null,\"status\":\"ACTIVE\",\"createdAt\":null,\"updatedAt\":null,\"productId\":8,\"sbProductId\":null,"
+				+ "\"marketType\":\"SMART_STORE\",\"marketProductName\":null,\"marketIdentifiers\":{},\"marketDetailedInfo\":{},"
+				+ "\"isSynced\":false,\"lastSyncedAt\":null,\"unsyncReason\":null,\"lastSyncError\":null,\"lastSyncErrorMessage\":null,\"lastSyncErrorAt\":null}");
 	}
 }

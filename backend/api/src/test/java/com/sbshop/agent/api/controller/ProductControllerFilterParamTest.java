@@ -64,8 +64,11 @@ class ProductControllerFilterParamTest {
 	void setUp() {
 		mockMvc = MockMvcBuilders.standaloneSetup(new ProductController(
 			productSearchUseCase, productManageUseCase, imageDownloadClient,
-			productInfoCrawlerPort, marketRegistrationRepository, actionLogService))
+			productInfoCrawlerPort, marketRegistrationRepository, actionLogService,
+			org.mockito.Mockito
+				.mock(com.sbshop.agent.core.application.market.marketplus.MarketPlusTransmissionService.class)))
 			.setCustomArgumentResolvers(new PageableHandlerMethodArgumentResolver())
+			.setControllerAdvice(new com.sbshop.agent.api.exception.GlobalExceptionHandler())
 			.build();
 	}
 
@@ -175,6 +178,36 @@ class ProductControllerFilterParamTest {
 		mockMvc.perform(get("/api/v1/products/categories"))
 			.andExpect(status().isOk())
 			.andExpect(content().json("[\"COSMETICS\",\"FOOD\",\"SUPPLEMENT\"]"));
+	}
+
+	@Test
+	void issueSearchBindsAlongsideOtherConditions() throws Exception {
+		stubEmptyPage();
+		mockMvc.perform(post("/api/v1/products/search").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"marketPlusIssue\":\"CONFLICT\",\"vendors\":[\"IHB\"],\"missingMarkets\":[\"ELEVEN_STREET\"]}"))
+			.andExpect(status().isOk());
+		var condition = captureCondition();
+		assertThat(condition.marketPlusIssue())
+			.isEqualTo(com.sbshop.agent.core.domain.market.marketplus.MarketPlusIssueFilter.CONFLICT);
+		assertThat(condition.vendors()).containsExactly(VendorType.IHB);
+		assertThat(condition.missingMarkets()).containsExactly(MarketType.ELEVEN_STREET);
+	}
+
+	@Test
+	void unknownIssueFilterIsRejectedInsteadOfIgnored() throws Exception {
+		mockMvc
+			.perform(post("/api/v1/products/search").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"marketPlusIssue\":\"INVALID\"}"))
+			.andExpect(status().isBadRequest());
+		verifyNoInteractions(productSearchUseCase);
+	}
+
+	@Test
+	void unavailableIssueSearchReturnsExplicitError() throws Exception {
+		when(productSearchUseCase.searchProducts(any(), any())).thenThrow(new IllegalStateException("카페24 계정의 활성 상태 확인이 필요합니다."));
+		mockMvc.perform(post("/api/v1/products/search").contentType(MediaType.APPLICATION_JSON).content("{\"marketPlusIssue\":\"ANY_ISSUE\"}"))
+			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("카페24 계정의 활성 상태 확인이 필요합니다."));
+		verifyNoInteractions(marketRegistrationRepository);
 	}
 
 	private void stubEmptyPage() {

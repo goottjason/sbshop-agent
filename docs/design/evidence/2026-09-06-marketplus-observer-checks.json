@@ -1,0 +1,59 @@
+{
+  "date": "2026-09-06",
+  "backend": {
+    "core": [
+      {
+        "name": "com.sbshop.agent.core.application.market.marketplus.MarketPlusReadinessTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0"
+      },
+      {
+        "name": "com.sbshop.agent.core.application.market.marketplus.MarketPlusStorageRetryTest",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0"
+      },
+      {
+        "name": "com.sbshop.agent.core.application.market.marketplus.MarketPlusTransmissionIntegrationTest",
+        "tests": "23",
+        "failures": "0",
+        "errors": "0"
+      }
+    ],
+    "api": [
+      {
+        "name": "com.sbshop.agent.api.controller.MarketPlusTransmissionControllerTest",
+        "tests": "6",
+        "failures": "0",
+        "errors": "0"
+      },
+      {
+        "name": "com.sbshop.agent.api.controller.MarketPlusObserverControllerTest",
+        "tests": "6",
+        "failures": "0",
+        "errors": "0"
+      }
+    ]
+  },
+  "python": {
+    "relayAndWorker": 27,
+    "existingCollector": 12,
+    "failures": 0
+  },
+  "chromeMockedComponentGroups": 8,
+  "typeScript": "passed",
+  "eslintErrors": 0,
+  "existingWarnings": [
+    "TanStack Table React Compiler compatibility",
+    "Vite chunk size"
+  ],
+  "serverDeployment": "Dedicated browser and paused worker only; main API/frontend not redeployed",
+  "sourceSha256": {
+    "tools/marketplus/worker.py": "17b73853ae2989e17968c93335e0397763047def092aef60ad296a1eeeb1e3da",
+    "tools/marketplus/test_relay.py": "b1d584da408fbdb070290dc2cf4a1982873879807fe3c5a79dff1372d8ae01d9",
+    "tools/marketplus/browser.py": "749d70a32c6732b520fac60d2b66db65df6d8fded2ee9328ab51e240f9e9c4a2",
+    "tools/marketplus/test_worker.py": "3accc63e61cb146d5ee6bc448b7785e8657c5920238a590267acc51992863319",
+    "tools/marketplus/relay.py": "4bd6da4a7c5ee4cad62b39d37f00b1cb5f237e5b73b6ddab84137750cd739f0c"
+  }
+}

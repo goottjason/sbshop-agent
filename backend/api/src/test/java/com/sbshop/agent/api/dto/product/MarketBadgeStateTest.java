@@ -13,6 +13,19 @@ class MarketBadgeStateTest {
 	private static final String URL = "https://www.coupang.com/vp/products/123";
 
 	@Test
+	void connectionDetachmentOverridesTransmissionEvidence() {
+		var time = java.time.Instant.parse("2026-09-06T07:02:00Z");
+		var observed = MarketBadgeState.marketPlusObserved(URL,
+			new com.sbshop.agent.core.application.market.marketplus.MarketPlusTransmissionService.Summary("SUCCESS",
+				"TRANSFERRED_UNVERIFIED", "[성공] 완료", time, time));
+		assertThat(observed.status()).isEqualTo("UNVERIFIED");
+		var detached = MarketBadgeState
+			.forConnection(com.sbshop.agent.core.domain.market.MarketConnectionState.DETACHED_PROHIBITED, observed);
+		assertThat(detached.status()).isEqualTo("PROHIBITED");
+		assertThat(detached.transmission()).isNull();
+	}
+
+	@Test
 	@DisplayName("D-222: 마켓에서 삭제된 등록은 DELETED — 등록됨과 눈으로 갈려야 재등록을 유도할 수 있다")
 	void deletedOnMarket_yieldsDeletedStatus() {
 		MarketBadgeState s = MarketBadgeState.of(true, false, UnsyncReason.DELETED_ON_MARKET, null, null, URL);

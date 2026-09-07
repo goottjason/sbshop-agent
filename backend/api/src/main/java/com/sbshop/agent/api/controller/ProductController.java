@@ -72,6 +72,7 @@ public class ProductController {
 	private final ProductInfoCrawlerPort productInfoCrawlerPort;
 	private final MarketRegistrationRepository marketRegistrationRepository;
 	private final ActionLogService actionLogService;
+	private final com.sbshop.agent.core.application.market.marketplus.MarketPlusTransmissionService marketPlusTransmissions;
 
 	@GetMapping
 	public ResponseEntity<Page<ProductListResponse>> getProducts(
@@ -114,9 +115,15 @@ public class ProductController {
 		Pageable pageable) {
 		Page<Product> products = productSearchUseCase.searchProducts(condition, pageable);
 		Map<Long, List<MarketRegistration>> registrationsByProduct = loadRegistrations(products.getContent());
+		var transmissions = marketPlusTransmissions
+			.summaries(registrationsByProduct.values().stream().flatMap(List::stream).toList());
+		Map<Long, Long> pending = productSearchUseCase
+			.getPendingChangeCounts(products.getContent().stream().map(Product::getId).toList());
 		return ResponseEntity.ok(products.map(
 			p -> ProductListResponse.from(p,
-				buildMarketMap(registrationsByProduct.getOrDefault(p.getId(), List.of())))));
+				buildMarketMap(registrationsByProduct.getOrDefault(p.getId(), List.of()),
+					transmissions.getOrDefault(p.getId(), Map.of())),
+				pending.getOrDefault(p.getId(), 0L))));
 	}
 
 	@GetMapping("/categories")
@@ -309,7 +316,8 @@ public class ProductController {
 			.collect(Collectors.groupingBy(MarketRegistration::getProductId));
 	}
 
-	private Map<String, MarketBadgeState> buildMarketMap(List<MarketRegistration> registrations) {
+	private Map<String, MarketBadgeState> buildMarketMap(List<MarketRegistration> registrations,
+		Map<MarketType, com.sbshop.agent.core.application.market.marketplus.MarketPlusTransmissionService.Summary> transmissions) {
 		if (registrations.isEmpty()) {
 			return Collections.emptyMap();
 		}
@@ -330,16 +338,29 @@ public class ProductController {
 						reg.getUnsyncReason(), reg.getLastSyncError(), reg.getLastSyncErrorAt(), null));
 					String gUrl = reg.buildGmarketUrl();
 					if (gUrl != null) {
-						marketMap.put("GMARKET", MarketBadgeState.of(true, gUrl));
+						marketMap.put("GMARKET",
+							MarketBadgeState.marketPlusObserved(gUrl, transmissions.get(MarketType.GMARKET)));
 					}
 					String aUrl = reg.buildAuctionUrl();
 					if (aUrl != null) {
-						marketMap.put("AUCTION", MarketBadgeState.of(true, aUrl));
+						marketMap.put("AUCTION",
+							MarketBadgeState.marketPlusObserved(aUrl, transmissions.get(MarketType.AUCTION)));
 					}
 					break;
 				}
 				default:
 					break;
+			}
+		}
+		for (MarketRegistration reg : registrations) {
+			String own = reg.getMarketType().name();
+			if (marketMap.containsKey(own))
+				marketMap.put(own, MarketBadgeState.forConnection(reg.getConnectionState(), marketMap.get(own)));
+			if (reg.getMarketType() == MarketType.CAFE24) {
+				for (MarketType child : List.of(MarketType.GMARKET, MarketType.AUCTION))
+					if (marketMap.containsKey(child.name()))
+						marketMap.put(child.name(),
+							MarketBadgeState.forConnection(reg.connectionStateFor(child), marketMap.get(child.name())));
 			}
 		}
 		return marketMap;
