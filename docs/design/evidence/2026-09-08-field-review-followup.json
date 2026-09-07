@@ -1,0 +1,417 @@
+{
+  "revision": "c01e6527d918b3b21b0c4ce7c582a93d86c85cf7",
+  "originalRevision": "abeb0d7a04b8764c33ca72e19cdb95dc6732cf79",
+  "reviewId": "4e088253-c3ce-4480-b3f8-1d8f2cd66730",
+  "startedAt": "2026-09-07T17:03:58.237749+00:00",
+  "finishedAt": "2026-09-07T17:05:20.519841+00:00",
+  "phase": "OBSERVATION_COMPLETE",
+  "scope": "GET existing review and products; read-only database assertions",
+  "originalManifestSha256": "3a24b9eace85839450b8fceeedf8594bc62b727e1e1bb30e02d02622d856657d",
+  "invariants": {
+    "originalManifestUnchanged": true,
+    "allProductsMatchOriginalRevisionAndHashes": true,
+    "allTaskWritesZero": true,
+    "allWriteIntentsZero": true,
+    "reviewUncommitted": true,
+    "allTasksManual": true,
+    "apiGetOnly": true,
+    "databaseReadOnly": true
+  },
+  "products": {
+    "328": {
+      "sbCode": "210121IHB031",
+      "originalRevision": 0,
+      "originalProductHash": {
+        "bytes": 4478,
+        "sha256": "1db72b540c978552610f6acf43a2b3a74d9a6fb025f2bad5589285f8c07340c4"
+      },
+      "originalDetailHtmlHash": {
+        "bytes": 3253,
+        "sha256": "8da5adebf9a2eb7f94a9b0c2b388f41d73858c048f226823a6bdedce2a632b88"
+      },
+      "atStart": {
+        "revision": 0,
+        "productHash": {
+          "bytes": 4478,
+          "sha256": "1db72b540c978552610f6acf43a2b3a74d9a6fb025f2bad5589285f8c07340c4"
+        },
+        "detailHtmlHash": {
+          "bytes": 3253,
+          "sha256": "8da5adebf9a2eb7f94a9b0c2b388f41d73858c048f226823a6bdedce2a632b88"
+        },
+        "unchangedFromOriginal": true
+      },
+      "atFinish": {
+        "revision": 0,
+        "productHash": {
+          "bytes": 4478,
+          "sha256": "1db72b540c978552610f6acf43a2b3a74d9a6fb025f2bad5589285f8c07340c4"
+        },
+        "detailHtmlHash": {
+          "bytes": 3253,
+          "sha256": "8da5adebf9a2eb7f94a9b0c2b388f41d73858c048f226823a6bdedce2a632b88"
+        },
+        "unchangedFromOriginal": true
+      }
+    }
+  },
+  "databaseEvidence": [
+    {
+      "id": 1,
+      "product_id": 328,
+      "product_revision": 0,
+      "market": "COUPANG",
+      "state": "BLOCKED",
+      "reads": 1,
+      "writes": 0,
+      "failures": 1,
+      "automatic": false,
+      "committed_at": null,
+      "next_run_at": "2026-09-07T16:44:53.568379+00:00",
+      "checked_at": null,
+      "write_intents": 0
+    },
+    {
+      "id": 2,
+      "product_id": 328,
+      "product_revision": 0,
+      "market": "SMART_STORE",
+      "state": "BLOCKED",
+      "reads": 9,
+      "writes": 0,
+      "failures": 9,
+      "automatic": false,
+      "committed_at": null,
+      "next_run_at": "2026-09-07T17:10:17.350855+00:00",
+      "checked_at": null,
+      "write_intents": 0
+    },
+    {
+      "id": 3,
+      "product_id": 328,
+      "product_revision": 0,
+      "market": "ELEVEN_STREET",
+      "state": "DRAFT",
+      "reads": 1,
+      "writes": 0,
+      "failures": 0,
+      "automatic": false,
+      "committed_at": null,
+      "next_run_at": "2026-09-07T17:05:51.503406+00:00",
+      "checked_at": null,
+      "write_intents": 0
+    },
+    {
+      "id": 4,
+      "product_id": 328,
+      "product_revision": 0,
+      "market": "CAFE24",
+      "state": "BLOCKED",
+      "reads": 1,
+      "writes": 0,
+      "failures": 1,
+      "automatic": false,
+      "committed_at": null,
+      "next_run_at": "2026-09-07T16:44:54.284864+00:00",
+      "checked_at": null,
+      "write_intents": 0
+    }
+  ],
+  "review": {
+    "id": "4e088253-c3ce-4480-b3f8-1d8f2cd66730",
+    "createdAt": "2026-09-07T16:44:42.042240Z",
+    "expiresAt": "2026-09-07T17:14:43.193365Z",
+    "committed": false,
+    "preparing": false,
+    "total": 4,
+    "items": [
+      {
+        "id": 1,
+        "productId": 328,
+        "sbCode": "210121IHB031",
+        "market": "COUPANG",
+        "revision": 0,
+        "fields": [
+          "detailHtml"
+        ],
+        "state": "BLOCKED",
+        "requiresApproval": false,
+        "writes": 0,
+        "reads": 1,
+        "nextRunAt": "2026-09-07T16:44:53.568379Z",
+        "checkedAt": null,
+        "detail": "마켓 전송값 준비 실패: 쿠팡 승인완료 상품만 필드 변경 심사를 요청할 수 있습니다: 심사중",
+        "expectedValues": {},
+        "observedValues": {},
+        "history": [
+          {
+            "phase": "PREPARE_STARTED",
+            "detail": "마켓 필드 준비/관측 시작",
+            "recordedAt": "2026-09-07T16:44:43.211222Z"
+          },
+          {
+            "phase": "BLOCKED",
+            "detail": "마켓 전송값 준비 실패: 쿠팡 승인완료 상품만 필드 변경 심사를 요청할 수 있습니다: 심사중",
+            "recordedAt": "2026-09-07T16:44:43.568379Z"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "productId": 328,
+        "sbCode": "210121IHB031",
+        "market": "SMART_STORE",
+        "revision": 0,
+        "fields": [
+          "detailHtml"
+        ],
+        "state": "BLOCKED",
+        "requiresApproval": false,
+        "writes": 0,
+        "reads": 9,
+        "nextRunAt": "2026-09-07T17:10:17.350855Z",
+        "checkedAt": null,
+        "detail": "마켓 전송값 준비 실패: 스마트스토어 판매 상태 SUSPENSION: 필드 쓰기를 보류합니다.",
+        "expectedValues": {},
+        "observedValues": {},
+        "history": [
+          {
+            "phase": "PREPARE_STARTED",
+            "detail": "마켓 필드 준비/관측 시작",
+            "recordedAt": "2026-09-07T16:44:43.580706Z"
+          },
+          {
+            "phase": "PREPARE",
+            "detail": "마켓 전송값 준비 실패: 스마트스토어 판매 상태 SUSPENSION: 필드 쓰기를 보류합니다.",
+            "recordedAt": "2026-09-07T16:44:44.042319Z"
+          },
+          {
+            "phase": "PREPARE_STARTED",
+            "detail": "마켓 필드 준비/관측 시작",
+            "recordedAt": "2026-09-07T16:44:54.446009Z"
+          },
+          {
+            "phase": "PREPARE",
+            "detail": "마켓 전송값 준비 실패: 스마트스토어 판매 상태 SUSPENSION: 필드 쓰기를 보류합니다.",
+            "recordedAt": "2026-09-07T16:44:54.549634Z"
+          },
+          {
+            "phase": "PREPARE_STARTED",
+            "detail": "마켓 필드 준비/관측 시작",
+            "recordedAt": "2026-09-07T16:45:17.887107Z"
+          },
+          {
+            "phase": "PREPARE",
+            "detail": "마켓 전송값 준비 실패: 스마트스토어 판매 상태 SUSPENSION: 필드 쓰기를 보류합니다.",
+            "recordedAt": "2026-09-07T16:45:17.988231Z"
+          },
+          {
+            "phase": "PREPARE_STARTED",
+            "detail": "마켓 필드 준비/관측 시작",
+            "recordedAt": "2026-09-07T16:46:00.533196Z"
+          },
+          {
+            "phase": "PREPARE",
+            "detail": "마켓 전송값 준비 실패: 스마트스토어 판매 상태 SUSPENSION: 필드 쓰기를 보류합니다.",
+            "recordedAt": "2026-09-07T16:46:00.645136Z"
+          },
+          {
+            "phase": "PREPARE_STARTED",
+            "detail": "마켓 필드 준비/관측 시작",
+            "recordedAt": "2026-09-07T16:47:24.657613Z"
+          },
+          {
+            "phase": "PREPARE",
+            "detail": "마켓 전송값 준비 실패: 스마트스토어 판매 상태 SUSPENSION: 필드 쓰기를 보류합니다.",
+            "recordedAt": "2026-09-07T16:47:24.814155Z"
+          },
+          {
+            "phase": "PREPARE_STARTED",
+            "detail": "마켓 필드 준비/관측 시작",
+            "recordedAt": "2026-09-07T16:50:10.392051Z"
+          },
+          {
+            "phase": "PREPARE",
+            "detail": "마켓 전송값 준비 실패: 스마트스토어 판매 상태 SUSPENSION: 필드 쓰기를 보류합니다.",
+            "recordedAt": "2026-09-07T16:50:10.568313Z"
+          },
+          {
+            "phase": "PREPARE_STARTED",
+            "detail": "마켓 필드 준비/관측 시작",
+            "recordedAt": "2026-09-07T16:55:10.835758Z"
+          },
+          {
+            "phase": "PREPARE",
+            "detail": "마켓 전송값 준비 실패: 스마트스토어 판매 상태 SUSPENSION: 필드 쓰기를 보류합니다.",
+            "recordedAt": "2026-09-07T16:55:10.999106Z"
+          },
+          {
+            "phase": "PREPARE_STARTED",
+            "detail": "마켓 필드 준비/관측 시작",
+            "recordedAt": "2026-09-07T17:00:13.622803Z"
+          },
+          {
+            "phase": "PREPARE",
+            "detail": "마켓 전송값 준비 실패: 스마트스토어 판매 상태 SUSPENSION: 필드 쓰기를 보류합니다.",
+            "recordedAt": "2026-09-07T17:00:13.806391Z"
+          },
+          {
+            "phase": "PREPARE_STARTED",
+            "detail": "마켓 필드 준비/관측 시작",
+            "recordedAt": "2026-09-07T17:05:16.009654Z"
+          },
+          {
+            "phase": "BLOCKED",
+            "detail": "마켓 전송값 준비 실패: 스마트스토어 판매 상태 SUSPENSION: 필드 쓰기를 보류합니다.",
+            "recordedAt": "2026-09-07T17:05:16.350855Z"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "productId": 328,
+        "sbCode": "210121IHB031",
+        "market": "ELEVEN_STREET",
+        "revision": 0,
+        "fields": [
+          "detailHtml"
+        ],
+        "state": "DRAFT",
+        "requiresApproval": false,
+        "writes": 0,
+        "reads": 1,
+        "nextRunAt": "2026-09-07T17:05:51.503406Z",
+        "checkedAt": null,
+        "detail": "마켓에 보낼 필드 값을 준비했습니다. 검토 후 반영하세요.",
+        "expectedValues": {
+          "detailHtml": {
+            "bytes": 3253,
+            "sha256": "8da5adebf9a2eb7f94a9b0c2b388f41d73858c048f226823a6bdedce2a632b88"
+          }
+        },
+        "observedValues": {},
+        "history": [
+          {
+            "phase": "PREPARE_STARTED",
+            "detail": "마켓 필드 준비/관측 시작",
+            "recordedAt": "2026-09-07T16:44:42.936060Z"
+          },
+          {
+            "phase": "DRAFT",
+            "detail": "마켓에 보낼 필드 값을 준비했습니다. 검토 후 반영하세요.",
+            "recordedAt": "2026-09-07T16:44:43.193365Z"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "productId": 328,
+        "sbCode": "210121IHB031",
+        "market": "CAFE24",
+        "revision": 0,
+        "fields": [
+          "detailHtml"
+        ],
+        "state": "BLOCKED",
+        "requiresApproval": false,
+        "writes": 0,
+        "reads": 1,
+        "nextRunAt": "2026-09-07T16:44:54.284864Z",
+        "checkedAt": null,
+        "detail": "마켓 전송값 준비 실패: 카페24 마켓플러스 연동 상품은 G마켓·옥션 전달 범위·결과 확인이 필요해 전송을 보류합니다.",
+        "expectedValues": {},
+        "observedValues": {},
+        "history": [
+          {
+            "phase": "PREPARE_STARTED",
+            "detail": "마켓 필드 준비/관측 시작",
+            "recordedAt": "2026-09-07T16:44:44.058613Z"
+          },
+          {
+            "phase": "BLOCKED",
+            "detail": "마켓 전송값 준비 실패: 카페24 마켓플러스 연동 상품은 G마켓·옥션 전달 범위·결과 확인이 필요해 전송을 보류합니다.",
+            "recordedAt": "2026-09-07T16:44:44.284864Z"
+          }
+        ]
+      }
+    ]
+  },
+  "observations": [
+    {
+      "at": "2026-09-07T17:03:58.430434+00:00",
+      "items": [
+        {
+          "market": "COUPANG",
+          "state": "BLOCKED",
+          "reads": 1,
+          "writes": 0,
+          "detail": "마켓 전송값 준비 실패: 쿠팡 승인완료 상품만 필드 변경 심사를 요청할 수 있습니다: 심사중"
+        },
+        {
+          "market": "SMART_STORE",
+          "state": "PREPARE",
+          "reads": 8,
+          "writes": 0,
+          "detail": "마켓 전송값 준비 실패: 스마트스토어 판매 상태 SUSPENSION: 필드 쓰기를 보류합니다."
+        },
+        {
+          "market": "ELEVEN_STREET",
+          "state": "DRAFT",
+          "reads": 1,
+          "writes": 0,
+          "detail": "마켓에 보낼 필드 값을 준비했습니다. 검토 후 반영하세요."
+        },
+        {
+          "market": "CAFE24",
+          "state": "BLOCKED",
+          "reads": 1,
+          "writes": 0,
+          "detail": "마켓 전송값 준비 실패: 카페24 마켓플러스 연동 상품은 G마켓·옥션 전달 범위·결과 확인이 필요해 전송을 보류합니다."
+        }
+      ]
+    },
+    {
+      "at": "2026-09-07T17:05:19.994569+00:00",
+      "items": [
+        {
+          "market": "COUPANG",
+          "state": "BLOCKED",
+          "reads": 1,
+          "writes": 0,
+          "detail": "마켓 전송값 준비 실패: 쿠팡 승인완료 상품만 필드 변경 심사를 요청할 수 있습니다: 심사중"
+        },
+        {
+          "market": "SMART_STORE",
+          "state": "BLOCKED",
+          "reads": 9,
+          "writes": 0,
+          "detail": "마켓 전송값 준비 실패: 스마트스토어 판매 상태 SUSPENSION: 필드 쓰기를 보류합니다."
+        },
+        {
+          "market": "ELEVEN_STREET",
+          "state": "DRAFT",
+          "reads": 1,
+          "writes": 0,
+          "detail": "마켓에 보낼 필드 값을 준비했습니다. 검토 후 반영하세요."
+        },
+        {
+          "market": "CAFE24",
+          "state": "BLOCKED",
+          "reads": 1,
+          "writes": 0,
+          "detail": "마켓 전송값 준비 실패: 카페24 마켓플러스 연동 상품은 G마켓·옥션 전달 범위·결과 확인이 필요해 전송을 보류합니다."
+        }
+      ]
+    }
+  ],
+  "httpMethods": [
+    "GET"
+  ],
+  "httpRequestCount": 23,
+  "limitations": [
+    "Existing product 328 detailHtml review only; no marketplace write or commit was requested.",
+    "DRAFT confirms preparation only, not external-field synchronization.",
+    "BLOCKED states preserve real marketplace status or currently unverified propagation scope; they are not READY or successful synchronization.",
+    "Smartstore reads=9 includes 8 attempts before the fixed deployment; its next scheduled read after deployment ended BLOCKED without a new review or schedule mutation."
+  ]
+}

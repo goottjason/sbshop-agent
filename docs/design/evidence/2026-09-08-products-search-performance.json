@@ -1,0 +1,53 @@
+{
+  "operatingDatabaseReadOnly": true,
+  "schemaWrites": 0,
+  "sessionOrGlobalSettingChanges": 0,
+  "strategy": "ProductReaderImpl existing read-only REPEATABLE_READ search transaction only: PostgreSQL SET LOCAL jit=off",
+  "sourcePredicateAndOrderingChanged": false,
+  "before": {
+    "pageExecutionMs": 9123.927,
+    "countExecutionMs": 336.805,
+    "pageJitMs": 9066.439,
+    "pageEstimatedCost": 784082.53,
+    "compiledFunctions": 388
+  },
+  "after": {
+    "pageExecutionMs": 36.501,
+    "countExecutionMs": 20.284,
+    "pagePlanningMs": 17.899,
+    "countPlanningMs": 5.831
+  },
+  "equivalence": {
+    "isolation": "same REPEATABLE READ READ ONLY snapshot",
+    "beforeCount": 151,
+    "afterCount": 151,
+    "orderedIdsExactlyEqual": true
+  },
+  "tests": {
+    "newPostgresJitScope": 2,
+    "existingPostgresContentSearch": 6,
+    "existingProductSearch": 34,
+    "failures": 0,
+    "skipped": 0,
+    "build": "BUILD SUCCESSFUL in 11s",
+    "scopedFormat": "passed"
+  },
+  "rollout": "Deployed c01e6527 with actual operating API timing verified; no global/session setting migration",
+  "operatingApi": {
+    "beforeMs": [
+      9715,
+      9636
+    ],
+    "afterMs": [
+      242,
+      202
+    ],
+    "productCount": 2854,
+    "pageSize": 5,
+    "path": "POST /api/v1/products/search",
+    "condition": {
+      "anyMarketSyncIssue": true
+    },
+    "note": "Two actual requests per release; not a concurrent-load benchmark"
+  }
+}

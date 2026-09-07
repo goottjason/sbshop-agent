@@ -1,0 +1,10 @@
+{
+  "beforeMemoryBytes": 3221225472,
+  "afterMemoryBytes": 6442450944,
+  "oomKilledRecordedBefore": true,
+  "shmBytes": 2147483648,
+  "containerRestarted": false,
+  "profileVolumePreserved": true,
+  "composeValidated": true,
+  "globalDatabaseSettingsChanged": false
+}

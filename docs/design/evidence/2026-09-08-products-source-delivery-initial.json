@@ -1,0 +1,836 @@
+{
+  "startedAt": "2026-09-07T16:39:27.385067+00:00",
+  "actualOperatingApi": true,
+  "status": "completed_with_limits",
+  "results": [
+    {
+      "vendor": "IHB",
+      "mode": "PRICE_STOCK",
+      "productId": 328,
+      "sbCode": "210121IHB031",
+      "collectionId": "989766d5-deb9-4557-bf6a-22426d559e96",
+      "snapshotId": "75c359da-9a0e-4be6-9952-8f6a31526082",
+      "state": "FAILED",
+      "reason": "[SOURCE_HTTP_FAILED] 소싱처 상품 조회가 HTTP 403로 실패했습니다. 기존 콘텐츠를 유지합니다.",
+      "collectedAt": null,
+      "appliedAt": null,
+      "fields": [
+        {
+          "field": "PRICE",
+          "available": false,
+          "editable": false,
+          "reason": "이 항목의 수집 또는 계산이 완료되지 않았습니다.",
+          "collectedAt": null,
+          "appliedAt": null
+        },
+        {
+          "field": "STOCK",
+          "available": false,
+          "editable": false,
+          "reason": "이 항목의 수집 또는 계산이 완료되지 않았습니다.",
+          "collectedAt": null,
+          "appliedAt": null
+        }
+      ],
+      "notices": [
+        "현재 IHB·VTB·FTN·COK·OCD 수집을 지원합니다. 다른 소싱처는 계약 확인 후 추가합니다."
+      ],
+      "proposedSummary": {
+        "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "hostedImageCount": 0,
+        "detailHtmlLength": 0,
+        "costPrice": null,
+        "exchangeRate": null,
+        "stockStatus": null,
+        "stock": null
+      },
+      "review": {
+        "reviewId": "6adeea9a-6acf-4033-9c1f-90cdd744fecf",
+        "expiresAt": "2026-09-07T17:09:33.043813773Z",
+        "state": "EXCLUDED",
+        "selectedFields": [
+          "PRICE",
+          "STOCK"
+        ],
+        "changeFields": [],
+        "changesSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasons": [
+          "수집 결과가 없거나 수집 후 24시간이 지나 만료됐습니다. 새로 수집하세요.",
+          "가격 수집·배송비 계산이 완료되지 않았습니다.",
+          "재고 상태 수집이 완료되지 않았습니다."
+        ],
+        "notices": []
+      },
+      "deferred": false,
+      "sameRequestReturnsSameCollection": true,
+      "productFieldsAndRevisionUnchanged": true,
+      "finalAppliedAt": null,
+      "fullyAvailable": false,
+      "readyForReviewedSave": false
+    },
+    {
+      "vendor": "IHB",
+      "mode": "CONTENT",
+      "productId": 328,
+      "sbCode": "210121IHB031",
+      "collectionId": "f8853782-53e0-44a1-bd3a-09e7cbbe7dc5",
+      "snapshotId": "f23ca558-abd1-48ee-bf81-4eeb36e8b2b5",
+      "state": "READY",
+      "reason": "수집 완료 · 검토 후 DB 적용이 필요합니다.",
+      "collectedAt": "2026-09-07T16:39:43.589026Z",
+      "appliedAt": null,
+      "fields": [
+        {
+          "field": "IMAGES",
+          "available": true,
+          "editable": false,
+          "reason": "연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+          "collectedAt": "2026-09-07T16:39:43.589026Z",
+          "appliedAt": null
+        },
+        {
+          "field": "DETAIL_HTML",
+          "available": true,
+          "editable": false,
+          "reason": "연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+          "collectedAt": "2026-09-07T16:39:43.589026Z",
+          "appliedAt": null
+        }
+      ],
+      "notices": [
+        "소싱 상세 설명의 실행 코드·외부 이미지·링크·스타일은 제거하고 본문·표 내용으로 상세를 생성합니다.",
+        "상품명·원문명·묶음수량·용량은 수집 요청 당시 DB 값으로 고정하여 기존 상세 생성 규칙을 사용했습니다.",
+        "상세 HTML에 최신 이미지가 포함될 수 있습니다. 대표·부가 이미지도 바꾸려면 이미지 항목을 함께 선택하세요.",
+        "수집 성공은 DB 저장이나 외부마켓 반영 성공이 아닙니다. 연결 마켓의 콘텐츠 수정 조건 확인 전에는 적용이 제한됩니다."
+      ],
+      "proposedSummary": {
+        "sha256": "7ea05f1ee7b62d7498eeb6ed5df616b86407bcb8ba58ad4be02ee02e64ade297",
+        "hostedImageCount": 3,
+        "detailHtmlLength": 2985,
+        "costPrice": null,
+        "exchangeRate": null,
+        "stockStatus": null,
+        "stock": null
+      },
+      "review": {
+        "reviewId": "538823b4-18f6-41cb-a0a9-d7a7560efc80",
+        "expiresAt": "2026-09-07T17:09:43.837019146Z",
+        "state": "EXCLUDED",
+        "selectedFields": [
+          "IMAGES",
+          "DETAIL_HTML"
+        ],
+        "changeFields": [
+          "sourceImages",
+          "hostedImages",
+          "detailHtml"
+        ],
+        "changesSha256": "a7fbcb8acc822c2720f8e8170ca29ba0209355b75e3f41a5fa21eed127986038",
+        "reasons": [
+          "sourceImages: 연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+          "hostedImages: 연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+          "detailHtml: 연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다."
+        ],
+        "notices": []
+      },
+      "deferred": false,
+      "sameRequestReturnsSameCollection": true,
+      "productFieldsAndRevisionUnchanged": true,
+      "finalAppliedAt": null,
+      "fullyAvailable": true,
+      "readyForReviewedSave": false
+    },
+    {
+      "vendor": "VTB",
+      "mode": "PRICE_STOCK",
+      "productId": 3170,
+      "sbCode": "220923VB013",
+      "collectionId": "cd443c65-fd38-40f3-9098-c18287483eea",
+      "snapshotId": "f4959c36-423d-491b-8250-06d641013fad",
+      "state": "READY",
+      "reason": "수집 완료 · 검토 후 DB 적용이 필요합니다.",
+      "collectedAt": "2026-09-07T16:39:49.146155Z",
+      "appliedAt": null,
+      "fields": [
+        {
+          "field": "PRICE",
+          "available": true,
+          "editable": true,
+          "reason": "검토 후 DB에 적용할 수 있습니다. 마켓 반영 성공을 뜻하지 않습니다.",
+          "collectedAt": "2026-09-07T16:39:49.146155Z",
+          "appliedAt": null
+        },
+        {
+          "field": "STOCK",
+          "available": true,
+          "editable": true,
+          "reason": "검토 후 DB에 적용할 수 있습니다. 마켓 반영 성공을 뜻하지 않습니다.",
+          "collectedAt": "2026-09-07T16:39:49.146155Z",
+          "appliedAt": null
+        }
+      ],
+      "notices": [
+        "소싱처의 실제 수량은 관측되지 않았습니다. 기존 실재고와 판매용 설정 수량을 유지합니다.",
+        "매입 원가는 확인된 상품가격에 기존 소싱 배송비 규칙을 적용한 값입니다. 가격 정책·최소마진에 따른 판매가 변경은 저장 전 검토에서 확인합니다.",
+        "품절·재입고는 확인된 재고 상태만 반영합니다. 상품 부재·차단·미확인 응답을 품절 또는 0개로 변환하지 않습니다."
+      ],
+      "proposedSummary": {
+        "sha256": "edda142940bee6700b2c49c1f1bf5e862aa29c5616d0db2666a758ec372a1286",
+        "hostedImageCount": 0,
+        "detailHtmlLength": 0,
+        "costPrice": 16768,
+        "exchangeRate": 1822.551899,
+        "stockStatus": "IN_STOCK",
+        "stock": null
+      },
+      "review": {
+        "reviewId": "258c873a-22a0-414d-b08d-35edab2f1bd4",
+        "expiresAt": "2026-09-07T17:09:49.572037791Z",
+        "state": "EXCLUDED",
+        "selectedFields": [
+          "PRICE",
+          "STOCK"
+        ],
+        "changeFields": [
+          "costPrice",
+          "exchangeRate"
+        ],
+        "changesSha256": "4c6af3dd3eae237b0bde10a316dc4474ec136924a62cd6a265b7b0b06f112815",
+        "reasons": [
+          "환율: 허용 소수 자릿수(2)를 넘습니다. 정확한 값을 입력하세요."
+        ],
+        "notices": []
+      },
+      "deferred": false,
+      "sameRequestReturnsSameCollection": true,
+      "productFieldsAndRevisionUnchanged": true,
+      "finalAppliedAt": null,
+      "fullyAvailable": true,
+      "readyForReviewedSave": false
+    },
+    {
+      "vendor": "VTB",
+      "mode": "CONTENT",
+      "productId": 3170,
+      "sbCode": "220923VB013",
+      "collectionId": "46ea3433-f6ab-42c3-8e09-5d3168f94451",
+      "snapshotId": "8cb9c041-ba18-41e1-bd75-613d91a378ea",
+      "state": "READY",
+      "reason": "수집 완료 · 검토 후 DB 적용이 필요합니다.",
+      "collectedAt": "2026-09-07T16:40:02.810925Z",
+      "appliedAt": null,
+      "fields": [
+        {
+          "field": "IMAGES",
+          "available": true,
+          "editable": false,
+          "reason": "연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+          "collectedAt": "2026-09-07T16:40:02.810925Z",
+          "appliedAt": null
+        },
+        {
+          "field": "DETAIL_HTML",
+          "available": true,
+          "editable": false,
+          "reason": "연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+          "collectedAt": "2026-09-07T16:40:02.810925Z",
+          "appliedAt": null
+        }
+      ],
+      "notices": [
+        "소싱 상세 설명의 실행 코드·외부 이미지·링크·스타일은 제거하고 본문·표 내용으로 상세를 생성합니다.",
+        "상품명·원문명·묶음수량·용량은 수집 요청 당시 DB 값으로 고정하여 기존 상세 생성 규칙을 사용했습니다.",
+        "상세 HTML에 최신 이미지가 포함될 수 있습니다. 대표·부가 이미지도 바꾸려면 이미지 항목을 함께 선택하세요.",
+        "수집 성공은 DB 저장이나 외부마켓 반영 성공이 아닙니다. 연결 마켓의 콘텐츠 수정 조건 확인 전에는 적용이 제한됩니다."
+      ],
+      "proposedSummary": {
+        "sha256": "f8455e5e3e843d62b7bcf6cba68c4eb8424b7d94623659313489a9afbd831aeb",
+        "hostedImageCount": 4,
+        "detailHtmlLength": 1656,
+        "costPrice": null,
+        "exchangeRate": null,
+        "stockStatus": null,
+        "stock": null
+      },
+      "review": {
+        "reviewId": "48a5169a-2e70-4243-8ca0-fb1deae4757f",
+        "expiresAt": "2026-09-07T17:10:05.460330539Z",
+        "state": "EXCLUDED",
+        "selectedFields": [
+          "IMAGES",
+          "DETAIL_HTML"
+        ],
+        "changeFields": [
+          "sourceImages",
+          "hostedImages",
+          "detailHtml"
+        ],
+        "changesSha256": "d3a5416e72e5731edd4cf5c635af07d2bf351b532d2a9ecbaef82abc2db1e1dc",
+        "reasons": [
+          "sourceImages: 연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+          "hostedImages: 연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+          "detailHtml: 연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다."
+        ],
+        "notices": []
+      },
+      "deferred": false,
+      "sameRequestReturnsSameCollection": true,
+      "productFieldsAndRevisionUnchanged": true,
+      "finalAppliedAt": null,
+      "fullyAvailable": true,
+      "readyForReviewedSave": false
+    },
+    {
+      "vendor": "FTN",
+      "mode": "PRICE_STOCK",
+      "productId": 601,
+      "sbCode": "210729FM004",
+      "collectionId": "597b0cf6-b592-4fd1-b5f5-f9a06abd05f2",
+      "snapshotId": "ecf97e5f-459a-4189-9f4c-afd1c0fbc4d5",
+      "state": "READY",
+      "reason": "수집 완료 · 검토 후 DB 적용이 필요합니다.",
+      "collectedAt": "2026-09-07T16:40:08.915850Z",
+      "appliedAt": null,
+      "fields": [
+        {
+          "field": "PRICE",
+          "available": true,
+          "editable": true,
+          "reason": "검토 후 DB에 적용할 수 있습니다. 마켓 반영 성공을 뜻하지 않습니다.",
+          "collectedAt": "2026-09-07T16:40:08.915850Z",
+          "appliedAt": null
+        },
+        {
+          "field": "STOCK",
+          "available": true,
+          "editable": true,
+          "reason": "검토 후 DB에 적용할 수 있습니다. 마켓 반영 성공을 뜻하지 않습니다.",
+          "collectedAt": "2026-09-07T16:40:08.915850Z",
+          "appliedAt": null
+        }
+      ],
+      "notices": [
+        "소싱처의 실제 수량은 관측되지 않았습니다. 기존 실재고와 판매용 설정 수량을 유지합니다.",
+        "매입 원가는 확인된 상품가격에 기존 소싱 배송비 규칙을 적용한 값입니다. 가격 정책·최소마진에 따른 판매가 변경은 저장 전 검토에서 확인합니다.",
+        "품절·재입고는 확인된 재고 상태만 반영합니다. 상품 부재·차단·미확인 응답을 품절 또는 0개로 변환하지 않습니다."
+      ],
+      "proposedSummary": {
+        "sha256": "1d5605b5886114b9bd8d6ce29d5055a4bd061a47fced0acfa5bf8340cca0087e",
+        "hostedImageCount": 0,
+        "detailHtmlLength": 0,
+        "costPrice": 24058,
+        "exchangeRate": 1822.551899,
+        "stockStatus": "IN_STOCK",
+        "stock": null
+      },
+      "review": {
+        "reviewId": "4c9e016d-5729-45f8-9ef8-4648473b5d8e",
+        "expiresAt": "2026-09-07T17:10:11.381037833Z",
+        "state": "EXCLUDED",
+        "selectedFields": [
+          "PRICE",
+          "STOCK"
+        ],
+        "changeFields": [
+          "costPrice",
+          "exchangeRate"
+        ],
+        "changesSha256": "df033d4669b32a54f772135ac0ab0d72845a1a2ce10306c336af4e97ccea0f5c",
+        "reasons": [
+          "환율: 허용 소수 자릿수(2)를 넘습니다. 정확한 값을 입력하세요."
+        ],
+        "notices": []
+      },
+      "deferred": false,
+      "sameRequestReturnsSameCollection": true,
+      "productFieldsAndRevisionUnchanged": true,
+      "finalAppliedAt": null,
+      "fullyAvailable": true,
+      "readyForReviewedSave": false
+    },
+    {
+      "vendor": "FTN",
+      "mode": "CONTENT",
+      "productId": 601,
+      "sbCode": "210729FM004",
+      "collectionId": "f252f166-aadc-4cb7-86aa-38edccc25aa9",
+      "snapshotId": "a67c4ecd-d5ff-4b2c-bbe1-f4b702d22ed8",
+      "state": "READY",
+      "reason": "수집 완료 · 검토 후 DB 적용이 필요합니다.",
+      "collectedAt": "2026-09-07T16:40:41.491307Z",
+      "appliedAt": null,
+      "fields": [
+        {
+          "field": "IMAGES",
+          "available": true,
+          "editable": false,
+          "reason": "연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+          "collectedAt": "2026-09-07T16:40:41.491307Z",
+          "appliedAt": null
+        },
+        {
+          "field": "DETAIL_HTML",
+          "available": true,
+          "editable": true,
+          "reason": "검토 후 DB에 적용할 수 있습니다. 마켓 반영 성공을 뜻하지 않습니다.",
+          "collectedAt": "2026-09-07T16:40:41.491307Z",
+          "appliedAt": null
+        }
+      ],
+      "notices": [
+        "소싱 상세 설명의 실행 코드·외부 이미지·링크·스타일은 제거하고 본문·표 내용으로 상세를 생성합니다.",
+        "상품명·원문명·묶음수량·용량은 수집 요청 당시 DB 값으로 고정하여 기존 상세 생성 규칙을 사용했습니다.",
+        "상세 HTML에 최신 이미지가 포함될 수 있습니다. 대표·부가 이미지도 바꾸려면 이미지 항목을 함께 선택하세요.",
+        "수집 성공은 DB 저장이나 외부마켓 반영 성공이 아닙니다. 연결 마켓의 콘텐츠 수정 조건 확인 전에는 적용이 제한됩니다."
+      ],
+      "proposedSummary": {
+        "sha256": "ab7e4b64d20fc4df9147cd2997fce965500ed4baa56aca2218936c39030514b3",
+        "hostedImageCount": 4,
+        "detailHtmlLength": 1610,
+        "costPrice": null,
+        "exchangeRate": null,
+        "stockStatus": null,
+        "stock": null
+      },
+      "review": {
+        "reviewId": "787bdbdb-75ea-4d93-9ca6-cfb29024f8af",
+        "expiresAt": "2026-09-07T17:10:42.497935509Z",
+        "state": "EXCLUDED",
+        "selectedFields": [
+          "IMAGES",
+          "DETAIL_HTML"
+        ],
+        "changeFields": [
+          "sourceImages",
+          "hostedImages",
+          "detailHtml"
+        ],
+        "changesSha256": "4b3e0099aba74f344564c133ef2b3819f2b2ed71abb777c07bb3f7c5b7c5852f",
+        "reasons": [
+          "sourceImages: 연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+          "hostedImages: 연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다."
+        ],
+        "notices": []
+      },
+      "deferred": false,
+      "sameRequestReturnsSameCollection": true,
+      "productFieldsAndRevisionUnchanged": true,
+      "finalAppliedAt": null,
+      "fullyAvailable": true,
+      "readyForReviewedSave": false
+    },
+    {
+      "vendor": "COK",
+      "mode": "PRICE_STOCK",
+      "productId": 821,
+      "sbCode": "210812CO002",
+      "collectionId": "b751ded0-a4a7-458d-a039-c95f17970044",
+      "snapshotId": "f65b0508-1f2c-4718-9aab-6a55be071872",
+      "state": "READY",
+      "reason": "수집 완료 · 검토 후 DB 적용이 필요합니다.",
+      "collectedAt": "2026-09-07T16:40:47.128316Z",
+      "appliedAt": null,
+      "fields": [
+        {
+          "field": "PRICE",
+          "available": true,
+          "editable": true,
+          "reason": "검토 후 DB에 적용할 수 있습니다. 마켓 반영 성공을 뜻하지 않습니다.",
+          "collectedAt": "2026-09-07T16:40:47.128316Z",
+          "appliedAt": null
+        },
+        {
+          "field": "STOCK",
+          "available": true,
+          "editable": true,
+          "reason": "검토 후 DB에 적용할 수 있습니다. 마켓 반영 성공을 뜻하지 않습니다.",
+          "collectedAt": "2026-09-07T16:40:47.128316Z",
+          "appliedAt": null
+        }
+      ],
+      "notices": [
+        "소싱처의 실제 수량은 관측되지 않았습니다. 기존 실재고와 판매용 설정 수량을 유지합니다.",
+        "매입 원가는 확인된 상품가격에 기존 소싱 배송비 규칙을 적용한 값입니다. 가격 정책·최소마진에 따른 판매가 변경은 저장 전 검토에서 확인합니다.",
+        "품절·재입고는 확인된 재고 상태만 반영합니다. 상품 부재·차단·미확인 응답을 품절 또는 0개로 변환하지 않습니다."
+      ],
+      "proposedSummary": {
+        "sha256": "ec16882e75c4b6476c7b0269f2e6a90e96bdd8b310cc7a58b133753456ba9b2e",
+        "hostedImageCount": 0,
+        "detailHtmlLength": 0,
+        "costPrice": 57210,
+        "exchangeRate": 1822.551899,
+        "stockStatus": "OUT_OF_STOCK",
+        "stock": null
+      },
+      "review": {
+        "reviewId": "3c82287f-0d2f-40b3-a347-ca82f654ae25",
+        "expiresAt": "2026-09-07T17:10:48.193392639Z",
+        "state": "EXCLUDED",
+        "selectedFields": [
+          "PRICE",
+          "STOCK"
+        ],
+        "changeFields": [
+          "costPrice",
+          "exchangeRate",
+          "stockStatus"
+        ],
+        "changesSha256": "a6ce55935838e013f23abe561a66285274a799b2ee2bf48653a4bc6c6e18f052",
+        "reasons": [
+          "환율: 허용 소수 자릿수(2)를 넘습니다. 정확한 값을 입력하세요."
+        ],
+        "notices": []
+      },
+      "deferred": false,
+      "sameRequestReturnsSameCollection": true,
+      "productFieldsAndRevisionUnchanged": true,
+      "finalAppliedAt": null,
+      "fullyAvailable": true,
+      "readyForReviewedSave": false
+    },
+    {
+      "vendor": "COK",
+      "mode": "CONTENT",
+      "productId": 821,
+      "sbCode": "210812CO002",
+      "collectionId": "088e62ba-2f62-4f47-b872-637629993673",
+      "snapshotId": "753903bb-5402-4186-b28f-52d77d04d8e9",
+      "state": "READY",
+      "reason": "수집 완료 · 검토 후 DB 적용이 필요합니다.",
+      "collectedAt": "2026-09-07T16:41:00.285700Z",
+      "appliedAt": null,
+      "fields": [
+        {
+          "field": "IMAGES",
+          "available": true,
+          "editable": false,
+          "reason": "연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+          "collectedAt": "2026-09-07T16:41:00.285700Z",
+          "appliedAt": null
+        },
+        {
+          "field": "DETAIL_HTML",
+          "available": true,
+          "editable": false,
+          "reason": "연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+          "collectedAt": "2026-09-07T16:41:00.285700Z",
+          "appliedAt": null
+        }
+      ],
+      "notices": [
+        "소싱 상세 설명의 실행 코드·외부 이미지·링크·스타일은 제거하고 본문·표 내용으로 상세를 생성합니다.",
+        "상품명·원문명·묶음수량·용량은 수집 요청 당시 DB 값으로 고정하여 기존 상세 생성 규칙을 사용했습니다.",
+        "상세 HTML에 최신 이미지가 포함될 수 있습니다. 대표·부가 이미지도 바꾸려면 이미지 항목을 함께 선택하세요.",
+        "수집 성공은 DB 저장이나 외부마켓 반영 성공이 아닙니다. 연결 마켓의 콘텐츠 수정 조건 확인 전에는 적용이 제한됩니다."
+      ],
+      "proposedSummary": {
+        "sha256": "65bed24da96de23fd5c6e67f265197a5cc28cd555bcbb4f319f86109e0edfb94",
+        "hostedImageCount": 4,
+        "detailHtmlLength": 2073,
+        "costPrice": null,
+        "exchangeRate": null,
+        "stockStatus": null,
+        "stock": null
+      },
+      "review": {
+        "reviewId": "cae0abe7-79e1-4ec7-a839-bf520153da70",
+        "expiresAt": "2026-09-07T17:11:03.977994644Z",
+        "state": "EXCLUDED",
+        "selectedFields": [
+          "IMAGES",
+          "DETAIL_HTML"
+        ],
+        "changeFields": [
+          "sourceImages",
+          "hostedImages",
+          "detailHtml"
+        ],
+        "changesSha256": "609e25fb5423449fb643b3ef83ded3a33cfd9a45a95d4d04015ba1918e5d6587",
+        "reasons": [
+          "sourceImages: 연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+          "hostedImages: 연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+          "detailHtml: 연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다."
+        ],
+        "notices": []
+      },
+      "deferred": false,
+      "sameRequestReturnsSameCollection": true,
+      "productFieldsAndRevisionUnchanged": true,
+      "finalAppliedAt": null,
+      "fullyAvailable": true,
+      "readyForReviewedSave": false
+    },
+    {
+      "vendor": "OCD",
+      "mode": "PRICE_STOCK",
+      "productId": 1022,
+      "sbCode": "210819OC001",
+      "collectionId": "dd5c0d2c-ed00-4cde-8a0f-b41d49663307",
+      "snapshotId": "8a9e1522-9c10-4647-956b-5e6ff8d14d96",
+      "state": "FAILED",
+      "reason": "[SOURCE_HTTP_FAILED] 소싱처 상품 조회가 HTTP 422로 실패했습니다. 기존 콘텐츠를 유지합니다.",
+      "collectedAt": null,
+      "appliedAt": null,
+      "fields": [
+        {
+          "field": "PRICE",
+          "available": false,
+          "editable": false,
+          "reason": "이 항목의 수집 또는 계산이 완료되지 않았습니다.",
+          "collectedAt": null,
+          "appliedAt": null
+        },
+        {
+          "field": "STOCK",
+          "available": false,
+          "editable": false,
+          "reason": "이 항목의 수집 또는 계산이 완료되지 않았습니다.",
+          "collectedAt": null,
+          "appliedAt": null
+        }
+      ],
+      "notices": [
+        "현재 IHB·VTB·FTN·COK·OCD 수집을 지원합니다. 다른 소싱처는 계약 확인 후 추가합니다."
+      ],
+      "proposedSummary": {
+        "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "hostedImageCount": 0,
+        "detailHtmlLength": 0,
+        "costPrice": null,
+        "exchangeRate": null,
+        "stockStatus": null,
+        "stock": null
+      },
+      "review": {
+        "reviewId": "275ad97e-6d84-49e9-8015-5ef6be458f96",
+        "expiresAt": "2026-09-07T17:11:09.671166324Z",
+        "state": "EXCLUDED",
+        "selectedFields": [
+          "PRICE",
+          "STOCK"
+        ],
+        "changeFields": [],
+        "changesSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasons": [
+          "수집 결과가 없거나 수집 후 24시간이 지나 만료됐습니다. 새로 수집하세요.",
+          "가격 수집·배송비 계산이 완료되지 않았습니다.",
+          "재고 상태 수집이 완료되지 않았습니다."
+        ],
+        "notices": []
+      },
+      "deferred": false,
+      "sameRequestReturnsSameCollection": true,
+      "productFieldsAndRevisionUnchanged": true,
+      "finalAppliedAt": null,
+      "fullyAvailable": false,
+      "readyForReviewedSave": false
+    },
+    {
+      "vendor": "OCD",
+      "mode": "CONTENT",
+      "productId": 1022,
+      "sbCode": "210819OC001",
+      "collectionId": "f0b19d8a-0343-46b2-b208-04d21b476d20",
+      "snapshotId": "beb58b7e-dba9-41ad-8fec-982a02d21e42",
+      "state": "FAILED",
+      "reason": "[SOURCE_HTTP_FAILED] 소싱처 상품 조회가 HTTP 422로 실패했습니다. 기존 콘텐츠를 유지합니다.",
+      "collectedAt": null,
+      "appliedAt": null,
+      "fields": [
+        {
+          "field": "IMAGES",
+          "available": false,
+          "editable": false,
+          "reason": "이 항목의 수집 또는 자동 생성이 완료되지 않았습니다.",
+          "collectedAt": null,
+          "appliedAt": null
+        },
+        {
+          "field": "DETAIL_HTML",
+          "available": false,
+          "editable": false,
+          "reason": "이 항목의 수집 또는 자동 생성이 완료되지 않았습니다.",
+          "collectedAt": null,
+          "appliedAt": null
+        }
+      ],
+      "notices": [
+        "현재 IHB·VTB·FTN·COK·OCD 수집을 지원합니다. 다른 소싱처는 계약 확인 후 추가합니다."
+      ],
+      "proposedSummary": {
+        "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "hostedImageCount": 0,
+        "detailHtmlLength": 0,
+        "costPrice": null,
+        "exchangeRate": null,
+        "stockStatus": null,
+        "stock": null
+      },
+      "review": {
+        "reviewId": "a23e637f-0a66-49cd-b9e4-9cabe7ef174d",
+        "expiresAt": "2026-09-07T17:11:20.360069750Z",
+        "state": "EXCLUDED",
+        "selectedFields": [
+          "IMAGES",
+          "DETAIL_HTML"
+        ],
+        "changeFields": [],
+        "changesSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasons": [
+          "수집 결과가 없거나 수집 후 24시간이 지나 만료됐습니다. 새로 수집하세요.",
+          "이미지 전체 수집·호스팅이 완료되지 않았습니다.",
+          "상세정보 수집·자동 생성이 완료되지 않았습니다."
+        ],
+        "notices": []
+      },
+      "deferred": false,
+      "sameRequestReturnsSameCollection": true,
+      "productFieldsAndRevisionUnchanged": true,
+      "finalAppliedAt": null,
+      "fullyAvailable": false,
+      "readyForReviewedSave": false
+    }
+  ],
+  "errors": [],
+  "productWriteEndpointCalls": 0,
+  "marketWriteEndpointCalls": 0,
+  "sourceSnapshotAndReviewWritesOnly": true,
+  "finalProductChecks": [
+    {
+      "vendor": "IHB",
+      "productId": 328,
+      "unchanged": true,
+      "revision": 0
+    },
+    {
+      "vendor": "VTB",
+      "productId": 3170,
+      "unchanged": true,
+      "revision": 0
+    },
+    {
+      "vendor": "FTN",
+      "productId": 601,
+      "unchanged": true,
+      "revision": 0
+    },
+    {
+      "vendor": "COK",
+      "productId": 821,
+      "unchanged": true,
+      "revision": 0
+    },
+    {
+      "vendor": "OCD",
+      "productId": 1022,
+      "unchanged": true,
+      "revision": 0
+    }
+  ],
+  "checkedAt": "2026-09-07T16:41:21.064898+00:00",
+  "release": "abeb0d7a",
+  "requestSummary": [
+    {
+      "method": "GET",
+      "pathFamily": "",
+      "status": 200,
+      "count": 5
+    },
+    {
+      "method": "GET",
+      "pathFamily": "/products",
+      "status": 200,
+      "count": 25
+    },
+    {
+      "method": "GET",
+      "pathFamily": "/products/content/collections",
+      "status": 200,
+      "count": 21
+    },
+    {
+      "method": "GET",
+      "pathFamily": "/products/source-refresh/collections",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "method": "POST",
+      "pathFamily": "/products/content/collections",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "method": "POST",
+      "pathFamily": "/products/content/reviews",
+      "status": 200,
+      "count": 5
+    },
+    {
+      "method": "POST",
+      "pathFamily": "/products/source-refresh/collections",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "method": "POST",
+      "pathFamily": "/products/source-refresh/reviews",
+      "status": 200,
+      "count": 5
+    }
+  ],
+  "transportDiagnosis": {
+    "sameOperatingApiContainerJavaProbe": true,
+    "ocado": [
+      {
+        "requestedProtocol": "HTTP_2",
+        "httpStatus": 422,
+        "validation": {
+          "detail": [
+            {
+              "type": "missing",
+              "loc": [
+                "body"
+              ],
+              "msg": "Field required",
+              "input": null
+            }
+          ]
+        }
+      },
+      {
+        "requestedProtocol": "HTTP_1_1",
+        "httpStatus": 200,
+        "strictPriceStockContractAccepted": true
+      }
+    ],
+    "ocadoDirectPythonHttp11": {
+      "PRICE_STOCK": 200,
+      "CONTENT": 200,
+      "contentImageCount": 1
+    },
+    "ihb": [
+      {
+        "userAgent": "Mozilla/5.0",
+        "httpStatus": 403
+      },
+      {
+        "userAgent": "Existing IHB content path full User-Agent",
+        "httpStatus": 200,
+        "id": 18566,
+        "currency": "KRW",
+        "goodsPrice": 49886,
+        "explicitAvailability": true,
+        "observedStockQuantity": null
+      }
+    ],
+    "fx": {
+      "observedRate": "1822.551899",
+      "databasePrecision": 10,
+      "databaseScale": 2,
+      "initialReviewResult": "EXCLUDED"
+    },
+    "productOrMarketWrites": false,
+    "operatingMarketplusChromeUsed": false
+  }
+}

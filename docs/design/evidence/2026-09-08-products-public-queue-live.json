@@ -1,0 +1,52 @@
+{
+  "status": "passed",
+  "kind": "actual_operating_read_only_queue",
+  "requestIdempotent": true,
+  "collection": {
+    "id": "dafe6c37-dbfc-4212-927f-cd722968e0f4",
+    "requestId": "8df331a1-736d-4f66-b9a5-148d83898677",
+    "createdAt": "2026-09-07T16:42:35.371130Z",
+    "items": [
+      {
+        "id": 1,
+        "productId": 57,
+        "sbCode": "201005IHB002",
+        "market": "AUCTION",
+        "state": "FAILED_UNVERIFIED",
+        "reason": "공개 페이지 HTTP 403: 가격을 확인할 수 없습니다. 세 차례 확인을 마쳐 자동 조회를 종료했습니다.",
+        "attempts": 3,
+        "nextRunAt": null,
+        "checkedAt": "2026-09-07T16:44:13.503667Z",
+        "observationId": null,
+        "values": {},
+        "events": [
+          "2026-09-07T16:42:39.010001Z · 1회 · 공개 페이지 HTTP 403: 가격을 확인할 수 없습니다.",
+          "2026-09-07T16:43:10.945228Z · 2회 · 공개 페이지 HTTP 403: 가격을 확인할 수 없습니다.",
+          "2026-09-07T16:44:13.503667Z · 3회 · 공개 페이지 HTTP 403: 가격을 확인할 수 없습니다. 세 차례 확인을 마쳐 자동 조회를 종료했습니다."
+        ]
+      },
+      {
+        "id": 2,
+        "productId": 57,
+        "sbCode": "201005IHB002",
+        "market": "GMARKET",
+        "state": "FAILED_UNVERIFIED",
+        "reason": "공개 페이지 HTTP 403: 가격을 확인할 수 없습니다. 세 차례 확인을 마쳐 자동 조회를 종료했습니다.",
+        "attempts": 3,
+        "nextRunAt": null,
+        "checkedAt": "2026-09-07T16:44:19.114420Z",
+        "observationId": null,
+        "values": {},
+        "events": [
+          "2026-09-07T16:42:44.794767Z · 1회 · 공개 페이지 HTTP 403: 가격을 확인할 수 없습니다.",
+          "2026-09-07T16:43:16.587100Z · 2회 · 공개 페이지 HTTP 403: 가격을 확인할 수 없습니다.",
+          "2026-09-07T16:44:19.114420Z · 3회 · 공개 페이지 HTTP 403: 가격을 확인할 수 없습니다. 세 차례 확인을 마쳐 자동 조회를 종료했습니다."
+        ]
+      }
+    ]
+  },
+  "productId": 57,
+  "revisionBefore": 0,
+  "revisionAfter": 0,
+  "marketWrites": 0
+}

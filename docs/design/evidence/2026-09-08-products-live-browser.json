@@ -1,0 +1,221 @@
+{
+  "status": "partial",
+  "actualOperatingApi": true,
+  "productWrites": 0,
+  "marketWriteCommits": 0,
+  "collectionSubmissions": 0,
+  "backupDestination": "/home/ubuntu/backups/sbshop-products-delivery-20260908/browser-check",
+  "checks": [
+    "실제 상품 두 개 선택 · 밀집 그리드와 신규 작업 진입점",
+    "일괄 소싱 가격·재고 비교 화면 · 실제 수집/적용 미실행",
+    "일괄 소싱 이미지·상세 비교 진입 · 수집/적용 미실행",
+    "일괄 필드 선택·마켓별 전송값 검토 진입 · 준비/접수 미실행",
+    "일괄 G마켓·옥션 공개가격 조회 진입 · 관측 요청 미접수",
+    "기존 저장 수집의 가격·재고 비교 표시 · 선택 적용 없음",
+    "기존 저장 수집의 이미지·상세 비교 표시 · 선택 적용 없음",
+    "상세 상품 단건 소싱 가격·재고/이미지·상세 비교, 필드 검토, 공개가격 조회 진입"
+  ],
+  "warnings": [
+    "선택 가능한 쿠팡 등록 후보를 첫 100개 상품에서 찾지 못했습니다."
+  ],
+  "apiReads": [
+    {
+      "method": "GET",
+      "path": "/products/328/edit-workspace",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/328",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/products/registrations/candidates",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/products/registrations/candidates",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/328/edit-workspace",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/1/edit-workspace",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/328/edit-workspace",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/1/edit-workspace",
+      "status": 200
+    }
+  ],
+  "lastCheck": "SINGLE_PUBLIC_COUNT_WRONG",
+  "coupangInputs": {
+    "checked": false,
+    "reason": "선택 가능한 쿠팡 등록 후보를 첫 100개 상품에서 찾지 못했습니다."
+  },
+  "browser": {
+    "blocked": [],
+    "errors": [],
+    "requests": [
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/observer/status",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/categories",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/transmissions/readiness",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/brands",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/market-field-sync/reviews",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/marketplus-public-checks/collections",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/328",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/328/edit-workspace",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/source-refresh/328/history",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/content/328/history",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/market-field-sync/reviews",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/328/edit-workspace",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/328",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/marketplus-public-checks/collections",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/328",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/328/edit-workspace",
+        "status": 200
+      }
+    ]
+  },
+  "checkedAt": "2026-09-07T16:41:25Z",
+  "revisions": {
+    "before": {
+      "328": 0,
+      "1": 0
+    },
+    "after": {
+      "328": 0,
+      "1": 0
+    }
+  },
+  "cleanupErrors": []
+}

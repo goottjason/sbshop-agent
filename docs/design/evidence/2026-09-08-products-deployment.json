@@ -1,0 +1,100 @@
+{
+  "revision": "c01e6527d918b3b21b0c4ce7c582a93d86c85cf7",
+  "phase": "HEALTHY",
+  "worktree": "/home/ubuntu/projects/sbshop-workspace-release-c01e6527",
+  "builtAt": "2026-09-07T16:30:49.446823+00:00",
+  "oldImages": {
+    "api": {
+      "id": "sha256:aca1aa6fcc056f83606d44bd7d0fa3d059ee3d6c2765a0c4e4cf74a0f007c308",
+      "revision": "b3413ef14443fe85f96452adc7256af22f677bd2"
+    },
+    "frontend": {
+      "id": "sha256:faf299fa857be766481d0b331910dc12f0d540cb4da812c6704e7d7eb77f336d",
+      "revision": "b3413ef14443fe85f96452adc7256af22f677bd2"
+    },
+    "scraper": {
+      "id": "sha256:e6638cdc7b5bc206ccb63d6265e0cadce910d177892e8f6c4aeb4bdaff7684c9",
+      "revision": null
+    },
+    "marketplus-worker": {
+      "id": "sha256:365971ebbb9ad1b134bc568b089ac3d5162c24f224de817bc14f97d8387d5d80",
+      "revision": null
+    }
+  },
+  "backupSha256": "c300f475eff1647a946efcbc4830d20a72652b3b7e0d9f72a53a2214d3c6b5e9",
+  "backupBytes": 9593459,
+  "appliedDDL": [
+    "2026-09-07-market-field-sync.sql",
+    "2026-09-07-marketplus-public-observations.sql",
+    "2026-09-08-market-inspection-daily-multiple-markets.sql",
+    "2026-09-08-product-source-refresh.sql",
+    "2026-09-08-reviewed-publication-multiple-markets.sql",
+    "2026-09-08-marketplus-public-check-queue.sql"
+  ],
+  "migrationPermissions": {
+    "runAsExistingOwner": true,
+    "applicationRoleUnchanged": true,
+    "tables": [
+      "sb_market_field_attempt",
+      "sb_market_field_review",
+      "sb_market_field_task",
+      "sb_marketplus_public_check",
+      "sb_marketplus_public_collection",
+      "sb_marketplus_public_observation",
+      "sb_product_content_lane",
+      "sb_product_source_collection",
+      "sb_product_source_review",
+      "sb_product_source_snapshot"
+    ],
+    "grants": "DML and associated identity sequences"
+  },
+  "previousUnactivatedRevision": "15b30e37d882efc9affc72701a7949003f5d1607",
+  "rebuildReason": "Operating regression fixes: source transport/FX precision, explicit market state hold, transaction-scoped search JIT",
+  "rebuiltAt": "2026-09-07T16:59:11.068789+00:00",
+  "schemaValidationEntities": 48,
+  "activatedAt": "2026-09-07T17:01:28.955323+00:00",
+  "containers": {
+    "api": {
+      "revision": "c01e6527d918b3b21b0c4ce7c582a93d86c85cf7",
+      "restarts": 0,
+      "startedAt": "2026-09-07T17:01:28.546040104Z"
+    },
+    "frontend": {
+      "revision": "c01e6527d918b3b21b0c4ce7c582a93d86c85cf7",
+      "restarts": 0,
+      "startedAt": "2026-09-07T17:01:28.539714128Z"
+    },
+    "scraper": {
+      "revision": "c01e6527d918b3b21b0c4ce7c582a93d86c85cf7",
+      "restarts": 0,
+      "startedAt": "2026-09-07T17:01:28.543736738Z"
+    },
+    "marketplus-worker": {
+      "revision": "c01e6527d918b3b21b0c4ce7c582a93d86c85cf7",
+      "restarts": 0,
+      "startedAt": "2026-09-07T17:01:48.261647828Z"
+    }
+  },
+  "checks": {
+    "productsStatus": 200,
+    "fieldReviewsStatus": 200,
+    "totalProducts": 2854
+  },
+  "healthyAt": "2026-09-07T17:01:48.412990+00:00",
+  "workerEnvironment": "Preserved existing mall and relay credentials without changing browser/state volumes",
+  "followupBackups": [
+    {
+      "path": "/home/ubuntu/backups/sbshop-products-delivery-20260908/before-followup-c01e6527",
+      "previousRevision": "abeb0d7a04b8764c33ca72e19cdb95dc6732cf79",
+      "oldImages": {
+        "api": "sha256:21acf9f95519d2ffc8ed9416138e4e4cd2a912c309c7a57c2137b0a5b2d73366",
+        "frontend": "sha256:80beb96d8d16e52e80b25f8b6b949f90b6432f2a9b3686ff583bb0fb1cf71984",
+        "scraper": "sha256:79d015933b5e8ed5274c039adc271b4a263390e0dc9f2500c751240d22b4ef13",
+        "marketplus-worker": "sha256:52b02bff26dbd135232792a6eac27038cb3831c1be14b885529ca959fca3f211"
+      },
+      "backupBytes": 9641808,
+      "backupSha256": "917d994b96cae1ac4fc318ddc4a4fe2e4fe4818c490d2b1b75bb7f04980083e5"
+    }
+  ],
+  "previousRevision": "abeb0d7a04b8764c33ca72e19cdb95dc6732cf79"
+}

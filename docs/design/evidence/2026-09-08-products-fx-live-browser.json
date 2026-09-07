@@ -1,0 +1,235 @@
+{
+  "status": "passed",
+  "actualOperatingApi": true,
+  "productWrites": 0,
+  "marketWriteCommits": 0,
+  "collectionSubmissions": 0,
+  "backupDestination": "/home/ubuntu/backups/sbshop-products-delivery-20260908/fx-browser-check",
+  "checks": [
+    "FTN601 새 READY 수집의 원환율1822.551899→1822.55 근거·원가24058 비교 표시, 이미지HTML 이력과 캐시 혼동 없음",
+    "상품57 기존G마켓·옥션3회 확인불가 사유 표시, 새조회POST 없음"
+  ],
+  "warnings": [],
+  "apiReads": [
+    {
+      "method": "GET",
+      "path": "/products/source-refresh/collections/d90ab92f-2dc5-438b-9c55-c769c7263c09",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/source-refresh/601/history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/601/edit-workspace",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/57/edit-workspace",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/marketplus-public-checks/collections",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/57",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/601/edit-workspace",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/57/edit-workspace",
+      "status": 200
+    }
+  ],
+  "sourceComparison": {
+    "productId": 601,
+    "sbCode": "210729FM004",
+    "collectionId": "d90ab92f-2dc5-438b-9c55-c769c7263c09",
+    "snapshotId": "d1e97b7a-e8fd-42cf-84dd-6e41238df332",
+    "state": "READY",
+    "originalExchangeRate": "1822.551899",
+    "proposedExchangeRate": 1822.55,
+    "proposedCostPrice": 24058,
+    "appliedAt": null,
+    "separateContentHistoryRequested": true
+  },
+  "sourceVisibleText": "210729FM004\nFTN\n수집 완료 · 적용 전\n소싱처 열기 ↗\n\n수집 요청 2026. 9. 8. 오전 2:03:21 · 수집 성공 2026. 9. 8. 오전 2:03:22 · DB 적용 이력 없음\n\n수집 완료 · 검토 후 DB 적용이 필요합니다.\n\n수집 참고 사항 (4)\n\n수집 원본 환율 1822.551899 → 1822.55 (소수 2자리 반올림). 상품 원가와 배송비는 이 저장 가능한 환율로 계산했습니다.\n\n소싱처의 실제 수량은 관측되지 않았습니다. 기존 실재고와 판매용 설정 수량을 유지합니다.\n\n매입 원가는 확인된 상품가격에 기존 소싱 배송비 규칙을 적용한 값입니다. 가격 정책·최소마진에 따른 판매가 변경은 저장 전 검토에서 확인합니다.\n\n품절·재입고는 확인된 재고 상태만 반영합니다. 상품 부재·차단·미확인 응답을 품절 또는 0개로 변환하지 않습니다.\n\n비교 및 적용 항목 선택\n매입 원가·환율 적용 검토에 포함\n선택 가능\n\n수집 성공 2026. 9. 8. 오전 2:03:22 · DB 적용 이력 없음 · 검토 후 DB에 적용할 수 있습니다. 마켓 반영 성공을 뜻하지 않습니다.\n\n매입 원가·환율 기존·수집 내용 비교\n수집 요청 당시 DB\n\n개당 매입 원가 24,662원\n\n환율 0\n\n이번에 수집한 내용\n\n개당 매입 원가 24,058원\n\n환율 1,822.55\n\n소싱 재고 상태·실재고 적용 검토에 포함\n선택 가능\n\n수집 성공 2026. 9. 8. 오전 2:03:22 · DB 적용 이력 없음 · 검토 후 DB에 적용할 수 있습니다. 마켓 반영 성공을 뜻하지 않습니다.\n\n소싱 재고 상태·실재고 기존·수집 내용 비교\n수집 요청 당시 DB\n\n재고 상태 재고 있음\n\n소싱 실재고 100개\n\n이번에 수집한 내용\n\n재고 상태 재고 있음\n\n소싱 실재고 관측 없음 · 기존값 유지",
+  "publicObservation": {
+    "productId": 57,
+    "collectionId": "dafe6c37-dbfc-4212-927f-cd722968e0f4",
+    "states": [
+      {
+        "market": "AUCTION",
+        "state": "FAILED_UNVERIFIED",
+        "attempts": 3
+      },
+      {
+        "market": "GMARKET",
+        "state": "FAILED_UNVERIFIED",
+        "attempts": 3
+      }
+    ],
+    "newRequests": 0
+  },
+  "browser": {
+    "blocked": [],
+    "errors": [],
+    "requests": [
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/observer/status",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/transmissions/readiness",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/categories",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/brands",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/601",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/601/edit-workspace",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/content/601/history",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/source-refresh/601/history",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/marketplus-public-checks/collections",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/marketplus-public-checks/collections/dafe6c37-dbfc-4212-927f-cd722968e0f4",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      }
+    ]
+  },
+  "checkedAt": "2026-09-07T17:17:47Z",
+  "revisions": {
+    "before": {
+      "601": 0,
+      "57": 0
+    },
+    "after": {
+      "601": 0,
+      "57": 0
+    }
+  },
+  "cleanupErrors": [],
+  "rawResultStoredAt": "/home/ubuntu/backups/sbshop-products-delivery-20260908/fx-browser-check/result.json",
+  "release": "c01e6527",
+  "evidenceType": "Actual operating Chrome and API, read-only; not fixture",
+  "finalOperatingBrowser": {
+    "marketWrites": 0,
+    "checkedAt": "2026-09-07T17:18:44Z",
+    "tab": {
+      "count": 1,
+      "current": "83684E12208608200A7B4972CE0BCDDE",
+      "kind": "transmissionHistory",
+      "ready": true,
+      "selectedTab": "전송실패",
+      "visibleRows": 20
+    },
+    "status": "passed",
+    "flagsRestored": true,
+    "collectFlag": true,
+    "collectorEnabled": true
+  },
+  "browserRecovery": {
+    "marketWrites": 0,
+    "observation": {
+      "verified": true,
+      "kind": "transmissionHistory",
+      "ready": true,
+      "rows": 20,
+      "selectedTab": "전송완료"
+    },
+    "status": "recovered",
+    "newOperationalTab": "83684E12208608200A7B4972CE0BCDDE",
+    "closedCrashedTab": "CC7912941BD8433B0906EDCD7959F2B9",
+    "flagsRestored": true,
+    "causeEvidence": {
+      "rootReportedOOMKilled": true,
+      "browserMemoryBeforeGiB": 3,
+      "browserMemoryAfterGiB": 6,
+      "containerRestarts": 0,
+      "profilePreserved": true,
+      "memoryEvidence": "2026-09-08-products-browser-memory-recovery.json",
+      "interpretation": "Historical OOM flag supports a memory-pressure cause; CDP replacement recovered the sole crashed MP tab without restarting the container."
+    }
+  }
+}

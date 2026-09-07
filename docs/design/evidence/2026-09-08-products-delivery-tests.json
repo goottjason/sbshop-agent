@@ -1,0 +1,118 @@
+{
+  "revision": "c01e6527d918b3b21b0c4ce7c582a93d86c85cf7",
+  "checkedAt": "2026-09-07T16:29:27.978621+00:00",
+  "backend": {
+    "api": {
+      "tests": 379,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "core": {
+      "tests": 1661,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "infrastructure": {
+      "tests": 788,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "worker": {
+      "tests": 79,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "total": {
+      "tests": 2907,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "frontend": {
+    "typescript": "npx tsc -b --pretty false passed",
+    "productionBuild": "passed",
+    "knownWarning": "existing bundle chunk exceeds 500 kB"
+  },
+  "marketplusPython": {
+    "tests": 54,
+    "passed": true
+  },
+  "ocadoPython": {
+    "tests": 14,
+    "passed": true,
+    "networkFree": true
+  },
+  "postgresql": {
+    "publicationWorkflow": 33,
+    "publicationDDL": 1,
+    "publicCheckWorkflow": 14,
+    "publicCheckDDL": 1,
+    "fieldWorkflow": 31,
+    "isolatedDatabase": true
+  },
+  "correctionsBeforeFinalRun": [
+    "Invalid prepared field input stops retries and preserves the actionable reason.",
+    "Source price/stock and content React Query histories use separate cache keys."
+  ],
+  "operatingMarketWritesVerified": false,
+  "releaseRevision": "c01e6527d918b3b21b0c4ce7c582a93d86c85cf7",
+  "postSuiteSchemaCorrection": {
+    "reason": "Pre-activation all-entity validation caught digit boundary column naming in Cafe24 public observations",
+    "changed": "Two explicit @Column names",
+    "focusedTests": {
+      "observation": 7,
+      "publicQueuePostgresql": 14,
+      "threeEntityDDLPostgresql": 1
+    },
+    "passed": true
+  },
+  "operatingReadOnlySchemaValidation": {
+    "entities": 48,
+    "passed": true,
+    "usingActualReleaseJar": true
+  },
+  "initialBackend": {
+    "api": {
+      "tests": 377,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "core": {
+      "tests": 1659,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "infrastructure": {
+      "tests": 765,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "worker": {
+      "tests": 79,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "total": {
+      "tests": 2880,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "operatingFixes": [
+    "OCD HTTP/1.1 request compatibility",
+    "Verified IHB request headers",
+    "FX rounded before all reviewed pricing calculations with original evidence",
+    "Explicit Smartstore status blocks stop preparation retries",
+    "Product search transaction-scoped PostgreSQL JIT setting"
+  ]
+}

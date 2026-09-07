@@ -1,0 +1,84 @@
+{
+  "status": "passed",
+  "actualOperatingApi": true,
+  "checks": [
+    {
+      "method": "GET",
+      "path": "/products?page=0&size=5",
+      "status": 200,
+      "elapsedMs": 151
+    },
+    {
+      "method": "GET",
+      "path": "/products?page=0&size=5&sort=workspacePriority,asc",
+      "status": 200,
+      "elapsedMs": 145
+    },
+    {
+      "method": "POST",
+      "path": "/products/search?page=0&size=5",
+      "status": 200,
+      "elapsedMs": 242
+    },
+    {
+      "method": "POST",
+      "path": "/products/search?page=0&size=5",
+      "status": 200,
+      "elapsedMs": 202
+    },
+    {
+      "method": "GET",
+      "path": "/products/connection-inspections/daily/markets",
+      "status": 200,
+      "elapsedMs": 145
+    },
+    {
+      "method": "GET",
+      "path": "/market-field-sync/reviews",
+      "status": 200,
+      "elapsedMs": 94
+    },
+    {
+      "method": "GET",
+      "path": "/market-stock-sync/reviews",
+      "status": 200,
+      "elapsedMs": 102
+    },
+    {
+      "method": "GET",
+      "path": "/products/source-refresh/328/history",
+      "status": 200,
+      "elapsedMs": 104
+    },
+    {
+      "method": "GET",
+      "path": "/products/328/marketplus-public-observations/context",
+      "status": 200,
+      "elapsedMs": 105
+    },
+    {
+      "method": "GET",
+      "path": "/products/328/publication-inputs?market=COUPANG&categoryId=73137",
+      "status": 200,
+      "elapsedMs": 873
+    }
+  ],
+  "totalProducts": 2854,
+  "anyMarketIssueCount": 151,
+  "dailyMarkets": [
+    "COUPANG",
+    "SMART_STORE",
+    "ELEVEN_STREET",
+    "CAFE24"
+  ],
+  "fieldReviews": 1,
+  "stockReviews": 1,
+  "sourceHistory": 2,
+  "coupangPublicationMetadata": {
+    "categoryId": "73137",
+    "noticeCategories": 6
+  },
+  "productWrites": 0,
+  "marketCommits": 0,
+  "checkedAt": "2026-09-07T17:03:17Z"
+}

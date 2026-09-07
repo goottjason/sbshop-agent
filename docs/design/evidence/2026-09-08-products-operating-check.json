@@ -1,0 +1,55 @@
+{
+  "status": "passed",
+  "checkedAt": "2026-09-07T17:19:53Z",
+  "ddlAuto": "validate",
+  "database": {
+    "fieldWrites": 0,
+    "publicationWrites": 0,
+    "stockTables": 3,
+    "stockTargetColumn": 1,
+    "activeTaskUniqueIndex": 1,
+    "stockTasks": 0,
+    "stockWriteIntents": 0,
+    "stockCommittedReviews": 0,
+    "stockPreviewReviews": 1
+  },
+  "containers": {
+    "api": {
+      "revision": "c01e6527d918b3b21b0c4ce7c582a93d86c85cf7",
+      "running": true,
+      "restarts": 0
+    },
+    "frontend": {
+      "revision": "c01e6527d918b3b21b0c4ce7c582a93d86c85cf7",
+      "running": true,
+      "restarts": 0
+    },
+    "scraper": {
+      "revision": "c01e6527d918b3b21b0c4ce7c582a93d86c85cf7",
+      "running": true,
+      "restarts": 0
+    },
+    "marketplus-worker": {
+      "revision": "c01e6527d918b3b21b0c4ce7c582a93d86c85cf7",
+      "running": true,
+      "restarts": 0
+    }
+  },
+  "observer": {
+    "flags": {
+      "collect": true,
+      "upload": true
+    },
+    "collectEnabled": true,
+    "uploadEnabled": true,
+    "state": "OBSERVED_PARTIAL",
+    "error": null,
+    "heartbeatAgeSeconds": 0,
+    "publicCheck": {
+      "state": "IDLE",
+      "checkedAt": 1788801536.8675795,
+      "error": null
+    },
+    "browserTabs": 1
+  }
+}
