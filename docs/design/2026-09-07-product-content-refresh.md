@@ -1,6 +1,6 @@
 # 상품 소싱 콘텐츠 수집·비교·선택 반영
 
-2026-09-07 구현 단위. 이 문서의 신규 기능은 로컬 구현·검증 단계이며 운영 배포 및 실제 외부상품 변경을 완료했다는 뜻이 아니다.
+2026-09-07 구현·운영 배포 단위. 실제 IHB 상품 수집과 이미지 호스팅, 운영 Chrome 비교 화면까지 확인했다. 실제 DB 콘텐츠 저장·외부마켓 콘텐츠 쓰기 완료와 구분한다.
 
 ## 제공 범위
 
@@ -45,7 +45,7 @@ Snapshot에는 `id`, `productId`, `sbCode`, `revision`, `sourceUrl`, `vendor`, `
 - 소싱 adapter: HTML 정제, 다운로드 크기 초과 시 transport 취소, 이미지 목록이 비거나 상한을 넘을 때 성공 제외, 콘텐츠 수집의 전체 이미지 인덱스 보존과 기존 등록 5장 상한의 분리를 검증한다.
 - API: 인증 Principal 전달, 사용자 입력 source URL/actor를 적용하지 않음, 잘못된 요청·항목을 서비스 호출 전 거절한다.
 
-실제 IHB 수집 및 이미지 호스팅 운영 검증, 연결 마켓의 콘텐츠 수정 가능 필드 확인, 이미지·HTML의 외부마켓 쓰기 및 readback은 별도 완료 조건으로 남는다.
+연결 마켓의 콘텐츠 수정 가능 필드 확인, 실제 DB 콘텐츠 적용 및 이미지·HTML의 외부마켓 쓰기/readback은 별도 완료 조건으로 남는다.
 
 ## 통합 검사와 기존 수집 보완
 
@@ -66,3 +66,18 @@ Snapshot에는 `id`, `productId`, `sbCode`, `revision`, `sourceUrl`, `vendor`, `
 상세 본문은 확인된 `description`, `ingredients`, `suggestedUse`, `supplementFacts`, `warnings`, `disclaimer`, `specialNote` 문자열 항목으로 구성한 뒤 기존 허용 목록 정제를 적용한다. 다른 형태의 대체 필드를 추정하지 않는다. 확인한 표본은 1건이고 추가 2건은 조회 실패로 응답 구조를 검증하지 못했으므로, 미확인 형식은 명시적으로 실패하도록 유지한다. 기존 신규 상품등록 parser의 필드 조합은 이 수정에서 변경하지 않았다.
 
 안전한 고정 사유인 `SOURCE_NAME_MISSING`, `SOURCE_IDENTITY_MISMATCH`, `SOURCE_IMAGES_INVALID`, `SOURCE_DETAILS_INVALID`, `SOURCE_HTTP_FAILED` 등을 수집 결과에 보존한다. 원본 응답·임의 예외 메시지를 사용자 화면에 노출하지 않는다. 실제 응답에서 계약 검증에 필요한 필드만 남긴 fixture와 HTTP 경로 회귀를 포함한 scoped 검사 **31건(Core 14 / 인프라 17)**이 통과했다. 이는 수정 후 운영 수집 재검증 완료와 구분한다.
+
+
+## 운영 배포·실상품·Chrome 검증
+
+초기 콘텐츠 기능 `b4831b9c` 배포 전에 PostgreSQL 백업(9,522,918 bytes)을 만들고 복원 목록을 검증했다. 명시적 DDL로 4개 콘텐츠 테이블과 IHB lane을 추가한 뒤, 실제 새 배포 JAR의 36개 엔티티를 읽기 전용 validate했다. 운영 `DDL_AUTO=validate`를 유지했다. API·프론트를 전환했고 상품 조회 및 새 이력 조회가 HTTP 200임을 확인했다. [초기 배포 기록](evidence/2026-09-07-product-content-deployment-initial.json).
+
+첫 실상품 수집은 위에 설명한 계약 차이로 실패했다. 실패 이력을 삭제하지 않고 보존했다. `8f935631` 수정 API의 실제 JAR도 36개 엔티티를 validate한 뒤 API만 교체했다. 이 수정에는 DDL 변경이 없었다. [초기 실패](evidence/2026-09-07-product-content-pilot-initial-failure.json), [수정 배포](evidence/2026-09-07-product-content-deployment-fix.json), [수정 후 관련 검사 31건](evidence/2026-09-07-product-content-contract-fix-tests.json).
+
+새 요청으로 같은 운영 상품 **328 / SB 210121IHB031**을 재수집한 결과 `READY`가 됐다. 소싱 이미지 3개를 실제 다운로드·변환·호스팅했고 상세 HTML 2,985자를 생성했다. 이미지·HTML 각각의 수집 성공 시각은 **2026-09-07 22:07:41 KST**이며 DB 적용 시각은 비어 있다. 요청 전후 상품명·소스 이미지·호스팅 이미지·상세 HTML 해시가 일치했다. 같은 requestId를 재전송하면 같은 collection을 반환했다. 연결 상품이므로 두 필드는 `VERIFICATION_REQUIRED` 잠금을 유지한다. [실상품 결과](evidence/2026-09-07-product-content-pilot.json).
+
+운영 서버의 실제 Chrome에서 검색 → 상품 선택 → 이미지·상세 갱신 → 수집 이력 비교를 실행했다. 실제 API 검색·이력 조회는 200이고 페이지 오류는 없었다. 기존 4장과 신규 3장 모두 로드됐으며 기존/신규 HTML iframe은 빈 sandbox를 유지했다. 잠금 체크박스는 비활성 상태였다. 검사 중 수집기를 잠시 쉬게 한 뒤 원래 마켓플러스 탭 1개와 collect/upload=true를 복원했다. [실제 Chrome 결과](evidence/2026-09-07-product-content-live-chrome.json), [운영 화면](evidence/2026-09-07-product-content-live-chrome.png).
+
+이번 검증은 수집·비교만 실행했다. 운영 상품 콘텐츠를 저장하거나 외부마켓 상품을 수정하지 않았다. DB 선택 적용의 원자성·충돌·잠금·이력은 자동 통합 테스트로 확인한 범위다.
+
+운영 화면에서 안내가 길어 비교 이미지가 아래로 밀리는 점을 확인하고 프론트 `a2ef2e51`에서 상단 안내를 줄였다. 정상 수집 참고 사항은 접고, 실패·부분 실패의 구체 사유는 기본 펼침 상태로 유지한다. TypeScript·Vite와 Chrome fixture 11개를 다시 확인했다. 최종 프론트 배포와 실제 Chrome 결과는 각각 [프론트 배포 기록](evidence/2026-09-07-product-content-deployment-ui.json), 위 운영 Chrome 증거를 따른다.

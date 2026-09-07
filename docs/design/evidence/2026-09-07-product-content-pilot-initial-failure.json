@@ -1,0 +1,37 @@
+{
+  "checkedAt": "2026-09-07T12:50:30.607454+00:00",
+  "collectionId": "f72144aa-a2fd-470c-b797-3728a681044e",
+  "productId": 328,
+  "sbCode": "210121IHB031",
+  "state": "FAILED",
+  "reason": "소싱 콘텐츠 수집에 실패했습니다. 차단·응답 형식·이미지 호스팅 상태를 확인 후 새로 수집하세요.",
+  "collectedAt": null,
+  "appliedAt": null,
+  "fields": [
+    {
+      "field": "IMAGES",
+      "available": false,
+      "editable": false,
+      "reason": "이 항목의 수집 또는 자동 생성이 완료되지 않았습니다.",
+      "collectedAt": null,
+      "appliedAt": null
+    },
+    {
+      "field": "DETAIL_HTML",
+      "available": false,
+      "editable": false,
+      "reason": "이 항목의 수집 또는 자동 생성이 완료되지 않았습니다.",
+      "collectedAt": null,
+      "appliedAt": null
+    }
+  ],
+  "notices": [
+    "현재 IHB 수집을 지원합니다. 다른 소싱처는 계약 확인 후 추가합니다."
+  ],
+  "currentImageCount": 4,
+  "proposedImageCount": 0,
+  "proposedHtmlLength": 0,
+  "productContentUnchanged": true,
+  "externalMarketWriteInvoked": false,
+  "sameRequestReturnsSameCollection": true
+}

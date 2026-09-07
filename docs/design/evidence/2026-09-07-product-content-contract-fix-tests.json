@@ -1,0 +1,52 @@
+{
+  "revision": "8f9356312d136eac9951b62dc8e2817526442574",
+  "scope": "IHB live catalog contract correction; targeted tests after the earlier full 2511-test run",
+  "suites": [
+    {
+      "module": "core",
+      "suite": "com.sbshop.agent.core.application.product.content.ProductContentServiceIntegrationTest",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "infrastructure",
+      "suite": "com.sbshop.agent.infrastructure.client.sourcing.IherbProductContentImageCompletenessTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "infrastructure",
+      "suite": "com.sbshop.agent.infrastructure.client.sourcing.IherbScraperClientParseTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "infrastructure",
+      "suite": "com.sbshop.agent.infrastructure.client.sourcing.content.IherbContentCatalogParserTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "infrastructure",
+      "suite": "com.sbshop.agent.infrastructure.client.sourcing.content.IherbProductContentSourceTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ],
+  "totals": {
+    "tests": 31,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  }
+}

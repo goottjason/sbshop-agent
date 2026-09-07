@@ -1,0 +1,38 @@
+{
+  "revision": "b4831b9c7602646246c9dde9d523054b9f413d7b",
+  "phase": "HEALTHY",
+  "builtAt": "2026-09-07T12:48:08.704919+00:00",
+  "oldImages": {
+    "api": {
+      "id": "sha256:c2df74c2dfbf7a3a384c9bf37dac96b43bd0b00d54f1d5b7ad0d53c933768359",
+      "revision": "545f06fde58fe5ada76c36a4398c94be86c85a1d"
+    },
+    "frontend": {
+      "id": "sha256:23b4d7a7e850706ed1770c0822d6e3889e2a9d17946631e5d7f3e58bb7b60337",
+      "revision": "545f06fde58fe5ada76c36a4398c94be86c85a1d"
+    }
+  },
+  "backupSha256": "af67b3e934d1b3c16b8fd5173a8c3284325624770c9b38066616911e35d1e6b9",
+  "backupBytes": 9522918,
+  "appliedDDL": "2026-09-07-product-content-refresh.sql",
+  "schemaValidationEntities": 36,
+  "activatedAt": "2026-09-07T12:49:09.947216+00:00",
+  "checks": {
+    "productsStatus": 200,
+    "contentHistoryStatus": 200,
+    "totalProducts": 2854
+  },
+  "containers": {
+    "api": {
+      "revision": "b4831b9c7602646246c9dde9d523054b9f413d7b",
+      "restarts": 0,
+      "startedAt": "2026-09-07T12:49:09.725808585Z"
+    },
+    "frontend": {
+      "revision": "b4831b9c7602646246c9dde9d523054b9f413d7b",
+      "restarts": 0,
+      "startedAt": "2026-09-07T12:49:09.728018351Z"
+    }
+  },
+  "healthyAt": "2026-09-07T12:49:26.644179+00:00"
+}

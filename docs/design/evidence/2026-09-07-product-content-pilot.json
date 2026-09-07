@@ -1,0 +1,40 @@
+{
+  "checkedAt": "2026-09-07T13:07:43.328200+00:00",
+  "collectionId": "a6fc65e7-97cc-4659-8faa-f5ccbfe9106b",
+  "productId": 328,
+  "sbCode": "210121IHB031",
+  "state": "READY",
+  "reason": "수집 완료 · 검토 후 DB 적용이 필요합니다.",
+  "collectedAt": "2026-09-07T13:07:41.734625Z",
+  "appliedAt": null,
+  "fields": [
+    {
+      "field": "IMAGES",
+      "available": true,
+      "editable": false,
+      "reason": "연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+      "collectedAt": "2026-09-07T13:07:41.734625Z",
+      "appliedAt": null
+    },
+    {
+      "field": "DETAIL_HTML",
+      "available": true,
+      "editable": false,
+      "reason": "연결 마켓의 수정 조건과 상품명·옵션·상세정보의 파생 변경 확인이 필요합니다. 수정 불가로 확정한 필드와 구분합니다.",
+      "collectedAt": "2026-09-07T13:07:41.734625Z",
+      "appliedAt": null
+    }
+  ],
+  "notices": [
+    "소싱 상세 설명의 실행 코드·외부 이미지·링크·스타일은 제거하고 본문·표 내용으로 상세를 생성합니다.",
+    "상품명·원문명·묶음수량·용량은 수집 요청 당시 DB 값으로 고정하여 기존 상세 생성 규칙을 사용했습니다.",
+    "상세 HTML에 최신 이미지가 포함될 수 있습니다. 대표·부가 이미지도 바꾸려면 이미지 항목을 함께 선택하세요.",
+    "수집 성공은 DB 저장이나 외부마켓 반영 성공이 아닙니다. 연결 마켓의 콘텐츠 수정 조건 확인 전에는 적용이 제한됩니다."
+  ],
+  "currentImageCount": 4,
+  "proposedImageCount": 3,
+  "proposedHtmlLength": 2985,
+  "productContentUnchanged": true,
+  "externalMarketWriteInvoked": false,
+  "sameRequestReturnsSameCollection": true
+}

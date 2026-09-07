@@ -1,0 +1,13 @@
+{
+  "revision": "8f9356312d136eac9951b62dc8e2817526442574",
+  "phase": "HEALTHY",
+  "builtAt": "2026-09-07T13:06:40.745187+00:00",
+  "oldImage": "sha256:5e29554682bd64556ad1bb9250c12e3049dfdaf4122a3686ed2e2c7e5c82cca6",
+  "schemaMutation": false,
+  "initialBackup": "/home/ubuntu/backups/sbshop-content-release-20260907/sbshop-before.dump",
+  "schemaValidationEntities": 36,
+  "activatedAt": "2026-09-07T13:06:52.654415+00:00",
+  "healthyAt": "2026-09-07T13:07:09.187263+00:00",
+  "contentHistoryStatus": 200,
+  "restarts": 0
+}
