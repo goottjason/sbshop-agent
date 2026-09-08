@@ -18,11 +18,11 @@
 - [로컬 Chrome 기본 화면](evidence/2026-09-08-supplier-batch-browser-main.png), [기본 화면 검사 결과](evidence/2026-09-08-supplier-batch-browser-main.json)
 - [로컬 Chrome 상품 상세](evidence/2026-09-08-supplier-batch-browser-drawer.png), [상세 검사 결과](evidence/2026-09-08-supplier-batch-browser-drawer.json)
 
-화면 검사는 예시 데이터와 격리된 HTTP 응답을 사용한다. 운영 마켓 반영 성공의 증거로 해석하지 않는다. 전체 백엔드 회귀 2,206건(core 1,742 / API 385 / worker 79), Chrome 18개 사용 흐름과 PostgreSQL 배치 흐름 18건이 통과했다. 운영 반영은 실행하지 않았다. [검증 집계](evidence/2026-09-08-supplier-batch-verification.json).
+화면 검사는 예시 데이터와 격리된 HTTP 응답을 사용한다. 운영 마켓 반영 성공의 증거로 해석하지 않는다. 전체 백엔드 회귀 2,206건(core 1,742 / API 385 / worker 79)과 Chrome 18개 사용 흐름이 통과했다. 이후 일부 수집 전체 실패 정책을 확정하고 배치 29건(H2) 및 소싱/DB 22건(PostgreSQL)을 추가 검증했다. 운영 반영은 실행하지 않았다. [검증 집계](evidence/2026-09-08-supplier-batch-verification.json).
 
-## 현재 확인해야 할 경계
+## 적용 정책과 지원 범위
 
-- 가격+재고 중 가격 수집만 실패한 경우, 확인된 재고를 먼저 반영할지는 사용자 질의 답변 대기다. 이를 임의로 승인된 정책으로 확정하지 않는다.
+- 사용자 확정 정책: 가격+재고 중 하나라도 수집되지 않으면 해당 상품 수집 전체 실패. SB 상품값 저장과 마켓 전송은 실행하지 않으며, 재시도 시 두 항목을 함께 새로 수집한다. 가격만/재고만 모드는 선택한 항목의 수집 성공을 기준으로 한다.
 - 11번가 가격 변경·0개 품절 전환은 기존 검증된 API 범위에 없으므로 보류한다. 판매 중 단일 상품의 양수 수량 조정만 기존 경로로 처리한다.
 - 카페24 확인 완료를 G마켓·옥션 최종 반영 완료로 표시하지 않는다.
 

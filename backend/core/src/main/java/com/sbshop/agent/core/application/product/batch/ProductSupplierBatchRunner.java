@@ -203,15 +203,19 @@ public class ProductSupplierBatchRunner {
 	}
 
 	private Result collected(Claim c, ProductSourceService.Snapshot snapshot, Set<Field> needed, Set<Field> available) {
-		// Partial PRICE_STOCK application is finalized separately after the requested user clarification.
+		// The approved combined mode requires both observations before any product or market change.
 		if (!available.containsAll(needed)) {
+			boolean unsupportedSource = snapshot.state() == ProductSourceSnapshot.State.UNSUPPORTED
+				&& available.isEmpty();
 			String detail = needed.stream()
 				.map(f -> (f == Field.PRICE ? "가격" : "재고") + (available.contains(f) ? " 확인 완료" : " 수집 실패"))
 				.collect(java.util.stream.Collectors.joining(" · "))
 				+ (snapshot.reason() == null || snapshot.reason().isBlank() ? "" : " · " + safe(snapshot.reason()));
+			if (needed.containsAll(Set.of(Field.PRICE, Field.STOCK)))
+				detail += " · 가격과 재고가 모두 확인되지 않아 이 상품은 어느 항목도 적용하지 않았습니다. 수집을 재시도하면 두 항목을 다시 확인합니다.";
 			return Result.builder()
-				.state(snapshot.state() == ProductSourceSnapshot.State.UNSUPPORTED ? "BLOCKED" : "FAILED")
-				.detail(detail).retryable(snapshot.state() != ProductSourceSnapshot.State.UNSUPPORTED)
+				.state(unsupportedSource ? "BLOCKED" : "FAILED")
+				.detail(detail).retryable(!unsupportedSource)
 				.sourceSnapshotId(snapshot.id()).build();
 		}
 		return Result.builder().state("SUCCEEDED")

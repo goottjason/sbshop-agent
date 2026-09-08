@@ -1,6 +1,6 @@
 {
-  "status": "implementation_checks_passed_policy_decision_pending",
-  "checkedAt": "2026-09-08T03:51:15.762075+00:00",
+  "status": "implementation_verified_not_deployed",
+  "checkedAt": "2026-09-08T03:59:09.396113+00:00",
   "operatingDatabaseAccess": false,
   "operatingBatchExecuted": false,
   "deployed": false,
@@ -9,7 +9,7 @@
     "evidence": "2026-09-08-supplier-batch-browser-main.json"
   },
   "supplierBatch": {
-    "sourceAndDatabase": 18,
+    "sourceAndDatabase": 22,
     "marketQueue": 7,
     "database": "H2",
     "failures": 0
@@ -26,7 +26,6 @@
     "errors": 0,
     "skipped": 0
   },
-  "pendingDecision": "가격+재고 중 일부만 정상 수집된 경우의 적용 정책",
   "core": {
     "tests": 1742,
     "failures": 0,
@@ -36,7 +35,7 @@
   "backendTotal": 2206,
   "postgresFlow": {
     "testClass": "ProductSupplierBatchIntegrationTest",
-    "tests": 18,
+    "tests": 22,
     "failures": 0,
     "errors": 0,
     "skipped": 0,
@@ -57,5 +56,25 @@
       "skipped": 0
     }
   },
-  "ddlSchemaEvidence": "2026-09-08-supplier-batch-schema-check.json"
+  "ddlSchemaEvidence": "2026-09-08-supplier-batch-schema-check.json",
+  "approvedPartialObservationPolicy": "PRICE_STOCK에서 한 항목이라도 미수집이면 해당 상품 수집 전체 실패. SB 상품값 저장·마켓 반영 없음. 재시도 시 두 항목 새 수집.",
+  "frontendPolicyCopy": "tsc -b and production build passed",
+  "fullBackendRegressionPhase": "Before final partial-observation policy clarification; final policy separately covered by 29 H2 and 22 PostgreSQL cases",
+  "finalPolicyRegression": {
+    "h2": {
+      "sourceAndDatabase": 22,
+      "marketQueue": 7,
+      "tests": 29,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "postgres": {
+      "sourceAndDatabase": 22,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "additionalPartialObservationCases": 4
+  }
 }

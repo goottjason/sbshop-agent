@@ -319,6 +319,94 @@ class ProductSupplierBatchIntegrationTest {
 		verify(source, times(2)).fetch(any(), anyString());
 	}
 
+	@org.junit.jupiter.params.ParameterizedTest
+	@org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+	void combinedModePriceOnlyObservationFailsWholeProductAndRetryCollectsBoth(boolean unsupportedMarker) {
+		assertPartialObservationNeverApplies(
+			new Observed(n("12000"), BigDecimal.ONE, "KRW", null, null, List.of()), Field.PRICE,
+			unsupportedMarker);
+	}
+
+	@org.junit.jupiter.params.ParameterizedTest
+	@org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+	void combinedModeStockOnlyObservationFailsWholeProductAndRetryCollectsBoth(boolean unsupportedMarker) {
+		assertPartialObservationNeverApplies(
+			new Observed(null, null, "KRW", StockStatus.OUT_OF_STOCK, 0, List.of()), Field.STOCK,
+			unsupportedMarker);
+	}
+
+	private void assertPartialObservationNeverApplies(Observed partial, Field available,
+		boolean unsupportedMarker) {
+		var original = product();
+		var originalValues = ProductSourceData.Values.from(original);
+		doReturn(partial).when(source).fetch(any(), anyString());
+		var run = create(Mode.PRICE_STOCK);
+		step(run.id());
+		sourceWorker.tick();
+		var partialSnapshot = snapshots.findAll().getFirst();
+		assertThat(partialSnapshot.getState()).isEqualTo(ProductSourceSnapshot.State.PARTIAL);
+		if (unsupportedMarker)
+			tx.executeWithoutResult(t -> ReflectionTestUtils.setField(
+				snapshots.findById(partialSnapshot.getId()).orElseThrow(), "state",
+				ProductSourceSnapshot.State.UNSUPPORTED));
+		step(run.id());
+		assertThat(service.get(run.id())).satisfies(result -> {
+			assertThat(result.state()).isEqualTo("COMPLETED");
+			assertThat(result.processed()).isEqualTo(1);
+			assertThat(result.failed()).isEqualTo(1);
+			assertThat(result.succeeded()).isZero();
+		});
+		assertThat(stage(run.id(), "CRAWL")).satisfies(crawl -> {
+			assertThat(crawl.getState()).isEqualTo("FAILED");
+			assertThat(crawl.isRetryable()).isTrue();
+			assertThat(crawl.getDetail()).contains(available == Field.PRICE ? "가격 확인 완료" : "재고 확인 완료",
+				"어느 항목도 적용하지 않았습니다", "두 항목을 다시 확인");
+		});
+		assertThat(stage(run.id(), "DB").getState()).isEqualTo("SKIPPED");
+		assertThat(stages.findByItemIdOrderById(item(run.id()).id()).stream()
+			.filter(s -> s.getStage().equals("MARKET"))).allSatisfy(market -> {
+				assertThat(market.getState()).isEqualTo("SKIPPED");
+				assertThat(market.getReferenceId()).isNull();
+				assertThat(market.getAttempts()).isZero();
+			});
+		var unchanged = products.findById(original.getId()).orElseThrow();
+		assertThat(unchanged.getRevision()).isEqualTo(original.getRevision());
+		assertThat(ProductSourceData.Values.from(unchanged)).usingRecursiveComparison()
+			.withComparatorForType(BigDecimal::compareTo, BigDecimal.class).isEqualTo(originalValues);
+		assertThat(unchanged.getPriceInfo().getSalePrice())
+			.isEqualByComparingTo(original.getPriceInfo().getSalePrice());
+		assertThat(unchanged.getPriceInfo().getMarginRate())
+			.isEqualByComparingTo(original.getPriceInfo().getMarginRate());
+		assertThat(unchanged.getPriceInfo().getCouponRate()).isEqualTo(original.getPriceInfo().getCouponRate());
+		assertThat(unchanged.getPriceInfo().getMinMarginPrice()).isEqualTo(original.getPriceInfo().getMinMarginPrice());
+		assertThat(histories.count()).isZero();
+		assertThat(targets.count()).isZero();
+		assertThat(sourceReviews.count()).isZero();
+		verifyNoInteractions(priceQueue, stockQueue);
+
+		doReturn(new Observed(n("15000"), BigDecimal.ONE, "KRW", StockStatus.IN_STOCK, 8, List.of()))
+			.when(source).fetch(any(), anyString());
+		service.retry(run.id(), new RetryRequest(UUID.randomUUID().toString(), null, Step.CRAWL, null, null), "admin");
+		untilComplete(run.id());
+		assertThat(service.get(run.id()).succeeded()).isEqualTo(1);
+		assertThat(collections.count()).isEqualTo(2);
+		assertThat(histories.count()).isEqualTo(1);
+		assertThat(stage(run.id(), "DB").getState()).isEqualTo("SUCCEEDED");
+		var fresh = snapshots.findById(item(run.id()).sourceSnapshotId()).orElseThrow();
+		assertThat(fresh.getId()).isNotEqualTo(partialSnapshot.getId());
+		assertThat(fresh.getPriceAppliedAt()).isNotNull();
+		assertThat(fresh.getStockAppliedAt()).isNotNull();
+		var applied = products.findById(original.getId()).orElseThrow();
+		assertThat(applied.getRevision()).isEqualTo(original.getRevision() + 1);
+		assertThat(applied.getStock()).isEqualTo(8);
+		assertThat(applied.getPriceInfo().getCostPrice()).isEqualByComparingTo("15000");
+		assertThat(applied.getPriceInfo().getMarginRate()).isEqualByComparingTo("30");
+		var preserved = snapshots.findById(partialSnapshot.getId()).orElseThrow();
+		assertThat(preserved.getPriceAppliedAt()).isNull();
+		assertThat(preserved.getStockAppliedAt()).isNull();
+		verify(source, times(2)).fetch(any(), anyString());
+	}
+
 	@Test
 	void changedVendorBlocksBeforeForeignSourceOrPolicyCanRun() {
 		var p = product();
