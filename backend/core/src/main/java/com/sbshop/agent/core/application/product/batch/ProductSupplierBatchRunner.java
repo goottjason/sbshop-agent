@@ -147,7 +147,9 @@ public class ProductSupplierBatchRunner {
 			}
 		}
 		if (stage == null) {
-			var market = stages.dueMarkets(id, now, PageRequest.of(0, 1));
+			var market = stages.completedMarkets(id, now, PageRequest.of(0, 1));
+			if (market.isEmpty())
+				market = stages.dueMarkets(id, now, PageRequest.of(0, 1));
 			if (!market.isEmpty()) {
 				stage = market.getFirst();
 				item = items.findById(stage.getItemId()).orElseThrow();

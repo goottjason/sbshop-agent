@@ -1,0 +1,9 @@
+[
+  {
+    "name": "com.sbshop.agent.core.application.product.batch.ProductSupplierBatchMarketIntegrationTest",
+    "tests": "10",
+    "failures": "0",
+    "errors": "0",
+    "time": "101.532"
+  }
+]

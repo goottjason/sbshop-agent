@@ -415,6 +415,66 @@ class ProductSupplierBatchMarketIntegrationTest {
 		verifyNoInteractions(source);
 	}
 
+	@Test
+	void finishedMarketIsReportedBeforeOlderUnsubmittedWork() {
+		String run = savedRun(Mode.PRICE_STOCK);
+		queued(run, Field.PRICE);
+		openMarket();
+		prices.processOne(MARKET);
+		openMarket();
+		prices.processOne(MARKET);
+		assertThat(priceTasks.findByReviewIdOrderById(market(run, Field.PRICE).getReferenceId()).getFirst().getState())
+			.isEqualTo("CONFIRMED_PRICE");
+		jdbc.update("update sb_supplier_batch_stage set next_run_at=? where id=?",
+			java.sql.Timestamp.from(Instant.now().minusSeconds(7200)), market(run, Field.STOCK).getId());
+		jdbc.update("update sb_supplier_batch_stage set next_run_at=? where id=?",
+			java.sql.Timestamp.from(Instant.now().minusSeconds(1)), market(run, Field.PRICE).getId());
+		runner.process(run);
+		assertThat(market(run, Field.PRICE).getState()).isEqualTo("SUCCEEDED");
+		assertThat(market(run, Field.STOCK).getState()).isEqualTo("WAITING");
+		assertThat(priceTasks.count()).isEqualTo(1);
+	}
+
+	@Test
+	void readbackOfSentPricePrecedesOlderUnsentPrice() {
+		String run = savedRun(Mode.PRICE);
+		queued(run, Field.PRICE);
+		openMarket();
+		prices.processOne(MARKET);
+		var sent = priceTasks.findByReviewIdOrderById(market(run, Field.PRICE).getReferenceId()).getFirst();
+		assertThat(sent.getState()).isEqualTo("VERIFY");
+		priceTasks.saveAndFlush(new com.sbshop.agent.core.domain.market.sync.MarketPriceTask(
+			UUID.randomUUID().toString(), sent.getProductId(), sent.getSbCode(), sent.getRegistrationId(),
+			sent.getProductRevision(), sent.getMarket(), sent.getListingId(), sent.getOptionId(),
+			sent.getIdentifiers(), sent.getAccountReference(), sent.getExpectedPrice(), null,
+			Instant.now().minusSeconds(7200)));
+		// Keep the old CHECK timestamp; make the VERIFY eligible now.
+		jdbc.update("update sb_market_price_task set next_run_at=? where id=?",
+			java.sql.Timestamp.from(Instant.now().minusSeconds(1)), sent.getId());
+		assertThat(priceTasks.due(MARKET.name(), Instant.now(), org.springframework.data.domain.PageRequest.of(0, 1)))
+			.singleElement().satisfies(task -> assertThat(task.getId()).isEqualTo(sent.getId()));
+	}
+
+	@Test
+	void readbackOfSentStockPrecedesOlderUnsentStock() {
+		String run = savedRun(Mode.STOCK);
+		queued(run, Field.STOCK);
+		openMarket();
+		stocks.processOne(MARKET);
+		var sent = stockTasks.findByReviewIdOrderById(market(run, Field.STOCK).getReferenceId()).getFirst();
+		assertThat(sent.getState()).isEqualTo("VERIFY");
+		stockTasks.saveAndFlush(new com.sbshop.agent.core.domain.market.sync.MarketStockTask(
+			UUID.randomUUID().toString(), sent.getProductId(), sent.getSbCode(), sent.getRegistrationId(),
+			sent.getProductRevision(), sent.getRegistrationRevision(), sent.getMarket(), sent.getListingId(),
+			sent.getOptionId(),
+			sent.getIdentifiers(), sent.getAccountReference(), sent.getExpectedQuantity(), null,
+			Instant.now().minusSeconds(7200)));
+		jdbc.update("update sb_market_stock_task set next_run_at=? where id=?",
+			java.sql.Timestamp.from(Instant.now().minusSeconds(1)), sent.getId());
+		assertThat(stockTasks.due(MARKET.name(), Instant.now(), org.springframework.data.domain.PageRequest.of(0, 1)))
+			.singleElement().satisfies(task -> assertThat(task.getId()).isEqualTo(sent.getId()));
+	}
+
 	private String savedRun(Mode mode) {
 		String id = batches.create(new CreateRequest(UUID.randomUUID().toString(), VendorType.IHB, mode,
 			n("10"), n("20"), n("1500"), Set.of(MARKET)), "admin").id();
