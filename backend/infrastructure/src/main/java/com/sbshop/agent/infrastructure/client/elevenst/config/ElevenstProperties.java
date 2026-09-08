@@ -11,5 +11,5 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "elevenst")
 public class ElevenstProperties {
 	private String apiKey;
-	private String apiUrl = "http://api.11st.co.kr";
+	private String apiUrl = "https://api.11st.co.kr";
 }

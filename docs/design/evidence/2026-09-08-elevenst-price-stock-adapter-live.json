@@ -1,0 +1,81 @@
+{
+  "sbCode" : "220114OC012",
+  "observations" : [ {
+    "at" : "2026-09-08T04:31:08.619354412Z",
+    "quantity" : 300,
+    "saleState" : "103",
+    "price" : 217800,
+    "label" : "before",
+    "stockState" : "01"
+  }, {
+    "label" : "price_receipt",
+    "resultCode" : "200",
+    "productNo" : "",
+    "preSelPrc" : "217800",
+    "message" : "(상품번호:4088296117)의 가격이 업데이트 되었습니다"
+  }, {
+    "label" : "receipt_requires_readback",
+    "detail" : "11번가 가격 변경 결과·상품번호를 확인할 수 없습니다. 실제 가격 재조회가 필요합니다."
+  }, {
+    "at" : "2026-09-08T04:31:28.308404727Z",
+    "quantity" : 300,
+    "saleState" : "103",
+    "price" : 217700,
+    "label" : "price_decreased",
+    "stockState" : "01"
+  }, {
+    "label" : "price_receipt",
+    "resultCode" : "200",
+    "productNo" : "",
+    "preSelPrc" : "217700",
+    "message" : "(상품번호:4088296117)의 가격이 업데이트 되었습니다"
+  }, {
+    "label" : "receipt_requires_readback",
+    "detail" : "11번가 가격 변경 결과·상품번호를 확인할 수 없습니다. 실제 가격 재조회가 필요합니다."
+  }, {
+    "at" : "2026-09-08T04:31:44.535932671Z",
+    "quantity" : 300,
+    "saleState" : "103",
+    "price" : 217800,
+    "label" : "price_restored",
+    "stockState" : "01"
+  }, {
+    "at" : "2026-09-08T04:32:02.289364612Z",
+    "quantity" : 0,
+    "saleState" : "104",
+    "price" : 217800,
+    "label" : "sold_out",
+    "stockState" : "02"
+  }, {
+    "at" : "2026-09-08T04:32:21.654346966Z",
+    "quantity" : 300,
+    "saleState" : "103",
+    "price" : 217800,
+    "label" : "restored",
+    "stockState" : "01"
+  }, {
+    "writes" : 4,
+    "restored" : true,
+    "productFieldsUnchanged" : true
+  } ],
+  "stockId" : "16243384893",
+  "listingId" : "4088296117",
+  "productId" : 1229,
+  "writeIntents" : [ {
+    "target" : 217700,
+    "at" : "2026-09-08T04:31:19.110523406Z",
+    "operation" : "PRICE"
+  }, {
+    "target" : 217800,
+    "at" : "2026-09-08T04:31:35.327128227Z",
+    "operation" : "PRICE_RESTORE"
+  }, {
+    "target" : 0,
+    "at" : "2026-09-08T04:31:53.174241977Z",
+    "operation" : "STOCK"
+  }, {
+    "target" : 300,
+    "at" : "2026-09-08T04:32:12.548475036Z",
+    "operation" : "STOCK_RESTORE"
+  } ]
+}

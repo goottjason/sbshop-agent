@@ -3,6 +3,7 @@ export interface StockSyncItem {
   id: number | null; productId: number; sbCode: string | null; market: string; listingId: string | null; revision: number;
   expectedQuantity: number | null; observedQuantity: number | null; state: string; detail: string; writes: number; reads: number;
   nextRunAt: string | null; checkedAt: string | null;
+  observedSaleState?: string | null; observedStockState?: string | null;
 }
 export interface StockSyncReview {
   id: string; actor: string; createdAt: string; expiresAt: string; committed: boolean; total?: number; items: StockSyncItem[];

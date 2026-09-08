@@ -287,4 +287,89 @@ class MarketPriceSyncIntegrationTest {
 		assertThat(service.claim(MARKET)).isNull();
 	}
 
+	private MarketPriceSyncService.Review elevenstQueue() {
+        when(clients.hasClient(MarketType.ELEVEN_STREET)).thenReturn(true);
+        when(clients.getClient(MarketType.ELEVEN_STREET)).thenReturn(client);
+        registrations.saveAndFlush(MarketRegistration.builder().productId(product.getId())
+            .marketType(MarketType.ELEVEN_STREET).marketIdentifiers("{\"prdNo\":\"456\"}").build());
+        var review = service.preview(List.of(product.getId()), Set.of(MarketType.ELEVEN_STREET), "admin");
+        return service.commit(review.id(), "admin");
+    }
+
+	private void elevenstObserved(int value) {
+        when(client.readSalePrice("456", null, product.getSbCode()))
+            .thenReturn(new MarketPriceRead(BigDecimal.valueOf(value), true, "fixture", "account-A"));
+    }
+
+	@Test
+	void elevenstIncreaseUsesIdentityAndDurableGuardAndOnlyConfirmsAfterRead() {
+		elevenstObserved(12000);
+		var review = elevenstQueue();
+		doAnswer(call -> {
+			assertThat(org.springframework.transaction.support.TransactionSynchronizationManager
+				.isActualTransactionActive()).isFalse();
+			((Runnable)call.getArgument(5)).run();
+			assertThat(tasks.findByReviewIdOrderById(review.id()).getFirst().getWrites()).isEqualTo(1);
+			return null;
+		}).when(client).writeSalePrice(eq("456"), isNull(), eq(product.getSbCode()),
+			eq(new BigDecimal("12300")), eq("account-A"), any(Runnable.class), eq(true));
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(service.get(review.id()).items().getFirst().state()).isEqualTo("VERIFY");
+		elevenstObserved(12300);
+		release();
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(service.get(review.id()).items().getFirst().state()).isEqualTo("CONFIRMED_PRICE");
+		verify(client, times(1)).writeSalePrice(eq("456"), isNull(), eq(product.getSbCode()),
+			any(), eq("account-A"), any(Runnable.class), eq(true));
+		verify(client, never()).writeSalePrice(any(), any(), any());
+	}
+
+	@org.junit.jupiter.params.ParameterizedTest
+	@org.junit.jupiter.params.provider.ValueSource(strings = {"TRANSPORT_ERROR", "INVALID_RESPONSE"})
+	void elevenstLostReceiptRereadsBeforeAnotherMutation(String failureCode) {
+		elevenstObserved(12500);
+		var review = elevenstQueue();
+		doAnswer(call -> {
+			((Runnable)call.getArgument(5)).run();
+			elevenstObserved(12300);
+			throw new MarketTransferFailure(failureCode, "lost or unidentifiable receipt", null, null);
+		}).when(client).writeSalePrice(any(), any(), any(), any(), any(), any(Runnable.class), eq(true));
+		service.processOne(MarketType.ELEVEN_STREET);
+		release();
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(service.get(review.id()).items().getFirst().state()).isEqualTo("CONFIRMED_PRICE");
+		verify(client, times(1)).writeSalePrice(any(), any(), any(), any(), any(), any(Runnable.class), eq(true));
+	}
+
+	@Test
+	void elevenstChangeDuringAdapterFreshReadPreventsWriteIntent() {
+		elevenstObserved(12000);
+		var review = elevenstQueue();
+		doAnswer(call -> {
+			jdbc.update("update sb_product set revision=revision+1 where id=?", product.getId());
+			((Runnable)call.getArgument(5)).run();
+			fail("The late write guard must abort before transmission");
+			return null;
+		}).when(client).writeSalePrice(any(), any(), any(), any(), any(), any(Runnable.class), eq(true));
+		service.processOne(MarketType.ELEVEN_STREET);
+		var item = service.get(review.id()).items().getFirst();
+		assertThat(item.state()).isEqualTo("STALE");
+		assertThat(item.writes()).isZero();
+	}
+
+	@Test
+	void elevenstExplicitBusinessRejectionDoesNotAutomaticallyResend() {
+		elevenstObserved(12000);
+		var review = elevenstQueue();
+		doAnswer(call -> {
+			((Runnable)call.getArgument(5)).run();
+			throw new MarketTransferFailure("ELEVENST_BUSINESS_500", "가격 변경 거절", null, null);
+		}).when(client).writeSalePrice(any(), any(), any(), any(), any(), any(Runnable.class), eq(true));
+		service.processOne(MarketType.ELEVEN_STREET);
+		release();
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(service.get(review.id()).items().getFirst().state()).isEqualTo("BLOCKED");
+		verify(client, times(1)).writeSalePrice(any(), any(), any(), any(), any(), any(Runnable.class), eq(true));
+	}
+
 }

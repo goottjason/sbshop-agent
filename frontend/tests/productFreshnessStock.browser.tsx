@@ -96,7 +96,7 @@ async function run() {
     await wait(() => !!button('검토한 수량 반영 접수'), 'quantity review');
     const preview = calls.find(c => c.url === '/api/v1/market-stock-sync/reviews' && c.method === 'post')!;
     if (JSON.stringify(preview.body.productIds) !== '[1]' || JSON.stringify([...preview.body.markets].sort()) !== JSON.stringify(['CAFE24', 'COUPANG', 'ELEVEN_STREET', 'SMART_STORE'])) throw new Error('Stock review target mismatch');
-    if (!document.body.innerText.includes('0개·품절 해제·판매 재개는 보류')) throw new Error('11st unsupported stock transition hidden');
+    if (!document.body.innerText.includes('전시중지(105)와 품절(104)을 구분') || !document.body.innerText.includes('영구 판매금지·강제종료는 재개하지 않습니다.')) throw new Error('11st stock verification or permanent-ban scope hidden');
     if (!document.body.innerText.includes('300개')) throw new Error('Configured sales quantity not shown');
     checks.push('선택 상품·스마트스토어 포함 지원 마켓 수량 검토와 판매용 300개 표시');
     await click('검토한 수량 반영 접수');

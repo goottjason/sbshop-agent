@@ -148,7 +148,13 @@ public class MarketStockSyncService {
 	}
 	public record Item(Long id, Long productId, String sbCode, String market, String listingId, long revision,
 		Integer expectedQuantity, Integer observedQuantity, String state, String detail, int writes, int reads,
-		Instant nextRunAt, Instant checkedAt) {
+		Instant nextRunAt, Instant checkedAt, String observedSaleState, String observedStockState) {
+		public Item(Long id, Long productId, String sbCode, String market, String listingId, long revision,
+			Integer expectedQuantity, Integer observedQuantity, String state, String detail, int writes, int reads,
+			Instant nextRunAt, Instant checkedAt) {
+			this(id, productId, sbCode, market, listingId, revision, expectedQuantity, observedQuantity, state, detail,
+				writes, reads, nextRunAt, checkedAt, null, null);
+		}
 	}
 	public record Review(String id, String actor, Instant createdAt, Instant expiresAt, boolean committed,
 		List<Item> items, int total) {
@@ -245,12 +251,12 @@ public class MarketStockSyncService {
 				finish(c, "UNKNOWN", "정확한 계정·품목의 유효한 재고수량을 확인하지 못했습니다.", null, null);
 				return;
 			}
-			if (!read.writable()) {
+			if (!canTransition(c, read)) {
 				finish(c, "BLOCKED", read.reason(), read, null);
 				return;
 			}
-			if (read.quantity() == c.quantity()) {
-				finish(c, "CONFIRMED_QUANTITY", "마켓 재조회 수량이 목표 판매용 수량과 일치합니다. 다른 필드의 일치를 뜻하지 않습니다.", read, null);
+			if (matchesTarget(c, read)) {
+				finish(c, "CONFIRMED_QUANTITY", confirmation(c, read), read, null);
 				return;
 			}
 			try {
@@ -335,7 +341,7 @@ public class MarketStockSyncService {
 				return false;
 			}
 			String invalid = invalid(task);
-			if (invalid == null && (!validRead(c, read) || !read.writable()
+			if (invalid == null && (!validRead(c, read) || !canTransition(c, read)
 				|| task.getResolvedOptionId() != null && !task.getResolvedOptionId().equals(read.optionId())))
 				invalid = "조회 품목·계정·판매 상태가 변경되었습니다. 다시 검토하세요.";
 			if (invalid != null || task.getWrites() >= 3) {
@@ -346,7 +352,7 @@ public class MarketStockSyncService {
 				gate.release(now.plusSeconds(2));
 				return false;
 			}
-			task.observed(read.quantity(), read.optionId(), now);
+			task.observed(read.quantity(), read.optionId(), read.saleState(), read.stockState(), now);
 			task.beginWrite(now);
 			gate.claim(c.token(), now.plusSeconds(180));
 			attempts.save(new MarketStockAttempt(task.getId(), "WRITE_STARTED", "판매용 수량 " + task.getExpectedQuantity()
@@ -377,12 +383,12 @@ public class MarketStockSyncService {
 			String finalDetail = invalid == null ? detail : invalid;
 			// Public completion cannot create proof without a matching, writable, exact-option observation.
 			if ("CONFIRMED_QUANTITY".equals(finalState)
-				&& (read == null || !read.writable() || read.quantity() != c.quantity())) {
+				&& !matchesTarget(c, read)) {
 				finalState = "UNKNOWN";
-				finalDetail = "수량 일치 재조회 증거가 없어 완료 처리할 수 없습니다.";
+				finalDetail = "수량·필요 판매 상태의 일치 재조회 증거가 없어 완료 처리할 수 없습니다.";
 			}
 			if (read != null && validRead(c, read))
-				task.observed(read.quantity(), read.optionId(), now);
+				task.observed(read.quantity(), read.optionId(), read.saleState(), read.stockState(), now);
 			if ("VERIFY".equals(finalState)) {
 				task.receipt(detail);
 				if (rejected(error))
@@ -403,7 +409,36 @@ public class MarketStockSyncService {
 		return read != null && read.quantity() != null && read.quantity() >= 0
 			&& Objects.equals(c.account(), read.accountReference()) && read.optionId() != null
 			&& !read.optionId().isBlank()
-			&& (c.optionId() == null || c.optionId().equals(read.optionId()));
+			&& (c.optionId() == null || c.optionId().equals(read.optionId()))
+			&& (c.market() != MarketType.ELEVEN_STREET || read.saleState() != null
+				&& !read.saleState().isBlank()
+				&& Set.of("01", "02").contains(read.stockState() == null ? "" : read.stockState()));
+	}
+
+	private boolean canTransition(Claim c, MarketStockRead read) {
+		return read.writable() && (c.market() != MarketType.ELEVEN_STREET
+			|| Set.of("103", "104", "105").contains(read.saleState() == null ? "" : read.saleState()));
+	}
+
+	private boolean matchesTarget(Claim c, MarketStockRead read) {
+		if (!validRead(c, read) || !canTransition(c, read) || read.quantity() != c.quantity())
+			return false;
+		if (c.market() != MarketType.ELEVEN_STREET)
+			return true;
+		return c.quantity() > 0
+			? "103".equals(read.saleState()) && "01".equals(read.stockState())
+			: "104".equals(read.saleState()) && "02".equals(read.stockState())
+				|| "105".equals(read.saleState())
+					&& Set.of("01", "02").contains(read.stockState() == null ? "" : read.stockState());
+	}
+
+	private String confirmation(Claim c, MarketStockRead read) {
+		if (c.market() != MarketType.ELEVEN_STREET)
+			return "마켓 재조회 수량이 목표 판매용 수량과 일치합니다. 다른 필드의 일치를 뜻하지 않습니다.";
+		String sale = "103".equals(read.saleState()) ? "판매중(103)"
+			: "104".equals(read.saleState()) ? "품절(104)" : "전시중지(105)";
+		return "11번가 실제 재고 " + read.quantity() + "개와 판매 상태 " + sale
+			+ ", 재고 상태 " + read.stockState() + "를 각각 재조회하여 확인했습니다. 다른 필드의 일치를 뜻하지 않습니다.";
 	}
 
 	private String invalid(MarketStockTask t) {
@@ -456,8 +491,6 @@ public class MarketStockSyncService {
 			quantity = 0;
 		else
 			reason = "소싱처 재고 상태가 확인되지 않았습니다.";
-		if (reason == null && market == MarketType.ELEVEN_STREET && quantity != null && quantity == 0)
-			reason = "11번가 0개 반영과 품절·판매 상태 전환 계약 확인이 필요합니다. 판매 재개·중지를 자동 실행하지 않고 보류합니다.";
 		String optionId = r == null ? null : r.identifier(switch (market) {
 			case COUPANG -> "vendorItemId";
 			case ELEVEN_STREET -> "prdStckNo";
@@ -483,16 +516,20 @@ public class MarketStockSyncService {
 			.map(p -> new Item(null, p.productId(), p.sbCode(), p.market(), p.listingId(), p.revision(), p.quantity(),
 				null,
 				p.reason() == null ? "READY" : "SKIPPED", p.reason() == null
-					? (p.quantity() == 0 ? "목표 0개를 검토합니다. 실행 시 현재 판매 상태·품목을 확인하며 판매 재개는 하지 않습니다."
-						: "소싱처 실재고와 별도인 판매용 수량을 전송합니다. 현재 판매 상태·품목을 먼저 확인합니다.")
+					? ("ELEVEN_STREET".equals(p.market())
+						? (p.quantity() == 0 ? "11번가 실제 재고 0개와 구매불가 상태를 각각 확인합니다. 전시중지(105)는 품절(104)과 구분합니다."
+							: "11번가 판매용 수량과 판매중(103) 상태를 확인합니다. 품절·일시 전시중지만 재개하며 판매금지·강제종료는 재개하지 않습니다.")
+						: p.quantity() == 0 ? "목표 0개를 검토합니다. 실행 시 현재 판매 상태·품목을 확인하며 판매 재개는 하지 않습니다."
+							: "소싱처 실재고와 별도인 판매용 수량을 전송합니다. 현재 판매 상태·품목을 먼저 확인합니다.")
 					: p.reason(),
-				0, 0, null, null))
+				0, 0, null, null, null, null))
 			.toList()
 			: tasks.findByReviewIdOrderById(r.getId()).stream()
 				.map(t -> new Item(t.getId(), t.getProductId(), t.getSbCode(), t.getMarket(), t.getListingId(),
 					t.getProductRevision(), t.getExpectedQuantity(), t.getObservedQuantity(), t.getState(),
 					t.getDetail(),
-					t.getWrites(), t.getReads(), t.getNextRunAt(), t.getCheckedAt()))
+					t.getWrites(), t.getReads(), t.getNextRunAt(), t.getCheckedAt(), t.getObservedSaleState(),
+					t.getObservedStockState()))
 				.toList();
 		return new Review(r.getId(), r.getActor(), r.getCreatedAt(), r.getExpiresAt(), r.getCommittedAt() != null,
 			items, items.size());

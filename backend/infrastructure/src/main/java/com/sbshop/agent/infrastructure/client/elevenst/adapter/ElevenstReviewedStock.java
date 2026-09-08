@@ -11,7 +11,7 @@ import java.util.Set;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
-/** API Center apiSeq 1623/1625: one exact inventory item; never a product replacement or sale restart. */
+/** One exact inventory item; quantity and sale state are read independently after each mutation. */
 final class ElevenstReviewedStock {
 
 	private final ElevenstMarketRestClient rest;
@@ -25,23 +25,38 @@ final class ElevenstReviewedStock {
 	}
 
 	void write(String id, String stockId, String sbCode, int quantity, String account, Runnable beforeWrite) {
-		if (quantity < 1 || quantity > 999999)
-			throw new UnsupportedOperationException("11번가 수량 반영은 1~999,999개만 지원합니다. 0개 및 판매 재개 동작은 계약 확인이 필요합니다.");
+		if (quantity < 0 || quantity > 999999)
+			throw new UnsupportedOperationException("11번가 판매용 수량은 0~999,999개의 정수여야 합니다.");
 		requireId(stockId, "재고번호");
 		Observation current = observe(id, stockId, sbCode, account);
 		if (!current.read().writable())
 			throw new UnsupportedOperationException(current.read().reason());
-		if (current.read().quantity() == quantity)
+		if (matches(current.read(), quantity))
 			return;
+		// Only explicitly temporary display-stop may use restartdisplay. Never restart forced-end/prohibition.
+		// Each call makes at most ONE mutation. The durable queue must READ before the next action.
+		if (quantity > 0 && current.read().quantity() == quantity && "01".equals(current.read().stockState())
+			&& "105".equals(current.read().saleState())) {
+			String response = rest.mutateStockOnce("/rest/prodstatservice/stat/restartdisplay/" + id, null, account,
+				beforeWrite);
+			sameAccount(account);
+			stateReceipt(response);
+			return;
+		}
 		String body = "<?xml version=\"1.0\" encoding=\"EUC-KR\"?><ProductStock><prdNo>" + id
 			+ "</prdNo><prdStckNo>" + stockId + "</prdStckNo><stckQty>" + quantity
 			+ "</stckQty><optWght>" + current.weight() + "</optWght></ProductStock>";
-		// The shared durable intent must abort the actual request without being wrapped as a transport error.
-		beforeWrite.run();
-		sameAccount(account);
-		String response = rest.requestStrict("PUT", "/rest/prodservices/stockqty/" + stockId, body);
+		// The transport guards its single physical request and forbids automatic follow-up/retry.
+		String response = rest.mutateStockOnce("/rest/prodservices/stockqty/" + stockId, body, account, beforeWrite);
 		sameAccount(account);
 		receipt(response, stockId);
+	}
+
+	private boolean matches(MarketStockRead read, int quantity) {
+		return read.quantity() == quantity && (quantity > 0
+			? "103".equals(read.saleState()) && "01".equals(read.stockState())
+			: "104".equals(read.saleState()) && "02".equals(read.stockState())
+				|| "105".equals(read.saleState()));
 	}
 
 	private Observation observe(String id, String expectedStockId, String sbCode, String account) {
@@ -86,11 +101,23 @@ final class ElevenstReviewedStock {
 		String stockState = text(stock, "prdStckStatCd");
 		if (!Set.of("01", "02").contains(stockState))
 			throw new IllegalStateException("11번가 재고 상태가 사용(01) 또는 품절(02)로 확인되지 않았습니다.");
-		boolean writable = saleState.equals("103") && stockState.equals("01") && quantity > 0;
-		String reason = writable ? "11번가 판매중 상품의 단일 재고번호·SB코드·현재 추가무게를 확인했습니다."
+		boolean writable = Set.of("103", "104", "105").contains(saleState);
+		String reason = writable ? "11번가 단일 재고번호·SB코드·현재 추가무게와 판매 상태 " + saleState
+			+ ", 재고 상태 " + stockState + "를 확인했습니다. 수량 변경 후 판매 상태를 별도로 재조회합니다."
 			: "11번가 판매 상태 " + saleState + ", 재고 상태 " + stockState
-				+ ": 품절 해제·판매 재개를 자동 실행하지 않고 수량 반영을 보류합니다.";
-		return new Observation(new MarketStockRead(quantity, writable, reason, account, stockId), weight);
+				+ ": 판매금지·강제종료·승인대기·미확인 상태의 수량 변경 및 판매 재개를 보류합니다.";
+		return new Observation(new MarketStockRead(quantity, writable, reason, account, stockId, saleState, stockState),
+			weight);
+	}
+
+	private void stateReceipt(String response) {
+		Element root = xml(response);
+		if (!MarketApiEvidence.name(root).equals("ClientMessage"))
+			throw new IllegalStateException("11번가 전시중지 해제 응답 형식이 불명확합니다. 실제 판매 상태 재조회가 필요합니다.");
+		businessFailure(root);
+		if (!"200".equals(text(root, "resultCode"))
+			|| !text(root, "message").matches("(?s).*\\[STAT\\s*:\\s*103\\].*"))
+			throw new IllegalStateException("11번가 전시중지 해제 결과를 확인할 수 없습니다. 실제 판매 상태 재조회가 필요합니다.");
 	}
 
 	private void receipt(String response, String expectedStockId) {
@@ -98,13 +125,19 @@ final class ElevenstReviewedStock {
 		if (!MarketApiEvidence.name(root).equals("ClientMessage"))
 			throw new IllegalStateException("11번가 수량 변경 응답 형식이 불명확합니다. 실제 수량 재조회가 필요합니다.");
 		String code = text(root, "resultCode");
-		if (Set.of("400", "404", "500", "-1000").contains(code))
-			throw new MarketTransferFailure("ELEVENST_BUSINESS_" + code,
-				ProductMarketSyncService.sanitizeMarketMessage("11번가 수량 변경 결과 " + code + ": " + text(root, "message")),
-				null, null);
+		businessFailure(root);
 		if (!code.equals("200") || !expectedStockId.equals(text(root, "productNo")))
 			throw new IllegalStateException("11번가 수량 변경 결과·재고번호를 확인할 수 없습니다. 실제 수량 재조회가 필요합니다.");
 		// A successful receipt is deliberately not a quantity observation.
+	}
+
+	private void businessFailure(Element root) {
+		String code = text(root, "resultCode");
+		if (Set.of("400", "404", "500", "-1000").contains(code))
+			throw new MarketTransferFailure("ELEVENST_BUSINESS_" + code,
+				ProductMarketSyncService
+					.sanitizeMarketMessage("11번가 수량·판매 상태 변경 결과 " + code + ": " + text(root, "message")),
+				null, null);
 	}
 
 	private void sameAccount(String expected) {
@@ -136,5 +169,6 @@ final class ElevenstReviewedStock {
 		return result;
 	}
 
-	private record Observation(MarketStockRead read, String weight) {}
+	private record Observation(MarketStockRead read, String weight) {
+	}
 }

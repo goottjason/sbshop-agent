@@ -1,5 +1,7 @@
 # 11번가 검토형 판매용 수량 반영
 
+> 후속: [수량 0·품절·판매 재개 확장](2026-09-08-elevenst-zero-stock-and-resume.md)에서 아래 최초 구현의 0개·품절 보류를 해제했다. 이 문서의 제한 및 검사 수치는 최초 양수 전용 구현 시점의 기록이다.
+
 2026-09-08 인증된 API Center에서 확보한 [재고 조회 원문](../external-api/elevenst/live-2026-09-08/stock-read.json)과 [수량 변경 원문](../external-api/elevenst/live-2026-09-08/stock-update.json)에 근거한 제한적 지원이다. 일반 상품 전체 수정이나 옵션 전체 교체를 사용하지 않는다.
 
 | 단계 | 확인한 계약 | 구현 |

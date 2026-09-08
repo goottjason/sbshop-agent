@@ -91,9 +91,21 @@ public interface MarketClient {
 		throw new UnsupportedOperationException("이 마켓의 가격 단독 수정·재조회 계약 확인이 필요합니다.");
 	}
 
+	default com.sbshop.agent.core.domain.market.client.dto.MarketPriceRead readSalePrice(String listingId,
+		String optionId, String expectedSbCode) {
+		return readSalePrice(listingId, optionId);
+	}
+
 	/** Returning from this method is receipt only. Callers must read back the price. */
 	default void writeSalePrice(String listingId, String optionId, java.math.BigDecimal price) {
 		throw new UnsupportedOperationException("이 마켓의 가격 단독 수정·재조회 계약 확인이 필요합니다.");
+	}
+
+	/** Invoke the durable write admission immediately before the request; a return is receipt only. */
+	default void writeSalePrice(String listingId, String optionId, String expectedSbCode,
+		java.math.BigDecimal price, String expectedAccountReference, Runnable beforeWrite, boolean allowPriceIncrease) {
+		beforeWrite.run();
+		writeSalePrice(listingId, optionId, price);
 	}
 
 	default com.sbshop.agent.core.domain.market.client.dto.MarketStockRead readStockQuantity(String listingId,

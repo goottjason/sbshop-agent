@@ -22,6 +22,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /** Immutable reviewed prices, durable write intent, read-before-retry, field-specific proof. */
@@ -29,7 +33,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @RequiredArgsConstructor
 public class MarketPriceSyncService {
 	public static final Set<MarketType> SUPPORTED = Set.of(MarketType.SMART_STORE, MarketType.COUPANG,
-		MarketType.CAFE24);
+		MarketType.CAFE24, MarketType.ELEVEN_STREET);
 	private final MarketPriceReviewRepository reviews;
 	private final MarketPriceTaskRepository tasks;
 	private final MarketPriceAttemptRepository attempts;
@@ -127,7 +131,8 @@ public class MarketPriceSyncService {
 	public record Review(String id, String actor, Instant createdAt, Instant expiresAt, boolean committed,
 		List<Item> items, int total) {
 	}
-	public record Claim(Long taskId, String token, MarketType market, String listingId, String optionId, String account,
+	public record Claim(Long taskId, String token, MarketType market, String sbCode, String listingId, String optionId,
+		String account,
 		BigDecimal price) {
 	}
 
@@ -193,7 +198,10 @@ public class MarketPriceSyncService {
 		return attempts.findByTaskIdOrderById(id);
 	}
 
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public void processOne(MarketType market) {
+		if (TransactionSynchronizationManager.isActualTransactionActive())
+			throw new IllegalStateException("가격 전송은 데이터베이스 트랜잭션 밖에서 실행해야 합니다.");
 		Claim c = claim(market);
 		if (c == null)
 			return;
@@ -203,7 +211,9 @@ public class MarketPriceSyncService {
 				finish(c, "STALE", "연동 계정이 변경되었습니다.", null, null);
 				return;
 			}
-			MarketPriceRead read = client.readSalePrice(c.listingId(), c.optionId());
+			MarketPriceRead read = market == MarketType.ELEVEN_STREET
+				? client.readSalePrice(c.listingId(), c.optionId(), c.sbCode())
+				: client.readSalePrice(c.listingId(), c.optionId());
 			if (read == null || read.value() == null || !Objects.equals(c.account(), read.accountReference())
 				|| !Objects.equals(c.account(), client.inspectionAccountReference())) {
 				finish(c, "UNKNOWN", "정확한 계정의 가격 응답을 확인하지 못했습니다.", null, null);
@@ -218,16 +228,30 @@ public class MarketPriceSyncService {
 				finish(c, "CONFIRMED_PRICE", "마켓에서 재조회한 판매가가 목표 가격과 일치합니다. 다른 필드의 일치를 뜻하지 않습니다.", read.value(), null);
 				return;
 			}
-			if (!beginWrite(c, read.value()))
-				return;
 			try {
-				client.writeSalePrice(c.listingId(), c.optionId(), c.price());
+				if (market == MarketType.ELEVEN_STREET) {
+					client.writeSalePrice(c.listingId(), c.optionId(), c.sbCode(), c.price(), c.account(), () -> {
+						if (!beginWrite(c, read.value()))
+							throw new WriteAborted();
+					}, true);
+				} else {
+					if (!beginWrite(c, read.value()))
+						return;
+					client.writeSalePrice(c.listingId(), c.optionId(), c.price());
+				}
 				finish(c, "VERIFY", "전송 요청이 종료되었습니다. 실제 가격을 다시 조회합니다.", read.value(), null);
+			} catch (WriteAborted aborted) {
+				// The durable guard already recorded pause, stale state or lost ownership.
+			} catch (UnsupportedOperationException blocked) {
+				finish(c, "BLOCKED", blocked.getMessage(), read.value(), null);
 			} catch (Exception e) {
-				finish(c, "VERIFY", "전송 결과를 재조회합니다. " + message(e), read.value(), failure(e));
+				finish(c, rejected(failure(e)) ? "BLOCKED" : "VERIFY", "전송 결과 확인: " + message(e), read.value(),
+					failure(e));
 			}
+		} catch (UnsupportedOperationException blocked) {
+			finish(c, "BLOCKED", blocked.getMessage(), null, null);
 		} catch (Exception e) {
-			finish(c, "VERIFY", "가격 조회 실패: " + message(e), null, failure(e));
+			finish(c, rejected(failure(e)) ? "BLOCKED" : "VERIFY", "가격 조회 실패: " + message(e), null, failure(e));
 		}
 	}
 
@@ -256,7 +280,7 @@ public class MarketPriceSyncService {
 			gate.claim(token, until);
 			task.claim(token, until);
 			attempts.save(new MarketPriceAttempt(task.getId(), "READ_STARTED", "마켓 실가격 조회 시작", now));
-			return new Claim(task.getId(), token, market, task.getListingId(), task.getOptionId(),
+			return new Claim(task.getId(), token, market, task.getSbCode(), task.getListingId(), task.getOptionId(),
 				task.getAccountReference(), task.getExpectedPrice());
 		});
 	}
@@ -452,12 +476,23 @@ public class MarketPriceSyncService {
 	}
 
 	private TransactionTemplate tx() {
-		return new TransactionTemplate(transactions);
+		var tx = new TransactionTemplate(transactions);
+		tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+		return tx;
 	}
 
 	private MarketTransferFailure failure(Exception e) {
 		return e instanceof MarketTransferFailure f ? f : null;
 	}
+
+	private boolean rejected(MarketTransferFailure error) {
+		return error != null && error.getCode() != null && !error.rateLimited()
+			&& (error.getCode().matches("HTTP_4[0-9]{2}")
+				|| Set.of("ELEVENST_BUSINESS_400", "ELEVENST_BUSINESS_404", "ELEVENST_BUSINESS_500")
+					.contains(error.getCode()));
+	}
+
+	private static final class WriteAborted extends RuntimeException {}
 
 	private String message(Exception e) {
 		return e instanceof MarketTransferFailure || e instanceof UnsupportedOperationException ? e.getMessage()

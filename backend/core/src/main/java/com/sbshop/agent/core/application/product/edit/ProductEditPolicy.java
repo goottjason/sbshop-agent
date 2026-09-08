@@ -48,9 +48,10 @@ public class ProductEditPolicy {
 			&& r.extractLiveLookupId().matches("[1-9][0-9]{0,17}")
 			&& (r.getMarketType() == MarketType.SMART_STORE || r.getMarketType() == MarketType.ELEVEN_STREET
 				|| r.getMarketType() == MarketType.COUPANG
-				&& r.identifier("vendorItemId") != null && r.identifier("vendorItemId").matches("[1-9][0-9]{0,17}"))))
+					&& r.identifier("vendorItemId") != null
+					&& r.identifier("vendorItemId").matches("[1-9][0-9]{0,17}"))))
 			return new Rule(field, Permission.EDITABLE,
-				"판매용 수량을 별도 큐에서 SB코드·옵션·판매 상태 확인 후 반영합니다. 다중 옵션·판매정지 및 11번가 0개 반영은 보류하며 DB 저장은 마켓 성공이 아닙니다.");
+				"판매용 수량을 별도 큐에서 SB코드·옵션·판매 상태 확인 후 반영합니다. 11번가는 0개·품절 및 일시 전시중지의 재개를 실제 수량과 별도로 확인합니다. 다중 옵션·판매금지·강제종료는 보류하며 DB 저장은 마켓 성공이 아닙니다.");
 		if (links.stream().allMatch(r -> reviewedFieldSupported(field, r)))
 			return new Rule(field, Permission.EDITABLE,
 				links.stream().anyMatch(r -> r.getMarketType() == MarketType.COUPANG)

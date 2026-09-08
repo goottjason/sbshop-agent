@@ -29,6 +29,7 @@ class MarketStockSchemaPostgresTest {
 			statement.execute(Files.readString(Path.of("../docs/ddl/2026-09-07-market-stock-sync.sql")));
 			statement.execute(Files.readString(Path.of("../docs/ddl/2026-09-07-market-field-sync.sql")));
 			statement.execute(Files.readString(Path.of("../docs/ddl/2026-09-08-supplier-batch-orchestration.sql")));
+			statement.execute(Files.readString(Path.of("../docs/ddl/2026-09-08-elevenst-stock-state.sql")));
 		}
 	}
 
@@ -78,7 +79,7 @@ class MarketStockSchemaPostgresTest {
 				session.persist(review);
 				var task = task(id, now);
 				task.claim(UUID.randomUUID().toString(), now.plusSeconds(180));
-				task.observed(12, "456", now);
+				task.observed(12, "456", "105", "01", now);
 				task.beginWrite(now);
 				session.persist(task);
 				session.flush();
@@ -103,6 +104,8 @@ class MarketStockSchemaPostgresTest {
 				assertThat(stored.getState()).isEqualTo("VERIFY");
 				assertThat(stored.getExpectedQuantity()).isEqualTo(300);
 				assertThat(stored.getObservedQuantity()).isEqualTo(12);
+				assertThat(stored.getObservedSaleState()).isEqualTo("105");
+				assertThat(stored.getObservedStockState()).isEqualTo("01");
 				assertThat(stored.getResolvedOptionId()).isEqualTo("456");
 				assertThat(stored.getWrites()).isEqualTo(1);
 				assertThat(stored.getLeaseUntil()).isEqualTo(now.plusSeconds(180));
@@ -125,7 +128,7 @@ class MarketStockSchemaPostgresTest {
 			try (var session = factory.openSession()) {
 				var transaction = session.beginTransaction();
 				var stored = session.find(MarketStockTask.class, taskId);
-				stored.observed(300, "456", now.plusSeconds(30));
+				stored.observed(300, "456", "103", "01", now.plusSeconds(30));
 				stored.finish("CONFIRMED_QUANTITY", "Observed 300", now.plusSeconds(30), now.plusSeconds(30));
 				session.flush();
 				session.persist(task(id, now.plusSeconds(60)));
@@ -135,6 +138,8 @@ class MarketStockSchemaPostgresTest {
 				assertThat(session.createQuery("select count(t) from MarketStockTask t", Long.class).getSingleResult())
 					.isEqualTo(2);
 				assertThat(session.find(MarketStockTask.class, taskId).getObservedQuantity()).isEqualTo(300);
+				assertThat(session.find(MarketStockTask.class, taskId).getObservedSaleState()).isEqualTo("103");
+				assertThat(session.find(MarketStockTask.class, taskId).getObservedStockState()).isEqualTo("01");
 			}
 		} finally {
 			StandardServiceRegistryBuilder.destroy(registry);

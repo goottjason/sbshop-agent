@@ -1,0 +1,77 @@
+{
+  "startedAt": "2026-09-08T04:16:32.964420+00:00",
+  "sbCode": "220114OC012",
+  "productId": 1229,
+  "listingId": "4088296117",
+  "stockId": "16243384893",
+  "observations": [
+    {
+      "label": "before",
+      "at": "2026-09-08T04:16:37.374970+00:00",
+      "saleState": "103",
+      "stockState": "01",
+      "quantity": 300,
+      "weight": "0",
+      "salePrice": "217800",
+      "coupon": "N"
+    },
+    {
+      "label": "after_zero",
+      "at": "2026-09-08T04:16:44.011152+00:00",
+      "saleState": "104",
+      "stockState": "02",
+      "quantity": 0,
+      "weight": "0",
+      "salePrice": "217800",
+      "coupon": "N"
+    },
+    {
+      "label": "before_restore",
+      "at": "2026-09-08T04:16:48.566046+00:00",
+      "saleState": "104",
+      "stockState": "02",
+      "quantity": 0,
+      "weight": "0",
+      "salePrice": "217800",
+      "coupon": "N"
+    },
+    {
+      "label": "after_restore",
+      "at": "2026-09-08T04:16:55.184793+00:00",
+      "saleState": "103",
+      "stockState": "01",
+      "quantity": 300,
+      "weight": "0",
+      "salePrice": "217800",
+      "coupon": "N"
+    }
+  ],
+  "writes": [
+    {
+      "method": "PUT",
+      "path": "/rest/prodservices/stockqty/16243384893",
+      "body": "<?xml version=\"1.0\" encoding=\"EUC-KR\"?><ProductStock><prdNo>4088296117</prdNo><prdStckNo>16243384893</prdStckNo><stckQty>0</stckQty><optWght>0</optWght></ProductStock>",
+      "intentAt": "2026-09-08T04:16:37.497938+00:00",
+      "receipt": {
+        "message": "옵션재고 번호 : 16243384893(상품번호: 4088296117)의 수량이 업데이트 되었습니다. 변경된 수량 : 0",
+        "preSelPrc": "0",
+        "productNo": "16243384893",
+        "resultCode": "200"
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/rest/prodservices/stockqty/16243384893",
+      "body": "<?xml version=\"1.0\" encoding=\"EUC-KR\"?><ProductStock><prdNo>4088296117</prdNo><prdStckNo>16243384893</prdStckNo><stckQty>300</stckQty><optWght>0</optWght></ProductStock>",
+      "intentAt": "2026-09-08T04:16:48.682029+00:00",
+      "receipt": {
+        "message": "옵션재고 번호 : 16243384893(상품번호: 4088296117)의 수량이 업데이트 되었습니다. 변경된 수량 : 300",
+        "preSelPrc": "0",
+        "productNo": "16243384893",
+        "resultCode": "200"
+      }
+    }
+  ],
+  "restored": true,
+  "productFieldsUnchanged": true
+}

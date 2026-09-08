@@ -32,6 +32,10 @@ public class MarketStockTask {
 	private String accountReference;
 	private Integer expectedQuantity;
 	private Integer observedQuantity;
+	@Column(length = 30)
+	private String observedSaleState;
+	@Column(length = 30)
+	private String observedStockState;
 	@Column(nullable = false, length = 30)
 	private String state;
 	@Column(nullable = false, length = 1000)
@@ -108,8 +112,14 @@ public class MarketStockTask {
 	}
 
 	public void observed(Integer value, String option, Instant now) {
+		observed(value, option, null, null, now);
+	}
+
+	public void observed(Integer value, String option, String saleState, String stockState, Instant now) {
 		observedQuantity = value;
 		resolvedOptionId = option;
+		observedSaleState = saleState;
+		observedStockState = stockState;
 		checkedAt = now;
 	}
 

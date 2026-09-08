@@ -54,7 +54,7 @@ smartstore:
 
 elevenst:
   api-key: ${ELEVENST_CLIENT_ID:}
-  api-url: http://api.11st.co.kr
+  api-url: https://api.11st.co.kr
 
 # Fortnum&Mason 등 브라우저 렌더 소싱 크롤을 담당하는 Python Scrapling 서비스(sbshop-scraper).
 # 운영 배포 시 SCRAPER_BASE_URL로 사이드카 주소 지정(예: http://scraper:8099).

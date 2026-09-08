@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "checks": [
+    "전시중지105·실제997개를 품절0개로 변환하지 않음",
+    "실제0개·판매품절104·재고품절02 원값 표시",
+    "동일0개라도 전시중지105와 품절104 별도 표시",
+    "양수300개·판매중103·사용01 재조회 값 표시",
+    "107강제종료·108판매금지와 전송보류 구분",
+    "미관측 수량·판매·재고 상태를 각각 미확인 유지",
+    "지원 확대·재조회 성공 조건 안내·GET 전용 검증"
+  ],
+  "calls": [
+    "/api/v1/market-stock-sync/reviews",
+    "/api/v1/market-stock-sync/reviews/stock-state-fixture"
+  ],
+  "fixtureOnly": true,
+  "mutations": 0,
+  "servedImages": []
+}

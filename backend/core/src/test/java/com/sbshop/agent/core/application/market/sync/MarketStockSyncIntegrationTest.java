@@ -162,7 +162,7 @@ class MarketStockSyncIntegrationTest {
 	}
 
 	MarketStockRead read(int quantity) {
-		return new MarketStockRead(quantity, true, "fixture", "account-A", "456");
+		return new MarketStockRead(quantity, true, "fixture", "account-A", "456", "103", "01");
 	}
 
 	void observed(int quantity){when(client.readStockQuantity("123","456",product.getSbCode())).thenReturn(read(quantity));}
@@ -683,29 +683,45 @@ class MarketStockSyncIntegrationTest {
 	}
 
 	@Test
-	void elevenstZeroTargetsAreExcludedBeforeRemoteReadWithoutStoppingOrRestartingSale() {
+	void elevenstZeroRequiresBothRawZeroAndIndependentUnavailableStateBeforeConfirmation() {
 		elevenstRegistration();
 		jdbc.update("update sb_product set stock_status='OUT_OF_STOCK' where id=?", product.getId());
-		var first = elevenstQueue();
-		assertThat(first.items().getFirst().state()).isEqualTo("SKIPPED");
-		assertThat(first.items().getFirst().detail()).contains("0개", "계약 확인");
-		jdbc.update("update sb_product set stock_status='IN_STOCK',sales_quantity=0 where id=?", product.getId());
-		assertThat(elevenstQueue().items().getFirst().state()).isEqualTo("SKIPPED");
+		var review = elevenstQueue();
+		when(client.readStockQuantity("123", null, product.getSbCode())).thenReturn(read(300));
 		service.processOne(MarketType.ELEVEN_STREET);
-		verify(client, never()).readStockQuantity(any(), any(), any());
-		verify(client, never()).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+		assertThat(state(review.id())).isEqualTo("VERIFY");
+		var task = tasks.findByReviewIdOrderById(review.id()).getFirst();
+		assertThat(task.getObservedQuantity()).isEqualTo(300);
+		assertThat(task.getObservedSaleState()).isEqualTo("103");
+		verify(client).writeStockQuantity(eq("123"), eq("456"), eq(product.getSbCode()), eq(0), eq("account-A"), any());
+		release();
+		when(client.readStockQuantity("123", "456", product.getSbCode()))
+			.thenReturn(new MarketStockRead(0, true, "품절", "account-A", "456", "104", "02"));
+		service.processOne(MarketType.ELEVEN_STREET);
+		var item = service.get(review.id(), "admin").items().getFirst();
+		assertThat(item.state()).isEqualTo("CONFIRMED_QUANTITY");
+		assertThat(item.observedQuantity()).isZero();
+		assertThat(item.observedSaleState()).isEqualTo("104");
+		assertThat(item.observedStockState()).isEqualTo("02");
+		assertThat(item.detail()).contains("품절(104)");
+		assertThat(registrations.findById(reg.getId()).orElseThrow().getConnectionState().detached()).isFalse();
 	}
 
 	@Test
-	void elevenstActualSoldOutObservationBlocksPositiveTargetWithoutDetachingConnection() {
+	void elevenstSoldOutCanResumeOnlyAfterMatchingRawQuantityAndSellingStateReadback() {
 		elevenstRegistration();
 		var review = elevenstQueue();
 		when(client.readStockQuantity("123", null, product.getSbCode()))
-			.thenReturn(new MarketStockRead(0, false, "판매 상태 104, 재고 상태 02: 판매 재개 보류", "account-A", "456"));
+			.thenReturn(new MarketStockRead(0, true, "품절", "account-A", "456", "104", "02"));
 		service.processOne(MarketType.ELEVEN_STREET);
-		assertThat(state(review.id())).isEqualTo("BLOCKED");
+		assertThat(state(review.id())).isEqualTo("VERIFY");
 		assertThat(registrations.findById(reg.getId()).orElseThrow().getConnectionState().detached()).isFalse();
-		verify(client, never()).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+		release();
+		when(client.readStockQuantity("123", "456", product.getSbCode())).thenReturn(read(300));
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(state(review.id())).isEqualTo("CONFIRMED_QUANTITY");
+		verify(client).writeStockQuantity(eq("123"), eq("456"), eq(product.getSbCode()), eq(300), eq("account-A"),
+			any());
 	}
 
 	@Test
@@ -759,18 +775,130 @@ class MarketStockSyncIntegrationTest {
 	}
 
 	@Test
-	void connectedElevenstZeroAndTruncatedFractionCannotBeSavedAsAnUnsendableQuantity() {
+	void connectedElevenstZeroAndTruncatedFractionRemainReviewableAndDoNotChangeSourceStock() {
 		elevenstRegistration();
 		for (double quantity : List.of(0.0, 0.9)) {
 			var review = edits.previewSingle(product.getId(), product.getRevision(),
 				mapper.createObjectNode().put("salesQuantity", quantity), "admin");
-			assertThat(review.items().getFirst().state()).isEqualTo(ProductEditPlanner.State.EXCLUDED);
-			assertThat(review.items().getFirst().reasons()).anyMatch(reason -> reason.contains("1개 이상"));
-			assertThat(edits.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("EXCLUDED");
+			assertThat(review.items().getFirst().state()).isEqualTo(ProductEditPlanner.State.READY);
 		}
-		assertThat(products.findById(product.getId()).orElseThrow().getSalesQuantity()).isEqualTo(300);
-		assertThat(changeHistories.count()).isZero();
-		assertThat(changeTargets.count()).isZero();
+		var review = edits.previewSingle(product.getId(), product.getRevision(),
+			mapper.createObjectNode().put("salesQuantity", 0.9), "admin");
+		assertThat(edits.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("SAVED");
+		assertThat(products.findById(product.getId()).orElseThrow().getSalesQuantity()).isZero();
+		assertThat(products.findById(product.getId()).orElseThrow().getStock()).isEqualTo(product.getStock());
+		assertThat(changeTargets.findByProductIdAndMarket(product.getId(), "ELEVEN_STREET")).hasSize(1);
+	}
+
+	@Test
+	void elevenstZeroReadWhileStillSellingCannotCreateSuccessEvenThroughPublicFinish() {
+		elevenstRegistration();
+		jdbc.update("update sb_product set sales_quantity=0 where id=?", product.getId());
+		var review = elevenstQueue();
+		var claim = service.claim(MarketType.ELEVEN_STREET);
+		service.finish(claim, "CONFIRMED_QUANTITY", "incorrect shortcut", read(0), null);
+		assertThat(state(review.id())).isEqualTo("UNKNOWN");
+		assertThat(service.get(review.id(), "admin").items().getFirst().observedSaleState()).isEqualTo("103");
+	}
+
+	@Test
+	void elevenstProductSoldOutWithUsableInventoryDoesNotProveTheRequestedSoldOutTransition() {
+		elevenstRegistration();
+		jdbc.update("update sb_product set sales_quantity=0 where id=?", product.getId());
+		var review = elevenstQueue();
+		when(client.readStockQuantity("123", null, product.getSbCode()))
+			.thenReturn(new MarketStockRead(0, true, "품절/재고 사용 불일치", "account-A", "456", "104", "01"));
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(state(review.id())).isEqualTo("VERIFY");
+		assertThat(service.get(review.id(), "admin").items().getFirst().observedStockState()).isEqualTo("01");
+		verify(client).writeStockQuantity(eq("123"), eq("456"), eq(product.getSbCode()), eq(0), eq("account-A"), any());
+	}
+
+	@Test
+	void elevenstZeroWhileStillSellingExhaustsThreeMutationLimitWithoutFalseSuccess() {
+		elevenstRegistration();
+		jdbc.update("update sb_product set sales_quantity=0 where id=?", product.getId());
+		var review = elevenstQueue();
+		when(client.readStockQuantity(any(), any(), any())).thenReturn(read(0));
+		for (int i = 0; i < 4; i++) {
+			service.processOne(MarketType.ELEVEN_STREET);
+			release();
+		}
+		assertThat(state(review.id())).isEqualTo("FAILED_MISMATCH");
+		var item = service.get(review.id(), "admin").items().getFirst();
+		assertThat(item.observedQuantity()).isZero();
+		assertThat(item.observedSaleState()).isEqualTo("103");
+		assertThat(item.observedStockState()).isEqualTo("01");
+		assertThat(item.writes()).isEqualTo(3);
+		verify(client, times(4)).readStockQuantity(any(), any(), any());
+		verify(client, times(4)).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+		assertThat(
+			service.history(item.id(), "admin").stream().filter(a -> "WRITE_STARTED".equals(a.getPhase())).count())
+			.isEqualTo(3);
+	}
+
+	@Test
+	void elevenstDisplayStopKeepsRawQuantityAndNeedsInventoryZeroBeforeSuccess() {
+		elevenstRegistration();
+		jdbc.update("update sb_product set sales_quantity=0 where id=?", product.getId());
+		var review = elevenstQueue();
+		when(client.readStockQuantity("123", null, product.getSbCode()))
+			.thenReturn(new MarketStockRead(300, true, "전시중지", "account-A", "456", "105", "01"));
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(state(review.id())).isEqualTo("VERIFY");
+		assertThat(service.get(review.id(), "admin").items().getFirst().observedQuantity()).isEqualTo(300);
+		release();
+		when(client.readStockQuantity("123", "456", product.getSbCode()))
+			.thenReturn(new MarketStockRead(0, true, "전시중지", "account-A", "456", "105", "02"));
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(state(review.id())).isEqualTo("CONFIRMED_QUANTITY");
+		assertThat(service.get(review.id(), "admin").items().getFirst().detail()).contains("전시중지(105)")
+			.doesNotContain("품절(104)");
+	}
+
+	@Test
+	void elevenstMatchingPositiveQuantityStillRequiresSellingAndUsableInventoryStates() {
+		elevenstRegistration();
+		var review = elevenstQueue();
+		when(client.readStockQuantity("123", null, product.getSbCode()))
+			.thenReturn(new MarketStockRead(300, true, "전시중지", "account-A", "456", "105", "01"));
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(state(review.id())).isEqualTo("VERIFY");
+		release();
+		when(client.readStockQuantity("123", "456", product.getSbCode()))
+			.thenReturn(new MarketStockRead(300, true, "재고 품절", "account-A", "456", "103", "02"));
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(state(review.id())).isEqualTo("VERIFY");
+		verify(client, times(2)).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+		release();
+		when(client.readStockQuantity("123", "456", product.getSbCode())).thenReturn(read(300));
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(state(review.id())).isEqualTo("CONFIRMED_QUANTITY");
+	}
+
+	@Test
+	void elevenstLegacyQuantityOnlyObservationCannotWriteOrConfirm() {
+		elevenstRegistration();
+		var review = elevenstQueue();
+		when(client.readStockQuantity("123", null, product.getSbCode()))
+			.thenReturn(new MarketStockRead(300, true, "legacy", "account-A", "456"));
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(state(review.id())).isEqualTo("UNKNOWN");
+		verify(client, never()).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+	}
+
+	@Test
+	void elevenstEngineNeverRestartsForcedEndOrProhibitionDespiteWritableFlag() {
+		elevenstRegistration();
+		for (String blocked : List.of("107", "108")) {
+			var review = elevenstQueue();
+			when(client.readStockQuantity("123", null, product.getSbCode()))
+				.thenReturn(new MarketStockRead(300, true, "상태 " + blocked, "account-A", "456", blocked, "01"));
+			service.processOne(MarketType.ELEVEN_STREET);
+			assertThat(state(review.id())).isEqualTo("BLOCKED");
+			release();
+		}
+		verify(client, never()).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
 	}
 
 	@Autowired

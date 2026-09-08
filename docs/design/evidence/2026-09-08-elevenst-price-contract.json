@@ -1,0 +1,37 @@
+{
+  "acquiredWith": "Authenticated live Chrome saved HTML, CP949 jsonData; example/sampleCodes removed",
+  "contracts": [
+    {
+      "url": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=81&apiSeq=1752&apiSpecType=1",
+      "sourceHtmlSha256": "1b35c7003449dbb4554a56558229ff550ba512138ef8679cc45fd168094b01cf",
+      "sanitizedFile": "docs/external-api/elevenst/live-2026-09-08/price-update.json",
+      "sha256": "7e8061e753ce0ebfe6a77f751721eb7b68e22238c6be5f3cdd3a5a980c39693d",
+      "information": {
+        "description": "상품 정보 중 가격정보만 수정할 경우 사용합니다.\n11번가와 협의하여 11번가의 쿠폰 또는 서비스이용료 조정이 적용된 상품의 경우, 판매자 기본즉시할인이 적용된 가격이 상향 되면 조정된 내용이 강제로 종료 됩니다.",
+        "method": "get",
+        "name": "Seller - 상품 - 상품 가격 수정",
+        "postCondition": "",
+        "preCondition": "",
+        "protocol": "http",
+        "url": "http://api.11st.co.kr/rest/prodservices/product/price/[prdNo]/[selPrc]",
+        "version": "1"
+      }
+    },
+    {
+      "url": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=81&apiSeq=1855&apiSpecType=1",
+      "sourceHtmlSha256": "397ab6734cc0afcaf5f13eacd84cd0a64f3d93fbdf3620877bc11ba653ee67eb",
+      "sanitizedFile": "docs/external-api/elevenst/live-2026-09-08/price-coupon-update.json",
+      "sha256": "848b9cafcc54a79c3e4484da61aca90fa2a5d5b5976b9ce16f1c32490aa32236",
+      "information": {
+        "description": "상품 정보 중 가격과 즉시할인 정보를 수정할 경우 사용합니다.\n11번가와 협의하여 11번가의 쿠폰 또는 서비스이용료 조정이 적용된 상품의 경우, 판매자 기본즉시할인이 적용된 가격이 상향 되면 조정된 내용이 강제로 종료 됩니다.",
+        "method": "post",
+        "name": "Seller - 상품 - 상품가격/즉시할인 수정",
+        "postCondition": "",
+        "preCondition": "",
+        "protocol": "http",
+        "url": "http://api.11st.co.kr/rest/prodservices/product/priceCoupon/[prdNo]",
+        "version": ""
+      }
+    }
+  ]
+}

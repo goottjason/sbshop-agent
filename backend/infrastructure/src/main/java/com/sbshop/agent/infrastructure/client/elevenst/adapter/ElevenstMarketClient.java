@@ -30,6 +30,43 @@ public class ElevenstMarketClient implements MarketClient {
 	private final ElevenstMarketRestClient restClient;
 
 	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.MarketPriceRead readSalePrice(String listingId,
+		String optionId, String expectedSbCode) {
+		try {
+			return new ElevenstReviewedPrice(restClient).read(listingId, optionId, expectedSbCode);
+		} catch (UnsupportedOperationException blocked) {
+			throw blocked;
+		} catch (Exception failure) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(failure);
+		}
+	}
+
+	@Override
+	public void writeSalePrice(String listingId, String optionId, String expectedSbCode,
+		java.math.BigDecimal price, String expectedAccountReference, Runnable beforeWrite, boolean allowPriceIncrease) {
+		var guardFailure = new java.util.concurrent.atomic.AtomicReference<RuntimeException>();
+		try {
+			new ElevenstReviewedPrice(restClient).write(listingId, optionId, expectedSbCode, price,
+				expectedAccountReference, () -> {
+					try {
+						beforeWrite.run();
+					} catch (RuntimeException abort) {
+						guardFailure.set(abort);
+						throw abort;
+					}
+				}, allowPriceIncrease);
+		} catch (Exception failure) {
+			if (failure == guardFailure.get())
+				throw guardFailure.get();
+			if (failure instanceof UnsupportedOperationException blocked)
+				throw blocked;
+			if (failure instanceof com.sbshop.agent.core.domain.market.sync.MarketTransferFailure business)
+				throw business;
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(failure);
+		}
+	}
+
+	@Override
 	public com.sbshop.agent.core.domain.market.client.dto.MarketStockRead readStockQuantity(String listingId,
 		String optionId, String expectedSbCode) {
 		try {

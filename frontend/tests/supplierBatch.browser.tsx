@@ -105,7 +105,7 @@ void (async () => {
     if (!document.querySelector<HTMLElement>('#supplier-batch-start-form')!.hidden || !content('최근 실행 조건') || !document.querySelector('.sb-batch-start-collapsed')?.textContent?.includes('최소 1,500원')) throw new Error('Accepted run did not collapse with conditions');
     if (document.querySelector('.sb-batch-run-panel .ant-table')!.getBoundingClientRect().top > 600) throw new Error('Matrix below laptop fold');
     button('새 배치 실행').click(); await wait(() => !document.querySelector<HTMLElement>('#supplier-batch-start-form')!.hidden, 'reopen form');
-    if (Number((document.querySelector('[aria-label="배치 목표 마진율"]') as HTMLInputElement).value) !== 10 || !content('11번가는 현재 판매 중 상품의 수량 조정만 지원합니다.')) throw new Error('Reopen lost conditions or support notice');
+    if (Number((document.querySelector('[aria-label="배치 목표 마진율"]') as HTMLInputElement).value) !== 10 || !content('11번가는 지원 조건을 충족한 상품의 가격·수량을 반영하고, 재조회로 확인해야 성공으로 표시합니다.')) throw new Error('Reopen lost conditions or support notice');
     if (getComputedStyle(document.querySelector('.sb-batch-start .ant-segmented-item-selected')!).backgroundColor !== 'rgb(36, 84, 216)') throw new Error('Selected mode is not cobalt');
     checks.push('접수 성공 후 폼 자동 접힘·최근 조건 보존·다시 열기·코발트 선택·11번가 지원 안내');
     if (!content('실패') || !content('보류') || !content('성공') || !content('20 / 41개')) throw new Error('Summary mixed processed/succeeded');

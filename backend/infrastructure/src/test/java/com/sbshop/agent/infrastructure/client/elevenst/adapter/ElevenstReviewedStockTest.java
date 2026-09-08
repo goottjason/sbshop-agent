@@ -31,6 +31,13 @@ class ElevenstReviewedStockTest {
 	@BeforeEach
 	void setup() {
 		when(rest.accountReference()).thenReturn("account");
+		// Fake physical exchanges behind the one-shot transport. Its wire-level behavior has separate tests.
+		doAnswer(call -> {
+			call.<Runnable>getArgument(3).run();
+			if (!call.<String>getArgument(2).equals(rest.accountReference()))
+				throw new UnsupportedOperationException("11번가 계정이 변경되었습니다.");
+			return rest.requestStrict("PUT", call.getArgument(0), call.getArgument(1));
+		}).when(rest).mutateStockOnce(any(), any(), any(), any());
 		product("103", "123", "SB123");
 		stocks(stock("123", "456", "17", "01", "0.125"), "123", "SB123", "");
 		when(rest.requestStrict(eq("PUT"), eq(writePath), any())).thenReturn(receipt("200", "456"));
@@ -66,6 +73,8 @@ class ElevenstReviewedStockTest {
 		assertThat(read.optionId()).isEqualTo("456");
 		assertThat(read.accountReference()).isEqualTo("account");
 		assertThat(read.writable()).isTrue();
+		assertThat(read.saleState()).isEqualTo("103");
+		assertThat(read.stockState()).isEqualTo("01");
 	}
 
 	@Test
@@ -75,8 +84,8 @@ class ElevenstReviewedStockTest {
 			var evidence = new ObjectMapper().readTree(resource);
 			String id = evidence.path("prdNo").asText(), sb = evidence.path("sbCode").asText();
 			var detail = new HashMap<String, String>();
-			evidence.path("observations").get(0).path("fields").forEach(field ->
-				detail.put(field.path("tag").asText(), field.path("value").asText()));
+			evidence.path("observations").get(0).path("fields")
+				.forEach(field -> detail.put(field.path("tag").asText(), field.path("value").asText()));
 			assertThat(detail).containsEntry("selStatCd", "103").containsEntry("prdStckQty", "0");
 			// Only the separately captured identity/state fields reconstruct this minimal detail response.
 			String productXml = "<Product><prdNo>" + detail.get("prdNo") + "</prdNo><sellerPrdCd>"
@@ -124,20 +133,23 @@ class ElevenstReviewedStockTest {
 	}
 
 	@Test
-	void observedOperatingSoldOutShapeStaysBlockedWithoutRestart() {
+	void observedOperatingSoldOutShapeUsesStockQuantityWithoutDisplayRestart() {
 		product("104", "123", "SB123");
 		stocks(stock("123", "456", "0", "02", "0"), "123", "SB123", "");
 		var read = adapter.readStockQuantity("123", null, "SB123");
 		assertThat(read.quantity()).isZero();
-		assertThat(read.writable()).isFalse();
-		assertThat(read.reason()).contains("104", "02", "재개");
-		assertThatThrownBy(() -> adapter.writeStockQuantity("123", "456", "SB123", 300, "account", () -> {}))
-			.isInstanceOf(UnsupportedOperationException.class);
-		verify(rest, never()).requestStrict(eq("PUT"), any(), any());
+		assertThat(read.writable()).isTrue();
+		assertThat(read.saleState()).isEqualTo("104");
+		assertThat(read.stockState()).isEqualTo("02");
+		var guard = mock(Runnable.class);
+		adapter.writeStockQuantity("123", "456", "SB123", 300, "account", guard);
+		verify(guard).run();
+		verify(rest).requestStrict(eq("PUT"), eq(writePath), contains("<stckQty>300</stckQty>"));
+		verify(rest, never()).requestStrict(eq("PUT"), contains("restartdisplay"), any());
 	}
 
 	@ParameterizedTest
-	@ValueSource(ints = {-1, 0, 1000000})
+	@ValueSource(ints = {-1, 1000000})
 	void rejectsUnsupportedTargetQuantityBeforeAnyRemoteCall(int quantity) {
 		assertThatThrownBy(() -> adapter.writeStockQuantity("123", "456", "SB123", quantity, "account", () -> {}))
 			.isInstanceOf(UnsupportedOperationException.class);
@@ -191,16 +203,22 @@ class ElevenstReviewedStockTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"104", "105", "107", "999"})
-	void neverRestartsNonSellingStates(String state) {
+	@ValueSource(strings = {"101", "102", "106", "107", "108", "999"})
+	void neverRestartsProhibitedForcedEndedApprovalOrUnknownStates(String state) {
 		product(state, "123", "SB123");
 		assertThat(adapter.readStockQuantity("123", null, "SB123").writable()).isFalse();
+		for (int target : new int[] {0, 300})
+			assertThatThrownBy(() -> adapter.writeStockQuantity("123", "456", "SB123", target, "account", () -> {}))
+				.isInstanceOf(UnsupportedOperationException.class);
+		verify(rest, never()).requestStrict(eq("PUT"), any(), any());
 	}
 
 	@Test
-	void zeroObservedQuantityAndUnknownInventoryStateCannotEnableWrites() {
+	void zeroQuantityIsPreservedIndependentlyAndUnknownInventoryStateCannotEnableWrites() {
 		stocks(stock("123", "456", "0", "01", "0"), "123", "SB123", "");
-		assertThat(adapter.readStockQuantity("123", null, "SB123").writable()).isFalse();
+		var read = adapter.readStockQuantity("123", null, "SB123");
+		assertThat(read.quantity()).isZero();
+		assertThat(read.saleState()).isEqualTo("103");
 		stocks(stock("123", "456", "17", "99", "0"), "123", "SB123", "");
 		assertThatThrownBy(() -> adapter.readStockQuantity("123", null, "SB123")).hasMessageContaining("재고 상태");
 	}
@@ -242,6 +260,97 @@ class ElevenstReviewedStockTest {
 		adapter.writeStockQuantity("123", "456", "SB123", 17, "account", writes::incrementAndGet);
 		assertThat(writes).hasValue(0);
 		verify(rest, never()).requestStrict(eq("PUT"), any(), any());
+	}
+
+	@Test
+	void zeroUsesOnlyInventoryMutationAndNeverSynthesizesSoldOutFromReceipt() {
+		var guard = mock(Runnable.class);
+		adapter.writeStockQuantity("123", "456", "SB123", 0, "account", guard);
+		verify(guard).run();
+		verify(rest).requestStrict(eq("PUT"), eq(writePath), contains("<stckQty>0</stckQty>"));
+		// This stale observation must remain 17/103/01 despite a successful zero-quantity receipt.
+		var after = adapter.readStockQuantity("123", "456", "SB123");
+		assertThat(after.quantity()).isEqualTo(17);
+		assertThat(after.saleState()).isEqualTo("103");
+		assertThat(after.stockState()).isEqualTo("01");
+		verify(rest, never()).requestStrict(eq("PUT"), contains("display"), any());
+	}
+
+	@Test
+	void aTemporaryDisplayStopDoesNotTurnPositiveRawQuantityIntoZero() {
+		product("105", "123", "SB123");
+		var before = adapter.readStockQuantity("123", "456", "SB123");
+		assertThat(before.quantity()).isEqualTo(17);
+		assertThat(before.saleState()).isEqualTo("105");
+		adapter.writeStockQuantity("123", "456", "SB123", 0, "account", () -> {});
+		verify(rest).requestStrict(eq("PUT"), eq(writePath), contains("<stckQty>0</stckQty>"));
+		verify(rest, never()).requestStrict(eq("PUT"), contains("restartdisplay"), any());
+	}
+
+	@Test
+	void temporaryDisplayRestartRequiresMatchingFreshQuantityAndUsesItsOwnGuard() {
+		product("105", "123", "SB123");
+		when(rest.requestStrict("PUT", "/rest/prodstatservice/stat/restartdisplay/123", null))
+			.thenReturn(
+				"<ClientMessage><resultCode>200</resultCode><message>판매상태가 수정되었습니다. [STAT : 103]</message></ClientMessage>");
+		var guard = mock(Runnable.class);
+		adapter.writeStockQuantity("123", "456", "SB123", 300, "account", guard);
+		verify(rest).requestStrict(eq("PUT"), eq(writePath), contains("<stckQty>300</stckQty>"));
+		verify(rest, never()).requestStrict(eq("PUT"), contains("restartdisplay"), any());
+		stocks(stock("123", "456", "300", "01", "0.125"), "123", "SB123", "");
+		adapter.writeStockQuantity("123", "456", "SB123", 300, "account", guard);
+		verify(guard, times(2)).run();
+		verify(rest).requestStrict("PUT", "/rest/prodstatservice/stat/restartdisplay/123", null);
+		var after = adapter.readStockQuantity("123", "456", "SB123");
+		assertThat(after.saleState()).isEqualTo("105");
+		assertThat(after.quantity()).isEqualTo(300);
+	}
+
+	@Test
+	void pauseOrAccountChangeBetweenQuantityAndRestartCannotSendSecondMutation() {
+		product("105", "123", "SB123");
+		adapter.writeStockQuantity("123", "456", "SB123", 300, "account", () -> {});
+		stocks(stock("123", "456", "300", "01", "0"), "123", "SB123", "");
+		var aborted = new IllegalStateException("batch paused");
+		assertThatThrownBy(() -> adapter.writeStockQuantity("123", "456", "SB123", 300, "account", () -> {
+			throw aborted;
+		})).isSameAs(aborted);
+		assertThatThrownBy(() -> adapter.writeStockQuantity("123", "456", "SB123", 300, "account",
+			() -> when(rest.accountReference()).thenReturn("another account")))
+			.isInstanceOf(UnsupportedOperationException.class);
+		verify(rest, never()).requestStrict(eq("PUT"), contains("restartdisplay"), any());
+	}
+
+	@Test
+	void prohibitionObservedAfterQuantityChangePreventsRestart() {
+		product("105", "123", "SB123");
+		adapter.writeStockQuantity("123", "456", "SB123", 300, "account", () -> {});
+		product("108", "123", "SB123");
+		stocks(stock("123", "456", "300", "01", "0"), "123", "SB123", "");
+		assertThatThrownBy(() -> adapter.writeStockQuantity("123", "456", "SB123", 300, "account", () -> {}))
+			.isInstanceOf(UnsupportedOperationException.class);
+		verify(rest, never()).requestStrict(eq("PUT"), contains("restartdisplay"), any());
+	}
+
+	@Test
+	void zeroAlreadyConfirmedWithExplicitStockAndSaleStatesNeedsNoWrite() {
+		stocks(stock("123", "456", "0", "02", "0"), "123", "SB123", "");
+		for (String state : new String[] {"104", "105"}) {
+			product(state, "123", "SB123");
+			adapter.writeStockQuantity("123", "456", "SB123", 0, "account", () -> fail("unnecessary write"));
+		}
+		verify(rest, never()).requestStrict(eq("PUT"), any(), any());
+	}
+
+	@Test
+	void productSoldOutButInventoryUsableStillNeedsTheZeroMutationAndIndependentReadback() {
+		product("104", "123", "SB123");
+		stocks(stock("123", "456", "0", "01", "0"), "123", "SB123", "");
+		var guard = mock(Runnable.class);
+		adapter.writeStockQuantity("123", "456", "SB123", 0, "account", guard);
+		verify(guard).run();
+		verify(rest).requestStrict(eq("PUT"), eq(writePath), contains("<stckQty>0</stckQty>"));
+		assertThat(adapter.readStockQuantity("123", "456", "SB123").stockState()).isEqualTo("01");
 	}
 
 	@Test

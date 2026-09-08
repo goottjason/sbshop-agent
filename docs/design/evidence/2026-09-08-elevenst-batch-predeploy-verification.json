@@ -1,0 +1,70 @@
+{
+  "fullBackendRegression": {
+    "core": {
+      "tests": 1757,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "infrastructure": {
+      "tests": 966,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "api": {
+      "tests": 385,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "worker": {
+      "tests": 79,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "fullBackendTotal": 3187,
+  "finalFocusedRegression": {
+    "MarketPriceSyncIntegrationTest": {
+      "tests": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ProductSupplierBatchIntegrationTest": {
+      "tests": 22,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ElevenstReviewedPriceTest": {
+      "tests": 31,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "batchFocusedDatabase": "Isolated local PostgreSQL 16 sbshop_batch_flow_check; price suite uses H2",
+  "stockPostgresTests": 47,
+  "stockAdapterTests": 39,
+  "stockSchemaTests": 1,
+  "browserUniqueFlows": {
+    "batch": 18,
+    "stockStates": 7
+  },
+  "liveAdapterProof": "2026-09-08-elevenst-price-stock-adapter-live.json",
+  "partialSourcePolicy": "PRICE_STOCK requires both observations; missing either fails the entire product before SB save or market dispatch",
+  "approvedPriceIncreasePolicy": "Apply configured higher or lower sale price even if 11st negotiated coupon/fee benefits terminate",
+  "migrationFiles": [
+    {
+      "path": "backend/docs/ddl/2026-09-08-supplier-batch-orchestration.sql",
+      "sha256": "02fd30c0a69bcf45bdf421afbc5a16d19007cc4092f6407ea2bc8b2e9820a13c"
+    },
+    {
+      "path": "backend/docs/ddl/2026-09-08-elevenst-stock-state.sql",
+      "sha256": "96816a56a117d1a800db9088cfd553ca4b6bc8c95deb1a6e6214b4f3aa3420e8"
+    }
+  ]
+}
