@@ -215,6 +215,8 @@ public class ProductSourceService {
 			.orElseThrow(() -> new ProductEditConflictException("가격·재고 검토 기록이 없습니다."));
 		if (!review.getActor().equals(actor))
 			throw new ProductEditConflictException("다른 사용자의 검토 기록으로 저장할 수 없습니다.");
+		if (!read(review.getPayload(), com.fasterxml.jackson.databind.JsonNode.class).isArray())
+			throw new ProductEditConflictException("배치 전용 검토는 배치 실행 경로에서만 저장할 수 있습니다.");
 		List<Reviewed> rows = read(review.getPayload(), new TypeReference<>() {});
 		var tx = new TransactionTemplate(transactions);
 		tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);

@@ -199,7 +199,8 @@ public final class ProductSpecifications {
 		Subquery<Long> subquery = query.subquery(Long.class);
 		Root<ProductChangeTarget> target = subquery.from(ProductChangeTarget.class);
 		subquery.select(target.get("id")).where(cb.equal(target.get("productId"), root.get("id")),
-			target.get("state").in("PENDING_DISPATCH", "DISPATCHED", "ACTION_REQUIRED", "AWAITING_REVIEW"));
+			target.get("state").in("PENDING_DISPATCH", "BATCH_MANAGED", "DISPATCHED", "ACTION_REQUIRED",
+				"AWAITING_REVIEW"));
 		return cb.exists(subquery);
 	}
 

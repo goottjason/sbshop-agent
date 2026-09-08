@@ -29,6 +29,16 @@ public class ProductChangeTarget {
 	private Long priceTaskId;
 	private Long stockTaskId;
 	private Long fieldTaskId;
+	@Column(nullable = false)
+	private boolean batchManaged;
+
+	/** A supplier batch owns submission and pause/retry decisions; normal dispatchers must skip this row. */
+	public void manageByBatch() {
+		if (!"PENDING_DISPATCH".equals(state))
+			throw new IllegalStateException("접수 전 변경 대상만 배치 관리로 전환할 수 있습니다.");
+		batchManaged = true;
+		state = "BATCH_MANAGED";
+	}
 
 	public void dispatchedToFields(Long id) {
 		fieldTaskId = id;
@@ -54,11 +64,11 @@ public class ProductChangeTarget {
 	}
 
 	public void priceOutcome(String value) {
-		state = value;
+		state = batchManaged && "PENDING_DISPATCH".equals(value) ? "BATCH_MANAGED" : value;
 	}
 
 	public void cancelForDetachedConnection() {
-		if ("PENDING_DISPATCH".equals(state))
+		if ("PENDING_DISPATCH".equals(state) || "BATCH_MANAGED".equals(state))
 			state = "CANCELLED_DETACHED";
 	}
 

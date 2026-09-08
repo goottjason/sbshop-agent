@@ -773,4 +773,79 @@ class MarketStockSyncIntegrationTest {
 		assertThat(changeTargets.count()).isZero();
 	}
 
+	@Autowired
+	jakarta.persistence.EntityManager entityManager;
+
+	String batchOwns(String reviewId, String runState) {
+		String id = UUID.randomUUID().toString();
+		new TransactionTemplate(transactions).executeWithoutResult(status -> {
+			var now = Instant.now();
+			var run = new com.sbshop.agent.core.domain.product.batch.ProductSupplierBatchRun(id, id,
+				"admin", "IHB", "STOCK", "{}", "{}", "[]", 1, now);
+			if (!"RUNNING".equals(runState))
+				run.pause(now);
+			entityManager.persist(run);
+			var item = new com.sbshop.agent.core.domain.product.batch.ProductSupplierBatchItem(id,
+				product.getId(), product.getSbCode(), "fixture", null, now);
+			entityManager.persist(item);
+			entityManager.flush();
+			var stage = new com.sbshop.agent.core.domain.product.batch.ProductSupplierBatchStage(id,
+				item.getId(), "MARKET", MARKET.name(), "STOCK", now);
+			stage.reference(reviewId);
+			entityManager.persist(stage);
+		});
+		return id;
+	}
+
+	@Test
+	void pausedBatchBlocksMarketReadAndTheSameTaskRunsAfterResume() {
+		var review = queue();
+		String batch = batchOwns(review.id(), "PAUSING");
+		service.processOne(MARKET);
+		verify(client, never()).readStockQuantity(any(), any(), any());
+		assertThat(tasks.findByReviewIdOrderById(review.id()).getFirst().getReads()).isZero();
+		jdbc.update("update sb_supplier_batch_run set state='RUNNING' where id=?", batch);
+		observed(300);
+		service.processOne(MARKET);
+		assertThat(state(review.id())).isEqualTo("CONFIRMED_QUANTITY");
+		assertThat(tasks.findByReviewIdOrderById(review.id()).getFirst().getWrites()).isZero();
+	}
+
+	@Test
+	void pauseDuringReadStopsTheWriteAtItsLastAdmissionGuard() {
+		var review = queue();
+		String batch = batchOwns(review.id(), "RUNNING");
+		when(client.readStockQuantity(any(), any(), any())).thenAnswer(call -> {
+			jdbc.update("update sb_supplier_batch_run set state='PAUSING' where id=?", batch);
+			return read(10);
+		});
+		var actualPut = new java.util.concurrent.atomic.AtomicBoolean();
+		doAnswer(call -> {
+			call.<Runnable>getArgument(5).run();
+			actualPut.set(true);
+			return null;
+		})
+			.when(client).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+		service.processOne(MARKET);
+		assertThat(actualPut).isFalse();
+		assertThat(state(review.id())).isEqualTo("VERIFY");
+		assertThat(tasks.findByReviewIdOrderById(review.id()).getFirst().getWrites()).isZero();
+		assertThat(attempts.findByTaskIdOrderById(tasks.findByReviewIdOrderById(review.id()).getFirst().getId()))
+			.anyMatch(a -> "BATCH_PAUSED".equals(a.getPhase()));
+	}
+
+	@Test
+	void pausedEarlierTaskDoesNotHideLaterUnownedWorkFromDueQuery() {
+		var review = queue();
+		batchOwns(review.id(), "PAUSING");
+		var original = tasks.findByReviewIdOrderById(review.id()).getFirst();
+		var other = tasks.saveAndFlush(new MarketStockTask(UUID.randomUUID().toString(), 999999L,
+			"SB-other", reg.getId(), 0, 0, MARKET.name(), "999", "888", "{}", "account-A", 300,
+			null, Instant.now()));
+		assertThat(tasks.due(MARKET.name(), Instant.now().plusSeconds(1),
+			org.springframework.data.domain.PageRequest.of(0, 1)))
+			.extracting(MarketStockTask::getId).containsExactly(other.getId());
+		assertThat(original.getReads()).isZero();
+	}
+
 }

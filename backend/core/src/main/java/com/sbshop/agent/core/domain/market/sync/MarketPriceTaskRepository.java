@@ -11,7 +11,13 @@ public interface MarketPriceTaskRepository extends JpaRepository<MarketPriceTask
 
 	long countByReviewId(String reviewId);
 
-	@Query("select t from MarketPriceTask t where t.market=:market and t.state in ('CHECK','VERIFY') and t.nextRunAt<=:now order by t.nextRunAt,t.id")
+	@Query(value = """
+		select t.* from sb_market_price_task t
+		where t.market=:market and t.state in ('CHECK','VERIFY') and t.next_run_at<=:now
+		and not exists (select 1 from sb_supplier_batch_stage s join sb_supplier_batch_run r on r.id=s.batch_id
+		    where s.stage='MARKET' and s.reference_id=t.review_id and r.state<>'RUNNING')
+		order by t.next_run_at,t.id
+		""", nativeQuery = true)
 	List<MarketPriceTask> due(@Param("market")
 	String market, @Param("now")
 	Instant now, Pageable page);

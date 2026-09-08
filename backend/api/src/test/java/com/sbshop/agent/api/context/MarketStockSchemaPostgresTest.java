@@ -28,6 +28,7 @@ class MarketStockSchemaPostgresTest {
 			var statement = connection.createStatement()) {
 			statement.execute(Files.readString(Path.of("../docs/ddl/2026-09-07-market-stock-sync.sql")));
 			statement.execute(Files.readString(Path.of("../docs/ddl/2026-09-07-market-field-sync.sql")));
+			statement.execute(Files.readString(Path.of("../docs/ddl/2026-09-08-supplier-batch-orchestration.sql")));
 		}
 	}
 

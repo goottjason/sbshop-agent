@@ -42,6 +42,7 @@ class MarketFieldSchemaPostgresTest {
 		ddl("2026-09-06-market-price-sync.sql");
 		ddl("2026-09-07-market-stock-sync.sql");
 		ddl("2026-09-07-market-field-sync.sql");
+		ddl("2026-09-08-supplier-batch-orchestration.sql");
 		var registry = new StandardServiceRegistryBuilder()
 			.applySetting("hibernate.connection.url", postgres.getJdbcUrl())
 			.applySetting("hibernate.connection.username", postgres.getUsername())

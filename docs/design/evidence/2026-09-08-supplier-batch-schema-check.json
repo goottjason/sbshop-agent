@@ -1,0 +1,19 @@
+{
+  "checkedAt": "2026-09-08T03:30:56.808467+00:00",
+  "database": "local isolated PostgreSQL 16",
+  "ddlSha256": "02fd30c0a69bcf45bdf421afbc5a16d19007cc4092f6407ea2bc8b2e9820a13c",
+  "status": "passed",
+  "checks": [
+    "Hibernate validates all five batch entities against reviewed DDL",
+    "Repeated DDL preserves 2114 frozen target rows and batch_managed flag",
+    "Policy, frozen account, child reference, observed and expected values, attempt and retry survive migration",
+    "One active or paused run per vendor",
+    "Unique product target per batch",
+    "Stage cannot reference a missing run",
+    "Completed vendor can start new batch",
+    "Reopening old run cannot collide with new active vendor"
+  ],
+  "targetCount": 2114,
+  "operatingDatabaseAccess": false,
+  "testClass": "SupplierBatchSchemaPostgresTest"
+}

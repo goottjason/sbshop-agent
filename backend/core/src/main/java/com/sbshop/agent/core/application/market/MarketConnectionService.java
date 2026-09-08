@@ -164,10 +164,9 @@ public class MarketConnectionService {
 				result = "ALREADY_DETACHED";
 			else {
 				reg.detachConnection(snapshot.market(), desired);
-				targets
-					.findByRegistrationIdAndMarketAndState(reg.getId(), snapshot.market().name(),
-						"PENDING_DISPATCH")
-					.forEach(t -> t.cancelForDetachedConnection());
+				for (String pendingState : java.util.List.of("PENDING_DISPATCH", "BATCH_MANAGED"))
+					targets.findByRegistrationIdAndMarketAndState(reg.getId(), snapshot.market().name(), pendingState)
+						.forEach(t -> t.cancelForDetachedConnection());
 				result = "DETACHED";
 			}
 		}

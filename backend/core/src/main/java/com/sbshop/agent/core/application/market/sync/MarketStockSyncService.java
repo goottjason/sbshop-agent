@@ -127,7 +127,8 @@ public class MarketStockSyncService {
 			return;
 		if ("CONFIRMED_QUANTITY".equals(task.getState())) {
 			for (var target : changeTargets.findByProductIdAndMarket(task.getProductId(), task.getMarket())) {
-				if (Set.of("PENDING_DISPATCH", "DISPATCHED", "ACTION_REQUIRED").contains(target.getState())
+				if (Set.of("PENDING_DISPATCH", "BATCH_MANAGED", "DISPATCHED", "ACTION_REQUIRED")
+					.contains(target.getState())
 					&& handlesSavedQuantityTarget(target, mapper)
 					&& target.getProductRevision() <= task.getProductRevision())
 					target.stockOutcome(target.getProductRevision() == task.getProductRevision()
@@ -285,6 +286,8 @@ public class MarketStockSyncService {
 			if (due.isEmpty())
 				return null;
 			var task = due.getFirst();
+			if (!SupplierBatchMarketGate.mayStart(jdbc, task.getReviewId()))
+				return null;
 			String invalid = invalid(task);
 			if (invalid != null || task.getReads() >= 9) {
 				task.finish(invalid == null ? "UNKNOWN" : "STALE", invalid == null
@@ -312,6 +315,12 @@ public class MarketStockSyncService {
 			Instant now = now();
 			if (!gate.owns(c.token(), now) || !task.owns(c.token(), now))
 				return false;
+			if (!SupplierBatchMarketGate.mayStart(jdbc, task.getReviewId())) {
+				task.finish("VERIFY", "배치가 일시정지 중입니다. 재개 후 현재 값을 다시 확인합니다.", now, now);
+				attempts.save(new MarketStockAttempt(task.getId(), "BATCH_PAUSED", task.getDetail(), now));
+				gate.release(now.plusSeconds(2));
+				return false;
+			}
 			if (gate.getNextAllowedAt().isAfter(now)) {
 				task.finish("VERIFY", "공유 호출 제한 대기 중입니다. 제한 해제 후 수량을 다시 조회합니다.", now, gate.getNextAllowedAt());
 				attempts.save(new MarketStockAttempt(task.getId(), "THROTTLED", task.getDetail(), now));

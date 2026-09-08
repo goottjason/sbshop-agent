@@ -6,6 +6,8 @@ import static org.mockito.Mockito.*;
 import com.fasterxml.jackson.databind.*;
 import com.sbshop.agent.core.application.pricing.VendorPricePolicyService;
 import com.sbshop.agent.core.application.product.MarketSalePriceResolver;
+import com.sbshop.agent.core.application.product.batch.ProductSupplierBatchSource;
+import com.sbshop.agent.core.application.product.batch.ProductSupplierBatchService;
 import com.sbshop.agent.core.application.product.content.*;
 import com.sbshop.agent.core.application.product.edit.*;
 import com.sbshop.agent.core.application.product.source.ProductSourceData.*;
@@ -50,7 +52,8 @@ class ProductSourceServiceIntegrationTest {
 	@EntityScan(basePackages = "com.sbshop.agent.core.domain")
 	@EnableJpaRepositories(basePackageClasses = {ProductRepository.class, MarketRegistrationRepository.class})
 	@Import({ProductSourceService.class, ProductSourceWorker.class, ProductContentWorker.class,
-		ProductContentService.class, ProductEditService.class, ProductEditPlanner.class, ProductEditPolicy.class})
+		ProductContentService.class, ProductEditService.class, ProductEditPlanner.class, ProductEditPolicy.class,
+		ProductSupplierBatchSource.class})
 	static class App {
 		@Bean
 		ObjectMapper mapper() {
@@ -60,6 +63,8 @@ class ProductSourceServiceIntegrationTest {
 
 	@Autowired
 	ProductSourceService service;
+	@Autowired
+	ProductSupplierBatchSource batchSource;
 	@Autowired
 	ProductSourceWorker worker;
 	@Autowired
@@ -169,6 +174,130 @@ class ProductSourceServiceIntegrationTest {
 				ReflectionTestUtils.setField(lanes.findLocked(id).orElseThrow(), "nextAllowedAt",
 					Instant.now().minusSeconds(1));
 		});
+	}
+
+	@Test
+	void batchReviewCannotBeCommittedByOrdinarySourceAndOrdinaryReviewCannotEnterBatch() {
+		Product p = product();
+		var snapshot = ready(p);
+		var ordinary = review(snapshot, Field.STOCK);
+		var batch = batchSource.review(snapshot.id(), Set.of(ProductSupplierBatchService.Field.STOCK), batchPolicy(),
+			"admin");
+		assertThatThrownBy(() -> service.commit(batch.reviewId(), "admin"))
+			.isInstanceOf(ProductEditConflictException.class).hasMessageContaining("배치 실행 경로");
+		assertThatThrownBy(() -> batchSource.commit(ordinary.reviewId(), "admin"))
+			.isInstanceOf(ProductEditConflictException.class).hasMessageContaining("배치 전용");
+		assertThat(products.findById(p.getId()).orElseThrow().getRevision()).isEqualTo(p.getRevision());
+		assertThat(histories.count()).isZero();
+		assertThat(targets.count()).isZero();
+	}
+
+	@Test
+	void batchPolicyAndSelectedObservationsStoreOnceAndRetainFirstApplicationTimesAfterExpiry() {
+		Product p = product();
+		var snapshot = ready(p);
+		var batch = batchSource.review(snapshot.id(), EnumSet.allOf(ProductSupplierBatchService.Field.class),
+			batchPolicy(), "admin");
+		var first = batchSource.commit(batch.reviewId(), "admin");
+		var applied = snapshots.findById(snapshot.id()).orElseThrow();
+		assertThat(first.state()).isEqualTo("SAVED");
+		assertThat(applied.getPriceAppliedAt()).isNotNull();
+		assertThat(applied.getStockAppliedAt()).isEqualTo(applied.getPriceAppliedAt());
+		var after = products.findById(p.getId()).orElseThrow();
+		assertThat(after.getPriceInfo().getMarginRate()).isEqualByComparingTo("10");
+		assertThat(after.getPriceInfo().getCouponRate()).isEqualByComparingTo("20");
+		assertThat(after.getPriceInfo().getMinMarginPrice()).isEqualByComparingTo("1500");
+		assertThat(after.getPriceInfo().getCostPrice()).isEqualByComparingTo("12000");
+		assertThat(after.getStock()).isEqualTo(77);
+		assertThat(after.getSalesQuantity()).isEqualTo(300);
+		tx.executeWithoutResult(s -> {
+			ReflectionTestUtils.setField(snapshots.findLocked(snapshot.id()).orElseThrow(), "expiresAt",
+				Instant.now().minusSeconds(1));
+			ReflectionTestUtils.setField(reviews.findById(batch.reviewId()).orElseThrow(), "expiresAt",
+				Instant.now().minusSeconds(1));
+		});
+		var repeated = batchSource.commit(batch.reviewId(), "admin");
+		assertThat(repeated.historyId()).isEqualTo(first.historyId());
+		assertThat(repeated.revision()).isEqualTo(first.revision());
+		var repeatedSnapshot = snapshots.findById(snapshot.id()).orElseThrow();
+		assertThat(repeatedSnapshot.getPriceAppliedAt()).isEqualTo(applied.getPriceAppliedAt());
+		assertThat(repeatedSnapshot.getStockAppliedAt()).isEqualTo(applied.getStockAppliedAt());
+		assertThat(histories.count()).isEqualTo(1);
+		verify(source, times(1)).fetch(any(), anyString());
+	}
+
+	@Test
+	void stockOnlyBatchAcceptsPartialCollectionWithoutChangingPricingPolicy() {
+		Product p = product();
+		when(source.fetch(any(), anyString()))
+			.thenReturn(new Observed(null, null, "KRW", StockStatus.OUT_OF_STOCK, null, List.of("환율 확인 실패")));
+		var snapshot = ready(p);
+		assertThat(snapshot.state()).isEqualTo(ProductSourceSnapshot.State.PARTIAL);
+		assertThatThrownBy(() -> batchSource.review(snapshot.id(), Set.of(ProductSupplierBatchService.Field.PRICE),
+			batchPolicy(), "admin")).isInstanceOf(ProductEditConflictException.class);
+		var batch = batchSource.review(snapshot.id(), Set.of(ProductSupplierBatchService.Field.STOCK), batchPolicy(),
+			"admin");
+		assertThat(batchSource.commit(batch.reviewId(), "admin").state()).isEqualTo("SAVED");
+		var after = products.findById(p.getId()).orElseThrow();
+		assertThat(after.getPriceInfo().getMarginRate()).isEqualByComparingTo(p.getPriceInfo().getMarginRate());
+		assertThat(after.getPriceInfo().getCouponRate()).isEqualTo(p.getPriceInfo().getCouponRate());
+		assertThat(after.getPriceInfo().getCostPrice()).isEqualByComparingTo("10000");
+		assertThat(after.getSalePrice()).isEqualByComparingTo(p.getSalePrice());
+		assertThat(after.getStock()).isEqualTo(77);
+		assertThat(snapshots.findById(snapshot.id()).orElseThrow().getPriceAppliedAt()).isNull();
+		assertThat(snapshots.findById(snapshot.id()).orElseThrow().getStockAppliedAt()).isNotNull();
+	}
+
+	@Test
+	void batchDatabaseFailureReusesCollectedSnapshotAndRollsBackApplicationTime() {
+		Product p = product();
+		var snapshot = ready(p);
+		var batch = batchSource.review(snapshot.id(), EnumSet.allOf(ProductSupplierBatchService.Field.class),
+			batchPolicy(), "admin");
+		doThrow(new IllegalStateException("history storage unavailable")).when(histories).save(any());
+		assertThatThrownBy(() -> batchSource.commit(batch.reviewId(), "admin"))
+			.isInstanceOf(IllegalStateException.class);
+		assertThat(products.findById(p.getId()).orElseThrow().getRevision()).isEqualTo(p.getRevision());
+		assertThat(snapshots.findById(snapshot.id()).orElseThrow().getPriceAppliedAt()).isNull();
+		assertThat(snapshots.findById(snapshot.id()).orElseThrow().getStockAppliedAt()).isNull();
+		reset(histories);
+		assertThat(batchSource.commit(batch.reviewId(), "admin").state()).isEqualTo("SAVED");
+		assertThat(histories.count()).isEqualTo(1);
+		verify(source, times(1)).fetch(any(), anyString());
+	}
+
+	@Test
+	void batchReviewAndCommitKeepActorUrlVendorShippingAndExpiryChecks() {
+		for (String conflict : List.of("actor", "url", "vendor", "shipping", "expiry")) {
+			openLane();
+			Product p = product();
+			var snapshot = ready(p);
+			assertThatThrownBy(() -> batchSource.review(snapshot.id(), Set.of(ProductSupplierBatchService.Field.PRICE),
+				batchPolicy(), "other")).isInstanceOf(ProductEditConflictException.class);
+			var batch = batchSource.review(snapshot.id(), Set.of(ProductSupplierBatchService.Field.PRICE),
+				batchPolicy(), "admin");
+			if (conflict.equals("url"))
+				tx.executeWithoutResult(s -> products.findById(p.getId()).orElseThrow()
+					.update(ProductUpdateCommand.builder().sourceUrl("https://kr.iherb.com/pr/other/54321").build()));
+			if (conflict.equals("vendor"))
+				tx.executeWithoutResult(s -> products.findById(p.getId()).orElseThrow()
+					.update(ProductUpdateCommand.builder().vendor(VendorType.VTB).build()));
+			if (conflict.equals("shipping"))
+				when(vendorPolicies.find(VendorType.IHB)).thenReturn(Optional.of(VendorPricePolicy.builder()
+					.vendor(VendorType.IHB).shipCurrency("KRW").shipBaseAmount(money("6000")).build()));
+			if (conflict.equals("expiry"))
+				tx.executeWithoutResult(s -> ReflectionTestUtils.setField(reviews.findById(batch.reviewId()).orElseThrow(),
+					"expiresAt", Instant.now().minusSeconds(1)));
+			assertThatThrownBy(() -> batchSource.commit(batch.reviewId(), conflict.equals("actor") ? "other" : "admin"))
+				.isInstanceOf(ProductEditConflictException.class);
+			when(vendorPolicies.find(VendorType.IHB)).thenReturn(Optional.of(VendorPricePolicy.builder()
+				.vendor(VendorType.IHB).shipCurrency("KRW").shipBaseAmount(BigDecimal.ZERO).build()));
+		}
+		assertThat(histories.count()).isZero();
+	}
+
+	private ProductSupplierBatchService.Policy batchPolicy() {
+		return new ProductSupplierBatchService.Policy(money("10"), money("20"), money("1500"));
 	}
 
 	@Test

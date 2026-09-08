@@ -13,6 +13,13 @@ public interface ProductSourceSnapshotRepository extends JpaRepository<ProductSo
 	Optional<ProductSourceSnapshot> findFirstByStateAndVendorOrderByRequestedAtAscIdAsc(
 		ProductSourceSnapshot.State state, String vendor);
 
+	@Query("select s from ProductSourceSnapshot s where s.state=:state and s.vendor=:vendor and not exists("
+		+ "select b.id from ProductSupplierBatchStage b,ProductSourceCollection c,ProductSupplierBatchRun r "
+		+ "where c.id=s.collectionId and b.operationId=c.requestId and b.stage='CRAWL' and r.id=b.batchId and r.state<>'RUNNING') "
+		+ "order by s.requestedAt,s.id")
+	List<ProductSourceSnapshot> availableForVendor(ProductSourceSnapshot.State state, String vendor,
+		org.springframework.data.domain.Pageable page);
+
 	long countByStateIn(List<ProductSourceSnapshot.State> states);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)

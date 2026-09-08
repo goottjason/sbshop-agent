@@ -1,0 +1,61 @@
+{
+  "status": "implementation_checks_passed_policy_decision_pending",
+  "checkedAt": "2026-09-08T03:51:15.762075+00:00",
+  "operatingDatabaseAccess": false,
+  "operatingBatchExecuted": false,
+  "deployed": false,
+  "browser": {
+    "checks": 18,
+    "evidence": "2026-09-08-supplier-batch-browser-main.json"
+  },
+  "supplierBatch": {
+    "sourceAndDatabase": 18,
+    "marketQueue": 7,
+    "database": "H2",
+    "failures": 0
+  },
+  "api": {
+    "tests": 385,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "worker": {
+    "tests": 79,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "pendingDecision": "가격+재고 중 일부만 정상 수집된 경우의 적용 정책",
+  "core": {
+    "tests": 1742,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "backendTotal": 2206,
+  "postgresFlow": {
+    "testClass": "ProductSupplierBatchIntegrationTest",
+    "tests": 18,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "database": "isolated PostgreSQL 16",
+    "scope": "supplier target capture, source/DB pipeline, pause, retries, expiry and conflict recovery",
+    "fixtureAdjustment": "JDBC test timestamps use java.sql.Timestamp for PostgreSQL compatibility"
+  },
+  "afterFormatting": {
+    "marketIntegrationH2": {
+      "tests": 7,
+      "failures": 0
+    },
+    "apiAndWorkerTestCompilation": "passed",
+    "sourceAndMarketIntegrationH2": {
+      "tests": 25,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "ddlSchemaEvidence": "2026-09-08-supplier-batch-schema-check.json"
+}

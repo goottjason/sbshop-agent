@@ -102,7 +102,8 @@ public class MarketPriceSyncService {
 			return;
 		if ("CONFIRMED_PRICE".equals(task.getState())) {
 			for (var target : changeTargets.findByProductIdAndMarket(task.getProductId(), task.getMarket())) {
-				if (Set.of("PENDING_DISPATCH", "DISPATCHED", "ACTION_REQUIRED").contains(target.getState())
+				if (Set.of("PENDING_DISPATCH", "BATCH_MANAGED", "DISPATCHED", "ACTION_REQUIRED")
+					.contains(target.getState())
 					&& priceOnly(target) && target.getProductRevision() <= task.getProductRevision())
 					target.priceOutcome(target.getProductRevision() == task.getProductRevision() ? "CONFIRMED_PRICE"
 						: "SUPERSEDED_BY_CURRENT");
@@ -243,6 +244,8 @@ public class MarketPriceSyncService {
 			if (due.isEmpty())
 				return null;
 			var task = due.getFirst();
+			if (!SupplierBatchMarketGate.mayStart(jdbc, task.getReviewId()))
+				return null;
 			if (task.getReads() >= 9) {
 				task.finish("UNKNOWN", "재조회 한도에 도달했습니다. 새 검토로 재시도할 수 있습니다.", now, now);
 				updateTargets(task);
@@ -266,6 +269,12 @@ public class MarketPriceSyncService {
 			var task = tasks.findById(c.taskId()).orElseThrow();
 			if (!gate.owns(c.token(), now) || !task.owns(c.token(), now))
 				return false;
+			if (!SupplierBatchMarketGate.mayStart(jdbc, task.getReviewId())) {
+				task.finish("VERIFY", "배치가 일시정지 중입니다. 재개 후 현재 값을 다시 확인합니다.", now, now);
+				attempts.save(new MarketPriceAttempt(task.getId(), "BATCH_PAUSED", task.getDetail(), now));
+				gate.release(now.plusSeconds(2));
+				return false;
+			}
 			if (gate.getNextAllowedAt().isAfter(now)) {
 				task.finish("VERIFY", "공유 호출 제한 대기 중입니다. 제한 해제 후 가격을 다시 조회합니다.", now, gate.getNextAllowedAt());
 				attempts.save(new MarketPriceAttempt(task.getId(), "THROTTLED", task.getDetail(), now));

@@ -1,0 +1,10 @@
+{
+  "tests": 40,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "database": "local isolated PostgreSQL 16",
+  "log": "/private/tmp/sbshop-batch-stock-postgres.log",
+  "scope": "existing quantity engine + pause admission/resume/starvation",
+  "checkedAt": "2026-09-08T03:09:09.369142+00:00"
+}

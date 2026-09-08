@@ -4,7 +4,7 @@ import java.util.*;
 
 public interface ProductChangeTargetRepository
 	extends org.springframework.data.jpa.repository.JpaRepository<ProductChangeTarget, Long> {
-	@org.springframework.data.jpa.repository.Query("SELECT t.productId, COUNT(t) FROM ProductChangeTarget t WHERE t.productId IN :ids AND t.state IN ('PENDING_DISPATCH','DISPATCHED','ACTION_REQUIRED','AWAITING_REVIEW') GROUP BY t.productId")
+	@org.springframework.data.jpa.repository.Query("SELECT t.productId, COUNT(t) FROM ProductChangeTarget t WHERE t.productId IN :ids AND t.state IN ('PENDING_DISPATCH','BATCH_MANAGED','DISPATCHED','ACTION_REQUIRED','AWAITING_REVIEW') GROUP BY t.productId")
 	List<Object[]> countPending(@org.springframework.data.repository.query.Param("ids")
 	List<Long> ids);
 

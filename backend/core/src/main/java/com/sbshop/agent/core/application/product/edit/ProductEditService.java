@@ -173,30 +173,50 @@ public class ProductEditService {
 	@Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
 	public CommitItem commitReviewedSource(String reviewId, String actor, Instant expiresAt, Instant collectedAt,
 		boolean stockReviewed, ProductEditPlanner.Plan plan) {
+		return commitSource(reviewId, actor, expiresAt, collectedAt, stockReviewed, plan, false);
+	}
+
+	/** The batch owns source authorization and target submission; no ordinary dispatcher may take these targets. */
+	@Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+	public CommitItem commitReviewedBatchSource(String reviewId, String actor, Instant expiresAt, Instant collectedAt,
+		boolean stockReviewed, ProductEditPlanner.Plan plan) {
+		return commitSource(reviewId, actor, expiresAt, collectedAt, stockReviewed, plan, true);
+	}
+
+	private CommitItem commitSource(String reviewId, String actor, Instant expiresAt, Instant collectedAt,
+		boolean stockReviewed, ProductEditPlanner.Plan plan, boolean batchManaged) {
 		requireActor(actor);
-		if (plan.state() != ProductEditPlanner.State.READY)
+		if (plan.state() != ProductEditPlanner.State.READY
+			&& !(batchManaged && plan.state() == ProductEditPlanner.State.UNCHANGED))
 			return new CommitItem(plan.productId(), plan.sbCode(), plan.state().name(), null,
 				String.join(" / ", plan.reasons()));
 		Product product = products.findForEdit(plan.productId())
 			.orElseThrow(() -> new ProductEditConflictException("상품 없음"));
 		var saved = histories.findByReviewIdAndProductId(reviewId, product.getId());
-		if (saved.isPresent())
+		if (saved.isPresent()) {
+			if (batchManaged && !saved.get().getActor().equals(actor))
+				throw new ProductEditConflictException("다른 작업자의 배치 저장 이력입니다.");
 			return success(plan, saved.get().getId(), "이미 저장된 소싱 검토입니다. 중복 적용하지 않았습니다.");
+		}
 		if (product.isDeleted() || !Instant.now().isBefore(expiresAt) || product.getRevision() != plan.revision()
 			|| collectedAt == null || collectedAt.isAfter(Instant.now()))
 			throw new ProductEditConflictException("상품 버전 또는 소싱 검토 만료");
 		var links = registrations.findByProductId(product.getId());
 		if (!planner.fingerprint(links).equals(plan.connectionFingerprint()))
 			throw new ProductEditConflictException("연결 상태 변경");
-		var current = planner.planSourceObservation(product, mapper.valueToTree(plan.command()), links);
-		if (current.state() != ProductEditPlanner.State.READY
+		var current = batchManaged
+			? planner.planBatchSourceObservation(product, mapper.valueToTree(plan.command()), links)
+			: planner.planSourceObservation(product, mapper.valueToTree(plan.command()), links);
+		if (current.state() != plan.state()
 			|| !comparable(current.changes()).equals(comparable(plan.changes()))
 			|| !current.prices().equals(plan.prices()))
 			throw new ProductEditConflictException("소싱 편집 정책 또는 파생값 변경");
 		if (stockReviewed)
 			product.recordReviewedCrawlSuccess(collectedAt);
-		var history = persist(reviewId, actor, product, plan);
-		return success(plan, history.getId(), hasMarketChanges(plan) ? "DB 저장 완료 · 마켓 미반영 대상으로 기록됨" : "DB 저장 완료");
+		var history = persist(reviewId, actor, product, plan, batchManaged);
+		return success(plan, history.getId(), hasMarketChanges(plan)
+			? batchManaged ? "DB 저장 완료 · 배치가 마켓별 반영을 별도로 접수합니다." : "DB 저장 완료 · 마켓 미반영 대상으로 기록됨"
+			: "DB 저장 완료");
 	}
 
 	private boolean hasMarketChanges(ProductEditPlanner.Plan plan) {
@@ -205,6 +225,11 @@ public class ProductEditService {
 	}
 
 	private ProductChangeHistory persist(String reviewId, String actor, Product product, ProductEditPlanner.Plan plan) {
+		return persist(reviewId, actor, product, plan, false);
+	}
+
+	private ProductChangeHistory persist(String reviewId, String actor, Product product, ProductEditPlanner.Plan plan,
+		boolean batchManaged) {
 		long beforeRevision = product.getRevision();
 		product.update(plan.command());
 		products.flush();
@@ -213,9 +238,13 @@ public class ProductEditService {
 		if (hasMarketChanges(plan)) {
 			var snapshots = targetSnapshots(plan);
 			for (var connection : plan.connections()) {
-				for (String snapshot : snapshots)
-					targets.save(new ProductChangeTarget(history.getId(), product.getId(), connection.registrationId(),
-						product.getRevision(), connection.market(), snapshot));
+				for (String snapshot : snapshots) {
+					var target = new ProductChangeTarget(history.getId(), product.getId(), connection.registrationId(),
+						product.getRevision(), connection.market(), snapshot);
+					if (batchManaged)
+						target.manageByBatch();
+					targets.save(target);
+				}
 			}
 		}
 		return history;

@@ -53,8 +53,24 @@ public class ProductEditPlanner {
 		return plan(product, requested, links, true);
 	}
 
+	/** Internal batch path: the approved run policy and persisted source evidence form one edit. */
+	public Plan planBatchSourceObservation(Product product, ObjectNode requested, List<MarketRegistration> links) {
+		requested.fieldNames().forEachRemaining(field -> {
+			if (!requested.get(field).isNull()
+				&& !Set.of("stockStatus", "stock", "costPrice", "exchangeRate", "salePrice", "marginRate",
+					"couponRate", "minMarginPrice").contains(field))
+				throw new IllegalArgumentException("배치 소싱 검토에 허용되지 않은 필드: " + field);
+		});
+		return plan(product, requested, links, true, true);
+	}
+
 	private Plan plan(Product product, ObjectNode requested, List<MarketRegistration> links,
 		boolean sourceObservation) {
+		return plan(product, requested, links, sourceObservation, false);
+	}
+
+	private Plan plan(Product product, ObjectNode requested, List<MarketRegistration> links,
+		boolean sourceObservation, boolean batchSource) {
 		ObjectNode before = ProductEditValues.read(product, mapper);
 		requested.fieldNames().forEachRemaining(key -> {
 			if (!before.has(key))
@@ -79,7 +95,8 @@ public class ProductEditPlanner {
 				if (changed.has("salesQuantity") && changed.path("salesQuantity").asInt() <= 0
 					&& links.stream().anyMatch(r -> r.getMarketType() == MarketType.ELEVEN_STREET
 						&& r.hasActiveConnections()))
-					throw new IllegalArgumentException("11번가에 연결된 상품의 판매용 수량은 1개 이상으로 입력하세요. 0개 및 판매 상태 전환 계약 확인 전에는 저장하지 않습니다.");
+					throw new IllegalArgumentException(
+						"11번가에 연결된 상품의 판매용 수량은 1개 이상으로 입력하세요. 0개 및 판매 상태 전환 계약 확인 전에는 저장하지 않습니다.");
 				Product candidate = product.copyForEditPreview();
 				candidate.update(mapper.convertValue(changed, ProductUpdateCommand.class));
 				if (NAME_INPUTS.stream().anyMatch(changed::has)) {
@@ -88,9 +105,11 @@ public class ProductEditPlanner {
 					candidate.update(ProductUpdateCommand.builder().name(changed.get("name").textValue()).build());
 				}
 				boolean priceChange = ProductEditPolicy.PRICE_FIELDS.stream().anyMatch(changed::has)
-					|| changed.has("bundleQuantity");
+					|| changed.has("bundleQuantity")
+					|| batchSource && ProductEditPolicy.PRICE_FIELDS.stream().anyMatch(requested::hasNonNull);
 				if (priceChange) {
 					BigDecimal floor = BigDecimal.ZERO;
+					BigDecimal batchBaseline = null;
 					for (MarketType market : DIRECT) {
 						var quote = prices.explainForProduct(candidate, market, MarketSalePriceOverrides.EMPTY);
 						if (quote.basis() != MarketSalePriceResolver.Basis.CALCULATED || quote.result() == null)
@@ -98,16 +117,21 @@ public class ProductEditPlanner {
 						priceResults.add(
 							new Price(market.name(), text(quote.result().minimumPrice()), text(quote.salePrice())));
 						floor = floor.max(quote.result().minimumPrice());
+						if (market == MarketType.COUPANG)
+							batchBaseline = quote.salePrice();
 					}
-					if (candidate.getSalePrice() == null)
+					// The previous batch contract stores the Coupang quote as the DB baseline.
+					BigDecimal baseline = batchSource ? batchBaseline : candidate.getSalePrice();
+					if (baseline == null)
 						throw new IllegalArgumentException("기준 판매가가 없습니다. 판매가를 함께 지정하세요.");
-					var protectedPrice = SalePriceRounding.fromPrice(candidate.getSalePrice(), floor);
+					var protectedPrice = SalePriceRounding.fromPrice(baseline, floor);
 					if (protectedPrice.minimumAdjusted())
 						notices.add(protectedPrice.reason());
 					if (protectedPrice.salePrice().signum() <= 0
 						|| protectedPrice.salePrice().compareTo(ProductNumericField.SALE_PRICE.maximum()) > 0)
 						throw new IllegalArgumentException("최소마진 보정 후 판매가가 저장 범위를 벗어납니다.");
-					if (candidate.getSalePrice().compareTo(protectedPrice.salePrice()) != 0) {
+					if (candidate.getSalePrice() == null
+						|| candidate.getSalePrice().compareTo(protectedPrice.salePrice()) != 0) {
 						changed.put("salePrice", protectedPrice.salePrice());
 						derived.add("salePrice");
 					}
@@ -155,6 +179,19 @@ public class ProductEditPlanner {
 		State state = !reasons.isEmpty() ? State.EXCLUDED : changed.isEmpty() ? State.UNCHANGED : State.READY;
 		ProductUpdateCommand command = state == State.READY ? mapper.convertValue(changed, ProductUpdateCommand.class)
 			: null;
+		if (batchSource && (state == State.READY || state == State.UNCHANGED)) {
+			// Keep unchanged approved inputs too, so commit can recheck the same complete price policy.
+			Product effective = product.copyForEditPreview();
+			effective.update(mapper.convertValue(changed, ProductUpdateCommand.class));
+			ObjectNode actual = ProductEditValues.read(effective, mapper);
+			ObjectNode batchCommand = mapper.createObjectNode();
+			requested.fieldNames().forEachRemaining(field -> {
+				if (requested.hasNonNull(field))
+					batchCommand.set(field, actual.get(field));
+			});
+			changed.fieldNames().forEachRemaining(field -> batchCommand.set(field, actual.get(field)));
+			command = mapper.convertValue(batchCommand, ProductUpdateCommand.class);
+		}
 		return new Plan(product.getId(), product.getSbCode(), product.getRevision(), state, fingerprint(links), command,
 			List.copyOf(diffs), policy.connections(links), List.copyOf(priceResults), List.copyOf(reasons),
 			List.copyOf(notices));

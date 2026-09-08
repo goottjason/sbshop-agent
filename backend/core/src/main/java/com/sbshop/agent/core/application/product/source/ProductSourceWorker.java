@@ -26,6 +26,7 @@ public class ProductSourceWorker {
 	private final ProductSourceObservationSource source;
 	private final ObjectMapper mapper;
 	private final PlatformTransactionManager transactions;
+	private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
 	public record Claim(String id, String token, String sourceUrl, String vendor, String captured) {
 	}
@@ -97,12 +98,16 @@ public class ProductSourceWorker {
 		// Choose the oldest available vendor rather than letting one vendor's 429 stop every source.
 		var candidates = Arrays.stream(com.sbshop.agent.core.domain.product.enums.VendorType.values())
 			.filter(ProductContentUrls::supports)
-			.map(v -> snapshots.findFirstByStateAndVendorOrderByRequestedAtAscIdAsc(State.QUEUED, v.name()))
-			.flatMap(Optional::stream)
+			.flatMap(v -> snapshots
+				.availableForVendor(State.QUEUED, v.name(), org.springframework.data.domain.PageRequest.of(0, 1))
+				.stream())
 			.sorted(
 				Comparator.comparing(ProductSourceSnapshot::getRequestedAt).thenComparing(ProductSourceSnapshot::getId))
 			.toList();
 		for (var snapshot : candidates) {
+			if (!com.sbshop.agent.core.application.product.batch.ProductSupplierBatchSourceGate.mayStart(jdbc,
+				snapshot.getCollectionId()))
+				continue;
 			String token = UUID.randomUUID().toString();
 			if (!ProductSourceVendorGate.claim(lanes, snapshot.getVendor(), token, now))
 				continue;

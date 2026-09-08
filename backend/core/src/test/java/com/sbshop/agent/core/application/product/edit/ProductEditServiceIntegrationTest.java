@@ -57,6 +57,8 @@ class ProductEditServiceIntegrationTest {
 	@Autowired
 	ProductEditService edits;
 	@Autowired
+	ProductEditPlanner planner;
+	@Autowired
 	com.sbshop.agent.core.application.market.MarketConnectionService connections;
 	@MockitoSpyBean
 	com.sbshop.agent.core.domain.market.repository.MarketConnectionEventRepository connectionEvents;
@@ -100,6 +102,168 @@ class ProductEditServiceIntegrationTest {
         when(prices.explainForProduct(any(), any(), any())).thenReturn(new MarketSalePriceResolver.Explanation(
             MarketSalePriceResolver.Basis.CALCULATED, SalePriceRounding.fromPrice(new BigDecimal("18000"), new BigDecimal(floor))));
     }
+
+	@Test
+	void approvedBatchStoresSourceAndFixedPolicyInOneRevisionWithoutNormalDispatch() {
+		Product product = create();
+		link(product, MarketType.COUPANG, "{\"sellerProductId\":\"45\",\"vendorItemId\":\"46\"}");
+		var collected = java.time.Instant.now().minusSeconds(60);
+		var plan = batchPlan(product, batchValues());
+		assertThat(plan.state()).isEqualTo(ProductEditPlanner.State.READY);
+		assertThat(plan.command().salePrice()).isEqualByComparingTo("18000");
+		String reviewId = UUID.randomUUID().toString();
+		var result = tx.execute(s -> edits.commitReviewedBatchSource(reviewId, "admin",
+			java.time.Instant.now().plusSeconds(1200), collected, true, plan));
+		assertThat(result.state()).isEqualTo("SAVED");
+		Product after = products.findById(product.getId()).orElseThrow();
+		assertThat(after.getRevision()).isEqualTo(product.getRevision() + 1);
+		assertThat(after.getPriceInfo().getMarginRate()).isEqualByComparingTo("10");
+		assertThat(after.getPriceInfo().getCouponRate()).isEqualByComparingTo("20");
+		assertThat(after.getPriceInfo().getMinMarginPrice()).isEqualByComparingTo("1500");
+		assertThat(after.getPriceInfo().getCostPrice()).isEqualByComparingTo("11000");
+		assertThat(after.getPriceInfo().getExchangeRate()).isEqualByComparingTo("1350.12");
+		assertThat(after.getStockStatus()).isEqualTo(StockStatus.OUT_OF_STOCK);
+		assertThat(after.getLogisticsInfo().getStock()).isZero();
+		assertThat(after.getSalesQuantity()).isEqualTo(product.getSalesQuantity());
+		assertThat(after.getProductName()).isEqualTo(product.getProductName());
+		assertThat(after.getLogisticsInfo().getBundleQuantity()).isEqualTo(3);
+		assertThat(histories.count()).isEqualTo(1);
+		assertThat(targets.findAll()).hasSize(2).allSatisfy(target -> {
+			assertThat(target.isBatchManaged()).isTrue();
+			assertThat(target.getState()).isEqualTo("BATCH_MANAGED");
+			assertThat(target.getProductRevision()).isEqualTo(after.getRevision());
+		});
+		assertThat(targets.findTop50ByStateOrderById("PENDING_DISPATCH")).isEmpty();
+		assertThat(targets.countPending(List.of(product.getId()))).singleElement()
+			.satisfies(row -> assertThat(((Number)row[1]).longValue()).isEqualTo(2));
+		assertThat(tx.execute(s -> edits.commitReviewedBatchSource(reviewId, "admin",
+			java.time.Instant.now().minusSeconds(1), collected, true, plan)).historyId()).isEqualTo(result.historyId());
+		assertThat(histories.count()).isEqualTo(1);
+		assertThat(products.findById(product.getId()).orElseThrow().getRevision()).isEqualTo(after.getRevision());
+	}
+
+	@Test
+	void batchTargetFailureRollsBackSourcePolicyHistoryAndCanReuseTheSamePlan() {
+		Product product = create();
+		link(product, MarketType.COUPANG, "{\"sellerProductId\":\"45\",\"vendorItemId\":\"46\"}");
+		var plan = batchPlan(product, batchValues());
+		String reviewId = UUID.randomUUID().toString();
+		doThrow(new IllegalStateException("batch target storage unavailable")).when(targets).save(any());
+		assertThatThrownBy(() -> tx.execute(s -> edits.commitReviewedBatchSource(reviewId, "admin",
+			java.time.Instant.now().plusSeconds(1200), java.time.Instant.now().minusSeconds(60), true, plan)))
+			.isInstanceOf(IllegalStateException.class);
+		assertThat(products.findById(product.getId()).orElseThrow().getRevision()).isEqualTo(product.getRevision());
+		assertThat(products.findById(product.getId()).orElseThrow().getPriceInfo().getCostPrice())
+			.isEqualByComparingTo("10000");
+		assertThat(histories.count()).isZero();
+		assertThat(targets.count()).isZero();
+		reset(targets);
+		assertThat(tx.execute(s -> edits.commitReviewedBatchSource(reviewId, "admin",
+			java.time.Instant.now().plusSeconds(1200), java.time.Instant.now().minusSeconds(60), true, plan)).state())
+			.isEqualTo("SAVED");
+	}
+
+	@Test
+	void batchPlanCannotBroadenOrdinarySourceOrChangeNameAndSalesQuantity() {
+		Product product = create();
+		assertThatThrownBy(() -> planner.planSourceObservation(product, batchValues(), List.of()))
+			.isInstanceOf(IllegalArgumentException.class).hasMessageContaining("허용되지 않은 필드");
+		for (String field : List.of("name", "salesQuantity", "bundleQuantity", "sourceUrl")) {
+			var input = batchValues().put(field, "7");
+			assertThatThrownBy(() -> planner.planBatchSourceObservation(product, input, List.of()))
+				.isInstanceOf(IllegalArgumentException.class).hasMessageContaining(field);
+		}
+	}
+
+	@Test
+	void unchangedBatchStillRecordsReviewedCollectionOnceAndKeepsUnknownStock() {
+		Product product = create();
+		Long id = product.getId();
+		tx.executeWithoutResult(s -> products.findById(id).orElseThrow().recordCrawlFailure("old failure"));
+		product = products.findById(id).orElseThrow();
+		var plan = batchPlan(product, mapper.createObjectNode().put("stockStatus", product.getStockStatus().name()));
+		assertThat(plan.state()).isEqualTo(ProductEditPlanner.State.UNCHANGED);
+		var collected = java.time.Instant.now().minusSeconds(60);
+		String reviewId = UUID.randomUUID().toString();
+		var result = tx.execute(s -> edits.commitReviewedBatchSource(reviewId, "admin",
+			java.time.Instant.now().plusSeconds(1200), collected, true, plan));
+		Product after = products.findById(id).orElseThrow();
+		assertThat(result.state()).isEqualTo("SAVED");
+		assertThat(after.getLastCrawlError()).isNull();
+		assertThat(after.getLastCrawlAt().truncatedTo(java.time.temporal.ChronoUnit.SECONDS))
+			.isEqualTo(java.time.LocalDateTime.ofInstant(collected, java.time.ZoneId.systemDefault())
+				.truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
+		assertThat(after.getLogisticsInfo().getStock()).isEqualTo(3);
+		assertThat(after.getSalePrice()).isEqualByComparingTo("20000");
+		assertThat(targets.count()).isZero();
+		assertThat(histories.findAll()).singleElement()
+			.satisfies(history -> assertThat(history.getChanges()).isEqualTo("[]"));
+		assertThat(tx.execute(s -> edits.commitReviewedBatchSource(reviewId, "admin",
+			java.time.Instant.now().plusSeconds(1200), collected, true, plan)).historyId())
+			.isEqualTo(result.historyId());
+		assertThat(products.findById(id).orElseThrow().getRevision()).isEqualTo(after.getRevision());
+	}
+
+	@Test
+	void batchRechecksRevisionConnectionPricePolicyAndCollectionTime() {
+		for (String conflict : List.of("revision", "connection", "quote", "expiry", "future")) {
+			Product product = create();
+			var reg = link(product, MarketType.COUPANG, "{\"sellerProductId\":\"45\",\"vendorItemId\":\"46\"}");
+			var plan = batchPlan(product, batchValues());
+			if (conflict.equals("revision"))
+				tx.executeWithoutResult(s -> products.findById(product.getId()).orElseThrow()
+					.update(ProductUpdateCommand.builder().memo("concurrent edit").build()));
+			if (conflict.equals("connection"))
+				tx.executeWithoutResult(s -> registrations.findById(reg.getId()).orElseThrow()
+					.enrichIdentifier("sellerProductId", "99"));
+			if (conflict.equals("quote"))
+				quote("19000");
+			var expiry = java.time.Instant.now().plusSeconds(conflict.equals("expiry") ? -1 : 1200);
+			var collected = java.time.Instant.now().plusSeconds(conflict.equals("future") ? 60 : -60);
+			assertThatThrownBy(() -> tx.execute(s -> edits.commitReviewedBatchSource(UUID.randomUUID().toString(),
+				"admin", expiry, collected, true, plan))).isInstanceOf(ProductEditConflictException.class);
+			quote("12340");
+		}
+		assertThat(histories.count()).isZero();
+	}
+
+	@Test
+	void batchRecomputesBaselineEvenWhenApprovedPriceInputsHaveNotChanged() {
+		Product product = create();
+		Long id = product.getId();
+		tx.executeWithoutResult(s -> products.findById(id).orElseThrow()
+			.update(mapper.convertValue(batchValues(), ProductUpdateCommand.class)));
+		product = products.findById(id).orElseThrow();
+		var plan = batchPlan(product, batchValues());
+		assertThat(plan.changes()).extracting(ProductEditPlanner.Change::field).containsExactly("salePrice");
+		assertThat(plan.command().marginRate()).isEqualByComparingTo("10");
+		assertThat(tx.execute(s -> edits.commitReviewedBatchSource(UUID.randomUUID().toString(), "admin",
+			java.time.Instant.now().plusSeconds(1200), java.time.Instant.now().minusSeconds(60), true, plan)).state())
+			.isEqualTo("SAVED");
+	}
+
+	@Test
+	void batchOwnershipSurvivesDispatchRetryAndCannotReturnToAutomaticDispatch() {
+		var target = new ProductChangeTarget(1L, 2L, 3L, 4L, "COUPANG", "{}");
+		target.manageByBatch();
+		target.dispatchedToPrice(5L);
+		target.priceOutcome("PENDING_DISPATCH");
+		assertThat(target.isBatchManaged()).isTrue();
+		assertThat(target.getState()).isEqualTo("BATCH_MANAGED");
+		target.cancelForDetachedConnection();
+		assertThat(target.getState()).isEqualTo("CANCELLED_DETACHED");
+		assertThatThrownBy(target::manageByBatch).isInstanceOf(IllegalStateException.class);
+	}
+
+	private com.fasterxml.jackson.databind.node.ObjectNode batchValues() {
+		return mapper.createObjectNode().put("costPrice", 11000).put("exchangeRate", new BigDecimal("1350.12"))
+			.put("marginRate", 10).put("couponRate", 20).put("minMarginPrice", 1500)
+			.put("stockStatus", "OUT_OF_STOCK").put("stock", 0);
+	}
+
+	private ProductEditPlanner.Plan batchPlan(Product product, com.fasterxml.jackson.databind.node.ObjectNode values) {
+		return planner.planBatchSourceObservation(product, values, registrations.findByProductId(product.getId()));
+	}
 
 	Product create() {
 		return tx.execute(s -> {
