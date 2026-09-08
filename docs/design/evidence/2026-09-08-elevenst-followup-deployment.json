@@ -1,0 +1,124 @@
+{
+  "revision": "16ec51f6a9266f4f9171d1f0c4fc9afb9176c448",
+  "phase": "HEALTHY",
+  "worktree": "/home/ubuntu/projects/sbshop-workspace-release-16ec51f6",
+  "builtAt": "2026-09-07T16:30:49.446823+00:00",
+  "oldImages": {
+    "api": {
+      "id": "sha256:aca1aa6fcc056f83606d44bd7d0fa3d059ee3d6c2765a0c4e4cf74a0f007c308",
+      "revision": "b3413ef14443fe85f96452adc7256af22f677bd2"
+    },
+    "frontend": {
+      "id": "sha256:faf299fa857be766481d0b331910dc12f0d540cb4da812c6704e7d7eb77f336d",
+      "revision": "b3413ef14443fe85f96452adc7256af22f677bd2"
+    },
+    "scraper": {
+      "id": "sha256:e6638cdc7b5bc206ccb63d6265e0cadce910d177892e8f6c4aeb4bdaff7684c9",
+      "revision": null
+    },
+    "marketplus-worker": {
+      "id": "sha256:365971ebbb9ad1b134bc568b089ac3d5162c24f224de817bc14f97d8387d5d80",
+      "revision": null
+    }
+  },
+  "backupSha256": "c300f475eff1647a946efcbc4830d20a72652b3b7e0d9f72a53a2214d3c6b5e9",
+  "backupBytes": 9593459,
+  "appliedDDL": [
+    "2026-09-07-market-field-sync.sql",
+    "2026-09-07-marketplus-public-observations.sql",
+    "2026-09-08-market-inspection-daily-multiple-markets.sql",
+    "2026-09-08-product-source-refresh.sql",
+    "2026-09-08-reviewed-publication-multiple-markets.sql",
+    "2026-09-08-marketplus-public-check-queue.sql"
+  ],
+  "migrationPermissions": {
+    "runAsExistingOwner": true,
+    "applicationRoleUnchanged": true,
+    "tables": [
+      "sb_market_field_attempt",
+      "sb_market_field_review",
+      "sb_market_field_task",
+      "sb_marketplus_public_check",
+      "sb_marketplus_public_collection",
+      "sb_marketplus_public_observation",
+      "sb_product_content_lane",
+      "sb_product_source_collection",
+      "sb_product_source_review",
+      "sb_product_source_snapshot"
+    ],
+    "grants": "DML and associated identity sequences"
+  },
+  "previousUnactivatedRevision": "15b30e37d882efc9affc72701a7949003f5d1607",
+  "rebuildReason": "Official-contract reviewed 11st positive stock and input-only publication preparation",
+  "rebuiltAt": "2026-09-08T01:02:08.031959+00:00",
+  "schemaValidationEntities": 48,
+  "activatedAt": "2026-09-08T01:02:44.511907+00:00",
+  "containers": {
+    "api": {
+      "revision": "16ec51f6a9266f4f9171d1f0c4fc9afb9176c448",
+      "restarts": 0,
+      "startedAt": "2026-09-08T01:02:44.153006581Z"
+    },
+    "frontend": {
+      "revision": "16ec51f6a9266f4f9171d1f0c4fc9afb9176c448",
+      "restarts": 0,
+      "startedAt": "2026-09-08T01:02:44.163167365Z"
+    },
+    "scraper": {
+      "revision": "16ec51f6a9266f4f9171d1f0c4fc9afb9176c448",
+      "restarts": 0,
+      "startedAt": "2026-09-08T01:02:44.155596867Z"
+    },
+    "marketplus-worker": {
+      "revision": "16ec51f6a9266f4f9171d1f0c4fc9afb9176c448",
+      "restarts": 0,
+      "startedAt": "2026-09-08T01:03:02.834532857Z"
+    }
+  },
+  "checks": {
+    "productsStatus": 200,
+    "fieldReviewsStatus": 200,
+    "totalProducts": 2854
+  },
+  "healthyAt": "2026-09-08T01:03:02.999737+00:00",
+  "workerEnvironment": "Preserved existing mall and relay credentials without changing browser/state volumes",
+  "followupBackups": [
+    {
+      "path": "/home/ubuntu/backups/sbshop-products-delivery-20260908/before-followup-c01e6527",
+      "previousRevision": "abeb0d7a04b8764c33ca72e19cdb95dc6732cf79",
+      "oldImages": {
+        "api": "sha256:21acf9f95519d2ffc8ed9416138e4e4cd2a912c309c7a57c2137b0a5b2d73366",
+        "frontend": "sha256:80beb96d8d16e52e80b25f8b6b949f90b6432f2a9b3686ff583bb0fb1cf71984",
+        "scraper": "sha256:79d015933b5e8ed5274c039adc271b4a263390e0dc9f2500c751240d22b4ef13",
+        "marketplus-worker": "sha256:52b02bff26dbd135232792a6eac27038cb3831c1be14b885529ca959fca3f211"
+      },
+      "backupBytes": 9641808,
+      "backupSha256": "917d994b96cae1ac4fc318ddc4a4fe2e4fe4818c490d2b1b75bb7f04980083e5"
+    },
+    {
+      "path": "/home/ubuntu/backups/sbshop-products-delivery-20260908/before-followup-e7fdc061",
+      "previousRevision": "c01e6527d918b3b21b0c4ce7c582a93d86c85cf7",
+      "oldImages": {
+        "api": "sha256:c5569b01f9f3f08cfe3b584cf650c9d6b4a6f2d3b9a4fc313517d59241dedf40",
+        "frontend": "sha256:7522eba27b8f547077217cf0a5f97faa427e38dff247c2f7d71d3618a6ae448a",
+        "scraper": "sha256:7728d941cc11dabaf67c0f33dca34e30a98047b37fda5c236f5abb9db7e1cb32",
+        "marketplus-worker": "sha256:5c80a4a16750a8d8df4ecd36f70dcb0c41b120fb83cbb0f468669033fb764e87"
+      },
+      "backupBytes": 10531400,
+      "backupSha256": "7332a4da2051e2b2053df9c51cdfa488de5299d9eac6b0d31e941bdd90d2e2c4"
+    },
+    {
+      "path": "/home/ubuntu/backups/sbshop-products-delivery-20260908/before-followup-16ec51f6",
+      "previousRevision": "e7fdc0613c279c03309f71287d2da5d10d8bfda3",
+      "oldImages": {
+        "api": "sha256:f2683c54ac33fba15ba173e39269b19b03d9b9b0a8dc981e4aefe08e87eacacd",
+        "frontend": "sha256:954736de0a7f5622f0953c65dc31e4a900b1565cdb571717c446f9e57c545dcd",
+        "scraper": "sha256:2a950a0473b56f3f88a3b402e30432088d8e0f5e1fe7cf72f19463738c7100a6",
+        "marketplus-worker": "sha256:70a48778a034feed7748e300c41d7eb8007dfe91c0256f6829358c11f7fe7e8a"
+      },
+      "backupBytes": 10533503,
+      "backupSha256": "6f4d0380ccee6549d1a0945202716ca1b105c02d53006d37ab89af8ed03eee08"
+    }
+  ],
+  "previousRevision": "e7fdc0613c279c03309f71287d2da5d10d8bfda3"
+}

@@ -1,0 +1,51 @@
+{
+  "revision": "16ec51f6a9266f4f9171d1f0c4fc9afb9176c448",
+  "startedAt": "2026-09-08T01:03:14Z",
+  "marketWriteCountersBefore": [
+    0,
+    0,
+    0
+  ],
+  "publicationInputs": {
+    "stage": "INPUT_ONLY",
+    "executable": false,
+    "outboundAddressCount": 4,
+    "inboundAddressCount": 3,
+    "accountPinned": true
+  },
+  "stockPreview": {
+    "id": "da4bb6ad-50bf-445a-9cf6-42b8c260f981",
+    "createdAt": "2026-09-08T01:03:15.430651Z",
+    "expiresAt": "2026-09-08T01:33:15.430651Z",
+    "committed": false,
+    "items": [
+      {
+        "id": null,
+        "productId": 1229,
+        "sbCode": "220114OC012",
+        "market": "ELEVEN_STREET",
+        "listingId": "4088296117",
+        "revision": 0,
+        "expectedQuantity": 300,
+        "observedQuantity": null,
+        "state": "READY",
+        "detail": "소싱처 실재고와 별도인 판매용 수량을 전송합니다. 현재 판매 상태·품목을 먼저 확인합니다.",
+        "writes": 0,
+        "reads": 0,
+        "nextRunAt": null,
+        "checkedAt": null
+      }
+    ],
+    "total": 1,
+    "currentMarketReadDuringPreview": false
+  },
+  "productFieldsUnchanged": true,
+  "marketWriteCountersAfter": [
+    0,
+    0,
+    0
+  ],
+  "externalProductWrites": 0,
+  "completedAt": "2026-09-08T01:03:15Z",
+  "status": "passed"
+}

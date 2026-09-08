@@ -1,0 +1,254 @@
+{
+  "status": "passed",
+  "actualOperatingApi": true,
+  "productWrites": 0,
+  "marketWriteCommits": 0,
+  "collectionSubmissions": 0,
+  "backupDestination": "/home/ubuntu/backups/sbshop-products-delivery-20260908/elevenst-browser-check",
+  "checks": [
+    "기존 11번가 양수 수량 검토 조회 · 실행 전/마켓 수량 미확인 표시 · 새 검토·접수 없음",
+    "11번가 등록 후보 실행 제외 · 현재 계정 주소 목록 정상 조회 · INPUT_ONLY/실행불가/주소 자동선택 없음"
+  ],
+  "warnings": [],
+  "apiReads": [
+    {
+      "method": "GET",
+      "path": "/market-stock-sync/reviews/da4bb6ad-50bf-445a-9cf6-42b8c260f981",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/1229/edit-workspace",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/1229",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/1229/edit-workspace",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/market-stock-sync/reviews/da4bb6ad-50bf-445a-9cf6-42b8c260f981",
+      "status": 200
+    }
+  ],
+  "release": "16ec51f6",
+  "existingReviewId": "da4bb6ad-50bf-445a-9cf6-42b8c260f981",
+  "productId": 1229,
+  "sbCode": "220114OC012",
+  "newReviews": 0,
+  "reviewBefore": {
+    "id": "da4bb6ad-50bf-445a-9cf6-42b8c260f981",
+    "actor": "admin",
+    "createdAt": "2026-09-08T01:03:15.430651Z",
+    "expiresAt": "2026-09-08T01:33:15.430651Z",
+    "committed": false,
+    "items": [
+      {
+        "id": null,
+        "productId": 1229,
+        "sbCode": "220114OC012",
+        "market": "ELEVEN_STREET",
+        "listingId": "4088296117",
+        "revision": 0,
+        "expectedQuantity": 300,
+        "observedQuantity": null,
+        "state": "READY",
+        "detail": "소싱처 실재고와 별도인 판매용 수량을 전송합니다. 현재 판매 상태·품목을 먼저 확인합니다.",
+        "writes": 0,
+        "reads": 0,
+        "nextRunAt": null,
+        "checkedAt": null
+      }
+    ],
+    "total": 1
+  },
+  "originalPage": {
+    "host": "mp.cafe24.com",
+    "path": "/mp/queue/productList",
+    "hasQuery": true
+  },
+  "lastCheck": "ELEVENST_INPUT_METADATA_NOT_READY",
+  "stockUi": {
+    "marketChoices": [
+      "쿠팡",
+      "카페24",
+      "N스토어",
+      "11번가"
+    ],
+    "existingReviewRow": "220114OC012\n11번가 · 4088296117\t300개\t미확인\t실행 전 확인 대상\n소싱처 실재고와 별도인 판매용 수량을 전송합니다. 현재 판매 상태·품목을 먼저 확인합니다.\n\t—",
+    "loadedReviewId": "da4bb6ad-50bf-445a-9cf6-42b8c260f981",
+    "createdNewReview": false,
+    "committed": false
+  },
+  "registrationCandidate": {
+    "selectDisabled": true,
+    "text": "\t220114OC012\t11번가\t4088296117\t제외연결 기록이 있습니다. 마켓 코드로 현재 상태를 먼저 확인하세요.\n11번가 필수 입력 준비"
+  },
+  "publicationInputs": {
+    "accountPresent": true,
+    "executable": false,
+    "fieldCount": 32,
+    "inboundCount": 3,
+    "outboundCount": 4,
+    "productRevision": 0,
+    "stage": "INPUT_ONLY",
+    "exportDisabled": true,
+    "notExecutableText": true,
+    "selectedAddressCount": 0,
+    "addressValuesNotSelected": true,
+    "inputReviewSubmitted": false,
+    "addressOrContactEvidenceSaved": false
+  },
+  "browser": {
+    "blocked": [],
+    "errors": [],
+    "publicationSummary": {
+      "accountPresent": true,
+      "executable": false,
+      "fieldCount": 32,
+      "inboundCount": 3,
+      "outboundCount": 4,
+      "productRevision": 0,
+      "stage": "INPUT_ONLY"
+    },
+    "requests": [
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/transmissions/readiness",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/categories",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/observer/status",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/brands",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/market-stock-sync/reviews",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/market-stock-sync/reviews/da4bb6ad-50bf-445a-9cf6-42b8c260f981",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/registrations",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/registrations/candidates",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/1229/publication-inputs",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      }
+    ]
+  },
+  "reviewAfter": {
+    "id": "da4bb6ad-50bf-445a-9cf6-42b8c260f981",
+    "actor": "admin",
+    "createdAt": "2026-09-08T01:03:15.430651Z",
+    "expiresAt": "2026-09-08T01:33:15.430651Z",
+    "committed": false,
+    "items": [
+      {
+        "id": null,
+        "productId": 1229,
+        "sbCode": "220114OC012",
+        "market": "ELEVEN_STREET",
+        "listingId": "4088296117",
+        "revision": 0,
+        "expectedQuantity": 300,
+        "observedQuantity": null,
+        "state": "READY",
+        "detail": "소싱처 실재고와 별도인 판매용 수량을 전송합니다. 현재 판매 상태·품목을 먼저 확인합니다.",
+        "writes": 0,
+        "reads": 0,
+        "nextRunAt": null,
+        "checkedAt": null
+      }
+    ],
+    "total": 1
+  },
+  "revisions": {
+    "before": {
+      "1229": 0
+    },
+    "after": {
+      "1229": 0
+    }
+  },
+  "checkedAt": "2026-09-08T01:05:32Z",
+  "originalTabRestored": true,
+  "originalUrlUnchanged": true,
+  "operatingTab": {
+    "kind": "transmissionHistory",
+    "ready": true,
+    "visibleRows": 20
+  },
+  "flagsRestored": true,
+  "collectorEnabled": true,
+  "cleanupErrors": [],
+  "evidenceType": "Actual deployed remote Chrome UI; no fixture/mock API.",
+  "macChromeAccessed": false,
+  "screenshots": [
+    "2026-09-08-elevenst-operating-stock-preview.png",
+    "2026-09-08-elevenst-operating-input-only.png"
+  ],
+  "privacy": "No address selections or option dropdowns opened; only address counts persisted. Screenshots visually inspected with no private addresses/contact details.",
+  "helperAdjustment": "Product SB code read from product GET, not edit-workspace top-level DTO."
+}

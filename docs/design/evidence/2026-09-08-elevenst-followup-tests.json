@@ -1,0 +1,35 @@
+{
+  "revision": "16ec51f6a9266f4f9171d1f0c4fc9afb9176c448",
+  "scope": "scoped regression and integration; not a fresh full-backend count",
+  "stock": {
+    "tests": 103,
+    "failures": 0,
+    "errors": 0
+  },
+  "publicationInputPreparation": {
+    "tests": 77,
+    "failures": 0,
+    "errors": 0
+  },
+  "apiIntegration": {
+    "tests": 379,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "workerIntegration": {
+    "tests": 79,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "frontend": {
+    "typecheck": "passed",
+    "productionBuild": "passed",
+    "stockBrowserScenarios": 8,
+    "publicationInputsBrowserScenarios": 7
+  },
+  "format": "changed Java files only; passed",
+  "independentReview": "No deployment-blocking defect found",
+  "actualMarketplaceProductWriteTest": false
+}
