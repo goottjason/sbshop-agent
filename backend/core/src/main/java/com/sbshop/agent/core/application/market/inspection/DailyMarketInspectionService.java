@@ -138,7 +138,7 @@ public class DailyMarketInspectionService {
 		if (!SUPPORTED.contains(market))
 			throw new IllegalArgumentException("지원하지 않는 정기 마켓입니다.");
 		String account = queue.account(market);
-		boolean verified = market == MarketType.SMART_STORE && connections.accountVerified(account);
+		boolean verified = connections.accountVerified(market, account);
 		boolean mayEnroll = account != null && (market != MarketType.SMART_STORE || verified);
 		var sweep = sweeps.findTopByMarketOrderByRunDateDesc(market.name()).orElse(null);
 		Instant now = queue.now();
@@ -149,7 +149,7 @@ public class DailyMarketInspectionService {
 			: unfinished && !Objects.equals(account, sweep.getAccountReference())
 				? "진행 중인 회차의 계정이 변경되어 접수를 보류합니다. 기존 계정 귀속 확인이 필요합니다."
 				: unfinished ? "진행 중인 정기 확인을 이어서 처리합니다." : "매일 오전 3시부터 전체 활성 연결을 순서대로 확인합니다.";
-		if (market != MarketType.SMART_STORE)
+		if (market != MarketType.SMART_STORE && !verified)
 			detail += " 과거 계정 귀속은 미확인입니다. 일반 부재 응답만으로 삭제하지 않고 명시된 상품 상태만 판정합니다.";
 		if (!enabled || !mayEnroll || unfinished)
 			next = null;

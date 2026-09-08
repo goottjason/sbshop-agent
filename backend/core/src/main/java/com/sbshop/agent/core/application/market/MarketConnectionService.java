@@ -33,13 +33,17 @@ public class MarketConnectionService {
 	private String verifiedAccountReference;
 
 	public boolean accountVerified(String reference) {
+		return accountVerified(MarketType.SMART_STORE, reference);
+	}
+
+	public boolean accountVerified(MarketType market, String reference) {
 		if (reference == null || reference.isBlank())
 			return false;
 		String pinned = inspectionGates
-			.findById(com.sbshop.agent.core.domain.market.inspection.MarketInspectionGate.SMART_STORE_SCOPE)
+			.findById(market.name() + "_ORIGIN_READ")
 			.map(com.sbshop.agent.core.domain.market.inspection.MarketInspectionGate::getVerifiedAccountReference)
 			.orElse(null);
-		return reference.equals(pinned == null ? verifiedAccountReference : pinned);
+		return reference.equals(pinned == null && market == MarketType.SMART_STORE ? verifiedAccountReference : pinned);
 	}
 
 	public record Connection(Long registrationId, long revision, String market, String externalId, String state,
@@ -150,8 +154,9 @@ public class MarketConnectionService {
 			: observation.state() == MarketListingObservation.State.DELETED ? MarketConnectionState.DETACHED_DELETED
 				: null;
 		boolean unverifiedAbsence = desired == MarketConnectionState.DETACHED_DELETED
-			&& observation.code() != null && observation.code().startsWith("HTTP_404")
-			&& !accountVerified(observation.accountReference());
+			&& observation.code() != null
+			&& (observation.code().startsWith("HTTP_404") || observation.code().startsWith("PRODUCT_ABSENT/"))
+			&& !accountVerified(snapshot.market(), observation.accountReference());
 		if (!stale && unverifiedAbsence)
 			result = "ACCOUNT_REVIEW_REQUIRED";
 		if (!stale && !unverifiedAbsence && desired != null) {

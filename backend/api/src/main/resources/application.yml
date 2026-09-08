@@ -135,5 +135,7 @@ products:
     enrollment-page-size: 500
     # Q24 승인: 최초 연동 앱 참조를 DB에 한 번 고정. 이후 계정 변경에는 자동으로 동의하지 않는다.
     single-account-confirmed: ${MARKET_INSPECTION_SINGLE_ACCOUNT_CONFIRMED:true}
+    # Q26(2026-09-08): 쿠팡·11번가·카페24도 현재 단일 계정. 각 마켓의 최초 참조만 고정한다.
+    additional-single-accounts-confirmed: ${MARKET_INSPECTION_ADDITIONAL_SINGLE_ACCOUNTS_CONFIRMED:true}
     # 초기화 전 명시적으로 확인한 참조를 제공할 때만 사용한다. DB에 고정된 참조가 우선한다.
     verified-account-reference: ${MARKET_INSPECTION_VERIFIED_ACCOUNT_REFERENCE:}

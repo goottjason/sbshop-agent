@@ -340,8 +340,46 @@ public class CoupangMarketClient implements MarketClient {
 			return new com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation(state, code,
 				"쿠팡 등록 상태: " + code + " · 개별 옵션의 판매 상태와 구분합니다.", account, "GET " + path, java.time.Instant.now());
 		} catch (Exception e) {
+			if (exactMissingProduct(e, id) && account.equals(inspectionAccountReference()))
+				return new com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation(
+					com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.DELETED,
+					"PRODUCT_ABSENT/COUPANG_NOT_FOUND", "인증된 쿠팡 단건 조회에서 요청한 등록상품 ID의 부재를 확인했습니다.",
+					account, "GET " + path, java.time.Instant.now());
 			return com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.failure(e, account, "GET " + path);
 		}
+	}
+
+	/** Observed on four stored IDs on 2026-09-08; HTTP 404 or a generic ERROR message is insufficient. */
+	private boolean exactMissingProduct(Throwable error, String id) {
+		for (int depth = 0; error != null && depth < 16; depth++, error = error.getCause()) {
+			if (!(error instanceof org.springframework.web.client.RestClientResponseException http))
+				continue;
+			if (http.getStatusCode().value() != 400 || http.getResponseHeaders() == null)
+				return false;
+			org.springframework.http.MediaType contentType;
+			try {
+				contentType = http.getResponseHeaders().getContentType();
+			} catch (IllegalArgumentException malformedContentType) {
+				return false;
+			}
+			if (contentType == null
+				|| !org.springframework.http.MediaType.APPLICATION_JSON.isCompatibleWith(contentType))
+				return false;
+			String body = http.getResponseBodyAsString();
+			if (body.length() > 2000)
+				return false;
+			try (var parser = objectMapper.getFactory().createParser(body)) {
+				parser.enable(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+				JsonNode root = objectMapper.readTree(parser);
+				return root != null && root.isObject() && root.size() == 2 && parser.nextToken() == null
+					&& root.path("code").isTextual() && "DEFAULT".equals(root.path("code").textValue())
+					&& root.path("message").isTextual()
+					&& ("Product(" + id + ") data not found.").equals(root.path("message").textValue());
+			} catch (Exception malformed) {
+				return false;
+			}
+		}
+		return false;
 	}
 
 	@Override

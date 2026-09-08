@@ -96,6 +96,7 @@ class MarketInspectionServiceIntegrationTest {
 		when(adapter.inspectionAccountReference()).thenReturn("account-A");
 		ReflectionTestUtils.setField(connections, "verifiedAccountReference", "account-A");
 		ReflectionTestUtils.setField(service, "singleAccountConfirmed", false);
+		ReflectionTestUtils.setField(service, "additionalSingleAccountsConfirmed", false);
 		ReflectionTestUtils.setField(daily, "enabled", false);
 		ReflectionTestUtils.setField(daily, "pageSize", 2);
 	}
@@ -582,6 +583,77 @@ class MarketInspectionServiceIntegrationTest {
 			.getConnectionState()).isEqualTo(MarketConnectionState.LINKED);
 		assertThat(daily.status(MarketType.COUPANG).latest().totals().needsAttention()).isEqualTo(1);
 		assertThat(daily.status(MarketType.COUPANG).latest().totals().detached()).isZero();
+	}
+
+	@org.junit.jupiter.params.ParameterizedTest
+	@org.junit.jupiter.params.provider.EnumSource(value = MarketType.class, names = {"COUPANG", "ELEVEN_STREET", "CAFE24"})
+	void q26PinsEachMarketAndConfirmedAbsenceDetachesWhileKeepingEvidence(MarketType market) {
+		var p = product();
+		dailyMarket(market, p);
+		ReflectionTestUtils.setField(service, "additionalSingleAccountsConfirmed", true);
+		var batch = service.create(List.of(p.getId()), key(), "admin", market);
+		var gate = gates.findById(market.name() + "_ORIGIN_READ").orElseThrow();
+		assertThat(gate.getVerifiedAccountReference()).isEqualTo(market.name() + "-account");
+		assertThat(gate.getAccountConfirmationEvidence()).contains("USER_Q26_2026-09-08", market.name());
+		assertThat(gate.getAccountConfirmedAt()).isNotNull();
+		assertThat(service.availability(market).accountVerified()).isTrue();
+		assertThat(daily.status(market).accountVerified()).isTrue();
+		assertThat(daily.status(market).detail()).doesNotContain("과거 계정 귀속은 미확인");
+		var claim = service.claim(market);
+		service.finish(claim, new MarketListingObservation(MarketListingObservation.State.DELETED,
+			"PRODUCT_ABSENT/VERIFIED_RESPONSE", "정확한 상품 부재 응답", market.name() + "-account",
+			"GET /products/123", Instant.now()));
+		var reg = registrations.findByProductIdAndMarketType(p.getId(), market).orElseThrow();
+		assertThat(reg.getConnectionState()).isEqualTo(MarketConnectionState.DETACHED_DELETED);
+		assertThat(reg.getMarketIdentifiers()).contains("123");
+		assertThat(service.get(batch.id()).detached()).isEqualTo(1);
+		assertThat(events.findAll()).hasSize(1);
+	}
+
+	@org.junit.jupiter.params.ParameterizedTest
+	@org.junit.jupiter.params.provider.EnumSource(value = MarketType.class, names = {"COUPANG", "ELEVEN_STREET", "CAFE24"})
+	void q26NeverRepinsChangedAccountOrTreatsGeneric404AsDeletion(MarketType market) {
+		var p = product();
+		var client = dailyMarket(market, p);
+		ReflectionTestUtils.setField(service, "additionalSingleAccountsConfirmed", true);
+		var batch = service.create(List.of(p.getId()), key(), "admin", market);
+		var claim = service.claim(market);
+		service.finish(claim, new MarketListingObservation(MarketListingObservation.State.UNKNOWN,
+			"HTTP_404", "일반 오류", market.name() + "-account", "GET /products/123", Instant.now()));
+		assertThat(service.get(batch.id()).detached()).isZero();
+		assertThat(registrations.findByProductIdAndMarketType(p.getId(), market).orElseThrow().getConnectionState())
+			.isEqualTo(MarketConnectionState.LINKED);
+		when(client.inspectionAccountReference()).thenReturn("changed-account");
+		service.ensureGate(market);
+		assertThat(gates.findById(market.name() + "_ORIGIN_READ").orElseThrow().getVerifiedAccountReference())
+			.isEqualTo(market.name() + "-account");
+		assertThat(connections.accountVerified(market, "changed-account")).isFalse();
+		assertThat(service.availability(market).accountVerified()).isFalse();
+	}
+
+	@Test
+	void accountConfirmationCannotLeakAcrossMarketsWithSameReference() {
+		var p = product();
+		var cp = dailyMarket(MarketType.COUPANG, p);
+		when(cp.inspectionAccountReference()).thenReturn("account-A");
+		assertThat(connections.accountVerified(MarketType.SMART_STORE, "account-A")).isTrue();
+		assertThat(connections.accountVerified(MarketType.COUPANG, "account-A")).isFalse();
+		assertThat(service.availability(MarketType.COUPANG).accountVerified()).isFalse();
+	}
+
+	@org.junit.jupiter.params.ParameterizedTest
+	@org.junit.jupiter.params.provider.EnumSource(value = MarketType.class, names = {"COUPANG", "ELEVEN_STREET", "CAFE24"})
+	void businessAbsenceAlsoRequiresMarketScopedAccountConfirmation(MarketType market) {
+		var p = product();
+		dailyMarket(market, p);
+		var batch = service.create(List.of(p.getId()), key(), "admin", market);
+		service.finish(service.claim(market), new MarketListingObservation(MarketListingObservation.State.DELETED,
+			"PRODUCT_ABSENT/VERIFIED_RESPONSE", "정확한 상품 부재 응답", market.name() + "-account",
+			"GET /products/123", Instant.now()));
+		assertThat(registrations.findByProductIdAndMarketType(p.getId(), market).orElseThrow().getConnectionState())
+			.isEqualTo(MarketConnectionState.LINKED);
+		assertThat(service.get(batch.id()).detached()).isZero();
+		assertThat(service.get(batch.id()).needsAttention()).isEqualTo(1);
 	}
 
 	@Test

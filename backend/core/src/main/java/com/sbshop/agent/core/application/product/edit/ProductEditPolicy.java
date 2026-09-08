@@ -28,6 +28,9 @@ public class ProductEditPolicy {
 		links = links.stream().filter(MarketRegistration::hasActiveConnections).toList();
 		if (field.equals("memo"))
 			return new Rule(field, Permission.INTERNAL, "내부 메모는 외부마켓에 전송하지 않습니다.");
+		if (field.equals("sourceImages"))
+			return new Rule(field, Permission.INTERNAL,
+				"소싱 원본 이미지 URL은 내부 추적값입니다. 마켓에 게시되는 이미지는 게시 이미지 필드의 수정 조건을 따릅니다.");
 		if (links.isEmpty())
 			return new Rule(field, Permission.EDITABLE, "현재 마켓 연결 기록이 없습니다.");
 		if (links.stream().anyMatch(r -> r.getPublicationOperationId() != null))

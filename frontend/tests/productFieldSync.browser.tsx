@@ -12,7 +12,8 @@ const checks: string[] = [], calls: { method: string; url: string; body: Record<
 let phase = 'PREPARE', latestId = 'fixture', previews = 0, writes = 0;
 let failCommit = true, failRead = false, failHistory = true, lostPreview = false;
 function item(id: number, productId: number, market: string, state: string): FieldSyncItem {
-  return { id, productId, sbCode: `SB-FIXTURE-${productId}`, market, listingId: `LISTING-${id}`, revision: 4, fields: ['detailHtml'],
+  return { id, productId, sbCode: `SB-FIXTURE-${productId}`, market, listingId: `LISTING-${id}`, revision: 4,
+    fields: id === 13 ? ['sourceImages'] : id === 12 && state === 'FAILED_MISMATCH' ? ['detailHtml', 'sourceImages'] : ['detailHtml'],
     expectedValues: state === 'PREPARE' ? {} : { detailHtml: html }, observedValues: state === 'CONFIRMED_FIELDS' ? { detailHtml: html } : {}, state,
     detail: state === 'SKIPPED' ? '카페24 연결이 해제되어 제외됩니다.' : state === 'FAILED_MISMATCH' ? '상세 HTML 재조회 값이 다릅니다.' : '준비·조회 상태입니다.',
     requiresApproval: id === 11, writes, reads: writes ? 2 : 0, nextRunAt: now, checkedAt: writes ? now : null };
@@ -50,12 +51,22 @@ function button(text: string) { const b = [...document.querySelectorAll<HTMLButt
 async function refresh() { button('현재 작업 다시 조회').click(); await pause(); await pause(); }
 void (async () => {
   try {
-    await wait(() => content('선택 상품 전송값 준비'), 'mount'); button('선택 상품 전송값 준비').click();
+    await wait(() => content('선택 상품 전송값 준비'), 'mount');
+    document.querySelector('[aria-label="마켓에 반영할 필드"]')!.closest('.ant-select')!.querySelector('.ant-select-selector')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    await wait(() => !!document.querySelector('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option'), 'fields');
+    const options = [...document.querySelectorAll<HTMLElement>('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option')];
+    if (options.some(option => option.textContent?.includes('원본 이미지')) || !options.some(option => option.textContent?.includes('게시 이미지'))) throw new Error('Internal image URL selectable for marketplace');
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); await pause();
+    checks.push('원본 이미지 외부 전송 선택 제거·게시 이미지 유지');
+    button('선택 상품 전송값 준비').click();
     await wait(() => content('마켓별 전송값 준비 중'), 'prepare');
     if (!button('검토한 0건 반영 접수').disabled || calls.some(c => c.url.endsWith('/commit'))) throw new Error('Premature commit');
     checks.push('PREPARE 접수 차단');
     phase = 'DRAFT'; await refresh(); await wait(() => content('수정 심사 요청에 동의합니다'), 'draft');
     if (!button('검토한 2건 반영 접수').disabled || !content('연결이 해제되어')) throw new Error('Consent/skip absent');
+    const internalRow = [...document.querySelectorAll('tbody tr')].find(row => row.textContent?.includes('LISTING-13'))!;
+    if (!([...internalRow.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent?.includes('이 상품·마켓 재검토'))?.disabled)) throw new Error('Internal-only history can resubmit');
+    checks.push('과거 원본 이미지 단독 전송 기록의 재접수 차단');
     checks.push('전송값·제외 사유·필수 심사 동의');
     const block = document.querySelector<HTMLDetailsElement>('.pfs-html')!; block.open = true; await pause(); const frame = block.querySelector('iframe')!;
     if (frame.getAttribute('sandbox') !== '' || !frame.srcdoc.includes("default-src 'none'") || document.body.dataset.executed) throw new Error('Unsafe HTML');
@@ -78,7 +89,7 @@ void (async () => {
     [...row.querySelectorAll<HTMLButtonElement>('button')].find(e => e.textContent?.includes('이 상품·마켓 재검토'))!.click();
     await wait(() => latestId === 'retry-2' && content('검토한 1건 반영 접수'), 'retry');
     if (JSON.stringify(calls.filter(c => c.method === 'post' && c.url.endsWith('/reviews')).at(-1)!.body) !== JSON.stringify({ productIds: [2], markets: ['CAFE24'], fields: ['detailHtml'] })) throw new Error('Expanded scope');
-    checks.push('재검토는 해당 상품·마켓·필드만');
+    checks.push('재검토는 해당 상품·마켓·외부 필드만·과거 원본 이미지 제거');
     await wait(() => !button('선택 상품 전송값 준비').classList.contains('ant-btn-loading'), 'preview ready');
     lostPreview = true; button('선택 상품 전송값 준비').click();
     await wait(() => content('최근 검토를 다시 조회해 생성된 내역을'), 'lost preview');

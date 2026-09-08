@@ -33,6 +33,7 @@ public class ProductContentService {
 	private final ProductEditPlanner planner;
 	private final ProductEditPolicy policy;
 	private final ProductEditService edits;
+	private final com.sbshop.agent.core.domain.product.edit.ProductChangeHistoryRepository histories;
 	private final ObjectMapper mapper;
 	private final PlatformTransactionManager transactions;
 
@@ -157,6 +158,7 @@ public class ProductContentService {
 			if (product == null)
 				reasons.add("상품이 없거나 폐기되었습니다.");
 			else if (product.getRevision() != snapshot.getRevision()
+				|| !sameSource(product, snapshot)
 				|| !planner.fingerprint(links).equals(snapshot.getConnectionFingerprint()))
 				reasons.add("상품 또는 마켓 연결이 변경되었습니다. 새로 수집하세요.");
 			if (snapshot.getExpiresAt() == null || !now.isBefore(snapshot.getExpiresAt()))
@@ -205,6 +207,13 @@ public class ProductContentService {
 				result.add(tx.execute(status -> {
 					var snapshot = snapshots.findLocked(row.snapshotId())
 						.orElseThrow(() -> new ProductEditConflictException("수집 결과가 없습니다."));
+					if (row.plan().state() != ProductEditPlanner.State.READY
+						|| histories.findByReviewIdAndProductId(reviewId, row.plan().productId()).isPresent())
+						return edits.commitReviewedContent(review.getId(), actor, review.getExpiresAt(), row.plan());
+					Product product = products.findForEdit(snapshot.getProductId())
+						.orElseThrow(() -> new ProductEditConflictException("상품 없음"));
+					if (!sameSource(product, snapshot))
+						throw new ProductEditConflictException("소싱 URL 또는 소싱처가 변경되었습니다.");
 					var item = edits.commitReviewedContent(review.getId(), actor, review.getExpiresAt(), row.plan());
 					if ("SAVED".equals(item.state()))
 						snapshot.applied(row.fields().contains(Field.IMAGES),
@@ -249,6 +258,7 @@ public class ProductContentService {
 		var links = registrations.findByProductId(snapshot.getProductId());
 		String stale = product == null ? "상품이 없거나 폐기되었습니다."
 			: product.getRevision() != snapshot.getRevision()
+				|| !sameSource(product, snapshot)
 				|| !planner.fingerprint(links).equals(snapshot.getConnectionFingerprint())
 					? "수집 이후 상품 또는 마켓 연결이 변경되었습니다. 새로 수집하세요."
 					: snapshot.getExpiresAt() != null && !Instant.now().isBefore(snapshot.getExpiresAt())
@@ -270,6 +280,11 @@ public class ProductContentService {
 			proposal == null ? null : proposal.values(),
 			fields, proposal == null ? List.of("현재 IHB·VTB·FTN·COK·OCD 수집을 지원합니다. 다른 소싱처는 계약 확인 후 추가합니다.")
 				: proposal.notices());
+	}
+
+	private boolean sameSource(Product product, ProductContentSnapshot snapshot) {
+		return Objects.equals(product.getSourcingUrl(), snapshot.getSourceUrl())
+			&& Objects.equals(product.getVendor() == null ? null : product.getVendor().name(), snapshot.getVendor());
 	}
 
 	private FieldView field(Field field, boolean available, List<String> keys, List<MarketRegistration> links,

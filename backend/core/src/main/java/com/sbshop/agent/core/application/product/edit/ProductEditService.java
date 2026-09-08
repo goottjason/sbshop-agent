@@ -201,7 +201,7 @@ public class ProductEditService {
 
 	private boolean hasMarketChanges(ProductEditPlanner.Plan plan) {
 		return !plan.connections().isEmpty()
-			&& plan.changes().stream().anyMatch(c -> !Set.of("memo", "stock").contains(c.field()));
+			&& plan.changes().stream().anyMatch(c -> !Set.of("memo", "stock", "sourceImages").contains(c.field()));
 	}
 
 	private ProductChangeHistory persist(String reviewId, String actor, Product product, ProductEditPlanner.Plan plan) {
@@ -224,7 +224,7 @@ public class ProductEditService {
 	/** Independent dispatchers need disjoint commands while the reviewed database edit remains atomic. */
 	private List<String> targetSnapshots(ProductEditPlanner.Plan plan) {
 		Set<String> fields = plan.changes().stream().map(ProductEditPlanner.Change::field)
-			.filter(field -> !field.equals("memo")).collect(Collectors.toSet());
+			.filter(field -> !Set.of("memo", "stock", "sourceImages").contains(field)).collect(Collectors.toSet());
 		var result = new ArrayList<String>();
 		Set<String> quantities = Set.of("salesQuantity", "stockStatus");
 		if (fields.stream().anyMatch(ProductEditPolicy.PRICE_FIELDS::contains))

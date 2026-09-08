@@ -146,6 +146,11 @@ public class ElevenstMarketClient implements MarketClient {
 		try {
 			var root = com.sbshop.agent.infrastructure.client.common.MarketApiEvidence
 				.xml(restClient.requestStrict("GET", path, null));
+			if (exactMissingProduct(root, id) && account.equals(inspectionAccountReference()))
+				return new com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation(
+					com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.DELETED,
+					"PRODUCT_ABSENT/ELEVENST_NOT_FOUND", "인증된 11번가 단건 조회에서 요청한 상품번호의 부재를 확인했습니다.",
+					account, "GET " + path, java.time.Instant.now());
 			if (!"Product".equals(com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.name(root))
 				|| !id.equals(com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, "prdNo"))
 				|| !com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, "resultCode").isEmpty()
@@ -167,6 +172,18 @@ public class ElevenstMarketClient implements MarketClient {
 		} catch (Exception e) {
 			return com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.failure(e, account, "GET " + path);
 		}
+	}
+
+	/** Exact HTTP-200 business response observed on four existing linked IDs on 2026-09-08. */
+	private boolean exactMissingProduct(org.w3c.dom.Element root, String id) {
+		if (!"Product".equals(com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.name(root)))
+			return false;
+		String expected = "[" + id + "] 상품 정보 조회중 오류입니다.해당 상품의 정보를 찾을 수 없습니다. 상품번호 : " + id;
+		return expected.equals(com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, "message"))
+			&& "0".equals(com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, "nResult"))
+			&& java.util.List.of("prdNo", "prdNm", "sellerPrdCd", "selStatCd", "resultCode", "validateMsg").stream()
+				.allMatch(
+					key -> com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, key).isEmpty());
 	}
 
 	@Override

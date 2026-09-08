@@ -486,8 +486,21 @@ public class Cafe24MarketClient implements MarketClient {
 			return com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation
 				.unknown("조회 상품번호 또는 계정 확인 필요");
 		try {
-			JsonNode root = objectMapper.readTree(cafe24RestClient.get(path));
+			JsonNode root = inspectionObject(cafe24RestClient.get(path));
 			JsonNode product = root.path("product");
+			if (root.size() == 1 && product.isObject() && product.isEmpty()
+				&& account.equals(inspectionAccountReference())) {
+				String confirmationPath = "/admin/products?shop_no=1&product_no=" + id
+					+ "&fields=product_no,shop_no,custom_product_code&limit=2";
+				JsonNode confirmation = inspectionObject(cafe24RestClient.get(confirmationPath));
+				if (confirmation.size() == 1 && confirmation.path("products").isArray()
+					&& confirmation.path("products").isEmpty() && account.equals(inspectionAccountReference()))
+					return new com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation(
+						com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.DELETED,
+						"PRODUCT_ABSENT/CAFE24_EMPTY_PRODUCT_AND_FILTERED_LIST",
+						"카페24 단건 조회와 같은 쇼핑몰의 정확한 상품번호 목록 조회에서 모두 상품 부재를 확인했습니다.",
+						account, "GET " + path + " ; GET " + confirmationPath, java.time.Instant.now());
+			}
 			if (root.has("error") || !product.isObject() || !id.equals(product.path("product_no").asText())
 				|| !"1".equals(product.path("shop_no").asText()) || !account.equals(inspectionAccountReference()))
 				throw new IllegalStateException("상품번호·쇼핑몰·응답 확인 실패");
@@ -502,6 +515,20 @@ public class Cafe24MarketClient implements MarketClient {
 				java.time.Instant.now());
 		} catch (Exception e) {
 			return com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.failure(e, account, "GET " + path);
+		}
+	}
+
+	private JsonNode inspectionObject(String body) {
+		if (body == null || body.isBlank())
+			throw new IllegalStateException("카페24 빈 조회 응답");
+		try (var parser = objectMapper.getFactory().createParser(body)) {
+			parser.enable(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+			JsonNode root = objectMapper.readTree(parser);
+			if (root == null || !root.isObject() || parser.nextToken() != null)
+				throw new IllegalStateException("카페24 조회 응답 객체 확인 실패");
+			return root;
+		} catch (java.io.IOException malformed) {
+			throw new IllegalStateException("카페24 조회 응답 형식 확인 실패", malformed);
 		}
 	}
 

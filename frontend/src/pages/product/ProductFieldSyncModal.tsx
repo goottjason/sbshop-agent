@@ -9,7 +9,7 @@ import { ProductHtmlPreview } from './ProductHtmlPreview';
 import './productFieldSync.css';
 
 const markets = ['SMART_STORE', 'COUPANG', 'CAFE24', 'ELEVEN_STREET', 'GMARKET', 'AUCTION'];
-const fields = ['detailHtml', 'hostedImages', 'name', 'brand', 'manufacturer', 'barcode', 'weight', 'category', 'baseName', 'originalName', 'capacity', 'measureUnit', 'bundleQuantity', 'origin', 'hsCode', 'searchKeywords', 'sourceImages'];
+const fields = ['detailHtml', 'hostedImages', 'name', 'brand', 'manufacturer', 'barcode', 'weight', 'category', 'baseName', 'originalName', 'capacity', 'measureUnit', 'bundleQuantity', 'origin', 'hsCode', 'searchKeywords'];
 const running = new Set(['PREPARE', 'CHECK', 'VERIFY', 'AWAITING_APPROVAL']);
 const retryable = new Set(['SKIPPED', 'BLOCKED', 'STALE', 'EXPIRED', 'FAILED_MISMATCH', 'UNKNOWN']);
 const states: Record<string, string> = { PREPARE: '전송값 준비 중', DRAFT: '검토·동의 대기', CHECK: '마켓 현재값 조회 대기', VERIFY: '전송 후 재조회 대기', AWAITING_APPROVAL: '마켓 심사 대기', CONFIRMED_FIELDS: '선택 필드 일치 확인', SKIPPED: '제외·지원 확인 필요', BLOCKED: '전송 보류', STALE: '새 검토 필요', EXPIRED: '검토 만료', FAILED_MISMATCH: '필드 불일치', UNKNOWN: '결과 미확인' };
@@ -40,8 +40,10 @@ export function ProductFieldSyncModal({ productIds, onClose }: { productIds: num
   useEffect(() => { if (current.data?.committed && uncertain?.id === current.data.id) { setUncertain(null); setError(null); } }, [current.data, uncertain]);
   const install = (value: FieldSyncReview) => { queryClient.setQueryData(['field-sync-review', value.id], value); setWatchId(value.id); };
   const preview = async (ids = productIds, targetMarkets = selectedMarkets, targetFields = selectedFields) => {
+    const externalFields = targetFields.filter(field => field !== 'sourceImages');
+    if (!externalFields.length) return;
     setBusy(true); setError(null); setAcceptApproval(false); setHistoryItem(null); setUncertain(null);
-    try { install((await marketFieldSyncApi.preview(ids, targetMarkets, targetFields)).data); await recent.refetch(); }
+    try { install((await marketFieldSyncApi.preview(ids, targetMarkets, externalFields)).data); await recent.refetch(); }
     catch (e) { setError(errorMessage(e, '검토 생성 결과를 확인하지 못했습니다. 최근 검토를 다시 조회해 생성된 내역을 먼저 확인하세요.')); void recent.refetch(); }
     finally { setBusy(false); }
   };
@@ -63,7 +65,7 @@ export function ProductFieldSyncModal({ productIds, onClose }: { productIds: num
         onChange={value => { setSelectedMarkets(value as string[]); reset(); }} />
       <Select mode="multiple" aria-label="마켓에 반영할 필드" value={selectedFields} disabled={busy} placeholder="반영할 필드 선택"
         options={fields.map(value => ({ value, label: editFieldLabel(value) }))} onChange={value => { setSelectedFields(value); reset(); }} />
-      <small>지원하지 않는 필드·잠긴 상품·해제된 연결은 준비 결과에 사유가 표시됩니다. 원본 이미지 등 내부 값이 마켓 필드로 연결되는지는 서버에서 검증합니다.</small>
+      <small>지원하지 않는 필드·잠긴 상품·해제된 연결은 준비 결과에 사유가 표시됩니다. 원본 이미지 URL은 DB 편집·소싱 비교에서 관리하며 외부마켓에 전송하지 않습니다.</small>
       <Button type="primary" loading={busy} disabled={!productIds.length || productIds.length > 500 || !selectedMarkets.length || !selectedFields.length}
         onClick={() => { void preview(); }}>선택 상품 전송값 준비</Button>
     </div>
@@ -89,7 +91,7 @@ export function ProductFieldSyncModal({ productIds, onClose }: { productIds: num
             {item.requiresApproval && <Tag color={item.state === 'CONFIRMED_FIELDS' ? 'green' : 'orange'}>{item.state === 'CONFIRMED_FIELDS' ? '심사 완료 확인' : '마켓 심사 필요'}</Tag>}<div className="pfs-detail">{item.detail}</div>
             {item.checkedAt && <small>{time(item.checkedAt)} 확인</small>}{item.nextRunAt && running.has(item.state) && <div><small>다음 조회 예정 {time(item.nextRunAt)}</small></div>}
             <div className="pfs-actions">{item.id && <Button size="small" onClick={() => setHistoryItem(item)}>이력 · 전송 {item.writes}회</Button>}
-              {retryable.has(item.state) && <Button size="small" disabled={busy} onClick={() => { void preview([item.productId], [item.market], item.fields); }}>이 상품·마켓 재검토</Button>}</div></> },
+              {retryable.has(item.state) && <Button size="small" disabled={busy || !item.fields.some(field => field !== 'sourceImages')} onClick={() => { void preview([item.productId], [item.market], item.fields); }}>이 상품·마켓 재검토</Button>}</div></> },
         ]} />
       {!shown.committed && <div className="pfs-commit">
         {shown.preparing && <Alert type="info" message="전송값 준비가 끝나면 지원 여부와 목표값을 검토할 수 있습니다. 아직 접수할 수 없습니다." />}

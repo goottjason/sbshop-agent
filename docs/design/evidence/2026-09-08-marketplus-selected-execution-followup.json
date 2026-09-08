@@ -1,0 +1,468 @@
+{
+  "method": "LIVE_DOM_AND_FUNCTION_SOURCE_READ_ONLY",
+  "capturedAt": "2026-09-08T00:05:27.313Z",
+  "marketWrites": 0,
+  "productWrites": 0,
+  "identity": {
+    "mallId": "younzara",
+    "shopNo": 1,
+    "cafe24ProductNo": 10186,
+    "cafe24ProductCode": "P0000PBU",
+    "entityId": "65b25bf7dbece",
+    "marketKey": "auction|shouldbe2480",
+    "marketListingId": "D888859044"
+  },
+  "saveResponseSourceContract": {
+    "path": "/mp/product/rest/save",
+    "method": "POST",
+    "timeoutMs": 500000,
+    "failureFields": [
+      "error",
+      "message",
+      "menu_no",
+      "validation",
+      "valid_success",
+      "valid_message"
+    ],
+    "acceptanceCandidates": [
+      "send_count",
+      "send_list",
+      "valid_success_count",
+      "valid_success_ids"
+    ],
+    "normalSuccessFollowup": "showOriginAlert or showProductGuide: notification/parent reload/window close; no additional send request",
+    "alternateSendPath": "sendProduct uses /mp/product/rest/send; not part of the normal success path and excluded from automatic followup",
+    "actualResponseObserved": false
+  },
+  "stock": {
+    "controls": [
+      {
+        "attributes": {},
+        "checked": false,
+        "disabled": false,
+        "id": "",
+        "name": "template_data[auction|shouldbe2480][modify_partial][option_stock]",
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "583|product",
+        "visible": true
+      },
+      {
+        "attributes": {
+          "has_ec": "T"
+        },
+        "checked": false,
+        "disabled": false,
+        "id": "",
+        "name": "template_data[auction|shouldbe2480][market_data][is_default_option_stock]",
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "T",
+        "visible": true
+      },
+      {
+        "attributes": {},
+        "checked": true,
+        "disabled": false,
+        "id": "",
+        "name": "template_data[auction|shouldbe2480][market_data][is_option_stock]",
+        "tag": "INPUT",
+        "type": "radio",
+        "value": "F",
+        "visible": false
+      },
+      {
+        "attributes": {},
+        "checked": false,
+        "disabled": false,
+        "id": "",
+        "name": "template_data[auction|shouldbe2480][market_data][is_option_stock]",
+        "tag": "INPUT",
+        "type": "radio",
+        "value": "T",
+        "visible": false
+      },
+      {
+        "attributes": {
+          "data-item_no": "0"
+        },
+        "checked": false,
+        "disabled": false,
+        "id": "",
+        "name": "template_data[auction|shouldbe2480][current_stock]",
+        "tag": "INPUT",
+        "type": "text",
+        "value": "500",
+        "visible": false
+      },
+      {
+        "attributes": {
+          "data-tid": "option_name"
+        },
+        "checked": null,
+        "disabled": false,
+        "id": "",
+        "name": "template_data[auction|shouldbe2480][new_options][1][name]",
+        "tag": "SELECT",
+        "type": "select-one",
+        "value": "발송일",
+        "visible": false
+      },
+      {
+        "attributes": {
+          "data-tid": "option_name"
+        },
+        "checked": false,
+        "disabled": false,
+        "id": "",
+        "name": "template_data[auction|shouldbe2480][new_options][1][direct_option][name]",
+        "tag": "INPUT",
+        "type": "text",
+        "value": "",
+        "visible": false
+      },
+      {
+        "attributes": {
+          "data-tid": "market_current_stock"
+        },
+        "checked": false,
+        "disabled": false,
+        "id": "",
+        "name": "template_data[auction|shouldbe2480][market_current_stock]",
+        "tag": "INPUT",
+        "type": "text",
+        "value": "500",
+        "visible": false
+      },
+      {
+        "attributes": {},
+        "checked": false,
+        "disabled": false,
+        "id": "",
+        "name": "template_data[auction|shouldbe2480][modify_partial][market_data.custom_option_data]",
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "26624|product",
+        "visible": true
+      },
+      {
+        "attributes": {
+          "has_ec": "T"
+        },
+        "checked": false,
+        "disabled": false,
+        "id": "",
+        "name": "template_data[auction|shouldbe2480][market_data][is_default_custom_option_data]",
+        "tag": "INPUT",
+        "type": "checkbox",
+        "value": "T",
+        "visible": true
+      },
+      {
+        "attributes": {},
+        "checked": true,
+        "disabled": false,
+        "id": "",
+        "name": "template_data[auction|shouldbe2480][market_data][is_custom_option]",
+        "tag": "INPUT",
+        "type": "radio",
+        "value": "F",
+        "visible": false
+      },
+      {
+        "attributes": {},
+        "checked": false,
+        "disabled": false,
+        "id": "",
+        "name": "template_data[auction|shouldbe2480][market_data][is_custom_option]",
+        "tag": "INPUT",
+        "type": "radio",
+        "value": "T",
+        "visible": false
+      },
+      {
+        "attributes": {},
+        "checked": true,
+        "disabled": false,
+        "id": "",
+        "name": "template_data[auction|shouldbe2480][market_data][is_custom_option]",
+        "tag": "INPUT",
+        "type": "hidden",
+        "value": "F",
+        "visible": false
+      },
+      {
+        "attributes": {},
+        "checked": false,
+        "disabled": false,
+        "id": "",
+        "name": "template_data[auction|shouldbe2480][market_data][custom_option_data][0][additional_option_name]",
+        "tag": "INPUT",
+        "type": "text",
+        "value": "",
+        "visible": false
+      },
+      {
+        "attributes": {},
+        "checked": null,
+        "disabled": false,
+        "id": "",
+        "name": "template_data[auction|shouldbe2480][market_data][custom_option_data][0][is_display]",
+        "tag": "SELECT",
+        "type": "select-one",
+        "value": "T",
+        "visible": false
+      }
+    ],
+    "rowText": "\t옵션/재고 \n도움말\n필수\t\n\t\n쇼핑몰 옵션정보 수정 후 우측 버튼을 클릭하면 변경된 옵션 정보로 업데이트 됩니다.\n\n쇼핑몰 옵션 불러오기\n재고수량\n500\n옵션/재고 정보는 쇼핑몰상품에서 수정할 수 있습니다. [쇼핑몰 상품정보 바로가기 ▶]\n일부 카테고리의 경우 옵션 사용여부가 제한될 수 있으며, 마켓에서 정의한 옵션명/옵션값을 입력해야 합니다. [자세히보기]\n상품수정 시 재고수량 0개인 경우 품절상품으로 등록됩니다.",
+    "sourceFindings": [
+      "is_default_option_stock=T inherits Cafe24; is_option_stock=F does not identify Cafe24 inventory settings.",
+      "setIsOptionStock(T) initializes category-based options; not a pure inventory tracking toggle.",
+      "checkMarketCurrentStock sums item_current_stock rows; setItemCurrentStock changes use_soldout T/F.",
+      "Current listing has current_stock=500 and market_current_stock=500, but no item_no or item_current_stock input.",
+      "initBaseProductOption read handles Cafe24 sMarketOptionType N/X/S/O separately; response not invoked in this investigation.",
+      "checkStockOption returns true immediately in current source; it is not an effective validation gate."
+    ],
+    "functionSourceSha256": {
+      "oTemplateOptionCommon": {
+        "addSelectOption": "bdb9017d52170b45c24e6002ef39091b9a727ec10d313c578df80ed6a5818f94",
+        "checkCustomOptionData": "5f9f3be84f41dc6168aab84c34cc4f8f4437d2dbc95c438d129876c2aafaf2a2",
+        "checkEbayOptionName": "ff199a3319804e62563a5faa15153e7df4c035177db53357341686deffdbaefa",
+        "checkEcOptionName": "d4bfb42ad26bb6ac047c76e93260a4de4204d53ecee1bb063036cbf3a1f14937",
+        "checkItemNo": "1924fd6b124715bee24ca7f2ca7c66f3cb029caa4e4c6b80d6112669cb886618",
+        "checkMarketCurrentStock": "1f184419183b12256d35d5395a113c5af8e6723f9eac708e5d64a34bfa4e758b",
+        "checkNoneOption": "2271fdf8b7e4804b013f14e010bcf2d5b4b1502ce28093664fea2fd48c4be9da",
+        "checkSelectOption": "562ce38d85ca2a9d83714eadb9da9cdd93c49cc9d77faef9269fb012f9a7a05e",
+        "deleteItemData": "bb557d6705f06432b806aab38179d5400978e776cc190a3a026200c1da25e235",
+        "deleteSelectOption": "9b64aaac4ac373cfc1b3641c06ff464f0124191a163d375d5630c855d840488a",
+        "getCheckSelectItem": "813b8808dfe4d516ccc934d5c211a301179545e34e360b9036cca82947512b97",
+        "getItemCurrentStockStatus": "cea14866ad9a0f70df9ac536302a0659d2b8808f0a9c47529ec5fd8b159047bf",
+        "init": "322c3b349e4a02f0daa4abd6f9ba86e60e36414a259aae9a41a4ac9d3afbc5c2",
+        "initAction": "7dd91c749edff950695a0167f8d1e8f7b7598aaa28395f11e64a10cf756addab",
+        "initBaseProductOption": "b672be5ecc5009b81718d7df9f8812d094e02c1aba6411df83e68ca8d1dae7b9",
+        "initLoadOption": "c13f8fb9bbdc3686835a9e98164c26c3bc7af46da64a5321c548f6730f65adbf",
+        "initMarketOption": "c9546689ddc50744ebee63b8ef7bc275af229c62cd4823420c99be349f2b33a6",
+        "layerOption": "fe870e9985d5d83e9e55187caea3d31665e2b9848fccace94af4e2995426f428",
+        "layerOptionView": "f006be0e0343ec71714ae355395b347cf02ee8c26b46fbc21ebfc9688d4d5c20",
+        "resetOptionData": "aba5e36eeadc54e6606e0ff8ecafa962b649486a678a6a6a4b903aff64e5fdf2",
+        "setBaseECOption": "61188ad4ad45a61ec75e8dd3a26c84597977850f4ff32da13a7f98df01f586d4",
+        "setCustomOption": "67e7499fba656b574061438dd2a4b7a1073d7ad46ce38ccdd50788d5b34b095b",
+        "setEcOptionName": "ff85d92726de64d21d5745250f7f61a38608e3e0be3bd1ca72a7220a7ce7329e",
+        "setIsOptionStock": "1a52ec2ce512a856fbf2ba008d9844b65d611353d737d29a766a79bbf729fca4",
+        "setItemCurrentStock": "c15f453024dd3e386fc3d97a043cd6827ac02770b228dab23ab6f218239d5101",
+        "setMetaOption": "4ec5629cb039cdd5c0136f55894ffe605a0fe27bf575affe27cbb850227deac7",
+        "setOptionFieldType": "2738a4fbc3bc95bdeaa3ef361e853c00c7712166863b55edda8e89d32ccf413d",
+        "setOptionName": "3ad49770ad75d587770da93a4d2e63ce0b90e5d0a61d145dc9aea394e8caabb6",
+        "setWmsItemStock": "86176ae5c21feaa5a29353e4f7e93d95e0c8635afcd0ade8801fb3ec79cdec12"
+      },
+      "oTemplateOptionEbay": {
+        "addItemData": "e1688b02e55ed311af3cbfe1c87cfe8a006c5fabc72b693c003aed217394ad3f",
+        "addItemHtml": "06a514623b15a63d6b7b20649d1dad3f2729e8412470c1aa0eca67c8dcb9f9ba",
+        "addOptionItem": "692db0d3850aaa12dc34f3adafd1f936e99a897498c50a5b06e275f432942146",
+        "addSelectItem": "90e7a63b7e5ef20bd2747e2e8cd368e250db876795e5d65fc561168e8cb37596",
+        "changeDirectOptionName": "d82f25aa44cdb3927125512e8fbe718a3e3cfedfe00cdb26c0379864856f921a",
+        "checkAddSelectOption": "46f57a32dc79663a02ef056b1f4105c75c806e604e4b3e9be9945341284e77d7",
+        "checkDirectOption": "d8676dad752fc9ba0418b158554a7a4bc222f82d295f8e1fb9ed4030ab10b5cd",
+        "checkDirectOptionName": "dea7d1d28a72119ad2642e5724764b957dd14fa4dc02ce86759a48df515c7a33",
+        "checkMarketOption": "147a418508c6f15961e6ce059f7d8c515eee45df8cf5d1ae98e45b30f582b32b",
+        "delOptionData": "d63e6e72f94fe607a66eb1c06c9605fb8bf2ba027799a39becca3918ac793659",
+        "getEcOptionName": "2e6a5fcb41d6195c968aab143ada32750fb6a000ddc50b2a8389e8e90e1722f3",
+        "getOptionAllMapping": "95b204ed9f68f41a185f8510c0844fcf32002b4306c10834719b61186e0d43ce",
+        "init": "1feea76360f063258bff7b266a2e1f7e24ba5c9bd8a645484f0727da7e746037",
+        "initAction": "9e126195c083ec727e59292e6652a40b322992e64d5d9ec6ff72e1fbbcc035b6",
+        "initActionException": "fe9f93ed1c0c3e8e8d0f1df0603ec35eab7bd4707170c6f4c607e6afc5b21a23",
+        "initBaseExtProductOption": "7057c120ccb96364d919403ed4f3b47d79429f3ebcb708e90d185fa53b910040",
+        "initDefaultCustomOption": "22efd314422976f8e4872ebf4b5b3a1bd63f5319b888d50b32e4288268b28280",
+        "initDefaultData": "8653e6d932abb7486b705a428c8a17ee834f033d78df53dd00a63a85cd1f27a3",
+        "initDefaultOption": "b0960859b09ee4a98468bbe620146c3179adcf4242ce42ef1b5f2f1628824948",
+        "initOptionResize": "74bcfeb9e321cabc907064fba6ec5a6892293bb62082d9c41b7a639b0dd6b671",
+        "initProductExtOptions": "140c1bdcc30a291587a9fe23dc5855811a36c7db1e54a4b9f11bd234c82420bd",
+        "initSetMarketExtOptions": "a50b9b47d7875a46448cfe034f519506eff9f4d8184b6dbf0acbf0f4f660bea8",
+        "resetAddSelectOption": "7ced0f346d9ec365571031fe218b10627a25b5e0a18fe5acec78b0df673688a9",
+        "selectMarketOption": "2c8fcdcdedd964df560dc5ca2bbd8639cd11f76959b4cf8a4c6965be6b07e079",
+        "setChangeMarketOption": "bdec036b3b2d57e5f4f1a4d3a1251e855741ef77c3bd90d242d05299cc14257a",
+        "setDefaultOption": "9c17f261ba3a6f7a994dbaf26f2a9256ca24741a5b5d45c7e8d04e622e6cbf30",
+        "setEbayOptionList": "cb67b127d790f7ff0485659a159b9a6585dc61fcd6eefcb4ef9b016b37935e70",
+        "setEcOptionList": "87ffe7fb80c4926f60a4389c1321f23ca7fc9442a86dec8405d7b142c1f3eb04",
+        "setInitLayerBatchSet": "b1bec63a376783e949e7c1c26d41deb8fa4364974cf2162f94d46645a5765f23",
+        "setIsCustomOptionStock": "0a1b0025686c41f63d6858816f99e3b569df6f4d1ccdab03b5a4fd737485f384",
+        "setItemData": "5ea35c5088123a7edbeff9d3d0625a576f21829b56d44dd350e338487ce903b3",
+        "setMatchedItemData": "a90dadcfaf4357cf49642836e440389c8fefa03de8ed87d9702934f7451d3d84",
+        "setOptionSort": "420529ecab7b14a4d7c3568629cb13d532b2ffce47d74e22701960bb24dad803",
+        "setSyncOptionNo": "8d346f339952d22c62a1eb4f55c9ca183414f441df9d596a3be8c98324ef6fac",
+        "setUpdateItemData": "58844ab7bdbbb7d26b0a5f1f2f7bb0a130bb87a2364f0bb2b7f19e29cf7b520c"
+      }
+    }
+  },
+  "handlerSourceSha256": {
+    "oDetailMessage": {
+      "init": "b4e5b2652d5556aee5f058f754ea468b15eb4071fc05fc47ec991037dd19e168",
+      "layerImpossible": "a0feed046ae2691a147bece52b856afe59a6d5fc9aee0fab7f0600eb9821b828",
+      "layerShow": "a47fc9f867c6c8c6e95d10b3245bbce73da694c6888c2cc7a9c7e0d57a30cb87",
+      "layerSuccess": "d0760e3fca39a1267d6a07ba0499c91250887f9656071a274b5e8bfea8c1c77d",
+      "setCount": "020c1e2e4563e74713344296310d6f52f66b9c1ca6de890f6f96fe97b496ae28",
+      "setImpossible": "2c643c4a30ab7b47881dd838dd4e295fa899623990c2db7e3a21a4b9768e818d"
+    },
+    "oModifyPartial": {
+      "autoChecked": "7aa006c1f9b97d99c10117ddac7214861ed1434b0fe120c43b767f3d9ec3094e",
+      "checkModifyPartialNneditor": "47b1f9a86be779f9b3864c7f9a2896722c9e9d43cd73628d14d4a3a84d0d6d57",
+      "checkRemovedTr": "e62d7e76d7e5c0f005f5ed33fad22aefda724a50736343d6a1526cbe783f505a",
+      "checkSetchange": "957ba8830bd9f33681e4b42142489620fd8a9e761028cb30dd798f7a32389c76",
+      "checkedAuto": "e8b608f0c71cec71055d769bb2de42101a6bcdd7d5cf194be802f99829bc0dc4",
+      "checkedColorChange": "dc5cae782ed4389599f4641d9a5fdffc87ddde2f108b74d9508428de70664ad7",
+      "checkedPartialModify": "f402aa980782ed03aa3517d02565590dd9036243ef13be2c9d8fca66c6d1bf10",
+      "findModifyCheckBox": "0bae9ea2e92482e3b6e2bcb52ca08e32929fdc362d037aa51d4c1f4c3de083d0",
+      "getConnectedColumn": "af5e571c1c32e4eebe3168a078feed69900dcee3f793033b93dbf14f9729b8ed",
+      "init": "bda5c101e7cd086dfe2f2b3346a3270594258db24c8b020233e50b7f5e885459"
+    },
+    "oProductDetail": {
+      "applyScript": "115931cbdd0e7cef38e7c7ba42a529eb5ff90570d1336b5d51e90fbcfe3e1821",
+      "changeMarketInfo": "4ad448612ac124eb2ce85af704173f2ce27c6193c9f01e0dc9db64f640d665e9",
+      "changeMarketInfoAll": "6f1e8a1839b790a551456eb4c33ee5caf8d7e754997cd2b84ecc09c50c31b4f1",
+      "changeViewEsmCategory": "cefb182be75d7fd6db0bb40d215564f22bdce927afbf534e1a6dc4f6edd6c1ee",
+      "checkAllChecked": "8c4e3af256e9d3a72187a4e621d39e77109aa9a3e6c3116176a5b7e74c176065",
+      "checkExistOptionMarketInValidation": "580a4281997dbbb497565de3e901459696c3947b2e04a14b075878a511df9aae",
+      "checkHelpContentEmpty": "7d5c17ad34c28070e493b092bf1455339317601b014e712b3327bdfafd733c65",
+      "checkMakeTemplateData": "42faef22d7ea49fbe4412b0ea20746888f022cf806524566eabe84169f5fc54b",
+      "checkMarketSwitchChecked": "b1b3f67eb6f6f32a02d5d0c9e2ca93a813feba260d8c78353916daf0b63bc18e",
+      "checkOptionLazada": "2f86620ff905f7215e4c33156be361954cc69f022ebf2e10e4117527d9e149c9",
+      "checkOptionLotteon": "c3a231809c58df19616111a77143822a45f20d47f96903f585239a1044d7cc0b",
+      "checkStockOption": "ef79e2d9a882be94472ebda8eb746e0422c23daffda0fc27df99fc8db6d9be81",
+      "clickMarket": "ff400750c7f2f33beccc760ee5a0696628e8c6c26bd00595f8acb37a98e896f6",
+      "clickSetCategoryAddInfo": "72c83bd3a5abc646a14f8bbd131ed7246ee5b1511c7b8e27f7c47cfc9b75f32a",
+      "closeLayerFtpApply": "e2f4f0c6887558cb952e80f5ad100cb6d0c2d4d7d583e6c58525140279ef65ec",
+      "deleteInputCategory": "4413a87c90828f1d3fc360cd62d140acc338ae17937ceb0c05695563591edb2b",
+      "deleteMarketInitOptionData": "6bb56870829b0c7bcd7e7603dc77410cbccb3f3b2e04c07ef67ce3ca43b4e57e",
+      "drawingTemplate": "004cfd1101e86ad6eb73067222edc111d74cd0204c64c0e3eece9d6cb9d099f2",
+      "getCookie": "a48c67ad6f318d90dd5d8ffd077ec8169129131698729396f0f748475bfa8b02",
+      "getJsonFormData": "686fc3f2d64e5199d183559373dd416773a3db3a093a2ed300bee0e02740419c",
+      "getMarketCode": "90c8d0a2b050c9976fc9b19a59f83538df9b5b3283d7a8d7425293a843a5fbd2",
+      "getOriginNoData": "e0961e4ea492caa719f8290d6f3c0831ed1c48958f96304d1be25ab6132fdc3f",
+      "getParentUrl": "035c95fe07ace4b081b5873864279725fb558ba9cd96dbd20bec34e391a985bb",
+      "getStandardCategory": "94d650f474d58121fb301dfce04953858823636cbff7a2843cfe6a0b2835e4d6",
+      "getTemplateDataAndView": "ef292175205a421d655b2cc59c725b235924e401d4d4a5bd43ad9e907e460f8b",
+      "getTemplateSchemaData": "b9cd3fda2afde92b20a99d27fd610a3816d3d1d310aba277852ee716736faf05",
+      "init": "b180613e8d52d1aebd4bcd23f02a7961d0b0a5d98bcbb07054e3ca3578215947",
+      "initAction": "e164a82f391e18203c049e69f7708a321eb0e22cadd34e465aac6683e8f5ea52",
+      "initCafe24ProAccounts": "b1a9d1a455b076691b6b58cfd07a0fe0d6ade56db6cd2d6812c1be69a44abdb9",
+      "initDescription": "e2ab2605adeebc9e14ff4a4f894ce16bc93cf3519dd7253e4e1b8f4023271da3",
+      "initFooterButton": "e9c4d9bc34fa2fdcd9642c68d6e1d3f9301069b7e1dcdb937abe60a5ebd90a09",
+      "initGlobalVariable": "d06d0920facc20be2ffe705e349618917a22d7a9f738ef5475493916bed3269a",
+      "initLocalStorage": "d68c6e2980232acd7cead7ce426da4f67a262e7cabb261448a8c1a9734d57558",
+      "initMarketCategory": "868147e6d18614add61ed6b2c31dd0487efc21f7eb217823c5496ebc49a9a827",
+      "initMarketCategoryList": "edb598cf603450c62e888b40581ee56588155202703f2295acd03765fd6e0876",
+      "initMarketStandardCategory": "0474bf71e3d3965f32a308208a4af9ed3504c6e4fc75083933340c8a17adb266",
+      "initParam": "8d5fa1f08b3099fc7eafedf0e853a6707e7802b0917301c91192765693a41dbe",
+      "initResizeSnb": "61953ee16e80277deb852a83cc84204748ec2d9c9ff5aecd073bbf86d970a427",
+      "initStorageForMarket": "d974cc439a471180d5aba05ea6b461cf26f66c284822f869aa6f048cd20be71c",
+      "initTemplateCheck": "4563e4afba44a1438d6e3223bffa5b20940ff38e2471503f5e2d27ffad1fcd49",
+      "initViewCookie": "0af60e043b557f44058d79122f0bd1149640f62b9b7fa9c5b74ab6ad0c3f7d40",
+      "initViewStep": "cc0cc17c7a944a23b90aa51d5ca68867629d377b5ade5bf2e6db79a781b53f18",
+      "isDoubleClick": "9ff6777f7c1d2475e197c4f64233a33f73efa8cb738eda0e0a1a6fe6b954abc4",
+      "isProductGuideUsed": "7aaf93c6ffb3bb07ebc0559e9a3354325b861e4723005f5d3be5e67204f3e21b",
+      "makeSaveDataToString": "388b40dc55240cbabb1aadbc7a140b7d6d775106b366f17eb6cd63c8a6e075e7",
+      "moveParentPage": "26947b676716778e5cd13ad985bd25d947578383f7d71c2841924b5d2be5199a",
+      "reloadingParentPage": "dba9609440124fc8534a31741fa0036a32de92116fd4b5c12cec31a1e9643f43",
+      "saveBeforeClickMarketData": "93fc189cd6c2e5e55fd40fc0abe5d5a76576f6faec970f2713dd04f6bed264ef",
+      "saveBeforeClickMarketExceptionHtml": "b43df35aa5e95f8eb5e20e7fc0752ca85610040d830c850c8eef01a55edf7da9",
+      "saveMarketInitialData": "cc32b29418c664409bd1df658bddd835cf1034a876a46153060ff497d224a706",
+      "saveMarketStep1Data": "da6b069ec6f5fe276514e80761febb62d6a460b4d83204baa0d1bab89897f2d0",
+      "saveMarketTemplateSchemaCheck": "e7d265288efcec5c636adb46d2c70b40976c55b0a4fa095194abb1787927408a",
+      "saveProduct": "19379ff78046715f030fb688bbecb27a7dd37c652e8b58dc8855ac8955a93ab0",
+      "saveProductCall": "bb4c8d88436eb165df96af4a0415766c7db004e076fea2e15cb2a74e23bc43c5",
+      "searchAutoCompleteCategory": "2a11a75897ce9a07f214a555eefc0b921adaddd551bd8c3164536d7baa2e9ed0",
+      "searchShopcafeSet": "380a07e9a69e77636c91d902b2fb3ad216c88709551288d865a3d3a03fe67ec1",
+      "sendDirect": "4cefcf8bce33a8023b5d7ae0942f128e2d8de33e887b05aa05cc2dc3390380b8",
+      "sendDirectAjax": "50d3a9a728d291328237359cc82efbc1f058c342db2c8542d5a5fc1e8cc91beb",
+      "sendProduct": "304bc271ebd1f1fe3b54625c32ecafbf4376f9c1e6e52700929afb4ea043f519",
+      "setAdditionalImageFile": "5bf9f0bd6c1eb1b8ceb2333dd3d65f4c0ac4bdfd4e5fc3740f73322e228877b0",
+      "setCategoryDisabled": "02de06e4d990c4e8a3bfe08730282f153331c92e5126c92d1f5f2e737591308b",
+      "setCategoryHistoryChange": "8760a8ca626e3d541ca09dd0e30b6c9c428e29e5eb6e2374c1024ea442dd7c79",
+      "setCategoryHistoryChangeProc": "abfdeb24b4a4f1ac98f14b285ae9936aee4f7f53caeee5a62b22251f7d5f5af0",
+      "setDefaultData": "fe0cc6472e0a52bc72043b843f7f237976658080de0d92f5fc1ab2ba38313421",
+      "setDisabledMarket": "422848c8ac67c5b4f4d689ea44c3aa9cd9d863caacb420f3d40c99c15c07d6d6",
+      "setEditorSchemaByMarketKey": "3d01b20f2946d6448b1ffa7611315f971d6e1df57cd26ece925d3096a84388b3",
+      "setHelpMessage": "d9f146437c5a6b063955b91d52598feea2397918a3132559fc02e6c47e13c9fe",
+      "setMarketBrandSiteData": "6137c2db96f8623840ba4773dd2d2cfcdc7f6e590fd61f6e24f356b23e7925da",
+      "setMarketExceptionData": "966916209a9bd2482ebeba1b6ffb4cedaaa1cc3a33a44646aebdc7dabb3ce31b",
+      "setMarketList": "8bee4cc57c9d1cd3ee70543d0d0dd7ddd86940f885bc7646d30f9a11a971d548",
+      "setMarketOfficialData": "096a809bd78f460502716263091007be9913089a391b6918d759ecb8d20881b4",
+      "setMarketOriginData": "25d1a76435b40e69ff1238493586c9fa4030c3495d77c066a83bcc6af48b990c",
+      "setOneClickData": "3bb1eaad9b7b75e8143653dba1cb6080350350828b3a57b62d0aa811677a12b3",
+      "setPopupCookie": "903ff839d30f6ab4b9410d512c22078c6be946b63642417b0468404fef517ab0",
+      "setSendCoupangChecked": "4faecb14b5d04fee78b32568cd5f145c46c74f5e229d1843ac72e3312bed2a09",
+      "setSendCoupangData": "ee2c539158615d2e639c0126239981226adf203b67caaebccded089e1803b36e",
+      "setStorageMarketData": "2dec59fa8207d1a72a69b93e61c6e092447d09124023dc50038a0becb9407cc8",
+      "setTemplateName": "e337dda47aa5a8636e47e76a0bdbc8e813753ae49cc6e2eacf6e4224f7d12c0c",
+      "setTemplatePopModify": "d3086bcb1a7a6885e9aaaa402b81681997ec8ff810963d165c12b40fe10a1658",
+      "setTemplateSchema": "ae9ca00089148c4fb20007c0d3baa1cdd215becc16cd58dc104fed13c03b557c",
+      "setUndisabledMarket": "d5466b074f26dd77960c712b28d67f6fa949145cfc3e51f0eeb21bc6c908d4b3",
+      "showOriginAlert": "fb02695722f931caf2a729973a9e45f37d1619dce1242bd3d047b0e08181ad32",
+      "showProductGuide": "1af1037c5786924effdfbc1cef5832eb581f347c19a67f9c998a676df909b0f6",
+      "showValidationMessage": "370de8cf1b653a5a9388fab175a8a137e6735823a4c39da2dc874a84b4016d45",
+      "template1StepChange": "4238144de4b145ad4ece0badcbea758b28021866078962332888fd7e95023d12",
+      "template2StepChange": "fc1dddac18e9e1b301312e0a2d0f57f5f7a8cfbf2fd2477518fee81fa1bc1ad1",
+      "validateCategory": "9f8712219d1bda04ade1aa1521db11b146bb82624791081fbfbd9fdaf55b3010",
+      "validateShowErrImg": "f33fc0d4b5b7a56ac264a6dc826675b4ad234103d01704ab92ebc496c3b9c0cb"
+    }
+  },
+  "normalizationContract": "Existing isolated Froala contract remains; no editor normalization or field toggle executed on operating page.",
+  "originalTabRestored": {
+    "history": true,
+    "kind": "transmissionHistory",
+    "ready": true,
+    "rows": 20
+  },
+  "flagsRestored": true,
+  "cleanupErrors": [],
+  "rawEvidencePaths": [
+    "/private/tmp/sbshop-mp-selected-followup-read-2.json",
+    "/private/tmp/sbshop-mp-selected-stock-read.json"
+  ],
+  "gmarketLookup": {
+    "externalId": "3490115053",
+    "method": "Observed management search form, exact market listing code",
+    "searchType": "C",
+    "searchText": "3490115053",
+    "dates": [
+      {
+        "name": "search_begin_ymd",
+        "value": "2000-01-01"
+      },
+      {
+        "name": "search_end_ymd",
+        "value": "2026-09-08"
+      }
+    ],
+    "result": "Exact code visible in input, but the expanded-period page displayed 2,992 results: code-filter application was not verified. No Gmarket entity/detail identity obtained; no absence/deletion conclusion.",
+    "pageDisplayedEmptyResult": false,
+    "cleanupErrors": [],
+    "originalTabRestored": {
+      "history": true,
+      "kind": "transmissionHistory",
+      "ready": true,
+      "rows": 20
+    },
+    "flagsRestored": true,
+    "displayedResultCount": 2992,
+    "queryScopeVerified": false
+  },
+  "finalObserver": {
+    "flags": {
+      "collect": true,
+      "upload": true
+    },
+    "status": {
+      "state": "RUNNING",
+      "collectEnabled": true,
+      "lastAttemptAt": 1788826028.6840496,
+      "finishedAt": null,
+      "heartbeatAt": 1788826065.6113884,
+      "error": null
+    }
+  },
+  "acceptedUserDecisions": {
+    "Q26": "Coupang, 11st and Cafe24 each use the currently configured single account; implementation owned by root.",
+    "stock": "Include enabling inventory management and SB sales quantity in comparison/review; this does not establish is_option_stock=T as the correct toggle or authorize unreviewed writes."
+  }
+}

@@ -49,6 +49,8 @@ public class MarketInspectionService {
 	private final JdbcTemplate jdbc;
 	@org.springframework.beans.factory.annotation.Value("${products.connection-inspection.single-account-confirmed:false}")
 	private boolean singleAccountConfirmed;
+	@org.springframework.beans.factory.annotation.Value("${products.connection-inspection.additional-single-accounts-confirmed:false}")
+	private boolean additionalSingleAccountsConfirmed;
 
 	public record TaskView(Long id, Long productId, String sbCode, String externalId, String state, int attempts,
 		Instant nextRunAt, String code, String detail, String observedState, Long eventId) {
@@ -76,11 +78,11 @@ public class MarketInspectionService {
 		if (!SUPPORTED.contains(market))
 			return new Availability(false, false, "해당 마켓의 상태 조회 API 계약 확인이 필요합니다.");
 		String account = account(market);
-		return new Availability(account != null, market == MARKET && connections.accountVerified(account),
+		boolean verified = connections.accountVerified(market, account);
+		return new Availability(account != null, verified,
 			account == null
 				? market.getLabel() + " 연동 계정을 확인할 수 없습니다."
-				: market != MARKET ? "명시된 상품 상태를 확인합니다. 일반 오류나 빈 응답만으로 삭제하지 않습니다."
-					: connections.accountVerified(account) ? "스마트스토어 상품번호로 상태를 확인합니다."
+				: verified ? market.getLabel() + " 상품번호로 상태를 확인합니다. 일반 오류나 빈 응답만으로 삭제하지 않습니다."
 						: "과거 판매 계정 귀속 확인 전에는 부재 응답만으로 연결을 해제하지 않습니다.");
 	}
 
@@ -347,6 +349,11 @@ public class MarketInspectionService {
 					.orElseGet(() -> gates.saveAndFlush(new MarketInspectionGate(gateKey, now())));
 				if (market == MARKET && singleAccountConfirmed)
 					gate.confirmInitialAccount(account(), now());
+				else if (additionalSingleAccountsConfirmed
+					&& Set.of(MarketType.COUPANG, MarketType.ELEVEN_STREET, MarketType.CAFE24).contains(market))
+					gate.confirmInitialAccount(account(market), now(),
+						"USER_Q26_2026-09-08: " + market.name()
+							+ " 과거 상품도 현재 연결된 단일 계정의 상품이며 상품 부재 확인 시 연결 제외·이력 보존 승인");
 			});
 		} catch (DataIntegrityViolationException collision) {
 			if (!gates.existsById(gateKey))

@@ -1,0 +1,41 @@
+{
+  "coreFullBeforeFinalAbsenceGuard": {
+    "tests": 1680,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "scopes": {
+    "core": {
+      "tests": 34,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "api": {
+      "tests": 379,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "worker": {
+      "tests": 79,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "infrastructure": {
+      "tests": 78,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "frontend": {
+    "typecheck": "passed",
+    "productionBuild": "passed",
+    "browserFixtureChecks": 12,
+    "browserFixture": "passed"
+  },
+  "note": "core 34건은 최종 부재 가드 변경 후 재검증이다. 전체 실행과 더한 값을 독립 테스트 개수로 취급하지 않는다."
+}

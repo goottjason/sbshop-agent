@@ -31,6 +31,9 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.*;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.transaction.*;
 import org.springframework.transaction.annotation.*;
 import org.springframework.transaction.support.*;
@@ -71,8 +74,12 @@ class ProductContentServiceIntegrationTest {
 	ProductContentReviewRepository reviews;
 	@Autowired
 	ProductContentLaneRepository lanes;
-	@Autowired
+	@MockitoSpyBean
 	ProductChangeTargetRepository targets;
+	@Autowired
+	JdbcTemplate jdbc;
+	@Autowired
+	ProductEditService edits;
 	@Autowired
 	PlatformTransactionManager transactions;
 	@MockitoSpyBean
@@ -89,7 +96,7 @@ class ProductContentServiceIntegrationTest {
 	@BeforeEach
 	void before() {
 		tx = new TransactionTemplate(transactions);
-		reset(source, histories);
+		reset(source, histories, targets);
 		targets.deleteAll();
 		histories.deleteAll();
 		reviews.deleteAll();
@@ -135,6 +142,182 @@ class ProductContentServiceIntegrationTest {
 		registrations.saveAndFlush(MarketRegistration.builder().productId(product.getId()).sbProductId(product.getId())
 			.marketType(MarketType.COUPANG).marketIdentifiers("{\"sellerProductId\":\"123\"}").marketDetailedInfo("{}")
 			.build());
+	}
+
+	void supportedLink(Product product, MarketType market) {
+		String identifiers = market == MarketType.COUPANG
+			? "{\"sellerProductId\":\"123\",\"vendorItemId\":\"456\"}"
+			: "{\"originProductNo\":\"123\"}";
+		registrations.saveAndFlush(MarketRegistration.builder().productId(product.getId()).sbProductId(product.getId())
+			.marketType(market).marketIdentifiers(identifiers).marketDetailedInfo("{}").build());
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"sourcing_url", "vendor"})
+	void sourceIdentityChangeWithoutRevisionAdvanceIsVisibleAndBlocksOldReview(String column) {
+		var product = product(VendorType.IHB);
+		var snapshot = completed(product);
+		var review = review(snapshot, Field.DETAIL_HTML);
+		// A legacy/import SQL writer need not participate in JPA's revision protocol.
+		jdbc.update("UPDATE sb_product SET " + column + " = ? WHERE id = ?",
+			column.equals("vendor") ? "VTB" : "https://kr.iherb.com/pr/other/99999", product.getId());
+		assertThat(products.findById(product.getId()).orElseThrow().getRevision()).isEqualTo(product.getRevision());
+		assertThat(service.history(product.getId(), "admin").getFirst().fields()).allMatch(f -> !f.editable());
+		assertThat(review(snapshot, Field.DETAIL_HTML).items().getFirst().state())
+			.isEqualTo(ProductEditPlanner.State.EXCLUDED);
+		assertThat(service.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("CONFLICT");
+		assertThat(products.findById(product.getId()).orElseThrow().getDetailHtml()).isEqualTo(product.getDetailHtml());
+		assertThat(histories.count()).isZero();
+		assertThat(targets.count()).isZero();
+		assertThat(snapshots.findById(snapshot.id()).orElseThrow().getDetailAppliedAt()).isNull();
+	}
+
+	@Test
+	void selectedHtmlPreservesFrozenTemplateAndCreatesOnlyHtmlTargetWithIdempotentHistory() throws Exception {
+		var product = product(VendorType.IHB);
+		supportedLink(product, MarketType.SMART_STORE);
+		var snapshot = completed(product);
+		String expected = snapshot.proposed().detailHtml();
+		assertThat(expected).contains(product.getProductName(), product.getOriginalName(), "[구성품] 총 3 묶음상품",
+			"1개 당 25그램", NEW, "새 소싱 설명", "sb_top.png", "sb_bottom.png");
+		var review = review(snapshot, Field.DETAIL_HTML);
+		assertThat(review.items().getFirst().changes()).extracting(ProductEditPlanner.Change::field)
+			.containsExactly("detailHtml");
+		var result = service.commit(review.reviewId(), "admin").items().getFirst();
+		assertThat(result.state()).isEqualTo("SAVED");
+		var saved = products.findById(product.getId()).orElseThrow();
+		assertThat(saved.getDetailHtml()).isEqualTo(expected);
+		assertThat(saved.getHostedImages()).containsExactly(OLD);
+		assertThat(saved.getSourceImages()).containsExactly(ORIGINAL);
+		assertThat(saved.getProductName()).isEqualTo(product.getProductName());
+		assertThat(saved.getLogisticsInfo().getBundleQuantity()).isEqualTo(3);
+		var history = histories.findByReviewIdAndProductId(review.reviewId(), product.getId()).orElseThrow();
+		assertThat(history.getBeforeRevision()).isEqualTo(product.getRevision());
+		assertThat(history.getAfterRevision()).isEqualTo(saved.getRevision());
+		assertThat(targets.count()).isEqualTo(1);
+		var target = targets.findAll().getFirst();
+		assertThat(target.getHistoryId()).isEqualTo(history.getId());
+		assertThat(target.getProductRevision()).isEqualTo(saved.getRevision());
+		assertThat(target.getState()).isEqualTo("PENDING_DISPATCH");
+		var command = new ObjectMapper().readTree(target.getSnapshot()).path("command");
+		assertThat(command.size()).isEqualTo(1);
+		assertThat(command.path("detailHtml").asText()).isEqualTo(expected);
+		var applied = snapshots.findById(snapshot.id()).orElseThrow();
+		assertThat(applied.getImagesAppliedAt()).isNull();
+		assertThat(applied.getDetailAppliedAt()).isNotNull();
+		tx.executeWithoutResult(s -> {
+			products.findForEdit(product.getId()).orElseThrow().update(ProductUpdateCommand.builder()
+				.sourceUrl("https://kr.iherb.com/pr/other/99999").build());
+			ReflectionTestUtils.setField(reviews.findById(review.reviewId()).orElseThrow(), "expiresAt",
+				Instant.now().minusSeconds(1));
+		});
+		assertThat(service.commit(review.reviewId(), "admin").items().getFirst().historyId())
+			.isEqualTo(result.historyId());
+		assertThat(histories.count()).isEqualTo(1);
+		assertThat(targets.count()).isEqualTo(1);
+		assertThat(snapshots.findById(snapshot.id()).orElseThrow().getDetailAppliedAt())
+			.isEqualTo(applied.getDetailAppliedAt());
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"SMART_STORE", "COUPANG"})
+	void reviewedImagesKeepOriginalUrlsInHistoryButSendOnlyHostedImages(String market) throws Exception {
+		var product = product(VendorType.IHB);
+		supportedLink(product, MarketType.valueOf(market));
+		String changedOriginal = ORIGINAL.replace("/1.jpg", "/2.jpg");
+		when(source.fetch(anyString()))
+			.thenReturn(new ProductContentSource.Fetch(List.of(changedOriginal), List.of(NEW),
+				"<p>새 소싱 설명</p>", true, true, List.of()));
+		var snapshot = completed(product);
+		var review = review(snapshot, Field.IMAGES);
+		assertThat(review.items().getFirst().state()).isEqualTo(ProductEditPlanner.State.READY);
+		assertThat(review.items().getFirst().changes()).extracting(ProductEditPlanner.Change::field)
+			.containsExactlyInAnyOrder("sourceImages", "hostedImages");
+		assertThat(service.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("SAVED");
+		var saved = products.findById(product.getId()).orElseThrow();
+		assertThat(saved.getSourceImages()).containsExactly(changedOriginal);
+		assertThat(saved.getHostedImages()).containsExactly(NEW);
+		assertThat(saved.getDetailHtml()).isEqualTo(product.getDetailHtml());
+		assertThat(targets.count()).isEqualTo(1);
+		var target = targets.findAll().getFirst();
+		var command = new ObjectMapper().readTree(target.getSnapshot()).path("command");
+		assertThat(command.size()).isEqualTo(1);
+		assertThat(command.has("sourceImages")).isFalse();
+		assertThat(command.path("hostedImages").get(0).asText()).isEqualTo(NEW);
+		assertThat(histories.findByReviewIdAndProductId(review.reviewId(), product.getId()).orElseThrow().getChanges())
+			.contains("sourceImages", "hostedImages");
+		assertThat(snapshots.findById(snapshot.id()).orElseThrow().getImagesAppliedAt()).isNotNull();
+		assertThat(snapshots.findById(snapshot.id()).orElseThrow().getDetailAppliedAt()).isNull();
+	}
+
+	@Test
+	void changingOnlyInternalOriginalImageUrlsCreatesHistoryWithoutMarketplaceTargetsOrHtmlChanges() {
+		var product = product(VendorType.IHB);
+		supportedLink(product, MarketType.SMART_STORE);
+		String changed = ORIGINAL.replace("/1.jpg", "/2.jpg");
+		var values = new ObjectMapper().createObjectNode();
+		values.putArray("sourceImages").add(changed);
+		var review = edits.previewSingle(product.getId(), product.getRevision(), values, "admin");
+		assertThat(review.items().getFirst().state()).isEqualTo(ProductEditPlanner.State.READY);
+		assertThat(edits.workspace(product.getId()).fields()).anySatisfy(rule -> {
+			assertThat(rule.field()).isEqualTo("sourceImages");
+			assertThat(rule.permission()).isEqualTo(ProductEditPolicy.Permission.INTERNAL);
+		});
+		assertThat(edits.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("SAVED");
+		var saved = products.findById(product.getId()).orElseThrow();
+		assertThat(saved.getSourceImages()).containsExactly(changed);
+		assertThat(saved.getHostedImages()).containsExactly(OLD);
+		assertThat(saved.getDetailHtml()).isEqualTo(product.getDetailHtml());
+		assertThat(histories.count()).isEqualTo(1);
+		assertThat(targets.count()).isZero();
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"CAFE24", "CAFE24_MP", "GMARKET", "AUCTION", "COUPANG_WITHOUT_OPTION"})
+	void internalOriginalUrlsNeverBypassUnsupportedHostedImageWriteConditions(String scenario) {
+		var product = product(VendorType.IHB);
+		MarketType market = scenario.equals("CAFE24_MP") ? MarketType.CAFE24
+			: scenario.equals("COUPANG_WITHOUT_OPTION") ? MarketType.COUPANG : MarketType.valueOf(scenario);
+		String identifiers = switch (scenario) {
+			case "CAFE24" -> "{\"product_no\":\"123\"}";
+			case "CAFE24_MP" -> "{\"product_no\":\"123\",\"gmarket_goodsNo\":\"777\",\"auction_goodsNo\":\"888\"}";
+			case "COUPANG_WITHOUT_OPTION" -> "{\"sellerProductId\":\"123\"}";
+			default -> "{\"goodsNo\":\"123\"}";
+		};
+		registrations.saveAndFlush(MarketRegistration.builder().productId(product.getId()).sbProductId(product.getId())
+			.marketType(market).marketIdentifiers(identifiers).marketDetailedInfo("{}").build());
+		var snapshot = completed(product);
+		assertThat(
+			snapshot.fields().stream().filter(f -> f.field() == Field.IMAGES).findFirst().orElseThrow().editable())
+			.isFalse();
+		var review = review(snapshot, Field.IMAGES);
+		assertThat(review.items().getFirst().state()).isEqualTo(ProductEditPlanner.State.EXCLUDED);
+		assertThat(service.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("EXCLUDED");
+		assertThat(products.findById(product.getId()).orElseThrow().getHostedImages()).containsExactly(OLD);
+		assertThat(histories.count()).isZero();
+		assertThat(targets.count()).isZero();
+		assertThat(snapshots.findById(snapshot.id()).orElseThrow().getImagesAppliedAt()).isNull();
+	}
+
+	@Test
+	void marketTargetFailureRollsBackHtmlHistoryRevisionAndApplicationTimestamp() {
+		var product = product(VendorType.IHB);
+		supportedLink(product, MarketType.SMART_STORE);
+		var snapshot = completed(product);
+		var review = review(snapshot, Field.DETAIL_HTML);
+		doThrow(new IllegalStateException("simulated target failure")).when(targets)
+			.save(any(ProductChangeTarget.class));
+		assertThat(service.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("FAILED");
+		var unchanged = products.findById(product.getId()).orElseThrow();
+		assertThat(unchanged.getDetailHtml()).isEqualTo(product.getDetailHtml());
+		assertThat(unchanged.getRevision()).isEqualTo(product.getRevision());
+		assertThat(histories.count()).isZero();
+		assertThat(targets.count()).isZero();
+		assertThat(snapshots.findById(snapshot.id()).orElseThrow().getDetailAppliedAt()).isNull();
+		reset(targets);
+		assertThat(service.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("SAVED");
+		assertThat(histories.count()).isEqualTo(1);
+		assertThat(targets.count()).isEqualTo(1);
 	}
 
 	@Test
@@ -343,10 +526,12 @@ class ProductContentServiceIntegrationTest {
 		var product = product(VendorType.IHB);
 		var collection = collect(product);
 		tx.executeWithoutResult(s -> products.findForEdit(product.getId()).orElseThrow()
-			.update(ProductUpdateCommand.builder().name("수집 후 바뀐 이름").build()));
+			.update(ProductUpdateCommand.builder().name("수집 후 바뀐 이름").bundleQuantity(9)
+				.capacity(new BigDecimal("99")).measureUnit(MeasureUnit.ML).build()));
 		worker.tick();
 		var snapshot = service.collection(collection.id(), "admin").items().getFirst();
-		assertThat(snapshot.proposed().detailHtml()).contains(product.getProductName()).doesNotContain("수집 후 바뀐 이름");
+		assertThat(snapshot.proposed().detailHtml()).contains(product.getProductName(), "[구성품] 총 3 묶음상품", "1개 당 25그램")
+			.doesNotContain("수집 후 바뀐 이름", "총 9 묶음상품", "99밀리리터");
 		assertThat(snapshot.fields()).allMatch(field -> !field.editable());
 	}
 

@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.Instant;
 import lombok.*;
 
-/** Shared by this queue's Smartstore reads, across application instances and restarts. */
+/** Shared per marketplace across application instances and restarts. */
 @Entity
 @Table(name = "sb_market_inspection_gate")
 @Getter
@@ -26,11 +26,18 @@ public class MarketInspectionGate {
 	private String accountConfirmationEvidence;
 
 	public void confirmInitialAccount(String reference, Instant now) {
+		confirmInitialAccount(reference, now,
+			"USER_Q24_2026-09-06: 기존 스마트스토어 상품은 현재 연동된 한 계정의 상품이라고 사용자 확인");
+	}
+
+	public void confirmInitialAccount(String reference, Instant now, String evidence) {
 		if (verifiedAccountReference != null || reference == null || reference.isBlank())
 			return;
+		if (evidence == null || evidence.isBlank() || evidence.length() > 300)
+			throw new IllegalArgumentException("계정 귀속 확인 근거가 필요합니다.");
 		verifiedAccountReference = reference;
 		accountConfirmedAt = now;
-		accountConfirmationEvidence = "USER_Q24_2026-09-06: 기존 스마트스토어 상품은 현재 연동된 한 계정의 상품이라고 사용자 확인";
+		accountConfirmationEvidence = evidence;
 	}
 
 	public MarketInspectionGate(String id, Instant now) {
