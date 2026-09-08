@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Checkbox, Modal, Select, Table, Tag } from 'antd';
 import { marketStockSyncApi, type StockSyncReview, type StockSyncItem } from '../../api/marketStockSyncApi';
 import { marketLabel } from '../../utils/marketLabels';
-const markets = ['COUPANG', 'CAFE24'];
+const markets = ['COUPANG', 'CAFE24', 'SMART_STORE', 'ELEVEN_STREET'];
 const states: Record<string, string> = { READY: '실행 전 확인 대상', SKIPPED: '제외', CHECK: '현재 수량 조회 대기', VERIFY: '실제 반영 재조회 대기', CONFIRMED_QUANTITY: '판매용 수량 일치 확인', BLOCKED: '전송 보류', STALE: '다시 검토 필요', FAILED_MISMATCH: '반영 불일치', UNKNOWN: '결과 미확인' };
 const quantity = (value: number | null) => value == null ? '미확인' : `${Number(value).toLocaleString('ko-KR')}개`;
 export function ProductStockSync({ productIds, onClose }: { productIds: number[]; onClose: () => void }) {
@@ -37,7 +37,7 @@ export function ProductStockSync({ productIds, onClose }: { productIds: number[]
   const retryItems = shown?.items.filter(i => ['BLOCKED', 'STALE', 'FAILED_MISMATCH', 'UNKNOWN'].includes(i.state)) ?? [];
   return <Modal open title="마켓 판매용 수량 반영" width={1120} onCancel={() => { if (!busy) onClose(); }} footer={null} maskClosable={!busy} closable={!busy}>
     <Alert type="info" showIcon message="판매용 설정 수량을 검토해 반영하고, 마켓에서 재조회한 수량으로 완료 여부를 확인합니다."
-      description="소싱처가 재고 있음이면 판매용 설정 수량(기본 300개), 명시 품절이면 0개가 목표입니다. 쿠팡 단일 옵션과 카페24 본상품의 확인 가능한 품목을 지원하며, 제외 대상과 실패 사유는 작업에 표시합니다." />
+      description="소싱처가 재고 있음이면 판매용 설정 수량(기본 300개), 명시 품절이면 0개가 목표입니다. 스마트스토어 원상품·단일 옵션, 쿠팡 단일 옵션, 카페24 본상품의 확인 가능한 품목을 지원합니다. 11번가는 판매중인 단일 재고항목의 양수 수량만 반영하며, 0개·품절 해제·판매 재개는 보류합니다. 제외 대상과 실패 사유는 작업에 표시합니다." />
     <p>선택한 상품 {productIds.length.toLocaleString()}개 · 검토당 최대 500개</p>
     <Checkbox.Group value={selected} disabled={busy} options={markets.map(m => ({ label: marketLabel(m), value: m }))} onChange={v => { setSelected(v as string[]); setReview(null); setWatchId(null); setHistoryId(null); }} />
     <p><Button onClick={() => { void preview(); }} loading={busy} disabled={!productIds.length || productIds.length > 500 || !selected.length}>선택 상품 수량 검토</Button></p>

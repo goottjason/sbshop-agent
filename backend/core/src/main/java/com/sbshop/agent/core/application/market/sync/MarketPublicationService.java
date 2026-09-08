@@ -197,6 +197,25 @@ public class MarketPublicationService {
 	private record PreparationLease(MarketType market, String token, String account) {
 	}
 
+	/** Authenticated metadata GETs share the same quota and lease as product workers. No creation task. */
+	public <T> T withPreparationReadScope(MarketType market, java.util.function.Supplier<T> reader) {
+		requireNoTransaction();
+		PreparationLease lease = reservePreparation(market);
+		try (var scope = MarketPreparationRequestScope.open(market, () -> checkPreparation(lease),
+			retry -> deferPreparation(lease, retry))) {
+			MarketPreparationRequestScope.beforeRequest(market);
+			T result = reader.get();
+			MarketPreparationRequestScope.beforeRequest(market);
+			return result;
+		} catch (MarketTransferFailure failure) {
+			if (failure.rateLimited())
+				deferPreparation(lease, failure.getRetryAfter());
+			throw failure;
+		} finally {
+			releasePreparation(lease);
+		}
+	}
+
 	private PreparationLease reservePreparation(MarketType market) {
 		ensureGate(market);
 		return tx().execute(s -> {

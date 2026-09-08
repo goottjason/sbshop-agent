@@ -1,0 +1,330 @@
+{
+  "mode": "READ_ONLY_GET",
+  "checkedAt": "2026-09-08T00:04:40.336300+00:00",
+  "accountConfirmation": "User confirmed each market uses its single current account; classifier requires stable account reference and core per-market pin.",
+  "samples": [
+    {
+      "market": "COUPANG",
+      "productId": 1563,
+      "registrationId": 6369,
+      "sbCode": "220227IHB005",
+      "id": "14813282146",
+      "connectionState": "LINKED",
+      "unsyncReason": "DELETED_ON_MARKET",
+      "method": "GET",
+      "path": "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/14813282146",
+      "http": 400,
+      "contentType": "application/json;charset=UTF-8",
+      "retryAfter": null,
+      "bodyBytes": 67,
+      "bodySha256": "e397725ebb59d1d57375b4ca5dad0337b11ce0c86ea0ba713be12bdf2b8f7a7d",
+      "envelope": {
+        "code": "DEFAULT",
+        "message": "Product(14813282146) data not found."
+      }
+    },
+    {
+      "market": "COUPANG",
+      "productId": 1559,
+      "registrationId": 6370,
+      "sbCode": "220220IHB116",
+      "id": "14813282140",
+      "connectionState": "LINKED",
+      "unsyncReason": "DELETED_ON_MARKET",
+      "method": "GET",
+      "path": "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/14813282140",
+      "http": 400,
+      "contentType": "application/json;charset=UTF-8",
+      "retryAfter": null,
+      "bodyBytes": 67,
+      "bodySha256": "413e9dd5343e1816290061e12b703041b78b79b1acad2c3e095076966ba8a85d",
+      "envelope": {
+        "code": "DEFAULT",
+        "message": "Product(14813282140) data not found."
+      }
+    },
+    {
+      "market": "COUPANG",
+      "productId": 1565,
+      "registrationId": 6377,
+      "sbCode": "220227IHB008",
+      "id": "14813282038",
+      "connectionState": "LINKED",
+      "unsyncReason": "DELETED_ON_MARKET",
+      "method": "GET",
+      "path": "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/14813282038",
+      "http": 400,
+      "contentType": "application/json;charset=UTF-8",
+      "retryAfter": null,
+      "bodyBytes": 67,
+      "bodySha256": "a4b2b45a47c1872f10600c950eebf1a8df6541682a16b9af1e82bfa62c50f366",
+      "envelope": {
+        "code": "DEFAULT",
+        "message": "Product(14813282038) data not found."
+      }
+    },
+    {
+      "market": "COUPANG",
+      "productId": 1576,
+      "registrationId": 6383,
+      "sbCode": "220227IHB030",
+      "id": "14813281886",
+      "connectionState": "LINKED",
+      "unsyncReason": "DELETED_ON_MARKET",
+      "method": "GET",
+      "path": "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/14813281886",
+      "http": 400,
+      "contentType": "application/json;charset=UTF-8",
+      "retryAfter": null,
+      "bodyBytes": 67,
+      "bodySha256": "8c4fc05bade7118fe1a088b16c05637ee21983853d00c3d2ea52091b200782e2",
+      "envelope": {
+        "code": "DEFAULT",
+        "message": "Product(14813281886) data not found."
+      }
+    },
+    {
+      "market": "ELEVEN_STREET",
+      "productId": 1223,
+      "registrationId": 7643,
+      "sbCode": "210827OC179",
+      "id": "3782058673",
+      "connectionState": "LINKED",
+      "unsyncReason": "DELETED_ON_MARKET",
+      "method": "GET",
+      "path": "/rest/prodmarketservice/prodmarket/3782058673",
+      "http": 200,
+      "contentType": "application/xml;charset=euc-kr",
+      "retryAfter": null,
+      "bodyBytes": 730,
+      "bodySha256": "f53f9a88e8133cab4352f8b4b83aa285b68d99eb213580b23ff661488aea37a7",
+      "xmlRoot": "Product",
+      "xmlFields": {
+        "message": [
+          "[3782058673] 상품 정보 조회중 오류입니다.해당 상품의 정보를 찾을 수 없습니다. 상품번호 : 3782058673"
+        ],
+        "nResult": [
+          "0"
+        ],
+        "prdNo": [],
+        "prdNm": [],
+        "sellerPrdCd": [],
+        "selStatCd": [],
+        "resultCode": [],
+        "validateMsg": [
+          ""
+        ]
+      }
+    },
+    {
+      "market": "ELEVEN_STREET",
+      "productId": 1334,
+      "registrationId": 7646,
+      "sbCode": "210827OC215",
+      "id": "3806451378",
+      "connectionState": "LINKED",
+      "unsyncReason": "DELETED_ON_MARKET",
+      "method": "GET",
+      "path": "/rest/prodmarketservice/prodmarket/3806451378",
+      "http": 200,
+      "contentType": "application/xml;charset=euc-kr",
+      "retryAfter": null,
+      "bodyBytes": 730,
+      "bodySha256": "ecf0cccf67ac0fb91cbf665aa85c4b6cf9bb07bc660470e02d6505fe4834e483",
+      "xmlRoot": "Product",
+      "xmlFields": {
+        "message": [
+          "[3806451378] 상품 정보 조회중 오류입니다.해당 상품의 정보를 찾을 수 없습니다. 상품번호 : 3806451378"
+        ],
+        "nResult": [
+          "0"
+        ],
+        "prdNo": [],
+        "prdNm": [],
+        "sellerPrdCd": [],
+        "selStatCd": [],
+        "resultCode": [],
+        "validateMsg": [
+          ""
+        ]
+      }
+    },
+    {
+      "market": "ELEVEN_STREET",
+      "productId": 2601,
+      "registrationId": 7659,
+      "sbCode": "230915IHB017",
+      "id": "6286143483",
+      "connectionState": "LINKED",
+      "unsyncReason": "DELETED_ON_MARKET",
+      "method": "GET",
+      "path": "/rest/prodmarketservice/prodmarket/6286143483",
+      "http": 200,
+      "contentType": "application/xml;charset=euc-kr",
+      "retryAfter": null,
+      "bodyBytes": 730,
+      "bodySha256": "51ce82f4032b1c3ff33248512c3e6aa4dea324e471e3906d70640f5481153582",
+      "xmlRoot": "Product",
+      "xmlFields": {
+        "message": [
+          "[6286143483] 상품 정보 조회중 오류입니다.해당 상품의 정보를 찾을 수 없습니다. 상품번호 : 6286143483"
+        ],
+        "nResult": [
+          "0"
+        ],
+        "prdNo": [],
+        "prdNm": [],
+        "sellerPrdCd": [],
+        "selStatCd": [],
+        "resultCode": [],
+        "validateMsg": [
+          ""
+        ]
+      }
+    },
+    {
+      "market": "ELEVEN_STREET",
+      "productId": 402,
+      "registrationId": 7660,
+      "sbCode": "210201IHB075",
+      "id": "3300799596",
+      "connectionState": "LINKED",
+      "unsyncReason": "DELETED_ON_MARKET",
+      "method": "GET",
+      "path": "/rest/prodmarketservice/prodmarket/3300799596",
+      "http": 200,
+      "contentType": "application/xml;charset=euc-kr",
+      "retryAfter": null,
+      "bodyBytes": 730,
+      "bodySha256": "b3250a51aa5a535fd217e61ab158fc15977252327b4a1eb2728fd99bfe2d2458",
+      "xmlRoot": "Product",
+      "xmlFields": {
+        "message": [
+          "[3300799596] 상품 정보 조회중 오류입니다.해당 상품의 정보를 찾을 수 없습니다. 상품번호 : 3300799596"
+        ],
+        "nResult": [
+          "0"
+        ],
+        "prdNo": [],
+        "prdNm": [],
+        "sellerPrdCd": [],
+        "selStatCd": [],
+        "resultCode": [],
+        "validateMsg": [
+          ""
+        ]
+      }
+    },
+    {
+      "market": "CAFE24",
+      "productId": 2067,
+      "registrationId": 2061,
+      "sbCode": "220707IHB002",
+      "id": "18686",
+      "connectionState": "LINKED",
+      "unsyncReason": "DELETED_ON_MARKET",
+      "method": "GET",
+      "path": "/admin/products/18686?shop_no=1",
+      "http": 200,
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "bodyBytes": 14,
+      "bodySha256": "219b81582455f88ec5319f0023b867e6becd7f744188b845c71d7174f0b8e53e",
+      "envelope": {},
+      "product": {}
+    },
+    {
+      "market": "CAFE24",
+      "productId": 3133,
+      "registrationId": 3127,
+      "sbCode": "NU00111",
+      "id": "5495",
+      "connectionState": "LINKED",
+      "unsyncReason": "DELETED_ON_MARKET",
+      "method": "GET",
+      "path": "/admin/products/5495?shop_no=1",
+      "http": 200,
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "bodyBytes": 14,
+      "bodySha256": "219b81582455f88ec5319f0023b867e6becd7f744188b845c71d7174f0b8e53e",
+      "envelope": {},
+      "product": {}
+    }
+  ],
+  "cafe24Confirmation": {
+    "at": "2026-09-08T00:07:22.968831+00:00",
+    "mode": "GET_ONLY",
+    "samples": [
+      {
+        "productId": 328,
+        "id": "10619",
+        "path": "/admin/products/10619?shop_no=1",
+        "http": 200,
+        "contentType": "application/json; charset=utf-8",
+        "product": {
+          "shop_no": 1,
+          "product_no": 10619,
+          "custom_product_code": "210121IHB031",
+          "display": "T",
+          "selling": "T"
+        }
+      },
+      {
+        "productId": 328,
+        "id": "10619",
+        "path": "/admin/products?shop_no=1&product_no=10619&fields=product_no,shop_no,custom_product_code&limit=2",
+        "http": 200,
+        "contentType": "application/json; charset=utf-8",
+        "products": [
+          {
+            "shop_no": 1,
+            "product_no": 10619,
+            "custom_product_code": "210121IHB031"
+          }
+        ]
+      },
+      {
+        "productId": 2067,
+        "id": "18686",
+        "path": "/admin/products/18686?shop_no=1",
+        "http": 200,
+        "contentType": "application/json; charset=utf-8",
+        "product": {}
+      },
+      {
+        "productId": 2067,
+        "id": "18686",
+        "path": "/admin/products?shop_no=1&product_no=18686&fields=product_no,shop_no,custom_product_code&limit=2",
+        "http": 200,
+        "contentType": "application/json; charset=utf-8",
+        "products": []
+      },
+      {
+        "productId": 3133,
+        "id": "5495",
+        "path": "/admin/products/5495?shop_no=1",
+        "http": 200,
+        "contentType": "application/json; charset=utf-8",
+        "product": {}
+      },
+      {
+        "productId": 3133,
+        "id": "5495",
+        "path": "/admin/products?shop_no=1&product_no=5495&fields=product_no,shop_no,custom_product_code&limit=2",
+        "http": 200,
+        "contentType": "application/json; charset=utf-8",
+        "products": []
+      }
+    ]
+  },
+  "validation": {
+    "newCases": 58,
+    "existingCases": 20,
+    "failures": 0,
+    "skipped": 0,
+    "marketplaceWrites": 0,
+    "connectionMutations": 0,
+    "dbScheduleMutations": 0
+  }
+}

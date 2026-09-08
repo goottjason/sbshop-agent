@@ -1,0 +1,317 @@
+{
+  "groups": {
+    "pathVariable": {
+      "ids": [
+        "cb94d76b-288c-423f-8f83-9fb38953140d"
+      ],
+      "items": {
+        "cb94d76b-288c-423f-8f83-9fb38953140d": {
+          "children": [],
+          "encodeType": "pathVariable",
+          "id": "cb94d76b-288c-423f-8f83-9fb38953140d",
+          "parent": null
+        }
+      }
+    },
+    "queryString": {
+      "ids": [],
+      "items": {}
+    },
+    "requestBody": {
+      "ids": [],
+      "items": {}
+    },
+    "response": {
+      "ids": [
+        "826e9f08-f09b-402f-a56a-2236e2fe6ae9"
+      ],
+      "items": {
+        "826e9f08-f09b-402f-a56a-2236e2fe6ae9": {
+          "children": [],
+          "encodeType": "xml",
+          "id": "826e9f08-f09b-402f-a56a-2236e2fe6ae9",
+          "parent": null
+        }
+      }
+    },
+    "errorResponse": {
+      "ids": [
+        "9e93beca-ba51-4836-a61b-4c3beec2bd36"
+      ],
+      "items": {
+        "9e93beca-ba51-4836-a61b-4c3beec2bd36": {
+          "children": [],
+          "encodeType": "xml",
+          "id": "9e93beca-ba51-4836-a61b-4c3beec2bd36",
+          "parent": null
+        }
+      }
+    },
+    "authErrorResponse": {
+      "ids": [],
+      "items": {}
+    }
+  },
+  "fields": {
+    "826e9f08-f09b-402f-a56a-2236e2fe6ae9": {
+      "ids": [
+        "27423934-c71c-4f2b-9256-fec64c74a7fd"
+      ],
+      "items": {
+        "03cfc3dd-1dbb-424e-aaf3-b06810e972f5": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "판매상태가 수정되었습니다. [STAT : 103]",
+          "id": "03cfc3dd-1dbb-424e-aaf3-b06810e972f5",
+          "label": "결과 내용",
+          "length": null,
+          "multiple": false,
+          "name": "message",
+          "parent": "27423934-c71c-4f2b-9256-fec64c74a7fd",
+          "require": "require",
+          "valueType": "enum"
+        },
+        "15ababb5-0b4e-411b-bb93-6251e4a80f21": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "200",
+          "id": "15ababb5-0b4e-411b-bb93-6251e4a80f21",
+          "label": "결과코드",
+          "length": null,
+          "multiple": false,
+          "name": "resultCode",
+          "parent": "27423934-c71c-4f2b-9256-fec64c74a7fd",
+          "require": "require",
+          "valueType": "enum"
+        },
+        "27423934-c71c-4f2b-9256-fec64c74a7fd": {
+          "children": [
+            "03cfc3dd-1dbb-424e-aaf3-b06810e972f5",
+            "15ababb5-0b4e-411b-bb93-6251e4a80f21"
+          ],
+          "dataType": "container",
+          "default": "",
+          "description": "",
+          "example": "",
+          "id": "27423934-c71c-4f2b-9256-fec64c74a7fd",
+          "label": "ClientMessage",
+          "length": null,
+          "multiple": false,
+          "name": "ClientMessage",
+          "parent": null,
+          "require": "require",
+          "valueType": "string"
+        }
+      }
+    },
+    "9e93beca-ba51-4836-a61b-4c3beec2bd36": {
+      "ids": [
+        "3b7bffef-04ec-4f52-8068-5ee0ea832812"
+      ],
+      "items": {
+        "3b7bffef-04ec-4f52-8068-5ee0ea832812": {
+          "children": [
+            "cb9c6e16-34d1-4a61-bedc-30f7654fd12f",
+            "5c4ed301-5cd2-409b-9e50-534a9b75e79f"
+          ],
+          "dataType": "container",
+          "default": "",
+          "description": "",
+          "example": "",
+          "id": "3b7bffef-04ec-4f52-8068-5ee0ea832812",
+          "label": "ClientMessage",
+          "length": null,
+          "multiple": false,
+          "name": "ClientMessage",
+          "parent": null,
+          "require": "require",
+          "valueType": "string"
+        },
+        "5c4ed301-5cd2-409b-9e50-534a9b75e79f": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "500",
+          "id": "5c4ed301-5cd2-409b-9e50-534a9b75e79f",
+          "label": "결과코드",
+          "length": null,
+          "multiple": false,
+          "name": "resultCode",
+          "parent": "3b7bffef-04ec-4f52-8068-5ee0ea832812",
+          "require": "require",
+          "valueType": "enum"
+        },
+        "cb9c6e16-34d1-4a61-bedc-30f7654fd12f": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "해당 상품의 정보를 찾을 수 없습니다. 상품번호 : 41601523",
+          "id": "cb9c6e16-34d1-4a61-bedc-30f7654fd12f",
+          "label": "결과 내용",
+          "length": null,
+          "multiple": false,
+          "name": "message",
+          "parent": "3b7bffef-04ec-4f52-8068-5ee0ea832812",
+          "require": "require",
+          "valueType": "string"
+        }
+      }
+    },
+    "cb94d76b-288c-423f-8f83-9fb38953140d": {
+      "ids": [
+        "5c0fafd8-22b7-4c1b-8e66-59a0356ed7a9"
+      ],
+      "items": {
+        "5c0fafd8-22b7-4c1b-8e66-59a0356ed7a9": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "563667789",
+          "id": "5c0fafd8-22b7-4c1b-8e66-59a0356ed7a9",
+          "label": "상품번호",
+          "length": null,
+          "multiple": false,
+          "name": "prdNo",
+          "parent": null,
+          "require": "require",
+          "valueType": "string"
+        }
+      }
+    }
+  },
+  "fieldEnums": {
+    "03cfc3dd-1dbb-424e-aaf3-b06810e972f5": {
+      "ids": [
+        "825952d4-2290-4e9f-a7fc-2a9a0b7b5f74",
+        "30b39db0-d574-491f-9695-572b76f32fa3",
+        "1e0e5233-7e82-4860-8685-3ec9acb569c6",
+        "41df1ce7-267c-482c-8773-a6cdb5ff4b23",
+        "15ad74bc-bf53-4335-b48e-81098e3de29b",
+        "da4550c6-1601-4580-8cc9-e74d1360a045",
+        "3304e4a0-3f06-4a12-be9a-ad646620adda",
+        "20218210-99b7-47d5-b719-d9223fe16240"
+      ],
+      "items": {
+        "15ad74bc-bf53-4335-b48e-81098e3de29b": {
+          "children": [],
+          "id": "15ad74bc-bf53-4335-b48e-81098e3de29b",
+          "label": "전시중지",
+          "parent": null,
+          "value": "105"
+        },
+        "1e0e5233-7e82-4860-8685-3ec9acb569c6": {
+          "children": [],
+          "id": "1e0e5233-7e82-4860-8685-3ec9acb569c6",
+          "label": "판매중",
+          "parent": null,
+          "value": "103"
+        },
+        "20218210-99b7-47d5-b719-d9223fe16240": {
+          "children": [],
+          "id": "20218210-99b7-47d5-b719-d9223fe16240",
+          "label": "판매금지",
+          "parent": null,
+          "value": "108"
+        },
+        "30b39db0-d574-491f-9695-572b76f32fa3": {
+          "children": [],
+          "id": "30b39db0-d574-491f-9695-572b76f32fa3",
+          "label": "승인전",
+          "parent": null,
+          "value": "102"
+        },
+        "3304e4a0-3f06-4a12-be9a-ad646620adda": {
+          "children": [],
+          "id": "3304e4a0-3f06-4a12-be9a-ad646620adda",
+          "label": "판매강제종료",
+          "parent": null,
+          "value": "107"
+        },
+        "41df1ce7-267c-482c-8773-a6cdb5ff4b23": {
+          "children": [],
+          "id": "41df1ce7-267c-482c-8773-a6cdb5ff4b23",
+          "label": "품절",
+          "parent": null,
+          "value": "104"
+        },
+        "825952d4-2290-4e9f-a7fc-2a9a0b7b5f74": {
+          "children": [],
+          "id": "825952d4-2290-4e9f-a7fc-2a9a0b7b5f74",
+          "label": "승인대기",
+          "parent": null,
+          "value": "101"
+        },
+        "da4550c6-1601-4580-8cc9-e74d1360a045": {
+          "children": [],
+          "id": "da4550c6-1601-4580-8cc9-e74d1360a045",
+          "label": "판매정상종료",
+          "parent": null,
+          "value": "106"
+        }
+      }
+    },
+    "15ababb5-0b4e-411b-bb93-6251e4a80f21": {
+      "ids": [
+        "75b4cf7e-b99e-4c98-af22-874ea8ce440a"
+      ],
+      "items": {
+        "75b4cf7e-b99e-4c98-af22-874ea8ce440a": {
+          "children": [],
+          "id": "75b4cf7e-b99e-4c98-af22-874ea8ce440a",
+          "label": "성공",
+          "parent": null,
+          "value": "200"
+        }
+      }
+    },
+    "5c4ed301-5cd2-409b-9e50-534a9b75e79f": {
+      "ids": [
+        "07177806-47b2-4ccf-9ca1-145d5f97466d",
+        "23e05c07-2515-4b9c-a19a-6f7a60e0b00a"
+      ],
+      "items": {
+        "07177806-47b2-4ccf-9ca1-145d5f97466d": {
+          "children": [],
+          "id": "07177806-47b2-4ccf-9ca1-145d5f97466d",
+          "label": "비지니스 Error",
+          "parent": null,
+          "value": "500"
+        },
+        "23e05c07-2515-4b9c-a19a-6f7a60e0b00a": {
+          "children": [],
+          "id": "23e05c07-2515-4b9c-a19a-6f7a60e0b00a",
+          "label": "서버 점검중입니다.",
+          "parent": null,
+          "value": "-1000"
+        }
+      }
+    }
+  },
+  "information": {
+    "name": "Seller - 상품 - 상품 전시중지해제 처리",
+    "description": "전시가 중지된 상품을 다시 전시합니다.",
+    "protocol": "http",
+    "method": "put",
+    "url": "http://api.11st.co.kr/rest/prodstatservice/stat/restartdisplay/[prdNo]",
+    "version": "1.0",
+    "preCondition": "",
+    "postCondition": ""
+  },
+  "relationGroups": {
+    "ids": [],
+    "items": {}
+  },
+  "relationItems": {},
+  "links": {
+    "ids": [],
+    "items": {}
+  },
+  "version": 3
+}

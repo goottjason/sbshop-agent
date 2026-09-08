@@ -1,0 +1,632 @@
+{
+  "source": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=81&apiSeq=1003&apiSpecType=1",
+  "capturedDate": "2026-09-08",
+  "request": {
+    "method": "POST",
+    "path": "/rest/prodservices/product",
+    "root": "Product",
+    "encoding": "EUC-KR"
+  },
+  "fields": [
+    {
+      "name": "selMthdCd",
+      "label": "판매방식",
+      "section": "판매자·판매 설정",
+      "sourceRequired": true,
+      "description": "\"판매방식\"은 반드시 입력해주셔야 합니다.\n현재 api 서비스에서는 \"고정가판매\"와 \"예약판매\", \"중고판매\"만 제공합니다.",
+      "options": [
+        {
+          "value": "04",
+          "label": "예약판매"
+        },
+        {
+          "value": "02",
+          "label": "사용안함"
+        },
+        {
+          "value": "03",
+          "label": "사용안함"
+        },
+        {
+          "value": "01",
+          "label": "고정가판매"
+        },
+        {
+          "value": "05",
+          "label": "중고판매"
+        }
+      ]
+    },
+    {
+      "name": "prdTypCd",
+      "label": "서비스 상품 코드",
+      "section": "판매자·판매 설정",
+      "sourceRequired": true,
+      "description": "상품 유형을 구분하는 코드입니다.\n특별한 사유가 없는 한 01(일반배송상품)으로 등록합니다.\n\n여행/제휴 상품은 여행 상품등록처리 API를 이용해 주시기 바랍니다.(담당 MD 사전 권한 필수)",
+      "options": [
+        {
+          "value": "01",
+          "label": "일반배송상품"
+        },
+        {
+          "value": "10",
+          "label": "SMS 전송상품(배송없이 메시지로 전송되는 상품)"
+        }
+      ]
+    },
+    {
+      "name": "prdStatCd",
+      "label": "상품상태",
+      "section": "판매자·판매 설정",
+      "sourceRequired": true,
+      "description": "상품상태\n주문제작상품으로 등록하시면 구매자의 취소/반품/교환이 불가능하여 클레임이 발생할 수 있으니 신중하게 등록해주시기 바랍니다. Open API로 주문제작상품 등록 시, 판매자가 위 내용에 대해 숙지한 후 동의한 것으로 간주됩니다. *신규상품의 경우 08(반품상품), 09(스크래치상품) 사용이 불가능합니다.",
+      "options": [
+        {
+          "value": "04",
+          "label": "리퍼상품(판매방식이 \"중고판매\"인 경우만 선택가능합니다.)"
+        },
+        {
+          "value": "03",
+          "label": "재고상품"
+        },
+        {
+          "value": "10",
+          "label": "주문제작상품"
+        },
+        {
+          "value": "09",
+          "label": "스크래치상품(판매방식이 \"중고판매\"인 경우만 선택가능합니다.)"
+        },
+        {
+          "value": "08",
+          "label": "반품상품(판매방식이 \"중고판매\"인 경우만 선택가능합니다.)"
+        },
+        {
+          "value": "05",
+          "label": "진열상품(판매방식이 \"중고판매\"인 경우만 선택가능합니다.)"
+        },
+        {
+          "value": "07",
+          "label": "희귀소장품(판매방식이 \"중고판매\"인 경우만 선택가능합니다.)"
+        },
+        {
+          "value": "02",
+          "label": "중고상품 (판매방식이 \"중고판매\"인 경우만 선택가능합니다.)"
+        },
+        {
+          "value": "01",
+          "label": "새상품"
+        }
+      ]
+    },
+    {
+      "name": "minorSelCnYn",
+      "label": "미성년자 구매가능",
+      "section": "판매자·판매 설정",
+      "sourceRequired": true,
+      "description": "미성년자 구매불가를 선택하시면, 미성년자 회원에게 상품이미지가 노출되지 않으며 &#39;19금&#39;으로 표시됩니다.\n구매불가 상품을 구매가능으로 표시한 경우, 판매금지 처리 될 수 있습니다.",
+      "options": [
+        {
+          "value": "Y",
+          "label": "가능"
+        },
+        {
+          "value": "N",
+          "label": "불가능"
+        }
+      ]
+    },
+    {
+      "name": "suplDtyfrPrdClfCd",
+      "label": "부가세/면세상품코드",
+      "section": "판매자·판매 설정",
+      "sourceRequired": true,
+      "description": "면세상품 선택시, 세무/법률적 책임은 판매자님께 있습니다.",
+      "options": [
+        {
+          "value": "03",
+          "label": "영세상품"
+        },
+        {
+          "value": "02",
+          "label": "면세상품"
+        },
+        {
+          "value": "01",
+          "label": "과세상품"
+        }
+      ]
+    },
+    {
+      "name": "dlvClf",
+      "label": "배송 주체",
+      "section": "배송·반품",
+      "sourceRequired": true,
+      "description": "출고지에 따라 결정이 됩니다.\n상품의 출고지가 판매자 출고지 인 경우: 업체 배송, 11번가 통합 ID의 출고지인 경우: 11번가 배송, 11번가 해외 통합 출고지인 경우: 11번가 해외배송",
+      "options": [
+        {
+          "value": "01",
+          "label": "11번가 배송 (통합 ID의 출고지를 사용하는 경우)"
+        },
+        {
+          "value": "03",
+          "label": "11번가 해외 배송 (11번가 해외 통합 출고지를 사용하는 경우)\n지정하지 않는 경우 default로 02(업체배송)으로 처리됩니다."
+        },
+        {
+          "value": "02",
+          "label": "업체배송 (셀러가 배송을 처리하는 경우)"
+        }
+      ]
+    },
+    {
+      "name": "dlvWyCd",
+      "label": "배송방법",
+      "section": "배송·반품",
+      "sourceRequired": true,
+      "description": "",
+      "options": [
+        {
+          "value": "01",
+          "label": "택배"
+        },
+        {
+          "value": "03",
+          "label": "직접전달(화물배달)"
+        },
+        {
+          "value": "05",
+          "label": "배송필요없음"
+        },
+        {
+          "value": "04",
+          "label": "퀵서비스"
+        }
+      ]
+    },
+    {
+      "name": "dlvCnAreaCd",
+      "label": "배송가능지역 코드",
+      "section": "배송·반품",
+      "sourceRequired": true,
+      "description": "",
+      "options": [
+        {
+          "value": "02",
+          "label": "전국(제주/도서산간제외)"
+        },
+        {
+          "value": "01",
+          "label": "전국"
+        }
+      ]
+    },
+    {
+      "name": "dlvCstInstBasiCd",
+      "label": "배송비 종류",
+      "section": "배송·반품",
+      "sourceRequired": true,
+      "description": "",
+      "options": [
+        {
+          "value": "01",
+          "label": "무료"
+        },
+        {
+          "value": "09",
+          "label": "11번가 통합 출고지 배송비"
+        },
+        {
+          "value": "10",
+          "label": "11번가해외배송조건부배송비 (11번가 해외 배송을 사용하는 경우)"
+        },
+        {
+          "value": "08",
+          "label": "출고지 조건부 배송비 2010.10.08 추가"
+        },
+        {
+          "value": "05",
+          "label": "1개당 배송비"
+        },
+        {
+          "value": "04",
+          "label": "수량별 차등, 수량별 차등은 조건추가에 따라 배송비를 최대 10개까지 설정 가능, 수량별차등 배송비는  dlvCnt1, dlvCnt2, dlvCst3 정보가 세트로 움직이고 1개 이상의 경우 [^]로 구분합니다. <dlvCstInstBasiCd>04</dlvCstInstBasiCd><dlvCst3>5000^1000^0</dlvCst3><dlvCnt1>1^10^100</dlvCnt1><dlvCnt2>9^99</dlvCnt2>"
+        },
+        {
+          "value": "07",
+          "label": "판매자 조건부 배송비, 셀러오피스 > 회원정보 > 판매정보설정 메뉴에서 판매자 조건부 배송비 설정 후\n아래의 코드로 등록하시면 됩니다. <dlvCstInstBasiCd>07</dlvCstInstBasiCd>"
+        },
+        {
+          "value": "03",
+          "label": "상품 조건부 무료"
+        },
+        {
+          "value": "02",
+          "label": "고정 배송비"
+        }
+      ]
+    },
+    {
+      "name": "dlvCstPayTypCd",
+      "label": "결제방법",
+      "section": "배송·반품",
+      "sourceRequired": true,
+      "description": "",
+      "options": [
+        {
+          "value": "02",
+          "label": "착불"
+        },
+        {
+          "value": "03",
+          "label": "선결제"
+        },
+        {
+          "value": "01",
+          "label": "선결제/착불 가능"
+        }
+      ]
+    },
+    {
+      "name": "bndlDlvCnYn",
+      "label": "묶음배송 여부",
+      "section": "배송·반품",
+      "sourceRequired": true,
+      "description": "",
+      "options": [
+        {
+          "value": "Y",
+          "label": "가능"
+        },
+        {
+          "value": "N",
+          "label": "불가"
+        }
+      ]
+    },
+    {
+      "name": "addrSeqOut",
+      "label": "출고지 주소 코드",
+      "section": "배송·반품",
+      "sourceRequired": true,
+      "description": "우선 SellerOffice 상품등록에서 출고지 주소가 등록이 되어있어야 합니다. 등록된 출고지 주소를 Api 조회 서비스를 통해 주소 시퀀스코드를 조회합니다.\n출고지 주소조회에서 조회한 시퀀스코드를 입력하시면 됩니다.\n만일 출고지 주소를 생략하실 경우 기본주소로 자동 설정이 됩니다. 하여 상품수정을 하실경우 수정당시의 기본주소로 재설정이 됩니다.\n상품수정시 기본주소 변동으로 인한 이슈사항을 줄이기 위해 출고지 코드 입력을 권장합니다.",
+      "options": []
+    },
+    {
+      "name": "addrSeqIn",
+      "label": "반품/교환지 주소 코드",
+      "section": "배송·반품",
+      "sourceRequired": true,
+      "description": "우선 SellerOffice 상품등록에서 반품/교환지 주소가 등록이 되어있어야 합니다. 등록된 반품/교환지 주소를 Api 조회 서비스를 통해 주소 시퀀스코드를 조회합니다.\n반품/교환지 주소조회에서 조회한 시퀀스코드를 입력하시면 됩니다.\n만일 반품/교환지 주소를 생략하실 경우 기본주소로 자동 설정이 됩니다. 하여 상품수정을 하실 경우 수정당시의 기본주소로 재설정이 됩니다.\n상품수정시 기본주소 변동으로 인한 이슈사항을 줄이기 위해 출고지 코드 입력을 권장합니다.",
+      "options": []
+    },
+    {
+      "name": "outsideYnOut",
+      "label": "출고지 주소 해외 여부",
+      "section": "배송·반품",
+      "sourceRequired": false,
+      "description": "\"출고지 주소 해외 여부\"는 출고지 주소가 해외일 경우에만 입력하시고 국내일 경우는 생략해 주세요.",
+      "options": [
+        {
+          "value": "Y",
+          "label": "출고지 해외"
+        },
+        {
+          "value": "N",
+          "label": "출고지 국내"
+        }
+      ]
+    },
+    {
+      "name": "outsideYnIn",
+      "label": "반품/교환지 주소 해외 여부",
+      "section": "배송·반품",
+      "sourceRequired": false,
+      "description": "\"반품/교환지 주소 해외 여부\"는 반품/교환지 주소가 해외일 경우에만 입력하시고 국내일 경우는 생략해 주세요.",
+      "options": [
+        {
+          "value": "N",
+          "label": "반품/교환지 국내"
+        },
+        {
+          "value": "Y",
+          "label": "반품/교환지 해외"
+        }
+      ]
+    },
+    {
+      "name": "rtngdDlvCst",
+      "label": "반품 배송비",
+      "section": "배송·반품",
+      "sourceRequired": true,
+      "description": "배송비는 10원단위로 입력하셔야 합니다. 3000(O), 2999(X), 2,900(X)",
+      "options": []
+    },
+    {
+      "name": "exchDlvCst",
+      "label": "교환 배송비(왕복)",
+      "section": "배송·반품",
+      "sourceRequired": true,
+      "description": "배송비는 10원단위로 입력하셔야 합니다. 3000(O), 2999(X), 2,900(X)",
+      "options": []
+    },
+    {
+      "name": "jejuDlvCst",
+      "label": "제주",
+      "section": "배송·반품",
+      "sourceRequired": true,
+      "description": "제주 추가 배송비",
+      "options": []
+    },
+    {
+      "name": "islandDlvCst",
+      "label": "도서산간",
+      "section": "배송·반품",
+      "sourceRequired": true,
+      "description": "도서산간 추가 배송비",
+      "options": []
+    },
+    {
+      "name": "asDetail",
+      "label": "A/S 안내",
+      "section": "배송·반품",
+      "sourceRequired": true,
+      "description": "반드시 입력하셔야 하며 입력할 내용이 없으시면 . 이라도 입력해주셔야 합니다. 공백은 안됩니다.\n특수문자 등이 포함되어 있을 경우 <![CDATA[ ]]> 로 묶어 주세요.\n최대 4,000 bytes 까지 입력 가능합니다.",
+      "options": []
+    },
+    {
+      "name": "rtngExchDetail",
+      "label": "반품/교환 안내",
+      "section": "배송·반품",
+      "sourceRequired": true,
+      "description": "상품상세 페이지에 안내되는 내용으로, 반품/교환 문의를 줄이실 수 있습니다.\n반드시 입력하셔야 하며 입력할 내용이 없으시면 . 이라도 입력해주셔야 합니다. 공백은 안됩니다.\n특수문자 등이 포함되어 있을 경우 <![CDATA[ ]]> 로 묶어 주세요.\n최대 4,000 bytes 까지 입력 가능합니다.",
+      "options": []
+    },
+    {
+      "name": "orgnTypCd",
+      "label": "원산지 코드",
+      "section": "원산지·생산지",
+      "sourceRequired": true,
+      "description": "",
+      "options": [
+        {
+          "value": "01",
+          "label": "국내. 국내원산지 코드를 같이 입력해야 합니다."
+        },
+        {
+          "value": "03",
+          "label": "기타. 원산지명을 입력해야합니다."
+        },
+        {
+          "value": "02",
+          "label": "해외. 해외원산지 코드를 같이 입력해야 합니다."
+        }
+      ]
+    },
+    {
+      "name": "orgnTypDtlsCd",
+      "label": "원산지 지역 코드",
+      "section": "원산지·생산지",
+      "sourceRequired": false,
+      "description": "원산지 코드가 \"국내\", \"해외\"일 경우 원산지 지역 코드 값을 입력하셔야 합니다.",
+      "options": []
+    },
+    {
+      "name": "orgnNmVal",
+      "label": "원산지명",
+      "section": "원산지·생산지",
+      "sourceRequired": false,
+      "description": "원산지 코드가 \"기타\"일 경우 원산지명을 입력하셔야 합니다.",
+      "options": []
+    },
+    {
+      "name": "ntShortNm",
+      "label": "생산지국가(통관용)",
+      "section": "원산지·생산지",
+      "sourceRequired": true,
+      "description": "대표상품의 생산지국가를 선택하시면 됩니다.\n아래 첨부파일을 참조 부탁 드립니다.",
+      "options": []
+    },
+    {
+      "name": "rmaterialTypCd",
+      "label": "원재료 유형 코드",
+      "section": "원산지·생산지",
+      "sourceRequired": true,
+      "description": "",
+      "options": [
+        {
+          "value": "04",
+          "label": "원산지 의무 표시대상 아님"
+        },
+        {
+          "value": "02",
+          "label": "수산물"
+        },
+        {
+          "value": "03",
+          "label": "가공품"
+        },
+        {
+          "value": "05",
+          "label": "상품별 원산지는 상세설명 참조"
+        },
+        {
+          "value": "01",
+          "label": "농산물"
+        }
+      ]
+    },
+    {
+      "name": "certTypeCd",
+      "label": "인증유형",
+      "section": "인증",
+      "sourceRequired": true,
+      "description": "",
+      "options": [
+        {
+          "value": "108",
+          "label": "유기농산물"
+        },
+        {
+          "value": "109",
+          "label": "무농약농산물"
+        },
+        {
+          "value": "110",
+          "label": "저농약농산물"
+        },
+        {
+          "value": "112",
+          "label": "무항생제축산물"
+        },
+        {
+          "value": "111",
+          "label": "유기축산물"
+        },
+        {
+          "value": "113",
+          "label": "친환경수산물"
+        },
+        {
+          "value": "114",
+          "label": "위해요소 중점관리(HACCP)"
+        },
+        {
+          "value": "115",
+          "label": "농산물 우수관리인증(GAP)"
+        },
+        {
+          "value": "116",
+          "label": "가공식품 표준화인증(KS)"
+        },
+        {
+          "value": "117",
+          "label": "유기가공식품 인증"
+        },
+        {
+          "value": "118",
+          "label": "수산물 품질인증"
+        },
+        {
+          "value": "119",
+          "label": "수산특산물 품질인증"
+        },
+        {
+          "value": "103",
+          "label": "[생활용품] 안전확인"
+        },
+        {
+          "value": "101",
+          "label": "[생활용품] 안전인증"
+        },
+        {
+          "value": "122",
+          "label": "건강기능식품 광고심의"
+        },
+        {
+          "value": "120",
+          "label": "수산전통식품 품질인증"
+        },
+        {
+          "value": "124",
+          "label": "[생활용품] 공급자적합성확인"
+        },
+        {
+          "value": "104",
+          "label": "[전기용품] 안전확인"
+        },
+        {
+          "value": "102",
+          "label": "[전기용품] 안전인증"
+        },
+        {
+          "value": "123",
+          "label": "[생활용품] 어린이보호포장"
+        },
+        {
+          "value": "127",
+          "label": "[전기용품] 공급자적합성확인"
+        },
+        {
+          "value": "129",
+          "label": "[어린이제품] 안전확인"
+        },
+        {
+          "value": "128",
+          "label": "[어린이제품] 안전인증"
+        },
+        {
+          "value": "132",
+          "label": "[전기용품/생활용품] 상품상세설명 참조"
+        },
+        {
+          "value": "130",
+          "label": "[어린이제품] 공급자적합성확인"
+        },
+        {
+          "value": "105",
+          "label": "[방송통신기자재] 적합성평가 (적합인증, 적합등록)"
+        },
+        {
+          "value": "134",
+          "label": "[어린이제품] 상품상세설명 참조"
+        },
+        {
+          "value": "135",
+          "label": "[방송통신기자재] 상품상세설명 참조"
+        },
+        {
+          "value": "136",
+          "label": "[생활화학 및 살생물제품] 상품상세설명 참조"
+        },
+        {
+          "value": "133",
+          "label": "[생활화학 및 살생물제품] 자가검사번호"
+        },
+        {
+          "value": "131",
+          "label": "해당없음(대상이 아닌 경우)"
+        }
+      ]
+    },
+    {
+      "name": "certKey",
+      "label": "인증번호",
+      "section": "인증",
+      "sourceRequired": true,
+      "description": "",
+      "options": []
+    },
+    {
+      "name": "ProductRmaterial.rmaterialNm",
+      "label": "원재료 상품명",
+      "section": "원재료 상세",
+      "sourceRequired": true,
+      "description": "",
+      "options": []
+    },
+    {
+      "name": "ProductRmaterial.ingredNm",
+      "label": "원료명",
+      "section": "원재료 상세",
+      "sourceRequired": true,
+      "description": "",
+      "options": []
+    },
+    {
+      "name": "ProductRmaterial.orgnCountry",
+      "label": "원산지",
+      "section": "원재료 상세",
+      "sourceRequired": true,
+      "description": "",
+      "options": []
+    },
+    {
+      "name": "ProductRmaterial.content",
+      "label": "함량",
+      "section": "원재료 상세",
+      "sourceRequired": true,
+      "description": "",
+      "options": []
+    }
+  ]
+}

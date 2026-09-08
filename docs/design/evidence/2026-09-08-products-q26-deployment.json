@@ -1,0 +1,46 @@
+{
+  "checkedAt": "2026-09-08T00:31:41.185464+00:00",
+  "revision": "e7fdc0613c279c03309f71287d2da5d10d8bfda3",
+  "phase": "HEALTHY",
+  "schemaEntities": 48,
+  "containers": {
+    "api": {
+      "running": true,
+      "restarts": 0,
+      "revision": "e7fdc0613c279c03309f71287d2da5d10d8bfda3"
+    },
+    "frontend": {
+      "running": true,
+      "restarts": 0,
+      "revision": "e7fdc0613c279c03309f71287d2da5d10d8bfda3"
+    },
+    "scraper": {
+      "running": true,
+      "restarts": 0,
+      "revision": "e7fdc0613c279c03309f71287d2da5d10d8bfda3"
+    },
+    "marketplus-worker": {
+      "running": true,
+      "restarts": 0,
+      "revision": "e7fdc0613c279c03309f71287d2da5d10d8bfda3"
+    },
+    "marketplus-browser": {
+      "running": true,
+      "restarts": 0,
+      "revision": null
+    }
+  },
+  "backup": {
+    "path": "/home/ubuntu/backups/sbshop-products-delivery-20260908/before-followup-e7fdc061",
+    "previousRevision": "c01e6527d918b3b21b0c4ce7c582a93d86c85cf7",
+    "oldImages": {
+      "api": "sha256:c5569b01f9f3f08cfe3b584cf650c9d6b4a6f2d3b9a4fc313517d59241dedf40",
+      "frontend": "sha256:7522eba27b8f547077217cf0a5f97faa427e38dff247c2f7d71d3618a6ae448a",
+      "scraper": "sha256:7728d941cc11dabaf67c0f33dca34e30a98047b37fda5c236f5abb9db7e1cb32",
+      "marketplus-worker": "sha256:5c80a4a16750a8d8df4ecd36f70dcb0c41b120fb83cbb0f468669033fb764e87"
+    },
+    "backupBytes": 10531400,
+    "backupSha256": "7332a4da2051e2b2053df9c51cdfa488de5299d9eac6b0d31e941bdd90d2e2c4"
+  },
+  "serverHead": "e7fdc0613c279c03309f71287d2da5d10d8bfda3"
+}

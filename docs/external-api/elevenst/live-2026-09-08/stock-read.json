@@ -1,0 +1,516 @@
+{
+  "fieldEnums": {
+    "a411859a-5f5b-4b28-8bab-fd7fc2bea688": {
+      "ids": [
+        "338b0416-433d-45fc-8e91-591a1937db4b",
+        "6d819867-1c45-4d83-8903-402af840172e"
+      ],
+      "items": {
+        "338b0416-433d-45fc-8e91-591a1937db4b": {
+          "children": [],
+          "id": "338b0416-433d-45fc-8e91-591a1937db4b",
+          "label": "사용",
+          "parent": null,
+          "value": "01"
+        },
+        "6d819867-1c45-4d83-8903-402af840172e": {
+          "children": [],
+          "id": "6d819867-1c45-4d83-8903-402af840172e",
+          "label": "품절",
+          "parent": null,
+          "value": "02"
+        }
+      }
+    }
+  },
+  "fields": {
+    "6e217731-0b1f-411c-afd6-9ccda6dfdfcd": {
+      "ids": [
+        "df306675-9adb-4797-988e-82e080c4c39e"
+      ],
+      "items": {
+        "df306675-9adb-4797-988e-82e080c4c39e": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "45597077",
+          "id": "df306675-9adb-4797-988e-82e080c4c39e",
+          "label": "상품번호",
+          "length": null,
+          "multiple": false,
+          "name": "prdNo",
+          "parent": null,
+          "require": "require",
+          "valueType": "string"
+        }
+      }
+    },
+    "afbf3f6b-571f-4ed8-80d2-f9b290c8e961": {
+      "ids": [
+        "a1f0e6fb-838f-4e31-9263-427fc635847a"
+      ],
+      "items": {
+        "02b52628-1872-4e2f-b6b8-d153e6cf6c68": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "45597077",
+          "id": "02b52628-1872-4e2f-b6b8-d153e6cf6c68",
+          "label": "상품번호",
+          "length": null,
+          "multiple": false,
+          "name": "ns2:prdNo",
+          "parent": "a1f0e6fb-838f-4e31-9263-427fc635847a",
+          "require": "require",
+          "valueType": "string"
+        },
+        "066699aa-b156-4787-8df4-2418a83fd3ff": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "93367282",
+          "id": "066699aa-b156-4787-8df4-2418a83fd3ff",
+          "label": "판매자추가상품번호",
+          "length": null,
+          "multiple": false,
+          "name": "sellerAddPrdCd",
+          "parent": "165da4c9-b81b-4832-9263-f44539811451",
+          "require": "require",
+          "valueType": "string"
+        },
+        "07b2271f-dd85-45e7-9ee1-1d4b0c8bad5a": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "재고번호로 재고수량 변경가능합니다.(추가구성상품에 대한 조회/변경은 API에서 지원하지 않습니다.)",
+          "example": "440634790",
+          "id": "07b2271f-dd85-45e7-9ee1-1d4b0c8bad5a",
+          "label": "재고번호",
+          "length": null,
+          "multiple": false,
+          "name": "prdStckNo",
+          "parent": "6a5ff487-1d26-4eea-8b41-27d95ce85fe9",
+          "require": "require",
+          "valueType": "string"
+        },
+        "0cb86a1d-4d38-45a6-be60-a1f52097adb0": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "싸이닉 정품을 하나 더!!! 1+1 특급이벤트!",
+          "id": "0cb86a1d-4d38-45a6-be60-a1f52097adb0",
+          "label": "상품이름",
+          "length": null,
+          "multiple": false,
+          "name": "ns2:prdNm",
+          "parent": "a1f0e6fb-838f-4e31-9263-427fc635847a",
+          "require": "require",
+          "valueType": "string"
+        },
+        "165da4c9-b81b-4832-9263-f44539811451": {
+          "children": [
+            "369fc1d0-b1ab-45d4-855b-65b8ce94863c",
+            "7b606f61-8643-497f-bfea-f431166d7275",
+            "501bed20-11f0-4ae6-9839-754af51cdd00",
+            "358c4a21-6d65-4981-a7fa-0449c63a7dea",
+            "6a0f0fe8-fc41-4cc0-9786-3110d30b9d4f",
+            "47cef935-9307-44b3-9a02-031b68fc7d6c",
+            "066699aa-b156-4787-8df4-2418a83fd3ff"
+          ],
+          "dataType": "container",
+          "default": "",
+          "description": "",
+          "example": "",
+          "id": "165da4c9-b81b-4832-9263-f44539811451",
+          "label": "productComponent",
+          "length": null,
+          "multiple": true,
+          "name": "productComponent",
+          "parent": "2b322647-87fb-45fa-abcb-142209bd3686",
+          "require": "require",
+          "valueType": "string"
+        },
+        "2b322647-87fb-45fa-abcb-142209bd3686": {
+          "children": [
+            "165da4c9-b81b-4832-9263-f44539811451"
+          ],
+          "dataType": "container",
+          "default": "",
+          "description": "",
+          "example": "",
+          "id": "2b322647-87fb-45fa-abcb-142209bd3686",
+          "label": "productComponents",
+          "length": null,
+          "multiple": false,
+          "name": "productComponents",
+          "parent": "a1f0e6fb-838f-4e31-9263-427fc635847a",
+          "require": "require",
+          "valueType": "string"
+        },
+        "2b8f55e0-a916-40f4-a267-e952f122b500": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "39",
+          "id": "2b8f55e0-a916-40f4-a267-e952f122b500",
+          "label": "판매수량",
+          "length": null,
+          "multiple": false,
+          "name": "selQty",
+          "parent": "6a5ff487-1d26-4eea-8b41-27d95ce85fe9",
+          "require": "require",
+          "valueType": "string"
+        },
+        "2cd71429-f036-4b00-9dfb-ebe6850a8442": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "45597077",
+          "id": "2cd71429-f036-4b00-9dfb-ebe6850a8442",
+          "label": "상품번호",
+          "length": null,
+          "multiple": false,
+          "name": "prdNo",
+          "parent": "6a5ff487-1d26-4eea-8b41-27d95ce85fe9",
+          "require": "require",
+          "valueType": "string"
+        },
+        "358c4a21-6d65-4981-a7fa-0449c63a7dea": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "Y",
+          "id": "358c4a21-6d65-4981-a7fa-0449c63a7dea",
+          "label": "상태",
+          "length": null,
+          "multiple": false,
+          "name": "addUseYn",
+          "parent": "165da4c9-b81b-4832-9263-f44539811451",
+          "require": "require",
+          "valueType": "string"
+        },
+        "369fc1d0-b1ab-45d4-855b-65b8ce94863c": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "100",
+          "id": "369fc1d0-b1ab-45d4-855b-65b8ce94863c",
+          "label": "추가 구성가격",
+          "length": null,
+          "multiple": false,
+          "name": "addCompPrc",
+          "parent": "165da4c9-b81b-4832-9263-f44539811451",
+          "require": "require",
+          "valueType": "string"
+        },
+        "47cef935-9307-44b3-9a02-031b68fc7d6c": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "5",
+          "id": "47cef935-9307-44b3-9a02-031b68fc7d6c",
+          "label": "판매수량",
+          "length": null,
+          "multiple": false,
+          "name": "compPrdQty",
+          "parent": "165da4c9-b81b-4832-9263-f44539811451",
+          "require": "require",
+          "valueType": "string"
+        },
+        "501bed20-11f0-4ae6-9839-754af51cdd00": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "10",
+          "id": "501bed20-11f0-4ae6-9839-754af51cdd00",
+          "label": "추가 구성 무게",
+          "length": null,
+          "multiple": false,
+          "name": "addPrdWght",
+          "parent": "165da4c9-b81b-4832-9263-f44539811451",
+          "require": "require",
+          "valueType": "string"
+        },
+        "6a0f0fe8-fc41-4cc0-9786-3110d30b9d4f": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "추가구성상품",
+          "id": "6a0f0fe8-fc41-4cc0-9786-3110d30b9d4f",
+          "label": "추가상품값",
+          "length": null,
+          "multiple": false,
+          "name": "compPrdNm",
+          "parent": "165da4c9-b81b-4832-9263-f44539811451",
+          "require": "require",
+          "valueType": "string"
+        },
+        "6a5ff487-1d26-4eea-8b41-27d95ce85fe9": {
+          "children": [
+            "c3593400-cb95-4973-adcb-137e74b7c721",
+            "adf124be-cacb-4f5b-bbac-c1affbae845b",
+            "cbc7f60e-7c88-42b2-97b3-4f2414e5ca20",
+            "9d9b2bf6-d999-426e-bda7-5fec0a9c5078",
+            "2cd71429-f036-4b00-9dfb-ebe6850a8442",
+            "07b2271f-dd85-45e7-9ee1-1d4b0c8bad5a",
+            "a411859a-5f5b-4b28-8bab-fd7fc2bea688",
+            "2b8f55e0-a916-40f4-a267-e952f122b500",
+            "897a36c6-d800-476f-b286-44f1cf601a04",
+            "9a3b21ef-d910-4284-9435-d6e5f19b8fce",
+            "d982f3ed-f539-4f42-83da-784774590bef"
+          ],
+          "dataType": "container",
+          "default": "",
+          "description": "",
+          "example": "",
+          "id": "6a5ff487-1d26-4eea-8b41-27d95ce85fe9",
+          "label": "ns2:ProductStock",
+          "length": null,
+          "multiple": false,
+          "name": "ns2:ProductStock",
+          "parent": "a1f0e6fb-838f-4e31-9263-427fc635847a",
+          "require": "require",
+          "valueType": "string"
+        },
+        "7b606f61-8643-497f-bfea-f431166d7275": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "추가",
+          "id": "7b606f61-8643-497f-bfea-f431166d7275",
+          "label": "추가상품명",
+          "length": null,
+          "multiple": false,
+          "name": "addPrdGrpNm",
+          "parent": "165da4c9-b81b-4832-9263-f44539811451",
+          "require": "require",
+          "valueType": "string"
+        },
+        "897a36c6-d800-476f-b286-44f1cf601a04": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "62",
+          "id": "897a36c6-d800-476f-b286-44f1cf601a04",
+          "label": "재고수량",
+          "length": null,
+          "multiple": false,
+          "name": "stckQty",
+          "parent": "6a5ff487-1d26-4eea-8b41-27d95ce85fe9",
+          "require": "require",
+          "valueType": "string"
+        },
+        "9a3b21ef-d910-4284-9435-d6e5f19b8fce": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "3",
+          "id": "9a3b21ef-d910-4284-9435-d6e5f19b8fce",
+          "label": "추가무게",
+          "length": null,
+          "multiple": false,
+          "name": "optWght",
+          "parent": "6a5ff487-1d26-4eea-8b41-27d95ce85fe9",
+          "require": "require",
+          "valueType": "string"
+        },
+        "9d9b2bf6-d999-426e-bda7-5fec0a9c5078": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "",
+          "id": "9d9b2bf6-d999-426e-bda7-5fec0a9c5078",
+          "label": "옵션번호",
+          "length": null,
+          "multiple": false,
+          "name": "mixOptNo",
+          "parent": "6a5ff487-1d26-4eea-8b41-27d95ce85fe9",
+          "require": "require",
+          "valueType": "string"
+        },
+        "a1f0e6fb-838f-4e31-9263-427fc635847a": {
+          "children": [
+            "6a5ff487-1d26-4eea-8b41-27d95ce85fe9",
+            "0cb86a1d-4d38-45a6-be60-a1f52097adb0",
+            "02b52628-1872-4e2f-b6b8-d153e6cf6c68",
+            "b36f691e-a7f4-4662-a2a4-c02744e0b689",
+            "2b322647-87fb-45fa-abcb-142209bd3686"
+          ],
+          "dataType": "container",
+          "default": "",
+          "description": "",
+          "example": "",
+          "id": "a1f0e6fb-838f-4e31-9263-427fc635847a",
+          "label": "ns2:ProductStocks",
+          "length": null,
+          "multiple": false,
+          "name": "ns2:ProductStocks",
+          "parent": null,
+          "require": "require",
+          "valueType": "string"
+        },
+        "a411859a-5f5b-4b28-8bab-fd7fc2bea688": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "01",
+          "id": "a411859a-5f5b-4b28-8bab-fd7fc2bea688",
+          "label": "재고상태",
+          "length": null,
+          "multiple": false,
+          "name": "prdStckStatCd",
+          "parent": "6a5ff487-1d26-4eea-8b41-27d95ce85fe9",
+          "require": "require",
+          "valueType": "enum"
+        },
+        "adf124be-cacb-4f5b-bbac-c1affbae845b": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "정품을 하나 더!!! 1+1 특급이벤트!<<001>>",
+          "id": "adf124be-cacb-4f5b-bbac-c1affbae845b",
+          "label": "상세옵션명",
+          "length": null,
+          "multiple": false,
+          "name": "mixDtlOptNm",
+          "parent": "6a5ff487-1d26-4eea-8b41-27d95ce85fe9",
+          "require": "require",
+          "valueType": "string"
+        },
+        "b36f691e-a7f4-4662-a2a4-c02744e0b689": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "MYCODE758634",
+          "id": "b36f691e-a7f4-4662-a2a4-c02744e0b689",
+          "label": "판매자상품코드",
+          "length": null,
+          "multiple": false,
+          "name": "ns2:sellerPrdCd",
+          "parent": "a1f0e6fb-838f-4e31-9263-427fc635847a",
+          "require": "require",
+          "valueType": "string"
+        },
+        "c3593400-cb95-4973-adcb-137e74b7c721": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "0",
+          "id": "c3593400-cb95-4973-adcb-137e74b7c721",
+          "label": "옵션가격",
+          "length": null,
+          "multiple": false,
+          "name": "addPrc",
+          "parent": "6a5ff487-1d26-4eea-8b41-27d95ce85fe9",
+          "require": "require",
+          "valueType": "string"
+        },
+        "cbc7f60e-7c88-42b2-97b3-4f2414e5ca20": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "",
+          "id": "cbc7f60e-7c88-42b2-97b3-4f2414e5ca20",
+          "label": "옵션명",
+          "length": null,
+          "multiple": false,
+          "name": "mixOptNm",
+          "parent": "6a5ff487-1d26-4eea-8b41-27d95ce85fe9",
+          "require": "require",
+          "valueType": "string"
+        },
+        "d982f3ed-f539-4f42-83da-784774590bef": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "CD01101",
+          "id": "d982f3ed-f539-4f42-83da-784774590bef",
+          "label": "셀러재고번호",
+          "length": null,
+          "multiple": false,
+          "name": "sellerStockCd",
+          "parent": "6a5ff487-1d26-4eea-8b41-27d95ce85fe9",
+          "require": "require",
+          "valueType": "string"
+        }
+      }
+    }
+  },
+  "groups": {
+    "errorResponse": {
+      "ids": [],
+      "items": {}
+    },
+    "pathVariable": {
+      "ids": [
+        "6e217731-0b1f-411c-afd6-9ccda6dfdfcd"
+      ],
+      "items": {
+        "6e217731-0b1f-411c-afd6-9ccda6dfdfcd": {
+          "children": [],
+          "encodeType": "pathVariable",
+          "id": "6e217731-0b1f-411c-afd6-9ccda6dfdfcd",
+          "parent": null
+        }
+      }
+    },
+    "queryString": {
+      "ids": [],
+      "items": {}
+    },
+    "requestBody": {
+      "ids": [],
+      "items": {}
+    },
+    "response": {
+      "ids": [
+        "afbf3f6b-571f-4ed8-80d2-f9b290c8e961"
+      ],
+      "items": {
+        "afbf3f6b-571f-4ed8-80d2-f9b290c8e961": {
+          "children": [],
+          "encodeType": "xml",
+          "id": "afbf3f6b-571f-4ed8-80d2-f9b290c8e961",
+          "parent": null
+        }
+      }
+    }
+  },
+  "information": {
+    "description": "11번가에 등록된 상품의 재고정보를 조회 합니다. 상품번호는 상품등록시 받으실 수 있습니다.",
+    "method": "get",
+    "name": "Seller - 상품 - 상품 재고정보 조회",
+    "postCondition": "",
+    "preCondition": "",
+    "protocol": "http",
+    "url": "http://api.11st.co.kr/rest/prodmarketservice/prodmarket/stck/[prdNo]",
+    "version": ""
+  },
+  "relationGroups": {
+    "ids": [],
+    "items": {}
+  },
+  "relationItems": {},
+  "version": 3
+}

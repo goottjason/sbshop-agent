@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "checks": [
+    "조회 실패 복구·입력 준비와 등록 실행 분리",
+    "빈 입력에는 임의 주소·고시 기본값 없음",
+    "주소 실선택·필수입력 점검 완료 후에도 실행불가 표시",
+    "현재 revision·입력값 JSON 보관·주소 본문 제외",
+    "입력 변경 즉시 이전 검토·내보내기 무효화",
+    "다른 상품 JSON 거절·같은 상품 불러오기 후 재점검 필수",
+    "점검 실패에는 결과 없음·GET과 입력점검 API만 호출"
+  ],
+  "calls": [
+    "get /api/v1/products/1/publication-inputs",
+    "get /api/v1/products/1/publication-inputs",
+    "post /api/v1/products/1/publication-inputs/elevenst-review",
+    "post /api/v1/products/1/publication-inputs/elevenst-review",
+    "post /api/v1/products/1/publication-inputs/elevenst-review",
+    "post /api/v1/products/1/publication-inputs/elevenst-review"
+  ],
+  "downloaded": 1,
+  "marketplaceProductWrites": 0,
+  "fixtureOnly": true,
+  "servedImages": []
+}

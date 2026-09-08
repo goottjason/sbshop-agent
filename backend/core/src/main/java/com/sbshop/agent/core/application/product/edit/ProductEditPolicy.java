@@ -46,10 +46,11 @@ public class ProductEditPolicy {
 				"쿠팡 연결 기록이 있습니다. 등록 후 카테고리 직접 변경이 제한됩니다. 삭제·오류 표시는 연결 해제 근거가 아닙니다.");
 		if (field.equals("salesQuantity") && links.stream().allMatch(r -> r.connectionWriteBlock() == null
 			&& r.extractLiveLookupId().matches("[1-9][0-9]{0,17}")
-			&& (r.getMarketType() == MarketType.SMART_STORE || r.getMarketType() == MarketType.COUPANG
+			&& (r.getMarketType() == MarketType.SMART_STORE || r.getMarketType() == MarketType.ELEVEN_STREET
+				|| r.getMarketType() == MarketType.COUPANG
 				&& r.identifier("vendorItemId") != null && r.identifier("vendorItemId").matches("[1-9][0-9]{0,17}"))))
 			return new Rule(field, Permission.EDITABLE,
-				"판매용 수량을 별도 큐에서 SB코드·옵션·판매 상태 확인 후 반영합니다. 다중 옵션·판매정지는 보류하며 DB 저장은 마켓 성공이 아닙니다.");
+				"판매용 수량을 별도 큐에서 SB코드·옵션·판매 상태 확인 후 반영합니다. 다중 옵션·판매정지 및 11번가 0개 반영은 보류하며 DB 저장은 마켓 성공이 아닙니다.");
 		if (links.stream().allMatch(r -> reviewedFieldSupported(field, r)))
 			return new Rule(field, Permission.EDITABLE,
 				links.stream().anyMatch(r -> r.getMarketType() == MarketType.COUPANG)

@@ -1,0 +1,77 @@
+{
+  "productId": 1229,
+  "sbCode": "220114OC012",
+  "prdNo": "4088296117",
+  "observations": [
+    {
+      "path": "/rest/prodmarketservice/prodmarket/4088296117",
+      "http": 200,
+      "root": "Product",
+      "sha256": "8897ec277aef4a9d7d9f597236ede53114bcd9fd7763ed45cad7ee4ecb5347ee",
+      "fields": [
+        {
+          "tag": "message",
+          "value": "[4088296117] 상품 정보가 정상적으로 조회되었습니다."
+        },
+        {
+          "tag": "prdNo",
+          "value": "4088296117"
+        },
+        {
+          "tag": "sellerPrdCd",
+          "value": "220114OC012"
+        },
+        {
+          "tag": "selStatCd",
+          "value": "103"
+        },
+        {
+          "tag": "prdStckQty",
+          "value": "0"
+        },
+        {
+          "tag": "nResult",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "path": "/rest/prodmarketservice/prodmarket/stck/4088296117",
+      "http": 200,
+      "root": "{http://skt.tmall.business.openapi.spring.service.client.domain/}ProductStocks",
+      "sha256": "f0e1624645560aac6de340a62f98fdf32d54a8fc3d6e0d460c1c49714bc291b8",
+      "fields": [
+        {
+          "tag": "mixOptNo",
+          "value": "0"
+        },
+        {
+          "tag": "optWght",
+          "value": "0"
+        },
+        {
+          "tag": "prdNo",
+          "value": "4088296117"
+        },
+        {
+          "tag": "prdStckNo",
+          "value": "16243384893"
+        },
+        {
+          "tag": "stckQty",
+          "value": "997"
+        },
+        {
+          "tag": "{http://skt.tmall.business.openapi.spring.service.client.domain/}prdNo",
+          "value": "4088296117"
+        },
+        {
+          "tag": "{http://skt.tmall.business.openapi.spring.service.client.domain/}sellerPrdCd",
+          "value": "220114OC012"
+        }
+      ],
+      "stockXml": "<?xml version=\"1.0\" encoding=\"euc-kr\" standalone=\"yes\"?><ns2:ProductStocks xmlns:ns2=\"http://skt.tmall.business.openapi.spring.service.client.domain/\"><ns2:ProductStock><addPrc>0</addPrc><mixOptNo>0</mixOptNo><optWght>0</optWght><prdNo>4088296117</prdNo><prdStckNo>16243384893</prdStckNo><prdStckStatCd>01</prdStckStatCd><selQty>2</selQty><sellerStockCd></sellerStockCd><stckQty>997</stckQty></ns2:ProductStock><ns2:prdNm>옵티박 포 우먼 OptiBac Probiotics For women 90캡슐</ns2:prdNm><ns2:prdNo>4088296117</ns2:prdNo><ns2:sellerPrdCd>220114OC012</ns2:sellerPrdCd></ns2:ProductStocks>"
+    }
+  ],
+  "externalWrites": 0
+}

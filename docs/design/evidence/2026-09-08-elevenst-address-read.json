@@ -1,0 +1,45 @@
+{
+  "mode": "GET_ONLY",
+  "at": "2026-09-08T00:49:29.616176+00:00",
+  "responses": [
+    {
+      "path": "/rest/areaservice/outboundarea",
+      "http": 200,
+      "contentType": "application/xml;charset=euc-kr",
+      "bytes": 1328,
+      "sha256": "184da4120d68cc6d1fb7fbe58105a1dd586143adea6fff2e01858ace10391884",
+      "root": "inOutAddresss",
+      "successEnvelope": false,
+      "resultMessages": [],
+      "rootFields": [
+        "inOutAddress",
+        "inOutAddress",
+        "inOutAddress",
+        "inOutAddress"
+      ],
+      "addressCount": 4,
+      "uniqueCodes": true,
+      "requiredFieldsPresent": true,
+      "credentialUnchanged": true
+    },
+    {
+      "path": "/rest/areaservice/inboundarea",
+      "http": 200,
+      "contentType": "application/xml;charset=euc-kr",
+      "bytes": 1038,
+      "sha256": "6b88a58c0217e662b42a57fee89372a05be106d9ebd7ec1513bd12f29803d2ac",
+      "root": "inOutAddresss",
+      "successEnvelope": false,
+      "resultMessages": [],
+      "rootFields": [
+        "inOutAddress",
+        "inOutAddress",
+        "inOutAddress"
+      ],
+      "addressCount": 3,
+      "uniqueCodes": true,
+      "requiredFieldsPresent": true,
+      "credentialUnchanged": true
+    }
+  ]
+}

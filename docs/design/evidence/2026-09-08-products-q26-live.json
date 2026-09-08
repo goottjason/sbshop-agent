@@ -1,0 +1,253 @@
+{
+  "revision": "e7fdc0613c279c03309f71287d2da5d10d8bfda3",
+  "startedAt": "2026-09-08T00:23:21Z",
+  "completedAt": "2026-09-08T00:23:26Z",
+  "status": "passed",
+  "marketWriteCountersBefore": "[0, 0, 0]",
+  "marketWriteCountersAfter": "[0, 0, 0]",
+  "sourceImageRule": {
+    "field": "sourceImages",
+    "permission": "INTERNAL",
+    "reason": "소싱 원본 이미지 URL은 내부 추적값입니다. 마켓에 게시되는 이미지는 게시 이미지 필드의 수정 조건을 따릅니다."
+  },
+  "samples": [
+    {
+      "market": "COUPANG",
+      "productId": 1563,
+      "registrationId": 6369,
+      "externalId": "14813282146",
+      "batchId": "8ffc2b64-8caa-42a6-b962-91397d461535",
+      "before": {
+        "registrationId": 6369,
+        "revision": 0,
+        "market": "COUPANG",
+        "externalId": "14813282146",
+        "state": "LINKED",
+        "inspectionSupported": true,
+        "writeBlock": null
+      },
+      "after": {
+        "registrationId": 6369,
+        "revision": 1,
+        "market": "COUPANG",
+        "externalId": "14813282146",
+        "state": "DETACHED_DELETED",
+        "inspectionSupported": true,
+        "writeBlock": "연결 해제됨: DETACHED_DELETED"
+      },
+      "productHashBefore": "e8efe329d29293f5abdb697a568d3f8ca9359df4b690902f4b31f26ca8764d1a",
+      "productHashAfter": "e8efe329d29293f5abdb697a568d3f8ca9359df4b690902f4b31f26ca8764d1a",
+      "accountVerified": true,
+      "task": {
+        "id": 11912,
+        "productId": 1563,
+        "sbCode": "220227IHB005",
+        "externalId": "14813282146",
+        "state": "DETACHED",
+        "attempts": 1,
+        "nextRunAt": "2026-09-08T00:23:23.651342Z",
+        "code": "PRODUCT_ABSENT/COUPANG_NOT_FOUND",
+        "detail": "인증된 쿠팡 단건 조회에서 요청한 등록상품 ID의 부재를 확인했습니다.",
+        "observedState": "DELETED",
+        "eventId": 11907
+      },
+      "eventIds": [
+        11907
+      ]
+    },
+    {
+      "market": "ELEVEN_STREET",
+      "productId": 1223,
+      "registrationId": 7643,
+      "externalId": "3782058673",
+      "batchId": "041b988c-1528-49cd-b0de-024ee112ed93",
+      "before": {
+        "registrationId": 7643,
+        "revision": 0,
+        "market": "ELEVEN_STREET",
+        "externalId": "3782058673",
+        "state": "LINKED",
+        "inspectionSupported": true,
+        "writeBlock": null
+      },
+      "after": {
+        "registrationId": 7643,
+        "revision": 1,
+        "market": "ELEVEN_STREET",
+        "externalId": "3782058673",
+        "state": "DETACHED_DELETED",
+        "inspectionSupported": true,
+        "writeBlock": "연결 해제됨: DETACHED_DELETED"
+      },
+      "productHashBefore": "5fb872bfb97a67389e5f195d5830b5004897cbdcd26bdb6cffecdd94cdf4cec6",
+      "productHashAfter": "5fb872bfb97a67389e5f195d5830b5004897cbdcd26bdb6cffecdd94cdf4cec6",
+      "accountVerified": true,
+      "task": {
+        "id": 11913,
+        "productId": 1223,
+        "sbCode": "210827OC179",
+        "externalId": "3782058673",
+        "state": "DETACHED",
+        "attempts": 1,
+        "nextRunAt": "2026-09-08T00:23:24.241449Z",
+        "code": "PRODUCT_ABSENT/ELEVENST_NOT_FOUND",
+        "detail": "인증된 11번가 단건 조회에서 요청한 상품번호의 부재를 확인했습니다.",
+        "observedState": "DELETED",
+        "eventId": 11909
+      },
+      "eventIds": [
+        11909
+      ]
+    },
+    {
+      "market": "CAFE24",
+      "productId": 2067,
+      "registrationId": 2061,
+      "externalId": "18686",
+      "batchId": "579ac5a5-2918-494d-a54a-c44560b4bae2",
+      "before": {
+        "registrationId": 2061,
+        "revision": 0,
+        "market": "CAFE24",
+        "externalId": "18686",
+        "state": "LINKED",
+        "inspectionSupported": true,
+        "writeBlock": null
+      },
+      "after": {
+        "registrationId": 2061,
+        "revision": 1,
+        "market": "CAFE24",
+        "externalId": "18686",
+        "state": "DETACHED_DELETED",
+        "inspectionSupported": true,
+        "writeBlock": "연결 해제됨: DETACHED_DELETED"
+      },
+      "productHashBefore": "761649febc031236e983f635319af34492fb45c1cc14924598afabe8cabf672e",
+      "productHashAfter": "761649febc031236e983f635319af34492fb45c1cc14924598afabe8cabf672e",
+      "accountVerified": true,
+      "task": {
+        "id": 11914,
+        "productId": 2067,
+        "sbCode": "220707IHB002",
+        "externalId": "18686",
+        "state": "DETACHED",
+        "attempts": 1,
+        "nextRunAt": "2026-09-08T00:23:24.060018Z",
+        "code": "PRODUCT_ABSENT/CAFE24_EMPTY_PRODUCT_AND_FILTERED_LIST",
+        "detail": "카페24 단건 조회와 같은 쇼핑몰의 정확한 상품번호 목록 조회에서 모두 상품 부재를 확인했습니다.",
+        "observedState": "DELETED",
+        "eventId": 11908
+      },
+      "eventIds": [
+        11908
+      ]
+    }
+  ],
+  "daily": [
+    {
+      "market": "COUPANG",
+      "status": {
+        "enabled": true,
+        "accountVerified": true,
+        "schedule": "매일 03:00 (한국시간)",
+        "nextDueAt": "2026-09-08T18:00:00Z",
+        "detail": "매일 오전 3시부터 전체 활성 연결을 순서대로 확인합니다.",
+        "latest": {
+          "id": "6cbbe0ae-e8a0-42e5-acae-6a5685bbdf58",
+          "date": "2026-09-08",
+          "state": "FINISHED",
+          "enrolled": 1196,
+          "batchCount": 3,
+          "startedAt": "2026-09-07T18:00:46.318079Z",
+          "finishedAt": "2026-09-07T18:56:02.253584Z",
+          "totals": {
+            "pending": 0,
+            "confirmed": 1101,
+            "detached": 45,
+            "needsAttention": 50,
+            "skipped": 0
+          }
+        }
+      }
+    },
+    {
+      "market": "SMART_STORE",
+      "status": {
+        "enabled": true,
+        "accountVerified": true,
+        "schedule": "매일 03:00 (한국시간)",
+        "nextDueAt": "2026-09-08T18:00:00Z",
+        "detail": "매일 오전 3시부터 전체 활성 연결을 순서대로 확인합니다.",
+        "latest": {
+          "id": "c1ec8039-5066-468e-a4dc-0c257d7879a3",
+          "date": "2026-09-08",
+          "state": "FINISHED",
+          "enrolled": 2843,
+          "batchCount": 6,
+          "startedAt": "2026-09-07T18:00:46.318079Z",
+          "finishedAt": "2026-09-07T20:01:06.029933Z",
+          "totals": {
+            "pending": 0,
+            "confirmed": 2841,
+            "detached": 0,
+            "needsAttention": 0,
+            "skipped": 2
+          }
+        }
+      }
+    },
+    {
+      "market": "ELEVEN_STREET",
+      "status": {
+        "enabled": true,
+        "accountVerified": true,
+        "schedule": "매일 03:00 (한국시간)",
+        "nextDueAt": "2026-09-08T18:00:00Z",
+        "detail": "매일 오전 3시부터 전체 활성 연결을 순서대로 확인합니다.",
+        "latest": {
+          "id": "dc5d9b25-60ee-4796-b36a-a5f3dca32f6c",
+          "date": "2026-09-08",
+          "state": "FINISHED",
+          "enrolled": 2182,
+          "batchCount": 5,
+          "startedAt": "2026-09-07T18:00:46.318079Z",
+          "finishedAt": "2026-09-07T19:36:04.970087Z",
+          "totals": {
+            "pending": 0,
+            "confirmed": 1780,
+            "detached": 0,
+            "needsAttention": 402,
+            "skipped": 0
+          }
+        }
+      }
+    },
+    {
+      "market": "CAFE24",
+      "status": {
+        "enabled": true,
+        "accountVerified": true,
+        "schedule": "매일 03:00 (한국시간)",
+        "nextDueAt": "2026-09-08T18:00:00Z",
+        "detail": "매일 오전 3시부터 전체 활성 연결을 순서대로 확인합니다.",
+        "latest": {
+          "id": "f5f21e8c-5e38-4e52-a66a-e922d822de08",
+          "date": "2026-09-08",
+          "state": "FINISHED",
+          "enrolled": 2845,
+          "batchCount": 6,
+          "startedAt": "2026-09-07T18:00:46.318079Z",
+          "finishedAt": "2026-09-07T20:01:06.029933Z",
+          "totals": {
+            "pending": 0,
+            "confirmed": 2841,
+            "detached": 0,
+            "needsAttention": 3,
+            "skipped": 1
+          }
+        }
+      }
+    }
+  ]
+}

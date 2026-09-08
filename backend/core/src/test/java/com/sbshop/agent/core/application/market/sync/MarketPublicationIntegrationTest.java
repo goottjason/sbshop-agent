@@ -686,4 +686,50 @@ class MarketPublicationIntegrationTest {
 		assertThat(gates.findById("SMART_STORE_ORIGIN_READ").orElseThrow().getLeaseToken()).isNull();
 		assertThatCode(() -> MarketPreparationRequestScope.beforeRequest(MarketType.CAFE24)).doesNotThrowAnyException();
 	}
+	@Test
+	void readOnlyInputScopeUsesSharedGateWithoutProductTasksAndReleasesOnSuccess() {
+		var result = service.withPreparationReadScope(MARKET, () -> {
+			assertThat(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+			assertThat(MarketPreparationRequestScope.active()).isTrue();
+			assertThat(gates.findById("SMART_STORE_ORIGIN_READ").orElseThrow().getLeaseToken()).isNotNull();
+			return "metadata";
+		});
+		assertThat(result).isEqualTo("metadata");
+		assertThat(gates.findById("SMART_STORE_ORIGIN_READ").orElseThrow().getLeaseToken()).isNull();
+		assertThat(publicationTasks.count()).isZero();
+		assertThat(MarketPreparationRequestScope.active()).isFalse();
+	}
+
+	@Test
+	void readOnlyInputScopePreservesLate429AndNeverExposesPartialSuccess() {
+		Instant retry = Instant.now().plusSeconds(600);
+		assertThatThrownBy(() -> service.withPreparationReadScope(MARKET, () -> {
+			MarketPreparationRequestScope.observedRateLimit(MARKET, retry);
+			return "partial-addresses";
+		})).isInstanceOf(MarketPreparationRequestScope.Blocked.class);
+		var gate = gates.findById("SMART_STORE_ORIGIN_READ").orElseThrow();
+		assertThat(gate.getNextAllowedAt()).isAfterOrEqualTo(retry);
+		assertThat(gate.getLeaseToken()).isNull();
+		assertThat(MarketPreparationRequestScope.active()).isFalse();
+		assertThatThrownBy(() -> service.withPreparationReadScope(MARKET, () -> "should not call"))
+			.isInstanceOf(MarketPreparationRequestScope.Blocked.class);
+		assertThat(publicationTasks.count()).isZero();
+	}
+
+	@Test
+	void readOnlyInputScopeRetainsNewOwnersLeaseAndStopsOnAccountSwitch() {
+		assertThatThrownBy(() -> service.withPreparationReadScope(MARKET, () -> {
+			jdbc.update("update sb_market_inspection_gate set lease_token='new-owner',lease_until=? where id='SMART_STORE_ORIGIN_READ'", Instant.now().plusSeconds(300));
+			return "stale-owner";
+		})).isInstanceOf(MarketPreparationRequestScope.Blocked.class);
+		assertThat(gates.findById("SMART_STORE_ORIGIN_READ").orElseThrow().getLeaseToken()).isEqualTo("new-owner");
+		gates.deleteAll();
+		assertThatThrownBy(() -> service.withPreparationReadScope(MARKET, () -> {
+			when(client.inspectionAccountReference()).thenReturn("account-B");
+			return "wrong-account";
+		})).hasMessageContaining("계정이 변경");
+		assertThat(gates.findById("SMART_STORE_ORIGIN_READ").orElseThrow().getLeaseToken()).isNull();
+		assertThat(publicationTasks.count()).isZero();
+	}
+
 }

@@ -31,7 +31,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @RequiredArgsConstructor
 public class MarketStockSyncService {
 	public static final Set<MarketType> SUPPORTED = Set.of(MarketType.COUPANG, MarketType.CAFE24,
-		MarketType.SMART_STORE);
+		MarketType.SMART_STORE, MarketType.ELEVEN_STREET);
 	private final MarketStockReviewRepository reviews;
 	private final MarketStockTaskRepository tasks;
 	private final MarketStockAttemptRepository attempts;
@@ -447,10 +447,17 @@ public class MarketStockSyncService {
 			quantity = 0;
 		else
 			reason = "소싱처 재고 상태가 확인되지 않았습니다.";
+		if (reason == null && market == MarketType.ELEVEN_STREET && quantity != null && quantity == 0)
+			reason = "11번가 0개 반영과 품절·판매 상태 전환 계약 확인이 필요합니다. 판매 재개·중지를 자동 실행하지 않고 보류합니다.";
+		String optionId = r == null ? null : r.identifier(switch (market) {
+			case COUPANG -> "vendorItemId";
+			case ELEVEN_STREET -> "prdStckNo";
+			default -> "variant_code";
+		});
 		return new Plan(id, p == null ? null : p.getSbCode(), r == null ? null : r.getId(),
 			p == null ? 0 : p.getRevision(),
 			r == null ? 0 : r.getRevision(), market.name(), r == null ? null : r.extractLiveLookupId(),
-			r == null ? null : r.identifier(market == MarketType.COUPANG ? "vendorItemId" : "variant_code"),
+			optionId,
 			r == null ? null : r.getMarketIdentifiers(), account, quantity, reason);
 	}
 
@@ -536,8 +543,10 @@ public class MarketStockSyncService {
 	}
 
 	private boolean rejected(MarketTransferFailure error) {
-		return error != null && error.getCode() != null && error.getCode().matches("HTTP_4[0-9]{2}")
-			&& !error.rateLimited();
+		return error != null && error.getCode() != null && !error.rateLimited()
+			&& (error.getCode().matches("HTTP_4[0-9]{2}")
+				|| Set.of("ELEVENST_BUSINESS_400", "ELEVENST_BUSINESS_404", "ELEVENST_BUSINESS_500")
+					.contains(error.getCode()));
 	}
 
 	private String message(Exception e) {

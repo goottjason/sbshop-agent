@@ -1,0 +1,420 @@
+{
+  "status": "passed",
+  "actualOperatingApi": true,
+  "productWrites": 0,
+  "marketWriteCommits": 0,
+  "collectionSubmissions": 0,
+  "backupDestination": "/home/ubuntu/backups/sbshop-products-delivery-20260908/q26-browser-check",
+  "checks": [
+    "쿠팡·11번가·카페24 삭제 확정 3개가 그리드에서 해제 배지로 표시됨",
+    "필드 선택 16개 전체 확인 · 원본 이미지 제외 및 내부 관리 설명 · 새 검토 없음",
+    "3개 상품 상세에서 삭제 확인·연결 해제, 보존된 과거번호, 연결 쓰기 차단 표시"
+  ],
+  "warnings": [],
+  "apiReads": [
+    {
+      "method": "GET",
+      "path": "/products/1563/edit-workspace",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/1563/connections",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/1223/edit-workspace",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/1223/connections",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/2067/edit-workspace",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/2067/connections",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/1563/edit-workspace",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/1223/edit-workspace",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/products/2067/edit-workspace",
+      "status": 200
+    }
+  ],
+  "release": "e7fdc061",
+  "newReviews": 0,
+  "samples": [
+    {
+      "productId": 1563,
+      "registrationId": 6369,
+      "market": "COUPANG",
+      "label": "쿠팡",
+      "externalId": "14813282146",
+      "sbCode": "220227IHB005",
+      "gridBadge": {
+        "tag": "SPAN",
+        "text": "쿠팡 해제",
+        "title": "쿠팡: 삭제 확인로 연결 해제. 상품 상세에서 과거 상품번호와 확인 이력을 볼 수 있습니다."
+      },
+      "detail": {
+        "inspectDisabled": true,
+        "text": "쿠팡 삭제 확인 · 연결 해제\n마켓 상품번호: 14813282146\n\n연결 해제됨: DETACHED_DELETED\n\n현재 상태 확인\n \n판매금지 확인 기록"
+      }
+    },
+    {
+      "productId": 1223,
+      "registrationId": 7643,
+      "market": "ELEVEN_STREET",
+      "label": "11번가",
+      "externalId": "3782058673",
+      "sbCode": "210827OC179",
+      "gridBadge": {
+        "tag": "SPAN",
+        "text": "11번가 해제",
+        "title": "11번가: 삭제 확인로 연결 해제. 상품 상세에서 과거 상품번호와 확인 이력을 볼 수 있습니다."
+      },
+      "detail": {
+        "inspectDisabled": true,
+        "text": "11번가 삭제 확인 · 연결 해제\n마켓 상품번호: 3782058673\n\n연결 해제됨: DETACHED_DELETED\n\n현재 상태 확인\n \n판매금지 확인 기록"
+      }
+    },
+    {
+      "productId": 2067,
+      "registrationId": 2061,
+      "market": "CAFE24",
+      "label": "카페24",
+      "externalId": "18686",
+      "sbCode": "220707IHB002",
+      "gridBadge": {
+        "tag": "SPAN",
+        "text": "카페24 해제",
+        "title": "카페24: 삭제 확인로 연결 해제. 상품 상세에서 과거 상품번호와 확인 이력을 볼 수 있습니다."
+      },
+      "detail": {
+        "inspectDisabled": true,
+        "text": "카페24 삭제 확인 · 연결 해제\n마켓 상품번호: 18686\n\n연결 해제됨: DETACHED_DELETED\n\n현재 상태 확인\n \n판매금지 확인 기록"
+      }
+    }
+  ],
+  "originalPage": {
+    "host": "mp.cafe24.com",
+    "path": "/mp/queue/productList",
+    "hasQuery": true
+  },
+  "lastCheck": "EXACT_DETACHED_DETAIL_MISSING",
+  "fieldSelection": {
+    "options": [
+      "HS코드",
+      "검색어",
+      "게시 이미지",
+      "기본명",
+      "단위",
+      "무게(kg)",
+      "묶음수량",
+      "바코드",
+      "브랜드",
+      "상세 HTML",
+      "상품명",
+      "용량",
+      "원문명",
+      "원산지",
+      "제조사",
+      "카테고리"
+    ],
+    "sourceImagesSelectable": false,
+    "internalExplanation": "지원하지 않는 필드·잠긴 상품·해제된 연결은 준비 결과에 사유가 표시됩니다. 원본 이미지 URL은 DB 편집·소싱 비교에서 관리하며 외부마켓에 전송하지 않습니다.",
+    "newReviewCreated": false
+  },
+  "browser": {
+    "blocked": [],
+    "errors": [],
+    "requests": [
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/categories",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/observer/status",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/brands",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/marketplus/transmissions/readiness",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/market-field-sync/reviews",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "POST",
+        "path": "/sbshop-agent/api/v1/products/search",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/1563/edit-workspace",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/1563",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/1563/connections",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/1563/connections/history",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/1223",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/1223/edit-workspace",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/1223/connections",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/1223/connections/history",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/2067",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/2067/edit-workspace",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/2067/connections/history",
+        "status": 200
+      },
+      {
+        "categoryQuery": false,
+        "method": "GET",
+        "path": "/sbshop-agent/api/v1/products/2067/connections",
+        "status": 200
+      }
+    ]
+  },
+  "revisions": {
+    "before": {
+      "1563": 1,
+      "1223": 0,
+      "2067": 1
+    },
+    "after": {
+      "1563": 1,
+      "1223": 0,
+      "2067": 1
+    }
+  },
+  "checkedAt": "2026-09-08T00:38:21Z",
+  "originalTabRestored": true,
+  "originalUrlUnchanged": true,
+  "operatingTab": {
+    "kind": "transmissionHistory",
+    "ready": true,
+    "visibleRows": 20
+  },
+  "flagsRestored": true,
+  "collectorEnabled": true,
+  "cleanupErrors": [],
+  "evidenceType": "Actual deployed remote Chrome UI; no fixture/mock API.",
+  "apiBaselineEvidence": "2026-09-08-products-q26-live.json",
+  "screenshots": [
+    "2026-09-08-products-q26-source-images-excluded.png",
+    "2026-09-08-products-q26-detached-detail-1563.png",
+    "2026-09-08-products-q26-detached-detail-1223.png",
+    "2026-09-08-products-q26-detached-detail-2067.png",
+    "2026-09-08-products-q26-detached-grid.png"
+  ],
+  "macChromeAccessed": false,
+  "gridViewportCheck": {
+    "status": "passed",
+    "checks": [
+      "가로 스크롤 후 세 마켓 해제 배지가 실제 화면 범위 안에 표시됨"
+    ],
+    "checkedAt": "2026-09-08T00:42:07Z",
+    "samples": [
+      {
+        "productId": 1563,
+        "registrationId": 6369,
+        "market": "COUPANG",
+        "label": "쿠팡",
+        "externalId": "14813282146",
+        "sbCode": "220227IHB005",
+        "gridBadge": {
+          "inViewport": true,
+          "text": "쿠팡 해제",
+          "title": "쿠팡: 삭제 확인로 연결 해제. 상품 상세에서 과거 상품번호와 확인 이력을 볼 수 있습니다."
+        }
+      },
+      {
+        "productId": 1223,
+        "registrationId": 7643,
+        "market": "ELEVEN_STREET",
+        "label": "11번가",
+        "externalId": "3782058673",
+        "sbCode": "210827OC179",
+        "gridBadge": {
+          "inViewport": true,
+          "text": "11번가 해제",
+          "title": "11번가: 삭제 확인로 연결 해제. 상품 상세에서 과거 상품번호와 확인 이력을 볼 수 있습니다."
+        }
+      },
+      {
+        "productId": 2067,
+        "registrationId": 2061,
+        "market": "CAFE24",
+        "label": "카페24",
+        "externalId": "18686",
+        "sbCode": "220707IHB002",
+        "gridBadge": {
+          "inViewport": true,
+          "text": "카페24 해제",
+          "title": "카페24: 삭제 확인로 연결 해제. 상품 상세에서 과거 상품번호와 확인 이력을 볼 수 있습니다."
+        }
+      }
+    ],
+    "browser": {
+      "blocked": [],
+      "errors": [],
+      "requests": [
+        {
+          "categoryQuery": false,
+          "method": "GET",
+          "path": "/sbshop-agent/api/v1/products/brands",
+          "status": 200
+        },
+        {
+          "categoryQuery": false,
+          "method": "GET",
+          "path": "/sbshop-agent/api/v1/products/categories",
+          "status": 200
+        },
+        {
+          "categoryQuery": false,
+          "method": "GET",
+          "path": "/sbshop-agent/api/v1/marketplus/transmissions/readiness",
+          "status": 200
+        },
+        {
+          "categoryQuery": false,
+          "method": "GET",
+          "path": "/sbshop-agent/api/v1/marketplus/observer/status",
+          "status": 200
+        },
+        {
+          "categoryQuery": false,
+          "method": "POST",
+          "path": "/sbshop-agent/api/v1/products/search",
+          "status": 200
+        },
+        {
+          "categoryQuery": false,
+          "method": "POST",
+          "path": "/sbshop-agent/api/v1/products/search",
+          "status": 200
+        }
+      ]
+    },
+    "revisions": {
+      "before": {
+        "1563": 1,
+        "1223": 0,
+        "2067": 1
+      },
+      "after": {
+        "1563": 1,
+        "1223": 0,
+        "2067": 1
+      }
+    },
+    "originalTabRestored": true,
+    "originalUrlUnchanged": true,
+    "operatingTab": {
+      "kind": "transmissionHistory",
+      "ready": true,
+      "visibleRows": 20
+    },
+    "flagsRestored": true,
+    "collectorEnabled": true,
+    "cleanupErrors": []
+  },
+  "helperAdjustments": [
+    "Preflight history URL validation accepts its existing query string while requiring exact official host/path.",
+    "Grid screenshot scrolls to the last market badge so all three checked badges are within the viewport."
+  ]
+}

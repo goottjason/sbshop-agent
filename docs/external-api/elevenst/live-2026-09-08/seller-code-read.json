@@ -1,0 +1,942 @@
+{
+  "groups": {
+    "pathVariable": {
+      "ids": [
+        "b98ac806-e991-45cb-ab13-ca61ebe99680"
+      ],
+      "items": {
+        "b98ac806-e991-45cb-ab13-ca61ebe99680": {
+          "children": [],
+          "encodeType": "pathVariable",
+          "id": "b98ac806-e991-45cb-ab13-ca61ebe99680",
+          "parent": null
+        }
+      }
+    },
+    "queryString": {
+      "ids": [],
+      "items": {}
+    },
+    "requestBody": {
+      "ids": [],
+      "items": {}
+    },
+    "response": {
+      "ids": [
+        "f79f87db-adb5-43fb-a092-1d5988316a46"
+      ],
+      "items": {
+        "f79f87db-adb5-43fb-a092-1d5988316a46": {
+          "children": [],
+          "encodeType": "xml",
+          "id": "f79f87db-adb5-43fb-a092-1d5988316a46",
+          "parent": null
+        }
+      }
+    },
+    "errorResponse": {
+      "ids": [],
+      "items": {}
+    },
+    "authErrorResponse": {
+      "ids": [],
+      "items": {}
+    }
+  },
+  "fields": {
+    "b98ac806-e991-45cb-ab13-ca61ebe99680": {
+      "ids": [
+        "21432c35-d961-4b18-9c8f-4c8b57e33a37"
+      ],
+      "items": {
+        "21432c35-d961-4b18-9c8f-4c8b57e33a37": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "ctr555",
+          "id": "21432c35-d961-4b18-9c8f-4c8b57e33a37",
+          "label": "판매자상품코드",
+          "length": null,
+          "multiple": false,
+          "name": "sellerprdcd",
+          "parent": null,
+          "require": "require",
+          "valueType": "string"
+        }
+      }
+    },
+    "f79f87db-adb5-43fb-a092-1d5988316a46": {
+      "ids": [
+        "cef50a76-a737-4490-b241-6edf1dc8a0d0"
+      ],
+      "items": {
+        "0914ab7b-249a-45d1-85df-20e4c57e0fea": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "N",
+          "id": "0914ab7b-249a-45d1-85df-20e4c57e0fea",
+          "label": "해외 반품/교환지 주소 여부",
+          "length": null,
+          "multiple": false,
+          "name": "outsideYnIn",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "enum"
+        },
+        "13bf4240-bbcf-4edc-b689-9adba528a4de": {
+          "children": [],
+          "dataType": "empty",
+          "default": "",
+          "description": "무시 하셔도 됩니다. 11번가 시스템 코드",
+          "example": "Y",
+          "id": "13bf4240-bbcf-4edc-b689-9adba528a4de",
+          "label": "11번가 시스템 코드",
+          "length": null,
+          "multiple": false,
+          "name": "selTermUseYn",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "141fecc5-c05b-46dd-8983-6b2ddf10c142": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "100000000",
+          "id": "141fecc5-c05b-46dd-8983-6b2ddf10c142",
+          "label": "판매가",
+          "length": null,
+          "multiple": false,
+          "name": "selPrc",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "1a797c86-6e91-45f8-8b78-e4c971bfc657": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "N",
+          "id": "1a797c86-6e91-45f8-8b78-e4c971bfc657",
+          "label": "묶음배송여부",
+          "length": null,
+          "multiple": false,
+          "name": "bndlDlvCnYn",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "enum"
+        },
+        "1c0349de-ec20-4091-803f-e42d63e6edbd": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "N",
+          "id": "1c0349de-ec20-4091-803f-e42d63e6edbd",
+          "label": "즉시할인쿠폰 적용여부",
+          "length": null,
+          "multiple": false,
+          "name": "cuponcheck",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "enum"
+        },
+        "236b4800-4d6d-4b88-9997-5e8fc2e0e694": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "N",
+          "id": "236b4800-4d6d-4b88-9997-5e8fc2e0e694",
+          "label": "전세계배송 이용여부",
+          "length": null,
+          "multiple": false,
+          "name": "gblDlvYn",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "enum"
+        },
+        "28a4afe1-686e-41d4-b1f6-9ee1c9a59e8b": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "상품등록시 옵션설정을 안하셨다면 무시하셔도 됩니다.",
+          "example": "0",
+          "id": "28a4afe1-686e-41d4-b1f6-9ee1c9a59e8b",
+          "label": "조합형 옵션의 경우 일괄 재고수량",
+          "length": null,
+          "multiple": false,
+          "name": "optionAllQty",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "29bc8765-a5f4-472c-ab93-36064a841918": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "해외현지 통관용으로 신고되는 HSCode 입니다.(http://soffice.11st.co.kr/download/product/gblHscodeList.xls) 참조",
+          "example": "",
+          "id": "29bc8765-a5f4-472c-ab93-36064a841918",
+          "label": "전세계배송 HSCode",
+          "length": null,
+          "multiple": false,
+          "name": "gblHsCode",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "326c3262-a68b-402e-af55-4c0feee462cd": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "11번가 시스템 코드입니다.",
+          "example": "03",
+          "id": "326c3262-a68b-402e-af55-4c0feee462cd",
+          "label": "카테고리 상태코드",
+          "length": null,
+          "multiple": false,
+          "name": "dispCtgrStatCd",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "enum"
+        },
+        "3afd34c7-76d9-43d2-9d7b-4c6be5182c1f": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "판매중",
+          "id": "3afd34c7-76d9-43d2-9d7b-4c6be5182c1f",
+          "label": "판매자상태 이름",
+          "length": null,
+          "multiple": false,
+          "name": "selStatNm",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "43d6ca70-d67b-4ea0-8e41-5f4f3f2522d1": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "45705741",
+          "id": "43d6ca70-d67b-4ea0-8e41-5f4f3f2522d1",
+          "label": "상품번호",
+          "length": null,
+          "multiple": false,
+          "name": "prdNo",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "481c4bb1-b63b-4545-b6ff-65791a033cea": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "103",
+          "id": "481c4bb1-b63b-4545-b6ff-65791a033cea",
+          "label": "판매자상태",
+          "length": null,
+          "multiple": false,
+          "name": "selStatCd",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "enum"
+        },
+        "492b5e0b-d8f1-4ce3-b4bc-7b0559dda7ce": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "N",
+          "id": "492b5e0b-d8f1-4ce3-b4bc-7b0559dda7ce",
+          "label": "해외 출고지 주소",
+          "length": null,
+          "multiple": false,
+          "name": "outsideYnOut",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "enum"
+        },
+        "522c1fc7-51ec-47ed-a929-4f48c0b22b95": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "\"전세계배송 상품\" 인경우 설정되는 상품무게입니다. 조합형 옵션의 경우 일괄 상품무게 추가. 옵션설정을 안하셨다면 무시하셔도 됩니다.",
+          "example": "",
+          "id": "522c1fc7-51ec-47ed-a929-4f48c0b22b95",
+          "label": "상품무게",
+          "length": null,
+          "multiple": false,
+          "name": "prdWght",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "576bbc99-5d2f-482f-a9dd-391600185de1": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "2013-01-01 00:00:00",
+          "id": "576bbc99-5d2f-482f-a9dd-391600185de1",
+          "label": "판매시작일",
+          "length": null,
+          "multiple": false,
+          "name": "aplBgnDy",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "65035975-6d0a-4b3b-a4bc-893d41c591b8": {
+          "children": [],
+          "dataType": "empty",
+          "default": "",
+          "description": "무시 하셔도 됩니다. 11번가 시스템 코드",
+          "example": "",
+          "id": "65035975-6d0a-4b3b-a4bc-893d41c591b8",
+          "label": "11번가 시스템 코드",
+          "length": null,
+          "multiple": false,
+          "name": "validateMsg",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "67cdd17a-bdce-4dab-97dd-6fdfd71eb2ed": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "상품등록시 등록한 판매자상품코드입니다.",
+          "example": "ctr555",
+          "id": "67cdd17a-bdce-4dab-97dd-6fdfd71eb2ed",
+          "label": "판매자상품코드",
+          "length": null,
+          "multiple": false,
+          "name": "sellerPrdCd",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "6ab59467-1117-4895-b842-2418254fc122": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "0",
+          "id": "6ab59467-1117-4895-b842-2418254fc122",
+          "label": "교환배송비",
+          "length": null,
+          "multiple": false,
+          "name": "exchDlvCst",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "6f91d31e-0070-40e0-ae99-75e3e58af6c4": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "N",
+          "id": "6f91d31e-0070-40e0-ae99-75e3e58af6c4",
+          "label": "대행업체여부",
+          "length": null,
+          "multiple": false,
+          "name": "proxyYn",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "enum"
+        },
+        "7b0d64d0-4400-436f-978b-a0ddac32e477": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "무시 하셔도 됩니다. 11번가 시스템 코드",
+          "example": "",
+          "id": "7b0d64d0-4400-436f-978b-a0ddac32e477",
+          "label": "11번가 시스템 코드",
+          "length": null,
+          "multiple": false,
+          "name": "selPrdClfCd",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "8b6059ad-0549-475b-ae41-f7aec4966c54": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "상품등록시 옵션설정을 안하셨다면 무시하셔도 됩니다.",
+          "example": "0",
+          "id": "8b6059ad-0549-475b-ae41-f7aec4966c54",
+          "label": "조합형 옵션의 경우 일괄 옵션가.",
+          "length": null,
+          "multiple": false,
+          "name": "optionAllAddPrc",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "a3861749-602e-4fb3-a1f1-5519296ef9ae": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "2013-02-01 23:59:59",
+          "id": "a3861749-602e-4fb3-a1f1-5519296ef9ae",
+          "label": "판매종료일",
+          "length": null,
+          "multiple": false,
+          "name": "aplEndDy",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "a7ec4e22-31c0-48b3-b3e6-49abba536fdf": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "0",
+          "id": "a7ec4e22-31c0-48b3-b3e6-49abba536fdf",
+          "label": "반품배송비",
+          "length": null,
+          "multiple": false,
+          "name": "rtngdDlvCst",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "b98698d0-1127-4557-9cff-d5ae52ecf25b": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "19021",
+          "id": "b98698d0-1127-4557-9cff-d5ae52ecf25b",
+          "label": "카테고리 번호",
+          "length": null,
+          "multiple": false,
+          "name": "dispCtgrNo",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "bec21e8c-4614-4d0a-9724-e6bd50eafdd5": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "(http://soffice.11st.co.kr/download/product/nationList.xls) 참조",
+          "example": "",
+          "id": "bec21e8c-4614-4d0a-9724-e6bd50eafdd5",
+          "label": "생산지국가코드(통관용)",
+          "length": null,
+          "multiple": false,
+          "name": "ntNo",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "c0a54bcd-2401-4631-9767-1e57f84ab836": {
+          "children": [],
+          "dataType": "empty",
+          "default": "",
+          "description": "무시 하셔도 됩니다. 11번가 시스템 코드",
+          "example": "0",
+          "id": "c0a54bcd-2401-4631-9767-1e57f84ab836",
+          "label": "11번가 시스템 코드",
+          "length": null,
+          "multiple": false,
+          "name": "rootCtgrNo",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "c789ed12-cc0e-4c2f-afe8-c8f78c84969c": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "N",
+          "id": "c789ed12-cc0e-4c2f-afe8-c8f78c84969c",
+          "label": "포인트 적립 여부",
+          "length": null,
+          "multiple": false,
+          "name": "sellerItemEventYn",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "enum"
+        },
+        "c9a4f635-efba-40a2-834d-c7259bba7230": {
+          "children": [],
+          "dataType": "empty",
+          "default": "",
+          "description": "무시 하셔도 됩니다. 11번가 시스템 코드",
+          "example": "01",
+          "id": "c9a4f635-efba-40a2-834d-c7259bba7230",
+          "label": "11번가 시스템 코드",
+          "length": null,
+          "multiple": false,
+          "name": "imageKindChk",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "cc390aea-fab6-41c8-aab2-d2399a05f46f": {
+          "children": [],
+          "dataType": "value",
+          "default": "",
+          "description": "",
+          "example": "판매자 상품코드 테스트(구매불가)",
+          "id": "cc390aea-fab6-41c8-aab2-d2399a05f46f",
+          "label": "상품명",
+          "length": null,
+          "multiple": false,
+          "name": "prdNm",
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "require": "require",
+          "valueType": "string"
+        },
+        "cef50a76-a737-4490-b241-6edf1dc8a0d0": {
+          "children": [
+            "e5c24f82-9c4b-4350-b197-3887e4d3b2ec"
+          ],
+          "dataType": "container",
+          "default": "",
+          "description": "",
+          "example": "",
+          "id": "cef50a76-a737-4490-b241-6edf1dc8a0d0",
+          "label": "ns2:products",
+          "length": null,
+          "multiple": false,
+          "name": "ns2:products",
+          "parent": null,
+          "require": "require",
+          "valueType": "string"
+        },
+        "e5c24f82-9c4b-4350-b197-3887e4d3b2ec": {
+          "children": [
+            "1a797c86-6e91-45f8-8b78-e4c971bfc657",
+            "1c0349de-ec20-4091-803f-e42d63e6edbd",
+            "b98698d0-1127-4557-9cff-d5ae52ecf25b",
+            "326c3262-a68b-402e-af55-4c0feee462cd",
+            "6ab59467-1117-4895-b842-2418254fc122",
+            "c9a4f635-efba-40a2-834d-c7259bba7230",
+            "8b6059ad-0549-475b-ae41-f7aec4966c54",
+            "28a4afe1-686e-41d4-b1f6-9ee1c9a59e8b",
+            "0914ab7b-249a-45d1-85df-20e4c57e0fea",
+            "492b5e0b-d8f1-4ce3-b4bc-7b0559dda7ce",
+            "cc390aea-fab6-41c8-aab2-d2399a05f46f",
+            "43d6ca70-d67b-4ea0-8e41-5f4f3f2522d1",
+            "5d8e94f8-3999-42e3-87e1-5d8201bab609",
+            "6f91d31e-0070-40e0-ae99-75e3e58af6c4",
+            "c0a54bcd-2401-4631-9767-1e57f84ab836",
+            "a7ec4e22-31c0-48b3-b3e6-49abba536fdf",
+            "141fecc5-c05b-46dd-8983-6b2ddf10c142",
+            "7b0d64d0-4400-436f-978b-a0ddac32e477",
+            "481c4bb1-b63b-4545-b6ff-65791a033cea",
+            "3afd34c7-76d9-43d2-9d7b-4c6be5182c1f",
+            "13bf4240-bbcf-4edc-b689-9adba528a4de",
+            "c789ed12-cc0e-4c2f-afe8-c8f78c84969c",
+            "67cdd17a-bdce-4dab-97dd-6fdfd71eb2ed",
+            "65035975-6d0a-4b3b-a4bc-893d41c591b8",
+            "666ff292-2c84-4e38-a42d-8c9563eb2dc5",
+            "522c1fc7-51ec-47ed-a929-4f48c0b22b95",
+            "236b4800-4d6d-4b88-9997-5e8fc2e0e694",
+            "bec21e8c-4614-4d0a-9724-e6bd50eafdd5",
+            "29bc8765-a5f4-472c-ab93-36064a841918",
+            "576bbc99-5d2f-482f-a9dd-391600185de1",
+            "a3861749-602e-4fb3-a1f1-5519296ef9ae",
+            "714ccb39-035a-476f-a148-e969d5761546"
+          ],
+          "dataType": "container",
+          "default": "",
+          "description": "",
+          "example": "",
+          "id": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "label": "ns2:product",
+          "length": null,
+          "multiple": false,
+          "name": "ns2:product",
+          "parent": "cef50a76-a737-4490-b241-6edf1dc8a0d0",
+          "require": "require",
+          "valueType": "string"
+        },
+        "714ccb39-035a-476f-a148-e969d5761546": {
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "children": [],
+          "name": "stdPrdYn",
+          "label": "신규상품여부",
+          "dataType": "value",
+          "valueType": "string",
+          "length": null,
+          "require": "require",
+          "default": "",
+          "example": "Y/N",
+          "description": "11번가 신규상품 여부입니다.",
+          "multiple": false,
+          "id": "714ccb39-035a-476f-a148-e969d5761546"
+        },
+        "666ff292-2c84-4e38-a42d-8c9563eb2dc5": {
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "children": [],
+          "name": "gftPackTypCd",
+          "label": "선물포장 유형코드",
+          "dataType": "value",
+          "valueType": "enum",
+          "length": null,
+          "require": "optional",
+          "default": "",
+          "example": "",
+          "description": "",
+          "multiple": false,
+          "id": "666ff292-2c84-4e38-a42d-8c9563eb2dc5"
+        },
+        "5d8e94f8-3999-42e3-87e1-5d8201bab609": {
+          "parent": "e5c24f82-9c4b-4350-b197-3887e4d3b2ec",
+          "children": [],
+          "name": "prcDscCmpExpYn",
+          "label": "가격비교 사이트 할인 적용 여부",
+          "dataType": "value",
+          "valueType": "enum",
+          "length": null,
+          "require": "require",
+          "default": "",
+          "example": "Y",
+          "description": "",
+          "multiple": false,
+          "id": "5d8e94f8-3999-42e3-87e1-5d8201bab609"
+        }
+      }
+    }
+  },
+  "fieldEnums": {
+    "0914ab7b-249a-45d1-85df-20e4c57e0fea": {
+      "ids": [
+        "9035492d-abce-44d8-8dd2-5f2b50ebf5b2",
+        "c9b57269-99cb-4bfb-902b-badcf94ce9f9"
+      ],
+      "items": {
+        "9035492d-abce-44d8-8dd2-5f2b50ebf5b2": {
+          "children": [],
+          "id": "9035492d-abce-44d8-8dd2-5f2b50ebf5b2",
+          "label": "반품/교환지가 해외",
+          "parent": null,
+          "value": "Y"
+        },
+        "c9b57269-99cb-4bfb-902b-badcf94ce9f9": {
+          "children": [],
+          "id": "c9b57269-99cb-4bfb-902b-badcf94ce9f9",
+          "label": "반품/교환지가 국내",
+          "parent": null,
+          "value": "N"
+        }
+      }
+    },
+    "1a797c86-6e91-45f8-8b78-e4c971bfc657": {
+      "ids": [
+        "cd1f2725-04a0-47b9-9efb-489240096adc",
+        "d29cd7fd-a9fd-416f-a54b-95e776e4b98a"
+      ],
+      "items": {
+        "cd1f2725-04a0-47b9-9efb-489240096adc": {
+          "children": [],
+          "id": "cd1f2725-04a0-47b9-9efb-489240096adc",
+          "label": "묶음배송",
+          "parent": null,
+          "value": "Y"
+        },
+        "d29cd7fd-a9fd-416f-a54b-95e776e4b98a": {
+          "children": [],
+          "id": "d29cd7fd-a9fd-416f-a54b-95e776e4b98a",
+          "label": "묶음배송아님",
+          "parent": null,
+          "value": "N"
+        }
+      }
+    },
+    "1c0349de-ec20-4091-803f-e42d63e6edbd": {
+      "ids": [
+        "79d0c709-43b9-4b6d-ad6d-0a2fc9b1ae04",
+        "7dfc10f5-d617-4064-ad5a-d995b61d5638"
+      ],
+      "items": {
+        "79d0c709-43b9-4b6d-ad6d-0a2fc9b1ae04": {
+          "children": [],
+          "id": "79d0c709-43b9-4b6d-ad6d-0a2fc9b1ae04",
+          "label": "적용함",
+          "parent": null,
+          "value": "Y"
+        },
+        "7dfc10f5-d617-4064-ad5a-d995b61d5638": {
+          "children": [],
+          "id": "7dfc10f5-d617-4064-ad5a-d995b61d5638",
+          "label": "적용안함",
+          "parent": null,
+          "value": "N"
+        }
+      }
+    },
+    "236b4800-4d6d-4b88-9997-5e8fc2e0e694": {
+      "ids": [
+        "92515c95-848e-4f3f-8bef-4012646be46e",
+        "a562b33e-b1ef-463e-80da-36e4496806c5"
+      ],
+      "items": {
+        "92515c95-848e-4f3f-8bef-4012646be46e": {
+          "children": [],
+          "id": "92515c95-848e-4f3f-8bef-4012646be46e",
+          "label": "이용",
+          "parent": null,
+          "value": "Y"
+        },
+        "a562b33e-b1ef-463e-80da-36e4496806c5": {
+          "children": [],
+          "id": "a562b33e-b1ef-463e-80da-36e4496806c5",
+          "label": "이용안함",
+          "parent": null,
+          "value": "N"
+        }
+      }
+    },
+    "326c3262-a68b-402e-af55-4c0feee462cd": {
+      "ids": [
+        "5ef2f2e9-8aec-44a5-b9be-a8fb04ab78e7",
+        "f1c97665-d8e2-41cd-991f-3bd0ca1df5ef"
+      ],
+      "items": {
+        "5ef2f2e9-8aec-44a5-b9be-a8fb04ab78e7": {
+          "children": [],
+          "id": "5ef2f2e9-8aec-44a5-b9be-a8fb04ab78e7",
+          "label": "카테고리번호가 전시중인 상태",
+          "parent": null,
+          "value": "03"
+        },
+        "f1c97665-d8e2-41cd-991f-3bd0ca1df5ef": {
+          "children": [],
+          "id": "f1c97665-d8e2-41cd-991f-3bd0ca1df5ef",
+          "label": "카테고리번호가 전시안함 상태",
+          "parent": null,
+          "value": "04"
+        }
+      }
+    },
+    "481c4bb1-b63b-4545-b6ff-65791a033cea": {
+      "ids": [
+        "73cd2210-67c2-49d1-a7d3-a19b37651761",
+        "1edff065-5f9b-4041-96e7-7eb1c314f754",
+        "db39f3b8-a5b5-4d9a-b1ae-3634456ebf1b",
+        "944faae7-c22b-4d2c-bb84-af006134ed4f",
+        "88f2d859-d67f-43df-89a9-94ea4e2fe4ad",
+        "523d83ce-577f-44c4-afa4-436a9046df5c",
+        "92e8ec48-c3b1-439f-8b1b-5b2525b32844"
+      ],
+      "items": {
+        "1edff065-5f9b-4041-96e7-7eb1c314f754": {
+          "children": [],
+          "id": "1edff065-5f9b-4041-96e7-7eb1c314f754",
+          "label": "승인전",
+          "parent": null,
+          "value": "102"
+        },
+        "523d83ce-577f-44c4-afa4-436a9046df5c": {
+          "children": [],
+          "id": "523d83ce-577f-44c4-afa4-436a9046df5c",
+          "label": "판매정상종료",
+          "parent": null,
+          "value": "106"
+        },
+        "73cd2210-67c2-49d1-a7d3-a19b37651761": {
+          "children": [],
+          "id": "73cd2210-67c2-49d1-a7d3-a19b37651761",
+          "label": "승인대기",
+          "parent": null,
+          "value": "101"
+        },
+        "88f2d859-d67f-43df-89a9-94ea4e2fe4ad": {
+          "children": [],
+          "id": "88f2d859-d67f-43df-89a9-94ea4e2fe4ad",
+          "label": "전시중지",
+          "parent": null,
+          "value": "105"
+        },
+        "92e8ec48-c3b1-439f-8b1b-5b2525b32844": {
+          "children": [],
+          "id": "92e8ec48-c3b1-439f-8b1b-5b2525b32844",
+          "label": "판매금지",
+          "parent": null,
+          "value": "108"
+        },
+        "944faae7-c22b-4d2c-bb84-af006134ed4f": {
+          "children": [],
+          "id": "944faae7-c22b-4d2c-bb84-af006134ed4f",
+          "label": "품절",
+          "parent": null,
+          "value": "104"
+        },
+        "db39f3b8-a5b5-4d9a-b1ae-3634456ebf1b": {
+          "children": [],
+          "id": "db39f3b8-a5b5-4d9a-b1ae-3634456ebf1b",
+          "label": "판매중",
+          "parent": null,
+          "value": "103"
+        }
+      }
+    },
+    "492b5e0b-d8f1-4ce3-b4bc-7b0559dda7ce": {
+      "ids": [
+        "ebc572ae-5275-4a39-ac94-bff6e6c194c8",
+        "a192bded-97d3-433b-8daa-02fd4e3bdd01"
+      ],
+      "items": {
+        "a192bded-97d3-433b-8daa-02fd4e3bdd01": {
+          "children": [],
+          "id": "a192bded-97d3-433b-8daa-02fd4e3bdd01",
+          "label": "출고지가 국내",
+          "parent": null,
+          "value": "N"
+        },
+        "ebc572ae-5275-4a39-ac94-bff6e6c194c8": {
+          "children": [],
+          "id": "ebc572ae-5275-4a39-ac94-bff6e6c194c8",
+          "label": "출고지가 해외",
+          "parent": null,
+          "value": "Y"
+        }
+      }
+    },
+    "6f91d31e-0070-40e0-ae99-75e3e58af6c4": {
+      "ids": [
+        "48c30d83-9c00-42ca-b8ac-105625a2dc6d",
+        "a0af976b-4c78-4ef0-a275-57feae854ff6"
+      ],
+      "items": {
+        "48c30d83-9c00-42ca-b8ac-105625a2dc6d": {
+          "children": [],
+          "id": "48c30d83-9c00-42ca-b8ac-105625a2dc6d",
+          "label": "대행업체",
+          "parent": null,
+          "value": "Y"
+        },
+        "a0af976b-4c78-4ef0-a275-57feae854ff6": {
+          "children": [],
+          "id": "a0af976b-4c78-4ef0-a275-57feae854ff6",
+          "label": "대행업체아님",
+          "parent": null,
+          "value": "N"
+        }
+      }
+    },
+    "c789ed12-cc0e-4c2f-afe8-c8f78c84969c": {
+      "ids": [
+        "1050e17c-0612-41e1-b844-a1fa65749645",
+        "328789b7-614b-46ba-a66b-8f694369f033"
+      ],
+      "items": {
+        "1050e17c-0612-41e1-b844-a1fa65749645": {
+          "children": [],
+          "id": "1050e17c-0612-41e1-b844-a1fa65749645",
+          "label": "포인트 적립함",
+          "parent": null,
+          "value": "Y"
+        },
+        "328789b7-614b-46ba-a66b-8f694369f033": {
+          "children": [],
+          "id": "328789b7-614b-46ba-a66b-8f694369f033",
+          "label": "포인트 적립안함",
+          "parent": null,
+          "value": "N"
+        }
+      }
+    },
+    "666ff292-2c84-4e38-a42d-8c9563eb2dc5": {
+      "ids": [
+        "3b596bb3-6446-4c40-8ec9-a709bd29141e",
+        "0a9bf840-2f77-46f2-936d-57e9144b223b",
+        "952816d9-6af7-49d1-a561-b70be2027c20",
+        "9c9213e9-9b02-4a40-b2a6-ff23893aa991"
+      ],
+      "items": {
+        "3b596bb3-6446-4c40-8ec9-a709bd29141e": {
+          "parent": null,
+          "children": [],
+          "value": "01",
+          "label": "불가",
+          "id": "3b596bb3-6446-4c40-8ec9-a709bd29141e"
+        },
+        "9c9213e9-9b02-4a40-b2a6-ff23893aa991": {
+          "parent": null,
+          "children": [],
+          "value": "04",
+          "label": "선물포장+포장재동봉",
+          "id": "9c9213e9-9b02-4a40-b2a6-ff23893aa991"
+        },
+        "952816d9-6af7-49d1-a561-b70be2027c20": {
+          "parent": null,
+          "children": [],
+          "value": "03",
+          "label": "포장재동봉",
+          "id": "952816d9-6af7-49d1-a561-b70be2027c20"
+        },
+        "0a9bf840-2f77-46f2-936d-57e9144b223b": {
+          "parent": null,
+          "children": [],
+          "value": "02",
+          "label": "선물포장",
+          "id": "0a9bf840-2f77-46f2-936d-57e9144b223b"
+        }
+      }
+    },
+    "5d8e94f8-3999-42e3-87e1-5d8201bab609": {
+      "ids": [
+        "828bab3c-2695-49d2-82a2-84b4ad892f4f",
+        "d79a1b56-4d24-4466-9299-d8e8570ae915"
+      ],
+      "items": {
+        "828bab3c-2695-49d2-82a2-84b4ad892f4f": {
+          "parent": null,
+          "children": [],
+          "value": "Y",
+          "label": "가격비교 사이트 할인 적용함",
+          "id": "828bab3c-2695-49d2-82a2-84b4ad892f4f"
+        },
+        "d79a1b56-4d24-4466-9299-d8e8570ae915": {
+          "parent": null,
+          "children": [],
+          "value": "N",
+          "label": "가격비교 사이트 할인 적용안함",
+          "id": "d79a1b56-4d24-4466-9299-d8e8570ae915"
+        }
+      }
+    }
+  },
+  "information": {
+    "name": "Seller - 상품 - 셀러 상품 조회",
+    "description": "11번가에 등록된 상품의 정보를 판매자 상품코드로 조회 합니다. 상품등록시 판매자 상품코드를 등록한 코드입니다.",
+    "protocol": "http",
+    "method": "get",
+    "url": "http://api.11st.co.kr/rest/prodmarketservice/sellerprodcode/[sellerprdcd]",
+    "version": "1.1",
+    "preCondition": "",
+    "postCondition": ""
+  },
+  "relationGroups": {
+    "ids": [],
+    "items": {}
+  },
+  "relationItems": {},
+  "links": {
+    "ids": [],
+    "items": {}
+  },
+  "version": 3
+}

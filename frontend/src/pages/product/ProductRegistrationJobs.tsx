@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Alert, Button, Checkbox, Collapse, Input, Modal, Table, Tag } from 'antd';
 import { marketPublicationApi, type RegistrationCandidate, type RegistrationTask } from '../../api/marketPublicationApi';
 import { ProductPublicationInputs } from './ProductPublicationInputs';
+import { ElevenstPublicationInputs } from './ElevenstPublicationInputs';
 import type { PublicationInputContext } from '../../api/productPublicationInputsApi';
 import { marketLabel } from '../../utils/marketLabels';
 const markets = ['SMART_STORE', 'COUPANG', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'];
@@ -19,6 +20,7 @@ export function ProductRegistrationJobs({ productIds, onClose }: { productIds: n
   const [resolve, setResolve] = useState<RegistrationTask | null>(null);
   const [listingId, setListingId] = useState('');
   const [contexts, setContexts] = useState<Record<string, PublicationInputContext | null>>({});
+  const [elevenstInputs, setElevenstInputs] = useState<number | null>(null);
   const selectedCoupang = candidates.filter(c => c.selectable && c.market === 'COUPANG' && selected.includes(candidateKey(c)));
   const missingInputs = candidates.some(c => selected.includes(candidateKey(c)) && c.market === 'COUPANG' && !contexts[candidateKey(c)]);
   const recent = useQuery({ queryKey: ['market-registration-jobs'], queryFn: async ({ signal }) => (await marketPublicationApi.recent(signal)).data, refetchInterval: 5000, retry: false });
@@ -68,7 +70,7 @@ export function ProductRegistrationJobs({ productIds, onClose }: { productIds: n
         rowSelection={{ selectedRowKeys: selected, onChange: keys => { setSelected(keys); setContexts(old => Object.fromEntries(Object.entries(old).filter(([key]) => keys.includes(key)))); }, getCheckboxProps: r => ({ disabled: busy || !r.selectable }) }} columns={[
           { title: 'SB코드', dataIndex: 'sbCode', width: 145 }, { title: '마켓', dataIndex: 'market', width: 120, render: marketLabel },
           { title: '과거 상품번호', dataIndex: 'oldListingId', width: 160, render: v => v ?? '없음' },
-          { title: '후보 여부·삭제 근거', dataIndex: 'reason', render: (v, r) => <><Tag color={r.selectable ? 'blue' : 'default'}>{r.selectable ? '선택 가능' : '제외'}</Tag>{v}</> },
+          { title: '후보 여부·삭제 근거', dataIndex: 'reason', render: (v, r) => <><Tag color={r.selectable ? 'blue' : 'default'}>{r.selectable ? '선택 가능' : '제외'}</Tag>{v}{r.market === 'ELEVEN_STREET' && <div><Button size="small" disabled={busy} onClick={() => setElevenstInputs(r.productId)}>11번가 필수 입력 준비</Button></div>}</> },
         ]} />
       {!!selectedCoupang.length && <Collapse accordion defaultActiveKey={candidateKey(selectedCoupang[0])} style={{ margin: '16px 0' }} items={selectedCoupang.map(c => ({
         key: candidateKey(c), label: <><strong>{c.sbCode} · 쿠팡 필수 등록 정보</strong> <Tag color={contexts[candidateKey(c)] ? 'green' : 'orange'}>{contexts[candidateKey(c)] ? '입력 완료' : '입력 필요'}</Tag></>,
@@ -96,6 +98,7 @@ export function ProductRegistrationJobs({ productIds, onClose }: { productIds: n
       { title: '상태·사유', key: 'state', render: (_, r) => <><Tag color={r.state === 'REGISTERED' ? 'green' : ['UNKNOWN_CREATE', 'ACTION_REQUIRED'].includes(r.state) ? 'orange' : 'blue'}>{stateLabels[r.state] ?? r.state}</Tag>{r.detail}{r.listingId && <div>원상품 번호 {r.listingId}</div>}</> },
       { title: '작업', key: 'action', width: 175, render: (_, r) => r.state === 'PREVIEW' ? <Button disabled={busy} size="small" onClick={() => { setPrepared([r]); setToCommit([]); setReviewed(false); }}>등록 내용 다시 보기</Button> : ['UNKNOWN_CREATE', 'ACTION_REQUIRED'].includes(r.state) ? <Button disabled={busy} size="small" onClick={() => { setResolve(r); setListingId(r.listingId ?? ''); setError(null); }}>원상품 번호로 재조회</Button> : '—' },
     ]} />}
+    {elevenstInputs !== null && <ElevenstPublicationInputs key={elevenstInputs} productId={elevenstInputs} onClose={() => setElevenstInputs(null)} />}
     <Modal open={!!resolve} title="생성된 원상품 번호로 확인" onCancel={() => { if (!busy) setResolve(null); }} onOk={() => { void recheck(); }} confirmLoading={busy} okText="원상품 재조회 접수" okButtonProps={{ disabled: !/^[1-9][0-9]{0,17}$/.test(listingId.trim()) }}>
       <p>{resolve?.sbCode} · 등록을 요청한 {marketLabel(resolve?.market ?? '')} 계정에서 생성된 원상품 번호를 입력하세요. 과거 삭제 상품번호는 사용할 수 없습니다. SB코드와 검토한 주요 정보가 일치할 때 연결을 확정합니다.</p>
       <Input aria-label="생성된 원상품 번호" value={listingId} onChange={e => setListingId(e.target.value)} />

@@ -30,6 +30,43 @@ public class ElevenstMarketClient implements MarketClient {
 	private final ElevenstMarketRestClient restClient;
 
 	@Override
+	public com.sbshop.agent.core.domain.market.client.dto.MarketStockRead readStockQuantity(String listingId,
+		String optionId, String expectedSbCode) {
+		try {
+			return new ElevenstReviewedStock(restClient).read(listingId, optionId, expectedSbCode);
+		} catch (UnsupportedOperationException blocked) {
+			throw blocked;
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	@Override
+	public void writeStockQuantity(String listingId, String optionId, String expectedSbCode, int quantity,
+		String expectedAccountReference, Runnable beforeWrite) {
+		var guardFailure = new java.util.concurrent.atomic.AtomicReference<RuntimeException>();
+		try {
+			new ElevenstReviewedStock(restClient).write(listingId, optionId, expectedSbCode, quantity,
+				expectedAccountReference, () -> {
+					try {
+						beforeWrite.run();
+					} catch (RuntimeException abort) {
+						guardFailure.set(abort);
+						throw abort;
+					}
+				});
+		} catch (Exception e) {
+			if (e == guardFailure.get())
+				throw guardFailure.get();
+			if (e instanceof UnsupportedOperationException blocked)
+				throw blocked;
+			if (e instanceof com.sbshop.agent.core.domain.market.sync.MarketTransferFailure failure)
+				throw failure;
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	@Override
 	public com.sbshop.agent.core.domain.market.client.dto.PreparedMarketFields prepareProductFields(Product product,
 		String listingId, String optionId, Set<String> fields) {
 		try {
@@ -134,6 +171,16 @@ public class ElevenstMarketClient implements MarketClient {
 	@Override
 	public String inspectionAccountReference() {
 		return restClient.accountReference();
+	}
+
+	@Override
+	public Map<String, Object> describePublication(Product product, String categoryId) {
+		return new ElevenstPublicationInputs(restClient).describe(product, categoryId);
+	}
+
+	@Override
+	public Map<String, Object> reviewPublicationInputs(Product product, MarketPublishContext context) {
+		return new ElevenstPublicationInputs(restClient).review(product, context);
 	}
 
 	@Override

@@ -76,6 +76,10 @@ public class ProductEditPlanner {
 		if (reasons.isEmpty()) {
 			try {
 				normalizeNumbers(product, changed, notices);
+				if (changed.has("salesQuantity") && changed.path("salesQuantity").asInt() <= 0
+					&& links.stream().anyMatch(r -> r.getMarketType() == MarketType.ELEVEN_STREET
+						&& r.hasActiveConnections()))
+					throw new IllegalArgumentException("11번가에 연결된 상품의 판매용 수량은 1개 이상으로 입력하세요. 0개 및 판매 상태 전환 계약 확인 전에는 저장하지 않습니다.");
 				Product candidate = product.copyForEditPreview();
 				candidate.update(mapper.convertValue(changed, ProductUpdateCommand.class));
 				if (NAME_INPUTS.stream().anyMatch(changed::has)) {

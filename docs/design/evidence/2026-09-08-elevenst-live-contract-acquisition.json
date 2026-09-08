@@ -1,0 +1,142 @@
+{
+  "capturedDate": "2026-09-08",
+  "source": "Authenticated user-opened official 11st OpenApiGuide; Chrome native save as only html, embedded jsonData decoded without executing scripts.",
+  "scope": "Documentation reads only. No marketplace API calls or writes.",
+  "javascriptAppleEventsEnabled": false,
+  "settingsChanged": false,
+  "samplesRemoved": [
+    "sampleCodes",
+    "address/contact/name/account example values"
+  ],
+  "documents": [
+    {
+      "name": "product-create",
+      "sourceUrl": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=81&apiSeq=1003&apiSpecType=1",
+      "rawSchemaSha256": "6a175f8cbdd641fc20d9ddf943c41ee85ea141fddfcc7bbbe7fe708dd66947a5",
+      "storedSchema": "docs/external-api/elevenst/live-2026-09-08/product-create.json",
+      "storedSchemaSha256": "0f74390be72e2d9e0489219b06434957dde492c0e13b9c4363a56971bbcc4636",
+      "method": "post",
+      "url": "http://api.11st.co.kr/rest/prodservices/product",
+      "version": "1.0",
+      "fieldCount": 244
+    },
+    {
+      "name": "product-list",
+      "sourceUrl": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=39&apiSeq=1007&apiSpecType=1",
+      "rawSchemaSha256": "38e9bdce7c06e75c0846c45c26163e96737c84f71fcddc99682cd6555eaee3f6",
+      "storedSchema": "docs/external-api/elevenst/live-2026-09-08/product-list.json",
+      "storedSchemaSha256": "04069b60815f6ad99490f24ebb9b2dfd5eae25c8d718b34afb109548a8f94d92",
+      "method": "post",
+      "url": "http://api.11st.co.kr/rest/prodmarketservice/prodmarket",
+      "version": "1.2",
+      "fieldCount": 39
+    },
+    {
+      "name": "product-read",
+      "sourceUrl": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=39&apiSeq=1620&apiSpecType=1",
+      "rawSchemaSha256": "7f6a7843ca39c4058f44be6b0fdf2842e5a288b0306d83b67884eab268a309a2",
+      "storedSchema": "docs/external-api/elevenst/live-2026-09-08/product-read.json",
+      "storedSchemaSha256": "84409d1a161b7b648fa3bf84c06e58c3b67d55377998c20facb1e1e8439cfe01",
+      "method": "get",
+      "url": "http://api.11st.co.kr/rest/prodmarketservice/prodmarket/[prdNo]",
+      "version": "1.3",
+      "fieldCount": 54
+    },
+    {
+      "name": "seller-code-read",
+      "sourceUrl": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=39&apiSeq=1621&apiSpecType=1",
+      "rawSchemaSha256": "06bb31cc81e048600457ae31df55d8415ec261d6652100b8fcb69de060d6784f",
+      "storedSchema": "docs/external-api/elevenst/live-2026-09-08/seller-code-read.json",
+      "storedSchemaSha256": "cf08921e2b4ebf7ff7b0efa58d538958fb00434811b62018c9f72dc60836c599",
+      "method": "get",
+      "url": "http://api.11st.co.kr/rest/prodmarketservice/sellerprodcode/[sellerprdcd]",
+      "version": "1.1",
+      "fieldCount": 35
+    },
+    {
+      "name": "stock-list",
+      "sourceUrl": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=40&apiSeq=1009&apiSpecType=1",
+      "rawSchemaSha256": "28822f83168b9bcea70cb9c092e083683922fefbb0895abf16e40a98874b90c8",
+      "storedSchema": "docs/external-api/elevenst/live-2026-09-08/stock-list.json",
+      "storedSchemaSha256": "12cd94e8d1d55867ba6252a42001f4555bdd075321625baf1957de8d1f8f77d8",
+      "method": "post",
+      "url": "http://api.11st.co.kr/rest/prodmarketservice/prodmarket/stocks",
+      "version": "1.0",
+      "fieldCount": 30
+    },
+    {
+      "name": "stock-read",
+      "sourceUrl": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=40&apiSeq=1623&apiSpecType=1",
+      "rawSchemaSha256": "ce718f129e367b5e089c33dbd16ece5cd3b381e8a9eb0738c82d240055fdf887",
+      "storedSchema": "docs/external-api/elevenst/live-2026-09-08/stock-read.json",
+      "storedSchemaSha256": "ce718f129e367b5e089c33dbd16ece5cd3b381e8a9eb0738c82d240055fdf887",
+      "method": "get",
+      "url": "http://api.11st.co.kr/rest/prodmarketservice/prodmarket/stck/[prdNo]",
+      "version": "",
+      "fieldCount": 26
+    },
+    {
+      "name": "stock-update",
+      "sourceUrl": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=40&apiSeq=1625&apiSpecType=1",
+      "rawSchemaSha256": "c8e402cbd543945ff26aa4b164c1c208fff60d94984a5521c0f97f2fe58e2d49",
+      "storedSchema": "docs/external-api/elevenst/live-2026-09-08/stock-update.json",
+      "storedSchemaSha256": "aa1b5fd263727774e35cf45273f5ebb43e5c7100395d867ad644657790681d68",
+      "method": "put",
+      "url": "http://api.11st.co.kr/rest/prodservices/stockqty/[prdStckNo]",
+      "version": "1.2",
+      "fieldCount": 14
+    },
+    {
+      "name": "outbound-address-read",
+      "sourceUrl": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=43&apiSeq=1014&apiSpecType=1",
+      "rawSchemaSha256": "6d8dd61be23893e8d152f2bb88844e8d8ca63c601b02f89b7cd5d7391bcb064e",
+      "storedSchema": "docs/external-api/elevenst/live-2026-09-08/outbound-address-read.json",
+      "storedSchemaSha256": "055618ef2fe191df84f2e0855352dabd625540c99b98fad6120e7d17b68a3194",
+      "method": "get",
+      "url": "http://api.11st.co.kr/rest/areaservice/outboundarea",
+      "version": "",
+      "fieldCount": 12
+    },
+    {
+      "name": "inbound-address-read",
+      "sourceUrl": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=43&apiSeq=1015&apiSpecType=1",
+      "rawSchemaSha256": "3f4d788234f7f659445a79bfeec73c35a50d5b50467f8a25f2e8c9a436bd4208",
+      "storedSchema": "docs/external-api/elevenst/live-2026-09-08/inbound-address-read.json",
+      "storedSchemaSha256": "249d8db55ef26c75823fffdd125f860490c0c5d1443c3eca7eed65fb0e386dbc",
+      "method": "get",
+      "url": "http://api.11st.co.kr/rest/areaservice/inboundarea",
+      "version": "",
+      "fieldCount": 12
+    },
+    {
+      "name": "display-stop",
+      "sourceUrl": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=42&apiSeq=1631&apiSpecType=1",
+      "rawSchemaSha256": "d1b071e5292e7b970f656ca1a482550bf06ea75cae3cb9e9215d659abe2709c6",
+      "storedSchema": "docs/external-api/elevenst/live-2026-09-08/display-stop.json",
+      "storedSchemaSha256": "5d97acdd533775f61c9c16c6c5d87efa21bd923b841fe8a2df085ac423e03ed2",
+      "method": "put",
+      "url": "http://api.11st.co.kr/rest/prodstatservice/stat/stopdisplay/[prdNo]",
+      "version": "",
+      "fieldCount": 7
+    },
+    {
+      "name": "display-restart",
+      "sourceUrl": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=42&apiSeq=1632&apiSpecType=1",
+      "rawSchemaSha256": "3fa4936abd978da8b1d65a75b7d00b259e3cbfa0991a8d288bd1b1fb760e6e0f",
+      "storedSchema": "docs/external-api/elevenst/live-2026-09-08/display-restart.json",
+      "storedSchemaSha256": "4678bc5ebf0043bcadb92a456ee02ef3b087e5f4d947af1c9bd0b09ffc1792d6",
+      "method": "put",
+      "url": "http://api.11st.co.kr/rest/prodstatservice/stat/restartdisplay/[prdNo]",
+      "version": "1.0",
+      "fieldCount": 7
+    }
+  ],
+  "browserRestoration": {
+    "ownedDocumentTabClosed": true,
+    "originalUserCategory81TabUnchanged": true,
+    "originalUserTabActivated": true,
+    "otherTabContentsRead": false,
+    "cookiesExported": false,
+    "permissionsChanged": false
+  }
+}

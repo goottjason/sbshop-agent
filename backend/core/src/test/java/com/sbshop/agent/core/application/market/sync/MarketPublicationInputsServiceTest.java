@@ -17,7 +17,8 @@ class MarketPublicationInputsServiceTest {
 	final MarketClientRouter clients = mock(MarketClientRouter.class);
 	final MarketClient client = mock(MarketClient.class);
 	final Product product = mock(Product.class);
-	final MarketPublicationInputsService service = new MarketPublicationInputsService(products, registrations, clients);
+	final MarketPublicationService reads = mock(MarketPublicationService.class);
+	final MarketPublicationInputsService service = new MarketPublicationInputsService(products, registrations, clients, reads);
 
 	void setup(){when(products.findById(1L)).thenReturn(Optional.of(product));when(clients.getClient(MarketType.COUPANG)).thenReturn(client);when(client.inspectionAccountReference()).thenReturn("account");}
 

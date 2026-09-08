@@ -53,6 +53,11 @@ public interface MarketClient {
 		throw new UnsupportedOperationException("이 마켓의 등록 메타 입력 계약이 확인되지 않았습니다.");
 	}
 
+	/** Local input validation only; must not create, update, or enqueue a marketplace product. */
+	default Map<String, Object> reviewPublicationInputs(Product product, MarketPublishContext context) {
+		throw new UnsupportedOperationException("이 마켓의 등록 입력 점검 계약이 확인되지 않았습니다.");
+	}
+
 	default Map<String, String> submitPreparedPublication(Product product, String operationId, String payload) {
 		throw new UnsupportedOperationException("검토한 등록 요청의 전송 계약 확인이 필요합니다.");
 	}

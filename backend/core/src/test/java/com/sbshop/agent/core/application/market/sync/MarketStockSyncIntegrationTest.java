@@ -650,4 +650,127 @@ class MarketStockSyncIntegrationTest {
 		assertThat(tasks.findByReviewIdOrderById(r.id()).getFirst().getWrites()).isEqualTo(1);
 	}
 
+	void elevenstRegistration() {
+		registrations.deleteAll();
+		reg = registrations.saveAndFlush(MarketRegistration.builder().productId(product.getId())
+			.marketType(MarketType.ELEVEN_STREET)
+			.marketIdentifiers("{\"elevenstId\":\"123\",\"variant_code\":\"unrelated-cafe24-value\"}").build());
+		when(clients.hasClient(MarketType.ELEVEN_STREET)).thenReturn(true);
+		when(clients.getClient(MarketType.ELEVEN_STREET)).thenReturn(client);
+	}
+
+	MarketStockSyncService.Review elevenstQueue() {
+		return service.commit(service.preview(List.of(product.getId()), Set.of(MarketType.ELEVEN_STREET), "admin")
+			.id(), "admin");
+	}
+
+	@Test
+	void elevenstDedicatedInventoryReadResolvesStockIdAndRequiresReadbackAfterWrite() {
+		elevenstRegistration();
+		var review = elevenstQueue();
+		when(client.readStockQuantity("123", null, product.getSbCode())).thenReturn(read(17));
+		when(client.readStockQuantity("123", "456", product.getSbCode())).thenReturn(read(300));
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(state(review.id())).isEqualTo("VERIFY");
+		assertThat(tasks.findByReviewIdOrderById(review.id()).getFirst().getResolvedOptionId()).isEqualTo("456");
+		release();
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(state(review.id())).isEqualTo("CONFIRMED_QUANTITY");
+		verify(client, times(1)).writeStockQuantity(eq("123"), eq("456"), eq(product.getSbCode()), eq(300),
+			eq("account-A"), any());
+		verify(client, never()).readStockQuantity("123", "unrelated-cafe24-value", product.getSbCode());
+		assertThat(registrations.findById(reg.getId()).orElseThrow().getIsSynced()).isNotEqualTo(true);
+	}
+
+	@Test
+	void elevenstZeroTargetsAreExcludedBeforeRemoteReadWithoutStoppingOrRestartingSale() {
+		elevenstRegistration();
+		jdbc.update("update sb_product set stock_status='OUT_OF_STOCK' where id=?", product.getId());
+		var first = elevenstQueue();
+		assertThat(first.items().getFirst().state()).isEqualTo("SKIPPED");
+		assertThat(first.items().getFirst().detail()).contains("0개", "계약 확인");
+		jdbc.update("update sb_product set stock_status='IN_STOCK',sales_quantity=0 where id=?", product.getId());
+		assertThat(elevenstQueue().items().getFirst().state()).isEqualTo("SKIPPED");
+		service.processOne(MarketType.ELEVEN_STREET);
+		verify(client, never()).readStockQuantity(any(), any(), any());
+		verify(client, never()).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+	}
+
+	@Test
+	void elevenstActualSoldOutObservationBlocksPositiveTargetWithoutDetachingConnection() {
+		elevenstRegistration();
+		var review = elevenstQueue();
+		when(client.readStockQuantity("123", null, product.getSbCode()))
+			.thenReturn(new MarketStockRead(0, false, "판매 상태 104, 재고 상태 02: 판매 재개 보류", "account-A", "456"));
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(state(review.id())).isEqualTo("BLOCKED");
+		assertThat(registrations.findById(reg.getId()).orElseThrow().getConnectionState().detached()).isFalse();
+		verify(client, never()).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+	}
+
+	@Test
+	void elevenstBusiness500IsNotHttp500AndCannotTriggerAnotherWriteAfterReadback() {
+		elevenstRegistration();
+		var review = elevenstQueue();
+		var actualWrites = new java.util.concurrent.atomic.AtomicInteger();
+		when(client.readStockQuantity("123", null, product.getSbCode())).thenReturn(read(17));
+		when(client.readStockQuantity("123", "456", product.getSbCode())).thenReturn(read(17));
+		doAnswer(call -> {
+			call.<Runnable>getArgument(5).run();
+			actualWrites.incrementAndGet();
+			throw new MarketTransferFailure("ELEVENST_BUSINESS_500", "비지니스 Error", null, null);
+		}).when(client).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(state(review.id())).isEqualTo("VERIFY");
+		release();
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(state(review.id())).isEqualTo("BLOCKED");
+		assertThat(actualWrites).hasValue(1);
+		assertThat(tasks.findByReviewIdOrderById(review.id()).getFirst().getWrites()).isEqualTo(1);
+		assertThat(tasks.findByReviewIdOrderById(review.id()).getFirst().isWriteRejected()).isTrue();
+	}
+
+	@Test
+	void elevenstInventoryChangedAfterWriteCannotBeConfirmedAgainstAnotherStockItem() {
+		elevenstRegistration();
+		var review = elevenstQueue();
+		when(client.readStockQuantity("123", null, product.getSbCode())).thenReturn(read(17));
+		service.processOne(MarketType.ELEVEN_STREET);
+		release();
+		when(client.readStockQuantity("123", "456", product.getSbCode()))
+			.thenReturn(new MarketStockRead(300, true, "different inventory", "account-A", "457"));
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(state(review.id())).isEqualTo("UNKNOWN");
+		verify(client, times(1)).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+	}
+
+	@Test
+	void elevenstReviewedQuantitySaveCreatesDedicatedTargetAndPreservesActualSourceStock() {
+		elevenstRegistration();
+		int sourceStock = product.getStock();
+		var target = savedQuantity(450);
+		assertThat(target.getMarket()).isEqualTo("ELEVEN_STREET");
+		service.dispatchSavedQuantities();
+		when(client.readStockQuantity("123", null, product.getSbCode())).thenReturn(read(450));
+		service.processOne(MarketType.ELEVEN_STREET);
+		assertThat(changeTargets.findById(target.getId()).orElseThrow().getState()).isEqualTo("CONFIRMED_QUANTITY");
+		assertThat(products.findById(product.getId()).orElseThrow().getStock()).isEqualTo(sourceStock);
+		verify(client, never()).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+	}
+
+	@Test
+	void connectedElevenstZeroAndTruncatedFractionCannotBeSavedAsAnUnsendableQuantity() {
+		elevenstRegistration();
+		for (double quantity : List.of(0.0, 0.9)) {
+			var review = edits.previewSingle(product.getId(), product.getRevision(),
+				mapper.createObjectNode().put("salesQuantity", quantity), "admin");
+			assertThat(review.items().getFirst().state()).isEqualTo(ProductEditPlanner.State.EXCLUDED);
+			assertThat(review.items().getFirst().reasons()).anyMatch(reason -> reason.contains("1개 이상"));
+			assertThat(edits.commit(review.reviewId(), "admin").items().getFirst().state()).isEqualTo("EXCLUDED");
+		}
+		assertThat(products.findById(product.getId()).orElseThrow().getSalesQuantity()).isEqualTo(300);
+		assertThat(changeHistories.count()).isZero();
+		assertThat(changeTargets.count()).isZero();
+	}
+
 }
