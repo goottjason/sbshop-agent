@@ -1,0 +1,25 @@
+{
+  "checkedAt": "2026-09-08T01:34:30.695428017Z",
+  "deployedRevision": "16ec51f6a9266f4f9171d1f0c4fc9afb9176c448",
+  "verification": "deployed API and matching source; no fresh Chrome session",
+  "ihbActiveProducts": 2114,
+  "collectionLimit": 50,
+  "minimumManualGroups": 43,
+  "readOnlyNumericPreview": {
+    "productId": 1,
+    "sbCode": "200630WA013",
+    "mode": "READ_ONLY",
+    "valid": 1,
+    "invalid": 0,
+    "after": {
+      "MARGIN_RATE": "10",
+      "COUPON_RATE": "0",
+      "MIN_MARGIN_PRICE": "1500"
+    },
+    "productRowUnchanged": true,
+    "permissionReviewPerformed": false
+  },
+  "productWrites": 0,
+  "externalMarketWrites": 0,
+  "batchStarted": false
+}
