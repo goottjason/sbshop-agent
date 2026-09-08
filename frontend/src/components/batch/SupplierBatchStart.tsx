@@ -96,6 +96,7 @@ export function SupplierBatchStart({ onCreated, onCollapse }: { onCreated: (run:
     {mode === 'PRICE_STOCK' && <p className="sb-batch-scope">가격·재고가 모두 수집되어야 저장합니다. 하나라도 실패하면 해당 상품 전체를 실패 처리하고, 재시도할 때 함께 다시 수집합니다.</p>}
     <div className="sb-batch-market-select"><strong>연결된 마켓</strong><Checkbox.Group aria-label="배치 반영 마켓" value={activeMarkets} disabled={locked || options.isError}
       options={options.data?.markets.map(item => ({ value: item.market, label: item.label }))} onChange={value => { setMarkets(value as SupplierBatchMarket[]); setConditionSource('직접 조정한 조건'); }} /></div>
+    {chosen?.vendor === 'IHB' && <p className="sb-batch-help" role="note">아이허브 할인 제외 상품은 입력 쿠폰율 대신 0%로 계산합니다. 상품 상세에서 실제 적용률과 사유를 확인할 수 있습니다.</p>}
     {activeMarkets.includes('ELEVEN_STREET') && <p className="sb-batch-market-note" role="note">11번가는 지원 조건을 충족한 상품의 가격·수량을 반영하고, 재조회로 확인해야 성공으로 표시합니다.{mode !== 'STOCK' && <> 가격 인상 시 11번가 쿠폰·수수료 혜택이 종료될 수 있으며, 설정 판매가로 자동 반영합니다. 소싱처 쿠폰과는 별개입니다.</>}</p>}
     {chosen && !supported && !options.isError && <Alert type="warning" message="이 소싱처의 자동 배치 수집은 아직 지원하지 않습니다." />}
     {error && <Alert type="error" showIcon message={error} closable onClose={() => setError(null)} />}

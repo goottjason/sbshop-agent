@@ -34,8 +34,18 @@ public final class ProductSourceData {
 	public record Captured(Values current, BigDecimal weightKg, Integer bundleQuantity, Shipping shipping) {
 	}
 	/** Exact catalog price and FX evidence captured before review; no raw source page is retained. */
+	/** Nullable codes preserve the distinction between missing fields and explicit numeric zero. */
+	public record IherbDiscount(Integer discountType, Integer discountDisplayType) {
+		public boolean excludesCoupon() {
+			return Integer.valueOf(0).equals(discountType) && Integer.valueOf(0).equals(discountDisplayType);
+		}
+	}
 	public record PricingEvidence(BigDecimal sourcePrice, String currency, BigDecimal observedExchangeRate,
-		BigDecimal normalizedExchangeRate, BigDecimal goodsPriceKrw) {
+		BigDecimal normalizedExchangeRate, BigDecimal goodsPriceKrw, IherbDiscount iherbDiscount) {
+		public PricingEvidence(BigDecimal sourcePrice, String currency, BigDecimal observedExchangeRate,
+			BigDecimal normalizedExchangeRate, BigDecimal goodsPriceKrw) {
+			this(sourcePrice, currency, observedExchangeRate, normalizedExchangeRate, goodsPriceKrw, null);
+		}
 	}
 	public record Proposed(Values values, boolean priceAvailable, boolean stockAvailable, List<String> notices,
 		PricingEvidence pricingEvidence) {

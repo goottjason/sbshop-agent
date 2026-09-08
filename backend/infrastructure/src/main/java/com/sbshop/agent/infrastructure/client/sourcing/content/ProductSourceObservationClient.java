@@ -127,7 +127,12 @@ public class ProductSourceObservationClient implements ProductSourceObservationS
 		return new ProductSourceData.Observed(price, BigDecimal.ONE, "KRW",
 			data.path("isAvailableToPurchase").booleanValue() ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK, stock,
 			notices, price == null ? null : new ProductSourceData.PricingEvidence(price, "KRW", BigDecimal.ONE,
-				BigDecimal.ONE, price));
+				BigDecimal.ONE, price, new ProductSourceData.IherbDiscount(
+					integerCode(data.get("discountType")), integerCode(data.get("discountDisplayType")))));
+	}
+
+	private static Integer integerCode(JsonNode value) {
+		return value != null && value.isIntegralNumber() && value.canConvertToInt() ? value.intValue() : null;
 	}
 
 	private ProductSourceData.Observed vitabiotics(String url) {
@@ -150,7 +155,8 @@ public class ProductSourceObservationClient implements ProductSourceObservationS
 			notices.add("VTB 규격의 양수 정수 가격을 확인하지 못했습니다. 가격은 유지합니다.");
 		return new ProductSourceData.Observed(pricing == null ? null : pricing.goodsPriceKrw(),
 			pricing == null ? null : pricing.normalizedExchangeRate(), "GBP", variant.path("available").booleanValue()
-				? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK, null, notices, pricing);
+				? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK,
+			null, notices, pricing);
 	}
 
 	private static ProductSourceData.PricingEvidence pricing(BigDecimal sourcePrice, String currency,

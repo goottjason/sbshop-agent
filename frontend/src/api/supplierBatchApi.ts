@@ -45,6 +45,7 @@ export interface SupplierBatchItemDetail {
     state: string; detail: string | null; recordedAt: string }[];
   priceCalculation?: {
     costPrice: number | string | null; exchangeRate: number | string | null; policy: SupplierBatchPolicy;
+    appliedCouponRate?: number | string | null;
     pricingEvidence?: { sourcePrice: number | string | null; currency: string | null; observedExchangeRate: number | string | null;
       normalizedExchangeRate: number | string | null; goodsPriceKrw: number | string | null } | null;
     prices: { market: SupplierBatchMarket; minimumPrice: number | string | null; salePrice: number | string | null }[];

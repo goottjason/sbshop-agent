@@ -22,7 +22,8 @@ class ProductSourceDeliveryRegressionTest {
 	void supplierFxIsRoundedBeforeGoodsConversionAndExactEvidenceIsRetained(VendorType vendor) {
 		String url = switch (vendor) {
 			case FTN -> "https://www.fortnumandmason.com/fortnum-s-fig-fennel-chutney-250g";
-			case COK -> "https://www.costco.co.uk/Grocery-Household/Tea-Coffee-Hot-Drinks/Tea-Coffee/Lavazza-Qualita-Rossa-Coffee-Beans-1kg/p/139465";
+			case COK ->
+				"https://www.costco.co.uk/Grocery-Household/Tea-Coffee-Hot-Drinks/Tea-Coffee/Lavazza-Qualita-Rossa-Coffee-Beans-1kg/p/139465";
 			default -> "https://www.ocado.com/products/cirio-tomato-puree-80259011";
 		};
 		var catalog = mock(SupplierCatalogClient.class);
@@ -94,4 +95,21 @@ class ProductSourceDeliveryRegressionTest {
 		assertThat(observed.stockStatus()).isEqualTo(StockStatus.IN_STOCK);
 		assertThat(observed.stock()).isNull();
 	}
+
+	@ParameterizedTest
+	@org.junit.jupiter.params.provider.CsvSource({"0,0,true", "8,3,false", "0,3,false", "8,0,false",
+		"null,0,false", "0,null,false", "0.0,0,false", "2147483648,0,false", "'\"0\"',0,false"})
+	void explicitIntegerPromoCodesAreRequiredForCouponExclusion(String type, String display, boolean excluded)
+		throws Exception {
+		ObjectNode data = (ObjectNode)mapper.readTree(getClass()
+			.getResourceAsStream("/sourcing/ihb-reviewed-price-2026-09-08.json"));
+		data.set("discountType", mapper.readTree(type));
+		data.set("discountDisplayType", mapper.readTree(display));
+		var observed = new ProductSourceObservationClient(mapper, null, null, null).parseIherb(data, "18566");
+		assertThat(observed.pricingEvidence().iherbDiscount().excludesCoupon()).isEqualTo(excluded);
+		var restored = mapper.readValue(mapper.writeValueAsString(observed),
+			com.sbshop.agent.core.application.product.source.ProductSourceData.Observed.class);
+		assertThat(restored.pricingEvidence().iherbDiscount()).isEqualTo(observed.pricingEvidence().iherbDiscount());
+	}
+
 }

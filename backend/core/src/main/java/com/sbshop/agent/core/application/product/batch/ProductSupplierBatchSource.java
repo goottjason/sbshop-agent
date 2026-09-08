@@ -55,13 +55,22 @@ public class ProductSupplierBatchSource {
 			throw new ProductEditConflictException("수집 이후 상품 또는 마켓 연결이 변경되었습니다.");
 		var proposal = read(snapshot.getProposed(), ProductSourceData.Proposed.class);
 		var values = mapper.createObjectNode();
+		var appliedCouponRate = policy.couponRate();
+		var couponNotices = new ArrayList<String>();
 		if (selected.contains(Field.PRICE)) {
+			var discount = proposal.pricingEvidence() == null ? null : proposal.pricingEvidence().iherbDiscount();
+			if (product.getVendor() == com.sbshop.agent.core.domain.product.enums.VendorType.IHB
+				&& discount != null && discount.excludesCoupon()) {
+				appliedCouponRate = java.math.BigDecimal.ZERO;
+				couponNotices.add("아이허브 할인 제외 상품: discountType=0, discountDisplayType=0. 입력 쿠폰율 "
+					+ policy.couponRate().stripTrailingZeros().toPlainString() + "% 대신 0%를 적용합니다.");
+			}
 			if (!proposal.priceAvailable())
 				throw new ProductEditConflictException("가격 수집 또는 환율·배송비 계산이 완료되지 않았습니다.");
 			values.put("costPrice", proposal.values().costPrice());
 			values.put("exchangeRate", proposal.values().exchangeRate());
 			values.put("marginRate", policy.marginRate());
-			values.put("couponRate", policy.couponRate());
+			values.put("couponRate", appliedCouponRate);
 			values.put("minMarginPrice", policy.minMarginPrice());
 		}
 		if (selected.contains(Field.STOCK)) {
@@ -78,7 +87,9 @@ public class ProductSupplierBatchSource {
 		var review = reviews.save(new ProductSourceReview(UUID.randomUUID().toString(), actor, now, expires,
 			json(new BatchReview(REVIEW_KIND, new ProductSourceService.Reviewed(snapshotId, fields, plan)))));
 		var calculation = new Calculation(proposal.values().costPrice(), proposal.values().exchangeRate(), policy,
-			proposal.pricingEvidence(), plan.prices(), concat(proposal.notices(), plan.notices()));
+			proposal.pricingEvidence(), plan.prices(),
+			concat(concat(proposal.notices(), plan.notices()), couponNotices),
+			selected.contains(Field.PRICE) ? appliedCouponRate : null);
 		return new Prepared(review.getId(), plan, calculation);
 	}
 

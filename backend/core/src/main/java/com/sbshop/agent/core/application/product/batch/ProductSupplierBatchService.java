@@ -114,7 +114,12 @@ public class ProductSupplierBatchService {
 	}
 	public record Calculation(BigDecimal costPrice, BigDecimal exchangeRate, Policy policy,
 		ProductSourceData.PricingEvidence pricingEvidence, List<ProductEditPlanner.Price> prices,
-		List<String> notices) {
+		List<String> notices, BigDecimal appliedCouponRate) {
+		public Calculation(BigDecimal costPrice, BigDecimal exchangeRate, Policy policy,
+			ProductSourceData.PricingEvidence pricingEvidence, List<ProductEditPlanner.Price> prices,
+			List<String> notices) {
+			this(costPrice, exchangeRate, policy, pricingEvidence, prices, notices, null);
+		}
 	}
 	public record ItemDetail(Item item, List<Attempt> history, Calculation priceCalculation) {
 	}

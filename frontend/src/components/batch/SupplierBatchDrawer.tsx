@@ -37,7 +37,8 @@ export function SupplierBatchDrawer({ run, itemId, onClose, onRetry, retryBusy, 
       <Collapse items={[
         { key: 'price', label: '가격 계산 근거', children: calculation ? <div className="sb-batch-calculation">
           <p className="sb-batch-help">최소 마진은 판매가에서 소싱처 쿠폰을 적용한 총매입가와 국내 배송비를 뺀 금액 기준입니다.</p>
-          <dl><div><dt>목표 마진 / 소싱처 쿠폰 / 최소 마진</dt><dd>{calculation.policy.marginRate}% / {calculation.policy.couponRate}% / {numberText(calculation.policy.minMarginPrice)}원</dd></div>
+          <dl><div><dt>목표 마진 / 적용 쿠폰 / 최소 마진</dt><dd>{calculation.policy.marginRate}% / {calculation.appliedCouponRate ?? calculation.policy.couponRate}% / {numberText(calculation.policy.minMarginPrice)}원</dd></div>
+            <div><dt>입력 쿠폰율 → 실제 적용 쿠폰율</dt><dd>{calculation.policy.couponRate}% → {calculation.appliedCouponRate ?? calculation.policy.couponRate}%</dd></div>
             <div><dt>원가 / 적용 환율</dt><dd>{numberText(calculation.costPrice)}원 / {numberText(calculation.exchangeRate)}</dd></div>
             {calculation.pricingEvidence && <><div><dt>소싱 원본 가격</dt><dd>{numberText(calculation.pricingEvidence.sourcePrice)} {calculation.pricingEvidence.currency ?? ''}</dd></div><div><dt>원본 환율 → 반영 환율</dt><dd>{numberText(calculation.pricingEvidence.observedExchangeRate)} → {numberText(calculation.pricingEvidence.normalizedExchangeRate)}</dd></div><div><dt>환산 상품가</dt><dd>{numberText(calculation.pricingEvidence.goodsPriceKrw)}원</dd></div></>}
           </dl><table className="sb-batch-mini-table"><thead><tr><th>마켓</th><th>최소 판매가</th><th>목표 판매가</th></tr></thead><tbody>{calculation.prices.map(price => <tr key={price.market}><td>{batchMarketLabel(price.market)}</td><td>{numberText(price.minimumPrice)}원</td><td>{numberText(price.salePrice)}원</td></tr>)}</tbody></table>

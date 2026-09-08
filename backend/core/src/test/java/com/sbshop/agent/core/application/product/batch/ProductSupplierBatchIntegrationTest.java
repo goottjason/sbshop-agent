@@ -280,6 +280,37 @@ class ProductSupplierBatchIntegrationTest {
 		assertThat(service.detail(run.id(), item(run.id()).id()).priceCalculation()).isNotNull();
 	}
 
+	@org.junit.jupiter.params.ParameterizedTest
+	@org.junit.jupiter.params.provider.CsvSource({"0,0,20,0", "8,3,20,20", "0,3,20,20", "8,0,20,20", ",,20,20",
+		"0,0,0,0"})
+	void iherbCouponDecisionSurvivesCollectionReviewAndDatabaseCommit(Integer type, Integer display,
+		BigDecimal entered, BigDecimal expected) {
+		Product p = product();
+		var evidence = new ProductSourceData.PricingEvidence(n("12000"), "KRW", BigDecimal.ONE,
+			BigDecimal.ONE, n("12000"), new ProductSourceData.IherbDiscount(type, display));
+		doReturn(new Observed(n("12000"), BigDecimal.ONE, "KRW", StockStatus.IN_STOCK, null, List.of(), evidence))
+			.when(source).fetch(any(), anyString());
+		var run = service.create(new CreateRequest(UUID.randomUUID().toString(), VendorType.IHB,
+			Mode.PRICE_STOCK, n("1"), entered, n("500"), Set.of(MarketType.COUPANG)), "admin");
+		untilComplete(run.id());
+		assertThat(service.get(run.id()).succeeded()).isEqualTo(1);
+		var current = products.findById(p.getId()).orElseThrow();
+		assertThat(current.getPriceInfo().getCouponRate()).isEqualByComparingTo(expected);
+		assertThat(current.getPriceInfo().getMarginRate()).isEqualByComparingTo("1");
+		var calculation = service.detail(run.id(), item(run.id()).id()).priceCalculation();
+		assertThat(calculation.policy().couponRate()).isEqualByComparingTo(entered);
+		assertThat(calculation.appliedCouponRate()).isEqualByComparingTo(expected);
+		verify(priceResolver, atLeastOnce()).explainForProduct(
+			argThat(candidate -> candidate.getPriceInfo().getCouponRate().compareTo(expected) == 0), any(), any());
+		assertThat(calculation.pricingEvidence().iherbDiscount()).isEqualTo(evidence.iherbDiscount());
+		assertThat(calculation.notices().stream().anyMatch(v -> v.contains("discountType=0")))
+			.isEqualTo(Integer.valueOf(0).equals(type) && Integer.valueOf(0).equals(display));
+		step(run.id());
+		assertThat(histories.count()).isEqualTo(1);
+		assertThat(products.findById(p.getId()).orElseThrow().getPriceInfo().getCouponRate())
+			.isEqualByComparingTo(expected);
+	}
+
 	@Test
 	void bothCompleteObservationsUseOneDatabaseCommit() {
 		product();
