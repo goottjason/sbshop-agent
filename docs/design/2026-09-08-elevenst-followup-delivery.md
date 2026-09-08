@@ -17,3 +17,5 @@
 전체 완료율은 기존 고정 기준 약 89%를 유지한다. 이번의 양수 수량 지원과 등록 입력 준비를 전체 11번가 수량/등록 완료로 올리지 않는다. 남은 실제 선택 적용·11번가 0개/복구와 신규 등록 readback·마켓플러스 전송은 [남은 작업](2026-09-08-products-delivery-remaining.md)에 계속 표시한다.
 
 운영 Chrome 2개 흐름도 통과했다. 기존 수량 검토에서 목표 300·현재 마켓 수량 미확인·미접수를 확인했고, 등록 입력은 출고/반품 주소 자동 선택 없이 실행 불가 상태였다. 새 검토/반영/입력 점검 POST 없이 상품 revision 0과 쓰기 0을 보존했다. 원래 MP 탭·URL·20행·수집 설정을 복원했다. [운영 Chrome 증거](evidence/2026-09-08-elevenst-operating-browser.json), [수량 화면](evidence/2026-09-08-elevenst-operating-stock-preview.png), [등록 입력 화면](evidence/2026-09-08-elevenst-operating-input-only.png).
+
+후속: 사용자 승인 후 [11번가 300개 실제 반영·독립 재조회](2026-09-08-elevenst-approved-stock-verification.md)를 완료했다. 위 미실행 설명은 승인 전 조사·배포 시점의 기록이다.

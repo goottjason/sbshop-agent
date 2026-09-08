@@ -25,3 +25,5 @@
 검증은 전용 어댑터 fixture와 기존 영속 수량 엔진·편집 통합 테스트로 수행한다. namespace 혼합, 정확 SB/상품/재고번호, 누락 수량·무게, 다중 항목, 품절 보류, 필수 4필드 전송, 업무 실패/429/guard abort, 재조회 전 성공 금지, 수량 변경 이력·전용 target, 연결 상품의 0개 저장 차단을 포함한다. 판매중 실응답은 `997` 반환·`writable=true`와 외부 쓰기 0을 검사한다.
 
 검사 결과: 새 어댑터 31건(실제 판매중 XML 회귀 포함) + 영속 수량 엔진 37건 + 기존 DB 편집 35건, 총 **103건 통과**. 프론트 `npx tsc -b`, `npm run build` 및 기존 상품 검색·수량 작업 브라우저 fixture **8개 시나리오**도 통과했다. 실행 로그는 `/private/tmp/sbshop-elevenst-reviewed-stock-tests.log`, `/private/tmp/sbshop-elevenst-selling-stock-proof-tests.log`, `/private/tmp/sbshop-elevenst-stock-ui-{typecheck,build,browser}.log`에 보존했다.
+
+후속: 사용자 승인 후 [11번가 300개 실제 반영·독립 재조회](2026-09-08-elevenst-approved-stock-verification.md)를 완료했다. 위 미실행 설명은 승인 전 조사·배포 시점의 기록이다.

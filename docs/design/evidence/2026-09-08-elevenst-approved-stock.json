@@ -1,0 +1,99 @@
+{
+  "authorization": "User approved 220114OC012 / ELEVEN_STREET quantity 300 after review; 2026-09-08",
+  "startedAt": "2026-09-08T01:21:47.715996+00:00",
+  "productHashBefore": "6b7e2352c8e841a7f94ef22e7ba008e14890c3bdbcfdddf3c1c48c51fd3001fd",
+  "reviewId": "da4bb6ad-50bf-445a-9cf6-42b8c260f981",
+  "reviewBefore": {
+    "id": "da4bb6ad-50bf-445a-9cf6-42b8c260f981",
+    "createdAt": "2026-09-08T01:03:15.430651Z",
+    "expiresAt": "2026-09-08T01:33:15.430651Z",
+    "committed": false,
+    "items": [
+      {
+        "id": null,
+        "productId": 1229,
+        "sbCode": "220114OC012",
+        "market": "ELEVEN_STREET",
+        "listingId": "4088296117",
+        "revision": 0,
+        "expectedQuantity": 300,
+        "observedQuantity": null,
+        "state": "READY",
+        "detail": "소싱처 실재고와 별도인 판매용 수량을 전송합니다. 현재 판매 상태·품목을 먼저 확인합니다.",
+        "writes": 0,
+        "reads": 0,
+        "nextRunAt": null,
+        "checkedAt": null
+      }
+    ],
+    "total": 1
+  },
+  "commitRequestedAt": "2026-09-08T01:21:47.955338+00:00",
+  "reviewAfter": {
+    "id": "da4bb6ad-50bf-445a-9cf6-42b8c260f981",
+    "createdAt": "2026-09-08T01:03:15.430651Z",
+    "expiresAt": "2026-09-08T01:33:15.430651Z",
+    "committed": true,
+    "items": [
+      {
+        "id": 1,
+        "productId": 1229,
+        "sbCode": "220114OC012",
+        "market": "ELEVEN_STREET",
+        "listingId": "4088296117",
+        "revision": 0,
+        "expectedQuantity": 300,
+        "observedQuantity": 300,
+        "state": "CONFIRMED_QUANTITY",
+        "detail": "마켓 재조회 수량이 목표 판매용 수량과 일치합니다. 다른 필드의 일치를 뜻하지 않습니다.",
+        "writes": 1,
+        "reads": 2,
+        "nextRunAt": "2026-09-08T01:22:27.053870Z",
+        "checkedAt": "2026-09-08T01:22:04.053870Z"
+      }
+    ],
+    "total": 1
+  },
+  "productHashAfter": "6b7e2352c8e841a7f94ef22e7ba008e14890c3bdbcfdddf3c1c48c51fd3001fd",
+  "productFieldsUnchanged": true,
+  "histories": {
+    "1": [
+      {
+        "id": 1,
+        "taskId": 1,
+        "phase": "READ_STARTED",
+        "detail": "마켓 실제 판매용 수량 조회 시작",
+        "recordedAt": "2026-09-08T01:21:48.199547Z"
+      },
+      {
+        "id": 2,
+        "taskId": 1,
+        "phase": "WRITE_STARTED",
+        "detail": "판매용 수량 300 전송 시작. 응답 유실 시 먼저 재조회합니다.",
+        "recordedAt": "2026-09-08T01:21:48.578808Z"
+      },
+      {
+        "id": 3,
+        "taskId": 1,
+        "phase": "VERIFY",
+        "detail": "수량 전송 요청이 종료되었습니다. 실제 수량을 다시 조회합니다.",
+        "recordedAt": "2026-09-08T01:21:48.658189Z"
+      },
+      {
+        "id": 4,
+        "taskId": 1,
+        "phase": "READ_STARTED",
+        "detail": "마켓 실제 판매용 수량 조회 시작",
+        "recordedAt": "2026-09-08T01:22:03.868849Z"
+      },
+      {
+        "id": 5,
+        "taskId": 1,
+        "phase": "CONFIRMED_QUANTITY",
+        "detail": "마켓 재조회 수량이 목표 판매용 수량과 일치합니다. 다른 필드의 일치를 뜻하지 않습니다.",
+        "recordedAt": "2026-09-08T01:22:04.053870Z"
+      }
+    ]
+  },
+  "observedAt": "2026-09-08T01:22:05.061220+00:00"
+}
