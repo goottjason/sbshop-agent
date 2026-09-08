@@ -1,0 +1,30 @@
+[
+  {
+    "module": "core",
+    "tests": 1766,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "module": "infrastructure",
+    "tests": 975,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "module": "api",
+    "tests": 385,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "module": "worker",
+    "tests": 81,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  }
+]

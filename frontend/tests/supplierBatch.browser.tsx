@@ -43,7 +43,7 @@ apiClient.defaults.adapter = async config => {
     if (created.has(body.requestId)) { if (JSON.stringify(created.get(body.requestId)) !== JSON.stringify(body)) throw new Error('Recovery body changed'); return response(config, run); }
     if (run) throw failure(config, 409);
     created.set(body.requestId, body);
-    run = { id: 'fixture-run-1', vendor: 'IHB', mode: body.mode, actor: 'fixture', state: 'RUNNING', createdAt: now, updatedAt: now, finishedAt: null, policy: { marginRate: body.marginRate, couponRate: body.couponRate, minMarginPrice: body.minMarginPrice }, markets: [...markets], total: 41, processed: 20, succeeded: 17, failed: 2, blocked: 1, pending: 21, inFlight: 1, nextRunAt: null };
+    run = { id: 'fixture-run-1', vendor: 'IHB', mode: body.mode, actor: 'fixture', state: 'RUNNING', createdAt: now, updatedAt: now, finishedAt: null, policy: { marginRate: body.marginRate, couponRate: body.couponRate, minMarginPrice: body.minMarginPrice }, markets: [...markets], total: 41, processed: 20, succeeded: 14, dbOnly: 3, stageProgress: { CRAWL_SUCCEEDED: 38, DB_SUCCEEDED: 37, MARKET_SUCCEEDED: 80, MARKET_WAITING: 16, MARKET_RUNNING: 8 }, failed: 2, blocked: 1, pending: 21, inFlight: 1, nextRunAt: null };
     if (createLost) { createLost = false; throw failure(config); }
     return response(config, run);
   }
@@ -108,8 +108,8 @@ void (async () => {
     if (Number((document.querySelector('[aria-label="배치 목표 마진율"]') as HTMLInputElement).value) !== 10 || !content('11번가는 지원 조건을 충족한 상품의 가격·수량을 반영하고, 재조회로 확인해야 성공으로 표시합니다.')) throw new Error('Reopen lost conditions or support notice');
     if (getComputedStyle(document.querySelector('.sb-batch-start .ant-segmented-item-selected')!).backgroundColor !== 'rgb(36, 84, 216)') throw new Error('Selected mode is not cobalt');
     checks.push('접수 성공 후 폼 자동 접힘·최근 조건 보존·다시 열기·코발트 선택·11번가 지원 안내');
-    if (!content('실패') || !content('보류') || !content('성공') || !content('20 / 41개')) throw new Error('Summary mixed processed/succeeded');
-    checks.push('처리20/41·성공17·실패2·보류1 분리 표시');
+    if (!content('실패') || !content('보류') || !content('마켓 반영 완료') || !content('마켓 대상 없음') || !content('SB 저장 완료 37개') || !content('20 / 41개')) throw new Error('Summary mixed processed/succeeded');
+    checks.push('최종처리20/41·마켓완료14·대상없음3·실패2·보류1 및 수집/저장 진행 분리');
     const matrix = document.querySelector('.sb-batch-run-panel')!; if (!matrix.textContent?.includes('확인 99,900원') || !matrix.textContent?.includes('목표 99,500원') || !matrix.textContent?.includes('품절 반영') || !matrix.textContent?.includes('확인 0개')) throw new Error('Confirmed/expected price or confirmed sold-out distinction missing');
     checks.push('마켓 셀 실제 확인 가격·미확인 목표가 구분·실측0개 품절 표시');
     button('41개 업데이트 시작').click(); await wait(() => content('새 배치가 접수되지 않았습니다.'), '409 conflict');

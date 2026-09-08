@@ -4,7 +4,7 @@ export type SupplierBatchMode = 'PRICE_STOCK' | 'PRICE' | 'STOCK';
 export type SupplierBatchMarket = 'COUPANG' | 'ELEVEN_STREET' | 'SMART_STORE' | 'CAFE24';
 export type SupplierBatchStageKind = 'CRAWL' | 'DB' | 'MARKET';
 export type SupplierBatchField = 'PRICE' | 'STOCK';
-export type SupplierBatchItemFilter = 'ALL' | 'FAILED' | 'BLOCKED' | 'PENDING' | 'SUCCEEDED';
+export type SupplierBatchItemFilter = 'ALL' | 'FAILED' | 'BLOCKED' | 'PENDING' | 'SUCCEEDED' | 'DB_ONLY';
 export interface SupplierBatchPolicy { marginRate: number; couponRate: number; minMarginPrice: number }
 export interface SupplierBatchOptions {
   vendors: { vendor: string; label: string; productCount: number; defaults: { marginRate: number | null; couponRate: number | null; minMarginPrice: number | null } }[];
@@ -20,7 +20,7 @@ export interface SupplierBatchRun {
   createdAt: string; updatedAt: string; finishedAt: string | null;
   policy: SupplierBatchPolicy; markets: SupplierBatchMarket[];
   total: number; processed: number; succeeded: number; failed: number; blocked: number; pending: number;
-  inFlight: number; nextRunAt: string | null;
+  inFlight: number; nextRunAt: string | null; dbOnly?: number; stageProgress?: Record<string, number>;
 }
 export interface SupplierBatchStage {
   id: number; stage: SupplierBatchStageKind; market?: SupplierBatchMarket | null; field?: SupplierBatchField | null;

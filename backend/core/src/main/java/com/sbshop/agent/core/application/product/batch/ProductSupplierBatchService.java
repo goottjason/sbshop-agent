@@ -100,7 +100,14 @@ public class ProductSupplierBatchService {
 	}
 	public record View(String id, String vendor, String mode, String actor, String state, Instant createdAt,
 		Instant updatedAt, Instant finishedAt, Policy policy, List<String> markets, int total, int processed,
-		int succeeded, int failed, int blocked, int pending, int inFlight, Instant nextRunAt) {
+		int succeeded, int failed, int blocked, int pending, int inFlight, Instant nextRunAt,
+		int dbOnly, Map<String, Long> stageProgress) {
+		public View(String id, String vendor, String mode, String actor, String state, Instant createdAt,
+			Instant updatedAt, Instant finishedAt, Policy policy, List<String> markets, int total, int processed,
+			int succeeded, int failed, int blocked, int pending, int inFlight, Instant nextRunAt) {
+			this(id, vendor, mode, actor, state, createdAt, updatedAt, finishedAt, policy, markets, total, processed,
+				succeeded, failed, blocked, pending, inFlight, nextRunAt, 0, Map.of());
+		}
 	}
 	public record Stage(Long id, String stage, String market, String field, String state, String detail,
 		boolean retryable, int attempts, String referenceId, String expected, String observed, Instant startedAt,
@@ -219,7 +226,7 @@ public class ProductSupplierBatchService {
 	@Transactional(readOnly = true)
 	public Page<Item> items(String id, int page, int size, String keyword, String filter) {
 		run(id);
-		if (!Set.of("ALL", "FAILED", "BLOCKED", "PENDING", "SUCCEEDED").contains(filter))
+		if (!Set.of("ALL", "FAILED", "BLOCKED", "PENDING", "SUCCEEDED", "DB_ONLY").contains(filter))
 			throw new IllegalArgumentException("상품 결과 필터를 확인하세요.");
 		String word = keyword == null ? "" : keyword.strip().toLowerCase(Locale.ROOT);
 		if (word.length() > 100)
@@ -322,15 +329,28 @@ public class ProductSupplierBatchService {
 		int succeeded = counts.getOrDefault("SUCCEEDED", 0), failed = counts.getOrDefault("FAILED", 0),
 			blocked = counts.getOrDefault("BLOCKED", 0), skipped = counts.getOrDefault("SKIPPED", 0);
 		int processed = succeeded + failed + blocked + skipped;
+		int dbOnly = em.createQuery(
+			"select count(i) from ProductSupplierBatchItem i where i.batchId=:id and i.state='SUCCEEDED' and not exists(select s.id from ProductSupplierBatchStage s where s.itemId=i.id and s.stage='MARKET' and s.state in ('SUCCEEDED','UNCHANGED'))",
+			Long.class)
+			.setParameter("id", r.getId()).getSingleResult().intValue();
+		Map<String, Long> progress = new LinkedHashMap<>();
+		for (Object[] row : em.createQuery(
+			"select s.stage,s.state,count(s) from ProductSupplierBatchStage s where s.batchId=:id group by s.stage,s.state",
+			Object[].class).setParameter("id", r.getId()).getResultList())
+			progress.put(row[0] + "_" + row[1], ((Number)row[2]).longValue());
+		succeeded -= dbOnly;
 		return new View(r.getId(), r.getVendor(), r.getMode(), r.getActor(), r.getState(), r.getCreatedAt(),
 			r.getUpdatedAt(), r.getFinishedAt(), read(r.getPolicy(), Policy.class), readStrings(r.getMarkets()),
 			r.getTotal(), processed, succeeded, failed, blocked, r.getTotal() - processed, inFlight(r.getId()),
-			stageRows.nextRunAt(r.getId()));
+			stageRows.nextRunAt(r.getId()), dbOnly, progress);
 	}
 
 	Item item(ProductSupplierBatchItem i, List<ProductSupplierBatchStage> stages) {
+		boolean dbOnly = i.getState().equals("SUCCEEDED") && stages.stream()
+			.noneMatch(stage -> stage.getStage().equals("MARKET") && stage.successful());
 		return new Item(i.getId(), i.getProductId(), i.getSbCode(), i.getProductName(), i.getThumbnailUrl(),
-			i.getState(), i.getDetail(), i.getAttempts(), i.getSourceSnapshotId(), i.getEditReviewId(),
+			dbOnly ? "SKIPPED" : i.getState(), dbOnly ? "SB 저장 완료 · 마켓 대상 없음" : i.getDetail(), i.getAttempts(),
+			i.getSourceSnapshotId(), i.getEditReviewId(),
 			stages.stream()
 				.map(s -> new Stage(s.getId(), s.getStage(), empty(s.getMarket()), empty(s.getField()), s.getState(),
 					s.getDetail(), s.isRetryable(), s.getAttempts(), s.getReferenceId(), empty(s.getExpected()),

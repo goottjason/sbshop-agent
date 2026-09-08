@@ -20,7 +20,7 @@ export function stageStatus(stage: SupplierBatchStage): { text: string; tone: st
     case 'FAILED': return { text: '실패', tone: 'failure' };
     case 'BLOCKED': return { text: '보류', tone: 'blocked' };
     case 'SKIPPED': return { text: '제외', tone: 'muted' };
-    case 'RUNNING': return { text: '처리 중', tone: 'running' };
+    case 'RUNNING': return { text: stage.detail?.startsWith('전송 후 재조회 중') ? '재조회 중' : stage.detail?.startsWith('전송 작업 접수 완료') ? '전송 대기' : '처리 중', tone: 'running' };
     case 'WAITING': return { text: '대기', tone: 'muted' };
     default: return { text: '상태 확인 필요', tone: 'blocked' };
   }

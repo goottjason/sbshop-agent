@@ -24,4 +24,15 @@ public class MarketInspectionSchedulingConfig {
 		scheduler.setAwaitTerminationSeconds(150);
 		return scheduler;
 	}
+
+	@Bean
+	public ThreadPoolTaskScheduler batchMarketTaskScheduler() {
+		var scheduler = new ThreadPoolTaskScheduler();
+		scheduler.setPoolSize(4);
+		scheduler.setThreadNamePrefix("batch-market-");
+		scheduler.setWaitForTasksToCompleteOnShutdown(true);
+		scheduler.setAwaitTerminationSeconds(150);
+		return scheduler;
+	}
+
 }

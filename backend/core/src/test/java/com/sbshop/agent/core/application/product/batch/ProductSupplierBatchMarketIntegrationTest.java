@@ -58,6 +58,19 @@ import org.springframework.transaction.support.*;
 @ContextConfiguration(classes = ProductSupplierBatchMarketIntegrationTest.App.class)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ProductSupplierBatchMarketIntegrationTest {
+	@org.springframework.test.context.DynamicPropertySource
+	static void isolatedPostgres(org.springframework.test.context.DynamicPropertyRegistry registry) {
+		String url = System.getenv("SBSHOP_BATCH_TEST_POSTGRES_URL");
+		if (url == null)
+			return;
+		if (!url.matches("jdbc:postgresql://127\\.0\\.0\\.1:[0-9]+/sbshop_batch_flow_check"))
+			throw new IllegalArgumentException("Only the local isolated batch test database is allowed");
+		registry.add("spring.datasource.url", () -> url);
+		registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+		registry.add("spring.datasource.username", () -> "postgres");
+		registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+	}
+
 	@SpringBootApplication
 	@EntityScan("com.sbshop.agent.core.domain")
 	@EnableJpaRepositories(basePackageClasses = {ProductRepository.class, MarketRegistrationRepository.class,
@@ -230,7 +243,7 @@ class ProductSupplierBatchMarketIntegrationTest {
 	}
 
 	@Test
-	void committedChildWithLostResponseKeepsReviewAndDoesNotCreateAnotherTask() {
+	void localCommitFailureRollsBackAndRetryCreatesOnlyOneChild() {
 		String run = savedRun(Mode.PRICE);
 		prepared(run, Field.PRICE);
 		String reference = market(run, Field.PRICE).getReferenceId();
@@ -245,12 +258,12 @@ class ProductSupplierBatchMarketIntegrationTest {
 		assertThat(market(run, Field.PRICE).getReferenceId()).isEqualTo(reference);
 		assertThat(market(run, Field.PRICE).getState()).isEqualTo("RUNNING");
 		assertThat(market(run, Field.PRICE).isRetryable()).isFalse();
-		assertThat(priceTasks.findByReviewIdOrderById(reference)).hasSize(1);
+		assertThat(priceTasks.findByReviewIdOrderById(reference)).isEmpty();
 		drain(run);
 		assertThat(market(run, Field.PRICE).getState()).isEqualTo("SUCCEEDED");
 		assertThat(market(run, Field.PRICE).getReferenceId()).isEqualTo(reference);
 		assertThat(priceTasks.count()).isEqualTo(1);
-		verify(prices, times(1)).commit(reference, "admin");
+		verify(prices, times(2)).commit(reference, "admin");
 		verify(client, times(1)).writeSalePrice(any(), any(), any());
 		assertThat(histories.count()).isEqualTo(1);
 	}
@@ -313,13 +326,13 @@ class ProductSupplierBatchMarketIntegrationTest {
 		String previous = market(run, field).getReferenceId();
 		batches.pause(run, "admin");
 		jdbc.update("update " + (field == Field.PRICE ? "sb_market_price_review" : "sb_market_stock_review")
-			+ " set expires_at=? where id=?", Instant.now().minusSeconds(1), previous);
+			+ " set expires_at=? where id=?", java.sql.Timestamp.from(Instant.now().minusSeconds(1)), previous);
 		step(run);
 		assertThat(market(run, field).getReferenceId()).isEqualTo(previous);
 		batches.resume(run, "admin");
 		step(run);
 		assertThat(market(run, field).getReferenceId()).isNotEqualTo(previous);
-		assertThat(priceTasks.count() + stockTasks.count()).isZero();
+		assertThat(priceTasks.count() + stockTasks.count()).isEqualTo(1);
 		drain(run);
 		assertThat(market(run, field).getState()).isEqualTo("SUCCEEDED");
 		assertThat(priceTasks.count() + stockTasks.count()).isEqualTo(1);
@@ -334,7 +347,8 @@ class ProductSupplierBatchMarketIntegrationTest {
 		queued(run, Field.PRICE);
 		String reference = market(run, Field.PRICE).getReferenceId();
 		batches.pause(run, "admin");
-		jdbc.update("update sb_market_price_review set expires_at=? where id=?", Instant.now().minusSeconds(1),
+		jdbc.update("update sb_market_price_review set expires_at=? where id=?",
+			java.sql.Timestamp.from(Instant.now().minusSeconds(1)),
 			reference);
 		batches.resume(run, "admin");
 		step(run);
@@ -343,6 +357,62 @@ class ProductSupplierBatchMarketIntegrationTest {
 		drain(run);
 		assertThat(market(run, Field.PRICE).getState()).isEqualTo("SUCCEEDED");
 		assertThat(priceReviews.count()).isEqualTo(1);
+	}
+
+	@Test
+	void freshSubmissionCommitsChildAndPointerTogetherWithoutAPreparedWaitingTurn() {
+		String run = savedRun(Mode.PRICE);
+		assertThat(priceTasks.count()).isZero();
+		step(run);
+		var stage = market(run, Field.PRICE);
+		assertThat(stage.getReferenceId()).isNotNull();
+		assertThat(stage.getTaskId()).isNotNull();
+		assertThat(priceTasks.findById(stage.getTaskId()).orElseThrow().getReviewId())
+			.isEqualTo(stage.getReferenceId());
+		assertThat(priceReviews.findById(stage.getReferenceId()).orElseThrow().getCommittedAt()).isNotNull();
+		verify(client, never()).writeSalePrice(any(), any(), any());
+		drain(run);
+		assertThat(priceTasks.count()).isEqualTo(1);
+		assertThat(batches.get(run).succeeded()).isEqualTo(1);
+	}
+
+	@Test
+	void all2114SavedProductsEnqueueWithoutWaitingForNetworkOrExpiringDrafts() {
+		tx.executeWithoutResult(status -> {
+			for (int index = 1; index < 2114; index++) {
+				var p = Product.create("LOAD-" + index, new ProductCreateCommand(
+					"https://kr.iherb.com/pr/example/12345", n("10000"), "부하 상품", "Original", "브랜드", "US",
+					n("0.3"), n("25"), MeasureUnit.G, List.of(), List.of(), "상세", "FOOD", true, 3, n("20"),
+					VendorType.IHB, null));
+				p.update(ProductUpdateCommand.builder().salePrice(n("18000")).stock(77).build());
+				products.saveAndFlush(p);
+				registrations.save(MarketRegistration.builder().productId(p.getId()).marketType(MARKET)
+					.marketIdentifiers("{\"sellerProductId\":\"123\",\"vendorItemId\":\"456\"}").build());
+			}
+		});
+		String run = batches.create(new CreateRequest(UUID.randomUUID().toString(), VendorType.IHB, Mode.PRICE,
+			n("10"), n("20"), n("1500"), Set.of(MARKET)), "admin").id();
+		jdbc.update(
+			"update sb_supplier_batch_item set state='RUNNING', saved_revision=(select revision from sb_product where id=product_id) where batch_id=?",
+			run);
+		jdbc.update("update sb_supplier_batch_stage set state='SUCCEEDED' where batch_id=?", run);
+		var allItems = jdbc.queryForList("select id from sb_supplier_batch_item where batch_id=? order by id",
+			Long.class, run);
+		tx.executeWithoutResult(status -> {
+			for (Long itemId : allItems)
+				stages.save(new ProductSupplierBatchStage(run, itemId, "MARKET", MARKET.name(), "PRICE",
+					Instant.now().minusSeconds(7200)));
+		});
+		for (int tick = 0; tick < 100 && priceTasks.count() < 2114; tick++)
+			runner.tick();
+		assertThat(priceTasks.count()).isEqualTo(2114);
+		assertThat(priceReviews.count()).isEqualTo(2114);
+		assertThat(priceReviews.findAll()).allSatisfy(review -> assertThat(review.getCommittedAt()).isNotNull());
+		assertThat(jdbc.queryForObject(
+			"select count(*) from sb_supplier_batch_stage where batch_id=? and stage='MARKET' and task_id is null",
+			Long.class, run)).isZero();
+		verify(client, never()).writeSalePrice(any(), any(), any());
+		verifyNoInteractions(source);
 	}
 
 	private String savedRun(Mode mode) {
@@ -358,9 +428,14 @@ class ProductSupplierBatchMarketIntegrationTest {
 	}
 
 	private void prepared(String run, Field field) {
-		for (int i = 0; i < 12 && market(run, field).getReferenceId() == null; i++)
-			step(run);
-		assertThat(market(run, field).getReferenceId()).isNotNull();
+		String reference = field == Field.PRICE
+			? prices.preview(List.of(product.getId()), Set.of(MARKET), "admin").id()
+			: stocks.preview(List.of(product.getId()), Set.of(MARKET), "admin").id();
+		tx.executeWithoutResult(status -> {
+			var row = stages.findById(market(run, field).getId()).orElseThrow();
+			row.reference(reference);
+			row.start(Instant.now());
+		});
 	}
 
 	private void queued(String run, Field field) {
@@ -397,15 +472,19 @@ class ProductSupplierBatchMarketIntegrationTest {
 
 	private void step(String run) {
 		jdbc.update("update sb_supplier_batch_stage set next_run_at=? where state in ('WAITING','RUNNING')",
-			Instant.now().minusSeconds(1));
-		jdbc.update("update sb_product_content_lane set next_allowed_at=?", Instant.now().minusSeconds(1));
+			java.sql.Timestamp.from(Instant.now().minusSeconds(1)));
+		jdbc.update("update sb_product_content_lane set next_allowed_at=?",
+			java.sql.Timestamp.from(Instant.now().minusSeconds(1)));
 		runner.process(run);
 	}
 
 	private void openMarket() {
-		jdbc.update("update sb_market_inspection_gate set next_allowed_at=?", Instant.now().minusSeconds(1));
-		jdbc.update("update sb_market_price_task set next_run_at=?", Instant.now().minusSeconds(1));
-		jdbc.update("update sb_market_stock_task set next_run_at=?", Instant.now().minusSeconds(1));
+		jdbc.update("update sb_market_inspection_gate set next_allowed_at=?",
+			java.sql.Timestamp.from(Instant.now().minusSeconds(1)));
+		jdbc.update("update sb_market_price_task set next_run_at=?",
+			java.sql.Timestamp.from(Instant.now().minusSeconds(1)));
+		jdbc.update("update sb_market_stock_task set next_run_at=?",
+			java.sql.Timestamp.from(Instant.now().minusSeconds(1)));
 	}
 
 	private static BigDecimal n(String value) {

@@ -165,7 +165,7 @@ public class MarketStockSyncService {
 
 	public Review preview(List<Long> ids, Set<MarketType> markets, String actor) {
 		validate(ids, markets, actor);
-		return tx().execute(s -> {
+		return localTx().execute(s -> {
 			var plans = new ArrayList<Plan>();
 			for (Long id : ids.stream().distinct().sorted().toList()) {
 				Product p = products.findById(id).orElse(null);
@@ -180,7 +180,7 @@ public class MarketStockSyncService {
 	}
 
 	public Review commit(String id, String actor) {
-		return tx().execute(s -> {
+		return localTx().execute(s -> {
 			var review = reviews.lock(id).orElseThrow(() -> new IllegalArgumentException("수량 검토가 없습니다."));
 			requireActor(review, actor);
 			if (review.getCommittedAt() != null)
@@ -207,7 +207,7 @@ public class MarketStockSyncService {
 	}
 
 	public Review get(String id, String actor) {
-		return tx().execute(s -> {
+		return localTx().execute(s -> {
 			var review = reviews.findById(id).orElseThrow(() -> new IllegalArgumentException("수량 작업이 없습니다."));
 			requireActor(review, actor);
 			return view(review);
@@ -576,6 +576,12 @@ public class MarketStockSyncService {
 
 	private Instant now() {
 		return jdbc.queryForObject("SELECT CURRENT_TIMESTAMP", java.sql.Timestamp.class).toInstant();
+	}
+
+	// Local review/queue operations join a batch transaction so its ownership pointer and child task are atomic.
+	// Network worker claim/finish operations continue using independent transactions below.
+	private TransactionTemplate localTx() {
+		return new TransactionTemplate(transactions);
 	}
 
 	private TransactionTemplate tx() {

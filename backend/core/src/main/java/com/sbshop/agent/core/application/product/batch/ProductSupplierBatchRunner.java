@@ -64,7 +64,8 @@ public class ProductSupplierBatchRunner {
 		if (TransactionSynchronizationManager.isActualTransactionActive())
 			throw new IllegalStateException("배치 하위 작업은 부모 DB transaction 밖에서 실행합니다.");
 		for (var run : runs.findByStateInOrderByCreatedAtAsc(List.of("RUNNING", "PAUSING"), PageRequest.of(0, 10)))
-			process(run.getId());
+			for (int work = 0; work < 32; work++)
+				process(run.getId());
 	}
 
 	public void process(String id) {
@@ -122,7 +123,9 @@ public class ProductSupplierBatchRunner {
 		ProductSupplierBatchStage stage = null;
 		if (item == null) {
 			var retry = items.findPipeline(id, PageRequest.of(0, 1));
-			item = retry.isEmpty() ? items.findFirstByBatchIdAndStateOrderByIdAsc(id, "WAITING").orElse(null)
+			item = retry.isEmpty()
+				? (items.countByBatchIdAndState(id, "RUNNING") < 128
+					? items.findFirstByBatchIdAndStateOrderByIdAsc(id, "WAITING").orElse(null) : null)
 				: retry.getFirst();
 			if (item != null) {
 				if (item.getState().equals("WAITING"))
@@ -308,47 +311,57 @@ public class ProductSupplierBatchRunner {
 	}
 
 	private Result market(Claim c) {
-		MarketType market = MarketType.valueOf(c.stage().getMarket());
-		Field field = Field.valueOf(c.stage().getField());
-		if (needsMarketReview(c, field)) {
-			verifyMarket(c, market);
+		// Review, durable child task and ownership pointer commit together. No network calls here.
+		// A crash before finish() resumes this exact child rather than creating another request.
+		return service.tx().execute(status -> {
+			var owned = stages.findById(c.stage().getId()).orElseThrow();
+			var current = new Claim(c.run(), c.item(), owned, c.token());
+			MarketType market = MarketType.valueOf(owned.getMarket());
+			Field field = Field.valueOf(owned.getField());
+			if (needsMarketReview(current, field)) {
+				verifyMarket(current, market);
+				if (field == Field.PRICE) {
+					var review = prices.preview(List.of(c.item().getProductId()), Set.of(market), c.run().getActor());
+					owned.reference(review.id());
+					var one = review.items().getFirst();
+					if (!one.state().equals("READY"))
+						return Result.builder().state("BLOCKED").detail(one.detail()).referenceId(review.id())
+							.expected(text(one.expectedPrice())).build();
+				} else {
+					var review = stocks.preview(List.of(c.item().getProductId()), Set.of(market), c.run().getActor());
+					owned.reference(review.id());
+					var one = review.items().getFirst();
+					if (!one.state().equals("READY"))
+						return Result.builder().state("BLOCKED").detail(one.detail()).referenceId(review.id())
+							.expected(text(one.expectedQuantity())).build();
+				}
+			}
+			Result result;
 			if (field == Field.PRICE) {
-				var r = prices.preview(List.of(c.item().getProductId()), Set.of(market), c.run().getActor());
-				var one = r.items().getFirst();
-				return one.state().equals("READY")
-					? Result.builder().state("RUNNING").detail("가격 검토값 보관 · 마켓 접수 대기").referenceId(r.id())
-						.expected(text(one.expectedPrice())).nextRunAt(Instant.now()).build()
-					: Result.builder().state("BLOCKED").detail(one.detail()).retryable(false)
-						.expected(text(one.expectedPrice())).referenceId(r.id()).build();
+				var review = prices.get(owned.getReferenceId());
+				if (!review.actor().equals(c.run().getActor()))
+					throw new ProductEditConflictException("가격 검토 작업자가 배치 실행 계정과 다릅니다.");
+				if (!review.committed()) {
+					verifyMarket(current, market);
+					review = prices.commit(review.id(), c.run().getActor());
+				}
+				var one = review.items().getFirst();
+				result = marketResult(one.state(), one.detail(), one.id(), text(one.expectedPrice()),
+					text(one.observedPrice()), one.nextRunAt(), "CONFIRMED_PRICE");
+			} else {
+				var review = stocks.get(owned.getReferenceId(), c.run().getActor());
+				if (!review.committed()) {
+					verifyMarket(current, market);
+					review = stocks.commit(review.id(), c.run().getActor());
+				}
+				var one = review.items().getFirst();
+				result = marketResult(one.state(), one.detail(), one.id(), text(one.expectedQuantity()),
+					text(one.observedQuantity()), one.nextRunAt(), "CONFIRMED_QUANTITY");
 			}
-			var r = stocks.preview(List.of(c.item().getProductId()), Set.of(market), c.run().getActor());
-			var one = r.items().getFirst();
-			return one.state().equals("READY")
-				? Result.builder().state("RUNNING").detail("판매용 수량 검토값 보관 · 마켓 접수 대기").referenceId(r.id())
-					.expected(text(one.expectedQuantity())).nextRunAt(Instant.now()).build()
-				: Result.builder().state("BLOCKED").detail(one.detail()).retryable(false)
-					.expected(text(one.expectedQuantity())).referenceId(r.id()).build();
-		}
-		if (field == Field.PRICE) {
-			var review = prices.get(c.stage().getReferenceId());
-			if (!review.actor().equals(c.run().getActor()))
-				throw new ProductEditConflictException("가격 검토 작업자가 배치 실행 계정과 다릅니다.");
-			if (!review.committed()) {
-				verifyMarket(c, market);
-				review = prices.commit(review.id(), c.run().getActor());
-			}
-			var one = review.items().getFirst();
-			return marketResult(one.state(), one.detail(), one.id(), text(one.expectedPrice()),
-				text(one.observedPrice()), one.nextRunAt(), "CONFIRMED_PRICE");
-		}
-		var review = stocks.get(c.stage().getReferenceId(), c.run().getActor());
-		if (!review.committed()) {
-			verifyMarket(c, market);
-			review = stocks.commit(review.id(), c.run().getActor());
-		}
-		var one = review.items().getFirst();
-		return marketResult(one.state(), one.detail(), one.id(), text(one.expectedQuantity()),
-			text(one.observedQuantity()), one.nextRunAt(), "CONFIRMED_QUANTITY");
+			result.referenceId = owned.getReferenceId();
+			owned.task(result.taskId);
+			return result;
+		});
 	}
 
 	private boolean needsMarketReview(Claim c, Field field) {
@@ -371,7 +384,8 @@ public class ProductSupplierBatchRunner {
 		return Result.builder()
 			.state(state.equals(success) ? "SUCCEEDED"
 				: pending ? "RUNNING" : Set.of("SKIPPED", "BLOCKED", "STALE").contains(state) ? "BLOCKED" : "FAILED")
-			.detail(detail).retryable(!pending && !state.equals(success) && !state.equals("SKIPPED")).taskId(task)
+			.detail(pending ? (state.equals("CHECK") ? "전송 작업 접수 완료 · " : "전송 후 재조회 중 · ") + detail : detail)
+			.retryable(!pending && !state.equals(success) && !state.equals("SKIPPED")).taskId(task)
 			.expected(expected).observed(observed)
 			.nextRunAt(pending
 				? (next == null || next.isBefore(Instant.now().plusSeconds(2)) ? Instant.now().plusSeconds(2) : next)

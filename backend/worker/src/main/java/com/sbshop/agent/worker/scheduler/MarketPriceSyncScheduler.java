@@ -21,7 +21,6 @@ public class MarketPriceSyncScheduler {
 		}
 	}
 
-	@Scheduled(fixedDelayString = "${products.price-sync.poll-ms:1000}", scheduler = "marketInspectionTaskScheduler")
 	public void process() {
 		for (var market : MarketPriceSyncService.SUPPORTED) {
 			try {

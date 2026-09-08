@@ -252,7 +252,7 @@ class ProductSupplierBatchIntegrationTest {
 		untilComplete(run.id());
 		assertThat(service.get(run.id())).satisfies(r -> {
 			assertThat(r.state()).isEqualTo("COMPLETED");
-			assertThat(r.succeeded()).isEqualTo(1);
+			assertThat(r.dbOnly()).isEqualTo(1);
 			assertThat(r.processed()).isEqualTo(1);
 		});
 		var current = products.findById(p.getId()).orElseThrow();
@@ -273,11 +273,17 @@ class ProductSupplierBatchIntegrationTest {
 		var run = create(Mode.PRICE);
 		untilComplete(run.id());
 		var current = products.findById(p.getId()).orElseThrow();
-		assertThat(service.get(run.id()).succeeded()).isEqualTo(1);
+		assertThat(service.get(run.id()).dbOnly()).isEqualTo(1);
 		assertThat(current.getStockStatus()).isEqualTo(p.getStockStatus());
 		assertThat(current.getPriceInfo().getMarginRate()).isEqualByComparingTo("30");
 		assertThat(current.getPriceInfo().getCouponRate()).isEqualByComparingTo("5");
 		assertThat(service.detail(run.id(), item(run.id()).id()).priceCalculation()).isNotNull();
+		assertThat(service.get(run.id()).succeeded()).isZero();
+		assertThat(service.get(run.id()).stageProgress().get("DB_SUCCEEDED")).isEqualTo(1L);
+		assertThat(service.items(run.id(), 0, 50, "", "SUCCEEDED").getTotalElements()).isZero();
+		assertThat(service.items(run.id(), 0, 50, "", "DB_ONLY").getContent())
+			.singleElement().satisfies(row -> assertThat(row.detail()).isEqualTo("SB 저장 완료 · 마켓 대상 없음"));
+
 	}
 
 	@org.junit.jupiter.params.ParameterizedTest
@@ -293,7 +299,7 @@ class ProductSupplierBatchIntegrationTest {
 		var run = service.create(new CreateRequest(UUID.randomUUID().toString(), VendorType.IHB,
 			Mode.PRICE_STOCK, n("1"), entered, n("500"), Set.of(MarketType.COUPANG)), "admin");
 		untilComplete(run.id());
-		assertThat(service.get(run.id()).succeeded()).isEqualTo(1);
+		assertThat(service.get(run.id()).dbOnly()).isEqualTo(1);
 		var current = products.findById(p.getId()).orElseThrow();
 		assertThat(current.getPriceInfo().getCouponRate()).isEqualByComparingTo(expected);
 		assertThat(current.getPriceInfo().getMarginRate()).isEqualByComparingTo("1");
@@ -316,7 +322,7 @@ class ProductSupplierBatchIntegrationTest {
 		product();
 		var run = create(Mode.PRICE_STOCK);
 		untilComplete(run.id());
-		assertThat(service.get(run.id()).succeeded()).isEqualTo(1);
+		assertThat(service.get(run.id()).dbOnly()).isEqualTo(1);
 		assertThat(histories.count()).isEqualTo(1);
 		var snap = snapshots.findAll().getFirst();
 		assertThat(snap.getPriceAppliedAt()).isNotNull();
@@ -343,7 +349,7 @@ class ProductSupplierBatchIntegrationTest {
 		assertThat(service.retry(run.id(), retry, "admin").state()).isEqualTo("RUNNING");
 		service.retry(run.id(), retry, "admin");
 		untilComplete(run.id());
-		assertThat(service.get(run.id()).succeeded()).isEqualTo(1);
+		assertThat(service.get(run.id()).dbOnly()).isEqualTo(1);
 		assertThat(collections.count()).isEqualTo(2);
 		assertThat(stage(run.id(), "CRAWL").getReferenceId()).isNotEqualTo(oldRef);
 		assertThat(histories.count()).isEqualTo(1);
@@ -419,7 +425,7 @@ class ProductSupplierBatchIntegrationTest {
 			.when(source).fetch(any(), anyString());
 		service.retry(run.id(), new RetryRequest(UUID.randomUUID().toString(), null, Step.CRAWL, null, null), "admin");
 		untilComplete(run.id());
-		assertThat(service.get(run.id()).succeeded()).isEqualTo(1);
+		assertThat(service.get(run.id()).dbOnly()).isEqualTo(1);
 		assertThat(collections.count()).isEqualTo(2);
 		assertThat(histories.count()).isEqualTo(1);
 		assertThat(stage(run.id(), "DB").getState()).isEqualTo("SUCCEEDED");
@@ -494,7 +500,7 @@ class ProductSupplierBatchIntegrationTest {
 		doReturn(new Observed(n("12000"), BigDecimal.ONE, "KRW", StockStatus.OUT_OF_STOCK, null, List.of()))
 			.when(source).fetch(any(), anyString());
 		untilComplete(run.id());
-		assertThat(service.get(run.id()).succeeded()).isEqualTo(2);
+		assertThat(service.get(run.id()).dbOnly()).isEqualTo(2);
 	}
 
 	@Test
@@ -545,7 +551,7 @@ class ProductSupplierBatchIntegrationTest {
 		step(run.id());
 		assertThat(stage(run.id(), "DB").getReferenceId()).isNotEqualTo(oldReview);
 		untilComplete(run.id());
-		assertThat(service.get(run.id()).succeeded()).isEqualTo(1);
+		assertThat(service.get(run.id()).dbOnly()).isEqualTo(1);
 		assertThat(collections.count()).isEqualTo(1);
 		assertThat(histories.count()).isEqualTo(1);
 		verify(source, times(1)).fetch(any(), anyString());
@@ -568,7 +574,7 @@ class ProductSupplierBatchIntegrationTest {
 		assertThat(histories.count()).isZero();
 		service.retry(run.id(), new RetryRequest(UUID.randomUUID().toString(), null, Step.DB, null, null), "admin");
 		untilComplete(run.id());
-		assertThat(service.get(run.id()).succeeded()).isEqualTo(1);
+		assertThat(service.get(run.id()).dbOnly()).isEqualTo(1);
 		assertThat(stage(run.id(), "DB").getReferenceId()).isEqualTo(review);
 		assertThat(histories.count()).isEqualTo(1);
 		assertThat(collections.count()).isEqualTo(1);
@@ -608,7 +614,7 @@ class ProductSupplierBatchIntegrationTest {
 		assertThat(stage(run.id(), "DB").isRetryable()).isTrue();
 		service.retry(run.id(), new RetryRequest(UUID.randomUUID().toString(), null, Step.DB, null, null), "admin");
 		untilComplete(run.id());
-		assertThat(service.get(run.id()).succeeded()).isEqualTo(1);
+		assertThat(service.get(run.id()).dbOnly()).isEqualTo(1);
 		assertThat(collections.count()).isEqualTo(2);
 		assertThat(histories.count()).isEqualTo(1);
 		assertThat(snapshots.findById(old.getId()).orElseThrow().getStockAppliedAt()).isNull();
@@ -664,7 +670,7 @@ class ProductSupplierBatchIntegrationTest {
 			"expiresAt", Instant.now().minusSeconds(1)));
 		service.retry(run.id(), new RetryRequest(UUID.randomUUID().toString(), null, Step.DB, null, null), "admin");
 		untilComplete(run.id());
-		assertThat(service.get(run.id()).succeeded()).isEqualTo(1);
+		assertThat(service.get(run.id()).dbOnly()).isEqualTo(1);
 		assertThat(histories.count()).isEqualTo(1);
 		assertThat(collections.count()).isEqualTo(1);
 		assertThat(snapshots.findById(snapshot.getId()).orElseThrow().getStockAppliedAt()).isEqualTo(applied);

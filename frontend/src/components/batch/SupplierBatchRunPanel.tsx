@@ -78,7 +78,7 @@ export function SupplierBatchRunPanel({ run, onChanged }: { run: SupplierBatchRu
     {run.nextRunAt && <p className="sb-batch-help">다음 처리 가능 시각: {dateText(run.nextRunAt)}</p>}
     <div className="sb-batch-matrix-toolbar"><div><Input.Search aria-label="배치 상품 검색" placeholder="SB코드 또는 상품명" allowClear onSearch={value => { setKeyword(value.trim()); setPage(0); }} />
       <Select aria-label="배치 상품 결과 필터" value={filter} onChange={value => { setFilter(value); setPage(0); }} options={[
-        { value: 'ALL', label: '전체 상품' }, { value: 'FAILED', label: '실패만' }, { value: 'BLOCKED', label: '보류만' }, { value: 'PENDING', label: '대기·처리 중' }, { value: 'SUCCEEDED', label: '성공만' },
+        { value: 'ALL', label: '전체 상품' }, { value: 'FAILED', label: '실패만' }, { value: 'BLOCKED', label: '보류만' }, { value: 'PENDING', label: '대기·처리 중' }, { value: 'SUCCEEDED', label: '마켓 반영 완료' }, { value: 'DB_ONLY', label: '마켓 대상 없음' },
       ]} /></div><div><Button onClick={() => { void items.refetch(); }}>새로고침</Button><Button disabled={!!retryQueue || retryBusy || run.failed + run.blocked === 0} onClick={() => setBulkOpen(true)}>실패 단계 일괄 재시도</Button></div></div>
     {retryFeedback}
     {items.isError ? <Alert type="error" showIcon message="상품별 처리 결과를 조회하지 못했습니다."
