@@ -162,8 +162,8 @@ public class Cafe24MarketClient implements MarketClient {
 			}
 			if (price.signum() <= 0)
 				throw new IllegalStateException("조회 응답에 유효한 판매가가 없습니다.");
-			String blocked = !"T".equals(p.path("selling").asText()) || !"F".equals(p.path("market_sync").asText())
-				? "판매 설정 또는 마켓플러스 자동 전달 범위의 확인이 필요합니다." : priceFieldBlock(p);
+			String blocked = !List.of("T", "F").contains(p.path("selling").asText())
+				? "카페24 판매 상태를 확인할 수 없습니다." : priceFieldBlock(p);
 			if (account == null || !account.equals(inspectionAccountReference()))
 				throw new IllegalStateException("조회 계정이 변경되었습니다.");
 			return new com.sbshop.agent.core.domain.market.client.dto.MarketPriceRead(price, blocked == null,
@@ -215,7 +215,8 @@ public class Cafe24MarketClient implements MarketClient {
 			if (expectedSbCode == null || expectedSbCode.isBlank()
 				|| !expectedSbCode.equals(product.path("custom_product_code").asText()))
 				throw new IllegalStateException("카페24 상품의 SB코드가 일치하지 않습니다.");
-			access.requireNativeWrite(product);
+			if (!List.of("T", "F").contains(product.path("selling").asText()))
+				throw new IllegalStateException("카페24 판매 상태를 확인할 수 없습니다.");
 			String code = access.singleVariant(product);
 			if (optionId != null && !optionId.equals(code))
 				throw new IllegalStateException("카페24 품목 연결이 변경되었습니다. 다시 검토하세요.");
@@ -225,13 +226,9 @@ public class Cafe24MarketClient implements MarketClient {
 				throw new IllegalStateException("카페24 유효한 수량·품목 판매 상태를 확인할 수 없습니다.");
 			if (account == null || !account.equals(inspectionAccountReference()))
 				throw new IllegalStateException("카페24 조회 계정이 변경되었습니다.");
-			boolean writable = "T".equals(product.path("selling").asText())
-				&& "T".equals(variant.path("selling").asText())
-				&& "T".equals(inventory.path("use_inventory").asText())
-				&& "T".equals(inventory.path("display_soldout").asText());
-			return new com.sbshop.agent.core.domain.market.client.dto.MarketStockRead(quantity, writable,
-				writable ? "카페24 본상품 단일 품목 재고수량 확인" : "카페24 판매·재고 관리·품절 표시 설정을 확인하세요. 판매 재개나 설정 변경은 자동 수행하지 않습니다.",
-				account, code);
+			return new com.sbshop.agent.core.domain.market.client.dto.MarketStockRead(quantity, true,
+				"카페24 본상품 판매 상태·단일 품목 재고수량 확인", account, code,
+				product.path("selling").asText(), variant.path("selling").asText());
 		} catch (UnsupportedOperationException blocked) {
 			throw blocked;
 		} catch (Exception e) {
@@ -253,7 +250,15 @@ public class Cafe24MarketClient implements MarketClient {
 		var access = new Cafe24VerifiedProductAccess(objectMapper, cafe24RestClient, id);
 		beforeWrite.run();
 		try {
+			if (quantity == 0 && !"F".equals(current.saleState()))
+				access.put(access.path(), Map.of("selling", "F"));
 			access.put(access.path() + "/variants/" + optionId + "/inventories", Map.of("quantity", quantity));
+			if (quantity > 0) {
+				if (!"T".equals(current.stockState()))
+					access.put(access.path() + "/variants/" + optionId, Map.of("selling", "T"));
+				if (!"T".equals(current.saleState()))
+					access.put(access.path(), Map.of("selling", "T"));
+			}
 			if (!expectedAccountReference.equals(inspectionAccountReference()))
 				throw new IllegalStateException("수량 전송 중 카페24 계정이 변경되었습니다. 결과 재확인이 필요합니다.");
 		} catch (Exception e) {

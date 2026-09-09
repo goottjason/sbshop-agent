@@ -121,13 +121,14 @@ class Cafe24PricePolicyContractTest {
 	}
 
 	@Test
-	void marketPlusOrStoppedListingRemainsBlockedWithoutSettingsLookup() {
+	void marketPlusAndStoppedListingAllowPriceWithVerifiedTaxSettings() {
+		when(rest.get(SETTINGS)).thenReturn("{\"product\":{\"shop_no\":1,\"calculate_price_based_on\":\"S\"}}");
 		for (String changes : new String[] {"\"selling\":\"F\",\"market_sync\":\"F\"",
 			"\"selling\":\"T\",\"market_sync\":\"T\""}) {
 			when(rest.get(PRODUCT)).thenReturn("{\"product\":{\"product_no\":123,\"shop_no\":1,\"price\":12300,"
 				+ "\"tax_calculation\":\"M\"," + changes + "}}");
-			assertThat(client.readSalePrice("123", null).writable()).isFalse();
+			assertThat(client.readSalePrice("123", null).writable()).isTrue();
 		}
-		verify(rest, never()).get(SETTINGS);
+		verify(rest, times(2)).get(SETTINGS);
 	}
 }

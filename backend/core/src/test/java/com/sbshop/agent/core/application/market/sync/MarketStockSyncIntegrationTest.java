@@ -573,6 +573,29 @@ class MarketStockSyncIntegrationTest {
 		verify(client, never()).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
 	}
 
+	@Test
+	void cafe24SameQuantityMustStillResumeSellingAndVerifyIt() {
+		registrations.deleteAll();
+		reg = registrations
+			.saveAndFlush(MarketRegistration.builder().productId(product.getId()).marketType(MarketType.CAFE24)
+				.marketIdentifiers("{\"product_no\":\"123\"}").build());
+		when(clients.hasClient(MarketType.CAFE24)).thenReturn(true);
+		when(clients.getClient(MarketType.CAFE24)).thenReturn(client);
+		var r = service.preview(List.of(product.getId()), Set.of(MarketType.CAFE24), "admin");
+		service.commit(r.id(), "admin");
+		when(client.readStockQuantity(any(), any(), any()))
+			.thenReturn(new MarketStockRead(300, true, "cafe", "account-A", "P0000001000A", "F", "T"));
+		service.processOne(MarketType.CAFE24);
+		assertThat(state(r.id())).isEqualTo("VERIFY");
+		verify(client).writeStockQuantity(eq("123"), eq("P0000001000A"), eq(product.getSbCode()), eq(300),
+			eq("account-A"), any());
+		release();
+		when(client.readStockQuantity(any(), any(), any()))
+			.thenReturn(new MarketStockRead(300, true, "cafe", "account-A", "P0000001000A", "T", "T"));
+		service.processOne(MarketType.CAFE24);
+		assertThat(state(r.id())).isEqualTo("CONFIRMED_QUANTITY");
+	}
+
 	void smartstoreRegistration() {
 		registrations.deleteAll();
 		reg = registrations

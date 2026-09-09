@@ -410,6 +410,9 @@ public class MarketStockSyncService {
 			&& Objects.equals(c.account(), read.accountReference()) && read.optionId() != null
 			&& !read.optionId().isBlank()
 			&& (c.optionId() == null || c.optionId().equals(read.optionId()))
+			&& (c.market() != MarketType.CAFE24
+				|| Set.of("T", "F").contains(read.saleState() == null ? "" : read.saleState())
+					&& Set.of("T", "F").contains(read.stockState() == null ? "" : read.stockState()))
 			&& (c.market() != MarketType.ELEVEN_STREET || read.saleState() != null
 				&& !read.saleState().isBlank()
 				&& Set.of("01", "02").contains(read.stockState() == null ? "" : read.stockState()));
@@ -423,6 +426,9 @@ public class MarketStockSyncService {
 	private boolean matchesTarget(Claim c, MarketStockRead read) {
 		if (!validRead(c, read) || !canTransition(c, read) || read.quantity() != c.quantity())
 			return false;
+		if (c.market() == MarketType.CAFE24)
+			return c.quantity() > 0 ? "T".equals(read.saleState()) && "T".equals(read.stockState())
+				: "F".equals(read.saleState());
 		if (c.market() != MarketType.ELEVEN_STREET)
 			return true;
 		return c.quantity() > 0
@@ -433,6 +439,8 @@ public class MarketStockSyncService {
 	}
 
 	private String confirmation(Claim c, MarketStockRead read) {
+		if (c.market() == MarketType.CAFE24)
+			return "카페24 재조회 확인: " + read.quantity() + "개 · " + (c.quantity() > 0 ? "판매함" : "판매안함");
 		if (c.market() != MarketType.ELEVEN_STREET)
 			return "마켓 재조회 수량이 목표 판매용 수량과 일치합니다. 다른 필드의 일치를 뜻하지 않습니다.";
 		String sale = "103".equals(read.saleState()) ? "판매중(103)"
@@ -519,8 +527,10 @@ public class MarketStockSyncService {
 					? ("ELEVEN_STREET".equals(p.market())
 						? (p.quantity() == 0 ? "11번가 실제 재고 0개와 구매불가 상태를 각각 확인합니다. 전시중지(105)는 품절(104)과 구분합니다."
 							: "11번가 판매용 수량과 판매중(103) 상태를 확인합니다. 품절·일시 전시중지만 재개하며 판매금지·강제종료는 재개하지 않습니다.")
-						: p.quantity() == 0 ? "목표 0개를 검토합니다. 실행 시 현재 판매 상태·품목을 확인하며 판매 재개는 하지 않습니다."
-							: "소싱처 실재고와 별도인 판매용 수량을 전송합니다. 현재 판매 상태·품목을 먼저 확인합니다.")
+						: "CAFE24".equals(p.market())
+							? (p.quantity() == 0 ? "카페24 수량 0개·판매안함을 반영하고 재조회합니다." : "카페24 판매용 수량·판매함을 반영하고 재조회합니다.")
+							: p.quantity() == 0 ? "목표 0개를 검토합니다. 실행 시 현재 판매 상태·품목을 확인하며 판매 재개는 하지 않습니다."
+								: "소싱처 실재고와 별도인 판매용 수량을 전송합니다. 현재 판매 상태·품목을 먼저 확인합니다.")
 					: p.reason(),
 				0, 0, null, null, null, null))
 			.toList()
