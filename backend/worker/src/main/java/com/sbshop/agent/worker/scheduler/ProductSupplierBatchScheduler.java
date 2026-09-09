@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 public class ProductSupplierBatchScheduler {
 	private final ProductSupplierBatchRunner runner;
 
-	@Scheduled(fixedDelayString = "${products.supplier-batch.worker-delay-ms:1000}", initialDelayString = "${products.supplier-batch.worker-initial-delay-ms:30000}")
+	@Scheduled(scheduler = "supplierBatchTaskScheduler", fixedDelayString = "${products.supplier-batch.worker-delay-ms:1000}", initialDelayString = "${products.supplier-batch.worker-initial-delay-ms:30000}")
 	public void tick() {
 		try {
 			runner.tick();

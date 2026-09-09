@@ -32,4 +32,33 @@ class MarketInspectionSchedulingConfigTest {
 			}
 		}
 	}
+
+	@Test
+	void slowOrderWorkDoesNotDelayBatchStatusUpdates() throws Exception {
+		String schedulerName = ProductSupplierBatchScheduler.class.getMethod("tick")
+			.getAnnotation(org.springframework.scheduling.annotation.Scheduled.class).scheduler();
+		try (var context = new AnnotationConfigApplicationContext(MarketInspectionSchedulingConfig.class)) {
+			var normal = context.getBean("taskScheduler", ThreadPoolTaskScheduler.class);
+			var batch = context.getBean(schedulerName, ThreadPoolTaskScheduler.class);
+			var started = new CountDownLatch(1);
+			var release = new CountDownLatch(1);
+			var updated = new CountDownLatch(1);
+			normal.execute(() -> {
+				started.countDown();
+				try {
+					release.await(5, TimeUnit.SECONDS);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+			});
+			try {
+				assertThat(started.await(2, TimeUnit.SECONDS)).isTrue();
+				batch.execute(updated::countDown);
+				assertThat(updated.await(2, TimeUnit.SECONDS)).isTrue();
+			} finally {
+				release.countDown();
+			}
+		}
+	}
+
 }
