@@ -118,6 +118,20 @@ public class ProductManageUseCase {
 			if (marketItemId != null && !marketItemId.isEmpty()) {
 				marketItemIds.put(marketType, marketItemId);
 			}
+			if (marketType == MarketType.CAFE24) {
+				boolean childPending = false;
+				for (MarketType child : List.of(MarketType.GMARKET, MarketType.AUCTION)) {
+					if (reg.connectionIdentifier(child) != null
+						&& reg.connectionStateFor(child) != com.sbshop.agent.core.domain.market.MarketConnectionState.DETACHED_DELETED) {
+						manual.put(child, "카페24 연동 상품의 삭제가 확인되지 않았습니다. 마켓플러스 또는 해당 마켓에서 삭제 후 연결 점검으로 삭제 여부를 확인하세요.");
+						childPending = true;
+					}
+				}
+				if (childPending) {
+					manual.put(MarketType.CAFE24, "G마켓·옥션 연동 상품의 삭제 확인 전까지 카페24 상품 삭제를 보류합니다.");
+					continue;
+				}
+			}
 			if (Boolean.FALSE.equals(reg.getIsSynced())
 				&& reg.getUnsyncReason() == UnsyncReason.DELETED_ON_MARKET) {
 				deleted.add(marketType);

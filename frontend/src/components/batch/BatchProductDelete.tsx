@@ -41,7 +41,8 @@ export function BatchProductDelete({ productId, sbCode, productName, disabled, o
       <p>{productName}</p>
       <p>등록된 마켓을 순서대로 삭제하고 재조회합니다. 모든 마켓의 삭제가 확인돼야 SB 상품을 폐기하며, 과거 주문·배치 이력은 보존합니다.</p>
       {registrations.isPending ? <Spin /> : registrations.isError ? <Alert type="error" message="삭제할 마켓 목록을 불러오지 못했습니다." action={<Button onClick={() => { void registrations.refetch(); }}>다시 조회</Button>} /> :
-        <p>등록 이력: {registrations.data?.length ? registrations.data.map(r => batchMarketLabel(r.marketType)).join(' · ') : '없음 — SB 상품만 폐기합니다.'}</p>}
+        <p>등록 이력: {registrations.data?.length ? [...new Set(registrations.data.flatMap(r => [r.marketType, ...(r.marketType === 'CAFE24' && r.marketIdentifiers?.gmarket_goodsNo ? ['GMARKET'] : []), ...(r.marketType === 'CAFE24' && r.marketIdentifiers?.auction_goodsNo ? ['AUCTION'] : [])]))].map(batchMarketLabel).join(' · ') : '없음 — SB 상품만 폐기합니다.'}</p>}
+      {registrations.data?.some(r => r.marketType === 'CAFE24' && (r.marketIdentifiers?.gmarket_goodsNo || r.marketIdentifiers?.auction_goodsNo)) && <Alert type="info" message="카페24 연동 G마켓·옥션은 해당 마켓의 삭제 확인이 필요합니다. 확인 전까지 카페24 삭제와 SB 폐기를 보류합니다." />}
       {!result?.disposed && <Checkbox checked={checked} disabled={busy} onChange={e => setChecked(e.target.checked)}>원본 상품의 생산 중단 등 삭제 사유를 확인했으며, 이 상품의 마켓 삭제를 진행합니다.</Checkbox>}
       {busy && <Alert type="info" message="마켓 삭제와 재조회 중입니다. 결과가 나올 때까지 기다려 주세요." />}
       {error && <Alert type="error" message={error} />}

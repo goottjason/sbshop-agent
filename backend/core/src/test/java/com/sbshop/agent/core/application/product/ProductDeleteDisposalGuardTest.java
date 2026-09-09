@@ -159,4 +159,24 @@ class ProductDeleteDisposalGuardTest {
 		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
 	}
 
+	@Test void cafe24LinkedMarketplacesMustBeDeletedBeforeParentAndSb() {
+		var reg = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.CAFE24)
+			.marketIdentifiers("{\"product_no\":\"7867\",\"gmarket_goodsNo\":\"3490138764\",\"auction_goodsNo\":\"D888922206\"}").build();
+		var result = useCase(reg).deleteProduct(PRODUCT_ID);
+		assertThat(result.disposed()).isFalse();
+		assertThat(result.manual()).containsKeys(MarketType.GMARKET, MarketType.AUCTION, MarketType.CAFE24);
+		verify(client, never()).deleteFromMarket(anyString());
+		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
+	}
+
+	@Test void confirmedChildDeletionAllowsCafe24Deletion() {
+		var reg = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.CAFE24)
+			.marketIdentifiers("{\"product_no\":\"7867\",\"gmarket_goodsNo\":\"3490138764\"}").build();
+		reg.detachConnection(MarketType.GMARKET, com.sbshop.agent.core.domain.market.MarketConnectionState.DETACHED_DELETED);
+		confirmAbsent("verified-account");
+		var result = useCase(reg).deleteProduct(PRODUCT_ID);
+		assertThat(result.disposed()).isTrue();
+		verify(client).deleteFromMarket("7867");
+	}
+
 }

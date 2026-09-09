@@ -7,7 +7,7 @@ const calls: string[] = [], checks: string[] = [];
 let deletes = 0, completed = 0;
 apiClient.defaults.adapter = async config => {
   calls.push(`${config.method} ${config.url}`);
-  if (config.method === 'get' && config.url?.endsWith('/markets')) return { data: [{ marketType: 'COUPANG' }, { marketType: 'ELEVEN_STREET' }], status: 200, statusText: 'OK', headers: {}, config };
+  if (config.method === 'get' && config.url?.endsWith('/markets')) return { data: [{ marketType: 'COUPANG' }, { marketType: 'ELEVEN_STREET' }, { marketType: 'CAFE24', marketIdentifiers: { gmarket_goodsNo: '123', auction_goodsNo: 'A123' } }], status: 200, statusText: 'OK', headers: {}, config };
   if (config.method === 'delete' && config.url === '/api/v1/products/123') {
     deletes++;
     if (deletes === 1) throw new AxiosError('partial deletion', 'ERR_BAD_REQUEST', config, undefined, { status: 409, statusText: 'Conflict', config, headers: {}, data: { disposed: false, deleted: ['COUPANG'], skipped: [], failed: { ELEVEN_STREET: '재조회에서 상품 부재를 확인하지 못했습니다.' }, manual: {} } });
@@ -26,6 +26,7 @@ void (async () => {
     await wait(() => button('상품 삭제')); button('상품 삭제').click();
     await wait(() => text('등록 이력:'));
     if (deletes || !button('마켓 삭제 후 SB 폐기').disabled) throw new Error('Deletion before consent');
+    if (!text('G마켓') || !text('옥션') || !text('카페24 삭제와 SB 폐기를 보류')) throw new Error('Hidden child marketplaces');
     checks.push('삭제 대상 마켓 확인 및 명시적 확인 전 삭제 요청 없음');
     document.querySelector<HTMLInputElement>('input[type=checkbox]')!.click();
     await wait(() => !button('마켓 삭제 후 SB 폐기').disabled); button('마켓 삭제 후 SB 폐기').click();
