@@ -51,6 +51,29 @@ class Cafe24RestClientErrorMessageTest {
 	}
 
 	@Test
+	void consecutiveProductReadsDoNotReuseThePreWriteCacheKey() {
+		server.removeContext("/");
+		var seen = new java.util.concurrent.ConcurrentHashMap<String, String>();
+		var price = new java.util.concurrent.atomic.AtomicInteger(10000);
+		var queries = new java.util.concurrent.CopyOnWriteArrayList<String>();
+		server.createContext("/", exchange -> {
+			String key = exchange.getRequestURI().toString();
+			queries.add(key);
+			String value = seen.computeIfAbsent(key, ignored -> "{\"price\":" + price.get() + "}");
+			byte[] body = value.getBytes(StandardCharsets.UTF_8);
+			exchange.sendResponseHeaders(200, body.length);
+			try (OutputStream os = exchange.getResponseBody()) {
+				os.write(body);
+			}
+		});
+		assertThat(client.get("/admin/products/123?shop_no=1")).contains("10000");
+		price.set(12000);
+		assertThat(client.get("/admin/products/123?shop_no=1")).contains("12000");
+		assertThat(queries).hasSize(2).doesNotHaveDuplicates();
+		assertThat(queries).allMatch(q -> q.startsWith("/admin/products/123?shop_no=1&_sb_read="));
+	}
+
+	@Test
 	@DisplayName("POST 실패 메시지에 상태코드와 응답 본문이 실린다")
 	void postCarriesStatusAndBody() {
 		assertThatThrownBy(() -> client.post("/admin/orders/O1/shipments", Map.of("request", Map.of())))
