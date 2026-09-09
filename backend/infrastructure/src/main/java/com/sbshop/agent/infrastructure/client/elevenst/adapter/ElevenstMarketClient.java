@@ -574,13 +574,25 @@ public class ElevenstMarketClient implements MarketClient {
 
 	@Override
 	public void deleteFromMarket(String marketItemId) {
-		log.info("[Elevenst] 상품 삭제 시작: prdNo={}", marketItemId);
-		String response = restClient.delete("/rest/prodservices/product/" + marketItemId);
-		if (response == null || response.contains("ERROR") || response.contains("resultCode>500")) {
-			log.error("[Elevenst] 상품 삭제 실패: prdNo={}, response={}", marketItemId, response);
-			throw new RuntimeException("[Elevenst] 상품 삭제 실패: " + response);
+		var response = restClient.deleteRecorded(marketItemId);
+		String detail;
+		try {
+			var root = com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.xml(response.body());
+			String code = com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, "resultCode");
+			String message = com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, "message");
+			String nResult = com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, "nResult");
+			detail = (code.isBlank() ? "" : " · 코드 " + code)
+				+ (nResult.isBlank() ? "" : " · nResult " + nResult)
+				+ (message.isBlank() ? " · 사유 미제공" : " · " + message);
+		} catch (Exception malformed) {
+			detail = " · " + (response.body().isBlank() ? "빈 응답" : "XML이 아닌 응답 또는 손상된 응답");
 		}
-		log.info("[Elevenst] 상품 삭제 완료: prdNo={}", marketItemId);
+		detail = com.sbshop.agent.core.application.product.ProductMarketSyncService.sanitizeMarketMessage(detail);
+		if (detail.length() > 600) detail = detail.substring(0, 600) + "…";
+		// No documented delete-success envelope is assumed. The caller's same-account
+		// readback alone may confirm absence; otherwise retain this response as the reason.
+		throw new IllegalStateException("11번가 삭제 미확인 · HTTP " + response.httpStatus()
+			+ detail + " · 기록 " + response.evidenceId());
 	}
 
 	private String buildProductXml(Product product) {

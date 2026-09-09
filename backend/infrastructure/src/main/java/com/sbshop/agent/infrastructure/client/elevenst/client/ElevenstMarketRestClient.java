@@ -44,6 +44,45 @@ public class ElevenstMarketRestClient {
 		return sendRequest(properties.getApiUrl() + path, "DELETE", null);
 	}
 
+	public record DeleteResponse(int httpStatus, String body, String evidenceId) {}
+
+	/** One delete request, no redirect/retry; keep response evidence before interpreting it. */
+	public DeleteResponse deleteRecorded(String id) {
+		if (id == null || !id.matches("[1-9][0-9]{0,17}"))
+			throw new IllegalArgumentException("11번가 상품번호가 올바르지 않습니다.");
+		String path = "/rest/prodservices/product/" + id;
+		String key = resolveApiKey();
+		String evidenceId = java.util.UUID.randomUUID().toString();
+		var observed = new java.util.concurrent.atomic.AtomicReference<DeleteResponse>();
+		var sent = new java.util.concurrent.atomic.AtomicBoolean();
+		var client = REVIEWED_MUTATIONS.newBuilder().addNetworkInterceptor(chain -> {
+			if (!sent.compareAndSet(false, true)) throw new IOException("삭제 자동 재전송 차단");
+			try (var response = chain.proceed(chain.request())) {
+				byte[] bytes = response.body() == null ? new byte[0]
+					: response.body().byteStream().readNBytes(2_000_001);
+				String body = new String(bytes, EUC_KR);
+				if (key != null && !key.isBlank()) body = body.replace(key, "[REDACTED]");
+				var evidence = new DeleteResponse(response.code(), body, evidenceId);
+				observed.set(evidence);
+				log.info("[ElevenstDeleteResponse] evidenceId={} prdNo={} http={} truncated={} body={}",
+					evidenceId, id, response.code(), bytes.length > 2_000_000,
+					new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(body));
+				// Stop here even for 503 Retry-After:0: the library must never repeat a delete.
+				throw new IOException("삭제 응답 수집 완료");
+			}
+		}).build();
+		try (var ignored = client.newCall(new okhttp3.Request.Builder()
+			.url(properties.getApiUrl() + path).delete().header("openapikey", key)
+			.header("Content-Type", "text/xml; charset=EUC-KR").build()).execute()) {
+			throw new IllegalStateException("삭제 응답 기록 누락");
+		} catch (IOException failure) {
+			if (observed.get() != null) return observed.get();
+			log.warn("[ElevenstDeleteResponse] evidenceId={} prdNo={} response=UNCONFIRMED errorType={}",
+				evidenceId, id, failure.getClass().getSimpleName());
+			throw new IllegalStateException("11번가 삭제 응답 미확인 · 기록 " + evidenceId);
+		}
+	}
+
 	public String accountReference() {
 		return com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.account("ELEVEN_STREET",
 			resolveApiKey());

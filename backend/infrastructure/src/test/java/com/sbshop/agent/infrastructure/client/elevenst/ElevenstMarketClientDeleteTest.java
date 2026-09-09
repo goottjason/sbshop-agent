@@ -28,43 +28,23 @@ class ElevenstMarketClientDeleteTest {
 	}
 
 	@Test
-    @DisplayName("성공 응답 → DELETE /rest/prodservices/product/{prdNo} 호출")
-    void deleteCallsDeleteEndpointWithPrdNo() {
-        when(restClient.delete("/rest/prodservices/product/E999"))
-            .thenReturn("<Product><resultCode>200</resultCode><message>정상적으로 처리되었습니다.</message></Product>");
-
-        client.deleteFromMarket("E999");
-
-        verify(restClient).delete("/rest/prodservices/product/E999");
-    }
-
-	@Test
-    @DisplayName("marketItemId(elevenstId=prdNo)를 그대로 삭제 경로에 사용")
-    void deleteUsesMarketItemIdAsPrdNo() {
-        when(restClient.delete(anyString())).thenReturn("<message>성공</message>");
-
-        client.deleteFromMarket("PRD12345");
-
-        verify(restClient).delete("/rest/prodservices/product/PRD12345");
-    }
+	@DisplayName("삭제 응답만으로 완료하지 않고 재조회에 넘긴다")
+	void deleteUsesRecordedTransportAndRequiresReadback() {
+		when(restClient.deleteRecorded("3264931038"))
+			.thenReturn(new ElevenstMarketRestClient.DeleteResponse(200,
+				"<Product><resultCode>200</resultCode><message>정상적으로 처리되었습니다.</message></Product>", "trace"));
+		assertThatThrownBy(() -> client.deleteFromMarket("3264931038"))
+			.hasMessageContaining("삭제 미확인").hasMessageContaining("정상적으로 처리되었습니다.");
+		verify(restClient).deleteRecorded("3264931038");
+	}
 
 	@Test
-    @DisplayName("ERROR 응답 → RuntimeException 전파 (주문이력 등 삭제 거부)")
-    void errorResponseThrowsRuntimeException() {
-        when(restClient.delete(anyString()))
-            .thenReturn("<resultCode>500</resultCode><message>주문 이력이 있어 삭제할 수 없습니다.</message>");
-
-        assertThatThrownBy(() -> client.deleteFromMarket("E999"))
-            .isInstanceOf(RuntimeException.class);
-    }
-
-	@Test
-    @DisplayName("resultCode ERROR 응답 → RuntimeException 전파")
-    void resultCodeErrorThrowsRuntimeException() {
-        when(restClient.delete(anyString()))
-            .thenReturn("<resultCode>ERROR</resultCode><message>NO_RESPONSE</message>");
-
-        assertThatThrownBy(() -> client.deleteFromMarket("E999"))
-            .isInstanceOf(RuntimeException.class);
-    }
+	@DisplayName("HTTP 200 안의 업무 거절 사유도 보존한다")
+	void businessRejectionRemainsVisible() {
+		when(restClient.deleteRecorded(anyString()))
+			.thenReturn(new ElevenstMarketRestClient.DeleteResponse(200,
+				"<Product><resultCode>500</resultCode><message>주문 이력이 있어 삭제할 수 없습니다.</message></Product>", "trace"));
+		assertThatThrownBy(() -> client.deleteFromMarket("3264931038"))
+			.hasMessageContaining("코드 500").hasMessageContaining("주문 이력이 있어 삭제할 수 없습니다.");
+	}
 }
