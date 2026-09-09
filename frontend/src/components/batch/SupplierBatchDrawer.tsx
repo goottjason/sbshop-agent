@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { BatchProductDelete } from './BatchProductDelete';
 import { Alert, Button, Collapse, Drawer, Empty, Spin } from 'antd';
 import { supplierBatchApi, type SupplierBatchRun, type SupplierBatchStage } from '../../api/supplierBatchApi';
 import { batchMarketLabel, dateText, mayRetry, numberText, stageLabel, stageStatus } from './supplierBatchDisplay';
@@ -15,15 +16,20 @@ export function SupplierBatchDrawer({ run, itemId, onClose, onRetry, retryBusy, 
 }) {
   const detail = useQuery({ queryKey: ['supplier-batch-detail', run.id, itemId], queryFn: async ({ signal }) => (await supplierBatchApi.detail(run.id, itemId, signal)).data,
     retry: false, refetchInterval: run.state === 'RUNNING' || run.state === 'PAUSING' ? 5000 : false });
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const item = detail.data?.item;
   const calculation = detail.data?.priceCalculation;
   const diagnosis = detail.data?.sourceDiagnosis;
   const sourceUrl = safeSourceUrl(detail.data?.sourceUrl);
-  return <Drawer title="상품 처리 상세" open onClose={onClose} width={660} rootClassName="sb-batch-drawer">
+  return <Drawer title="상품 처리 상세" open onClose={onClose} closable={!deleteBusy} maskClosable={!deleteBusy} keyboard={!deleteBusy} width={660} rootClassName="sb-batch-drawer">
     {retryFeedback}
     {detail.isPending ? <Spin tip="처리 기록 조회 중…"><div style={{ minHeight: 160 }} /></Spin> : detail.isError ?
       <Alert type="error" showIcon message="상품 처리 기록을 조회하지 못했습니다." action={<Button onClick={() => { void detail.refetch(); }}>다시 조회</Button>} /> : !item ? <Empty description="상품 기록이 없습니다." /> : <>
       <div className="sb-batch-drawer-product">{item.thumbnailUrl && <img src={item.thumbnailUrl} alt="" referrerPolicy="no-referrer" />}<div><strong>{item.sbCode}</strong><p>{item.productName}</p>{sourceUrl ? <a href={sourceUrl} target="_blank" rel="noopener noreferrer">소싱처 원본 상품 열기 ↗</a> : <small>열 수 있는 원본 상품 주소가 없습니다.</small>}</div></div>
+      {detail.data?.productDeleted ? <Alert type="info" message="SB에서 폐기된 상품입니다. 과거 처리 기록을 표시합니다." /> : null}
+      {<div style={{ margin: '12px 0' }}><BatchProductDelete productId={item.productId} sbCode={item.sbCode} productName={item.productName}
+        disabled={!!detail.data?.productDeleted || retryBusy || run.state === 'RUNNING' || run.state === 'PAUSING'} onBusy={setDeleteBusy} onDeleted={() => { void detail.refetch(); }} />
+        {(run.state === 'RUNNING' || run.state === 'PAUSING') && <small> 배치를 정지하거나 완료한 후 삭제할 수 있습니다.</small>}</div>}
       {item.detail && <p className="sb-batch-wrap">{item.detail}</p>}
       <div className="sb-batch-stage-overview">{item.stages.map(stage => <span key={stage.id}>{stageLabel(stage.stage, stage.market, stage.field)} <BatchStageBadge stage={stage} /></span>)}</div>
       {diagnosis && <Alert type={diagnosis.code === 'OBSERVED' ? 'info' : 'warning'} showIcon
@@ -41,7 +47,7 @@ export function SupplierBatchDrawer({ run, itemId, onClose, onRetry, retryBusy, 
         {(stage.field || stage.expected != null || stage.observed != null) && <dl className="sb-batch-values"><div><dt>목표값</dt><dd>{numberText(stage.expected)}{stage.expected != null ? stage.field === 'PRICE' ? '원' : stage.field === 'STOCK' ? '개' : '' : ''}</dd></div><div><dt>확인값</dt><dd>{numberText(stage.observed)}{stage.observed != null ? stage.field === 'PRICE' ? '원' : stage.field === 'STOCK' ? '개' : '' : ''}</dd></div></dl>}
         {stage.detail && <p className={`sb-batch-wrap ${stage.state === 'FAILED' ? 'sb-batch-error-text' : ''}`}>{stage.stage === 'CRAWL' && stage.state === 'FAILED' && diagnosis ? diagnosis.summary : stage.detail}</p>}
         <div className="sb-batch-stage-meta">시도 {stage.attempts}회 · {stage.finishedAt ? `마지막 처리 ${dateText(stage.finishedAt)}` : stage.startedAt ? `시작 ${dateText(stage.startedAt)}` : '아직 시작하지 않음'}{stage.nextRunAt && <span>다음 처리 가능: {dateText(stage.nextRunAt)}</span>}</div>
-        {mayRetry(stage) ? <Button size="small" disabled={retryBusy} onClick={() => onRetry(item.id, stage)}>{stageLabel(stage.stage, stage.market, stage.field)} 재시도</Button> : (stage.state === 'FAILED' || stage.state === 'BLOCKED') && <small>이 단계는 자동 재시도 대상이 아닙니다. 위 사유를 먼저 해결하세요.</small>}
+        {mayRetry(stage) ? <Button size="small" disabled={retryBusy || deleteBusy || detail.data?.productDeleted} onClick={() => onRetry(item.id, stage)}>{stageLabel(stage.stage, stage.market, stage.field)} 재시도</Button> : (stage.state === 'FAILED' || stage.state === 'BLOCKED') && <small>이 단계는 자동 재시도 대상이 아닙니다. 위 사유를 먼저 해결하세요.</small>}
       </section>)}</div>
       {run.state === 'PAUSED' && <Alert type="info" message="일시정지 중에는 재시도가 대기로 접수됩니다. 배치를 재개하면 처리합니다." />}
       <Collapse items={[

@@ -83,6 +83,7 @@ class ProductDeleteDisposalGuardTest {
 	@Test
 	@DisplayName("8a: 전 마켓 삭제가 성공해야만 폐기한다 — 성공한 등록행은 DELETED_ON_MARKET 으로 남긴다")
 	void allMarketsDeleted_disposes() {
+		confirmAbsent("verified-account");
 		MarketRegistration reg = registration(MarketType.COUPANG);
 		ProductManageUseCase useCase = useCase(reg);
 
@@ -119,4 +120,43 @@ class ProductDeleteDisposalGuardTest {
 			mock(com.sbshop.agent.core.application.actionlog.ActionLogService.class),
 			org.mockito.Mockito.mock(com.sbshop.agent.core.application.product.edit.ProductEditService.class));
 	}
+	private void confirmAbsent(String observedAccount) {
+		when(client.inspectionAccountReference()).thenReturn("verified-account");
+		when(client.inspectListing(anyString())).thenReturn(
+			new com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation(
+				com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.DELETED,
+				"MISSING", "삭제 확인", observedAccount, "/product", java.time.Instant.now()));
+	}
+	@Test void successfulDeleteRequestWithoutReadbackDoesNotDispose() {
+		var reg = registration(MarketType.COUPANG);
+		var result = useCase(reg).deleteProduct(PRODUCT_ID);
+		assertThat(result.disposed()).isFalse();
+		assertThat(result.failed().get(MarketType.COUPANG)).contains("재조회");
+		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
+	}
+	@Test void differentAccountReadbackDoesNotDispose() {
+		confirmAbsent("different-account");
+		var result = useCase(registration(MarketType.COUPANG)).deleteProduct(PRODUCT_ID);
+		assertThat(result.disposed()).isFalse();
+		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
+	}
+	@Test void deletedButLostResponseCanBeReconciledByReadback() {
+		confirmAbsent("verified-account");
+		doThrow(new IllegalStateException("응답 유실")).when(client).deleteFromMarket(anyString());
+		var result = useCase(registration(MarketType.COUPANG)).deleteProduct(PRODUCT_ID);
+		assertThat(result.disposed()).isTrue();
+	}
+
+	@org.junit.jupiter.params.ParameterizedTest
+	@org.junit.jupiter.params.provider.EnumSource(value = com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.class,
+		names = {"PRESENT", "OUT_OF_STOCK", "STOPPED", "PROHIBITED", "UNKNOWN"})
+	void remainingOrUnconfirmedListingsMustNotDispose(com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State state) {
+		when(client.inspectionAccountReference()).thenReturn("verified-account");
+		when(client.inspectListing(anyString())).thenReturn(new com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation(
+			state, "CHECK", "확인", "verified-account", "/product", java.time.Instant.now()));
+		var result = useCase(registration(MarketType.COUPANG)).deleteProduct(PRODUCT_ID);
+		assertThat(result.disposed()).isFalse();
+		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
+	}
+
 }

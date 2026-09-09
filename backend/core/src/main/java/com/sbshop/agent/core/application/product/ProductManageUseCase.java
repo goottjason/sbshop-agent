@@ -138,7 +138,7 @@ public class ProductManageUseCase {
 				continue;
 			}
 			try {
-				marketClientRouter.getClient(marketType).deleteFromMarket(marketItemId);
+				deleteAndVerify(marketClientRouter.getClient(marketType), marketItemId);
 				reg.markAbsentFromMarket(UnsyncReason.DELETED_ON_MARKET);
 				marketRegistrationRepository.save(reg);
 				deleted.add(marketType);
@@ -170,6 +170,29 @@ public class ProductManageUseCase {
 		log.info("[완전삭제] 완료: productId={}, 폐기={}, deleted={}, failed={}, manual={}",
 			productId, disposed, deleted, failed.keySet(), manual.keySet());
 		return new ProductDeleteResult(deleted, skipped, failed, manual, disposed);
+	}
+
+	private void deleteAndVerify(com.sbshop.agent.core.domain.market.client.MarketClient client, String id) {
+		String account = client.inspectionAccountReference();
+		RuntimeException deletionFailure = null;
+		try {
+			client.deleteFromMarket(id);
+		} catch (UnsupportedOperationException unsupported) {
+			throw unsupported;
+		} catch (RuntimeException failure) {
+			deletionFailure = failure;
+		}
+		var observation = client.inspectListing(id);
+		boolean absent = observation != null
+			&& observation.state() == com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.DELETED
+			&& account != null && !account.isBlank() && account.equals(observation.accountReference())
+			&& account.equals(client.inspectionAccountReference());
+		if (absent)
+			return;
+		if (deletionFailure != null)
+			throw deletionFailure;
+		throw new IllegalStateException("삭제 요청 후 재조회에서 상품 부재를 확인하지 못했습니다. SB 상품을 유지합니다. 확인 결과: "
+			+ (observation == null ? "응답 없음" : observation.state() + " / " + observation.code()));
 	}
 
 	private MarketRepublishResult republishToMarkets(Product product, Long productId,

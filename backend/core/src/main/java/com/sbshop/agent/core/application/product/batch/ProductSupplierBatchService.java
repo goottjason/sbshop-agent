@@ -129,7 +129,7 @@ public class ProductSupplierBatchService {
 		}
 	}
 	public record ItemDetail(Item item, List<Attempt> history, Calculation priceCalculation, String sourceUrl,
-		BatchSourceDiagnosis sourceDiagnosis) {
+		BatchSourceDiagnosis sourceDiagnosis, boolean productDeleted) {
 	}
 	public record RetryOptions(Map<String, Long> retryableStageCounts, long retryableProducts, long blockedStageCount) {
 	}
@@ -255,7 +255,7 @@ public class ProductSupplierBatchService {
 			: product == null ? null : product.getSourcingUrl();
 		return new ItemDetail(item(item, stageRows.findByItemIdOrderById(itemId)), history,
 			item.getCalculation() == null ? null : read(item.getCalculation(), Calculation.class), sourceUrl,
-			BatchSourceDiagnosis.from(snapshot, mapper));
+			BatchSourceDiagnosis.from(snapshot, mapper), product == null || product.isDeleted());
 	}
 
 	public View pause(String id, String actor) {

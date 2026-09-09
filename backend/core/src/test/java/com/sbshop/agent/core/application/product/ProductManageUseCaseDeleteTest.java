@@ -88,6 +88,9 @@ class ProductManageUseCaseDeleteTest {
 		when(marketClientRouter.getClient(MarketType.COUPANG)).thenReturn(coupangClient);
 		when(marketClientRouter.getClient(MarketType.CAFE24)).thenReturn(cafe24Client);
 
+		confirmAbsent(coupangClient);
+		confirmAbsent(cafe24Client);
+
 		ProductDeleteResult result = useCase.deleteProduct(PRODUCT_ID);
 
 		verify(coupangClient).deleteFromMarket("CP123");
@@ -112,6 +115,8 @@ class ProductManageUseCaseDeleteTest {
 		when(marketClientRouter.getClient(MarketType.COUPANG)).thenReturn(coupangClient);
 		when(marketClientRouter.getClient(MarketType.CAFE24)).thenReturn(cafe24Client);
 		doThrow(new RuntimeException("쿠팡 삭제 거부(주문이력)")).when(coupangClient).deleteFromMarket("CP123");
+
+		confirmAbsent(cafe24Client);
 
 		ProductDeleteResult result = useCase.deleteProduct(PRODUCT_ID);
 
@@ -151,6 +156,8 @@ class ProductManageUseCaseDeleteTest {
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID)).thenReturn(regs);
 		when(marketClientRouter.hasClient(MarketType.COUPANG)).thenReturn(true);
 		when(marketClientRouter.getClient(MarketType.COUPANG)).thenReturn(coupangClient);
+
+		confirmAbsent(coupangClient);
 
 		useCase.deleteProduct(PRODUCT_ID);
 
@@ -197,4 +204,12 @@ class ProductManageUseCaseDeleteTest {
 			.marketDetailedInfo("{}")
 			.build();
 	}
+	private void confirmAbsent(MarketClient client) {
+		when(client.inspectionAccountReference()).thenReturn("verified-account");
+		when(client.inspectListing(org.mockito.ArgumentMatchers.anyString())).thenReturn(
+			new com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation(
+				com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.DELETED,
+				"MISSING", "삭제 확인", "verified-account", "/product", java.time.Instant.now()));
+	}
+
 }

@@ -1,4 +1,5 @@
 import { apiClient } from './axios';
+export interface ProductDeleteResult { deleted: string[]; skipped: string[]; failed: Record<string, string>; manual: Record<string, string>; disposed: boolean }
 
 export interface ProductContentFreshness {
   imagesCollectedAt: string | null;
@@ -223,7 +224,7 @@ export const productApi = {
     apiClient.put(`/api/v1/products/${id}`, data),
 
   deleteProduct: (id: number) =>
-    apiClient.delete(`/api/v1/products/${id}`),
+    apiClient.delete<ProductDeleteResult>(`/api/v1/products/${id}`),
 
   crawlAndUpload: (id: number) =>
     apiClient.post(`/api/v1/products/${id}/images/crawl-and-upload`),
