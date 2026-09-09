@@ -119,17 +119,12 @@ public class ProductManageUseCase {
 				marketItemIds.put(marketType, marketItemId);
 			}
 			if (marketType == MarketType.CAFE24) {
-				boolean childPending = false;
 				for (MarketType child : List.of(MarketType.GMARKET, MarketType.AUCTION)) {
 					if (reg.connectionIdentifier(child) != null
-						&& reg.connectionStateFor(child) != com.sbshop.agent.core.domain.market.MarketConnectionState.DETACHED_DELETED) {
-						manual.put(child, "카페24 연동 상품의 삭제가 확인되지 않았습니다. 마켓플러스 또는 해당 마켓에서 삭제 후 연결 점검으로 삭제 여부를 확인하세요.");
-						childPending = true;
+						&& reg.connectionStateFor(
+							child) != com.sbshop.agent.core.domain.market.MarketConnectionState.DETACHED_DELETED) {
+						manual.put(child, "카페24 삭제와 별도로 해당 마켓에서 직접 삭제해야 합니다. 상품번호는 수동 처리와 삭제 확인을 위해 보존합니다.");
 					}
-				}
-				if (childPending) {
-					manual.put(MarketType.CAFE24, "G마켓·옥션 연동 상품의 삭제 확인 전까지 카페24 상품 삭제를 보류합니다.");
-					continue;
 				}
 			}
 			if (Boolean.FALSE.equals(reg.getIsSynced())
@@ -179,7 +174,7 @@ public class ProductManageUseCase {
 				productId, failed.keySet(), manual.keySet());
 		}
 
-		recordDeleteActionLog(productId, deleted, skipped, failed, marketItemIds);
+		recordDeleteActionLog(productId, deleted, skipped, failed, manual, marketItemIds);
 
 		log.info("[완전삭제] 완료: productId={}, 폐기={}, deleted={}, failed={}, manual={}",
 			productId, disposed, deleted, failed.keySet(), manual.keySet());
@@ -198,7 +193,8 @@ public class ProductManageUseCase {
 		}
 		var observation = client.inspectListing(id);
 		boolean absent = observation != null
-			&& observation.state() == com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.DELETED
+			&& observation
+				.state() == com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.DELETED
 			&& account != null && !account.isBlank() && account.equals(observation.accountReference())
 			&& account.equals(client.inspectionAccountReference());
 		if (absent)
@@ -266,7 +262,7 @@ public class ProductManageUseCase {
 	}
 
 	private void recordDeleteActionLog(Long productId, List<MarketType> deleted, List<MarketType> skipped,
-		Map<MarketType, String> failed, Map<MarketType, String> marketItemIds) {
+		Map<MarketType, String> failed, Map<MarketType, String> manual, Map<MarketType, String> marketItemIds) {
 		List<String> parts = new ArrayList<>();
 		for (MarketType m : deleted) {
 			parts.add(marketLabelWithId(m, marketItemIds) + " 삭제");
@@ -274,12 +270,16 @@ public class ProductManageUseCase {
 		for (Map.Entry<MarketType, String> e : failed.entrySet()) {
 			parts.add(marketLabelWithId(e.getKey(), marketItemIds) + " 실패(" + e.getValue() + ")");
 		}
+		for (Map.Entry<MarketType, String> e : manual.entrySet()) {
+			parts.add(marketLabelWithId(e.getKey(), marketItemIds) + " 수동 처리(" + e.getValue() + ")");
+		}
 		for (MarketType m : skipped) {
 			parts.add(marketLabelWithId(m, marketItemIds) + " 스킵");
 		}
 		String detail = parts.isEmpty() ? "연동 마켓 없음" : String.join(", ", parts);
 		String message = "상품 삭제 (상품 " + productId + ") | " + detail;
-		ActionStatus status = failed.isEmpty() ? ActionStatus.SUCCESS : ActionStatus.FAILED;
+		ActionStatus status = !failed.isEmpty() ? ActionStatus.FAILED
+			: manual.isEmpty() ? ActionStatus.SUCCESS : ActionStatus.WARNING;
 		actionLogService.record(ActionLogConstants.PRODUCT_DELETE, null, status, message);
 	}
 

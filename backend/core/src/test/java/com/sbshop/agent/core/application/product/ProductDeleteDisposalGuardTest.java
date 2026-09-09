@@ -120,6 +120,7 @@ class ProductDeleteDisposalGuardTest {
 			mock(com.sbshop.agent.core.application.actionlog.ActionLogService.class),
 			org.mockito.Mockito.mock(com.sbshop.agent.core.application.product.edit.ProductEditService.class));
 	}
+
 	private void confirmAbsent(String observedAccount) {
 		when(client.inspectionAccountReference()).thenReturn("verified-account");
 		when(client.inspectListing(anyString())).thenReturn(
@@ -127,20 +128,26 @@ class ProductDeleteDisposalGuardTest {
 				com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.DELETED,
 				"MISSING", "삭제 확인", observedAccount, "/product", java.time.Instant.now()));
 	}
-	@Test void successfulDeleteRequestWithoutReadbackDoesNotDispose() {
+
+	@Test
+	void successfulDeleteRequestWithoutReadbackDoesNotDispose() {
 		var reg = registration(MarketType.COUPANG);
 		var result = useCase(reg).deleteProduct(PRODUCT_ID);
 		assertThat(result.disposed()).isFalse();
 		assertThat(result.failed().get(MarketType.COUPANG)).contains("재조회");
 		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
 	}
-	@Test void differentAccountReadbackDoesNotDispose() {
+
+	@Test
+	void differentAccountReadbackDoesNotDispose() {
 		confirmAbsent("different-account");
 		var result = useCase(registration(MarketType.COUPANG)).deleteProduct(PRODUCT_ID);
 		assertThat(result.disposed()).isFalse();
 		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
 	}
-	@Test void deletedButLostResponseCanBeReconciledByReadback() {
+
+	@Test
+	void deletedButLostResponseCanBeReconciledByReadback() {
 		confirmAbsent("verified-account");
 		doThrow(new IllegalStateException("응답 유실")).when(client).deleteFromMarket(anyString());
 		var result = useCase(registration(MarketType.COUPANG)).deleteProduct(PRODUCT_ID);
@@ -159,20 +166,53 @@ class ProductDeleteDisposalGuardTest {
 		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
 	}
 
-	@Test void cafe24LinkedMarketplacesMustBeDeletedBeforeParentAndSb() {
+	@Test
+	void cafe24CanBeDeletedWhileLinkedMarketplacesRemainManual() {
+		confirmAbsent("verified-account");
 		var reg = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.CAFE24)
-			.marketIdentifiers("{\"product_no\":\"7867\",\"gmarket_goodsNo\":\"3490138764\",\"auction_goodsNo\":\"D888922206\"}").build();
+			.marketIdentifiers(
+				"{\"product_no\":\"7867\",\"gmarket_goodsNo\":\"3490138764\",\"auction_goodsNo\":\"D888922206\"}")
+			.build();
 		var result = useCase(reg).deleteProduct(PRODUCT_ID);
 		assertThat(result.disposed()).isFalse();
-		assertThat(result.manual()).containsKeys(MarketType.GMARKET, MarketType.AUCTION, MarketType.CAFE24);
-		verify(client, never()).deleteFromMarket(anyString());
+		assertThat(result.manual()).containsOnlyKeys(MarketType.GMARKET, MarketType.AUCTION);
+		assertThat(result.deleted()).containsExactly(MarketType.CAFE24);
+		assertThat(reg.connectionIdentifier(MarketType.GMARKET)).isEqualTo("3490138764");
+		assertThat(reg.connectionIdentifier(MarketType.AUCTION)).isEqualTo("D888922206");
+		verify(client).deleteFromMarket("7867");
 		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
 	}
 
-	@Test void confirmedChildDeletionAllowsCafe24Deletion() {
+	@Test
+	void alreadyDeletedCafe24KeepsChildFollowupWithoutAnotherDelete() {
 		var reg = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.CAFE24)
 			.marketIdentifiers("{\"product_no\":\"7867\",\"gmarket_goodsNo\":\"3490138764\"}").build();
-		reg.detachConnection(MarketType.GMARKET, com.sbshop.agent.core.domain.market.MarketConnectionState.DETACHED_DELETED);
+		reg.markAbsentFromMarket(UnsyncReason.DELETED_ON_MARKET);
+		var result = useCase(reg).deleteProduct(PRODUCT_ID);
+		assertThat(result.deleted()).containsExactly(MarketType.CAFE24);
+		assertThat(result.manual()).containsOnlyKeys(MarketType.GMARKET);
+		assertThat(result.disposed()).isFalse();
+		verify(client, never()).deleteFromMarket(anyString());
+	}
+
+	@Test
+	void linkedChildrenDoNotHideCafe24DeleteFailure() {
+		var reg = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.CAFE24)
+			.marketIdentifiers("{\"product_no\":\"7867\",\"gmarket_goodsNo\":\"3490138764\"}").build();
+		var useCase = useCase(reg);
+		doThrow(new IllegalStateException("카페24 삭제 거절")).when(client).deleteFromMarket("7867");
+		var result = useCase.deleteProduct(PRODUCT_ID);
+		assertThat(result.failed()).containsEntry(MarketType.CAFE24, "카페24 삭제 거절");
+		assertThat(result.manual()).containsOnlyKeys(MarketType.GMARKET);
+		assertThat(result.disposed()).isFalse();
+	}
+
+	@Test
+	void confirmedChildDeletionAllowsCafe24Deletion() {
+		var reg = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.CAFE24)
+			.marketIdentifiers("{\"product_no\":\"7867\",\"gmarket_goodsNo\":\"3490138764\"}").build();
+		reg.detachConnection(MarketType.GMARKET,
+			com.sbshop.agent.core.domain.market.MarketConnectionState.DETACHED_DELETED);
 		confirmAbsent("verified-account");
 		var result = useCase(reg).deleteProduct(PRODUCT_ID);
 		assertThat(result.disposed()).isTrue();
