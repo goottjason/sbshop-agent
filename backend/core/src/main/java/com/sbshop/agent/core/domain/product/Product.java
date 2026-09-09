@@ -49,6 +49,14 @@ public class Product extends BaseEntity {
 	@Column(name = "deleted_at")
 	private java.time.LocalDateTime deletedAt;
 
+	@Column(name = "deletion_followup", columnDefinition = "TEXT")
+	private String deletionFollowup;
+
+	public void recordDeletionFollowup(String snapshot) {
+		// Keep the original evidence when an already soft-deleted product is requested again.
+		if (deletedAt == null) this.deletionFollowup = snapshot;
+	}
+
 	@Column(name = "source_gone_at")
 	private java.time.LocalDateTime sourceGoneAt;
 

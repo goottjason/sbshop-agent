@@ -219,4 +219,46 @@ class ProductDeleteDisposalGuardTest {
 		verify(client).deleteFromMarket("7867");
 	}
 
+	@Test
+	void elevenstRemainsRecordedWithoutAnyExternalDeleteCall() {
+		var reg = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.ELEVEN_STREET)
+			.marketIdentifiers("{\"prdNo\":\"3264931038\",\"sellerPrdCd\":\"201126IHB012\"}").build();
+		var useCase = useCase(reg);
+		var result = useCase.deleteProduct(PRODUCT_ID);
+		assertThat(result.disposed()).isTrue();
+		assertThat(result.manual()).containsOnlyKeys(MarketType.ELEVEN_STREET);
+		assertThat(result.deleted()).doesNotContain(MarketType.ELEVEN_STREET);
+		verify(client, never()).deleteFromMarket(anyString());
+		verify(client, never()).inspectListing(anyString());
+		var product = org.mockito.ArgumentCaptor.forClass(Product.class);
+		verify(productDeleteTxService).deleteWithRegistrations(product.capture(), anyList());
+		var snapshot = org.mockito.ArgumentCaptor.forClass(String.class);
+		verify(product.getValue()).recordDeletionFollowup(snapshot.capture());
+		assertThat(snapshot.getValue()).contains("3264931038", "ELEVEN_STREET", "EXTERNAL_DELETE_PENDING");
+		assertThat(reg.getUnsyncReason()).isNotEqualTo(UnsyncReason.DELETED_ON_MARKET);
+	}
+
+	@Test
+	void elevenstAndCafe24ChildrenAreArchivedButRealCafeFailureStillBlocks() {
+		var eleven = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.ELEVEN_STREET)
+			.marketIdentifiers("{\"prdNo\":\"3264931038\"}").build();
+		var cafe = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.CAFE24)
+			.marketIdentifiers("{\"product_no\":\"10362\",\"gmarket_goodsNo\":\"3490309329\",\"auction_goodsNo\":\"D888848908\"}").build();
+		var useCase = useCase(cafe);
+		when(marketRegistrationRepository.findByProductId(PRODUCT_ID)).thenReturn(List.of(eleven, cafe));
+		var blocked = useCase.deleteProduct(PRODUCT_ID);
+		assertThat(blocked.disposed()).isFalse();
+		assertThat(blocked.failed()).containsKey(MarketType.CAFE24);
+		confirmAbsent("verified-account");
+		var done = useCase.deleteProduct(PRODUCT_ID);
+		assertThat(done.disposed()).isTrue();
+		assertThat(done.manual()).containsOnlyKeys(MarketType.ELEVEN_STREET, MarketType.GMARKET, MarketType.AUCTION);
+		var product = org.mockito.ArgumentCaptor.forClass(Product.class);
+		verify(productDeleteTxService).deleteWithRegistrations(product.capture(), anyList());
+		var snapshot = org.mockito.ArgumentCaptor.forClass(String.class);
+		verify(product.getValue()).recordDeletionFollowup(snapshot.capture());
+		assertThat(snapshot.getValue()).contains("3264931038", "3490309329", "D888848908");
+		verify(client, never()).deleteFromMarket("3264931038");
+	}
+
 }

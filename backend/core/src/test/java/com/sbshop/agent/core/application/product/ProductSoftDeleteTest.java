@@ -107,4 +107,18 @@ class ProductSoftDeleteTest {
 		product.markDeleted();
 		assertThat(product.isDeleted()).isTrue();
 	}
+	@Test
+	void deletionSnapshotSurvivesSoftDeleteAndRepeatedRequests() {
+		Product product = mock(Product.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+		String snapshot = "[{\"market\":\"ELEVEN_STREET\",\"listingId\":\"3264931038\"}]";
+		product.recordDeletionFollowup(snapshot);
+		new ProductDeleteTxService(marketRegistrationRepository, productWriter)
+			.deleteWithRegistrations(product, List.of());
+		assertThat(product.isDeleted()).isTrue();
+		assertThat(product.getDeletionFollowup()).isEqualTo(snapshot);
+		product.recordDeletionFollowup("[]");
+		assertThat(product.getDeletionFollowup()).isEqualTo(snapshot);
+		verify(productWriter).save(product);
+	}
+
 }

@@ -123,7 +123,8 @@ public class ProductManageUseCase {
 					if (reg.connectionIdentifier(child) != null
 						&& reg.connectionStateFor(
 							child) != com.sbshop.agent.core.domain.market.MarketConnectionState.DETACHED_DELETED) {
-						manual.put(child, "카페24 삭제와 별도로 해당 마켓에서 직접 삭제해야 합니다. 상품번호는 수동 처리와 삭제 확인을 위해 보존합니다.");
+						manual.put(child, "외부 삭제 미완료 · 상품번호를 잔여 상품 이력으로 보존합니다.");
+						marketItemIds.put(child, reg.connectionIdentifier(child));
 					}
 				}
 			}
@@ -132,6 +133,10 @@ public class ProductManageUseCase {
 				deleted.add(marketType);
 				log.info("[완전삭제] 이미 마켓에서 삭제 확인된 등록 — 건너뜀: productId={}, market={}",
 					productId, marketType);
+				continue;
+			}
+			if (marketType == MarketType.ELEVEN_STREET) {
+				manual.put(marketType, "자동 삭제 미지원 · 외부 삭제 미완료로 기록하고 SB에서 소프트 삭제합니다.");
 				continue;
 			}
 			if (marketItemId == null || marketItemId.isEmpty()) {
@@ -167,12 +172,29 @@ public class ProductManageUseCase {
 		}
 
 		// Cafe24 child marketplaces are handled manually; retain their identifiers as history.
-		// Standalone registrations and all actual deletion failures still block disposal.
+		// 11st deletion is unsupported: archive it for manual followup without calling DELETE.
+		// Other standalone registrations and all actual deletion failures still block disposal.
 		boolean disposed = failed.isEmpty() && manual.keySet().stream().allMatch(market ->
-			(market == MarketType.GMARKET || market == MarketType.AUCTION)
+			market == MarketType.ELEVEN_STREET || ((market == MarketType.GMARKET || market == MarketType.AUCTION)
 				&& deleted.contains(MarketType.CAFE24)
-				&& registrations.stream().noneMatch(reg -> reg.getMarketType() == market));
+				&& registrations.stream().noneMatch(reg -> reg.getMarketType() == market)));
 		if (disposed) {
+			var followup = new java.util.ArrayList<java.util.Map<String, Object>>();
+			for (var entry : manual.entrySet()) {
+				var row = new java.util.LinkedHashMap<String, Object>();
+				row.put("market", entry.getKey().name());
+				row.put("listingId", marketItemIds.get(entry.getKey()));
+				row.put("reason", entry.getValue());
+				row.put("state", "EXTERNAL_DELETE_PENDING");
+				row.put("recordedAt", java.time.Instant.now().toString());
+				row.put("presenceVerified", false);
+				followup.add(row);
+			}
+			try {
+				product.recordDeletionFollowup(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(followup));
+			} catch (com.fasterxml.jackson.core.JsonProcessingException error) {
+				throw new IllegalStateException("외부 잔여 상품 기록 저장 준비에 실패했습니다. SB 상품을 유지합니다.", error);
+			}
 			productDeleteTxService.deleteWithRegistrations(product, registrations);
 		} else {
 			log.warn("[완전삭제] 폐기 보류 — 마켓에 리스팅이 남아 있다: productId={}, 실패={}, 수동={}",
