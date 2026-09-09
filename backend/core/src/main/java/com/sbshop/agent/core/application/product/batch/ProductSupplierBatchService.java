@@ -128,7 +128,8 @@ public class ProductSupplierBatchService {
 			this(costPrice, exchangeRate, policy, pricingEvidence, prices, notices, null);
 		}
 	}
-	public record ItemDetail(Item item, List<Attempt> history, Calculation priceCalculation) {
+	public record ItemDetail(Item item, List<Attempt> history, Calculation priceCalculation, String sourceUrl,
+		BatchSourceDiagnosis sourceDiagnosis) {
 	}
 	public record RetryOptions(Map<String, Long> retryableStageCounts, long retryableProducts, long blockedStageCount) {
 	}
@@ -247,8 +248,14 @@ public class ProductSupplierBatchService {
 			.map(a -> new Attempt(a.getId(), a.getStage(), empty(a.getMarket()), empty(a.getField()), a.getState(),
 				a.getDetail(), a.getRecordedAt()))
 			.toList();
+		var snapshot = item.getSourceSnapshotId() == null ? null
+			: sourceSnapshots.findById(item.getSourceSnapshotId()).orElse(null);
+		var product = em.find(com.sbshop.agent.core.domain.product.Product.class, item.getProductId());
+		String sourceUrl = snapshot != null ? snapshot.getSourceUrl()
+			: product == null ? null : product.getSourcingUrl();
 		return new ItemDetail(item(item, stageRows.findByItemIdOrderById(itemId)), history,
-			item.getCalculation() == null ? null : read(item.getCalculation(), Calculation.class));
+			item.getCalculation() == null ? null : read(item.getCalculation(), Calculation.class), sourceUrl,
+			BatchSourceDiagnosis.from(snapshot, mapper));
 	}
 
 	public View pause(String id, String actor) {

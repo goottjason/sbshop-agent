@@ -40,6 +40,9 @@ export interface SupplierBatchRetry {
 }
 export interface SupplierBatchRetryOptions { retryableStageCounts: Record<SupplierBatchStageKind, number>; retryableProducts: number; blockedStageCount: number }
 export interface SupplierBatchItemDetail {
+  sourceUrl?: string | null;
+  sourceDiagnosis?: { code: string; summary: string; action: string; observedAt: string | null;
+    sourcePrice: number | string | null; currency: string | null; stockStatus: string | null; notices: string[] } | null;
   item: SupplierBatchItem;
   history: { id: number; stage: SupplierBatchStageKind; market?: SupplierBatchMarket | null; field?: SupplierBatchField | null;
     state: string; detail: string | null; recordedAt: string }[];

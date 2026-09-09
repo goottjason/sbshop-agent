@@ -61,7 +61,7 @@ apiClient.defaults.adapter = async config => {
   }
   if (method === 'get' && /\/items\/\d+$/.test(url)) {
     const selected = products.find(i => i.id === Number(url.split('/').at(-1))) ?? item(21);
-    return response(config, { item: selected, history: [{ id: 1, stage: 'MARKET', market: 'COUPANG', field: 'PRICE', state: 'FAILED', detail: '첫 시도: 429 응답, 재시도 지연 적용', recordedAt: now }], priceCalculation: { costPrice: 24058, exchangeRate: 1822.55, policy,
+    return response(config, { sourceUrl: 'https://www.iherb.com/pr/example/8435', sourceDiagnosis: { code: 'OBSERVED', summary: '가격과 재고 상태를 확인했습니다.', action: '수집 시점의 기록입니다.', observedAt: now, sourcePrice: 12525, currency: 'KRW', stockStatus: 'IN_STOCK', notices: [] }, item: selected, history: [{ id: 1, stage: 'MARKET', market: 'COUPANG', field: 'PRICE', state: 'FAILED', detail: '첫 시도: 429 응답, 재시도 지연 적용', recordedAt: now }], priceCalculation: { costPrice: 24058, exchangeRate: 1822.55, policy,
       pricingEvidence: { sourcePrice: 13.2, currency: 'GBP', observedExchangeRate: 1822.551899, normalizedExchangeRate: 1822.55, goodsPriceKrw: 24058 }, prices: markets.map(market => ({ market, minimumPrice: '32000', salePrice: '99500' })), notices: ['소싱처 쿠폰 할인 적용 후 계산한 값입니다.'] } });
   }
   if (method === 'get' && url.endsWith('/retry-options')) { if (retryOptionsFail) { retryOptionsFail = false; throw failure(config); } return response(config, { retryableStageCounts: { CRAWL: 0, DB: 0, MARKET: 2 }, retryableProducts: 2, blockedStageCount: 1 }); }
@@ -127,6 +127,9 @@ void (async () => {
     document.querySelector<HTMLButtonElement>('[aria-label="SB-FIXTURE-001 쿠팡 판매가 상세"]')!.click();
     await wait(() => !!document.querySelector('.ant-drawer-open') && content('99,500원') && content('96,500원'), 'drawer values');
     const drawer = document.querySelector('.ant-drawer-open')!;
+    const original = drawer.querySelector<HTMLAnchorElement>('a[target="_blank"]');
+    if (original?.href !== 'https://www.iherb.com/pr/example/8435' || !original.rel.includes('noopener') || !drawer.textContent?.includes('12,525 KRW')) throw new Error('Missing source link or retained evidence');
+    checks.push('소싱처 원본 링크 새 탭·noopener 및 기록된 원본 가격 표시');
     if (!drawer.textContent?.includes('300개') || !drawer.textContent?.includes('미확인') || button('쿠팡 판매가 재시도', drawer).disabled) throw new Error('Bad field detail');
     if ([...drawer.querySelectorAll('button')].some(b => b.textContent?.includes('11번가 판매가 재시도'))) throw new Error('Blocked retry exposed');
     document.querySelector<HTMLElement>('.ant-drawer-open .ant-collapse-header')!.click(); await wait(() => content('1,822.551899') && content('1,822.55'), 'price evidence');
