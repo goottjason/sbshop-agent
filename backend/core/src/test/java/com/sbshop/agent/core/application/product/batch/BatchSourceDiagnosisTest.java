@@ -62,4 +62,13 @@ class BatchSourceDiagnosisTest {
 	void queuedWorkIsNotDiagnosedAsFailure() {
 		assertThat(BatchSourceDiagnosis.from(snapshot("https://kr.iherb.com/pr/product/8435"), mapper)).isNull();
 	}
+	@Test void explicitSourceProblemsHaveOneConciseReason() {
+		var s = snapshot("https://kr.iherb.com/pr/product/8435");
+		s.fail(ProductSourceSnapshot.State.FAILED, "[SOURCE_DISCONTINUED] 생산 중단으로 더 이상 구매할 수 없는 상품입니다.");
+		assertThat(BatchSourceDiagnosis.from(s, mapper).summary()).isEqualTo("생산 중단으로 더 이상 구매할 수 없는 상품입니다.");
+		s.fail(ProductSourceSnapshot.State.FAILED, "[SOURCE_PRICE_ZERO] 소싱처 가격이 0원인 비정상 상품입니다.");
+		assertThat(BatchSourceDiagnosis.from(s, mapper).summary()).isEqualTo("소싱처 가격이 0원인 비정상 상품입니다.");
+		assertThat(BatchSourceDiagnosis.from(s, mapper).sourcePrice()).isEqualByComparingTo("0");
+	}
+
 }

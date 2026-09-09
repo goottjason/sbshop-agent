@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
 public interface ProductSourceSnapshotRepository extends JpaRepository<ProductSourceSnapshot, String> {
+	Optional<ProductSourceSnapshot> findFirstByProductIdOrderByRequestedAtDescIdDesc(Long productId);
+
 	List<ProductSourceSnapshot> findByCollectionIdOrderByRequestedAtAscIdAsc(String collectionId);
 
 	Optional<ProductSourceSnapshot> findFirstByStateOrderByRequestedAtAscIdAsc(ProductSourceSnapshot.State state);

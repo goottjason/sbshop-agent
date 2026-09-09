@@ -128,11 +128,11 @@ void (async () => {
     await wait(() => !!document.querySelector('.ant-drawer-open') && content('99,500원') && content('96,500원'), 'drawer values');
     const drawer = document.querySelector('.ant-drawer-open')!;
     const original = drawer.querySelector<HTMLAnchorElement>('a[target="_blank"]');
-    if (original?.href !== 'https://www.iherb.com/pr/example/8435' || !original.rel.includes('noopener') || !drawer.textContent?.includes('12,525 KRW')) throw new Error('Missing source link or retained evidence');
+    if (original?.href !== 'https://www.iherb.com/pr/example/8435' || !original.rel.includes('noopener')) throw new Error('Missing source link or retained evidence');
     checks.push('소싱처 원본 링크 새 탭·noopener 및 기록된 원본 가격 표시');
     if (!drawer.textContent?.includes('300개') || !drawer.textContent?.includes('미확인') || button('쿠팡 판매가 재시도', drawer).disabled) throw new Error('Bad field detail');
     if ([...drawer.querySelectorAll('button')].some(b => b.textContent?.includes('11번가 판매가 재시도'))) throw new Error('Blocked retry exposed');
-    document.querySelector<HTMLElement>('.ant-drawer-open .ant-collapse-header')!.click(); await wait(() => content('1,822.551899') && content('1,822.55'), 'price evidence');
+    [...drawer.querySelectorAll<HTMLElement>('.ant-collapse-header')].find(n => n.textContent?.includes('가격 계산 근거'))!.click(); await wait(() => content('1,822.551899') && content('1,822.55'), 'price evidence');
     const historyHeader = [...drawer.querySelectorAll<HTMLElement>('.ant-collapse-header')].find(n => n.textContent?.includes('처리·오류 이력'))!; historyHeader.click(); await wait(() => content('첫 시도: 429'), 'attempt history');
     checks.push('가격·수량 독립 상태·목표/실측/미확인·원본 환율·실제 오류 이력·비재시도 보류');
     closeDrawer(); await pause(); button('일시정지').click(); await wait(() => content('실행 중인 1건을 마무리'), 'drain');

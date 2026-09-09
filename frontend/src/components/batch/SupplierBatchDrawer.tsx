@@ -30,27 +30,25 @@ export function SupplierBatchDrawer({ run, itemId, onClose, onRetry, retryBusy, 
       {<div style={{ margin: '12px 0' }}><BatchProductDelete productId={item.productId} sbCode={item.sbCode} productName={item.productName}
         disabled={!!detail.data?.productDeleted || retryBusy || run.state === 'RUNNING' || run.state === 'PAUSING'} onBusy={setDeleteBusy} onDeleted={() => { void detail.refetch(); }} />
         {(run.state === 'RUNNING' || run.state === 'PAUSING') && <small> 배치를 정지하거나 완료한 후 삭제할 수 있습니다.</small>}</div>}
-      {item.detail && <p className="sb-batch-wrap">{item.detail}</p>}
+      {item.detail && !diagnosis && <p className="sb-batch-wrap">{item.detail}</p>}
       <div className="sb-batch-stage-overview">{item.stages.map(stage => <span key={stage.id}>{stageLabel(stage.stage, stage.market, stage.field)} <BatchStageBadge stage={stage} /></span>)}</div>
-      {diagnosis && <Alert type={diagnosis.code === 'OBSERVED' ? 'info' : 'warning'} showIcon
-        message={diagnosis.summary} description={<>
-          <p>{diagnosis.action}</p>
-          <p>기록 시점: {dateText(diagnosis.observedAt)} · 현재 상태와 다를 수 있습니다.</p>
-          <p>원본 가격: {numberText(diagnosis.sourcePrice)} {diagnosis.currency ?? ''} · 재고 상태: {diagnosis.stockStatus === 'IN_STOCK' ? '구매 가능' : diagnosis.stockStatus === 'OUT_OF_STOCK' ? '품절' : '미확인'}</p>
-          {diagnosis.notices.length > 0 && <Collapse ghost items={[{ key: 'source-evidence', label: '수집·계산 상세 근거', children: <ul>{diagnosis.notices.map((notice, i) => <li key={i}>{notice}</li>)}</ul> }]} defaultActiveKey={diagnosis.code === 'OBSERVED' ? [] : ['source-evidence']} />}
-          {item.stages.some(stage => stage.stage === 'CRAWL' && stage.state === 'FAILED') && <p>실패 상품은 가격·재고 모두 SB와 마켓에 적용하지 않았습니다.</p>}
-        </>} />}
+      {diagnosis && <Alert type={diagnosis.code === 'OBSERVED' ? 'info' : 'warning'} showIcon message={diagnosis.summary} />}
       <h3>단계별 목표와 확인 결과</h3>
       <p className="sb-batch-help">마켓 값은 해당 작업에서 실제 확인한 결과입니다. 미확인은 성공으로 처리하지 않습니다.</p>
       <div className="sb-batch-drawer-stage-list">{item.stages.map(stage => <section key={stage.id} className="sb-batch-drawer-stage">
         <div className="sb-batch-between"><strong>{stageLabel(stage.stage, stage.market, stage.field)}</strong><BatchStageBadge stage={stage} /></div>
         {(stage.field || stage.expected != null || stage.observed != null) && <dl className="sb-batch-values"><div><dt>목표값</dt><dd>{numberText(stage.expected)}{stage.expected != null ? stage.field === 'PRICE' ? '원' : stage.field === 'STOCK' ? '개' : '' : ''}</dd></div><div><dt>확인값</dt><dd>{numberText(stage.observed)}{stage.observed != null ? stage.field === 'PRICE' ? '원' : stage.field === 'STOCK' ? '개' : '' : ''}</dd></div></dl>}
-        {stage.detail && <p className={`sb-batch-wrap ${stage.state === 'FAILED' ? 'sb-batch-error-text' : ''}`}>{stage.stage === 'CRAWL' && stage.state === 'FAILED' && diagnosis ? diagnosis.summary : stage.detail}</p>}
+        {stage.detail && !(stage.stage === 'CRAWL' && diagnosis) && <p className={`sb-batch-wrap ${stage.state === 'FAILED' ? 'sb-batch-error-text' : ''}`}>{stage.stage === 'CRAWL' && stage.state === 'FAILED' && diagnosis ? diagnosis.summary : stage.detail}</p>}
         <div className="sb-batch-stage-meta">시도 {stage.attempts}회 · {stage.finishedAt ? `마지막 처리 ${dateText(stage.finishedAt)}` : stage.startedAt ? `시작 ${dateText(stage.startedAt)}` : '아직 시작하지 않음'}{stage.nextRunAt && <span>다음 처리 가능: {dateText(stage.nextRunAt)}</span>}</div>
         {mayRetry(stage) ? <Button size="small" disabled={retryBusy || deleteBusy || detail.data?.productDeleted} onClick={() => onRetry(item.id, stage)}>{stageLabel(stage.stage, stage.market, stage.field)} 재시도</Button> : (stage.state === 'FAILED' || stage.state === 'BLOCKED') && <small>이 단계는 자동 재시도 대상이 아닙니다. 위 사유를 먼저 해결하세요.</small>}
       </section>)}</div>
       {run.state === 'PAUSED' && <Alert type="info" message="일시정지 중에는 재시도가 대기로 접수됩니다. 배치를 재개하면 처리합니다." />}
       <Collapse items={[
+        ...(diagnosis ? [{ key: 'source-record', label: detail.data?.latestSourceDiagnosis ? '최근 확인 기록' : '수집 확인 기록', children: <>
+          <p>{dateText(diagnosis.observedAt)}{detail.data?.latestSourceDiagnosis ? ' · 배치 이후 다시 확인한 결과' : ''}</p>
+          {diagnosis.sourcePrice != null && <p>원본 가격: {numberText(diagnosis.sourcePrice)} {diagnosis.currency ?? ''}</p>}
+          {diagnosis.stockStatus && <p>재고 상태: {diagnosis.stockStatus === 'IN_STOCK' ? '구매 가능' : diagnosis.stockStatus === 'OUT_OF_STOCK' ? '품절' : '미확인'}</p>}
+        </> }] : []),
         { key: 'price', label: '가격 계산 근거', children: calculation ? <div className="sb-batch-calculation">
           <p className="sb-batch-help">최소 마진은 판매가에서 소싱처 쿠폰을 적용한 총매입가와 국내 배송비를 뺀 금액 기준입니다.</p>
           <dl><div><dt>목표 마진 / 적용 쿠폰 / 최소 마진</dt><dd>{calculation.policy.marginRate}% / {calculation.appliedCouponRate ?? calculation.policy.couponRate}% / {numberText(calculation.policy.minMarginPrice)}원</dd></div>

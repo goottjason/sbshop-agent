@@ -28,41 +28,52 @@ public record BatchSourceDiagnosis(String code, String summary, String action, I
 		String currency = evidence == null ? null : evidence.currency();
 		String stock = proposed == null || proposed.values() == null || proposed.values().stockStatus() == null
 			? null : proposed.values().stockStatus().name();
-		String code = "UNCONFIRMED", summary = reason;
+		String code = "UNCONFIRMED", summary = reason.startsWith("[") && reason.contains("]")
+			? reason.substring(reason.indexOf(']') + 1).strip() : reason;
 		String action = "원본 상품을 열어 확인하세요. 이 기록만으로 삭제·단종 여부를 확정할 수 없습니다.";
 		if (proposed != null) {
 			if (!proposed.priceAvailable() && price != null) {
 				code = "COST_CALCULATION_FAILED";
-				summary = "소싱처 가격은 확인했지만 SB 매입 원가를 계산하지 못했습니다.";
+				summary = notices.stream().filter(n -> !n.startsWith("소싱처의 실제 수량")
+					&& !n.startsWith("매입 원가는") && !n.startsWith("품절·재입고")
+					&& (n.contains("없") || n.contains("못") || n.contains("않") || n.contains("벗어") || n.contains("유효")))
+					.findFirst().orElse("매입 원가를 계산하지 못했습니다.");
 				action = "아래 계산 실패 사유에 해당하는 SB 상품 정보·배송비 설정을 수정한 뒤 수집을 재시도하세요.";
 			} else if (!proposed.priceAvailable()) {
 				code = "PRICE_UNCONFIRMED";
-				summary = "응답은 받았지만 유효한 가격·통화 또는 환율을 확인하지 못했습니다.";
+				summary = "소싱처 가격을 확인하지 못했습니다.";
 			} else if (!proposed.stockAvailable()) {
 				code = "STOCK_UNCONFIRMED";
-				summary = "가격은 확인했지만 구매 가능·품절 상태를 확인하지 못했습니다.";
+				summary = "소싱처 재고 상태를 확인하지 못했습니다.";
 			} else {
 				code = "OBSERVED";
 				summary = "가격과 재고 상태를 확인했습니다.";
 				action = "아래 값은 이 수집 시점의 기록이며 현재 실시간 상태를 뜻하지 않습니다.";
 			}
+		} else if (reason.contains("[SOURCE_DISCONTINUED]")) {
+			code = "DISCONTINUED";
+			summary = "생산 중단으로 더 이상 구매할 수 없는 상품입니다.";
+		} else if (reason.contains("[SOURCE_PRICE_ZERO]")) {
+			code = "PRICE_ZERO";
+			summary = "소싱처 가격이 0원인 비정상 상품입니다.";
+			price = BigDecimal.ZERO;
 		} else if (reason.contains("HTTP 404") || reason.contains("HTTP 410")) {
 			code = "SOURCE_NOT_FOUND";
-			summary = "소싱처 조회 주소에서 상품을 찾지 못했습니다. " + reason;
+			summary = "소싱처에서 상품을 찾을 수 없습니다.";
 			action = "원본 링크를 확인하세요. 삭제·주소 변경·접근 제한을 구분할 근거가 없어 삭제나 단종으로 단정하지 않습니다.";
 		} else if (reason.contains("HTTP 403") || reason.contains("HTTP 401")) {
 			code = "ACCESS_DENIED";
-			summary = "소싱처가 조회 요청을 거절했습니다. " + reason;
+			summary = "소싱처가 접속을 차단했습니다.";
 		} else if (reason.contains("429")) {
 			code = "RATE_LIMITED";
-			summary = "소싱처 요청 횟수 제한으로 수집하지 못했습니다. " + reason;
+			summary = "소싱처 요청 횟수 제한으로 수집하지 못했습니다.";
 			action = "재시도 가능 시간이 지난 뒤 다시 시도하세요. 상품 삭제를 뜻하지 않습니다.";
 		} else if (reason.contains("SOURCE_IDENTITY_MISMATCH")) {
 			code = "IDENTITY_MISMATCH";
 			summary = "저장된 상품 주소와 소싱처 응답의 상품 식별자가 일치하지 않습니다.";
 		} else if (reason.contains("SOURCE_REQUEST_FAILED") || reason.contains("시간 제한")) {
 			code = "CONNECTION_FAILED";
-			summary = "접속 실패 또는 응답 시간 초과로 상품정보를 확인하지 못했습니다. " + reason;
+			summary = "소싱처 접속 실패 또는 응답 시간 초과입니다.";
 		}
 		try {
 			var vendor = com.sbshop.agent.core.domain.product.enums.VendorType.valueOf(snapshot.getVendor());

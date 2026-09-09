@@ -112,4 +112,19 @@ class ProductSourceDeliveryRegressionTest {
 		assertThat(restored.pricingEvidence().iherbDiscount()).isEqualTo(observed.pricingEvidence().iherbDiscount());
 	}
 
+	@Test void discontinuedHasPriorityOverZeroPrice() throws Exception {
+		var data = mapper.readTree("{\"id\":62771,\"url\":\"https://kr.iherb.com/pr/example/62771\",\"isDiscontinued\":true,\"isAvailableToPurchase\":false,\"listPriceAmount\":0,\"discountPriceAmount\":0}");
+		assertThatThrownBy(() -> new ProductSourceObservationClient(mapper, null, null, null).parseIherb(data, "62771"))
+			.hasMessageContaining("SOURCE_DISCONTINUED");
+	}
+	@Test void explicitZeroPriceIsNotOrdinaryOutOfStock() throws Exception {
+		var data = mapper.readTree("{\"id\":72374,\"url\":\"https://kr.iherb.com/pr/example/72374\",\"isDiscontinued\":false,\"isAvailableToPurchase\":false,\"listPriceAmount\":0,\"discountPriceAmount\":0}");
+		assertThatThrownBy(() -> new ProductSourceObservationClient(mapper, null, null, null).parseIherb(data, "72374"))
+			.hasMessageContaining("SOURCE_PRICE_ZERO");
+	}
+	@Test void missingPricesAreNotConvertedToZero() throws Exception {
+		var data = mapper.readTree("{\"id\":72374,\"url\":\"https://kr.iherb.com/pr/example/72374\",\"isAvailableToPurchase\":false}");
+		assertThat(new ProductSourceObservationClient(mapper, null, null, null).parseIherb(data, "72374").goodsPriceKrw()).isNull();
+	}
+
 }

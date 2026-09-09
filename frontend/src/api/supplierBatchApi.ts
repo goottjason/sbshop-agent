@@ -41,6 +41,7 @@ export interface SupplierBatchRetry {
 export interface SupplierBatchRetryOptions { retryableStageCounts: Record<SupplierBatchStageKind, number>; retryableProducts: number; blockedStageCount: number }
 export interface SupplierBatchItemDetail {
   productDeleted?: boolean;
+  latestSourceDiagnosis?: boolean;
   sourceUrl?: string | null;
   sourceDiagnosis?: { code: string; summary: string; action: string; observedAt: string | null;
     sourcePrice: number | string | null; currency: string | null; stockStatus: string | null; notices: string[] } | null;

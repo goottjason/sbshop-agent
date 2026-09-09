@@ -129,7 +129,7 @@ public class ProductSupplierBatchService {
 		}
 	}
 	public record ItemDetail(Item item, List<Attempt> history, Calculation priceCalculation, String sourceUrl,
-		BatchSourceDiagnosis sourceDiagnosis, boolean productDeleted) {
+		BatchSourceDiagnosis sourceDiagnosis, boolean productDeleted, boolean latestSourceDiagnosis) {
 	}
 	public record RetryOptions(Map<String, Long> retryableStageCounts, long retryableProducts, long blockedStageCount) {
 	}
@@ -253,9 +253,19 @@ public class ProductSupplierBatchService {
 		var product = em.find(com.sbshop.agent.core.domain.product.Product.class, item.getProductId());
 		String sourceUrl = snapshot != null ? snapshot.getSourceUrl()
 			: product == null ? null : product.getSourcingUrl();
+		var diagnosisSnapshot = snapshot;
+		if (snapshot != null && (snapshot.getState() == com.sbshop.agent.core.domain.product.source.ProductSourceSnapshot.State.FAILED
+			|| snapshot.getState() == com.sbshop.agent.core.domain.product.source.ProductSourceSnapshot.State.PARTIAL)) {
+			var latest = sourceSnapshots.findFirstByProductIdOrderByRequestedAtDescIdDesc(item.getProductId()).orElse(null);
+			if (latest != null && latest.getRequestedAt().isAfter(snapshot.getRequestedAt())
+				&& Objects.equals(latest.getSourceUrl(), snapshot.getSourceUrl())
+				&& latest.getState() == com.sbshop.agent.core.domain.product.source.ProductSourceSnapshot.State.FAILED
+				&& latest.getReason() != null && (latest.getReason().startsWith("[SOURCE_DISCONTINUED]")
+					|| latest.getReason().startsWith("[SOURCE_PRICE_ZERO]"))) diagnosisSnapshot = latest;
+		}
 		return new ItemDetail(item(item, stageRows.findByItemIdOrderById(itemId)), history,
 			item.getCalculation() == null ? null : read(item.getCalculation(), Calculation.class), sourceUrl,
-			BatchSourceDiagnosis.from(snapshot, mapper), product == null || product.isDeleted());
+			BatchSourceDiagnosis.from(diagnosisSnapshot, mapper), product == null || product.isDeleted(), diagnosisSnapshot != snapshot);
 	}
 
 	public View pause(String id, String actor) {

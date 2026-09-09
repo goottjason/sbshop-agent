@@ -372,6 +372,26 @@ class ProductSupplierBatchIntegrationTest {
 			unsupportedMarker);
 	}
 
+	@org.junit.jupiter.params.ParameterizedTest
+	@org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+	void recentExplicitDiagnosisDoesNotRewriteHistoricalBatchOrFollowDifferentSource(boolean sameUrl) {
+		product();
+		doReturn(new Observed(null, null, "KRW", StockStatus.OUT_OF_STOCK, null, List.of())).when(source).fetch(any(), anyString());
+		var run = create(Mode.PRICE_STOCK);
+		step(run.id()); sourceWorker.tick(); step(run.id());
+		var row = item(run.id());
+		var old = snapshots.findById(row.sourceSnapshotId()).orElseThrow();
+		var fresh = new ProductSourceSnapshot(UUID.randomUUID().toString(), old.getCollectionId(), old.getProductId(),
+			old.getSbCode(), old.getRevision(), old.getConnectionFingerprint(), sameUrl ? old.getSourceUrl() : "https://kr.iherb.com/pr/other/67890",
+			old.getVendor(), old.getRequestedAt().plusSeconds(1), old.getCaptured());
+		fresh.fail(ProductSourceSnapshot.State.FAILED, "[SOURCE_DISCONTINUED] 생산 중단으로 더 이상 구매할 수 없는 상품입니다.");
+		snapshots.saveAndFlush(fresh);
+		var detail = service.detail(run.id(), row.id());
+		assertThat(detail.latestSourceDiagnosis()).isEqualTo(sameUrl);
+		assertThat(detail.sourceDiagnosis().code()).isEqualTo(sameUrl ? "DISCONTINUED" : "PRICE_UNCONFIRMED");
+		assertThat(snapshots.findById(old.getId()).orElseThrow().getState()).isEqualTo(ProductSourceSnapshot.State.PARTIAL);
+	}
+
 	private void assertPartialObservationNeverApplies(Observed partial, Field available,
 		boolean unsupportedMarker) {
 		var original = product();

@@ -3,6 +3,8 @@ package com.sbshop.agent.core.application.product.content;
 /** Only fixed, non-sensitive reasons may be exposed in a content snapshot. */
 public class ProductContentFailureException extends RuntimeException {
 	public enum Code {
+		SOURCE_DISCONTINUED("생산 중단으로 더 이상 구매할 수 없는 상품입니다."),
+		SOURCE_PRICE_ZERO("소싱처 가격이 0원인 비정상 상품입니다."),
 		SOURCE_UNAVAILABLE("소싱처에서 상품정보를 가져오지 못했습니다. 기존 콘텐츠를 유지합니다."),
 		SOURCE_IDENTITY_MISMATCH("요청 상품 ID와 소싱 응답의 id·url이 일치하지 않아 수집을 중단했습니다."),
 		SOURCE_NAME_MISSING("소싱 응답에 확인된 상품명 필드(displayName)가 없거나 문자열이 아닙니다."),

@@ -101,6 +101,8 @@ public class ProductSourceObservationClient implements ProductSourceObservationS
 		}
 		if (!URI.create(observedUrl).getPath().replaceAll("/$", "").endsWith("/" + expectedId))
 			throw new ProductContentFailureException(ProductContentFailureException.Code.SOURCE_IDENTITY_MISMATCH);
+		if (data.path("isDiscontinued").isBoolean() && data.path("isDiscontinued").booleanValue())
+			throw new ProductContentFailureException(ProductContentFailureException.Code.SOURCE_DISCONTINUED);
 		if (!data.path("isAvailableToPurchase").isBoolean())
 			throw new ProductContentFailureException(ProductContentFailureException.Code.SOURCE_STOCK_INVALID);
 		List<String> notices = new ArrayList<>();
@@ -114,6 +116,10 @@ public class ProductSourceObservationClient implements ProductSourceObservationS
 				break;
 			}
 		}
+		if (price == null && data.path("discountPriceAmount").isNumber() && data.path("listPriceAmount").isNumber()
+			&& data.path("discountPriceAmount").decimalValue().signum() == 0
+			&& data.path("listPriceAmount").decimalValue().signum() == 0)
+			throw new ProductContentFailureException(ProductContentFailureException.Code.SOURCE_PRICE_ZERO);
 		if (price == null)
 			notices.add("IHB의 양수 가격과 원화 통화 표기를 함께 확인하지 못했습니다. 가격은 유지합니다.");
 		Integer stock = null;
