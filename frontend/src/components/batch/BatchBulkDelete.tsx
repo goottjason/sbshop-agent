@@ -108,7 +108,7 @@ export function BatchBulkDelete({ runId, selected, disabled, onBusy, onDone }: {
         <Button danger type="primary" loading={busy} disabled={busy || disabled || !checked || !rows.some(r => r.state === 'PENDING')} onClick={() => { void execute(); }}>대기 상품 삭제 실행</Button>
         {rows.some(r => r.state === 'FAILED') && <Button danger disabled={busy || disabled || !checked} onClick={() => { void execute(true); }}>실패 상품 재시도</Button>}
       </>}>
-      <Alert type="warning" showIcon message="선택한 상품을 한 개씩 순서대로 처리합니다." description="삭제 가능한 마켓을 처리한 후 SB에서 소프트 삭제합니다. 11번가와 카페24 연동 G마켓·옥션은 외부 미삭제 상품번호를 이력에 보존합니다. 다른 마켓의 삭제 실패는 SB를 유지합니다." />
+      <Alert type="warning" showIcon message="선택한 상품을 한 개씩 순서대로 처리합니다." description="삭제 가능한 마켓을 처리한 후 SB에서 소프트 삭제합니다. 11번가와 카페24 연동 G마켓·옥션은 외부 미삭제 상품번호를 이력에 보존합니다. 상품코드가 없는 스마트스토어는 미확인 이력을 보존하고 SB에서 소프트 삭제합니다. 다른 마켓의 삭제 실패는 SB를 유지합니다." />
       <p>전체 배치가 아닌 아래 선택 상품만 처리합니다. 실행 중에는 이 화면을 유지해 주세요. 페이지를 닫으면 남은 상품은 자동 실행하지 않습니다.</p>
       <Checkbox checked={checked} disabled={busy} onChange={e => setChecked(e.target.checked)}>아래 상품들의 삭제 사유와 선택 대상을 확인했습니다.</Checkbox>
       {error && <Alert type="error" message={error} />}

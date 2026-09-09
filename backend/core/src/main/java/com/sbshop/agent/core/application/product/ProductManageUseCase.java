@@ -140,7 +140,9 @@ public class ProductManageUseCase {
 				continue;
 			}
 			if (marketItemId == null || marketItemId.isEmpty()) {
-				manual.put(marketType, "마켓 상품코드를 몰라 자동 삭제할 수 없습니다 — 마켓에서 직접 지워야 합니다");
+				manual.put(marketType, marketType == MarketType.SMART_STORE
+					? "스마트스토어 상품코드 없음 · 외부 존재 여부 미확인 기록을 보존하고 SB에서 소프트 삭제합니다."
+					: "마켓 상품코드를 몰라 자동 삭제할 수 없습니다 — 마켓에서 직접 지워야 합니다");
 				log.warn("[완전삭제] 마켓 상품코드 없음 — 수동 처리 필요: productId={}, market={}",
 					productId, marketType);
 				continue;
@@ -175,7 +177,8 @@ public class ProductManageUseCase {
 		// 11st deletion is unsupported: archive it for manual followup without calling DELETE.
 		// Other standalone registrations and all actual deletion failures still block disposal.
 		boolean disposed = failed.isEmpty() && manual.keySet().stream().allMatch(market ->
-			market == MarketType.ELEVEN_STREET || ((market == MarketType.GMARKET || market == MarketType.AUCTION)
+			market == MarketType.ELEVEN_STREET
+				|| (market == MarketType.SMART_STORE && !marketItemIds.containsKey(market)) || ((market == MarketType.GMARKET || market == MarketType.AUCTION)
 				&& deleted.contains(MarketType.CAFE24)
 				&& registrations.stream().noneMatch(reg -> reg.getMarketType() == market)));
 		if (disposed) {
@@ -185,7 +188,7 @@ public class ProductManageUseCase {
 				row.put("market", entry.getKey().name());
 				row.put("listingId", marketItemIds.get(entry.getKey()));
 				row.put("reason", entry.getValue());
-				row.put("state", "EXTERNAL_DELETE_PENDING");
+				row.put("state", marketItemIds.containsKey(entry.getKey()) ? "EXTERNAL_DELETE_PENDING" : "MISSING_LISTING_ID");
 				row.put("recordedAt", java.time.Instant.now().toString());
 				row.put("presenceVerified", false);
 				followup.add(row);

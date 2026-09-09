@@ -43,7 +43,7 @@ export function BatchProductDelete({ productId, sbCode, productName, disabled, o
       footer={result?.disposed ? <Button onClick={close}>닫기</Button> : <><Button disabled={busy} onClick={close}>취소</Button><Button danger type="primary" loading={busy}
         disabled={!checked || registrations.isPending || registrations.isError || disabled} onClick={() => { void execute(); }}>{result || error ? '남은 마켓 삭제 재시도' : '마켓 삭제 후 SB 소프트 삭제'}</Button></>}>
       <p>{productName}</p>
-      <p>등록된 마켓을 순서대로 삭제하고 재조회합니다. 삭제 가능한 마켓을 처리한 뒤 SB 검색·목록에서 제외합니다. 11번가와 카페24 연동 G마켓·옥션은 삭제하지 않고, 남은 상품번호를 이력에 보존합니다. 다른 마켓의 삭제 실패는 재시도가 필요합니다.</p>
+      <p>등록된 마켓을 순서대로 삭제하고 재조회합니다. 삭제 가능한 마켓을 처리한 뒤 SB 검색·목록에서 제외합니다. 11번가와 카페24 연동 G마켓·옥션은 삭제하지 않고, 남은 상품번호를 이력에 보존합니다. 상품코드가 없는 스마트스토어는 미확인 이력을 보존하고 SB에서 소프트 삭제합니다. 다른 마켓의 삭제 실패는 재시도가 필요합니다.</p>
       {registrations.isPending ? <Spin /> : registrations.isError ? <Alert type="error" message="삭제할 마켓 목록을 불러오지 못했습니다." action={<Button onClick={() => { void registrations.refetch(); }}>다시 조회</Button>} /> :
         <p>등록 이력: {registrations.data?.length ? [...new Set(registrations.data.flatMap(r => [r.marketType, ...(r.marketType === 'CAFE24' && r.marketIdentifiers?.gmarket_goodsNo ? ['GMARKET'] : []), ...(r.marketType === 'CAFE24' && r.marketIdentifiers?.auction_goodsNo ? ['AUCTION'] : [])]))].map(batchMarketLabel).join(' · ') : '없음 — SB 상품만 폐기합니다.'}</p>}
       {registrations.data?.some(r => r.marketType === 'CAFE24' && (r.marketIdentifiers?.gmarket_goodsNo || r.marketIdentifiers?.auction_goodsNo)) && <Alert type="info" message="카페24 연동 G마켓·옥션은 별도로 직접 삭제해 주세요. 해당 수동 작업은 SB 소프트 삭제를 막지 않으며, 마켓 상품번호는 이력에 보존합니다." />}

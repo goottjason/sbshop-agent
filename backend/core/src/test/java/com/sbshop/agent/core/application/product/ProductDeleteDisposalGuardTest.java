@@ -261,4 +261,34 @@ class ProductDeleteDisposalGuardTest {
 		verify(client, never()).deleteFromMarket("3264931038");
 	}
 
+	@Test
+	void missingSmartstoreCodeAllowsSoftDeleteWithUnknownPresenceRecord() {
+		var reg = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.SMART_STORE)
+			.marketIdentifiers("{}").build();
+		var result = useCase(reg).deleteProduct(PRODUCT_ID);
+		assertThat(result.disposed()).isTrue();
+		assertThat(result.deleted()).doesNotContain(MarketType.SMART_STORE);
+		assertThat(result.manual()).containsOnlyKeys(MarketType.SMART_STORE);
+		verify(client, never()).deleteFromMarket(anyString());
+		var product = org.mockito.ArgumentCaptor.forClass(Product.class);
+		verify(productDeleteTxService).deleteWithRegistrations(product.capture(), anyList());
+		var snapshot = org.mockito.ArgumentCaptor.forClass(String.class);
+		verify(product.getValue()).recordDeletionFollowup(snapshot.capture());
+		assertThat(snapshot.getValue()).contains("SMART_STORE", "MISSING_LISTING_ID", "\"presenceVerified\":false", "\"listingId\":null");
+		assertThat(reg.getMarketIdentifiers()).isEqualTo("{}");
+		assertThat(reg.getUnsyncReason()).isNotEqualTo(UnsyncReason.DELETED_ON_MARKET);
+	}
+
+	@Test
+	void actualSmartstoreDeleteFailureStillBlocksSoftDeletion() {
+		var reg = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.SMART_STORE)
+			.marketIdentifiers("{\"originProductNo\":\"12345\"}").build();
+		var useCase = useCase(reg);
+		doThrow(new IllegalStateException("스마트스토어 삭제 거부")).when(client).deleteFromMarket("12345");
+		var result = useCase.deleteProduct(PRODUCT_ID);
+		assertThat(result.disposed()).isFalse();
+		assertThat(result.failed()).containsKey(MarketType.SMART_STORE);
+		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
+	}
+
 }
