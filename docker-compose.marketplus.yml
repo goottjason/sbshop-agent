@@ -1,6 +1,12 @@
 # Optional isolated observer. Apply together with docker-compose.yml after inspecting its config.
 # Interactive login is through SSH-forwarded noVNC. Nothing listens on the public interface.
 # /state/enabled.json controls collection/upload separately; both default to paused.
+x-marketplus-logging: &marketplus-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
 services:
   sbshop-api:
     environment:
@@ -28,6 +34,7 @@ services:
     shm_size: 2g
     mem_limit: 3g
     networks: [shared-net]
+    logging: *marketplus-logging
     restart: unless-stopped
   marketplus-worker:
     build:
@@ -48,6 +55,7 @@ services:
       - marketplus-observer-status:/status
     depends_on: [marketplus-browser]
     networks: [shared-net]
+    logging: *marketplus-logging
     restart: unless-stopped
     mem_limit: 256m
 volumes:

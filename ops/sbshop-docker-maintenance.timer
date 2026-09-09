@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily SB Docker storage maintenance
+
+[Timer]
+OnCalendar=*-*-* 05:00:00 Asia/Seoul
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

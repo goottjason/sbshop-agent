@@ -38,6 +38,14 @@ jobs:
             set -euo pipefail
             cd ~/projects/sbshop-agent
             git pull origin main
+            # Timer and deployment share a lock: no pruning during builds.
+            exec 9>"${HOME}/.sbshop-docker-maintenance.lock"
+            flock -w 720 9
+            free_kb=$(df --output=avail / | tail -1 | tr -d ' ')
+            if [ "$free_kb" -lt 10485760 ]; then
+              echo "Insufficient disk space for build (requires 10 GiB free). Run ops/docker-storage-maintenance.sh first."
+              exit 1
+            fi
             docker compose up -d --build
             # 컨테이너 재생성 후 nginx가 옛 IP를 캐시하므로 reload 필수
             docker exec projects-nginx-1 nginx -s reload

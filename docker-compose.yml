@@ -2,6 +2,12 @@
 # 공유 인프라(postgres·nginx)는 ~/projects/infra 에서 별도 관리하며,
 # 여기 컨테이너들은 external network 'shared-net' 에 붙어 postgres/nginx 와 통신한다.
 # 배포: cd ~/projects/sbshop-agent && docker compose up -d --build  (GitHub Actions 가 수행)
+x-sbshop-logging: &sbshop-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
 services:
   sbshop-api:
     build:
@@ -10,6 +16,11 @@ services:
     container_name: projects-sbshop-api-1
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      SPRING_JPA_SHOW_SQL: "false"
+      SPRING_JPA_PROPERTIES_HIBERNATE_SHOW_SQL: "false"
+      SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: "false"
+      LOGGING_LEVEL_ORG_HIBERNATE_SQL: "WARN"
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: "INFO"
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
       DB_HOST: ${DB_HOST:-postgres}
@@ -59,6 +70,7 @@ services:
       - marketplus-observer-status:/marketplus-observer:ro
     networks:
       - shared-net
+    logging: *sbshop-logging
     restart: unless-stopped
 
   # ESM+(G마켓/옥션) Selenium 스크래핑용 원격 그리드 (ARM64 지원 이미지)
@@ -68,6 +80,7 @@ services:
     shm_size: "2g"
     networks:
       - shared-net
+    logging: *sbshop-logging
     restart: unless-stopped
 
   # Scrapling(Playwright) 소싱 스크래핑 서비스 — Fortnum&Mason 재고·가격·원가.
@@ -79,6 +92,7 @@ services:
     shm_size: "2g"
     networks:
       - shared-net
+    logging: *sbshop-logging
     restart: unless-stopped
 
   sbshop-frontend:
@@ -88,6 +102,7 @@ services:
     container_name: projects-sbshop-frontend-1
     networks:
       - shared-net
+    logging: *sbshop-logging
     restart: unless-stopped
 
 networks:
