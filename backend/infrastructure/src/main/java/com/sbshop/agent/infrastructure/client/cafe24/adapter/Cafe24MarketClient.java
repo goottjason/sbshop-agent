@@ -248,15 +248,22 @@ public class Cafe24MarketClient implements MarketClient {
 			|| !expectedAccountReference.equals(inspectionAccountReference()))
 			throw new UnsupportedOperationException("카페24 계정·판매·재고 설정이 변경되어 수량 전송을 보류합니다.");
 		var access = new Cafe24VerifiedProductAccess(objectMapper, cafe24RestClient, id);
+		boolean optionProduct = false;
+		if (quantity > 0 && !"T".equals(current.stockState())) {
+			String hasOption = access.product().path("has_option").asText();
+			if (!List.of("T", "F").contains(hasOption))
+				throw new IllegalStateException("카페24 옵션 사용 여부를 확인할 수 없습니다.");
+			optionProduct = "T".equals(hasOption);
+		}
 		beforeWrite.run();
 		try {
 			if (quantity == 0 && !"F".equals(current.saleState()))
 				access.put(access.path(), Map.of("selling", "F"));
 			access.put(access.path() + "/variants/" + optionId + "/inventories", Map.of("quantity", quantity));
 			if (quantity > 0) {
-				if (!"T".equals(current.stockState()))
+				if (optionProduct && !"T".equals(current.stockState()))
 					access.put(access.path() + "/variants/" + optionId, Map.of("selling", "T"));
-				if (!"T".equals(current.saleState()))
+				if (!"T".equals(current.saleState()) || !"T".equals(current.stockState()))
 					access.put(access.path(), Map.of("selling", "T"));
 			}
 			if (!expectedAccountReference.equals(inspectionAccountReference()))

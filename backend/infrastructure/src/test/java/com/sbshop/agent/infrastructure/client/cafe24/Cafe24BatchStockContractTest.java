@@ -16,11 +16,15 @@ class Cafe24BatchStockContractTest {
 	private final String variant = "P0000001000A";
 
 	private void fixture(String selling, String variantSelling) {
+		fixture(selling, variantSelling, "T");
+	}
+
+	private void fixture(String selling, String variantSelling, String hasOption) {
 		when(rest.accountReference()).thenReturn("account-A");
 		when(rest.get(path + "?shop_no=1")).thenReturn("""
 			{"product":{"shop_no":1,"product_no":123,"product_code":"P0000001",
-			"custom_product_code":"SB123","selling":"%s","market_sync":"T","tax_calculation":"A","price":"12500"}}
-			""".formatted(selling));
+			"custom_product_code":"SB123","selling":"%s","market_sync":"T","has_option":"%s","tax_calculation":"A","price":"12500"}}
+			""".formatted(selling, hasOption));
 		when(rest.get(path + "/variants?shop_no=1")).thenReturn("""
 			{"variants":[{"shop_no":1,"variant_code":"P0000001000A"}]}
 			""");
@@ -88,4 +92,16 @@ class Cafe24BatchStockContractTest {
 			.isInstanceOf(RuntimeException.class);
 		verify(rest, never()).put(any(), any());
 	}
+
+	@Test
+	void simpleProductResumesThroughProductEndpointWithoutRejectedVariantWrite() {
+		fixture("F", "F", "F");
+		client.writeStockQuantity("123", variant, "SB123", 300, "account-A", () -> {});
+		var order = inOrder(rest);
+		order.verify(rest).put(path + "/variants/" + variant + "/inventories",
+			Map.of("shop_no", 1, "request", Map.of("quantity", 300)));
+		order.verify(rest).put(path, Map.of("shop_no", 1, "request", Map.of("selling", "T")));
+		verify(rest, never()).put(eq(path + "/variants/" + variant), any());
+	}
+
 }
