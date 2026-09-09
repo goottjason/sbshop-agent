@@ -5,6 +5,7 @@ import { isAxiosError } from 'axios';
 import { supplierBatchApi, type SupplierBatchItem, type SupplierBatchItemFilter, type SupplierBatchMarket, type SupplierBatchRetry, type SupplierBatchRun, type SupplierBatchStage, type SupplierBatchStageKind } from '../../api/supplierBatchApi';
 import { createRequestId } from '../../utils/requestId';
 import { batchMarketLabel, dateText, mayRetry, numberText, requestError, stageLabel } from './supplierBatchDisplay';
+import { BatchBulkDelete } from './BatchBulkDelete';
 import { BatchStageBadge, SupplierBatchDrawer } from './SupplierBatchDrawer';
 
 const markets: SupplierBatchMarket[] = ['COUPANG', 'ELEVEN_STREET', 'SMART_STORE', 'CAFE24'];
@@ -17,6 +18,8 @@ function saveRetry(id: string, value: RetryQueue | null) { try { if (value) sess
 
 export function SupplierBatchRunPanel({ run, onChanged }: { run: SupplierBatchRun; onChanged: (run: SupplierBatchRun) => void }) {
   const cache = useQueryClient();
+  const [selectedRows, setSelectedRows] = useState<SupplierBatchItem[]>([]);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(20);
   const [keyword, setKeyword] = useState('');
@@ -54,7 +57,7 @@ export function SupplierBatchRunPanel({ run, onChanged }: { run: SupplierBatchRu
     }
   };
   const retryStage = (targetItemId: number, stage: SupplierBatchStage) => {
-    if (retryQueue || retryBusy || !mayRetry(stage)) return;
+    if (deleteBusy || retryQueue || retryBusy || !mayRetry(stage)) return;
     void executeRetry({ next: 0, requests: [{ requestId: createRequestId(), itemId: targetItemId, stage: stage.stage, ...(stage.market ? { market: stage.market } : {}), ...(stage.field ? { field: stage.field } : {}) }] });
   };
   const statusCell = (item: SupplierBatchItem, kind: SupplierBatchStageKind, market?: SupplierBatchMarket) => {
@@ -79,10 +82,18 @@ export function SupplierBatchRunPanel({ run, onChanged }: { run: SupplierBatchRu
     <div className="sb-batch-matrix-toolbar"><div><Input.Search aria-label="배치 상품 검색" placeholder="SB코드 또는 상품명" allowClear onSearch={value => { setKeyword(value.trim()); setPage(0); }} />
       <Select aria-label="배치 상품 결과 필터" value={filter} onChange={value => { setFilter(value); setPage(0); }} options={[
         { value: 'ALL', label: '전체 상품' }, { value: 'FAILED', label: '실패만' }, { value: 'BLOCKED', label: '보류만' }, { value: 'PENDING', label: '대기·처리 중' }, { value: 'SUCCEEDED', label: '마켓 반영 완료' }, { value: 'DB_ONLY', label: '마켓 대상 없음' },
-      ]} /></div><div><Button onClick={() => { void items.refetch(); }}>새로고침</Button><Button disabled={!!retryQueue || retryBusy || run.failed + run.blocked === 0} onClick={() => setBulkOpen(true)}>실패 단계 일괄 재시도</Button></div></div>
+      ]} /></div><div><Button onClick={() => { void items.refetch(); }}>새로고침</Button><Button disabled={deleteBusy || !!retryQueue || retryBusy || run.failed + run.blocked === 0} onClick={() => setBulkOpen(true)}>실패 단계 일괄 재시도</Button></div></div>
     {retryFeedback}
+    <div className="sb-batch-matrix-toolbar"><div>
+      <BatchBulkDelete runId={run.id} selected={selectedRows} disabled={run.state === 'RUNNING' || run.state === 'PAUSING' || retryBusy || !!retryQueue}
+        onBusy={value => { setDeleteBusy(value); if (value) setItemId(null); }} onDone={() => { setSelectedRows([]); void items.refetch(); }} />
+      <Button disabled={deleteBusy || !selectedRows.length} onClick={() => setSelectedRows([])}>선택 해제</Button>
+    </div><span className="sb-batch-help">체크박스로 상품 선택 · 머리글 체크는 현재 페이지 전체 선택 · 페이지를 이동해도 선택 유지</span></div>
+    {(run.state === 'RUNNING' || run.state === 'PAUSING') && <p className="sb-batch-help">배치를 일시정지하거나 완료한 후 선택 상품을 삭제할 수 있습니다.</p>}
     {items.isError ? <Alert type="error" showIcon message="상품별 처리 결과를 조회하지 못했습니다."
       action={<Button onClick={() => { void items.refetch(); }}>다시 조회</Button>} /> : <Table<SupplierBatchItem> size="small" rowKey="id" loading={items.isPending} dataSource={items.data?.content ?? []} scroll={{ x: 1170 }}
+      rowSelection={{ selectedRowKeys: selectedRows.map(r => r.id), preserveSelectedRowKeys: true,
+        onChange: (_, rows) => setSelectedRows(rows), getCheckboxProps: () => ({ disabled: deleteBusy }), columnWidth: 44, fixed: true }}
       locale={{ emptyText: items.isPending ? '상품별 처리 기록 조회 중…' : keyword || filter !== 'ALL' ? '현재 검색·필터에 해당하는 상품이 없습니다.' : '배치의 상품 기록을 아직 준비 중이거나 대상 상품이 없습니다.' }}
       pagination={{ current: page + 1, pageSize: size, total: items.data?.totalElements ?? 0, showSizeChanger: true, pageSizeOptions: [20, 50, 100], showTotal: total => `${numberText(total)}개`, onChange: (next, nextSize) => { setPage(nextSize !== size ? 0 : next - 1); setSize(nextSize); } }} columns={[
         { title: '상품', key: 'product', width: 250, fixed: 'left', render: (_, item) => <button className="sb-batch-product-button" type="button" onClick={() => setItemId(item.id)}>{item.thumbnailUrl && <img src={item.thumbnailUrl} alt="" referrerPolicy="no-referrer" />}<span><strong>{item.sbCode}</strong><span>{item.productName}</span></span></button> },
@@ -91,7 +102,7 @@ export function SupplierBatchRunPanel({ run, onChanged }: { run: SupplierBatchRu
         ...markets.map(market => ({ title: batchMarketLabel(market), key: market, width: 122, render: (_: unknown, item: SupplierBatchItem) => statusCell(item, 'MARKET', market) })),
         { title: '문제 · 조치', key: 'issues', width: 230, render: (_, item) => {
           const issues = item.stages.filter(stage => stage.state === 'FAILED' || stage.state === 'BLOCKED');
-          return <div className="sb-batch-issues">{issues.length ? issues.slice(0, 1).map(stage => <div key={stage.id}><strong>{stageLabel(stage.stage, stage.market, stage.field)} · {stage.state === 'FAILED' ? '실패' : '보류'}</strong><Tooltip title={stage.detail ?? undefined}><span className="sb-batch-primary-issue-detail">{stage.detail ?? '상세 사유가 제공되지 않았습니다.'}</span></Tooltip>{mayRetry(stage) && <Button size="small" disabled={retryBusy || !!retryQueue} onClick={() => retryStage(item.id, stage)}>해당 단계 재시도</Button>}</div>) : <span className="sb-batch-help">{item.detail ?? '기록된 문제 없음'}</span>}<Button type="link" size="small" onClick={() => setItemId(item.id)}>{issues.length > 1 ? `외 ${issues.length - 1}개 문제` : '처리 상세'}</Button></div>;
+          return <div className="sb-batch-issues">{issues.length ? issues.slice(0, 1).map(stage => <div key={stage.id}><strong>{stageLabel(stage.stage, stage.market, stage.field)} · {stage.state === 'FAILED' ? '실패' : '보류'}</strong><Tooltip title={stage.detail ?? undefined}><span className="sb-batch-primary-issue-detail">{stage.detail ?? '상세 사유가 제공되지 않았습니다.'}</span></Tooltip>{mayRetry(stage) && <Button size="small" disabled={deleteBusy || retryBusy || !!retryQueue} onClick={() => retryStage(item.id, stage)}>해당 단계 재시도</Button>}</div>) : <span className="sb-batch-help">{item.detail ?? '기록된 문제 없음'}</span>}<Button type="link" size="small" onClick={() => setItemId(item.id)}>{issues.length > 1 ? `외 ${issues.length - 1}개 문제` : '처리 상세'}</Button></div>;
         } },
       ]} />}
     <Modal title="실패 단계 일괄 재시도" open={bulkOpen} onCancel={() => setBulkOpen(false)} confirmLoading={retryBusy} okText="선택 단계 재시도 접수" okButtonProps={{ disabled: !selectedBulkStages.length || !!retryQueue || retryBusy || retryOptions.isFetching || retryOptions.isError }}
@@ -99,7 +110,7 @@ export function SupplierBatchRunPanel({ run, onChanged }: { run: SupplierBatchRu
       <p>이 배치 전체 상품 중 선택 단계의 실패·보류이며 재시도가 허용된 작업을 다시 접수합니다.</p>
       {retryFeedback}
       {retryOptions.isError ? <Alert type="error" message="재시도 대상 수를 확인하지 못했습니다." action={<Button onClick={() => { void retryOptions.refetch(); }}>대상 다시 조회</Button>} /> : retryOptions.isPending ? <p>재시도 대상 조회 중…</p> : <>
-        <Checkbox.Group className="sb-batch-retry-options" value={selectedBulkStages} disabled={retryBusy || !!retryQueue} onChange={value => setBulkStages(value as SupplierBatchStageKind[])} options={[
+        <Checkbox.Group className="sb-batch-retry-options" value={selectedBulkStages} disabled={deleteBusy || retryBusy || !!retryQueue} onChange={value => setBulkStages(value as SupplierBatchStageKind[])} options={[
           { value: 'CRAWL', label: `소싱처 수집 실패 · ${numberText(retryOptions.data.retryableStageCounts.CRAWL)}건`, disabled: !retryOptions.data.retryableStageCounts.CRAWL },
           { value: 'DB', label: `SB 저장 실패 · ${numberText(retryOptions.data.retryableStageCounts.DB)}건`, disabled: !retryOptions.data.retryableStageCounts.DB },
           { value: 'MARKET', label: `마켓 반영 실패 · ${numberText(retryOptions.data.retryableStageCounts.MARKET)}건`, disabled: !retryOptions.data.retryableStageCounts.MARKET },
@@ -110,6 +121,6 @@ export function SupplierBatchRunPanel({ run, onChanged }: { run: SupplierBatchRu
       <p>현재 실패 상품 {numberText(run.failed)}개 · 보류 상품 {numberText(run.blocked)}개. 실제 재접수 수는 각 단계의 재시도 가능 여부에 따라 달라집니다.</p>
       {run.state === 'PAUSED' && <p>일시정지 상태를 유지하며, 재개 후 처리합니다.</p>}
     </Modal>
-    {itemId != null && <SupplierBatchDrawer run={run} itemId={itemId} onClose={() => setItemId(null)} onRetry={retryStage} retryBusy={retryBusy || !!retryQueue} retryFeedback={retryFeedback} />}
+    {itemId != null && <SupplierBatchDrawer run={run} itemId={itemId} onClose={() => setItemId(null)} onRetry={retryStage} retryBusy={deleteBusy || retryBusy || !!retryQueue} retryFeedback={retryFeedback} />}
   </div>;
 }
