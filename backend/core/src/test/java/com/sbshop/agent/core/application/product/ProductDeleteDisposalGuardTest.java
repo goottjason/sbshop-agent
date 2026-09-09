@@ -174,13 +174,13 @@ class ProductDeleteDisposalGuardTest {
 				"{\"product_no\":\"7867\",\"gmarket_goodsNo\":\"3490138764\",\"auction_goodsNo\":\"D888922206\"}")
 			.build();
 		var result = useCase(reg).deleteProduct(PRODUCT_ID);
-		assertThat(result.disposed()).isFalse();
+		assertThat(result.disposed()).isTrue();
 		assertThat(result.manual()).containsOnlyKeys(MarketType.GMARKET, MarketType.AUCTION);
 		assertThat(result.deleted()).containsExactly(MarketType.CAFE24);
 		assertThat(reg.connectionIdentifier(MarketType.GMARKET)).isEqualTo("3490138764");
 		assertThat(reg.connectionIdentifier(MarketType.AUCTION)).isEqualTo("D888922206");
 		verify(client).deleteFromMarket("7867");
-		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
+		verify(productDeleteTxService).deleteWithRegistrations(any(), anyList());
 	}
 
 	@Test
@@ -191,7 +191,7 @@ class ProductDeleteDisposalGuardTest {
 		var result = useCase(reg).deleteProduct(PRODUCT_ID);
 		assertThat(result.deleted()).containsExactly(MarketType.CAFE24);
 		assertThat(result.manual()).containsOnlyKeys(MarketType.GMARKET);
-		assertThat(result.disposed()).isFalse();
+		assertThat(result.disposed()).isTrue();
 		verify(client, never()).deleteFromMarket(anyString());
 	}
 

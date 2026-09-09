@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Checkbox, Modal, Spin } from 'antd';
 import { isAxiosError } from 'axios';
 import { productApi, type ProductDeleteResult } from '../../api/productApi';
@@ -9,6 +9,7 @@ export function BatchProductDelete({ productId, sbCode, productName, disabled, o
   productId: number; sbCode: string; productName: string; disabled: boolean;
   onBusy: (busy: boolean) => void; onDeleted: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -23,7 +24,10 @@ export function BatchProductDelete({ productId, sbCode, productName, disabled, o
       const response = await productApi.deleteProduct(productId);
       if (typeof response.data?.disposed !== 'boolean') throw new Error('Unverified delete response');
       setResult(response.data);
-      if (response.data.disposed) onDeleted();
+      if (response.data.disposed) {
+        void queryClient.invalidateQueries({ queryKey: ['products'] });
+        onDeleted();
+      }
     } catch (failure) {
       if (isAxiosError(failure) && failure.response?.status === 409 && failure.response.data?.disposed === false) {
         setResult(failure.response.data as ProductDeleteResult);
@@ -37,16 +41,16 @@ export function BatchProductDelete({ productId, sbCode, productName, disabled, o
     <Button danger size="small" disabled={disabled} onClick={() => { setOpen(true); setResult(null); setError(null); }}>상품 삭제</Button>
     <Modal title={`${sbCode} 상품 삭제`} open={open} onCancel={close} closable={!busy} maskClosable={!busy} keyboard={!busy}
       footer={result?.disposed ? <Button onClick={close}>닫기</Button> : <><Button disabled={busy} onClick={close}>취소</Button><Button danger type="primary" loading={busy}
-        disabled={!checked || registrations.isPending || registrations.isError || disabled} onClick={() => { void execute(); }}>{result || error ? '남은 마켓 삭제 재시도' : '마켓 삭제 후 SB 폐기'}</Button></>}>
+        disabled={!checked || registrations.isPending || registrations.isError || disabled} onClick={() => { void execute(); }}>{result || error ? '남은 마켓 삭제 재시도' : '마켓 삭제 후 SB 소프트 삭제'}</Button></>}>
       <p>{productName}</p>
-      <p>등록된 마켓을 순서대로 삭제하고 재조회합니다. 모든 마켓의 삭제가 확인돼야 SB 상품을 폐기하며, 과거 주문·배치 이력은 보존합니다.</p>
+      <p>등록된 마켓을 순서대로 삭제하고 재조회합니다. 직접 연동된 마켓의 삭제가 확인되면 SB 검색·목록에서 제외합니다. G마켓·옥션은 별도로 수동 처리하며, 과거 주문·배치 이력과 마켓 상품번호는 보존합니다.</p>
       {registrations.isPending ? <Spin /> : registrations.isError ? <Alert type="error" message="삭제할 마켓 목록을 불러오지 못했습니다." action={<Button onClick={() => { void registrations.refetch(); }}>다시 조회</Button>} /> :
         <p>등록 이력: {registrations.data?.length ? [...new Set(registrations.data.flatMap(r => [r.marketType, ...(r.marketType === 'CAFE24' && r.marketIdentifiers?.gmarket_goodsNo ? ['GMARKET'] : []), ...(r.marketType === 'CAFE24' && r.marketIdentifiers?.auction_goodsNo ? ['AUCTION'] : [])]))].map(batchMarketLabel).join(' · ') : '없음 — SB 상품만 폐기합니다.'}</p>}
-      {registrations.data?.some(r => r.marketType === 'CAFE24' && (r.marketIdentifiers?.gmarket_goodsNo || r.marketIdentifiers?.auction_goodsNo)) && <Alert type="info" message="카페24는 먼저 삭제할 수 있습니다. G마켓·옥션은 별도로 직접 삭제해야 하며, 해당 마켓의 삭제 확인 전까지 SB 상품과 연결 번호를 보존합니다." />}
+      {registrations.data?.some(r => r.marketType === 'CAFE24' && (r.marketIdentifiers?.gmarket_goodsNo || r.marketIdentifiers?.auction_goodsNo)) && <Alert type="info" message="카페24 연동 G마켓·옥션은 별도로 직접 삭제해 주세요. 해당 수동 작업은 SB 소프트 삭제를 막지 않으며, 마켓 상품번호는 이력에 보존합니다." />}
       {!result?.disposed && <Checkbox checked={checked} disabled={busy} onChange={e => setChecked(e.target.checked)}>원본 상품의 생산 중단 등 삭제 사유를 확인했으며, 이 상품의 마켓 삭제를 진행합니다.</Checkbox>}
       {busy && <Alert type="info" message="마켓 삭제와 재조회 중입니다. 결과가 나올 때까지 기다려 주세요." />}
       {error && <Alert type="error" message={error} />}
-      {result && <Alert type={result.disposed ? 'success' : 'warning'} message={result.disposed ? '모든 마켓 삭제 확인 · SB 폐기 완료' : '일부 마켓 삭제 미완료 · SB 상품 유지'} description={<>
+      {result && <Alert type={result.disposed ? 'success' : 'warning'} message={result.disposed ? 'SB 소프트 삭제 완료 · 검색·목록에서 제외' : '일부 마켓 삭제 미완료 · SB 상품 유지'} description={<>
         {result.deleted.length > 0 && <p>삭제 확인: {result.deleted.map(batchMarketLabel).join(' · ')}</p>}
         {Object.entries(result.failed).map(([market, reason]) => <p key={market}>{batchMarketLabel(market)} 실패: {reason}</p>)}
         {Object.entries(result.manual).map(([market, reason]) => <p key={market}>{batchMarketLabel(market)} 수동 처리 필요: {reason}</p>)}

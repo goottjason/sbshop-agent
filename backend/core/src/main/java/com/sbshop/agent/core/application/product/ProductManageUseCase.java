@@ -166,7 +166,12 @@ public class ProductManageUseCase {
 			}
 		}
 
-		boolean disposed = failed.isEmpty() && manual.isEmpty();
+		// Cafe24 child marketplaces are handled manually; retain their identifiers as history.
+		// Standalone registrations and all actual deletion failures still block disposal.
+		boolean disposed = failed.isEmpty() && manual.keySet().stream().allMatch(market ->
+			(market == MarketType.GMARKET || market == MarketType.AUCTION)
+				&& deleted.contains(MarketType.CAFE24)
+				&& registrations.stream().noneMatch(reg -> reg.getMarketType() == market));
 		if (disposed) {
 			productDeleteTxService.deleteWithRegistrations(product, registrations);
 		} else {
