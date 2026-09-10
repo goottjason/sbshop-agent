@@ -136,10 +136,11 @@ public class CoupangMarketClient implements MarketClient {
 				throw new IllegalStateException("쿠팡 옵션 가격 응답을 확인할 수 없습니다.");
 			if (account == null || !account.equals(inspectionAccountReference()))
 				throw new IllegalStateException("조회 계정이 변경되었습니다.");
-			boolean writable = "승인완료".equals(p.path("statusName").asText())
-				&& inventory.path("onSale").asBoolean(false);
 			String statusName = p.path("statusName").asText();
 			boolean onSale = inventory.path("onSale").asBoolean(false);
+			// onSale=false는 판매중지 플래그일 뿐 품절·상품 부재를 뜻하지 않는다.
+			// 연결과 응답 형식이 확인되면 실제 가격 API 응답을 확인하기 위해 쓰기를 시도한다.
+			boolean writable = !statusName.isBlank();
 			return new com.sbshop.agent.core.domain.market.client.dto.MarketPriceRead(
 				inventory.path("salePrice").decimalValue(), writable,
 				writable ? "쿠팡 옵션 실판매가 조회" : blockedReason(statusName, onSale), account);
@@ -153,8 +154,9 @@ public class CoupangMarketClient implements MarketClient {
 		try {
 			requirePriceId(id);
 			requirePriceId(optionId);
-			restClient.put("/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/" + optionId + "/prices/"
+			String response = restClient.put("/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/" + optionId + "/prices/"
 				+ price.intValueExact(), null);
+			verifyWriteReceipt(response, "쿠팡 가격 변경");
 		} catch (Exception e) {
 			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
 		}
@@ -188,7 +190,8 @@ public class CoupangMarketClient implements MarketClient {
 				throw new IllegalStateException("조회 계정이 변경되었습니다.");
 			String statusName = p.path("statusName").asText();
 			boolean onSale = inventory.path("onSale").booleanValue();
-			boolean writable = "승인완료".equals(statusName) && onSale;
+			// onSale=false라도 수량 전송을 먼저 시도해 쿠팡의 실제 거절 사유를 기록한다.
+			boolean writable = !statusName.isBlank();
 			return new com.sbshop.agent.core.domain.market.client.dto.MarketStockRead(quantity.intValue(), writable,
 				writable ? "쿠팡 승인·판매 중 단일 옵션 수량 확인" : blockedReason(statusName, onSale),
 				account, optionId);
@@ -241,6 +244,20 @@ public class CoupangMarketClient implements MarketClient {
 		if (statusName == null || statusName.isBlank())
 			return "쿠팡 상품 승인·판매 상태를 확인하지 못했습니다.";
 		return "쿠팡 상품 상태가 '" + statusName + "'이므로 자동 반영을 보류합니다.";
+	}
+
+	private static void verifyWriteReceipt(String response, String operation) {
+		if (response == null || response.isBlank())
+			return;
+		try {
+			JsonNode receipt = new ObjectMapper().readTree(response);
+			if (receipt.has("code") && !"SUCCESS".equals(receipt.path("code").asText()))
+				throw new IllegalStateException(operation + " 거절: " + receipt.path("message").asText("응답 코드 확인 필요"));
+		} catch (IllegalStateException e) {
+			throw e;
+		} catch (Exception ignored) {
+			// 쿠팡의 일부 성공 응답은 빈 문자열·비JSON 본문으로 반환된다.
+		}
 	}
 
 	private static final Set<String> PLACEHOLDER_ATTRIBUTE_VALUES = Set.of("수량", "용량", "중량", "정", "개", "캡슐");
