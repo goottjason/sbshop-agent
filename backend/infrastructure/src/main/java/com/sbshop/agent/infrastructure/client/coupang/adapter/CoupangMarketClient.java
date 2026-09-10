@@ -138,9 +138,11 @@ public class CoupangMarketClient implements MarketClient {
 				throw new IllegalStateException("조회 계정이 변경되었습니다.");
 			boolean writable = "승인완료".equals(p.path("statusName").asText())
 				&& inventory.path("onSale").asBoolean(false);
+			String statusName = p.path("statusName").asText();
+			boolean onSale = inventory.path("onSale").asBoolean(false);
 			return new com.sbshop.agent.core.domain.market.client.dto.MarketPriceRead(
 				inventory.path("salePrice").decimalValue(), writable,
-				writable ? "쿠팡 옵션 실판매가 조회" : "승인·판매 상태를 확인한 후 가격을 반영하세요.", account);
+				writable ? "쿠팡 옵션 실판매가 조회" : blockedReason(statusName, onSale), account);
 		} catch (Exception e) {
 			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
 		}
@@ -184,9 +186,11 @@ public class CoupangMarketClient implements MarketClient {
 				throw new IllegalStateException("쿠팡 옵션 재고수량·판매 상태 응답을 확인할 수 없습니다.");
 			if (account == null || account.isBlank() || !account.equals(inspectionAccountReference()))
 				throw new IllegalStateException("조회 계정이 변경되었습니다.");
-			boolean writable = "승인완료".equals(p.path("statusName").asText()) && inventory.path("onSale").booleanValue();
+			String statusName = p.path("statusName").asText();
+			boolean onSale = inventory.path("onSale").booleanValue();
+			boolean writable = "승인완료".equals(statusName) && onSale;
 			return new com.sbshop.agent.core.domain.market.client.dto.MarketStockRead(quantity.intValue(), writable,
-				writable ? "쿠팡 승인·판매 중 단일 옵션 수량 확인" : "승인·판매 상태 확인이 필요합니다. 판매정지·금지 상품은 자동 재개하지 않습니다.",
+				writable ? "쿠팡 승인·판매 중 단일 옵션 수량 확인" : blockedReason(statusName, onSale),
 				account, optionId);
 		} catch (Exception e) {
 			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
@@ -223,6 +227,20 @@ public class CoupangMarketClient implements MarketClient {
 	private static void requirePriceId(String id) {
 		if (id == null || !id.matches("[1-9][0-9]{0,17}"))
 			throw new IllegalArgumentException("쿠팡 상품·옵션 번호가 올바르지 않습니다.");
+	}
+
+	private static String blockedReason(String statusName, boolean onSale) {
+		if ("승인반려".equals(statusName))
+			return "쿠팡 승인반려 상품입니다. 반려 사유를 수정하고 재승인해야 가격·재고를 반영할 수 있습니다.";
+		if ("심사중".equals(statusName) || "승인대기중".equals(statusName))
+			return "쿠팡 승인 심사 중입니다. 승인 완료 후 가격·재고를 반영할 수 있습니다.";
+		if ("임시저장".equals(statusName))
+			return "쿠팡 상품이 임시저장 상태입니다. 상품 등록·승인 절차를 완료해야 합니다.";
+		if ("승인완료".equals(statusName) && !onSale)
+			return "쿠팡 승인완료 상품이 판매중지 상태입니다. 쿠팡에서 판매재개한 후 반영할 수 있습니다.";
+		if (statusName == null || statusName.isBlank())
+			return "쿠팡 상품 승인·판매 상태를 확인하지 못했습니다.";
+		return "쿠팡 상품 상태가 '" + statusName + "'이므로 자동 반영을 보류합니다.";
 	}
 
 	private static final Set<String> PLACEHOLDER_ATTRIBUTE_VALUES = Set.of("수량", "용량", "중량", "정", "개", "캡슐");
