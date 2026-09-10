@@ -195,7 +195,9 @@ public class SmartstoreMarketClient implements MarketClient {
 			if (root.has("code") || !p.isObject() || (p.hasNonNull("id") && !id.equals(p.path("id").asText())))
 				throw new IllegalStateException("원상품 응답의 식별자를 확인할 수 없습니다.");
 			String status = p.path("statusType").asText();
-			boolean writable = java.util.Set.of("SALE", "OUTOFSTOCK").contains(status);
+			// 판매중지(SUSPENSION)는 판매금지와 다르다. 가격은 중지 중에도
+			// 수정할 수 있으므로, 영구 제한 상태만 차단한다.
+			boolean writable = java.util.Set.of("SALE", "OUTOFSTOCK", "SUSPENSION").contains(status);
 			if (!p.path("salePrice").isIntegralNumber() || p.path("salePrice").decimalValue().signum() <= 0)
 				throw new IllegalStateException("조회 응답에 유효한 판매가가 없습니다.");
 			if (account == null || !account.equals(inspectionAccountReference()))
@@ -244,6 +246,10 @@ public class SmartstoreMarketClient implements MarketClient {
 		try {
 			if (!expectedAccountReference.equals(inspectionAccountReference()))
 				throw new IllegalStateException("전송 직전에 스마트스토어 계정이 변경되었습니다.");
+			// SUSPENSION은 재고 부족에 따른 품절이 아니라 판매중지 상태다.
+			// 재고가 다시 생긴 경우에만 명시적으로 SALE로 전환한다.
+			if (current.statusType().equals("SUSPENSION") && quantity > 0)
+				changeStatusToSale(id);
 			String response = current.optionRequest() == null
 				? restClient.patch("/v1/products/origin-products/multi-update",
 					Map.of("multiProductUpdateRequestVos", List.of(Map.of("originProductNo", Long.parseLong(id),
@@ -274,7 +280,7 @@ public class SmartstoreMarketClient implements MarketClient {
 	}
 
 	private record StockObservation(com.sbshop.agent.core.domain.market.client.dto.MarketStockRead read,
-		Map<String, Object> optionRequest) {
+		Map<String, Object> optionRequest, String statusType) {
 	}
 
 	private StockObservation observeStock(String id, String expectedOption, String sbCode, Integer desiredQuantity) {
@@ -346,13 +352,30 @@ public class SmartstoreMarketClient implements MarketClient {
 			if (account == null || !account.equals(inspectionAccountReference()))
 				throw new IllegalStateException("조회 중 스마트스토어 계정이 변경되었습니다.");
 			String status = product.path("statusType").asText();
-			boolean writable = usable && Set.of("SALE", "OUTOFSTOCK").contains(status);
+			boolean writable = usable && Set.of("SALE", "OUTOFSTOCK", "SUSPENSION").contains(status);
 			var proof = new com.sbshop.agent.core.domain.market.client.dto.MarketStockRead(quantity, writable,
-				writable ? "스마트스토어 원상품·단일 옵션 수량 확인" : "상품 상태 " + status + " 또는 옵션 사용 중지: 판매 재개·사용 설정 변경 없이 보류합니다.",
+				writable ? ("SUSPENSION".equals(status)
+					? "스마트스토어 판매중지 상품·단일 옵션 수량 확인"
+					: "스마트스토어 원상품·단일 옵션 수량 확인")
+					: "상품 상태 " + status + " 또는 옵션 사용 중지: 판매 재개·사용 설정 변경 없이 보류합니다.",
 				account, optionId);
-			return new StockObservation(proof, request);
+			return new StockObservation(proof, request, status);
 		} catch (UnsupportedOperationException blocked) {
 			throw blocked;
+		} catch (Exception e) {
+			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
+		}
+	}
+
+	private void changeStatusToSale(String id) {
+		try {
+			String response = restClient.put("/v1/products/origin-products/" + id + "/change-status",
+				Map.of("statusType", "SALE"));
+			if (response != null && !response.isBlank()) {
+				JsonNode receipt = objectMapper.readTree(response);
+				if (receipt.has("code"))
+					throw new IllegalStateException("스마트스토어 판매재개 거절: " + receipt.path("message").asText("응답 코드 확인 필요"));
+			}
 		} catch (Exception e) {
 			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
 		}

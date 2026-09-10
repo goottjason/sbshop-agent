@@ -104,7 +104,7 @@ class SmartstoreStockContractTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"WAIT", "UNADMISSION", "REJECTION", "SUSPENSION", "CLOSE", "PROHIBITION", "DELETE",
+	@ValueSource(strings = {"WAIT", "UNADMISSION", "REJECTION", "CLOSE", "PROHIBITION", "DELETE",
 		"UNKNOWN"})
 	void nonSellableStatusesNeverInvokeGuardOrResume(String status) {
 		origin(status, 10, null);
@@ -115,6 +115,29 @@ class SmartstoreStockContractTest {
 		verify(guard, never()).run();
 		verify(rest, never()).patch(any(), any());
 		verify(rest, never()).put(any(), any());
+	}
+
+	@Test
+	void suspensionWithStockResumesBeforeWritingQuantity() {
+		origin("SUSPENSION", 0, null);
+		var guard = mock(Runnable.class);
+		assertThat(client.readStockQuantity("123", null, "SB-123").writable()).isTrue();
+		client.writeStockQuantity("123", "ORIGIN:123", "SB-123", 300, "account-A", guard);
+		var order = inOrder(guard, rest);
+		order.verify(guard).run();
+		order.verify(rest).put("/v1/products/origin-products/123/change-status", Map.of("statusType", "SALE"));
+		order.verify(rest).patch(PATCH,
+			Map.of("multiProductUpdateRequestVos",
+				List.of(Map.of("originProductNo", 123L, "multiUpdateTypes", List.of("STOCK"), "stockQuantity", 300))));
+	}
+
+	@Test
+	void suspensionWithZeroStockKeepsSuspensionAndOnlyWritesZeroQuantity() {
+		origin("SUSPENSION", 0, null);
+		client.writeStockQuantity("123", "ORIGIN:123", "SB-123", 0, "account-A", () -> {});
+		verify(rest).patch(PATCH, Map.of("multiProductUpdateRequestVos",
+			List.of(Map.of("originProductNo", 123L, "multiUpdateTypes", List.of("STOCK"), "stockQuantity", 0))));
+		verify(rest, never()).put(eq("/v1/products/origin-products/123/change-status"), any());
 	}
 
 	@Test
