@@ -330,6 +330,30 @@ class ProductSupplierBatchIntegrationTest {
 	}
 
 	@Test
+	void explicitCrawlRetryUsesUpdatedBundleAndKeepsPreviousEvidence() {
+		var p = product();
+		when(source.fetch(any(), anyString())).thenThrow(new IllegalStateException("upstream unavailable"));
+		var run = create(Mode.PRICE_STOCK);
+		untilComplete(run.id());
+		var old = snapshots.findAll().getFirst();
+		tx.executeWithoutResult(t -> products.findById(p.getId()).orElseThrow()
+			.update(ProductUpdateCommand.builder().bundleQuantity(2).build()));
+		doReturn(new Observed(n("12000"), BigDecimal.ONE, "KRW", StockStatus.IN_STOCK, null, List.of()))
+			.when(source).fetch(any(), anyString());
+		var request = new RetryRequest(UUID.randomUUID().toString(), item(run.id()).id(), Step.CRAWL, null, null);
+		service.retry(run.id(), request, "admin");
+		service.retry(run.id(), request, "admin");
+		assertThat(item(run.id()).sourceSnapshotId()).isNull();
+		untilComplete(run.id());
+		assertThat(stage(run.id(), "CRAWL").getState()).isEqualTo("SUCCEEDED");
+		assertThat(stage(run.id(), "DB").getState()).isEqualTo("SUCCEEDED");
+		assertThat(collections.count()).isEqualTo(2);
+		assertThat(histories.count()).isEqualTo(1);
+		assertThat(snapshots.findById(old.getId())).isPresent();
+		assertThat(item(run.id()).sourceSnapshotId()).isNotEqualTo(old.getId());
+	}
+
+	@Test
 	void crawlFailureIsProcessedAndRetryOnlyRecrawlsFailedStage() {
 		product();
 		when(source.fetch(any(), anyString())).thenThrow(new IllegalStateException("upstream unavailable"));
@@ -376,20 +400,25 @@ class ProductSupplierBatchIntegrationTest {
 	@org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
 	void recentExplicitDiagnosisDoesNotRewriteHistoricalBatchOrFollowDifferentSource(boolean sameUrl) {
 		product();
-		doReturn(new Observed(null, null, "KRW", StockStatus.OUT_OF_STOCK, null, List.of())).when(source).fetch(any(), anyString());
+		doReturn(new Observed(null, null, "KRW", StockStatus.OUT_OF_STOCK, null, List.of())).when(source).fetch(any(),
+			anyString());
 		var run = create(Mode.PRICE_STOCK);
-		step(run.id()); sourceWorker.tick(); step(run.id());
+		step(run.id());
+		sourceWorker.tick();
+		step(run.id());
 		var row = item(run.id());
 		var old = snapshots.findById(row.sourceSnapshotId()).orElseThrow();
 		var fresh = new ProductSourceSnapshot(UUID.randomUUID().toString(), old.getCollectionId(), old.getProductId(),
-			old.getSbCode(), old.getRevision(), old.getConnectionFingerprint(), sameUrl ? old.getSourceUrl() : "https://kr.iherb.com/pr/other/67890",
+			old.getSbCode(), old.getRevision(), old.getConnectionFingerprint(),
+			sameUrl ? old.getSourceUrl() : "https://kr.iherb.com/pr/other/67890",
 			old.getVendor(), old.getRequestedAt().plusSeconds(1), old.getCaptured());
 		fresh.fail(ProductSourceSnapshot.State.FAILED, "[SOURCE_DISCONTINUED] 생산 중단으로 더 이상 구매할 수 없는 상품입니다.");
 		snapshots.saveAndFlush(fresh);
 		var detail = service.detail(run.id(), row.id());
 		assertThat(detail.latestSourceDiagnosis()).isEqualTo(sameUrl);
 		assertThat(detail.sourceDiagnosis().code()).isEqualTo(sameUrl ? "DISCONTINUED" : "PRICE_UNCONFIRMED");
-		assertThat(snapshots.findById(old.getId()).orElseThrow().getState()).isEqualTo(ProductSourceSnapshot.State.PARTIAL);
+		assertThat(snapshots.findById(old.getId()).orElseThrow().getState())
+			.isEqualTo(ProductSourceSnapshot.State.PARTIAL);
 	}
 
 	private void assertPartialObservationNeverApplies(Observed partial, Field available,
@@ -537,7 +566,7 @@ class ProductSupplierBatchIntegrationTest {
 		var retry = new RetryRequest(UUID.randomUUID().toString(), null, Step.CRAWL, null, null);
 		assertThat(service.retry(run.id(), retry, "admin").state()).isEqualTo("PAUSED");
 		assertThat(stage(run.id(), "CRAWL").getState()).isEqualTo("WAITING");
-		assertThat(stage(run.id(), "DB").getState()).isEqualTo("FAILED");
+		assertThat(stage(run.id(), "DB").getState()).isEqualTo("WAITING");
 	}
 
 	@Test

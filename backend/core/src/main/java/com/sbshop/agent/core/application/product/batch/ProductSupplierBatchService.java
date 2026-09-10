@@ -254,18 +254,23 @@ public class ProductSupplierBatchService {
 		String sourceUrl = snapshot != null ? snapshot.getSourceUrl()
 			: product == null ? null : product.getSourcingUrl();
 		var diagnosisSnapshot = snapshot;
-		if (snapshot != null && (snapshot.getState() == com.sbshop.agent.core.domain.product.source.ProductSourceSnapshot.State.FAILED
-			|| snapshot.getState() == com.sbshop.agent.core.domain.product.source.ProductSourceSnapshot.State.PARTIAL)) {
-			var latest = sourceSnapshots.findFirstByProductIdOrderByRequestedAtDescIdDesc(item.getProductId()).orElse(null);
+		if (snapshot != null
+			&& (snapshot.getState() == com.sbshop.agent.core.domain.product.source.ProductSourceSnapshot.State.FAILED
+				|| snapshot
+					.getState() == com.sbshop.agent.core.domain.product.source.ProductSourceSnapshot.State.PARTIAL)) {
+			var latest = sourceSnapshots.findFirstByProductIdOrderByRequestedAtDescIdDesc(item.getProductId())
+				.orElse(null);
 			if (latest != null && latest.getRequestedAt().isAfter(snapshot.getRequestedAt())
 				&& Objects.equals(latest.getSourceUrl(), snapshot.getSourceUrl())
 				&& latest.getState() == com.sbshop.agent.core.domain.product.source.ProductSourceSnapshot.State.FAILED
 				&& latest.getReason() != null && (latest.getReason().startsWith("[SOURCE_DISCONTINUED]")
-					|| latest.getReason().startsWith("[SOURCE_PRICE_ZERO]"))) diagnosisSnapshot = latest;
+					|| latest.getReason().startsWith("[SOURCE_PRICE_ZERO]")))
+				diagnosisSnapshot = latest;
 		}
 		return new ItemDetail(item(item, stageRows.findByItemIdOrderById(itemId)), history,
 			item.getCalculation() == null ? null : read(item.getCalculation(), Calculation.class), sourceUrl,
-			BatchSourceDiagnosis.from(diagnosisSnapshot, mapper), product == null || product.isDeleted(), diagnosisSnapshot != snapshot);
+			BatchSourceDiagnosis.from(diagnosisSnapshot, mapper), product == null || product.isDeleted(),
+			diagnosisSnapshot != snapshot);
 	}
 
 	public View pause(String id, String actor) {
@@ -307,8 +312,45 @@ public class ProductSupplierBatchService {
 				&& runs.existsByVendorAndStateIn(run.getVendor(), List.of("RUNNING", "PAUSING", "PAUSED")))
 				throw new ProductEditConflictException("같은 소싱처의 다른 배치가 실행 중이므로 이전 배치를 재시도할 수 없습니다.");
 			Instant now = Instant.now();
+			Set<Long> restarted = new HashSet<>();
 			for (var stage : failed) {
 				var item = ownedItem(id, stage.getItemId());
+				if (restarted.contains(item.getId()))
+					continue;
+				if (stage.getStage().equals("CRAWL")) {
+					var pipeline = stageRows.findByItemIdOrderById(item.getId());
+					if (pipeline.stream().anyMatch(this::hasLiveChild))
+						throw new ProductEditConflictException("이 상품의 기존 작업이 진행 중입니다. 완료 후 수집을 재시도하세요.");
+					// Keep immutable snapshots/reviews/attempts; detach only this item's old execution pointers.
+					item.source(null);
+					item.reviewed(null, null);
+					item.saved(null, null);
+					var selected = new HashSet<>(readStrings(run.getMarkets()));
+					var links = em.createQuery("select r from MarketRegistration r where r.productId=:id",
+						com.sbshop.agent.core.domain.market.MarketRegistration.class)
+						.setParameter("id", item.getProductId()).getResultList();
+					for (var step : pipeline) {
+						record(step);
+						step.retry(now);
+						step.reference(null);
+						step.task(null);
+						step.target(null);
+						step.values(null, null);
+						if (step.getStage().equals("MARKET")) {
+							boolean linked = links.stream()
+								.anyMatch(r -> r.getMarketType().name().equals(step.getMarket())
+									&& !r.getConnectionState().detached() && r.hasActiveConnections());
+							if (!selected.contains(step.getMarket()))
+								step.outcome("SKIPPED", "이번 배치에서 선택하지 않은 마켓입니다.", false, now);
+							else if (!linked)
+								step.outcome("SKIPPED", "현재 연결된 마켓 상품이 없습니다. 신규 등록은 실행하지 않습니다.", false, now);
+						}
+						record(step);
+					}
+					item.retry(now);
+					restarted.add(item.getId());
+					continue;
+				}
 				boolean expired = expiredUnsavedSource(stage, item, now);
 				stage.retry(now);
 				if (expired) {

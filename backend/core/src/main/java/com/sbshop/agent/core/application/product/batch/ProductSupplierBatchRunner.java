@@ -96,8 +96,10 @@ public class ProductSupplierBatchRunner {
 						|| failure instanceof UnsupportedOperationException ? "BLOCKED" : "FAILED")
 					.detail("[" + code + "] " + message)
 					.retryable(
-						failure instanceof SourceEvidenceExpired || !(failure instanceof ProductEditConflictException
-							|| failure instanceof UnsupportedOperationException))
+						failure instanceof SourceEvidenceExpired || (claim.stage().getStage().equals("CRAWL")
+							&& failure instanceof ProductEditConflictException)
+							|| !(failure instanceof ProductEditConflictException
+								|| failure instanceof UnsupportedOperationException))
 					.build();
 		}
 		Result outcome = result;
