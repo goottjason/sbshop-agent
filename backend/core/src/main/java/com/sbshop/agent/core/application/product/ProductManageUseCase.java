@@ -168,19 +168,17 @@ public class ProductManageUseCase {
 				failed.put(marketType, e.getMessage());
 				reg.recordSyncError(MarketFailureClassifier.classifyError(e), e.getMessage());
 				marketRegistrationRepository.save(reg);
-				log.error("[완전삭제] 마켓 리스팅 삭제 실패 — 상품을 폐기하지 않는다: productId={}, market={}, error={}",
+				log.error("[완전삭제] 마켓 리스팅 삭제 실패 — 잔여 상품 추적 기록 후 SB를 폐기합니다: productId={}, market={}, error={}",
 					productId, marketType, e.getMessage(), e);
 			}
 		}
 
 		// Cafe24 child marketplaces are handled manually; retain their identifiers as history.
 		// 11st deletion is unsupported: archive it for manual followup without calling DELETE.
-		// Other standalone registrations and all actual deletion failures still block disposal.
-		boolean disposed = failed.isEmpty() && manual.keySet().stream().allMatch(market ->
-			market == MarketType.ELEVEN_STREET
-				|| (market == MarketType.SMART_STORE && !marketItemIds.containsKey(market)) || ((market == MarketType.GMARKET || market == MarketType.AUCTION)
-				&& deleted.contains(MarketType.CAFE24)
-				&& registrations.stream().noneMatch(reg -> reg.getMarketType() == market)));
+		// External deletion is best-effort.  A failed or unsupported market is retained
+		// in the follow-up evidence so the orphan can be reconciled later, while SB is
+		// still soft-deleted immediately after all deletion attempts finish.
+		boolean disposed = true;
 		if (disposed) {
 			var followup = new java.util.ArrayList<java.util.Map<String, Object>>();
 			for (var entry : manual.entrySet()) {
@@ -193,15 +191,22 @@ public class ProductManageUseCase {
 				row.put("presenceVerified", false);
 				followup.add(row);
 			}
+			for (var entry : failed.entrySet()) {
+				var row = new java.util.LinkedHashMap<String, Object>();
+				row.put("market", entry.getKey().name());
+				row.put("listingId", marketItemIds.get(entry.getKey()));
+				row.put("reason", entry.getValue());
+				row.put("state", "EXTERNAL_DELETE_FAILED");
+				row.put("recordedAt", java.time.Instant.now().toString());
+				row.put("presenceVerified", false);
+				followup.add(row);
+			}
 			try {
 				product.recordDeletionFollowup(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(followup));
 			} catch (com.fasterxml.jackson.core.JsonProcessingException error) {
 				throw new IllegalStateException("외부 잔여 상품 기록 저장 준비에 실패했습니다. SB 상품을 유지합니다.", error);
 			}
 			productDeleteTxService.deleteWithRegistrations(product, registrations);
-		} else {
-			log.warn("[완전삭제] 폐기 보류 — 마켓에 리스팅이 남아 있다: productId={}, 실패={}, 수동={}",
-				productId, failed.keySet(), manual.keySet());
 		}
 
 		recordDeleteActionLog(productId, deleted, skipped, failed, manual, marketItemIds);

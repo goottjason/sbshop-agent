@@ -120,9 +120,9 @@ class ProductManageUseCaseDeleteTest {
 
 		ProductDeleteResult result = useCase.deleteProduct(PRODUCT_ID);
 
-		verify(productDeleteTxService, never()).deleteWithRegistrations(product, regs);
+			verify(productDeleteTxService).deleteWithRegistrations(product, regs);
 		verify(cafe24Client).deleteFromMarket("C24");
-		assertThat(result.disposed()).isFalse();
+			assertThat(result.disposed()).isTrue();
 		assertThat(result.deleted()).containsExactly(MarketType.CAFE24);
 		assertThat(result.failed()).containsKey(MarketType.COUPANG);
 		assertThat(result.failed().get(MarketType.COUPANG)).contains("주문이력");
@@ -142,8 +142,8 @@ class ProductManageUseCaseDeleteTest {
 
 		verify(marketClientRouter, never()).getClient(MarketType.GMARKET);
 		verify(marketClientRouter, never()).getClient(MarketType.AUCTION);
-		verify(productDeleteTxService, never()).deleteWithRegistrations(product, regs);
-		assertThat(result.disposed()).isFalse();
+			verify(productDeleteTxService).deleteWithRegistrations(product, regs);
+			assertThat(result.disposed()).isTrue();
 		assertThat(result.manual()).containsKeys(MarketType.GMARKET, MarketType.AUCTION);
 		assertThat(result.deleted()).isEmpty();
 	}

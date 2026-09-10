@@ -34,16 +34,16 @@ class ProductDeleteDisposalGuardTest {
 
 	@Test
 	@DisplayName("8a: 마켓 삭제가 하나라도 실패하면 상품을 폐기하지 않는다 — 마켓에 남는데 우리만 잊는 상태를 만들지 않는다")
-	void marketDeleteFailure_blocksDisposal() {
+	void marketDeleteFailure_recordsFollowupAndDisposes() {
 		MarketRegistration reg = registration(MarketType.COUPANG);
 		ProductManageUseCase useCase = useCase(reg);
 		doThrow(new IllegalStateException("쿠팡 삭제 거부")).when(client).deleteFromMarket(anyString());
 
 		ProductDeleteResult result = useCase.deleteProduct(PRODUCT_ID);
 
-		assertThat(result.disposed()).isFalse();
+		assertThat(result.disposed()).isTrue();
 		assertThat(result.failed()).containsKey(MarketType.COUPANG);
-		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
+		verify(productDeleteTxService).deleteWithRegistrations(any(), anyList());
 		assertThat(reg.getIsSynced()).isTrue();
 		assertThat(reg.getLastSyncError()).isEqualTo(SyncErrorType.TRANSIENT_ERROR);
 	}
@@ -58,10 +58,10 @@ class ProductDeleteDisposalGuardTest {
 
 		ProductDeleteResult result = useCase.deleteProduct(PRODUCT_ID);
 
-		assertThat(result.disposed()).isFalse();
+		assertThat(result.disposed()).isTrue();
 		assertThat(result.manual()).containsKey(MarketType.COUPANG);
 		assertThat(result.failed()).isEmpty();
-		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
+		verify(productDeleteTxService).deleteWithRegistrations(any(), anyList());
 	}
 
 	@Test
@@ -75,9 +75,9 @@ class ProductDeleteDisposalGuardTest {
 
 		ProductDeleteResult result = useCase.deleteProduct(PRODUCT_ID);
 
-		assertThat(result.disposed()).isFalse();
+		assertThat(result.disposed()).isTrue();
 		assertThat(result.manual()).containsKey(MarketType.GMARKET);
-		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
+		verify(productDeleteTxService).deleteWithRegistrations(any(), anyList());
 	}
 
 	@Test
@@ -130,20 +130,20 @@ class ProductDeleteDisposalGuardTest {
 	}
 
 	@Test
-	void successfulDeleteRequestWithoutReadbackDoesNotDispose() {
+		void successfulDeleteRequestWithoutReadbackStillDisposesAndRecordsFailure() {
 		var reg = registration(MarketType.COUPANG);
 		var result = useCase(reg).deleteProduct(PRODUCT_ID);
-		assertThat(result.disposed()).isFalse();
+			assertThat(result.disposed()).isTrue();
 		assertThat(result.failed().get(MarketType.COUPANG)).contains("재조회");
-		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
+			verify(productDeleteTxService).deleteWithRegistrations(any(), anyList());
 	}
 
 	@Test
 	void differentAccountReadbackDoesNotDispose() {
 		confirmAbsent("different-account");
 		var result = useCase(registration(MarketType.COUPANG)).deleteProduct(PRODUCT_ID);
-		assertThat(result.disposed()).isFalse();
-		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
+			assertThat(result.disposed()).isTrue();
+			verify(productDeleteTxService).deleteWithRegistrations(any(), anyList());
 	}
 
 	@Test
@@ -157,13 +157,13 @@ class ProductDeleteDisposalGuardTest {
 	@org.junit.jupiter.params.ParameterizedTest
 	@org.junit.jupiter.params.provider.EnumSource(value = com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.class,
 		names = {"PRESENT", "OUT_OF_STOCK", "STOPPED", "PROHIBITED", "UNKNOWN"})
-	void remainingOrUnconfirmedListingsMustNotDispose(com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State state) {
+		void remainingOrUnconfirmedListingsAreDisposedWithFollowup(com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State state) {
 		when(client.inspectionAccountReference()).thenReturn("verified-account");
 		when(client.inspectListing(anyString())).thenReturn(new com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation(
 			state, "CHECK", "확인", "verified-account", "/product", java.time.Instant.now()));
 		var result = useCase(registration(MarketType.COUPANG)).deleteProduct(PRODUCT_ID);
-		assertThat(result.disposed()).isFalse();
-		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
+			assertThat(result.disposed()).isTrue();
+			verify(productDeleteTxService).deleteWithRegistrations(any(), anyList());
 	}
 
 	@Test
@@ -204,7 +204,7 @@ class ProductDeleteDisposalGuardTest {
 		var result = useCase.deleteProduct(PRODUCT_ID);
 		assertThat(result.failed()).containsEntry(MarketType.CAFE24, "카페24 삭제 거절");
 		assertThat(result.manual()).containsOnlyKeys(MarketType.GMARKET);
-		assertThat(result.disposed()).isFalse();
+			assertThat(result.disposed()).isTrue();
 	}
 
 	@Test
@@ -239,7 +239,7 @@ class ProductDeleteDisposalGuardTest {
 	}
 
 	@Test
-	void elevenstAndCafe24ChildrenAreArchivedButRealCafeFailureStillBlocks() {
+		void elevenstAndCafe24ChildrenAreArchivedAndRealCafeFailureIsTracked() {
 		var eleven = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.ELEVEN_STREET)
 			.marketIdentifiers("{\"prdNo\":\"3264931038\"}").build();
 		var cafe = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.CAFE24)
@@ -247,17 +247,18 @@ class ProductDeleteDisposalGuardTest {
 		var useCase = useCase(cafe);
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID)).thenReturn(List.of(eleven, cafe));
 		var blocked = useCase.deleteProduct(PRODUCT_ID);
-		assertThat(blocked.disposed()).isFalse();
+			assertThat(blocked.disposed()).isTrue();
 		assertThat(blocked.failed()).containsKey(MarketType.CAFE24);
 		confirmAbsent("verified-account");
 		var done = useCase.deleteProduct(PRODUCT_ID);
 		assertThat(done.disposed()).isTrue();
 		assertThat(done.manual()).containsOnlyKeys(MarketType.ELEVEN_STREET, MarketType.GMARKET, MarketType.AUCTION);
 		var product = org.mockito.ArgumentCaptor.forClass(Product.class);
-		verify(productDeleteTxService).deleteWithRegistrations(product.capture(), anyList());
+		verify(productDeleteTxService, org.mockito.Mockito.times(2)).deleteWithRegistrations(product.capture(), anyList());
 		var snapshot = org.mockito.ArgumentCaptor.forClass(String.class);
-		verify(product.getValue()).recordDeletionFollowup(snapshot.capture());
-		assertThat(snapshot.getValue()).contains("3264931038", "3490309329", "D888848908");
+		verify(product.getValue(), org.mockito.Mockito.times(2)).recordDeletionFollowup(snapshot.capture());
+		assertThat(snapshot.getAllValues()).anySatisfy(value ->
+			assertThat(value).contains("3264931038", "3490309329", "D888848908"));
 		verify(client, never()).deleteFromMarket("3264931038");
 	}
 
@@ -280,15 +281,15 @@ class ProductDeleteDisposalGuardTest {
 	}
 
 	@Test
-	void actualSmartstoreDeleteFailureStillBlocksSoftDeletion() {
+		void actualSmartstoreDeleteFailureStillRecordsAndSoftDeletes() {
 		var reg = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.SMART_STORE)
 			.marketIdentifiers("{\"originProductNo\":\"12345\"}").build();
 		var useCase = useCase(reg);
 		doThrow(new IllegalStateException("스마트스토어 삭제 거부")).when(client).deleteFromMarket("12345");
 		var result = useCase.deleteProduct(PRODUCT_ID);
-		assertThat(result.disposed()).isFalse();
+			assertThat(result.disposed()).isTrue();
 		assertThat(result.failed()).containsKey(MarketType.SMART_STORE);
-		verify(productDeleteTxService, never()).deleteWithRegistrations(any(), anyList());
+			verify(productDeleteTxService).deleteWithRegistrations(any(), anyList());
 	}
 
 }
