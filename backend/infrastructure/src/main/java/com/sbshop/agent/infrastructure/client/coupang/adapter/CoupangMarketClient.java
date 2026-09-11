@@ -175,9 +175,10 @@ public class CoupangMarketClient implements MarketClient {
 				|| !restClient.resolveVendorId().equals(p.path("vendorId").asText())
 				|| !items.isArray() || items.size() != 1
 				|| !optionId.equals(items.get(0).path("vendorItemId").asText())
-				|| expectedSbCode == null || expectedSbCode.isBlank()
-				|| !expectedSbCode.equals(items.get(0).path("externalVendorSku").asText()))
-				throw new IllegalStateException("쿠팡 판매자·SB코드·상품·단일 옵션 연결을 확인할 수 없습니다.");
+				|| expectedSbCode == null || expectedSbCode.isBlank())
+				throw new IllegalStateException("쿠팡 판매자·상품·단일 옵션 연결을 확인할 수 없습니다.");
+			String actualSku = items.get(0).path("externalVendorSku").asText("");
+			boolean skuMismatch = !expectedSbCode.equals(actualSku);
 			JsonNode inventoryRoot = objectMapper
 				.readTree(restClient.get(VENDOR_ITEM_BASE + optionId + "/inventories"));
 			JsonNode inventory = inventoryRoot.path("data"), quantity = inventory.path("amountInStock");
@@ -192,8 +193,12 @@ public class CoupangMarketClient implements MarketClient {
 			boolean onSale = inventory.path("onSale").booleanValue();
 			// onSale=false라도 수량 전송을 먼저 시도해 쿠팡의 실제 거절 사유를 기록한다.
 			boolean writable = !statusName.isBlank();
+			String reason = writable ? "쿠팡 상품·옵션 수량 확인"
+				: blockedReason(statusName, onSale);
+			if (skuMismatch)
+				reason += " · 쿠팡 판매자 SKU(" + actualSku + ")와 SB코드가 달라 SKU 불일치를 기록했습니다. 상품·옵션번호 연결은 확인되어 반영을 시도합니다.";
 			return new com.sbshop.agent.core.domain.market.client.dto.MarketStockRead(quantity.intValue(), writable,
-				writable ? "쿠팡 승인·판매 중 단일 옵션 수량 확인" : blockedReason(statusName, onSale),
+				reason,
 				account, optionId);
 		} catch (Exception e) {
 			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
