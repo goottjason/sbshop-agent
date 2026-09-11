@@ -39,6 +39,12 @@ public class ProductSupplierBatchController {
 		return service.get(id);
 	}
 
+	@DeleteMapping("/{id}")
+	@ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+	public void delete(@PathVariable String id, Principal actor) {
+		service.delete(id, actor.getName());
+	}
+
 	@GetMapping("/{id}/items")
 	public Page<ProductSupplierBatchService.Item> items(@PathVariable
 	String id,

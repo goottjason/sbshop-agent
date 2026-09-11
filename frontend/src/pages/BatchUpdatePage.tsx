@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, ConfigProvider, Empty, Pagination, Progress, Spin } from 'antd';
-import { CaretDownOutlined, CaretRightOutlined, PauseOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Alert, Button, ConfigProvider, Empty, Modal, Pagination, Progress, Spin } from 'antd';
+import { CaretDownOutlined, CaretRightOutlined, DeleteOutlined, PauseOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { supplierBatchApi, type SupplierBatchRun } from '../api/supplierBatchApi';
 import { SupplierBatchStart } from '../components/batch/SupplierBatchStart';
 import { SupplierBatchRunPanel } from '../components/batch/SupplierBatchRunPanel';
@@ -20,6 +20,7 @@ export default function BatchUpdatePage() {
   const [lastStartedRun, setLastStartedRun] = useState<SupplierBatchRun | null>(null);
   const [controlBusy, setControlBusy] = useState<string | null>(null);
   const [controlError, setControlError] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState<string | null>(null);
   const [legacyOpen, setLegacyOpen] = useState(false);
   const runs = useQuery({ queryKey: ['supplier-batch-runs', page], queryFn: async ({ signal }) => (await supplierBatchApi.runs(page, 10, signal)).data, retry: false, refetchInterval: 5000 });
   const selected = useQuery({ queryKey: ['supplier-batch-run', expandedId], queryFn: async ({ signal }) => (await supplierBatchApi.run(expandedId!, signal)).data, enabled: !!expandedId, retry: false,
@@ -38,6 +39,25 @@ export default function BatchUpdatePage() {
       void cache.invalidateQueries({ queryKey: ['supplier-batch-runs'] });
     } finally { setControlBusy(null); }
   };
+  const deleteRun = (run: SupplierBatchRun) => {
+    Modal.confirm({
+      title: '배치 기록을 영구 삭제할까요?',
+      content: `${run.vendor} ${dateText(run.createdAt)} 배치의 상품·단계·시도·재시도 기록을 모두 삭제합니다. 상품 DB와 마켓 상품에는 영향을 주지 않습니다. 삭제 후 복구할 수 없습니다.`,
+      okText: '영구 삭제', cancelText: '취소', okButtonProps: { danger: true },
+      onOk: async () => {
+        setDeleteBusy(run.id); setControlError(null);
+        try {
+          await supplierBatchApi.delete(run.id);
+          if (expandedId === run.id) setExpandedId(null);
+          if (createdRun?.id === run.id) setCreatedRun(null);
+          await cache.invalidateQueries({ queryKey: ['supplier-batch-runs'] });
+        } catch (error) {
+          setControlError(requestError(error, '배치 기록을 삭제하지 못했습니다. 진행 중인 작업인지 확인하세요.'));
+          throw error;
+        } finally { setDeleteBusy(null); }
+      },
+    });
+  };
   const visibleRuns = runs.data?.content ?? [];
   const newRunOutsidePage = createdRun && !visibleRuns.some(run => run.id === createdRun.id);
   const renderRun = (listRun: SupplierBatchRun) => {
@@ -51,7 +71,7 @@ export default function BatchUpdatePage() {
         <span className={`sb-batch-badge ${run.state === 'PAUSED' || hasIssues && run.state === 'COMPLETED' ? 'sb-batch-blocked' : run.state === 'COMPLETED' ? 'sb-batch-success' : 'sb-batch-running'}`}>{stateText[run.state] ?? '상태 확인 필요'}</span>
         <span className="sb-batch-run-progress"><span>최종 처리 {numberText(run.processed)} / {numberText(run.total)}개</span><Progress percent={percent} showInfo={false} size="small" strokeColor={BATCH_BLUE} status="normal" /></span>
         <span className="sb-batch-run-counts"><span>마켓 반영 완료 <b>{numberText(run.succeeded)}</b></span><span>마켓 대상 없음 <b>{numberText(run.dbOnly ?? 0)}</b></span><span className={run.failed ? 'sb-batch-error-text' : ''}>실패 <b>{numberText(run.failed)}</b></span><span>보류 <b>{numberText(run.blocked)}</b></span><span>대기·처리 <b>{numberText(run.pending)}</b></span></span>
-      </button><div className="sb-batch-run-control">{run.state === 'RUNNING' ? <Button size="small" icon={<PauseOutlined />} loading={controlBusy === run.id} disabled={!!controlBusy} onClick={() => { void control(run); }}>일시정지</Button> : run.state === 'PAUSED' ? <Button size="small" icon={<PlayCircleOutlined />} loading={controlBusy === run.id} disabled={!!controlBusy} onClick={() => { void control(run); }}>재개</Button> : run.state === 'PAUSING' ? <span className="sb-batch-help">진행 중 {numberText(run.inFlight)}건 마무리</span> : <span className="sb-batch-help">{hasIssues ? '문제 확인 필요' : '처리 종료'}</span>}</div></div>
+      </button><div className="sb-batch-run-control">{run.state === 'RUNNING' ? <Button size="small" icon={<PauseOutlined />} loading={controlBusy === run.id} disabled={!!controlBusy || !!deleteBusy} onClick={() => { void control(run); }}>일시정지</Button> : run.state === 'PAUSED' ? <Button size="small" icon={<PlayCircleOutlined />} loading={controlBusy === run.id} disabled={!!controlBusy || !!deleteBusy} onClick={() => { void control(run); }}>재개</Button> : run.state === 'PAUSING' ? <span className="sb-batch-help">진행 중 {numberText(run.inFlight)}건 마무리</span> : <span className="sb-batch-help">{hasIssues ? '문제 확인 필요' : '처리 종료'}</span>}{run.state === 'COMPLETED' && <Button danger type="text" size="small" icon={<DeleteOutlined />} loading={deleteBusy === run.id} disabled={!!controlBusy || !!deleteBusy} onClick={() => deleteRun(run)} aria-label="배치 기록 영구 삭제">기록 삭제</Button>}</div></div>
       {run.stageProgress && <p className="sb-batch-help" style={{ padding: '0 20px' }}>수집 완료 {numberText((run.stageProgress.CRAWL_SUCCEEDED ?? 0) + (run.stageProgress.CRAWL_UNCHANGED ?? 0))}개 · SB 저장 완료 {numberText((run.stageProgress.DB_SUCCEEDED ?? 0) + (run.stageProgress.DB_UNCHANGED ?? 0))}개 · 마켓 반영 확인 {numberText(run.stageProgress.MARKET_SUCCEEDED ?? 0)}건 · 마켓 대기 {numberText(run.stageProgress.MARKET_WAITING ?? 0)}건 · 마켓 처리 중 {numberText(run.stageProgress.MARKET_RUNNING ?? 0)}건 (마켓 건수는 가격·재고 각각 집계)</p>}
       {expanded && <div id={`run-${run.id}`}>{selected.isError ? <Alert type="error" showIcon message="배치의 최신 상태를 조회하지 못했습니다." action={<Button onClick={() => { void selected.refetch(); }}>다시 조회</Button>} /> : selected.isPending ? <div className="sb-batch-loading"><Spin /> 배치 상태 조회 중…</div> : <SupplierBatchRunPanel key={run.id} run={run} onChanged={changed} />}</div>}
     </article>;

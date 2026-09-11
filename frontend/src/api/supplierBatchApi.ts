@@ -64,6 +64,7 @@ export const supplierBatchApi = {
   create: (body: SupplierBatchCreate) => apiClient.post<SupplierBatchRun>(base, body),
   runs: (page: number, size: number, signal?: AbortSignal) => apiClient.get<SupplierBatchPage<SupplierBatchRun>>(base, { params: { page, size }, signal }),
   run: (id: string, signal?: AbortSignal) => apiClient.get<SupplierBatchRun>(`${base}/${encodeURIComponent(id)}`, { signal }),
+  delete: (id: string) => apiClient.delete(`${base}/${encodeURIComponent(id)}`),
   items: (id: string, page: number, size: number, keyword: string, filter: SupplierBatchItemFilter, signal?: AbortSignal) =>
     apiClient.get<SupplierBatchPage<SupplierBatchItem>>(`${base}/${encodeURIComponent(id)}/items`, { params: { page, size, keyword, filter }, signal }),
   detail: (id: string, itemId: number, signal?: AbortSignal) =>

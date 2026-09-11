@@ -291,6 +291,29 @@ public class ProductSupplierBatchService {
 		return get(id);
 	}
 
+	/**
+	 * Permanently removes a finished batch's execution history. Product/source
+	 * data is intentionally left untouched; only this batch's audit rows are
+	 * deleted.
+	 */
+	public void delete(String id, String actor) {
+		tx().executeWithoutResult(s -> {
+			var run = ownedLocked(id, actor);
+			if (!"COMPLETED".equals(run.getState()))
+				throw new ProductEditConflictException("진행 중이거나 일시정지된 배치는 삭제할 수 없습니다. 처리가 끝난 후 삭제하세요.");
+			if (inFlight(id) > 0)
+				throw new ProductEditConflictException("아직 실행 중인 작업이 있어 배치를 삭제할 수 없습니다.");
+			em.flush();
+			// FK 순서: 시도·재시도 → 단계 → 상품 행 → 배치 요약.
+			jdbc.update("delete from sb_supplier_batch_attempt where batch_id=?", id);
+			jdbc.update("delete from sb_supplier_batch_retry where batch_id=?", id);
+			jdbc.update("delete from sb_supplier_batch_stage where batch_id=?", id);
+			jdbc.update("delete from sb_supplier_batch_item where batch_id=?", id);
+			jdbc.update("delete from sb_supplier_batch_run where id=?", id);
+			em.clear();
+		});
+	}
+
 	public View retry(String id, RetryRequest request, String actor) {
 		tx().executeWithoutResult(s -> {
 			lanes.findLocked("PRICE_STOCK").orElseThrow(() -> new IllegalStateException("소싱 배치 DB 준비가 필요합니다."));

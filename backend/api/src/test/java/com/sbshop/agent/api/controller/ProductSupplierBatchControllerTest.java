@@ -71,6 +71,13 @@ class ProductSupplierBatchControllerTest {
 	}
 
 	@Test
+	void deletePassesAuthenticatedActorAndReturnsNoContent() throws Exception {
+		mvc.perform(delete("/api/v1/supplier-batches/" + RUN).principal(actor))
+			.andExpect(status().isNoContent());
+		verify(service).delete(RUN, "batch-reviewer");
+	}
+
+	@Test
 	void readRoutesRetainPagingSearchAndNeverStartOrRetryWork() throws Exception {
 		mvc.perform(get("/api/v1/supplier-batches/options")).andExpect(status().isOk());
 		mvc.perform(get("/api/v1/supplier-batches").param("page", "3").param("size", "10")).andExpect(status().isOk());
