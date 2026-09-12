@@ -154,9 +154,11 @@ public class CoupangMarketClient implements MarketClient {
 		try {
 			requirePriceId(id);
 			requirePriceId(optionId);
-			String response = restClient.put("/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/" + optionId + "/prices/"
-				+ price.intValueExact(), null);
-			verifyWriteReceipt(response, "쿠팡 가격 변경");
+			var observed = readSalePrice(id, optionId);
+			if (!observed.writable())
+				throw new UnsupportedOperationException(observed.reason());
+			changePriceStepwise(VENDOR_ITEM_BASE + optionId, optionId, observed.value().intValueExact(),
+				price.intValueExact());
 		} catch (Exception e) {
 			throw com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.transferFailure(e);
 		}
@@ -555,6 +557,11 @@ public class CoupangMarketClient implements MarketClient {
 			verifyEnvelopeLenient(restClient.put(base + "/prices/" + target, Map.of()), "[쿠팡] 가격 변경");
 			return;
 		}
+		changePriceStepwise(base, vendorItemId, current, target);
+	}
+
+	/** Both legacy combined sync and reviewed price tasks use this exact limit-aware write loop. */
+	private void changePriceStepwise(String base, String vendorItemId, int current, int target) {
 		for (int step = 0; step < MAX_PRICE_STEPS; step++) {
 			int next = clampToAllowed(current, target);
 			verifyEnvelopeLenient(restClient.put(base + "/prices/" + next, Map.of()), "[쿠팡] 가격 변경");

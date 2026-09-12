@@ -17,6 +17,7 @@ import com.sbshop.agent.infrastructure.client.coupang.component.CoupangSearchTag
 import com.sbshop.agent.infrastructure.client.coupang.config.CoupangProperties;
 import com.sbshop.agent.infrastructure.client.coupang.mapper.CoupangDataMapper;
 import com.sbshop.agent.infrastructure.client.coupang.parser.CoupangProductParser;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -90,6 +91,36 @@ class CoupangSteppedPriceChangeTest {
 		});
 	}
 
+	/** Reviewed market-price tasks call writeSalePrice, not the legacy combined sync method. */
+	private void simulateReviewedPriceWrite(int startingPrice) {
+		int[] current = {startingPrice};
+		lenient().when(restClient.resolveVendorId()).thenReturn("vendor-1");
+		lenient().when(restClient.get(anyString())).thenAnswer(inv -> {
+			String path = inv.getArgument(0);
+			if (path.contains("/seller-products/" + SELLER_PRODUCT_ID)) {
+				return "{\"code\":\"SUCCESS\",\"data\":{\"sellerProductId\":\"" + SELLER_PRODUCT_ID
+					+ "\",\"vendorId\":\"vendor-1\",\"statusName\":\"승인완료\",\"items\":[{\"vendorItemId\":"
+					+ ITEM + "}]}}";
+			}
+			if (path.contains("/vendor-items/" + ITEM + "/inventories")) {
+				return "{\"code\":\"SUCCESS\",\"data\":{\"sellerItemId\":\"" + ITEM
+					+ "\",\"salePrice\":" + current[0] + ",\"onSale\":true}}";
+			}
+			throw new IllegalStateException("unexpected GET " + path);
+		});
+		lenient().when(restClient.put(anyString(), anyMap())).thenAnswer(inv -> {
+			Matcher m = PRICE_PATH.matcher(inv.getArgument(0));
+			if (!m.find())
+				return "{\"code\":\"SUCCESS\"}";
+			int wanted = Integer.parseInt(m.group(1));
+			if (wanted < current[0] / 2 || wanted > current[0] * 2)
+				throw new IllegalStateException("400 Bad Request: price change limit");
+			current[0] = wanted;
+			pricePuts.add(wanted);
+			return "{\"code\":\"SUCCESS\"}";
+		});
+	}
+
 	@BeforeEach
 	void setUp() {
 		client = new CoupangMarketClient(properties, objectMapper, restClient, categoryPredictor,
@@ -117,6 +148,16 @@ class CoupangSteppedPriceChangeTest {
 		assertThat(pricePuts).hasSizeGreaterThan(1);
 		assertThat(pricePuts.get(pricePuts.size() - 1)).isEqualTo(90000);
 		assertThat(pricePuts).isSorted();
+	}
+
+	@Test
+	@DisplayName("검토형 가격 태스크도 현재가를 읽어 단계 인상한다 — 71,500 → 342,700")
+	void reviewedPriceWriteIsStepped() {
+		simulateReviewedPriceWrite(71500);
+
+		client.writeSalePrice(SELLER_PRODUCT_ID, ITEM, new BigDecimal("342700"));
+
+		assertThat(pricePuts).containsExactly(143000, 286000, 342700);
 	}
 
 	@Test
