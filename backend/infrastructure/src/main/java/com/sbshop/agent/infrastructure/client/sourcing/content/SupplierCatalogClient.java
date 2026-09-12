@@ -18,6 +18,8 @@ public class SupplierCatalogClient {
 	private final OcadoReviewedCatalogClient ocado;
 	private final HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER)
 		.connectTimeout(Duration.ofSeconds(10)).build();
+	private final HttpClient redirectingHttp = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
+		.connectTimeout(Duration.ofSeconds(10)).build();
 
 	public SupplierCatalogClient(ObjectMapper mapper) {
 		this(mapper, null);
@@ -52,21 +54,44 @@ public class SupplierCatalogClient {
 	}
 
 	public Catalog fetchPriceStock(VendorType vendor, String sourceUrl) {
-		return vendor == VendorType.OCD ? ocado.fetch(sourceUrl, false) : fetch(vendor, sourceUrl);
+		if (vendor == VendorType.OCD)
+			return ocado.fetch(sourceUrl, false);
+		if (vendor == VendorType.FTN)
+			return fetchFortnumPriceStock(sourceUrl);
+		return fetch(vendor, sourceUrl);
+	}
+
+	private Catalog fetchFortnumPriceStock(String sourceUrl) {
+		try {
+			return fortnumPriceStock(readFortnumPriceStock(sourceUrl), sourceUrl);
+		} catch (ProductContentFailureException failure) {
+			if (failure.code() != ProductContentFailureException.Code.SOURCE_IDENTITY_MISMATCH)
+				throw failure;
+			String resolvedUrl = resolveFortnumUrl(sourceUrl);
+			if (resolvedUrl.equals(sourceUrl))
+				throw failure;
+			return fortnumPriceStock(readFortnumPriceStock(resolvedUrl), resolvedUrl);
+		}
+	}
+
+	public Catalog fortnumPriceStock(JsonNode root, String sourceUrl) {
+		JsonNode p = fortnumProduct(root, sourceUrl);
+		StockStatus stock = switch (p.path("stock_status").asText()) {
+			case "IN_STOCK" -> StockStatus.IN_STOCK;
+			case "OUT_OF_STOCK" -> StockStatus.OUT_OF_STOCK;
+			default -> throw fail(ProductContentFailureException.Code.SOURCE_STOCK_INVALID);
+		};
+		var min = p.path("price_range").path("minimum_price").path("final_price");
+		var max = p.path("price_range").path("maximum_price").path("final_price");
+		BigDecimal price = money(min, "value", "currency");
+		if (price.compareTo(money(max, "value", "currency")) != 0)
+			throw fail(ProductContentFailureException.Code.SOURCE_VARIANT_UNRESOLVED);
+		return new Catalog(List.of(), null, price, "GBP", stock, null);
 	}
 
 	public Catalog fortnum(JsonNode root, String sourceUrl) {
 		ProductContentUrls.source(VendorType.FTN, sourceUrl);
-		String key = URI.create(sourceUrl).getPath().substring(1).replaceAll("/$", "");
-		JsonNode items = root == null ? null : root.path("data").path("products").path("items");
-		if (root == null || root.has("errors") || items == null || !items.isArray() || items.size() != 1)
-			throw fail(ProductContentFailureException.Code.SOURCE_IDENTITY_MISMATCH);
-		JsonNode p = items.get(0);
-		if (!key.equals(p.path("url_key").asText()) || !(key + ".html").equals(p.path("canonical_url").asText())
-			|| !p.path("sku").asText().matches("[1-9][0-9]{0,19}") || p.path("name").asText().isBlank())
-			throw fail(ProductContentFailureException.Code.SOURCE_IDENTITY_MISMATCH);
-		if (!"SimpleProduct".equals(p.path("__typename").asText()))
-			throw fail(ProductContentFailureException.Code.SOURCE_VARIANT_UNRESOLVED);
+		JsonNode p = fortnumProduct(root, sourceUrl);
 		StockStatus stock = switch (p.path("stock_status").asText()) {
 			case "IN_STOCK" -> StockStatus.IN_STOCK;
 			case "OUT_OF_STOCK" -> StockStatus.OUT_OF_STOCK;
@@ -98,6 +123,21 @@ public class SupplierCatalogClient {
 		images.addFirst(hero);
 		String html = html(p.path("description").path("html"));
 		return new Catalog(List.copyOf(images), html, price, "GBP", stock, null);
+	}
+
+	private JsonNode fortnumProduct(JsonNode root, String sourceUrl) {
+		ProductContentUrls.source(VendorType.FTN, sourceUrl);
+		String key = URI.create(sourceUrl).getPath().substring(1).replaceAll("/$", "");
+		JsonNode items = root == null ? null : root.path("data").path("products").path("items");
+		if (root == null || root.has("errors") || items == null || !items.isArray() || items.size() != 1)
+			throw fail(ProductContentFailureException.Code.SOURCE_IDENTITY_MISMATCH);
+		JsonNode p = items.get(0);
+		if (!key.equals(p.path("url_key").asText()) || !(key + ".html").equals(p.path("canonical_url").asText())
+			|| !p.path("sku").asText().matches("[1-9][0-9]{0,19}") || p.path("name").asText().isBlank())
+			throw fail(ProductContentFailureException.Code.SOURCE_IDENTITY_MISMATCH);
+		if (!"SimpleProduct".equals(p.path("__typename").asText()))
+			throw fail(ProductContentFailureException.Code.SOURCE_VARIANT_UNRESOLVED);
+		return p;
 	}
 
 	public Catalog costco(JsonNode p, String sourceUrl) {
@@ -173,6 +213,41 @@ public class SupplierCatalogClient {
 
 	private static ProductContentFailureException fail(ProductContentFailureException.Code code) {
 		return new ProductContentFailureException(code);
+	}
+
+	private JsonNode readFortnumPriceStock(String sourceUrl) {
+		String key = URI.create(sourceUrl).getPath().substring(1).replaceAll("/$", "");
+		String query = "{products(filter:{url_key:{eq:\"" + key
+			+ "\"}}){items{__typename sku url_key name canonical_url stock_status price_range{minimum_price{final_price{value currency}} maximum_price{final_price{value currency}}}}}}";
+		return read("https://www.fortnumandmason.com/graphql?query="
+			+ URLEncoder.encode(query, StandardCharsets.UTF_8));
+	}
+
+	private String resolveFortnumUrl(String sourceUrl) {
+		try {
+			var request = HttpRequest.newBuilder(URI.create(sourceUrl)).timeout(Duration.ofSeconds(30))
+				.header("User-Agent", "Mozilla/5.0").GET().build();
+			com.sbshop.agent.core.application.product.source.ProductSourceHttpGuard.check();
+			var response = redirectingHttp.send(request, HttpResponse.BodyHandlers.discarding());
+			if (response.statusCode() == 429)
+				throw new ProductContentThrottledException(
+					com.sbshop.agent.infrastructure.client.smartstore.client.InspectionRetryAfter
+						.parse(response.headers().firstValue("Retry-After").orElse(null), Instant.now()));
+			if (response.statusCode() == 404 || response.statusCode() == 410)
+				throw ProductContentFailureException.http(response.statusCode());
+			if (response.statusCode() != 200)
+				throw fail(ProductContentFailureException.Code.SOURCE_REQUEST_FAILED);
+			String resolved = response.uri().toString();
+			ProductContentUrls.source(VendorType.FTN, resolved);
+			return resolved;
+		} catch (ProductContentFailureException | ProductContentThrottledException e) {
+			throw e;
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw fail(ProductContentFailureException.Code.SOURCE_REQUEST_FAILED);
+		} catch (Exception e) {
+			throw fail(ProductContentFailureException.Code.SOURCE_REQUEST_FAILED);
+		}
 	}
 
 	private JsonNode read(String url) {

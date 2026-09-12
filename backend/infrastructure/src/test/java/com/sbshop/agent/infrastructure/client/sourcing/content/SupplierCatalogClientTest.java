@@ -41,6 +41,30 @@ class SupplierCatalogClientTest {
 	}
 
 	@Test
+	void fortnumPriceStockDoesNotFailWhenContentGalleryIsUnavailable() throws Exception {
+		var document = fortnum();
+		ObjectNode p = (ObjectNode)document.path("data").path("products").path("items").get(0);
+		p.remove(List.of("description", "media_gallery", "image"));
+
+		var result = client.fortnumPriceStock(document, ftn);
+
+		assertThat(result.images()).isEmpty();
+		assertThat(result.html()).isNull();
+		assertThat(result.price()).isEqualByComparingTo("7.95");
+		assertThat(result.status()).isEqualTo(StockStatus.IN_STOCK);
+	}
+
+	@Test
+	void fortnumPriceStockAcceptsExplicitOutOfStockWithoutContent() throws Exception {
+		var document = fortnum();
+		ObjectNode p = (ObjectNode)document.path("data").path("products").path("items").get(0);
+		p.put("stock_status", "OUT_OF_STOCK");
+		p.remove(List.of("description", "media_gallery", "image"));
+
+		assertThat(client.fortnumPriceStock(document, ftn).status()).isEqualTo(StockStatus.OUT_OF_STOCK);
+	}
+
+	@Test
 	void actualCostcoChoosesOneFullImagePerGallerySlotAndDoesNotInventInventory() throws Exception {
 		var doc = costco();
 		var result = client.costco(doc, cok);
