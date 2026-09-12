@@ -9,7 +9,7 @@ import ProductGrid from '../src/pages/product/ProductGrid';
 const now = new Date().toISOString();
 const token = '00000000-0000-4000-8000-000000000001';
 const asset = (name: string) => `${location.origin}/fixtures/${name}.svg`;
-const calls: { url: string; method: string; data: any }[] = [];
+const calls: { url: string; method: string; data: unknown }[] = [];
 let lostCommit = true, saved = false;
 const checks: string[] = [];
 const fields = [
@@ -30,7 +30,7 @@ apiClient.defaults.adapter = async config => {
   const url = config.url!, data = config.data ? JSON.parse(config.data) : null;
   calls.push({ url, method: config.method!, data });
   await new Promise(resolve => setTimeout(resolve, 30));
-  let result: any;
+  let result: unknown;
   if (url === '/api/v1/products/search') {
     if (saved) document.body.dataset.saved = 'true';
     result = { content: [1, 2].map(id => ({ id, sbCode: `SB-일괄${id}`, brand: id === 1 && saved ? '새 브랜드' : '이전 브랜드', productName: '일괄 편집 검증 상품',

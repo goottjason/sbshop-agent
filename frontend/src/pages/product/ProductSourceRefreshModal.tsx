@@ -38,10 +38,10 @@ function errorMessage(error: unknown): string {
   if (isAxiosError(error) && typeof error.response?.data?.message === 'string') return error.response.data.message;
   return '요청 결과를 확인하지 못했습니다. 연결을 확인하고 다시 시도하세요.';
 }
-function canSelect(snapshot: ProductSourceSnapshot, field: ProductSourceField): boolean {
+function canSelect(snapshot: ProductSourceSnapshot, field: ProductSourceField, now: number): boolean {
   const rule = snapshot.fields.find(item => item.field === field);
   return !!snapshot.proposed && ['READY', 'PARTIAL'].includes(snapshot.state)
-    && !!snapshot.expiresAt && new Date(snapshot.expiresAt).getTime() > Date.now()
+    && !!snapshot.expiresAt && new Date(snapshot.expiresAt).getTime() > now
     && !!rule?.available && !!rule.editable && !rule.appliedAt;
 }
 
@@ -59,9 +59,10 @@ function SnapshotCard({ snapshot, selected, disabled, initiallyExpanded, onSelec
   onSelection: (field: ProductSourceField, checked: boolean) => void;
 }) {
   const [expanded, setExpanded] = useState(initiallyExpanded);
+  const [now] = useState(() => Date.now());
   const sourceUrl = sourceProductUrl(snapshot.sourceUrl);
   const hasFailure = ['FAILED', 'UNSUPPORTED', 'PARTIAL'].includes(snapshot.state);
-  const expired = !collecting(snapshot) && !!snapshot.expiresAt && new Date(snapshot.expiresAt).getTime() <= Date.now();
+  const expired = !collecting(snapshot) && !!snapshot.expiresAt && new Date(snapshot.expiresAt).getTime() <= now;
   return <article className="pw-content-card" aria-label={`${snapshot.sbCode ?? snapshot.productId} 수집 비교`}>
     <div className="pw-content-card-title"><strong>{snapshot.sbCode ?? snapshot.productId}</strong>
       <span>{snapshot.vendor ?? '소싱처 없음'}</span>
@@ -81,7 +82,7 @@ function SnapshotCard({ snapshot, selected, disabled, initiallyExpanded, onSelec
     {collecting(snapshot) ? <p><Spin size="small" /> 수집 작업을 기다리는 중입니다. 창을 닫아도 서버에서 계속 진행합니다.</p> :
       <details className="pw-content-comparison" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}><summary>비교 및 적용 항목 선택</summary>{expanded && snapshot.fields.map(rule => <section key={rule.field} className="pw-content-field">
         <div className="pw-content-field-title"><Checkbox checked={selected.includes(rule.field)}
-          disabled={disabled || !canSelect(snapshot, rule.field)} onChange={event => onSelection(rule.field, event.target.checked)}>
+          disabled={disabled || !canSelect(snapshot, rule.field, now)} onChange={event => onSelection(rule.field, event.target.checked)}>
           {fieldLabels[rule.field]} 적용 검토에 포함
         </Checkbox>
           {!rule.available ? <Tag color="orange">수집 결과 없음</Tag> : rule.appliedAt ? <Tag color="green">DB 적용 이력</Tag> :
@@ -107,6 +108,7 @@ export function ProductSourceRefreshModal({ productIds, onClose, onSaved }: {
   const [collectionId, setCollectionId] = useState<string | null>(() => productIds.length === 0 ? readRecovery()?.collectionId ?? null : null);
   const [historical, setHistorical] = useState<ProductSourceSnapshot | null>(null);
   const [selection, setSelection] = useState<Record<string, ProductSourceField[]>>({});
+  const [now] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unknownRequest, setUnknownRequest] = useState<ProductSourceCollectionRequest | null>(() => {
@@ -121,7 +123,7 @@ export function ProductSourceRefreshModal({ productIds, onClose, onSaved }: {
     queryFn: async ({ signal }) => (await productSourceApi.history(productIds[0], signal)).data, retry: false });
   const snapshots = historical ? [historical] : collection.data?.items ?? [];
   const selected = snapshots.map(snapshot => ({ snapshotId: snapshot.id,
-    fields: (selection[snapshot.id] ?? []).filter(field => canSelect(snapshot, field)) })).filter(item => item.fields.length > 0);
+    fields: (selection[snapshot.id] ?? []).filter(field => canSelect(snapshot, field, now)) })).filter(item => item.fields.length > 0);
   const inProgress = snapshots.filter(collecting).length;
 
   const collect = async (retry?: ProductSourceCollectionRequest) => {
@@ -155,7 +157,7 @@ export function ProductSourceRefreshModal({ productIds, onClose, onSaved }: {
   };
   const selectField = (field: ProductSourceField) => setSelection(previous => {
     const next = { ...previous };
-    for (const snapshot of snapshots) if (canSelect(snapshot, field)) next[snapshot.id] = Array.from(new Set([...(next[snapshot.id] ?? []), field]));
+    for (const snapshot of snapshots) if (canSelect(snapshot, field, now)) next[snapshot.id] = Array.from(new Set([...(next[snapshot.id] ?? []), field]));
     return next;
   });
   const saved = () => {

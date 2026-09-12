@@ -15,7 +15,8 @@ export function ProductPublicationInputs({ productId, market, initialContext, di
   const [previousId, setPreviousId] = useState<string | undefined>();
   const [notice, setNotice] = useState<string | null>(null);
   const pendingPrefill = useRef<PublicationInputContext | null>(initialContext ?? null);
-  const callback = useRef(onChange); callback.current = onChange;
+  const callback = useRef(onChange);
+  useEffect(() => { callback.current = onChange; }, [onChange]);
   const metadata = useQuery({ queryKey: ['publication-inputs', productId, market, queryCategory], enabled: market === 'COUPANG', retry: false, refetchOnWindowFocus: false,
     queryFn: async ({ signal }) => (await productPublicationInputsApi.get(productId, market, queryCategory, signal)).data });
   const schema = metadata.data?.schema;

@@ -1,8 +1,15 @@
+/* React Compiler reports a false positive for the Ant Design address Select render below. */
+/* eslint-disable react-hooks/refs */
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, Button, Collapse, Input, Modal, Select, Tag } from 'antd';
-import { elevenstPublicationInputsApi, type ElevenstPublicationContext, type ElevenstPublicationReview } from '../../api/elevenstPublicationInputsApi';
+import { elevenstPublicationInputsApi, type ElevenstPublicationContext, type ElevenstPublicationReview, type ElevenstPublicationSchema } from '../../api/elevenstPublicationInputsApi';
 import './productPublicationInputs.css';
+
+function addressOptions(addresses: ElevenstPublicationSchema['addresses'], field: string) {
+  const values = field === 'addrSeqOut' ? addresses.addrSeqOut : addresses.addrSeqIn;
+  return values.map(address => ({ value: address.code, label: `${address.label} · ${address.address} (코드 ${address.code})` }));
+}
 
 export function ElevenstPublicationInputs({ productId, onClose }: { productId: number; onClose: () => void }) {
   const metadata = useQuery({ queryKey: ['elevenst-publication-inputs', productId], retry: false, refetchOnWindowFocus: false,
@@ -17,7 +24,7 @@ export function ElevenstPublicationInputs({ productId, onClose }: { productId: n
   const [importText, setImportText] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const inputVersion = useRef(0);
-  useEffect(() => { inputVersion.current++; setReview(null); }, [schema]);
+  useEffect(() => { inputVersion.current++; }, [schema]);
   const invalidate = () => { inputVersion.current++; setReview(null); setError(null); };
   const update = (key: string, value: string | undefined) => { invalidate(); setValues(old => { const next = { ...old }; if (value) next[key] = value; else delete next[key]; return next; }); };
   const context = (): ElevenstPublicationContext => ({ categoryId: category, categoryPath: null, salePrice: null, keywords: [], noticeFields: notices, extraFields: { elevenst: values } });
@@ -80,7 +87,7 @@ export function ElevenstPublicationInputs({ productId, onClose }: { productId: n
           </div>
           <Collapse defaultActiveKey={['판매자·판매 설정', '배송·반품']} items={[...new Set(schema.fields.map(f => f.section))].filter(section => schema.fields.some(f => f.section === section && visible(f.name))).map(section => ({ key: section, label: section, children: <div className="ppi-fields">
             {schema.fields.filter(f => f.section === section && visible(f.name)).map(field => <label key={field.name} className="ppi-field"><span>{field.label}</span>
-              {field.name === 'addrSeqOut' || field.name === 'addrSeqIn' ? <Select aria-label={`11번가 ${field.label}`} disabled={!enabled} value={values[field.name]} placeholder="현재 계정 주소에서 선택" options={schema.addresses[field.name].map(a => ({ value: a.code, label: `${a.label} · ${a.address} (코드 ${a.code})` }))} onChange={v => update(field.name, v)} />
+              {field.name === 'addrSeqOut' || field.name === 'addrSeqIn' ? <Select aria-label={`11번가 ${field.label}`} disabled={!enabled} value={values[field.name]} placeholder="현재 계정 주소에서 선택" options={addressOptions(schema.addresses, field.name)} onChange={v => update(field.name, v)} />
                 : field.options.length ? <Select aria-label={`11번가 ${field.label}`} disabled={!enabled} value={values[field.name]} allowClear placeholder="직접 선택" options={field.options} onChange={v => update(field.name, v)} />
                   : <Input.TextArea aria-label={`11번가 ${field.label}`} value={values[field.name] ?? ''} autoSize={{ minRows: 1, maxRows: 3 }} maxLength={4000} onChange={e => update(field.name, e.target.value)} />}
               {field.description && <details><summary>입력 조건</summary><small style={{ whiteSpace: 'pre-wrap' }}>{field.description}</small></details>}

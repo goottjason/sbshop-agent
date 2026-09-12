@@ -6,6 +6,11 @@ import { AxiosError } from 'axios';
 import { apiClient } from '../src/api/axios';
 import BatchUpdatePage from '../src/pages/BatchUpdatePage';
 import type { SupplierBatchCreate, SupplierBatchItem, SupplierBatchRetry, SupplierBatchRun, SupplierBatchStage } from '../src/api/supplierBatchApi';
+
+declare global {
+  interface Window { __batchCapture?: string; }
+}
+
 const checks: string[] = [];
 const calls: { method: string; url: string; params?: unknown; body?: unknown }[] = [];
 let optionsFail = true, createLost = true, retryLost = true, itemFailure = false, pausedPoll = false, retryOptionsFail = true;
@@ -28,8 +33,8 @@ const item = (id: number): SupplierBatchItem => ({ id, productId: id, sbCode: id
   stage(id * 10 + 9, { market: 'CAFE24', field: 'STOCK', state: 'WAITING', expected: '300', observed: null, detail: '전송 대기 · 아직 확인되지 않았습니다.' }),
 ] });
 const products = [item(1), item(2)];
-function response(config: any, data: unknown) { return { config, data, status: 200, statusText: 'OK', headers: {} }; }
-function failure(config: any, status?: number) { return new AxiosError('Fixture response failure', status ? 'ERR_BAD_RESPONSE' : 'ERR_NETWORK', config, undefined, status ? { config, data: { message: status === 409 ? '동일 소싱처 배치가 진행 중입니다.' : '조회 실패' }, status, statusText: 'Fixture', headers: {} } : undefined); }
+function response(config: AxiosError['config'], data: unknown) { return { config, data, status: 200, statusText: 'OK', headers: {} }; }
+function failure(config: AxiosError['config'], status?: number) { return new AxiosError('Fixture response failure', status ? 'ERR_BAD_RESPONSE' : 'ERR_NETWORK', config, undefined, status ? { config, data: { message: status === 409 ? '동일 소싱처 배치가 진행 중입니다.' : '조회 실패' }, status, statusText: 'Fixture', headers: {} } : undefined); }
 apiClient.defaults.adapter = async config => {
   const url = config.url!, method = config.method!;
   const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
@@ -116,11 +121,11 @@ void (async () => {
     if (button('41개 업데이트 시작').disabled || content('직전 시작 요청 확인이 필요합니다.')) throw new Error('409 locks form');
     checks.push('명시409 미접수는 입력 복귀·기존 실행 안내'); document.querySelector<HTMLButtonElement>('.sb-batch-start .ant-alert-close-icon')!.click(); button('실행 조건 접기').click();
     await choose('배치 상품 결과 필터', '실패만');
-    await wait(() => calls.some(c => c.url.endsWith('/items') && (c.params as any)?.filter === 'FAILED') && !content('SB-FIXTURE-002'), 'server failure filter');
+    await wait(() => calls.some(c => c.url.endsWith('/items') && (c.params as Record<string, unknown> | undefined)?.filter === 'FAILED') && !content('SB-FIXTURE-002'), 'server failure filter');
     checks.push('실패 전용 서버 필터 사용·전체 DB 페이지 일관성');
     await choose('배치 상품 결과 필터', '전체 상품'); await wait(() => content('SB-FIXTURE-002'), 'restore rows');
     document.querySelector<HTMLElement>('.sb-batch-run-panel .ant-pagination-item-2')!.click(); await wait(() => content('SB-PAGE2-021'), 'second server page');
-    if (!calls.some(c => c.url.endsWith('/items') && (c.params as any)?.page === 1 && (c.params as any)?.size === 20)) throw new Error('Local-only page');
+    if (!calls.some(c => c.url.endsWith('/items') && (c.params as Record<string, unknown> | undefined)?.page === 1 && (c.params as Record<string, unknown> | undefined)?.size === 20)) throw new Error('Local-only page');
     document.querySelector<HTMLElement>('.sb-batch-run-panel .ant-pagination-item-1')!.click(); await wait(() => content('SB-FIXTURE-001'), 'first page');
     checks.push('상품행 서버 페이지 전환·최초20행');
     const firstIssueCell = document.querySelector('.sb-batch-issues')!; if (firstIssueCell.querySelectorAll(':scope > div').length !== 1) throw new Error('All issues expanded in row'); button('외 1개 문제', firstIssueCell).click(); await wait(() => !!document.querySelector('.ant-drawer-open') && !!document.querySelector('.ant-drawer-open')?.textContent?.includes('판매금지 상품'), 'additional issue detail'); closeDrawer(); await pause(); checks.push('복수 오류는 첫 사유·추가 문제 수로 압축하고 drawer에서 모든 사유 확인');
@@ -166,7 +171,7 @@ void (async () => {
     document.querySelector<HTMLElement>('.sb-batch-legacy-section summary')!.click();
     checks.push('과거 배치 읽기만 분리·운영 데이터 및 외부 마켓 호출 없음');
     document.querySelector<HTMLButtonElement>('.sb-batch-run-panel .ant-alert-close-icon')?.click();
-    if ((window as any).__batchCapture === 'drawer') { document.querySelector<HTMLButtonElement>('[aria-label="SB-FIXTURE-001 쿠팡 판매가 상세"]')!.click(); await wait(() => !!document.querySelector('.ant-drawer-open .sb-batch-values'), 'final drawer'); }
+    if (window.__batchCapture === 'drawer') { document.querySelector<HTMLButtonElement>('[aria-label="SB-FIXTURE-001 쿠팡 판매가 상세"]')!.click(); await wait(() => !!document.querySelector('.ant-drawer-open .sb-batch-values'), 'final drawer'); }
     window.scrollTo(0, 0);
     document.body.dataset.browserChecks = 'passed';
   } catch (error) { checks.push(String(error)); document.body.dataset.browserChecks = 'failed'; }

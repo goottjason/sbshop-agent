@@ -30,6 +30,7 @@ export function ProductFieldSyncModal({ productIds, onClose }: { productIds: num
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uncertain, setUncertain] = useState<{ id: string; acceptApproval: boolean } | null>(null);
+  const [now] = useState(() => Date.now());
   const recent = useQuery({ queryKey: ['field-sync-recent'], queryFn: async ({ signal }) => (await marketFieldSyncApi.recent(signal)).data, retry: false });
   const current = useQuery({ queryKey: ['field-sync-review', watchId], enabled: !!watchId, retry: false,
     queryFn: async ({ signal }) => (await marketFieldSyncApi.get(watchId!, signal)).data,
@@ -37,7 +38,11 @@ export function ProductFieldSyncModal({ productIds, onClose }: { productIds: num
   const history = useQuery({ queryKey: ['field-sync-history', historyItem?.id], enabled: !!historyItem?.id, retry: false,
     queryFn: async ({ signal }) => (await marketFieldSyncApi.history(historyItem!.id!, signal)).data });
   const shown = current.isError ? undefined : current.data;
-  useEffect(() => { if (current.data?.committed && uncertain?.id === current.data.id) { setUncertain(null); setError(null); } }, [current.data, uncertain]);
+  useEffect(() => {
+    if (!current.data?.committed || uncertain?.id !== current.data.id) return;
+    const timer = window.setTimeout(() => { setUncertain(null); setError(null); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [current.data, uncertain]);
   const install = (value: FieldSyncReview) => { queryClient.setQueryData(['field-sync-review', value.id], value); setWatchId(value.id); };
   const preview = async (ids = productIds, targetMarkets = selectedMarkets, targetFields = selectedFields) => {
     const externalFields = targetFields.filter(field => field !== 'sourceImages');
@@ -55,7 +60,7 @@ export function ProductFieldSyncModal({ productIds, onClose }: { productIds: num
   };
   const drafts = shown?.items.filter(item => item.state === 'DRAFT') ?? [];
   const approvalNeeded = drafts.some(item => item.requiresApproval);
-  const expired = !!shown && Date.parse(shown.expiresAt) <= Date.now();
+  const expired = !!shown && Date.parse(shown.expiresAt) <= now;
   const reset = () => { setWatchId(null); setAcceptApproval(false); setError(null); setUncertain(null); setHistoryItem(null); };
   return <Modal open title="상품 필드 마켓 반영" width={1240} footer={null} onCancel={() => { if (!busy) onClose(); }} maskClosable={!busy} closable={!busy} className="pfs-modal">
     <Alert type="info" showIcon message="DB에 저장된 값 → 마켓별 전송값 검토 → 반영 접수 → 실제 값·심사 결과 재조회"

@@ -6,7 +6,7 @@ import { apiClient } from '../src/api/axios';
 import type { ProductSourceSnapshot } from '../src/api/productSourceApi';
 import { ProductSourceRefreshModal } from '../src/pages/product/ProductSourceRefreshModal';
 
-const calls: { url: string; data: any }[] = [];
+const calls: { url: string; data: unknown }[] = [];
 const now = new Date().toISOString(); const later = new Date(Date.now() + 3600000).toISOString();
 const snapshots: ProductSourceSnapshot[] = [1, 2, 3, 4].map(id => ({ id: `s-${id}`, productId: id, sbCode: `SB-${id}`,
   revision: 7, sourceUrl: null, vendor: 'IHB', state: 'READY', reason: '수집 완료 · DB 저장 전', requestedAt: now,

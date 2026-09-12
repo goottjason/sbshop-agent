@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Table, Tag, Typography, Space, Button, Segmented, Tooltip } from 'antd';
+import { Table, Tag, Typography, Space, Button, Segmented, Tooltip, Modal } from 'antd';
 import { batchApi } from '../../api/batchApi';
 import { marketLabel } from '../../utils/marketLabels';
 
@@ -66,6 +66,28 @@ function headline(message: string): string {
   return cut >= 0 ? message.slice(0, cut) : message;
 }
 
+export function ProcessStatusDetail({ row, open, onClose }: {
+  row: ProcessStatusItem | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!row) return null;
+  let details = row.details;
+  try {
+    details = row.details ? JSON.stringify(JSON.parse(row.details), null, 2) : null;
+  } catch {
+    // Keep legacy free-form details unchanged.
+  }
+  return <Modal title={`${row.productCode} 처리 상세`} open={open} onCancel={onClose} footer={null} width={720}>
+    <Typography.Text strong>처리 상태</Typography.Text>
+    <p className="sb-batch-wrap">{row.processStatus}</p>
+    <Typography.Text strong>전체 메시지</Typography.Text>
+    <p className="sb-batch-wrap">{row.message || '저장된 설명 없음'}</p>
+    <Typography.Text strong>상세 원문</Typography.Text>
+    {details ? <pre className="sb-batch-detail-raw">{details}</pre> : <p>저장된 상세 원문이 없습니다.</p>}
+  </Modal>;
+}
+
 interface Props {
   batchId: string;
   polling?: boolean;
@@ -78,6 +100,7 @@ const POLL_MS = 2000;
 
 const BatchResultTable = ({ batchId, polling = false, onRetry, retryLabel, retryLoading }: Props) => {
   const [filter, setFilter] = useState<'problem' | 'all'>('problem');
+  const [selected, setSelected] = useState<ProcessStatusItem | null>(null);
 
   const { data: rows = [], isFetching } = useQuery<ProcessStatusItem[]>({
     queryKey: ['batch-result-rows', batchId],
@@ -158,6 +181,9 @@ const BatchResultTable = ({ batchId, polling = false, onRetry, retryLabel, retry
                 {d.skipped.length > 0 && ` · 변경없음: ${d.skipped.map(marketLabel).join(', ')}`}
               </Typography.Text>
             )}
+            <Button type="link" size="small" onClick={() => setSelected(row)} style={{ padding: 0, alignSelf: 'flex-start' }}>
+              상세 사유 보기
+            </Button>
           </Space>
         );
       },
@@ -197,6 +223,7 @@ const BatchResultTable = ({ batchId, polling = false, onRetry, retryLabel, retry
         pagination={visible.length > 20 ? { pageSize: 20, size: 'small' } : false}
         locale={{ emptyText: filter === 'problem' ? '문제 없이 끝났습니다' : '결과 없음' }}
       />
+      <ProcessStatusDetail row={selected} open={!!selected} onClose={() => setSelected(null)} />
     </Space>
   );
 };

@@ -8,7 +8,7 @@ import ProductGrid from '../src/pages/product/ProductGrid';
 
 const ago = (days: number) => new Date(Date.now() - days * 86400000).toISOString();
 const now = ago(0);
-const calls: { url: string; method: string; body: any; params: any }[] = [];
+const calls: { url: string; method: string; body: unknown; params: unknown }[] = [];
 const checks: string[] = [];
 let commitLost = true;
 let readLost = true;
