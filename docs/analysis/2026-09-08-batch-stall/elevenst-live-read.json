@@ -1,0 +1,273 @@
+{
+  "externalWritesByThisReadProbe": 0,
+  "products": [
+    {
+      "sb": "200908WA003",
+      "listing": "3252754784",
+      "price": 52400.0,
+      "observations": [
+        {
+          "http": 200,
+          "stockEndpoint": false,
+          "fields": [
+            {
+              "tag": "prdNo",
+              "value": "3252754784"
+            },
+            {
+              "tag": "selPrc",
+              "value": "52400"
+            },
+            {
+              "tag": "sellerPrdCd",
+              "value": "200908WA003"
+            },
+            {
+              "tag": "selStatCd",
+              "value": "103"
+            },
+            {
+              "tag": "prdStckQty",
+              "value": "0"
+            },
+            {
+              "tag": "nResult",
+              "value": "0"
+            }
+          ]
+        },
+        {
+          "http": 200,
+          "stockEndpoint": true,
+          "fields": [
+            {
+              "tag": "prdNo",
+              "value": "3252754784"
+            },
+            {
+              "tag": "prdStckNo",
+              "value": "12344146939"
+            },
+            {
+              "tag": "prdStckStatCd",
+              "value": "01"
+            },
+            {
+              "tag": "stckQty",
+              "value": "300"
+            },
+            {
+              "tag": "{http://skt.tmall.business.openapi.spring.service.client.domain/}prdNo",
+              "value": "3252754784"
+            },
+            {
+              "tag": "{http://skt.tmall.business.openapi.spring.service.client.domain/}sellerPrdCd",
+              "value": "200908WA003"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "sb": "200908WA005",
+      "listing": "3252754788",
+      "price": 59400.0,
+      "observations": [
+        {
+          "http": 200,
+          "stockEndpoint": false,
+          "fields": [
+            {
+              "tag": "prdNo",
+              "value": "3252754788"
+            },
+            {
+              "tag": "selPrc",
+              "value": "59400"
+            },
+            {
+              "tag": "sellerPrdCd",
+              "value": "200908WA005"
+            },
+            {
+              "tag": "selStatCd",
+              "value": "103"
+            },
+            {
+              "tag": "prdStckQty",
+              "value": "0"
+            },
+            {
+              "tag": "nResult",
+              "value": "0"
+            }
+          ]
+        },
+        {
+          "http": 200,
+          "stockEndpoint": true,
+          "fields": [
+            {
+              "tag": "prdNo",
+              "value": "3252754788"
+            },
+            {
+              "tag": "prdStckNo",
+              "value": "12344146944"
+            },
+            {
+              "tag": "prdStckStatCd",
+              "value": "01"
+            },
+            {
+              "tag": "stckQty",
+              "value": "300"
+            },
+            {
+              "tag": "{http://skt.tmall.business.openapi.spring.service.client.domain/}prdNo",
+              "value": "3252754788"
+            },
+            {
+              "tag": "{http://skt.tmall.business.openapi.spring.service.client.domain/}sellerPrdCd",
+              "value": "200908WA005"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "sb": "200908WA006",
+      "listing": "3252754829",
+      "price": 51500.0,
+      "observations": [
+        {
+          "http": 200,
+          "stockEndpoint": false,
+          "fields": [
+            {
+              "tag": "prdNo",
+              "value": "3252754829"
+            },
+            {
+              "tag": "selPrc",
+              "value": "51500"
+            },
+            {
+              "tag": "sellerPrdCd",
+              "value": "200908WA006"
+            },
+            {
+              "tag": "selStatCd",
+              "value": "103"
+            },
+            {
+              "tag": "prdStckQty",
+              "value": "0"
+            },
+            {
+              "tag": "nResult",
+              "value": "0"
+            }
+          ]
+        },
+        {
+          "http": 200,
+          "stockEndpoint": true,
+          "fields": [
+            {
+              "tag": "prdNo",
+              "value": "3252754829"
+            },
+            {
+              "tag": "prdStckNo",
+              "value": "12344147024"
+            },
+            {
+              "tag": "prdStckStatCd",
+              "value": "01"
+            },
+            {
+              "tag": "stckQty",
+              "value": "300"
+            },
+            {
+              "tag": "{http://skt.tmall.business.openapi.spring.service.client.domain/}prdNo",
+              "value": "3252754829"
+            },
+            {
+              "tag": "{http://skt.tmall.business.openapi.spring.service.client.domain/}sellerPrdCd",
+              "value": "200908WA006"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "sb": "200908WA007",
+      "listing": "3252754835",
+      "price": 50600.0,
+      "observations": [
+        {
+          "http": 200,
+          "stockEndpoint": false,
+          "fields": [
+            {
+              "tag": "prdNo",
+              "value": "3252754835"
+            },
+            {
+              "tag": "selPrc",
+              "value": "50600"
+            },
+            {
+              "tag": "sellerPrdCd",
+              "value": "200908WA007"
+            },
+            {
+              "tag": "selStatCd",
+              "value": "103"
+            },
+            {
+              "tag": "prdStckQty",
+              "value": "0"
+            },
+            {
+              "tag": "nResult",
+              "value": "0"
+            }
+          ]
+        },
+        {
+          "http": 200,
+          "stockEndpoint": true,
+          "fields": [
+            {
+              "tag": "prdNo",
+              "value": "3252754835"
+            },
+            {
+              "tag": "prdStckNo",
+              "value": "12344147036"
+            },
+            {
+              "tag": "prdStckStatCd",
+              "value": "01"
+            },
+            {
+              "tag": "stckQty",
+              "value": "300"
+            },
+            {
+              "tag": "{http://skt.tmall.business.openapi.spring.service.client.domain/}prdNo",
+              "value": "3252754835"
+            },
+            {
+              "tag": "{http://skt.tmall.business.openapi.spring.service.client.domain/}sellerPrdCd",
+              "value": "200908WA007"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

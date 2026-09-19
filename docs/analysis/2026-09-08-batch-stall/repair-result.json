@@ -1,0 +1,316 @@
+{
+  "release": "e38af7ffe4d299dfc8eb1f31d94fa42a73baae5a",
+  "deploymentRun": 34232282094,
+  "backup": "/home/ubuntu/backups/sbshop-batch-stall-repair-20260908",
+  "api": {
+    "now": "2026-09-08T13:32:41.285988+00:00",
+    "run": {
+      "id": "99c7a7a1-3d25-4565-a790-d65fa8cc3b54",
+      "vendor": "IHB",
+      "mode": "PRICE_STOCK",
+      "actor": "admin",
+      "state": "RUNNING",
+      "createdAt": "2026-09-08T05:54:13.753867Z",
+      "updatedAt": "2026-09-08T13:32:40.877789Z",
+      "finishedAt": null,
+      "policy": {
+        "marginRate": 1,
+        "couponRate": 10,
+        "minMarginPrice": 500
+      },
+      "markets": [
+        "COUPANG",
+        "SMART_STORE",
+        "ELEVEN_STREET",
+        "CAFE24"
+      ],
+      "total": 2114,
+      "processed": 328,
+      "succeeded": 1,
+      "failed": 310,
+      "blocked": 14,
+      "pending": 1786,
+      "inFlight": 1,
+      "nextRunAt": "2026-09-08T09:43:16.844795Z",
+      "dbOnly": 3,
+      "stageProgress": {
+        "DB_SKIPPED": 309,
+        "MARKET_SKIPPED": 6839,
+        "CRAWL_SUCCEEDED": 1805,
+        "DB_BLOCKED": 1,
+        "MARKET_WAITING": 1730,
+        "MARKET_FAILED": 1,
+        "MARKET_RUNNING": 10350,
+        "MARKET_SUCCEEDED": 71,
+        "CRAWL_FAILED": 309,
+        "DB_SUCCEEDED": 1804,
+        "MARKET_BLOCKED": 316
+      }
+    },
+    "dbOnlyRows": [
+      {
+        "sb": "251001IHB001",
+        "state": "SKIPPED",
+        "detail": "SB 저장 완료 · 마켓 대상 없음"
+      },
+      {
+        "sb": "251101IHB001",
+        "state": "SKIPPED",
+        "detail": "SB 저장 완료 · 마켓 대상 없음"
+      },
+      {
+        "sb": "251123IHB001",
+        "state": "SKIPPED",
+        "detail": "SB 저장 완료 · 마켓 대상 없음"
+      }
+    ]
+  },
+  "laterObservation": {
+    "now": "2026-09-08T13:33:24.472332+00:00",
+    "items": [
+      {
+        "state": "FAILED",
+        "count": 310
+      },
+      {
+        "state": "RUNNING",
+        "count": 1779
+      },
+      {
+        "state": "SUCCEEDED",
+        "count": 4
+      },
+      {
+        "state": "BLOCKED",
+        "count": 21
+      }
+    ],
+    "price": [
+      {
+        "market": "CAFE24",
+        "state": "BLOCKED",
+        "count": 77,
+        "writes": 0,
+        "reads": 77,
+        "checked": "2026-09-08T13:33:18.266996+00:00"
+      },
+      {
+        "market": "CAFE24",
+        "state": "CHECK",
+        "count": 354,
+        "writes": 0,
+        "reads": 1,
+        "checked": null
+      },
+      {
+        "market": "CAFE24",
+        "state": "CONFIRMED_PRICE",
+        "count": 6,
+        "writes": 8,
+        "reads": 14,
+        "checked": "2026-09-08T13:32:40.095606+00:00"
+      },
+      {
+        "market": "COUPANG",
+        "state": "BLOCKED",
+        "count": 67,
+        "writes": 0,
+        "reads": 67,
+        "checked": "2026-09-08T13:31:19.431266+00:00"
+      },
+      {
+        "market": "COUPANG",
+        "state": "CHECK",
+        "count": 69,
+        "writes": 0,
+        "reads": 1,
+        "checked": null
+      },
+      {
+        "market": "ELEVEN_STREET",
+        "state": "CHECK",
+        "count": 368,
+        "writes": 0,
+        "reads": 0,
+        "checked": null
+      },
+      {
+        "market": "ELEVEN_STREET",
+        "state": "CONFIRMED_PRICE",
+        "count": 22,
+        "writes": 22,
+        "reads": 44,
+        "checked": "2026-09-08T13:33:18.352071+00:00"
+      },
+      {
+        "market": "ELEVEN_STREET",
+        "state": "VERIFY",
+        "count": 44,
+        "writes": 39,
+        "reads": 45,
+        "checked": "2026-09-08T13:31:21.716975+00:00"
+      },
+      {
+        "market": "SMART_STORE",
+        "state": "BLOCKED",
+        "count": 21,
+        "writes": 0,
+        "reads": 21,
+        "checked": "2026-09-08T13:30:43.676691+00:00"
+      },
+      {
+        "market": "SMART_STORE",
+        "state": "CHECK",
+        "count": 368,
+        "writes": 0,
+        "reads": 0,
+        "checked": null
+      },
+      {
+        "market": "SMART_STORE",
+        "state": "CONFIRMED_PRICE",
+        "count": 21,
+        "writes": 21,
+        "reads": 42,
+        "checked": "2026-09-08T13:33:22.542151+00:00"
+      },
+      {
+        "market": "SMART_STORE",
+        "state": "VERIFY",
+        "count": 29,
+        "writes": 29,
+        "reads": 29,
+        "checked": "2026-09-08T13:31:23.715104+00:00"
+      }
+    ],
+    "priceUncommitted": 4077,
+    "stock": [
+      {
+        "market": "CAFE24",
+        "state": "BLOCKED",
+        "count": 77,
+        "writes": 0,
+        "reads": 77,
+        "checked": null
+      },
+      {
+        "market": "CAFE24",
+        "state": "CHECK",
+        "count": 354,
+        "writes": 0,
+        "reads": 0,
+        "checked": null
+      },
+      {
+        "market": "CAFE24",
+        "state": "CONFIRMED_QUANTITY",
+        "count": 6,
+        "writes": 8,
+        "reads": 14,
+        "checked": "2026-09-08T13:32:37.043185+00:00"
+      },
+      {
+        "market": "COUPANG",
+        "state": "BLOCKED",
+        "count": 66,
+        "writes": 0,
+        "reads": 66,
+        "checked": "2026-09-08T13:31:22.768839+00:00"
+      },
+      {
+        "market": "COUPANG",
+        "state": "CHECK",
+        "count": 68,
+        "writes": 0,
+        "reads": 0,
+        "checked": null
+      },
+      {
+        "market": "COUPANG",
+        "state": "UNKNOWN",
+        "count": 1,
+        "writes": 0,
+        "reads": 9,
+        "checked": null
+      },
+      {
+        "market": "COUPANG",
+        "state": "VERIFY",
+        "count": 1,
+        "writes": 0,
+        "reads": 2,
+        "checked": null
+      },
+      {
+        "market": "ELEVEN_STREET",
+        "state": "CHECK",
+        "count": 366,
+        "writes": 0,
+        "reads": 0,
+        "checked": null
+      },
+      {
+        "market": "ELEVEN_STREET",
+        "state": "CONFIRMED_QUANTITY",
+        "count": 23,
+        "writes": 21,
+        "reads": 44,
+        "checked": "2026-09-08T13:33:21.58895+00:00"
+      },
+      {
+        "market": "ELEVEN_STREET",
+        "state": "VERIFY",
+        "count": 44,
+        "writes": 40,
+        "reads": 46,
+        "checked": "2026-09-08T13:32:11.040595+00:00"
+      },
+      {
+        "market": "SMART_STORE",
+        "state": "BLOCKED",
+        "count": 21,
+        "writes": 0,
+        "reads": 21,
+        "checked": "2026-09-08T13:30:40.572134+00:00"
+      },
+      {
+        "market": "SMART_STORE",
+        "state": "CHECK",
+        "count": 368,
+        "writes": 0,
+        "reads": 0,
+        "checked": null
+      },
+      {
+        "market": "SMART_STORE",
+        "state": "CONFIRMED_QUANTITY",
+        "count": 20,
+        "writes": 19,
+        "reads": 39,
+        "checked": "2026-09-08T13:33:19.388634+00:00"
+      },
+      {
+        "market": "SMART_STORE",
+        "state": "VERIFY",
+        "count": 30,
+        "writes": 30,
+        "reads": 30,
+        "checked": "2026-09-08T13:31:20.479248+00:00"
+      }
+    ],
+    "stockUncommitted": 4078,
+    "sourceCollections": 2114,
+    "saved": 1804
+  },
+  "browser": {
+    "status": "passed",
+    "progressSummary": true,
+    "writesByBrowserProbe": 0
+  },
+  "tests": {
+    "fullRegression": 3207,
+    "additionalPriorityRegression": 70,
+    "postgresBatchRecovery": "passed",
+    "localBrowserFlows": 18
+  }
+}

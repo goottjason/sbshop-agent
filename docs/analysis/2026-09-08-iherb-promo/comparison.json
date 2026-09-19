@@ -1,0 +1,584 @@
+{
+  "acquisition": "Live Chrome saved original catalog JSON; ordinary local/server HTTP returned 403. No cart or coupon application was performed.",
+  "scope": "Six current JSON responses; eligibility labels supplied by user. Specific coupon code/time not yet supplied.",
+  "comparisonPathCount": 230,
+  "constantGroupDifferences": [
+    {
+      "path": "$.averageRating",
+      "eligibleValue": 4.7,
+      "ineligibleValue": 4.8,
+      "candidate": false
+    },
+    {
+      "path": "$.discountDisplayType",
+      "eligibleValue": 3,
+      "ineligibleValue": 0,
+      "candidate": true
+    },
+    {
+      "path": "$.discountType",
+      "eligibleValue": 8,
+      "ineligibleValue": 0,
+      "candidate": true
+    }
+  ],
+  "rows": [
+    {
+      "sbCode": "231113IHB093",
+      "iherbProductId": "65366",
+      "userLabeledEligibility": "가능",
+      "catalogUrl": "https://catalog.app.iherb.com/product/65366",
+      "sourceProductUrl": "https://kr.iherb.com/pr/jovial-gluten-free-spaghetti-12-oz-340-g/65366",
+      "savedAt": "2026-09-08T05:26:47.178036+00:00",
+      "sourceSha256": "26076750cf1e70ede4050e4e779be5e09fe58cbfc1bad0637bdb49ab31a02b18",
+      "topLevelFieldCount": 120,
+      "fields": {
+        "brandCode": {
+          "presence": "present",
+          "value": "JOV"
+        },
+        "brandName": {
+          "presence": "present",
+          "value": "Jovial (조비알)"
+        },
+        "discountType": {
+          "presence": "present",
+          "value": 8
+        },
+        "discountDisplayType": {
+          "presence": "present",
+          "value": 3
+        },
+        "promotion.promotionExcluded": {
+          "presence": "present",
+          "value": false
+        },
+        "promoBanner": {
+          "presence": "present",
+          "value": null
+        },
+        "salesDiscountPercentage": {
+          "presence": "present",
+          "value": 0.0
+        },
+        "isInCartDiscount": {
+          "presence": "present",
+          "value": false
+        },
+        "enabledDiscountBanner": {
+          "presence": "present",
+          "value": true
+        },
+        "enabledDiscountForPreviouslyPurchased": {
+          "presence": "present",
+          "value": true
+        },
+        "flag": {
+          "presence": "present",
+          "value": []
+        },
+        "restrictedCountries": {
+          "presence": "present",
+          "value": []
+        },
+        "inStockInExcludedWarehouses": {
+          "presence": "present",
+          "value": false
+        },
+        "specialDealInfo": {
+          "presence": "present",
+          "value": null
+        },
+        "trialDiscountInfo": {
+          "presence": "present",
+          "value": null
+        },
+        "isExcludedFromPromo": {
+          "presence": "missing"
+        },
+        "discountEligible": {
+          "presence": "missing"
+        },
+        "tags": {
+          "presence": "missing"
+        },
+        "badges": {
+          "presence": "missing"
+        },
+        "flags": {
+          "presence": "missing"
+        },
+        "couponDiscountPercentage": {
+          "presence": "missing"
+        }
+      }
+    },
+    {
+      "sbCode": "210116IHB034",
+      "iherbProductId": "43592",
+      "userLabeledEligibility": "가능",
+      "catalogUrl": "https://catalog.app.iherb.com/product/43592",
+      "sourceProductUrl": "https://kr.iherb.com/pr/doctor-s-best-fisetin-100-mg-30-veggie-caps/43592",
+      "savedAt": "2026-09-08T05:25:30.958675+00:00",
+      "sourceSha256": "20bb197f17c3ad4b147f1ee469a0d56e60ec62c880ea19c96441f5d61093696f",
+      "topLevelFieldCount": 120,
+      "fields": {
+        "brandCode": {
+          "presence": "present",
+          "value": "DRB"
+        },
+        "brandName": {
+          "presence": "present",
+          "value": "Doctor's Best (닥터스베스트)"
+        },
+        "discountType": {
+          "presence": "present",
+          "value": 8
+        },
+        "discountDisplayType": {
+          "presence": "present",
+          "value": 3
+        },
+        "promotion.promotionExcluded": {
+          "presence": "present",
+          "value": false
+        },
+        "promoBanner": {
+          "presence": "present",
+          "value": null
+        },
+        "salesDiscountPercentage": {
+          "presence": "present",
+          "value": 0.0
+        },
+        "isInCartDiscount": {
+          "presence": "present",
+          "value": false
+        },
+        "enabledDiscountBanner": {
+          "presence": "present",
+          "value": true
+        },
+        "enabledDiscountForPreviouslyPurchased": {
+          "presence": "present",
+          "value": true
+        },
+        "flag": {
+          "presence": "present",
+          "value": []
+        },
+        "restrictedCountries": {
+          "presence": "present",
+          "value": []
+        },
+        "inStockInExcludedWarehouses": {
+          "presence": "present",
+          "value": false
+        },
+        "specialDealInfo": {
+          "presence": "present",
+          "value": null
+        },
+        "trialDiscountInfo": {
+          "presence": "present",
+          "value": null
+        },
+        "isExcludedFromPromo": {
+          "presence": "missing"
+        },
+        "discountEligible": {
+          "presence": "missing"
+        },
+        "tags": {
+          "presence": "missing"
+        },
+        "badges": {
+          "presence": "missing"
+        },
+        "flags": {
+          "presence": "missing"
+        },
+        "couponDiscountPercentage": {
+          "presence": "missing"
+        }
+      }
+    },
+    {
+      "sbCode": "220708IHB023",
+      "iherbProductId": "71684",
+      "userLabeledEligibility": "가능",
+      "catalogUrl": "https://catalog.app.iherb.com/product/71684",
+      "sourceProductUrl": "https://kr.iherb.com/pr/california-gold-nutrition-astaxanthin-astalif-pure-icelandic-12-mg-120-veggie-softgels/71684",
+      "savedAt": "2026-09-08T05:26:47.299243+00:00",
+      "sourceSha256": "065032c47b7a717ec890cf7b14d1a19af5af5082220fd8b08adf5b28d5cb4ee6",
+      "topLevelFieldCount": 120,
+      "fields": {
+        "brandCode": {
+          "presence": "present",
+          "value": "CGN"
+        },
+        "brandName": {
+          "presence": "present",
+          "value": "California Gold Nutrition (캘리포니아골드뉴트리션)"
+        },
+        "discountType": {
+          "presence": "present",
+          "value": 8
+        },
+        "discountDisplayType": {
+          "presence": "present",
+          "value": 3
+        },
+        "promotion.promotionExcluded": {
+          "presence": "present",
+          "value": false
+        },
+        "promoBanner": {
+          "presence": "present",
+          "value": null
+        },
+        "salesDiscountPercentage": {
+          "presence": "present",
+          "value": 0.0
+        },
+        "isInCartDiscount": {
+          "presence": "present",
+          "value": false
+        },
+        "enabledDiscountBanner": {
+          "presence": "present",
+          "value": true
+        },
+        "enabledDiscountForPreviouslyPurchased": {
+          "presence": "present",
+          "value": true
+        },
+        "flag": {
+          "presence": "present",
+          "value": [
+            {
+              "displayName": "아이허브 브랜드",
+              "flag": 16,
+              "flagColor": "#B7E6FF",
+              "fontColor": "#000",
+              "url": "/iherb-brands"
+            },
+            {
+              "displayName": "iTested",
+              "flag": 256,
+              "flagColor": "#47A141",
+              "fontColor": "#000",
+              "url": "/c/itested"
+            }
+          ]
+        },
+        "restrictedCountries": {
+          "presence": "present",
+          "value": []
+        },
+        "inStockInExcludedWarehouses": {
+          "presence": "present",
+          "value": false
+        },
+        "specialDealInfo": {
+          "presence": "present",
+          "value": null
+        },
+        "trialDiscountInfo": {
+          "presence": "present",
+          "value": null
+        },
+        "isExcludedFromPromo": {
+          "presence": "missing"
+        },
+        "discountEligible": {
+          "presence": "missing"
+        },
+        "tags": {
+          "presence": "missing"
+        },
+        "badges": {
+          "presence": "missing"
+        },
+        "flags": {
+          "presence": "missing"
+        },
+        "couponDiscountPercentage": {
+          "presence": "missing"
+        }
+      }
+    },
+    {
+      "sbCode": "230804IHB089",
+      "iherbProductId": "18627",
+      "userLabeledEligibility": "불가",
+      "catalogUrl": "https://catalog.app.iherb.com/product/18627",
+      "sourceProductUrl": "https://kr.iherb.com/pr/thorne-magnesium-citramate-90-capsules-135-mg-per-capsule/18627",
+      "savedAt": "2026-09-08T05:26:47.397099+00:00",
+      "sourceSha256": "aa99be38b762c10a48f6a0bcc4450abb70a4b22fb37c94ebfc31b1cebb08401c",
+      "topLevelFieldCount": 120,
+      "fields": {
+        "brandCode": {
+          "presence": "present",
+          "value": "THR"
+        },
+        "brandName": {
+          "presence": "present",
+          "value": "Thorne (쏜리서치)"
+        },
+        "discountType": {
+          "presence": "present",
+          "value": 0
+        },
+        "discountDisplayType": {
+          "presence": "present",
+          "value": 0
+        },
+        "promotion.promotionExcluded": {
+          "presence": "present",
+          "value": false
+        },
+        "promoBanner": {
+          "presence": "present",
+          "value": null
+        },
+        "salesDiscountPercentage": {
+          "presence": "present",
+          "value": 0.0
+        },
+        "isInCartDiscount": {
+          "presence": "present",
+          "value": false
+        },
+        "enabledDiscountBanner": {
+          "presence": "present",
+          "value": true
+        },
+        "enabledDiscountForPreviouslyPurchased": {
+          "presence": "present",
+          "value": true
+        },
+        "flag": {
+          "presence": "present",
+          "value": []
+        },
+        "restrictedCountries": {
+          "presence": "present",
+          "value": []
+        },
+        "inStockInExcludedWarehouses": {
+          "presence": "present",
+          "value": false
+        },
+        "specialDealInfo": {
+          "presence": "present",
+          "value": null
+        },
+        "trialDiscountInfo": {
+          "presence": "present",
+          "value": null
+        },
+        "isExcludedFromPromo": {
+          "presence": "missing"
+        },
+        "discountEligible": {
+          "presence": "missing"
+        },
+        "tags": {
+          "presence": "missing"
+        },
+        "badges": {
+          "presence": "missing"
+        },
+        "flags": {
+          "presence": "missing"
+        },
+        "couponDiscountPercentage": {
+          "presence": "missing"
+        }
+      }
+    },
+    {
+      "sbCode": "210412IHB016",
+      "iherbProductId": "26860",
+      "userLabeledEligibility": "불가",
+      "catalogUrl": "https://catalog.app.iherb.com/product/26860",
+      "sourceProductUrl": "https://kr.iherb.com/pr/organic-valley-ghee-clarified-butter-13-oz-368-g/26860",
+      "savedAt": "2026-09-08T05:26:47.498263+00:00",
+      "sourceSha256": "351090afb25875f6d86f6b511972f739a77f668dcf11c1efb11218e581bb8ab9",
+      "topLevelFieldCount": 120,
+      "fields": {
+        "brandCode": {
+          "presence": "present",
+          "value": "PFM"
+        },
+        "brandName": {
+          "presence": "present",
+          "value": "Organic Valley (오가닉 밸리)"
+        },
+        "discountType": {
+          "presence": "present",
+          "value": 0
+        },
+        "discountDisplayType": {
+          "presence": "present",
+          "value": 0
+        },
+        "promotion.promotionExcluded": {
+          "presence": "present",
+          "value": false
+        },
+        "promoBanner": {
+          "presence": "present",
+          "value": null
+        },
+        "salesDiscountPercentage": {
+          "presence": "present",
+          "value": 0.0
+        },
+        "isInCartDiscount": {
+          "presence": "present",
+          "value": false
+        },
+        "enabledDiscountBanner": {
+          "presence": "present",
+          "value": true
+        },
+        "enabledDiscountForPreviouslyPurchased": {
+          "presence": "present",
+          "value": true
+        },
+        "flag": {
+          "presence": "present",
+          "value": []
+        },
+        "restrictedCountries": {
+          "presence": "present",
+          "value": [
+            "BR"
+          ]
+        },
+        "inStockInExcludedWarehouses": {
+          "presence": "present",
+          "value": false
+        },
+        "specialDealInfo": {
+          "presence": "present",
+          "value": null
+        },
+        "trialDiscountInfo": {
+          "presence": "present",
+          "value": null
+        },
+        "isExcludedFromPromo": {
+          "presence": "missing"
+        },
+        "discountEligible": {
+          "presence": "missing"
+        },
+        "tags": {
+          "presence": "missing"
+        },
+        "badges": {
+          "presence": "missing"
+        },
+        "flags": {
+          "presence": "missing"
+        },
+        "couponDiscountPercentage": {
+          "presence": "missing"
+        }
+      }
+    },
+    {
+      "sbCode": "210115IHB025",
+      "iherbProductId": "13937",
+      "userLabeledEligibility": "불가",
+      "catalogUrl": "https://catalog.app.iherb.com/product/13937",
+      "sourceProductUrl": "https://kr.iherb.com/pr/solgar-folate-666-mcg-dfe-250-tablets/13937",
+      "savedAt": "2026-09-08T05:26:47.598437+00:00",
+      "sourceSha256": "310822bbf356c282d0f31597f8625215bf81215d461405b0810c6c3eeee42506",
+      "topLevelFieldCount": 120,
+      "fields": {
+        "brandCode": {
+          "presence": "present",
+          "value": "SOL"
+        },
+        "brandName": {
+          "presence": "present",
+          "value": "Solgar (솔가)"
+        },
+        "discountType": {
+          "presence": "present",
+          "value": 0
+        },
+        "discountDisplayType": {
+          "presence": "present",
+          "value": 0
+        },
+        "promotion.promotionExcluded": {
+          "presence": "present",
+          "value": false
+        },
+        "promoBanner": {
+          "presence": "present",
+          "value": null
+        },
+        "salesDiscountPercentage": {
+          "presence": "present",
+          "value": 0.0
+        },
+        "isInCartDiscount": {
+          "presence": "present",
+          "value": false
+        },
+        "enabledDiscountBanner": {
+          "presence": "present",
+          "value": true
+        },
+        "enabledDiscountForPreviouslyPurchased": {
+          "presence": "present",
+          "value": true
+        },
+        "flag": {
+          "presence": "present",
+          "value": []
+        },
+        "restrictedCountries": {
+          "presence": "present",
+          "value": []
+        },
+        "inStockInExcludedWarehouses": {
+          "presence": "present",
+          "value": false
+        },
+        "specialDealInfo": {
+          "presence": "present",
+          "value": null
+        },
+        "trialDiscountInfo": {
+          "presence": "present",
+          "value": null
+        },
+        "isExcludedFromPromo": {
+          "presence": "missing"
+        },
+        "discountEligible": {
+          "presence": "missing"
+        },
+        "tags": {
+          "presence": "missing"
+        },
+        "badges": {
+          "presence": "missing"
+        },
+        "flags": {
+          "presence": "missing"
+        },
+        "couponDiscountPercentage": {
+          "presence": "missing"
+        }
+      }
+    }
+  ]
+}
