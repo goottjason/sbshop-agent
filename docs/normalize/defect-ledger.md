@@ -6241,3 +6241,20 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 실패 양상: 쿠팡 가격 PUT 경로 인자 불일치(`vendor-items/456/prices/12300`), 쿠팡 판매중지·미승인 상품 가드가 쓰기를 막지 않음, 카페24 마켓플러스 연동 상품·변형 불일치가 예외를 던지지 않음, 카페24 명시 0 재고 시 `put` 2회 호출(기대 1회). 최근 커밋 `482552df Fix stepped Coupang reviewed price updates` 이후 계약이 바뀌었는데 테스트가 갱신되지 않았거나 회귀일 수 있음 — 어느 쪽인지 미판정.
 - 조치 필요: 어댑터(`CoupangPriceAdapter`/`Cafe24StockAdapter` 계열)와 계약 테스트 중 어느 쪽이 진실인지 판정 후 정합. 판정 전까지 회귀 게이트는 모듈별로 읽는다(core·api 그린이면 core/api 변경 배치는 통과).
 - 이력: 2026-09-19 리더 발견(D-301/305 배치 회귀 게이트 중).
+
+### D-306 — ESM 수동 백필 주문 4건에 송장 재전송이 40분마다 Cafe24 404로 반복된다
+
+- 심각도: P3(노이즈·헛호출) · 리스크 등급: 경량 · 상태: 발견
+- 위치: `EmailFetcherService`("송장 존재但 마켓 미동기화 - 재시도(수정 경로)") → `MarketplaceShippingService` → `Cafe24OrderApiClient:54` `GET /admin/orders/{id}/shipments`
+- 증상: 2026-09-19 배포 후 로그. D-300 백필 4건(sb_order 579~582, G마켓 4484301400·4484279083·4484124503·4483756643)에 대해 이메일 페치 사이클마다 "iHerb 주문 송장 존재但 마켓 미동기화 - 재시도(수정 경로)" → Cafe24 `Invalid order number` 404 → "마켓 배송 전송 실패" ERROR 4건씩 반복(02:02·02:30·03:09 확인).
+- 원인(추정, 코드 미확인): `tracking_no`(EMAIL 실송장) ≠ `market_tracking_no`(마켓 옛 송장)라 수정 경로 재시도 대상으로 잡히는데, 이 4건은 Cafe24 원본이 없어(`getCafe24OrderId()`가 G마켓 번호로 폴백) 영원히 404. 게다가 G마켓은 발송 후 송장 수정 API가 없어([[market-tracking-edit-capability]]) 성공할 수도 없는 재시도다.
+- 조치 후보: (a) `cafe24_order_id` 부재 주문은 재시도 대상에서 제외하고 `manual_fix_required=true`로 표시, (b) 마켓별 송장수정 불가 확정표를 재시도 판정에 반영. D-305 형식 가드와 같은 결의 결함.
+- 이력: 2026-09-19 리더 라이브 검증 중 발견. 프로브(`embed=items`) 헛호출은 D-305 배포 후 0건으로 소멸 확인.
+
+### D-307 — 배송메시지 저장 후 원래 값으로 되돌리면 저장되지 않는다 (낙관적 캐시 누락)
+
+- 심각도: P3(오동작, 경미) · 리스크 등급: 경량 · 상태: 발견
+- 위치: `frontend/src/pages/order/OrderGrid.tsx` `orderMutation.onMutate` — 캐시 패치가 `address`·`customsClearanceNo`만 다루고 `message`는 빠져 있다.
+- 증상: 2026-09-19 라이브 검증. 주문 609 배송메시지 "경비실"→"경비실 [검증]" 저장 성공(액션로그 18228) 후 다시 "경비실"로 고쳐 blur 해도 PATCH가 나가지 않는다. `InlineInput.commit`이 `draft === value`면 무시하는데, 캐시 `value`가 갱신되지 않아 원래 값과 같다고 판단한다. 페이지 재조회 후에는 정상 저장(18229).
+- 조치: `onMutate`에 `if ('message' in updates) next.message = updates.message` 추가(1행). D-301 재현 테스트 파일에 케이스 1개 추가.
+- 이력: 2026-09-19 리더 라이브 검증 중 발견.
