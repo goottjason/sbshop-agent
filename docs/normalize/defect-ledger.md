@@ -6078,3 +6078,166 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
   금칙어 15건이 나온 경로는 브랜드 수정(`syncProductFields`)인데 11번가에 브랜드 부분수정 API 가
   없어 전체 XML PUT 을 그대로 탄다 — **15건은 이 수정으로 해소되지 않는다.**
   잔여 조치는 해당 15상품의 상품명에서 영문 브랜드(`Solaray`, `Real Mushrooms`) 제거하는 데이터 교정.
+
+### D-300 — 마켓플러스 미수집 G마켓 주문 4건 ESM 직접 백필 (2026-09-07, 완결)
+
+- 심각도: **표준(데이터 유실)** | 위치: 운영 DB `sb_order`/`sb_shipment`/`sb_order_line_item` · [[D-220]] 사고의 잔여 피해
+- Cafe24 회신(2026-09-07): **"해당 주문들이 모두 배송중 상태여서 재수집은 어렵다. 마켓플러스 주문 수집 사양상 결제완료/배송준비중 상태만 수집 가능"** — 4건 재수집 **영구 불가** 확정. 마켓 판매자센터 개별 관리 요청.
+- 미수집 4건(전부 G마켓 `younzara`): `4484301400`·`4484279083`·`4484124503`·`4483756643`.
+  [[D-220]] 시점에는 `4483756643` 1건만 파악됐고 나머지 3건은 이후 드러났다.
+  옥션 `2569176234`는 08-31에 뒤늦게 마켓플러스가 수집해(=`cafe24_order_id 20260831-0000031`) 정상 유입됐다 — **G마켓 4건만 영구 누락**.
+- 조치: ESM+ 배송현황 API(`GET post-tx.esmplus.com/api/shipping-status/orders`, `shippingStatusCode=1040`)에서
+  수령인·연락처·우편번호·주소·개인통관고유부호·송장·택배사·정산예정금액을 취득해 수동 INSERT. 신규 주문 id `579~582`.
+- **파이프라인 등가로 채운 값(임의 추정 금지 원칙)**
+  - `settlement_amount` = `tradeAmnt × 0.82` — `Cafe24OrderSyncService:270`이 `marketFeeService.settlementAmount(total, CAFE24)`를 쓰고 `sb_fee_policy.CAFE24 = 18%`이기 때문. 정상 수집된 형제 행 3건(`4487757608`·`4486564504`·`4484905522`)과 오차 0으로 대조 확인.
+    ESM 실제 `sttlExpectedAmnt`(51417/53210/53210/56100)는 이 추정치와 다르지만, `settlement_verified=false` 의 의미(=미검증 추정치)를 유지하려 **일부러 파이프라인 계산값을 넣었다.**
+  - `customs_status='PENDING'` — 유니패스 검증을 한 적이 없으므로 형제 행의 `VALID`를 복사하지 않았다. `verified_person`도 NULL.
+  - `purchase_status='PURCHASED'`(송장 존재=구매 완료 확정) 이나 `sourcing_order_no`·`sourcing_account`·`sourcing_amount`는 **복원 불가라 NULL**. iHerb 주문 대조 기록이 우리 쪽에 없다.
+- **식별자 규약**: Cafe24 주문이 아예 없으므로 `market_shipment_no`/`market_line_item_no`를 Cafe24 유래(`D-{cafe24_order_id}-00`)로 만들 수 없다. `ESM-{주문번호}-00` / `ESM-{주문번호}-01` 로 합성했고, `market_specific_data`에 `cafe24_order_id`를 **넣지 않고** `"source":"ESM_MANUAL_BACKFILL"`을 남겼다.
+- **부작용 검토(코드 확인 완료)**
+  - `Order.getCafe24OrderId()`는 `cafe24_order_id` 부재 시 **`marketOrderNo`로 폴백**한다. 따라서 `Cafe24OrderProbe`가 이 4건을 Cafe24에 조회하면 `NOT_FOUND`가 되는데, `OrderReconciliationService`는 NOT_FOUND에서 **로그만 남기고 아무 것도 변경하지 않는다**(`resolvedStatus`가 null → continue). 데이터 훼손 없음. `last_probe_status`만 NOT_FOUND로 찍힌다.
+  - `Cafe24ShipmentService.ship()`은 존재하지 않는 Cafe24 주문에 송장을 등록하려다 실패할 수 있으나, `tracking_sent_to_market=true`·`shipping_status=SHIPPED`라 전송 경로가 시작되지 않는다.
+  - **이 4건은 프로브로 배송완료 갱신이 되지 않는다** — Cafe24에 원본이 없어 `SHIPPED`에 고정된다. 상태 갱신이 필요하면 ESM 배송현황을 다시 읽어 수동 갱신해야 한다.
+- 송장 진실성 주의: `4484279083`(`363082001554`)·`4483756643`(`363082000865`)는 형제 사례([[D-146]] 계열, 주문 578의 `market_tracking_no=363044674430`)와 같은 `363…` 계열이라 **ESM 발송마감 회피용 임시 송장일 가능성**이 있다. iHerb 실송장 대조 기록이 없어 ESM 값을 그대로 `tracking_no`=`market_tracking_no`로 넣고 `tracking_source='MARKET'`·`manual_fix_required=false`로 두었다. 실송장이 확인되면 교정 대상.
+- 상태: **완결** — 4건 INSERT 커밋, DB 재조회로 전 필드 확인. api 로그 에러 0.
+
+### D-301 — 주문 그리드 인라인 편집이 재정렬 시 엉뚱한 주문에 주소를 커밋한다 (개인정보 오배송 위험)
+
+- 심각도: **P1**(개인정보 오배송 위험) · 리스크 등급: 표준
+- 위치:
+  - `frontend/src/pages/order/OrderGrid.tsx:477-485` — `useReactTable({...})`에 `getRowId` 미지정 → 행 정체성이 배열 인덱스(`row.index`)로 고정됨
+  - `frontend/src/pages/order/OrderTableRow.tsx:28` — `<TableCell key={cell.id} ...>`, `cell.id = \`${row.id}_${column.id}\`` 로 인덱스가 그대로 React key에 전파
+  - `frontend/src/pages/order/orderColumns.tsx:160-162` — `shippingInfoPair` 컬럼의 `order.address` 편집 셀(`InlineInput`)
+  - `frontend/src/pages/order/cells.tsx:6-50` — `InlineInput`: `useEffect(() => { if (!focused.current) setDraft(value); }, [value]);` (포커스 중 리셋 안 함) + `commit()`이 `draft !== value`면 무조건 `onCommit(draft)` 호출
+  - `frontend/src/pages/order/OrderGrid.tsx:165-169` — `shippingMutation.onSuccess`의 `invalidateQueries(['orders'])`가 재정렬을 유발하는 방아쇠
+- 증상(운영 DB, 팀장 확인): `sb_order 593`(GMARKET, 수령인 이정열, zipcode 08710 정확)의 `address` 필드가
+  `SMART_STORE` 주문 594(김성국)의 주소로 오염됨. `last_market_address`(마켓 원본)는 정확. 이름·전화·통관번호·
+  상품·우편번호는 전부 정확, **주소만** 틀림. `sb_action_log 17185`: `ORDER_UPDATE GMARKET SUCCESS "주문정보 수정
+  성공 (주문 593)"` 2026-09-14 13:17:32 UTC. 1분 전(13:16:05 UTC) `sb_shipment 608`(594 소속)에
+  `tracking_source=MANUAL`로 송장 수동입력 기록. 전수 조회 결과 이 주문간 교차오염은 593 1건뿐.
+- 재현: 미재현(운영 타이밍 의존, 로컬 재현 불가) — 코드 경로 추적으로 확정. 상세 시나리오는
+  `_workspace/scout_address_mismap.md` 참조.
+  1. 사용자가 594행의 배송정보(송장) 칸을 편집·전송하는 동안 인접한 594의 주소 `InlineInput`에
+     포커스가 남아있음(draft = 594의 주소 텍스트).
+  2. 송장 저장 성공(`shippingMutation.onSuccess`) → `invalidateQueries(['orders'])` → 주문 목록 재조회·재정렬.
+  3. 재정렬로 594가 있던 테이블 인덱스(=React key)에 주문 593이 대신 위치하게 됨. `InlineInput`
+     컴포넌트 인스턴스가 재사용되며 `value` prop만 593의 주소로 바뀌고, 포커스가 남아있어 `draft`는
+     리셋되지 않음(594의 주소 텍스트 그대로).
+  4. 사용자가 블러 → `commit()`: `draft(594 주소) !== value(593 주소)` → `handleUpdate(593, ..., 'order.address',
+     594 주소텍스트)` → `PATCH /api/v1/orders/593 { address: "594의 주소" }`.
+  5. 백엔드(`OrderController.updateOrder` → `OrderService.updateOrder:190-192` → `Order.updateAddress:131-133`)는
+     요청받은 id(593)에 요청받은 값을 그대로 저장 — **백엔드에는 폴백/대체 로직 없음, 정상 동작**.
+  6. 우편번호가 오염되지 않은 이유: `orderColumns.tsx:165-169`에서 zipcode는 `<span>`(읽기전용)이고
+     `InlineInput`이 아니므로 애초에 이 경로로 오염될 수 없음 — 관찰된 증상(주소만 틀림)과 일치.
+- 원인(확정): 프론트 `OrderGrid`가 TanStack Table `getRowId`를 지정하지 않아 행 아이덴티티가
+  주문/라인아이템 id가 아닌 **배열 인덱스**가 되고, `InlineInput`의 포커스 가드형 상태 리셋과 결합해
+  그리드 재정렬 시 "이전 위치에 있던 다른 주문의 잔여 입력값"이 "지금 그 위치를 차지한 주문"에
+  커밋된다. 근거: 위 파일:라인 전부 직접 확인. 백엔드(`OrderService.updateOrder`, `Order.update` 9-arg
+  마켓동기화 경로 포함)는 grep 전수 확인 결과 타 주문/타 소스로 대체하는 폴백이 없음 — 원인은
+  전적으로 프론트엔드.
+- 파급 범위(중요): 같은 `InlineInput`/`FinancialEditCell`/`SourcingEditCell` 패턴을 쓰는 다른 인라인
+  편집 컬럼도 동일 메커니즘에 노출됨 — `order.customsClearanceNo`(통관번호), `order.message`(배송메시지),
+  `lineItem.financial`(실구매가/물류비), `lineItem.sourcing`(구매계정/공급처/구매주문번호/할인코드).
+  근본 수정(`getRowId` 지정)이 전 컬럼을 한 번에 해결함.
+- 상태: **검증통과**
+- 이력: 2026-09-19 defect-scout 발견 및 등재. 수정 대상 선정은 리더 판정 대기.
+  2026-09-19 tdd-fixer 수정 — `getRowId` 지정 + 인라인 편집기 `key` 2차 방어 + 일괄 핸들러
+  인덱스 제거. 재현 테스트 `frontend/src/pages/order/__tests__/orderRowIdentity.test.tsx`,
+  요지 `_workspace/fixes/D-301.md`.
+- 이력: 2026-09-19 검증통과(qa-verifier) — 수정 전 재현 테스트 9/9 실패·수정 후 9/9 통과를 독립 스크래치 복사본으로 재확인, 방어층 분리 실험으로 getRowId·key·핸들러 각각의 차단 범위 확인. 판정서 `_workspace/verify/D-301_302_305.md`.
+
+### D-305: cafe24_order_id 없는 마켓플러스 백필 주문의 배송상태가 영구 고착된다
+
+- 심각도: P2(오동작) · 리스크 등급: 표준 · 상태: 검증통과
+- 위치:
+  - `backend/core/src/main/java/com/sbshop/agent/core/domain/order/Order.java:213-216` (`getCafe24OrderId` marketOrderNo 폴백)
+  - `backend/core/src/main/java/com/sbshop/agent/core/application/order/probe/Cafe24OrderProbe.java:24-45` (GMARKET/AUCTION 프로브)
+  - `backend/infrastructure/src/main/java/com/sbshop/agent/infrastructure/client/cafe24/client/Cafe24OrderApiClient.java:43-50` (fetchOrderDetail)
+  - `backend/core/src/main/java/com/sbshop/agent/core/application/order/service/OrderReconciliationService.java:132-136,153-179` (resolvedStatus/apply — 실패 시 무변경)
+  - 표시측: `frontend/src/pages/order/orderColumns.tsx:59-60,294,297`
+- 증상: 통합주문관리 화면에서 주문(`sb_order.id=579`, G마켓 4484301400, 최영환)이 구매자가
+  이미 구매확정을 완료했음에도 계속 "배송중"으로 표시된다. `sb_order.last_probe_status=UNKNOWN`
+  이 반복 고착.
+- 재현: 코드 경로 추적(위 위치 5개 파일 순서대로) + 운영 DB 실측
+  (`sb_order.id=579`: `last_probe_status=UNKNOWN`, `market_specific_data`에
+  `cafe24_order_id` 없음; `sb_order_line_item.id=814`: `shipping_status='SHIPPED'`
+  고착). 서버 재현(Cafe24 API 실호출)은 미실행 — 정적 추적으로 확정.
+- 원인(확인됨): D-300(2026-09-07)에서 ESM+ 배송현황 API로 수동 백필된 G마켓/옥션
+  주문 4건(579~582)은 `cafe24_order_id`를 저장하지 않는다(Cafe24 원본 주문이
+  존재하지 않으므로). `Order.getCafe24OrderId()`가 이때 `marketOrderNo`(G마켓
+  형식, Cafe24 형식 아님)로 폴백해 `Cafe24OrderProbe`가 매 사이클 HTTP 예외로
+  실패(`OrderProbeStatus.UNKNOWN`)하고, `OrderReconciliationService`는 실패 시
+  상태를 절대 바꾸지 않으므로 `shipping_status`가 영구 고착된다. D-300 원장 자체가
+  이 결과를 예측해 기록해 두었던 사안이 현실화된 사례. G마켓/옥션 전용 ESM+ 배송현황
+  프로브가 리포지토리에 존재하지 않아(전수 검색 0건) 대체 갱신 경로도 없다.
+- 상태: 검증통과
+- 이력: 2026-09-19 발견 (scout-shipping, 사용자 신고 기반 진단). 즉시 데이터 조치
+  SQL 초안(주문 579 line item `shipping_status` → `CONFIRMED`/`DELIVERED`, 체크제약·
+  실사용값 실측 확인 완료)과 코드 조치 제안(ESM 배송현황 폴백 프로브 신설[표준] 또는
+  `getCafe24OrderId` 폴백값 형식검사 가드[경량])은 `_workspace/scout_shipping_stuck.md`
+  참조. D-300의 나머지 3건(580~582)도 동일 결함을 안고 있어 재발 소지 있음.
+- 이력: 2026-09-19 리더 재조회로 4건(579~582) 전부 동일 고착(`SHIPPED`+`UNKNOWN`,
+  `shipped_at` 전부 2026-08-31, 19일 경과) 확인. 코드 근거(`Cafe24LineItemMapper`
+  N40→DELIVERED/N50→CONFIRMED, `SmartStoreStatusMapper` DELIVERED/PURCHASE_DECIDED
+  동일 패턴)로 판정: `DELIVERED`는 배송완료(물류 이벤트)만으로 도달하고
+  `CONFIRMED`(구매확정)는 항상 마켓이 보내는 별도의 명시적 신호가 있어야만
+  부여된다 — 두 마켓 다 자동 승격 규칙이 없다. 우리 DB에는 579 외 3건에 대한
+  구매확정 신호가 전혀 없으므로(사용자가 579만 확정 사실을 알려줌) **579=CONFIRMED,
+  580~582=DELIVERED**로 조치 SQL을 분리하는 것이 근거 있는 판정이다(추측 승격 금지
+  원칙). 상세 SQL은 `_workspace/scout_shipping_stuck.md` 갱신본 참조.
+- 이력: 2026-09-19 경량 코드 조치 완료(fixer-back, TDD). `Cafe24OrderProbe.probe()`에
+  카페24 주문번호 형식(`^\d{8}-\d{7}$`) 가드를 추가해, `getCafe24OrderId()`가
+  `marketOrderNo`로 폴백한 비-카페24 값(예 `4484301400`)이면 API 호출 없이
+  `unknown("cafe24 주문번호 형식 아님: ...")`으로 즉시 반환한다. `Order.getCafe24OrderId()`
+  자체의 폴백은 `Cafe24ShipmentService.ship` 등이 쓰므로 미변경. Red 테스트는
+  `Cafe24OrderProbeTest.nonCafe24OrderIdIsNotProbed`(포트 미호출 + UNKNOWN),
+  회귀 고정은 `cafe24FormattedOrderIdIsProbed`. 게이트: `:core:test` 1799건 전부 통과,
+  `:core:/:infrastructure:/:api:compileJava` 그린. **이 조치는 노이즈(매 사이클 실패
+  HTTP 호출·예외 로그) 제거일 뿐 근본 해결이 아니다** — 579~582의 `shipping_status`는
+  여전히 갱신되지 않는다. 근본 조치인 ESM+ 배송현황 폴백 프로브는 **미구현**이고,
+  4건의 데이터 교정 SQL 실행은 **리더가 별도 수행**한다. 상세는 `_workspace/fixes/D-305.md`.
+- 이력: 2026-09-19 검증통과(qa-verifier). 운영 DB `cafe24_order_id` 보유 31건 전수가 `^\d{8}-\d{7}$` 통과(리더 실측) — 형식 가드 거짓거부 0건. 데이터 교정: 593 주소는 리더가 `last_market_address`로 복원 완료(D-301), 579 `CONFIRMED`·580~582 `DELIVERED` UPDATE는 권한 정책으로 리더 실행 불가 → 사용자 실행 대기.
+
+### D-302 — 동기화 필터가 켜지면 일괄 처리가 엉뚱한 주문을 대상으로 잡는다
+
+- 심각도: **P1**(오주문 처리) · 리스크 등급: 표준
+- 위치(수정 전 기준):
+  - `frontend/src/pages/order/OrderGrid.tsx:318-326` — `handleConfirmOrders`
+  - `frontend/src/pages/order/OrderGrid.tsx:347-357` — 주문 거부 핸들러
+  - `frontend/src/pages/order/OrderGrid.tsx:369-380` — `handleExportExcel`
+  - `frontend/src/pages/order/OrderGrid.tsx:466-473` — `canConfirmSelected` memo
+  - `frontend/src/pages/order/OrderGrid.tsx:454-463` — `visibleData`(`syncFilter` 적용 시 `processedData`의 부분집합)
+- 증상: 마켓 동기화 상태 칩(수정요망/전송대기/미확인)으로 목록을 좁힌 상태에서 행을 선택해
+  발주확인·거부·엑셀 다운로드를 실행하면, 선택한 주문이 아니라 필터 이전 목록에서 같은
+  위치에 있던 다른 주문이 처리된다. 발주확인·거부는 마켓에 실제 요청이 나가므로 되돌릴 수 없다.
+- 재현: `frontend/src/pages/order/__tests__/orderRowIdentity.test.tsx`의
+  `동기화 필터가 켜진 상태에서 선택한 주문만 발주확인된다`. 전송대기 상태인 주문 593만 남도록
+  필터를 켜고 그 행을 선택한 뒤 발주확인 → 수정 전 `confirmOrdersBatch([594])` 호출(기대 `[593]`).
+- 원인(확정): 표 데이터는 `visibleData`인데 일괄 핸들러는 선택 키를 배열 인덱스로 해석해
+  `processedData`에서 행을 조회했다. `syncFilter`가 켜지면 두 배열의 인덱스가 어긋난다.
+  [[D-301]]과 같은 뿌리(행 정체성이 데이터가 아니라 배열 위치)에서 나온 파생 결함이며,
+  `handleShipSelected`만 `table.getSelectedRowModel()`을 써서 이 함정을 피하고 있었다.
+- 조치: `getRowId`로 행 식별자를 안정화하고 `selectedGridRows`/`selectedOrderIds`(`helpers.ts`)로
+  선택→주문 매핑을 일원화, 5개 일괄 경로에서 `parseInt(indexStr)`을 전량 제거.
+- 상태: **검증통과**
+- 이력: 2026-09-19 리더 확인 후 tdd-fixer가 등재 및 D-301과 함께 수정. 요지 `_workspace/fixes/D-301.md`.
+- 이력: 2026-09-19 검증통과(qa-verifier) — 수정 전 재현 테스트 9/9 실패·수정 후 9/9 통과를 독립 스크래치 복사본으로 재확인, 방어층 분리 실험으로 getRowId·key·핸들러 각각의 차단 범위 확인. 판정서 `_workspace/verify/D-301_302_305.md`.
+
+### D-303 — 배치 업데이트 페이지의 antd Button `type="button"`이 프론트 타입 게이트를 깨뜨린다
+
+- 심각도: P3(품질) · 리스크 등급: 경량 · 상태: 검증통과
+- 위치: `frontend/src/pages/BatchUpdatePage.tsx:74`
+- 증상: `npx tsc -p tsconfig.app.json --noEmit` 이 `TS2322: Type '"button"' is not assignable to type '"link" | "text" | "dashed" | "default" | "primary" | undefined'` 로 실패. `npm run build` 는 tsc 를 돌리지 않아 배포는 통과했으나 하네스 타입 게이트가 상시 적색이었다.
+- 원인: antd `Button` 의 `type` 은 시각 스타일 prop 이고 HTML 버튼 타입은 `htmlType` 이다. 커밋 `da73a64c`(2026-09-11) 에서 기록 삭제 버튼에 `type="button"` 을 준 것이 원인.
+- 조치: `htmlType="button"` 으로 교체(행위 동일 — 폼 제출 방지 의도 유지). D-301 프론트 테스트 러너 도입 중 fixer-front 가 발견, 리더가 1행 교정.
+- 이력: 2026-09-19 발견·교정(리더). 타입 게이트 0 오류 복귀 확인.
+- 이력: 2026-09-19 검증통과(qa-verifier). antd 5.29 `htmlType` 기본값이 이미 `button`이라 DOM 행위는 동일하고, `type="button"`이 스타일 맵에 없어 빠져 있던 danger-outlined 외형이 정상 복원됨(외형 변화 1건, 리더 수용).
+
+### D-304 — infrastructure 가격·재고 계약 테스트 6건이 HEAD에서 실패한다 (회귀 게이트 적색)
+
+- 심각도: P2(게이트 차단) · 리스크 등급: 표준 · 상태: 발견
+- 위치: `backend/infrastructure/src/test/java/com/sbshop/agent/infrastructure/client/common/MarketPriceContractTest.java` (`coupangVerifiesParentAndOptionThenReadsActualOptionSalePrice`), `MarketStockContractTest.java` (`coupangStoppedOrUnapprovedProductNeverRunsGuardOrWrites`·`cafeMarketPlusLinkedProductAndDifferentSbOrVariantAreBlocked`·`cafeDisabledInventoryOrStoppedVariantDoesNotChangeSettingsToForceQuantity`·`coupangWrongSbParentOptionVendorAndMissingOnSaleRefuseWrites`·`cafeExplicitZeroUsesInventoryEndpointAndDoesNotStopOrResumeSelling`)
+- 증상: `./gradlew test` 전체 실행 시 `:infrastructure:test` 997건 중 6건 실패(core 1799·api 386은 0 실패). 커밋 `482552df`(HEAD) 를 별도 워크트리에서 돌려도 동일 6건 실패 — 2026-09-19 D-301/305 배치와 무관한 **기존 실패**.
+- 실패 양상: 쿠팡 가격 PUT 경로 인자 불일치(`vendor-items/456/prices/12300`), 쿠팡 판매중지·미승인 상품 가드가 쓰기를 막지 않음, 카페24 마켓플러스 연동 상품·변형 불일치가 예외를 던지지 않음, 카페24 명시 0 재고 시 `put` 2회 호출(기대 1회). 최근 커밋 `482552df Fix stepped Coupang reviewed price updates` 이후 계약이 바뀌었는데 테스트가 갱신되지 않았거나 회귀일 수 있음 — 어느 쪽인지 미판정.
+- 조치 필요: 어댑터(`CoupangPriceAdapter`/`Cafe24StockAdapter` 계열)와 계약 테스트 중 어느 쪽이 진실인지 판정 후 정합. 판정 전까지 회귀 게이트는 모듈별로 읽는다(core·api 그린이면 core/api 변경 배치는 통과).
+- 이력: 2026-09-19 리더 발견(D-301/305 배치 회귀 게이트 중).
