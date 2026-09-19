@@ -6235,12 +6235,14 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 
 ### D-304 — infrastructure 가격·재고 계약 테스트 6건이 HEAD에서 실패한다 (회귀 게이트 적색)
 
-- 심각도: P2(게이트 차단) · 리스크 등급: 표준 · 상태: 발견
+- 심각도: P2(게이트 차단) · 리스크 등급: 표준 · 상태: 검증통과(보류 1건 제외) — 6건 중 5건 갱신 완료, `cafeDisabledInventoryOrStoppedVariantDoesNotChangeSettingsToForceQuantity` 1건은 판정 보류로 적색 유지
 - 위치: `backend/infrastructure/src/test/java/com/sbshop/agent/infrastructure/client/common/MarketPriceContractTest.java` (`coupangVerifiesParentAndOptionThenReadsActualOptionSalePrice`), `MarketStockContractTest.java` (`coupangStoppedOrUnapprovedProductNeverRunsGuardOrWrites`·`cafeMarketPlusLinkedProductAndDifferentSbOrVariantAreBlocked`·`cafeDisabledInventoryOrStoppedVariantDoesNotChangeSettingsToForceQuantity`·`coupangWrongSbParentOptionVendorAndMissingOnSaleRefuseWrites`·`cafeExplicitZeroUsesInventoryEndpointAndDoesNotStopOrResumeSelling`)
 - 증상: `./gradlew test` 전체 실행 시 `:infrastructure:test` 997건 중 6건 실패(core 1799·api 386은 0 실패). 커밋 `482552df`(HEAD) 를 별도 워크트리에서 돌려도 동일 6건 실패 — 2026-09-19 D-301/305 배치와 무관한 **기존 실패**.
 - 실패 양상: 쿠팡 가격 PUT 경로 인자 불일치(`vendor-items/456/prices/12300`), 쿠팡 판매중지·미승인 상품 가드가 쓰기를 막지 않음, 카페24 마켓플러스 연동 상품·변형 불일치가 예외를 던지지 않음, 카페24 명시 0 재고 시 `put` 2회 호출(기대 1회). 최근 커밋 `482552df Fix stepped Coupang reviewed price updates` 이후 계약이 바뀌었는데 테스트가 갱신되지 않았거나 회귀일 수 있음 — 어느 쪽인지 미판정.
 - 조치 필요: 어댑터(`CoupangPriceAdapter`/`Cafe24StockAdapter` 계열)와 계약 테스트 중 어느 쪽이 진실인지 판정 후 정합. 판정 전까지 회귀 게이트는 모듈별로 읽는다(core·api 그린이면 core/api 변경 배치는 통과).
-- 이력: 2026-09-19 리더 발견(D-301/305 배치 회귀 게이트 중).
+- 이력: 2026-09-19 리더 발견(D-301/305 배치 회귀 게이트 중). → 2026-09-19 scout-d304 진단완료(상세 `_workspace/scout_d304.md`) — 이분탐색 실측: `b3413ef1`(테스트 도입 커밋)에서 `--rerun-tasks`로 재실행해 6건 전부 그린 확인, 이후 사람이 직접 만든 5개 커밋(`bdb56cf7`·`91ac766a`·`a466985f`·`af9e8d91`·`482552df`, 전부 원장 D-번호 미연결)이 순차로 계약을 깼다. 판정: **5건은 (b) 어댑터 의도적 변경 — 테스트 갱신 필요**(쿠팡 3건: 판매중지도 쓰기 시도/SKU 불일치 경고로 격하/단계조정 가격PUT 바디 `Map.of()`화; 카페24 2건: reviewed 경로 마켓플러스 차단 제거/재고0 시 자동 판매중지). **1건(`cafeDisabledInventoryOrStoppedVariantDoesNotChangeSettingsToForceQuantity`)은 판정 보류** — `use_inventory`/`display_soldout` 플래그를 두 카페24 커밋 어디에서도 다루지 않아 (c) 실제 공백 가능성 배제 못함, 라이브 확인 또는 사용자 확인 선행 권고. 수정 배치 제안: 그룹A(쿠팡 3건, `CoupangMarketClient.java` 단일 파일 순차) · 그룹B(카페24 2건 확정분만, `Cafe24MarketClient.java`) 병렬 가능, 판정보류 1건은 별도 처리. → 2026-09-19 tdd-fixer 검증통과(보류 1건 제외) — 어댑터 무수정, 계약 테스트 2파일만 새 계약으로 재작성(`MarketPriceContractTest`·`MarketStockContractTest`). 쿠팡: 가격 PUT을 `changePriceStepwise` 경유 `Map.of()` 바디로 고정하고 D-246 단계조정 루프를 인상(12300→100000, 4회)·인하(12300→3000, 3회) 두 케이스로 단계 수까지 검증, 판매중지(onSale=false)는 쓰기 시도 후 거절 표면화·미승인(statusName 빈값)만 차단으로 경계 재정의, SKU 불일치는 경고 사유 첨부 후 진행. 카페24: reviewed 단건 경로는 마켓플러스 연동 상품도 진행하고 레거시 배치 `syncVerifiedPriceStock`은 여전히 `requireNativeWrite`로 차단한다는 두 경로 차이를 별도 테스트로 고정, 재고 0은 `selling=F` PUT + inventories PUT 2회(이미 F면 1회). 기대값 역변형으로 신규 단언 7개가 빈 단언이 아님을 확인. 게이트: `:infrastructure:test` 1003건 중 실패 1건(보류분 `cafeDisabledInventoryOrStoppedVariantDoesNotChangeSettingsToForceQuantity`, XML 집계 errors 0). 상세 `_workspace/fixes/D-304.md`.
+- 이력: 2026-09-19 검증통과(verifier-2, 5건). 계약 테스트 2파일 갱신, 어댑터 무접촉. **보류 1건 `cafeDisabledInventoryOrStoppedVariantDoesNotChangeSettingsToForceQuantity`(재고관리 비활성 상품 수량 PUT이 의도인지) 사용자 확인 대기 — 게이트 유일 적색.** 검증자 관찰: 완화된 계약(판매중지 쓰기 시도·SKU 불일치 전송·마켓플러스 연동 reviewed 전송)은 사용자 커밋 의도일 뿐 확인은 없음.
+
 
 ### D-306 — ESM 수동 백필 주문 4건에 송장 재전송이 40분마다 Cafe24 404로 반복된다
 
@@ -6249,7 +6251,13 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 증상: 2026-09-19 배포 후 로그. D-300 백필 4건(sb_order 579~582, G마켓 4484301400·4484279083·4484124503·4483756643)에 대해 이메일 페치 사이클마다 "iHerb 주문 송장 존재但 마켓 미동기화 - 재시도(수정 경로)" → Cafe24 `Invalid order number` 404 → "마켓 배송 전송 실패" ERROR 4건씩 반복(02:02·02:30·03:09 확인).
 - 원인(추정, 코드 미확인): `tracking_no`(EMAIL 실송장) ≠ `market_tracking_no`(마켓 옛 송장)라 수정 경로 재시도 대상으로 잡히는데, 이 4건은 Cafe24 원본이 없어(`getCafe24OrderId()`가 G마켓 번호로 폴백) 영원히 404. 게다가 G마켓은 발송 후 송장 수정 API가 없어([[market-tracking-edit-capability]]) 성공할 수도 없는 재시도다.
 - 조치 후보: (a) `cafe24_order_id` 부재 주문은 재시도 대상에서 제외하고 `manual_fix_required=true`로 표시, (b) 마켓별 송장수정 불가 확정표를 재시도 판정에 반영. D-305 형식 가드와 같은 결의 결함.
+- 원인(확정, 코드 확인): 두 조건이 겹쳐 루프가 된다. (1) 재시도 분기 진입 조건이 매 사이클 참 — `sameTracking`(메일 송장 == `sb_shipment.tracking_no`) 참, `marketHasTracking` 거짓(`market_tracking_no`가 마켓 옛 송장), `manual_fix_required` 거짓. (2) 그 호출이 영원히 실패하는데 terminal로 분류되지 않는다 — Cafe24 404 `Invalid order number`가 `MarketplaceShippingService.isNonRetryableMarketState`의 문자열 목록에 없어 재시도 가능 `ofFailed`로 떨어진다.
+- 조치: (a) 채택. `MarketplaceShippingService.sendTrackingToMarketplace`가 포트 호출 전에 차단 — 마켓이 GMARKET/AUCTION이고 `market_specific_data`에 `cafe24_order_id`가 없으면 `ofTerminal("Cafe24 원본 주문 없음(수동 백필 주문) — 마켓 반영 불가")` 반환. `Order.hasCafe24OrderId()`(폴백 없는 키 존재 판정) 신설. (b)를 택하지 않은 이유는 헛호출이 남고 `Invalid order number`가 Cafe24 일반 404 문구라 다른 경로의 일시 오류까지 종결시킬 위험이 있어서다.
+- 상태: **검증통과**
 - 이력: 2026-09-19 리더 라이브 검증 중 발견. 프로브(`embed=items`) 헛호출은 D-305 배포 후 0건으로 소멸 확인.
+- 이력: 2026-09-19 TDD 수정 완료(tdd-fixer). Red 2건(`MarketplaceShippingServiceTest`의 G마켓·옥션 가드) 수정 전 실패 실측 후 Green. 회귀 고정 `gmarketWithCafe24OrderId_sendsNormally`, 의미 고정 `OrderTest.hasCafe24OrderIdDoesNotFallBack`. `EmailFetcherService` 쪽 "terminal이면 `markManualFixRequired`"는 `EmailFetcherMarketSyncTruthTest.marksManualFixOnTerminalRejection`이 이미 덮어 중복 추가 안 함. **오차단 위험 운영 DB 전수 실측**: GMARKET 30건 중 26건이 `cafe24_order_id` 보유·미보유 4건은 579~582 전부, AUCTION 5건 전부 보유, 미보유 4건은 `market_order_no`도 Cafe24 형식이 아님 → 폴백 경로에 의존하는 GMARKET/AUCTION 주문 0건. 게이트: `:core:test` 1803/0, `:worker:test` 82/0, `:api:compileJava` 그린. **배포되면 4건은 다음 페치 사이클에 스스로 종결된다**(가드 terminal → `markTrackingAsSent`+`markManualFixRequired` → 이후 `isAwaitingManualFix`로 재전송 중단) — 데이터 교정 SQL은 선택 사항이며 초안은 `_workspace/fixes/D-306.md`.
+- 이력: 2026-09-19 검증통과(verifier-2). 가드가 포트 호출 전·GMARKET/AUCTION 한정, 배포 후 다음 페치 사이클에 4건 자동 종결(수동수정 대기). 관찰: 수동 송장 입력 경로도 같은 가드에 걸리나 액션로그 FAILED 없음.
+
 
 ### D-307 — 배송메시지 저장 후 원래 값으로 되돌리면 저장되지 않는다 (낙관적 캐시 누락)
 
@@ -6257,4 +6265,7 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 위치: `frontend/src/pages/order/OrderGrid.tsx` `orderMutation.onMutate` — 캐시 패치가 `address`·`customsClearanceNo`만 다루고 `message`는 빠져 있다.
 - 증상: 2026-09-19 라이브 검증. 주문 609 배송메시지 "경비실"→"경비실 [검증]" 저장 성공(액션로그 18228) 후 다시 "경비실"로 고쳐 blur 해도 PATCH가 나가지 않는다. `InlineInput.commit`이 `draft === value`면 무시하는데, 캐시 `value`가 갱신되지 않아 원래 값과 같다고 판단한다. 페이지 재조회 후에는 정상 저장(18229).
 - 조치: `onMutate`에 `if ('message' in updates) next.message = updates.message` 추가(1행). D-301 재현 테스트 파일에 케이스 1개 추가.
+- 상태: **검증통과**
 - 이력: 2026-09-19 리더 라이브 검증 중 발견.
+- 이력: 2026-09-19 TDD 수정 완료(tdd-fixer). Red `orderRowIdentity.test.tsx`의 `배송메시지를 A→B로 저장한 뒤 다시 A로 되돌려도 저장 요청이 나간다` — 수정 전 `updateOrder` 1회(기대 2회)로 실패 실측, 수정 후 파일 4/4 통과. 헬퍼 `detail(...)`에 선택 인자 `message = ''` 추가(기본값이라 기존 3건 무영향). 게이트: `npm test` 10/10, `tsc -p tsconfig.app.json` 0 오류, `npm run build` 성공. 요지 `_workspace/fixes/D-306.md`.
+- 이력: 2026-09-19 검증통과(verifier-2). 키 일관성(order.message→OrderDto.message→OrderUpdateRequest.message) 확인.
