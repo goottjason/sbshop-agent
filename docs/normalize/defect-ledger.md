@@ -288,7 +288,7 @@ ELEVEN_STREET_CLAIM_ORPHAN | 1건: 20260807090911423 | 2026-09-04 00:50
 ## 배포 전 수동 DDL — **적용 완료 2026-09-02**
 
 Flyway 를 쓰지 않으므로 배포 전에 운영 DB 에 직접 친다.
-`docker exec -i projects-postgres-1 psql -U canagent -d sbshop`
+`docker exec -i projects-postgres-1 psql -U goottjason -d sbshop`
 
 ```sql
 -- D-265 2단계: 확증 프로브 결과 기록 (적용완료)
@@ -3889,7 +3889,7 @@ G마켓에서 아예 안 팔린다. 다만 그 리스팅은 **반품/교환 정�
 
 - 심각도: P3(데이터 누락 아님 — 조회 결과만 축소, 사용자가 알아채기 어려움) | 위치: `backend/core/.../domain/product/ProductSpecifications.addCategories` + `dto/ProductSearchCondition`, `backend/api/.../controller/ProductController.getProducts`, `frontend/src/pages/product/ProductFilterPanel.tsx`·`ProductGrid.tsx`·`api/productApi.ts`
 - 증상: `GET /api/v1/products/categories`는 DB에 실존하는 비null enum만 distinct로 주므로 `["FOOD","UNKNOWN"]`뿐이다. 패널의 "전체 카테고리"를 켜면 그 2개가 그대로 `categories=FOOD&categories=UNKNOWN`으로 나가고, `IN (...)`은 SQL 3값 논리상 NULL을 절대 매치하지 않으므로 `category IS NULL`인 상품이 전부 탈락한다. **"전체"를 골랐는데 결과가 줄어드는** 역직관적 동작이며, 미분류 상품만 보는 수단도 없었다.
-- 운영 실측(2026-08-23, `docker exec projects-postgres-1 psql -U canagent -d sbshop` read-only): `sb_product` 전체 **3,195행** = `category IS NULL` **2,858** + FOOD **336** + UNKNOWN **1**. `WHERE category IN ('FOOD','UNKNOWN')` → **337행**(= 현 "전체 카테고리" 결과), `WHERE category IN ('FOOD','UNKNOWN') OR category IS NULL` → **3,195행**(= 수정 후 기대), `WHERE category IS NULL` → **2,858행**(= 미분류 단독).
+- 운영 실측(2026-08-23, `docker exec projects-postgres-1 psql -U goottjason -d sbshop` read-only): `sb_product` 전체 **3,195행** = `category IS NULL` **2,858** + FOOD **336** + UNKNOWN **1**. `WHERE category IN ('FOOD','UNKNOWN')` → **337행**(= 현 "전체 카테고리" 결과), `WHERE category IN ('FOOD','UNKNOWN') OR category IS NULL` → **3,195행**(= 수정 후 기대), `WHERE category IS NULL` → **2,858행**(= 미분류 단독).
 - 수정(2026-08-23, fixer-p3-uncategorized): D-175가 만든 단일 경로를 확장 — `ProductSearchCondition`에 `boolean includeUncategorized` 컴포넌트를 추가하고 `addCategories`를 3분기로 재작성했다. **파라미터 의미**: 둘 다 없음 → 카테고리 술어 미생성(전건, 종전과 동일) / `categories`만 → `category IN (...)`(종전과 동일, NULL 불포함) / `includeUncategorized`만 → `category IS NULL`(신규) / 둘 다 → `category IN (...) OR category IS NULL`(**OR 결합**, 신규). 다른 필터축과는 기존대로 AND. 컨트롤러는 `@RequestParam(defaultValue = "false") boolean includeUncategorized` 1개를 추가해 조건 객체로 그대로 전달 — 응답 계약 `Page<ProductListResponse>`·스키마·엔티티·`/categories` 엔드포인트 **전부 무변경**(미분류는 DB distinct에 나올 수 없는 값이므로 서버 옵션이 아니라 프론트 상수 옵션으로 제공). 프론트는 `ProductFilters`에 `includeUncategorized: boolean`을 추가하고 패널 카테고리 줄 끝에 **"미분류" 체크박스를 서버 옵션 유무와 무관하게 항상 렌더**, "전체"는 서버 카테고리 전부 + 미분류를 함께 켜고/끈다(`isAllCategories = categories.length === categoryOptions.length && includeUncategorized`). `toQuery`는 켜졌을 때만 `includeUncategorized=true`를 싣고 기존 `categories` 전송 규칙은 그대로다. 그리드 카테고리 열의 빈 값 표시('-')도 현행 유지.
 - Red 실측(2026-08-23, 2단):
   - **① 런타임 Red(기존 API만으로 증상 재현)** — `ProductSearchSpecificationTest`에 FOOD·UNKNOWN·null 3행을 심고 "distinct 카테고리 전부 선택"이 3건을 반환해야 한다고 단언: `AssertionError: Expecting actual: ["SB001","SB002"] to contain exactly in any order: ["SB001","SB002","SB003"] but could not find the following elements: ["SB003"]` — 운영의 337/3,195와 같은 형태(NULL 행만 탈락).

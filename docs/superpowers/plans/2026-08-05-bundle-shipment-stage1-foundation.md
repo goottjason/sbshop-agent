@@ -1522,7 +1522,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ```bash
 ssh -i ssh-key-2026-06-25.key -o StrictHostKeyChecking=no ubuntu@168.107.31.154 \
-  "docker exec -i projects-postgres-1 psql -U canagent -d sbshop" \
+  "docker exec -i projects-postgres-1 psql -U goottjason -d sbshop" \
   < backend/docs/ddl/2026-08-05-shipment.sql
 ```
 
@@ -1530,7 +1530,7 @@ ssh -i ssh-key-2026-06-25.key -o StrictHostKeyChecking=no ubuntu@168.107.31.154 
 
 ```bash
 ssh -i ssh-key-2026-06-25.key -o StrictHostKeyChecking=no ubuntu@168.107.31.154 \
-  "docker exec projects-postgres-1 psql -U canagent -d sbshop -c '\\d sb_shipment'"
+  "docker exec projects-postgres-1 psql -U goottjason -d sbshop -c '\\d sb_shipment'"
 ```
 
 Expected: 테이블과 `uk_shipment_order_market_no` 제약이 보인다.

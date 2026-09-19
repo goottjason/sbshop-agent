@@ -1060,7 +1060,7 @@ git commit -m "feat(api): PATCH /line-items/{id}/purchase-status 엔드포인트
 - [ ] **Step 1: purchase_status 컬럼 추가**
 
 ```bash
-docker exec projects-postgres-1 psql -U canagent -d sbshop -c "
+docker exec projects-postgres-1 psql -U goottjason -d sbshop -c "
 ALTER TABLE sb_order_line_item
   ADD COLUMN IF NOT EXISTS purchase_status VARCHAR(50) NOT NULL DEFAULT 'NOT_PURCHASED';
 "
@@ -1069,7 +1069,7 @@ ALTER TABLE sb_order_line_item
 - [ ] **Step 2: 기존 PURCHASED 레코드 이전**
 
 ```bash
-docker exec projects-postgres-1 psql -U canagent -d sbshop -c "
+docker exec projects-postgres-1 psql -U goottjason -d sbshop -c "
 SELECT COUNT(*) FROM sb_order_line_item WHERE shipping_data_shipping_status = 'PURCHASED';
 "
 ```
@@ -1077,7 +1077,7 @@ SELECT COUNT(*) FROM sb_order_line_item WHERE shipping_data_shipping_status = 'P
 레코드가 있으면 실제 상태를 검토 후 수동 결정. 기본 이전 쿼리:
 
 ```bash
-docker exec projects-postgres-1 psql -U canagent -d sbshop -c "
+docker exec projects-postgres-1 psql -U goottjason -d sbshop -c "
 UPDATE sb_order_line_item
 SET purchase_status = 'PURCHASED',
     shipping_data_shipping_status = 'PREPARING'
@@ -1088,13 +1088,13 @@ WHERE shipping_data_shipping_status = 'PURCHASED';
 ※ `shipping_data_shipping_status` 컬럼명이 다르면 실제 컬럼명으로 교체:
 
 ```bash
-docker exec projects-postgres-1 psql -U canagent -d sbshop -c "\d sb_order_line_item" | grep -i ship
+docker exec projects-postgres-1 psql -U goottjason -d sbshop -c "\d sb_order_line_item" | grep -i ship
 ```
 
 - [ ] **Step 3: 컬럼 존재 및 기본값 확인**
 
 ```bash
-docker exec projects-postgres-1 psql -U canagent -d sbshop -c "
+docker exec projects-postgres-1 psql -U goottjason -d sbshop -c "
 SELECT purchase_status, COUNT(*) FROM sb_order_line_item GROUP BY purchase_status;
 "
 ```

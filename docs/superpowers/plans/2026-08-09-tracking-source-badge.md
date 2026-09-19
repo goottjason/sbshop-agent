@@ -648,7 +648,7 @@ git commit -m "feat(order): 송장 출처 아이콘(📧 이메일 / ✍ 진위 
 
 ```bash
 ssh -i ssh-key-2026-06-25.key ubuntu@168.107.31.154 \
-  "docker exec projects-postgres-1 psql -U canagent -d sbshop -c \
+  "docker exec projects-postgres-1 psql -U goottjason -d sbshop -c \
    \"ALTER TABLE sb_shipment ADD COLUMN IF NOT EXISTS tracking_source VARCHAR(20);\""
 ```
 
@@ -676,7 +676,7 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://168.107.31.154/sbshop-agent/api
 ```bash
 ssh -i ssh-key-2026-06-25.key ubuntu@168.107.31.154 \
   "docker exec projects-sbshop-api-1 curl -s -X POST localhost:8080/internal/email/fetch >/dev/null; \
-   docker exec projects-postgres-1 psql -U canagent -d sbshop -tAc \
+   docker exec projects-postgres-1 psql -U goottjason -d sbshop -tAc \
    \"select coalesce(tracking_source,'(미기록)'), count(*) from sb_shipment group by 1 order by 2 desc\""
 ```
 
