@@ -7,6 +7,15 @@ on:
         description: "빌드할 서비스(공백 구분: api frontend scraper). 비우면 전부"
         type: string
         default: ""
+  workflow_call:
+    inputs:
+      services:
+        type: string
+        default: ""
+    outputs:
+      tag:
+        description: "빌드한 이미지 태그(커밋 SHA 12자)"
+        value: ${{ jobs.select.outputs.tag }}
 
 permissions:
   contents: read

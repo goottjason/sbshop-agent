@@ -12,12 +12,24 @@ on:
         description: "도는 소싱처 배치가 있어도 배포한다"
         type: boolean
         default: false
+      skip_tests:
+        description: "테스트를 건너뛰고 배포한다(긴급용)"
+        type: boolean
+        default: false
+      image_tag:
+        description: "이미 빌드된 이미지 태그(커밋 SHA 12자)를 그대로 배포한다 — 테스트·빌드 생략"
+        type: string
+        default: ""
       recreate:
         description: "이미지가 같아도 다시 만들 서비스(공백 구분, 예: sbshop-api). 운영 검증용"
         type: string
         default: ""
       rollback:
-        description: "지정하면 배포 대신 그 서비스를 직전 prev- 태그로 되돌린다(예: sbshop-api)"
+        description: "지정하면 배포 대신 그 서비스를 되돌린다(예: sbshop-api)"
+        type: string
+        default: ""
+      rollback_tag:
+        description: "롤백할 태그: 커밋 SHA 12자(레지스트리에서 받음) 또는 prev-시각. 비우면 직전 prev- 태그"
         type: string
         default: ""
 
@@ -25,21 +37,62 @@ concurrency:
   group: deploy-sbshop-main
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
-  deploy:
+  validate:
     runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.mode.outputs.build }}
+      test: ${{ steps.mode.outputs.test }}
     steps:
-      - name: Validate inputs
+      - id: mode
         env:
           RECREATE: ${{ inputs.recreate }}
           ROLLBACK: ${{ inputs.rollback }}
+          ROLLBACK_TAG: ${{ inputs.rollback_tag }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          SKIP_TESTS: ${{ inputs.skip_tests }}
         run: |
           for v in "$RECREATE" "$ROLLBACK"; do
             case "$v" in
               *[!a-z0-9\ -]*) echo "::error::서비스 이름은 소문자·숫자·하이픈·공백만 허용합니다: $v"; exit 1;;
             esac
           done
+          if [ -n "$IMAGE_TAG" ] && ! printf '%s' "$IMAGE_TAG" | grep -Eq '^[a-z0-9][a-z0-9._-]{0,127}$'; then
+            echo "::error::image_tag 형식이 올바르지 않습니다: $IMAGE_TAG"; exit 1
+          fi
+          if [ -n "$ROLLBACK_TAG" ] && ! printf '%s' "$ROLLBACK_TAG" | grep -Eq '^([0-9a-f]{12}|prev-[0-9]{8}-[0-9]{6})$'; then
+            echo "::error::rollback_tag 는 커밋 SHA 12자리 또는 prev-YYYYMMDD-HHMMSS 여야 합니다: $ROLLBACK_TAG"; exit 1
+          fi
+          if [ -n "$ROLLBACK_TAG" ] && [ -z "$ROLLBACK" ]; then
+            echo "::error::rollback_tag 는 rollback(서비스)과 함께만 쓸 수 있습니다"; exit 1
+          fi
+          build=true; test=true
+          if [ -n "$ROLLBACK" ] || [ -n "$IMAGE_TAG" ]; then build=false; test=false; fi
+          if [ "$SKIP_TESTS" = "true" ]; then test=false; fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "test=$test" >> "$GITHUB_OUTPUT"
 
+  tests:
+    needs: validate
+    if: needs.validate.outputs.test == 'true'
+    uses: ./.github/workflows/tests.yml
+
+  images:
+    needs: validate
+    if: needs.validate.outputs.build == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/images.yml
+
+  deploy:
+    needs: [validate, tests, images]
+    if: ${{ !cancelled() && !failure() }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy via ops/deploy.sh
         env:
           SSH_KEY: ${{ secrets.SBSHOP_DEPLOY_KEY }}
@@ -48,25 +101,29 @@ jobs:
           FORCE_INPUT: ${{ inputs.force }}
           RECREATE: ${{ inputs.recreate }}
           ROLLBACK: ${{ inputs.rollback }}
+          ROLLBACK_TAG: ${{ inputs.rollback_tag }}
+          IMAGE_TAG: ${{ inputs.image_tag || needs.images.outputs.tag }}
+          GIT_SHA: ${{ github.sha }}
         run: |
           if [ -z "$SSH_KEY" ]; then
             echo "::error::SBSHOP_DEPLOY_KEY 시크릿이 없습니다."
             exit 1
           fi
+          printf '%s' "$GIT_SHA" | grep -Eq '^[0-9a-f]{40}$' || { echo "::error::잘못된 커밋 SHA"; exit 1; }
           FORCE=0; [ "$FORCE_INPUT" = "true" ] && FORCE=1
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$SERVER" >> ~/.ssh/known_hosts 2>/dev/null || true
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new "$USER_NAME@$SERVER" \
-            "FORCE='$FORCE' RECREATE='$RECREATE' ROLLBACK='$ROLLBACK' bash -se" <<'REMOTE'
+            "FORCE='$FORCE' RECREATE='$RECREATE' ROLLBACK='$ROLLBACK' ROLLBACK_TAG='$ROLLBACK_TAG' IMAGE_TAG='$IMAGE_TAG' GIT_SHA='$GIT_SHA' bash -se" <<'REMOTE'
             set -euo pipefail
             cd ~/projects/sbshop-agent
             git fetch origin main
-            git reset --hard origin/main
+            git reset --hard "$GIT_SHA"
             bash ops/test/deploy_test.sh
             if [ -n "$ROLLBACK" ]; then
-              ./ops/deploy.sh rollback "$ROLLBACK"
+              ./ops/deploy.sh rollback "$ROLLBACK" ${ROLLBACK_TAG:+"$ROLLBACK_TAG"}
             else
               ./ops/deploy.sh
             fi

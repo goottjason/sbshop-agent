@@ -6370,4 +6370,7 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 원인: 운영 코드는 토큰 만료 시각을 `atZone(KST)` 로 명시 해석하는데, 테스트는 JVM 기본 시간대의 `LocalDateTime.now()` 로 만료 시각을 만들었다. UTC 에서는 "1시간 뒤"가 KST 기준 8시간 전이라 만료로 판정 → refresh 경로 → mock 응답 없음 → NPE.
 - 수정: `Cafe24TokenManagerTest`(12곳)·`Cafe24TokenManagerConcurrencyTest`(1곳)에서 `LocalDateTime.now(KST)`. 재현: `TZ=UTC ./gradlew :infrastructure:test --tests '*Cafe24TokenManagerTest'`.
 - 교훈: CI(UTC·Linux)가 로컬(KST·macOS)이 숨기던 환경 의존 테스트를 드러냈다(D-318 과 같은 부류). 테스트 게이트를 CI에서 돌리는 것 자체가 가치가 있다.
+- B단계(완료, 검증 PASS): `deploy.sh` 가 `IMAGE_TAG` 로 pull 방식 동작, 지문에서 라벨 제외(커밋 SHA 라벨이 매 배포 전체 교체를 유발하던 문제 — 실서버에서 라벨만 다른 이미지로 확인), `REGISTRY_PREFIX` 검증, pull 실패 정리, 12자리 커밋 태그 롤백. 테스트 259, 변형 18건 사망. 검증자: 조건부 PASS(재검토 4).
+- 실서버 사전 확인: pull 이미지를 로컬 이름으로 다시 태그해 임시 컨테이너를 만들면 컨테이너 `.Image` == 이미지 `.Id`(api·frontend 둘 다 일치, 단일 매니페스트) → `verify_running_image` 가 pull 방식에서도 성립.
+- C단계(착수): `deploy.yml` = validate(입력 허용집합 검증) → tests ∥ images(arm64 러너) → deploy(서버는 `IMAGE_TAG` 로 pull 만, `git reset --hard <커밋 SHA>`). 수동 실행 입력: `force`, `skip_tests`(긴급), `image_tag`(이미 빌드된 태그 재배포), `recreate`, `rollback`+`rollback_tag`(커밋 SHA 12자 또는 prev-시각). CI 테스트는 D-318·319 수정 뒤 초록(백엔드 6분 53초·프런트 36초).
 
