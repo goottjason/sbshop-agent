@@ -16,7 +16,7 @@ new_env() {
   : > "$CALLLOG"; : > "$LOCKSTATE"; echo 0 > "$BATCH_IDX_FILE"; echo 0 > "$HEALTH_N_FILE"; rm -f "$TMPD"/replaced.* "$TMPD"/pending.*; rm -rf "$TMPD/state"
   OUT_PS=""; OUT_BATCH=("0"); BATCH_FAIL=0
   declare -gA BUILT=() FPC=() RUNNING=() TAGS=() HASH_RUN=() HASH_WANT=()
-  HEALTH_BODY=""; UP_FAIL_SVC=""; BUILD_RC=0; UP_RC=0; NGINX_RC=0; STALE_AFTER_UP=0; HEALTH_UP_AFTER=1; DF_AVAIL=99999999; SLEPT=0
+  HEALTH_BODY=""; UP_FAIL_SVC=""; STALE_SVC=""; TAG_FAIL=0; TAG_FAIL_SVC=""; BUILD_RC=0; UP_RC=0; NGINX_RC=0; STALE_AFTER_UP=0; HEALTH_UP_AFTER=1; DF_AVAIL=99999999; SLEPT=0
   export FORCE=0 RECREATE="" DRY_RUN=0 POLL_SEC=1 BATCH_WAIT_SEC=3 HEALTH_WAIT_SEC=4 HEALTH_POLL_SEC=1 MIN_FREE_KB=10485760 KEEP_PREV=3
   export LOCK_FILE="$TMPD/lock" COMPOSE_DIR="$HERE/.." STATE_DIR="$TMPD/state"
 }
@@ -35,13 +35,20 @@ docker() {
         [ -n "${BUILT[$n]:-}" ] || return 1
         case "$*" in *json*) echo "${FPC[$n]:-${BUILT[$n]}}" ;; *) echo "${BUILT[$n]}" ;; esac
       elif [ "$2" = ls ]; then printf '%s\n' "${TAGS[$3]:-}"; fi ;;
-    tag) case "${*: -1}" in *:pending-prev) local pn="${*: -1}"; touch "$TMPD/pending.${pn%:pending-prev}" ;; esac ;;
+    tag) case "${*: -1}" in
+           *:pending-prev) local pn="${*: -1}"; touch "$TMPD/pending.${pn%:pending-prev}" ;;
+           *:prev-*) if [ "$TAG_FAIL" = 1 ]; then
+                       case "${*: -1}" in sbshop-agent-"${TAG_FAIL_SVC:-sbshop}"*) return 1 ;; esac
+                     fi ;;
+         esac ;;
     rmi) case "${*: -1}" in *:pending-prev) local rn="${*: -1}"; rm -f "$TMPD/pending.${rn%:pending-prev}" ;; esac ;;
     inspect)
       local c="${*: -1}" svc img
       svc="${c#projects-}"; svc="${svc%-1}"; img="sbshop-agent-$svc"
       case "$*" in *config-hash*) echo "${HASH_RUN[$svc]:-}"; return 0 ;; esac
-      if [ -f "$TMPD/replaced.$svc" ] && [ "$STALE_AFTER_UP" != 1 ]; then echo "${BUILT[$img]:-}"; return 0; fi
+      local stale=0
+      if [ "$STALE_AFTER_UP" = 1 ] && { [ -z "$STALE_SVC" ] || [ "$STALE_SVC" = "$svc" ]; }; then stale=1; fi
+      if [ -f "$TMPD/replaced.$svc" ] && [ "$stale" != 1 ]; then echo "${BUILT[$img]:-}"; return 0; fi
       echo "${RUNNING[$c]:-}"; [ -n "${RUNNING[$c]:-}" ] || return 1 ;;
     exec)
       case "$*" in
@@ -444,6 +451,54 @@ assert_eq "nginx 를 다시 읽힌다(api 가 새 IP 로 떴다)" 1 "$(count_of 
 assert_contains "실패한 서비스와 롤백 방법을 알린다" "rollback sbshop-frontend" "$(cat "$TMPD/out")"
 assert_contains "앞서 교체한 서비스가 떠 있음을 알린다" "앞서 교체한 서비스는 떠 있고 nginx 는 다시 읽혔습니다" "$(cat "$TMPD/out")"
 assert_eq "실패 서비스 뒤는 이어서 교체하지 않는다" 2 "$(count_of 'up -d --no-build')"
+
+echo "[main] 앞 서비스를 교체한 뒤 뒤 서비스의 교체 후 검증이 실패해도 nginx 는 다시 읽힌다"
+new_env; STALE_AFTER_UP=1; STALE_SVC="sbshop-frontend"
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+run_main; rc=$?
+assert_eq "코드 6 으로 종료" 6 "$rc"
+assert_contains "이유를 알린다" "방금 빌드한 이미지와 다릅니다" "$(cat "$TMPD/out")"
+assert_eq "nginx 를 다시 읽힌다" 1 "$(count_of 'nginx -s reload')"
+assert_contains "앞서 교체한 서비스가 떠 있음을 알린다" "앞서 교체한 서비스는 떠 있고 nginx 는 다시 읽혔습니다" "$(cat "$TMPD/out")"
+
+echo "[main] 롤백용 태그를 못 만들면 그 서비스는 교체하지 않고, 앞서 교체한 서비스 때문에 nginx 는 다시 읽힌다"
+new_env; TAG_FAIL=1
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="f"; RUNNING[projects-sbshop-frontend-1]="f"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+touch "$TMPD/pending.sbshop-agent-sbshop-api"
+run_main; rc=$?
+assert_eq "코드 1 로 종료(교체 전 실패)" 1 "$rc"
+assert_contains "이유를 알린다" "롤백용 태그" "$(cat "$TMPD/out")"
+assert_not_contains "그 서비스는 교체하지 않는다" "up -d --no-build --no-deps sbshop-api" "$(calls_str)"
+new_env; TAG_FAIL=1; TAG_FAIL_SVC="sbshop-frontend"
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+run_main; rc=$?
+assert_eq "api 는 교체됐고 frontend 태그 단계에서 코드 1" 1 "$rc"
+assert_eq "앞서 교체한 api 때문에 nginx 를 다시 읽힌다" 1 "$(count_of 'nginx -s reload')"
+assert_contains "앞서 교체한 서비스가 떠 있음을 알린다" "앞서 교체한 서비스는 떠 있고 nginx 는 다시 읽혔습니다" "$(cat "$TMPD/out")"
+
+echo "[main] frontend 성공 후 scraper 실패(api 무변경)에도 nginx 를 다시 읽힌다"
+new_env; UP_RC=1; UP_FAIL_SVC="sbshop-scraper"
+BUILT[sbshop-agent-sbshop-api]="a"; RUNNING[projects-sbshop-api-1]="a"
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+BUILT[sbshop-agent-sbshop-scraper]="new-sc"; RUNNING[projects-sbshop-scraper-1]="old-sc"
+run_main; rc=$?
+assert_eq "코드 4 로 종료" 4 "$rc"
+assert_eq "nginx 를 다시 읽힌다" 1 "$(count_of 'nginx -s reload')"
+
+echo "[main] 도중 실패에 nginx 까지 실패해도 코드 4 를 유지하고 그 사실을 알린다"
+new_env; UP_RC=1; UP_FAIL_SVC="sbshop-scraper"; NGINX_RC=1
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="f"; RUNNING[projects-sbshop-frontend-1]="f"
+BUILT[sbshop-agent-sbshop-scraper]="new-sc"; RUNNING[projects-sbshop-scraper-1]="old-sc"
+run_main; rc=$?
+assert_eq "코드 4 유지" 4 "$rc"
+assert_contains "nginx 도 실패했음을 알린다" "nginx reload 도 실패했습니다" "$(cat "$TMPD/out")"
 
 echo "[main] 첫 서비스에서 실패하면 nginx 는 건드리지 않는다"
 new_env; UP_RC=1

@@ -181,7 +181,7 @@ tag_prev() {
   if [ "$DRY_RUN" != 1 ] && ! docker image inspect "$pending" >/dev/null 2>&1; then return 0; fi
   tag="prev-$(date +%Y%m%d-%H%M%S)"
   log "롤백용 태그: $(image_of "$svc"):$tag"
-  run docker tag "$pending" "$(image_of "$svc"):$tag"
+  run docker tag "$pending" "$(image_of "$svc"):$tag" || return 1
   drop_pending "$svc"
   prune_prev_tags "$svc"
 }
@@ -193,6 +193,15 @@ replace_service() {
   (cd "$COMPOSE_DIR" && run docker compose up -d --no-build --no-deps "$svc") || return 4
 }
 
+abort_partial() {
+  local msg="$1" code="$2" reloaded="$3"
+  if [ "$reloaded" = 1 ]; then
+    reload_nginx || warn "nginx reload 도 실패했습니다"
+    msg="$msg (앞서 교체한 서비스는 떠 있고 nginx 는 다시 읽혔습니다)"
+  fi
+  die "$msg" "$code"
+}
+
 replace_failure_message() {
   echo "$1 기동 실패 — 컨테이너가 내려간 상태입니다. 원인을 확인한 뒤 ./ops/deploy.sh 를 다시 실행하거나 ./ops/deploy.sh rollback $1 를 실행하세요"
 }
@@ -202,7 +211,7 @@ verify_running_image() {
   if [ "$DRY_RUN" = 1 ]; then return 0; fi
   built="$(built_image_id "$svc")"
   running="$(running_image_id "$svc")"
-  if [ "$built" != "$running" ]; then die "$svc: 실행 중인 이미지가 방금 빌드한 이미지와 다릅니다 — 서비스가 내려갔을 수 있습니다" 6; fi
+  if [ "$built" != "$running" ]; then return 6; fi
 }
 
 reload_nginx() {
@@ -290,19 +299,13 @@ main() {
 
   local api_changed=0 reload=0 nginx_failed=0
   for svc in "${changed[@]}"; do
-    tag_prev "$svc"
-    if ! replace_service "$svc"; then
-      if [ "$reload" = 1 ]; then
-        reload_nginx || warn "nginx reload 도 실패했습니다"
-        die "$(replace_failure_message "$svc") (앞서 교체한 서비스는 떠 있고 nginx 는 다시 읽혔습니다)" 4
-      fi
-      die "$(replace_failure_message "$svc")" 4
-    fi
-    verify_running_image "$svc"
+    tag_prev "$svc" || abort_partial "$svc: 롤백용 태그를 만들지 못했습니다 — 이 서비스는 교체하지 않았습니다" 1 "$reload"
+    replace_service "$svc" || abort_partial "$(replace_failure_message "$svc")" 4 "$reload"
     case "$svc" in
       sbshop-api) api_changed=1; reload=1 ;;
       sbshop-frontend) reload=1 ;;
     esac
+    verify_running_image "$svc" || abort_partial "$svc: 실행 중인 이미지가 방금 빌드한 이미지와 다릅니다 — 서비스가 내려갔을 수 있습니다" 6 "$reload"
   done
   if [ "$reload" = 1 ]; then
     reload_nginx || nginx_failed=1
