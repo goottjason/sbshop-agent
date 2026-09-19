@@ -24,7 +24,7 @@ DRY_RUN="${DRY_RUN:-0}"
 
 log() { echo "[deploy $(date +%H:%M:%S)] $*"; }
 warn() { echo "[deploy $(date +%H:%M:%S)] 경고: $*" >&2; }
-die() { echo "[deploy $(date +%H:%M:%S)] 실패: $*" >&2; exit "${2:-1}"; }
+die() { echo "[deploy $(date +%H:%M:%S)] 실패: $1" >&2; exit "${2:-1}"; }
 
 run() {
   if [ "$DRY_RUN" = 1 ]; then log "DRY_RUN: $*"; return 0; fi
@@ -43,8 +43,9 @@ valid_service() {
 }
 
 validate_recreate() {
-  local s
-  for s in $RECREATE; do
+  local s items=()
+  read -r -a items <<< "$RECREATE"
+  for s in "${items[@]+"${items[@]}"}"; do
     valid_service "$s" || die "알 수 없는 서비스(RECREATE): $s — 허용: ${SERVICES[*]}" 2
   done
 }
@@ -135,10 +136,17 @@ wait_for_idle_batches() {
   done
 }
 
+container_exists() { docker inspect "$1" >/dev/null 2>&1; }
+
 remove_leftovers() {
-  local name
+  local name svc primary
   while IFS= read -r name; do
     [ -n "$name" ] || continue
+    svc="${name#*_projects-}"; svc="${svc%-1}"; primary="projects-$svc-1"
+    if ! valid_service "$svc" && ! container_exists "$primary"; then
+      warn "찌꺼기 $name 는 지우지 않습니다 — 본체 $primary 가 없어 이 스크립트가 되살리지 못합니다. 직접 확인하세요"
+      continue
+    fi
     log "찌꺼기 컨테이너 제거: $name"
     run docker rm -f "$name" >/dev/null
   done < <(leftover_containers)
@@ -190,7 +198,7 @@ verify_running_image() {
   if [ "$DRY_RUN" = 1 ]; then return 0; fi
   built="$(built_image_id "$svc")"
   running="$(running_image_id "$svc")"
-  if [ "$built" != "$running" ]; then die "$svc: 실행 중인 이미지가 방금 빌드한 이미지와 다릅니다"; fi
+  if [ "$built" != "$running" ]; then die "$svc: 실행 중인 이미지가 방금 빌드한 이미지와 다릅니다 — 서비스가 내려갔을 수 있습니다" 6; fi
 }
 
 reload_nginx() {
@@ -234,19 +242,28 @@ rollback_service() {
   log "롤백: $svc ← $tag"
   run docker tag "$(image_of "$svc"):$tag" "$(image_of "$svc"):latest"
   replace_service "$svc"
+  local nginx_failed=0
+  case "$svc" in
+    sbshop-api|sbshop-frontend) reload_nginx || nginx_failed=1 ;;
+  esac
   if [ "$svc" = "$API_SERVICE" ]; then
-    reload_nginx || die "롤백 후 nginx reload 실패" 5
-    wait_api_healthy || die "롤백 후 api 가 정상이 되지 못했습니다"
+    if ! wait_api_healthy; then
+      die "롤백 후 api 가 정상이 되지 못했습니다$([ "$nginx_failed" = 1 ] && echo ' (nginx reload 실패도 있었습니다)')" 6
+    fi
   fi
   record_fingerprint "$svc"
+  if [ "$nginx_failed" = 1 ]; then
+    die "롤백 후 nginx reload 실패 — 새 컨테이너는 떠 있습니다. docker exec $NGINX_CONTAINER nginx -s reload 를 확인하세요" 5
+  fi
   log "롤백 완료: $svc"
 }
 
 main() {
+  if [ "$DRY_RUN" = 1 ]; then log "DRY_RUN: 빌드를 건너뛰므로 변경 판정은 이미 있던 이미지 기준입니다(새 코드는 반영되지 않습니다)"; fi
   validate_recreate
   acquire_lock
   check_disk || die "디스크 여유 부족" 1
-  wait_for_idle_batches || exit 3
+  wait_for_idle_batches || die "도는 소싱처 배치 때문에 배포를 시작하지 않았습니다" 3
 
   snapshot_prev
 
@@ -281,7 +298,9 @@ main() {
     reload_nginx || nginx_failed=1
   fi
   if [ "$api_changed" = 1 ]; then
-    wait_api_healthy || die "api 헬스체크 실패 — 롤백하려면: ./ops/deploy.sh rollback sbshop-api"
+    if ! wait_api_healthy; then
+      die "api 헬스체크 실패$([ "$nginx_failed" = 1 ] && echo ' (nginx reload 실패도 있었습니다)') — 롤백하려면: ./ops/deploy.sh rollback sbshop-api" 6
+    fi
   fi
   for svc in "${changed[@]}"; do record_fingerprint "$svc"; done
   if [ "$nginx_failed" = 1 ]; then
