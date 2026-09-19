@@ -13,6 +13,9 @@ STATE_DIR="${STATE_DIR:-$HOME/.sbshop-deploy}"
 PENDING_TAG="pending-prev"
 REGISTRY_PREFIX="${REGISTRY_PREFIX:-ghcr.io/goottjason/sbshop-agent}"
 IMAGE_TAG="${IMAGE_TAG:-}"
+IMAGE_PULL="${IMAGE_PULL:-1}"
+AUTO_ROLLBACK="${AUTO_ROLLBACK:-1}"
+SCRAPER_CONTAINER="${SCRAPER_CONTAINER:-projects-sbshop-scraper-1}"
 LOCK_WAIT_SEC="${LOCK_WAIT_SEC:-900}"
 MIN_FREE_KB="${MIN_FREE_KB:-10485760}"
 BATCH_WAIT_SEC="${BATCH_WAIT_SEC:-1800}"
@@ -23,6 +26,8 @@ KEEP_PREV="${KEEP_PREV:-3}"
 FORCE="${FORCE:-0}"
 RECREATE="${RECREATE:-}"
 DRY_RUN="${DRY_RUN:-0}"
+declare -A PREV_TAG=()
+REPLACED=()
 
 log() { echo "[deploy $(date +%H:%M:%S)] $*"; }
 warn() { echo "[deploy $(date +%H:%M:%S)] 경고: $*" >&2; }
@@ -63,6 +68,10 @@ pull_service_image() {
   ref="$(registry_ref "$1" "$2")"
   log "pull: $ref"
   if [ "$DRY_RUN" = 1 ]; then log "DRY_RUN: docker pull $ref"; return 0; fi
+  if [ "$IMAGE_PULL" = 0 ]; then
+    docker image inspect "$ref" >/dev/null 2>&1 || return 1
+    return 0
+  fi
   docker pull "$ref" >/dev/null || return 1
 }
 
@@ -225,6 +234,7 @@ tag_prev() {
   tag="prev-$(date +%Y%m%d-%H%M%S)"
   log "롤백용 태그: $(image_of "$svc"):$tag"
   run docker tag "$pending" "$(image_of "$svc"):$tag" || return 1
+  PREV_TAG[$svc]="$tag"
   drop_pending "$svc"
   prune_prev_tags "$svc"
 }
@@ -243,6 +253,33 @@ abort_partial() {
     msg="$msg (앞서 교체한 서비스는 떠 있고 nginx 는 다시 읽혔습니다)"
   fi
   die "$msg" "$code"
+}
+
+auto_rollback() {
+  local msg="$1" i svc tag ok=1 reload_needed=0 routes=1
+  [ "$AUTO_ROLLBACK" = 1 ] || return 1
+  [ "${#REPLACED[@]}" -gt 0 ] || return 1
+  warn "$msg — 자동 롤백을 시작합니다: ${REPLACED[*]}"
+  for ((i = ${#REPLACED[@]} - 1; i >= 0; i--)); do
+    svc="${REPLACED[$i]}"
+    tag="${PREV_TAG[$svc]:-}"
+    if [ -z "$tag" ]; then warn "$svc: 되돌릴 이전 이미지가 없습니다"; ok=0; continue; fi
+    if ! { run docker tag "$(image_of "$svc"):$tag" "$(image_of "$svc"):latest" && replace_service "$svc"; }; then
+      warn "$svc: 이전 이미지로 되돌리지 못했습니다"; ok=0; continue
+    fi
+    case "$svc" in sbshop-api|sbshop-frontend) reload_needed=1 ;; esac
+  done
+  if [ "$reload_needed" = 1 ]; then reload_nginx || { warn "롤백 후 nginx reload 실패"; routes=0; }; fi
+  for svc in "${REPLACED[@]}"; do check_service "$svc" "$routes" || ok=0; done
+  if [ "$ok" = 1 ]; then
+    die "$msg — 자동 롤백 완료: 이전 버전으로 정상 동작합니다(이번 배포는 실패로 기록됩니다)" 7
+  fi
+  die "$msg — 자동 롤백도 실패했습니다. 서비스가 내려갔을 수 있습니다: ./ops/deploy.sh rollback <서비스> 를 실행하세요" 8
+}
+
+fail_deploy() {
+  auto_rollback "$1" || true
+  abort_partial "$1" "$2" "$3"
 }
 
 replace_failure_message() {
@@ -278,6 +315,48 @@ wait_api_healthy() {
   return 1
 }
 
+wait_ok() {
+  local label="$1"; shift
+  if [ "$DRY_RUN" = 1 ]; then log "DRY_RUN: $label 점검 생략"; return 0; fi
+  local waited=0
+  while [ "$waited" -lt "$HEALTH_WAIT_SEC" ]; do
+    if "$@"; then log "$label 통과"; return 0; fi
+    sleep "$HEALTH_POLL_SEC"
+    waited=$((waited + HEALTH_POLL_SEC))
+  done
+  warn "$label 이(가) ${HEALTH_WAIT_SEC}초 안에 정상이 되지 못했습니다"
+  return 1
+}
+
+http_code_via_nginx() {
+  docker exec "$NGINX_CONTAINER" curl -s -o /dev/null -w '%{http_code}' -m 5 "http://127.0.0.1$1" 2>/dev/null || true
+}
+
+api_routed() {
+  case "$(http_code_via_nginx /sbshop-agent/api/v1/products)" in 200|301|302|401|403) return 0 ;; esac
+  return 1
+}
+
+frontend_routed() { [ "$(http_code_via_nginx /sbshop-agent/)" = 200 ]; }
+
+scraper_healthy() {
+  docker exec "$SCRAPER_CONTAINER" curl -fsS -m 5 http://127.0.0.1:8099/health 2>/dev/null | grep -q '"ok":true'
+}
+
+check_service() {
+  local svc="$1" routes="${2:-1}"
+  case "$svc" in
+    sbshop-api)
+      wait_api_healthy || return 1
+      if [ "$routes" = 1 ]; then wait_ok "api 라우팅(nginx→api)" api_routed || return 1; fi ;;
+    sbshop-frontend)
+      if [ "$routes" = 1 ]; then wait_ok "frontend 라우팅(nginx→frontend)" frontend_routed || return 1; fi ;;
+    sbshop-scraper)
+      wait_ok "scraper 헬스" scraper_healthy || return 1 ;;
+  esac
+  return 0
+}
+
 acquire_lock() {
   if [ "$DRY_RUN" = 1 ]; then return 0; fi
   exec 9>"$LOCK_FILE"
@@ -309,10 +388,10 @@ rollback_service() {
   case "$svc" in
     sbshop-api|sbshop-frontend) reload_nginx || nginx_failed=1 ;;
   esac
-  if [ "$svc" = "$API_SERVICE" ]; then
-    if ! wait_api_healthy; then
-      die "롤백 후 api 가 정상이 되지 못했습니다$([ "$nginx_failed" = 1 ] && echo ' (nginx reload 실패도 있었습니다)')" 6
-    fi
+  local routes=1
+  if [ "$nginx_failed" = 1 ]; then routes=0; fi
+  if ! check_service "$svc" "$routes"; then
+    die "롤백 후 $svc 가 정상이 되지 못했습니다$([ "$nginx_failed" = 1 ] && echo ' (nginx reload 실패도 있었습니다)')" 6
   fi
   record_fingerprint "$svc"
   if [ "$nginx_failed" = 1 ]; then
@@ -356,24 +435,27 @@ main() {
   fi
   log "교체 대상: ${changed[*]}"
 
-  local api_changed=0 reload=0 nginx_failed=0
+  local reload=0 nginx_failed=0
   for svc in "${changed[@]}"; do
     tag_prev "$svc" || abort_partial "$svc: 롤백용 태그를 만들지 못했습니다 — 이 서비스는 교체하지 않았습니다" 1 "$reload"
-    replace_service "$svc" || abort_partial "$(replace_failure_message "$svc")" 4 "$reload"
+    REPLACED+=("$svc")
+    replace_service "$svc" || fail_deploy "$(replace_failure_message "$svc")" 4 "$reload"
     case "$svc" in
-      sbshop-api) api_changed=1; reload=1 ;;
+      sbshop-api) reload=1 ;;
       sbshop-frontend) reload=1 ;;
     esac
-    verify_running_image "$svc" || abort_partial "$svc: 실행 중인 이미지가 방금 빌드한 이미지와 다릅니다 — 서비스가 내려갔을 수 있습니다" 6 "$reload"
+    verify_running_image "$svc" || fail_deploy "$svc: 실행 중인 이미지가 방금 빌드한 이미지와 다릅니다 — 서비스가 내려갔을 수 있습니다" 6 "$reload"
   done
   if [ "$reload" = 1 ]; then
     reload_nginx || nginx_failed=1
   fi
-  if [ "$api_changed" = 1 ]; then
-    if ! wait_api_healthy; then
-      die "api 헬스체크 실패$([ "$nginx_failed" = 1 ] && echo ' (nginx reload 실패도 있었습니다)') — 롤백하려면: ./ops/deploy.sh rollback sbshop-api" 6
+  local routes=1
+  if [ "$nginx_failed" = 1 ]; then routes=0; fi
+  for svc in "${changed[@]}"; do
+    if ! check_service "$svc" "$routes"; then
+      fail_deploy "$svc 점검 실패$([ "$nginx_failed" = 1 ] && echo ' (nginx reload 실패도 있었습니다)') — 롤백하려면: ./ops/deploy.sh rollback $svc" 6 0
     fi
-  fi
+  done
   for svc in "${changed[@]}"; do record_fingerprint "$svc"; done
   if [ "$nginx_failed" = 1 ]; then
     die "nginx reload 실패 — 새 컨테이너는 떠 있습니다. docker exec $NGINX_CONTAINER nginx -s reload 를 확인하세요" 5

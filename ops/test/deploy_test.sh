@@ -13,11 +13,11 @@ TMPD="$(mktemp -d)"; CALLLOG="$TMPD/calls.log"; BATCH_IDX_FILE="$TMPD/batch.idx"
 trap 'rm -rf "$TMPD"' EXIT
 
 new_env() {
-  : > "$CALLLOG"; : > "$LOCKSTATE"; echo 0 > "$BATCH_IDX_FILE"; echo 0 > "$HEALTH_N_FILE"; rm -f "$TMPD"/replaced.* "$TMPD"/pending.*; rm -rf "$TMPD/state"
+  : > "$CALLLOG"; : > "$LOCKSTATE"; echo 0 > "$BATCH_IDX_FILE"; echo 0 > "$HEALTH_N_FILE"; rm -f "$TMPD"/replaced.* "$TMPD"/pending.* "$TMPD"/rolledback.*; rm -rf "$TMPD/state"
   OUT_PS=""; OUT_BATCH=("0"); BATCH_FAIL=0
   declare -gA BUILT=() FPC=() RUNNING=() TAGS=() HASH_RUN=() HASH_WANT=()
-  RETAG_FAIL=0; PULL_RC=0; PULL_FAIL_SVC=""; HEALTH_BODY=""; UP_FAIL_SVC=""; STALE_SVC=""; TAG_FAIL=0; TAG_FAIL_SVC=""; BUILD_RC=0; UP_RC=0; NGINX_RC=0; STALE_AFTER_UP=0; HEALTH_UP_AFTER=1; DF_AVAIL=99999999; SLEPT=0
-  export IMAGE_TAG="" REGISTRY_PREFIX="ghcr.io/goottjason/sbshop-agent" FORCE=0 RECREATE="" DRY_RUN=0 POLL_SEC=1 BATCH_WAIT_SEC=3 HEALTH_WAIT_SEC=4 HEALTH_POLL_SEC=1 MIN_FREE_KB=10485760 KEEP_PREV=3
+  SCRAPER_BODY='{"ok":true,"scrapers":["FTN"]}'; BAD_SVC=""; BAD_KIND="both"; BAD_STICKY=0; ROUTE_API_CODE=401; ROUTE_FE_CODE=200; RETAG_FAIL=0; PULL_RC=0; PULL_FAIL_SVC=""; HEALTH_BODY=""; UP_FAIL_SVC=""; STALE_SVC=""; TAG_FAIL=0; TAG_FAIL_SVC=""; BUILD_RC=0; UP_RC=0; NGINX_RC=0; STALE_AFTER_UP=0; HEALTH_UP_AFTER=1; DF_AVAIL=99999999; SLEPT=0
+  export AUTO_ROLLBACK=0 IMAGE_PULL=1 IMAGE_TAG="" REGISTRY_PREFIX="ghcr.io/goottjason/sbshop-agent" FORCE=0 RECREATE="" DRY_RUN=0 POLL_SEC=1 BATCH_WAIT_SEC=3 HEALTH_WAIT_SEC=4 HEALTH_POLL_SEC=1 MIN_FREE_KB=10485760 KEEP_PREV=3
   export LOCK_FILE="$TMPD/lock" COMPOSE_DIR="$HERE/.." STATE_DIR="$TMPD/state"
 }
 
@@ -43,7 +43,8 @@ docker() {
       fi ;;
     tag) case "${*: -1}" in
            *:pending-prev) local pn="${*: -1}"; touch "$TMPD/pending.${pn%:pending-prev}" ;;
-           *:latest) if [ "$RETAG_FAIL" = 1 ]; then return 1; fi ;;
+           *:latest) if [ "$RETAG_FAIL" = 1 ]; then return 1; fi
+                     case "$2" in *:prev-*) local rb="${*: -1}"; touch "$TMPD/rolledback.${rb%:latest}" ;; esac ;;
            *:prev-*) if [ "$TAG_FAIL" = 1 ]; then
                        case "${*: -1}" in sbshop-agent-"${TAG_FAIL_SVC:-sbshop}"*) return 1 ;; esac
                      fi ;;
@@ -62,9 +63,19 @@ docker() {
         *psql*) if [ "$BATCH_FAIL" = 1 ]; then return 1; fi
                 local i; i="$(cat "$BATCH_IDX_FILE")"; echo "${OUT_BATCH[$i]}"
                 [ "$i" -lt $((${#OUT_BATCH[@]} - 1)) ] && echo $((i + 1)) > "$BATCH_IDX_FILE"; return 0 ;;
-        *curl*) local h; h=$(( $(cat "$HEALTH_N_FILE") + 1 )); echo "$h" > "$HEALTH_N_FILE"
+        *"projects-nginx-1 curl"*)
+                local ru="${*: -1}"
+                case "$ru" in
+                  */sbshop-agent/api/*) if bad_now sbshop-api route; then echo 502; else echo "$ROUTE_API_CODE"; fi ;;
+                  *) if bad_now sbshop-frontend route; then echo 502; else echo "$ROUTE_FE_CODE"; fi ;;
+                esac ;;
+        *"projects-sbshop-scraper-1 curl"*)
+                if bad_now sbshop-scraper health; then return 22; fi
+                echo "$SCRAPER_BODY" ;;
+        *"projects-sbshop-api-1 curl"*) local h; h=$(( $(cat "$HEALTH_N_FILE") + 1 )); echo "$h" > "$HEALTH_N_FILE"
+                if bad_now sbshop-api health; then return 22; fi
                 if [ "$h" -ge "$HEALTH_UP_AFTER" ]; then echo "${HEALTH_BODY:-{\"status\":\"UP\",\"db\":\"UP\"\}}"; else return 22; fi ;;
-        *nginx*) return "$NGINX_RC" ;;
+        *"nginx -s reload"*) return "$NGINX_RC" ;;
       esac ;;
     compose)
       case "$*" in
@@ -74,11 +85,18 @@ docker() {
           return "$BUILD_RC" ;;
         *" up "*|*" up -d"*) local us="${*: -1}" urc="$UP_RC"
           if [ -n "$UP_FAIL_SVC" ] && [ "$us" != "$UP_FAIL_SVC" ]; then urc=0; fi
+          if [ -n "$UP_FAIL_SVC" ] && [ -f "$TMPD/rolledback.sbshop-agent-$us" ]; then urc=0; fi
           [ "$urc" = 0 ] && touch "$TMPD/replaced.$us"; return "$urc" ;;
       esac ;;
     logs) echo "fake-log-line" ;;
     *) : ;;
   esac
+}
+bad_now() {
+  [ "$BAD_SVC" = "$1" ] || return 1
+  [ "$BAD_KIND" = both ] || [ "$BAD_KIND" = "$2" ] || return 1
+  [ "$BAD_STICKY" = 1 ] && return 0
+  [ ! -f "$TMPD/rolledback.sbshop-agent-$1" ]
 }
 df() { echo "Avail"; echo " $DF_AVAIL "; }
 sleep() { SLEPT=$((SLEPT + 1)); }
@@ -399,6 +417,8 @@ d="$(env -i HOME=/h PATH="$PATH" bash -c 'source "$1"; echo "$LOCK_WAIT_SEC $MIN
 assert_eq "기본값이 운영 값과 같다" "900 10485760 150 3 1800 30 3 0 0|/h/.sbshop-docker-maintenance.lock|/h/.sbshop-deploy" "$d"
 d="$(env -i HOME=/h PATH="$PATH" bash -c 'source "$1"; echo "[$IMAGE_TAG]|$REGISTRY_PREFIX"' _ "$HERE/../deploy.sh")"
 assert_eq "IMAGE_TAG 기본은 비어 있고(서버 빌드 폴백) 레지스트리 접두어는 GHCR" "[]|ghcr.io/goottjason/sbshop-agent" "$d"
+d="$(env -i HOME=/h PATH="$PATH" bash -c 'source "$1"; echo "$AUTO_ROLLBACK|$IMAGE_PULL|$SCRAPER_CONTAINER"' _ "$HERE/../deploy.sh")"
+assert_eq "자동 롤백은 기본 켬, pull 기본 켬, scraper 컨테이너 이름" "1|1|projects-sbshop-scraper-1" "$d"
 
 echo "[die] 메시지에 종료코드가 섞이지 않는다"
 o="$( ( die "테스트 메시지" 4 ) 2>&1 )"; rc=$?
@@ -673,6 +693,161 @@ assert_not_contains "컨테이너를 건드리지 않는다" "up -d" "$(calls_st
 new_env; TAGS[sbshop-agent-sbshop-api]=$'latest\nprev-20260105-000001'
 ( rollback_service sbshop-api 'zz;bad' ) >"$TMPD/out" 2>&1; assert_eq "형식이 이상한 태그는 로컬에서 찾다 실패" 1 $?
 assert_not_contains "이상한 태그로 pull 하지 않는다" "docker pull" "$(calls_str)"
+
+echo "[main] 정상 배포는 교체 뒤 점검(api 헬스·api/frontend 라우팅·scraper 헬스)을 모두 한다"
+new_env
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+BUILT[sbshop-agent-sbshop-scraper]="new-sc"; RUNNING[projects-sbshop-scraper-1]="old-sc"
+run_main; rc=$?; c="$(calls_str)"
+assert_eq "정상 종료" 0 "$rc"
+assert_contains "api 헬스" "projects-sbshop-api-1 curl" "$c"
+assert_contains "api 라우팅(nginx 안에서 사용자 경로로)" "projects-nginx-1 curl -s -o /dev/null -w %{http_code} -m 5 http://127.0.0.1/sbshop-agent/api/v1/products" "$c"
+assert_contains "frontend 라우팅" "http://127.0.0.1/sbshop-agent/" "$c"
+assert_contains "scraper 헬스" "projects-sbshop-scraper-1 curl -fsS -m 5 http://127.0.0.1:8099/health" "$c"
+r=$(index_of "nginx -s reload"); h=$(index_of "projects-sbshop-api-1 curl"); ro=$(index_of "projects-nginx-1 curl")
+[ "$r" -ge 0 ] && [ "$r" -lt "$h" ] && [ "$h" -lt "$ro" ] && ok "순서: nginx reload → api 헬스 → 라우팅" || bad "순서가 틀림" "reload=$r health=$h route=$ro"
+
+echo "[api_routed] api 에 닿은 응답(200·301·302·401·403)은 정상, 게이트웨이 오류(502·504·연결 실패)만 비정상"
+for c in 200 301 302 401 403; do new_env; ROUTE_API_CODE=$c; api_routed && ok "정상: $c" || bad "정상이어야 함: $c"; done
+for c in 502 503 504 000 500 404; do new_env; ROUTE_API_CODE=$c; api_routed && bad "비정상이어야 함: $c" || ok "비정상: $c"; done
+
+echo "[main] scraper 만 바꾸면 nginx 라우팅 점검은 하지 않고 scraper 헬스만 본다"
+new_env; set_all_same
+BUILT[sbshop-agent-sbshop-scraper]="new-sc"; RUNNING[projects-sbshop-scraper-1]="old-sc"
+run_main; c="$(calls_str)"
+assert_contains "scraper 헬스는 본다" "projects-sbshop-scraper-1 curl" "$c"
+assert_not_contains "라우팅 점검은 하지 않는다" "projects-nginx-1 curl" "$c"
+assert_not_contains "api 헬스는 하지 않는다" "projects-sbshop-api-1 curl" "$c"
+
+echo "[main] api 가 새 이미지에서 비정상이면 이번에 교체한 서비스를 전부 직전 이미지로 되돌린다"
+new_env; AUTO_ROLLBACK=1
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+BAD_SVC="sbshop-api"
+run_main; rc=$?; c="$(calls_str)"; o="$(cat "$TMPD/out")"
+assert_eq "코드 7(자동 롤백 성공)로 종료" 7 "$rc"
+assert_contains "자동 롤백 완료를 알린다" "자동 롤백 완료" "$o"
+assert_contains "api 를 직전 이미지로 되돌린다" "docker tag sbshop-agent-sbshop-api:prev-" "$c"
+assert_contains "frontend 도 함께 되돌린다(혼합 버전 방지)" "docker tag sbshop-agent-sbshop-frontend:prev-" "$c"
+assert_eq "각 서비스를 두 번 띄운다(교체+롤백)" 2 "$(count_of 'up -d --no-build --no-deps sbshop-api')"
+assert_eq "nginx 를 다시 읽힌다(교체 후·롤백 후)" 2 "$(count_of 'nginx -s reload')"
+assert_eq "api 지문은 옛 값 그대로(다음 배포에서 재시도)" "$(fp_of old-api)" "$(cat "$STATE_DIR/sbshop-api.fp")"
+assert_eq "frontend 지문도 옛 값 그대로" "$(fp_of old-fe)" "$(cat "$STATE_DIR/sbshop-frontend.fp")"
+assert_not_contains "배포 완료라고 하지 않는다" "배포 완료" "$o"
+fe=$(index_of "docker tag sbshop-agent-sbshop-frontend:prev-"); ap=$(index_of "docker tag sbshop-agent-sbshop-api:prev-")
+[ "$fe" -ge 0 ] && [ "$fe" -lt "$ap" ] && ok "교체의 역순으로 되돌린다(frontend → api)" || bad "역순이어야 함" "frontend=$fe api=$ap"
+
+echo "[main] 롤백 뒤에도 비정상이면 코드 8 로 알린다"
+new_env; AUTO_ROLLBACK=1
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+BAD_SVC="sbshop-api"; BAD_STICKY=1
+run_main; rc=$?
+assert_eq "코드 8(롤백도 실패)로 종료" 8 "$rc"
+assert_contains "수동 조치를 안내한다" "자동 롤백도 실패했습니다" "$(cat "$TMPD/out")"
+
+echo "[main] AUTO_ROLLBACK=0 이면 예전처럼 코드 6 으로 끝나고 되돌리지 않는다"
+new_env; AUTO_ROLLBACK=0
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="f"; RUNNING[projects-sbshop-frontend-1]="f"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+BAD_SVC="sbshop-api"
+run_main; rc=$?; c="$(calls_str)"
+assert_eq "코드 6 으로 종료" 6 "$rc"
+assert_not_contains "이전 이미지로 되돌리지 않는다" "docker tag sbshop-agent-sbshop-api:prev-" "$c"
+
+echo "[main] 라우팅만 비정상(nginx→api 502)이어도 자동 롤백한다"
+new_env; AUTO_ROLLBACK=1
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+BAD_SVC="sbshop-api"; BAD_KIND="route"
+run_main; rc=$?
+assert_eq "코드 7 로 종료" 7 "$rc"
+assert_contains "라우팅 실패를 원인으로 알린다" "라우팅" "$(cat "$TMPD/out")"
+
+echo "[main] frontend 라우팅 실패도 자동 롤백한다"
+new_env; AUTO_ROLLBACK=1
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+BAD_SVC="sbshop-frontend"; BAD_KIND="route"
+run_main; rc=$?
+assert_eq "코드 7 로 종료" 7 "$rc"
+
+echo "[main] scraper 만 교체했다가 비정상이면 scraper 만 되돌리고 nginx 는 건드리지 않는다"
+new_env; AUTO_ROLLBACK=1; set_all_same
+BUILT[sbshop-agent-sbshop-scraper]="new-sc"; RUNNING[projects-sbshop-scraper-1]="old-sc"
+BAD_SVC="sbshop-scraper"
+run_main; rc=$?; c="$(calls_str)"
+assert_eq "코드 7 로 종료" 7 "$rc"
+assert_contains "scraper 를 되돌린다" "docker tag sbshop-agent-sbshop-scraper:prev-" "$c"
+assert_not_contains "api 는 건드리지 않는다" "up -d --no-build --no-deps sbshop-api" "$c"
+assert_not_contains "nginx 를 읽히지 않는다" "nginx -s reload" "$c"
+
+echo "[main] 기동(up)이 실패해도 앞서 교체한 서비스와 함께 되돌린다"
+new_env; AUTO_ROLLBACK=1
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+UP_RC=1; UP_FAIL_SVC="sbshop-frontend"
+run_main; rc=$?; c="$(calls_str)"
+assert_eq "코드 7 로 종료" 7 "$rc"
+assert_contains "api 도 되돌린다" "docker tag sbshop-agent-sbshop-api:prev-" "$c"
+assert_contains "실패한 frontend 를 직전 이미지로 다시 띄운다" "docker tag sbshop-agent-sbshop-frontend:prev-" "$c"
+
+echo "[main] 교체 뒤 이미지 불일치(verify)도 자동 롤백한다"
+new_env; AUTO_ROLLBACK=1
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+STALE_AFTER_UP=1; STALE_SVC="sbshop-frontend"
+run_main; rc=$?
+assert_eq "코드 7 로 종료" 7 "$rc"
+
+echo "[main] nginx reload 만 실패하면 라우팅 점검은 건너뛰고 롤백하지 않는다(코드 5)"
+new_env; AUTO_ROLLBACK=1; NGINX_RC=1
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="f"; RUNNING[projects-sbshop-frontend-1]="f"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+run_main; rc=$?; c="$(calls_str)"
+assert_eq "코드 5 로 종료" 5 "$rc"
+assert_not_contains "라우팅을 점검하지 않는다(reload 가 안 됐으므로)" "projects-nginx-1 curl" "$c"
+assert_not_contains "롤백하지 않는다" "docker tag sbshop-agent-sbshop-api:prev-" "$c"
+
+echo "[scraper_healthy] 응답이 왔어도 ok 가 true 가 아니면 비정상이다"
+new_env; SCRAPER_BODY='{"ok":false}'; scraper_healthy && bad "ok:false 는 비정상" || ok "ok:false 는 비정상"
+new_env; SCRAPER_BODY='<html>502</html>'; scraper_healthy && bad "HTML 응답은 비정상" || ok "HTML 응답은 비정상"
+new_env; scraper_healthy && ok "ok:true 는 정상" || bad "ok:true 는 정상"
+
+echo "[rollback_service] frontend·scraper 롤백도 사후 점검을 한다"
+new_env; TAGS[sbshop-agent-sbshop-scraper]=$'latest\nprev-20260105-000001'; BUILT[sbshop-agent-sbshop-scraper]="rolled"
+( set -euo pipefail; rollback_service sbshop-scraper ) >"$TMPD/out" 2>&1; rc=$?
+assert_eq "정상 종료" 0 "$rc"
+assert_contains "scraper 헬스를 본다" "projects-sbshop-scraper-1 curl" "$(calls_str)"
+new_env; TAGS[sbshop-agent-sbshop-scraper]=$'latest\nprev-20260105-000001'; BUILT[sbshop-agent-sbshop-scraper]="rolled"; BAD_SVC="sbshop-scraper"; BAD_STICKY=1
+( set -euo pipefail; rollback_service sbshop-scraper ) >"$TMPD/out" 2>&1; rc=$?
+assert_eq "scraper 가 비정상이면 코드 6" 6 "$rc"
+new_env; TAGS[sbshop-agent-sbshop-frontend]=$'latest\nprev-20260105-000001'; BUILT[sbshop-agent-sbshop-frontend]="rolled"; BAD_SVC="sbshop-frontend"; BAD_KIND="route"; BAD_STICKY=1
+( set -euo pipefail; rollback_service sbshop-frontend ) >"$TMPD/out" 2>&1; rc=$?
+assert_eq "frontend 라우팅이 비정상이면 코드 6" 6 "$rc"
+
+echo "[pull] IMAGE_PULL=0 이면 레지스트리에 가지 않고 로컬에 있는 태그를 쓴다"
+new_env; IMAGE_TAG="abc123def456"; IMAGE_PULL=0
+for n in api frontend scraper; do BUILT[ghcr.io/goottjason/sbshop-agent-$n:abc123def456]="local-$n"; done
+BUILT[sbshop-agent-sbshop-api]="a"; RUNNING[projects-sbshop-api-1]="a"
+BUILT[sbshop-agent-sbshop-frontend]="f"; RUNNING[projects-sbshop-frontend-1]="f"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+run_main; c="$(calls_str)"
+assert_not_contains "pull 하지 않는다" "docker pull" "$c"
+assert_contains "로컬 태그를 로컬 이름으로 다시 태그한다" "docker tag ghcr.io/goottjason/sbshop-agent-api:abc123def456 sbshop-agent-sbshop-api:latest" "$c"
+new_env; IMAGE_TAG="abc123def456"; IMAGE_PULL=0; set_all_same
+run_main; rc=$?
+assert_eq "로컬에 그 태그가 없으면 코드 1 로 멈춘다" 1 "$rc"
+assert_not_contains "컨테이너를 건드리지 않는다" "rm -f projects-sbshop" "$(calls_str)"
 
 echo
 echo "결과: 통과 $PASS, 실패 $FAIL"
