@@ -6363,3 +6363,11 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 수정: 같은 패턴의 6개 테스트 파일에서 기대 시각을 `truncatedTo(ChronoUnit.MILLIS)` 로 자름(운영 코드 무변경). 잠복 2곳(`MarketFieldSync`·`MarketInspectionService`) 포함.
 - 부수 발견: ① gradle 이 첫 실패 모듈(`core`)에서 멈춰 나머지 모듈 테스트는 CI에서 돌지 않았다 → `--continue`. ② `frontend/package-lock.json` 이 `.gitignore` 라 프런트 의존성이 고정되지 않는다(Dockerfile·CI 모두 `npm install`) — 사용자 결정 사항. ③ `spotlessCheck` 는 이 변경과 무관하게 기존 52개 파일에서 위반이라 게이트가 아니다.
 
+### D-319 — Cafe24TokenManagerTest 가 JVM 시간대(UTC)에서 실패
+
+- 심각도: 낮음~중(테스트 결함, 운영 코드 정상) · 상태: 수정완료(UTC·KST·LA 로컬 재현으로 red→green 확인, CI 재확인 대기)
+- 증상: GitHub 러너(UTC)에서 `reusesValidToken` 실패(`IllegalStateException`←`NullPointerException`). 로컬(KST)은 통과.
+- 원인: 운영 코드는 토큰 만료 시각을 `atZone(KST)` 로 명시 해석하는데, 테스트는 JVM 기본 시간대의 `LocalDateTime.now()` 로 만료 시각을 만들었다. UTC 에서는 "1시간 뒤"가 KST 기준 8시간 전이라 만료로 판정 → refresh 경로 → mock 응답 없음 → NPE.
+- 수정: `Cafe24TokenManagerTest`(12곳)·`Cafe24TokenManagerConcurrencyTest`(1곳)에서 `LocalDateTime.now(KST)`. 재현: `TZ=UTC ./gradlew :infrastructure:test --tests '*Cafe24TokenManagerTest'`.
+- 교훈: CI(UTC·Linux)가 로컬(KST·macOS)이 숨기던 환경 의존 테스트를 드러냈다(D-318 과 같은 부류). 테스트 게이트를 CI에서 돌리는 것 자체가 가치가 있다.
+

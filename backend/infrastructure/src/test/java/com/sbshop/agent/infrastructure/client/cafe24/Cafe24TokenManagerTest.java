@@ -39,6 +39,8 @@ class Cafe24TokenManagerTest {
 		}
 	};
 
+	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
 	private MarketCredential credential(String access, LocalDateTime expiresAt, String refresh) {
 		MarketCredential c = MarketCredential.builder()
 			.marketType(MarketType.CAFE24).clientId("mymall")
@@ -53,7 +55,7 @@ class Cafe24TokenManagerTest {
 	@DisplayName("DB 토큰이 유효하면 refresh 없이 그대로 반환한다")
 	void reusesValidToken() {
 		MarketCredential c = credential("AT-VALID",
-			LocalDateTime.now().plusHours(1), "RT1");
+			LocalDateTime.now(KST).plusHours(1), "RT1");
 		when(repo.findByMarketType(any())).thenReturn(Optional.of(c));
 
 		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);
@@ -66,7 +68,7 @@ class Cafe24TokenManagerTest {
 	@DisplayName("만료 토큰이면 refresh 1회 호출 후 access/refresh/expiry 3종을 저장한다")
 	void refreshesAndPersistsAllThree() {
 		MarketCredential c = credential("AT-OLD",
-			LocalDateTime.now().minusMinutes(1), "RT1");
+			LocalDateTime.now(KST).minusMinutes(1), "RT1");
 		when(repo.findByMarketType(any())).thenReturn(Optional.of(c));
 		Instant expectedExpiry = Instant.now().plusSeconds(7200);
 		when(tokenClient.exchange(any(), any(), any(), any()))
@@ -101,7 +103,7 @@ class Cafe24TokenManagerTest {
 	@DisplayName("exchange가 refreshToken=null 반환 시 기존 refresh_token을 보존한다")
 	void preservesExistingRefreshTokenWhenResponseOmitsIt() {
 		MarketCredential c = credential("AT-OLD",
-			LocalDateTime.now().minusMinutes(1), "RT1");
+			LocalDateTime.now(KST).minusMinutes(1), "RT1");
 		when(repo.findByMarketType(any())).thenReturn(Optional.of(c));
 		when(tokenClient.exchange(any(), any(), any(), any()))
 			.thenReturn(new Cafe24OAuthTokenClient.TokenResponse(
@@ -121,7 +123,7 @@ class Cafe24TokenManagerTest {
 	@DisplayName("선제 갱신: refresh token이 있으면 access token 유효 여부와 무관하게 refresh를 강제해 회전시킨다")
 	void proactiveRefreshForcesRotationEvenWhenAccessValid() {
 		MarketCredential c = credential("AT-VALID",
-			LocalDateTime.now().plusHours(1), "RT1");
+			LocalDateTime.now(KST).plusHours(1), "RT1");
 		when(repo.findByMarketType(any())).thenReturn(Optional.of(c));
 		when(tokenClient.exchange(any(), any(), any(), any()))
 			.thenReturn(new Cafe24OAuthTokenClient.TokenResponse(
@@ -140,7 +142,7 @@ class Cafe24TokenManagerTest {
 	@DisplayName("선제 갱신: refresh token이 없으면 exchange 없이 조용히 건너뛴다(예외 없음)")
 	void proactiveRefreshSkipsWhenNoRefreshToken() {
 		MarketCredential c = credential("AT",
-			LocalDateTime.now().plusHours(1), null);
+			LocalDateTime.now(KST).plusHours(1), null);
 		when(repo.findByMarketType(any())).thenReturn(Optional.of(c));
 
 		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);
@@ -153,7 +155,7 @@ class Cafe24TokenManagerTest {
 	@DisplayName("선제 갱신: refresh 실패 시 예외를 삼켜 스케줄러가 죽지 않게 한다")
 	void proactiveRefreshSwallowsFailure() {
 		MarketCredential c = credential("AT",
-			LocalDateTime.now().plusHours(1), "RT1");
+			LocalDateTime.now(KST).plusHours(1), "RT1");
 		when(repo.findByMarketType(any())).thenReturn(Optional.of(c));
 		when(tokenClient.exchange(any(), any(), any(), any()))
 			.thenThrow(new RuntimeException("boom"));
@@ -167,7 +169,7 @@ class Cafe24TokenManagerTest {
 	@Test
 	@DisplayName("인증 URL scope에 분류(category) 읽기·쓰기 권한이 포함된다")
 	void authorizationUrlIncludesCategoryScopes() {
-		MarketCredential c = credential("AT", LocalDateTime.now().plusHours(1), "RT1");
+		MarketCredential c = credential("AT", LocalDateTime.now(KST).plusHours(1), "RT1");
 
 		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);
 
@@ -178,7 +180,7 @@ class Cafe24TokenManagerTest {
 	@Test
 	@DisplayName("인증 URL scope는 기존 권한 10종을 그대로 유지한다")
 	void authorizationUrlKeepsExistingScopes() {
-		MarketCredential c = credential("AT", LocalDateTime.now().plusHours(1), "RT1");
+		MarketCredential c = credential("AT", LocalDateTime.now(KST).plusHours(1), "RT1");
 
 		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);
 
@@ -194,13 +196,13 @@ class Cafe24TokenManagerTest {
 	void authorizationCanReadPriceSettingsWithoutStoreWritePermission() {
 		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);
 		assertThat(
-			scopesOf(manager.generateAuthorizationUrl(credential("AT", LocalDateTime.now().plusHours(1), "RT1"))))
+			scopesOf(manager.generateAuthorizationUrl(credential("AT", LocalDateTime.now(KST).plusHours(1), "RT1"))))
 			.contains("mall.read_store").doesNotContain("mall.write_store");
 	}
 
 	@Test
 	void savedAuthorizationEncodesClientAndRedirectAsSingleParameters() {
-		MarketCredential c = credential("AT", LocalDateTime.now().plusHours(1), "RT1");
+		MarketCredential c = credential("AT", LocalDateTime.now(KST).plusHours(1), "RT1");
 		c.setAccessKey("CLIENT+ID");
 		c.setRedirectUri("https://callback.example/?x=1&y=two+words");
 		when(repo.findByMarketType(MarketType.CAFE24)).thenReturn(Optional.of(c));
@@ -233,7 +235,7 @@ class Cafe24TokenManagerTest {
 	@Test
 	void initialExchangeReadsAndPersistsInsideRefreshLockWithEncodedForm() {
 		var held = new AtomicBoolean(false);
-		MarketCredential c = credential("AT-OLD", LocalDateTime.now().plusHours(1), "RT-OLD");
+		MarketCredential c = credential("AT-OLD", LocalDateTime.now(KST).plusHours(1), "RT-OLD");
 		c.setRedirectUri("https://callback.example/?x=1&y=2");
 		Instant expires = Instant.now().plusSeconds(7200);
 		TokenRefreshLock lock = new TokenRefreshLock() {
@@ -272,7 +274,7 @@ class Cafe24TokenManagerTest {
 
 	@Test
 	void failedReauthorizationDoesNotReplaceSavedTokens() {
-		MarketCredential c = credential("AT-OLD", LocalDateTime.now().plusHours(1), "RT-OLD");
+		MarketCredential c = credential("AT-OLD", LocalDateTime.now(KST).plusHours(1), "RT-OLD");
 		when(repo.findByMarketType(MarketType.CAFE24)).thenReturn(Optional.of(c));
 		when(tokenClient.exchange(any(), any(), any(), any())).thenThrow(new IllegalStateException("invalid_grant"));
 		var manager = new Cafe24TokenManager(repo, tokenClient, DIRECT_LOCK);

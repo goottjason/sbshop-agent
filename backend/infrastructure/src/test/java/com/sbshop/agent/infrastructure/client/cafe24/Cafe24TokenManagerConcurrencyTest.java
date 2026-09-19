@@ -8,6 +8,7 @@ import com.sbshop.agent.core.domain.market.repository.MarketCredentialRepository
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
@@ -56,7 +57,7 @@ class Cafe24TokenManagerConcurrencyTest {
 			.accessKey("CID").secretKey("SECRET").refreshToken("RT1")
 			.redirectUri("https://cb").build();
 		c.setAccessToken("AT-OLD");
-		c.setTokenExpiresAt(LocalDateTime.now().minusMinutes(1));
+		c.setTokenExpiresAt(LocalDateTime.now(ZoneId.of("Asia/Seoul")).minusMinutes(1));
 
 		MarketCredentialRepository repo = Mockito.mock(MarketCredentialRepository.class);
 		Mockito.when(repo.findByMarketType(MarketType.CAFE24)).thenReturn(Optional.of(c));
