@@ -9,6 +9,8 @@ API_CONTAINER="${API_CONTAINER:-projects-sbshop-api-1}"
 NGINX_CONTAINER="${NGINX_CONTAINER:-projects-nginx-1}"
 DB_CONTAINER="${DB_CONTAINER:-projects-postgres-1}"
 LOCK_FILE="${LOCK_FILE:-$HOME/.sbshop-docker-maintenance.lock}"
+STATE_DIR="${STATE_DIR:-$HOME/.sbshop-deploy}"
+PENDING_TAG="pending-prev"
 LOCK_WAIT_SEC="${LOCK_WAIT_SEC:-900}"
 MIN_FREE_KB="${MIN_FREE_KB:-10485760}"
 BATCH_WAIT_SEC="${BATCH_WAIT_SEC:-1800}"
@@ -60,12 +62,31 @@ wanted_config_hash() {
   (cd "$COMPOSE_DIR" && docker compose config --hash "$1" 2>/dev/null | awk '{print $2}') || true
 }
 
+image_fingerprint() {
+  local out
+  out="$(docker image inspect -f '{{json .Config}}{{json .RootFS}}' "$(image_of "$1"):latest" 2>/dev/null)" || true
+  [ -n "$out" ] || return 0
+  printf '%s' "$out" | sha256sum | cut -d' ' -f1
+}
+
+recorded_fingerprint() { cat "$STATE_DIR/$1.fp" 2>/dev/null || true; }
+
+record_fingerprint() {
+  local fp
+  fp="$(image_fingerprint "$1")"
+  [ -n "$fp" ] || return 0
+  if [ "$DRY_RUN" = 1 ]; then log "DRY_RUN: 배포 지문 기록: $1"; return 0; fi
+  mkdir -p "$STATE_DIR"
+  printf '%s\n' "$fp" > "$STATE_DIR/$1.fp"
+}
+
 service_changed() {
-  local built running wanted current
+  local built recorded wanted current
   case " $RECREATE " in *" $1 "*) return 0 ;; esac
-  built="$(built_image_id "$1")"
-  running="$(running_image_id "$1")"
-  if [ -z "$running" ] || [ "$built" != "$running" ]; then return 0; fi
+  if [ -z "$(running_image_id "$1")" ]; then return 0; fi
+  built="$(image_fingerprint "$1")"
+  recorded="$(recorded_fingerprint "$1")"
+  if [ -z "$built" ] || [ "$built" != "$recorded" ]; then return 0; fi
   wanted="$(wanted_config_hash "$1")"
   current="$(running_config_hash "$1")"
   if [ -n "$wanted" ] && [ "$wanted" != "$current" ]; then return 0; fi
@@ -132,13 +153,27 @@ prune_prev_tags() {
   done < <(docker image ls "$(image_of "$svc")" --format '{{.Tag}}' | grep '^prev-' | sort -r | tail -n +"$((KEEP_PREV + 1))" || true)
 }
 
+snapshot_prev() {
+  local svc
+  for svc in "${SERVICES[@]}"; do
+    if [ -n "$(built_image_id "$svc")" ]; then
+      run docker tag "$(image_of "$svc"):latest" "$(image_of "$svc"):$PENDING_TAG"
+    fi
+  done
+}
+
+drop_pending() {
+  run docker rmi "$(image_of "$1"):$PENDING_TAG" >/dev/null 2>&1 || true
+}
+
 tag_prev() {
-  local svc="$1" running tag
-  running="$(running_image_id "$svc")"
-  [ -n "$running" ] || return 0
+  local svc="$1" tag pending
+  pending="$(image_of "$svc"):$PENDING_TAG"
+  if [ "$DRY_RUN" != 1 ] && ! docker image inspect "$pending" >/dev/null 2>&1; then return 0; fi
   tag="prev-$(date +%Y%m%d-%H%M%S)"
   log "롤백용 태그: $(image_of "$svc"):$tag"
-  run docker tag "$running" "$(image_of "$svc"):$tag"
+  run docker tag "$pending" "$(image_of "$svc"):$tag"
+  drop_pending "$svc"
   prune_prev_tags "$svc"
 }
 
@@ -203,6 +238,7 @@ rollback_service() {
     reload_nginx || die "롤백 후 nginx reload 실패" 5
     wait_api_healthy || die "롤백 후 api 가 정상이 되지 못했습니다"
   fi
+  record_fingerprint "$svc"
   log "롤백 완료: $svc"
 }
 
@@ -212,6 +248,8 @@ main() {
   check_disk || die "디스크 여유 부족" 1
   wait_for_idle_batches || exit 3
 
+  snapshot_prev
+
   log "빌드(실패하면 실행 중인 컨테이너는 그대로 둡니다)"
   (cd "$COMPOSE_DIR" && run docker compose build "${SERVICES[@]}") || die "이미지 빌드 실패 — 컨테이너는 변경하지 않았습니다"
   require_built_images
@@ -220,7 +258,7 @@ main() {
 
   local changed=() svc
   for svc in "${SERVICES[@]}"; do
-    if service_changed "$svc"; then changed+=("$svc"); fi
+    if service_changed "$svc"; then changed+=("$svc"); else drop_pending "$svc"; fi
   done
 
   if [ "${#changed[@]}" -eq 0 ]; then
@@ -245,6 +283,7 @@ main() {
   if [ "$api_changed" = 1 ]; then
     wait_api_healthy || die "api 헬스체크 실패 — 롤백하려면: ./ops/deploy.sh rollback sbshop-api"
   fi
+  for svc in "${changed[@]}"; do record_fingerprint "$svc"; done
   if [ "$nginx_failed" = 1 ]; then
     die "nginx reload 실패 — 새 컨테이너는 떠 있습니다. docker exec $NGINX_CONTAINER nginx -s reload 를 확인하세요" 5
   fi

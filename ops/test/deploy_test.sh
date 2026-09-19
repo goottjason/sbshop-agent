@@ -13,12 +13,12 @@ TMPD="$(mktemp -d)"; CALLLOG="$TMPD/calls.log"; BATCH_IDX_FILE="$TMPD/batch.idx"
 trap 'rm -rf "$TMPD"' EXIT
 
 new_env() {
-  : > "$CALLLOG"; : > "$LOCKSTATE"; echo 0 > "$BATCH_IDX_FILE"; echo 0 > "$HEALTH_N_FILE"; rm -f "$TMPD"/replaced.*
+  : > "$CALLLOG"; : > "$LOCKSTATE"; echo 0 > "$BATCH_IDX_FILE"; echo 0 > "$HEALTH_N_FILE"; rm -f "$TMPD"/replaced.* "$TMPD"/pending.*; rm -rf "$TMPD/state"
   OUT_PS=""; OUT_BATCH=("0"); BATCH_FAIL=0
-  declare -gA BUILT=() RUNNING=() TAGS=() HASH_RUN=() HASH_WANT=()
+  declare -gA BUILT=() FPC=() RUNNING=() TAGS=() HASH_RUN=() HASH_WANT=()
   BUILD_RC=0; UP_RC=0; NGINX_RC=0; STALE_AFTER_UP=0; HEALTH_UP_AFTER=1; DF_AVAIL=99999999; SLEPT=0
   export FORCE=0 RECREATE="" DRY_RUN=0 POLL_SEC=1 BATCH_WAIT_SEC=3 HEALTH_WAIT_SEC=4 HEALTH_POLL_SEC=1 MIN_FREE_KB=10485760 KEEP_PREV=3
-  export LOCK_FILE="$TMPD/lock" COMPOSE_DIR="$HERE/.."
+  export LOCK_FILE="$TMPD/lock" COMPOSE_DIR="$HERE/.." STATE_DIR="$TMPD/state"
 }
 
 docker() {
@@ -26,8 +26,17 @@ docker() {
   case "$1" in
     ps) printf '%s' "$OUT_PS" ;;
     image)
-      if [ "$2" = inspect ]; then local n="${*: -1}"; n="${n%:latest}"; echo "${BUILT[$n]:-}"; [ -n "${BUILT[$n]:-}" ] || return 1
+      if [ "$2" = inspect ]; then
+        local n="${*: -1}"
+        case "$n" in
+          *:pending-prev) [ -f "$TMPD/pending.${n%:pending-prev}" ]; return $? ;;
+        esac
+        n="${n%:latest}"
+        [ -n "${BUILT[$n]:-}" ] || return 1
+        case "$*" in *json*) echo "${FPC[$n]:-${BUILT[$n]}}" ;; *) echo "${BUILT[$n]}" ;; esac
       elif [ "$2" = ls ]; then printf '%s\n' "${TAGS[$3]:-}"; fi ;;
+    tag) case "${*: -1}" in *:pending-prev) local pn="${*: -1}"; touch "$TMPD/pending.${pn%:pending-prev}" ;; esac ;;
+    rmi) case "${*: -1}" in *:pending-prev) local rn="${*: -1}"; rm -f "$TMPD/pending.${rn%:pending-prev}" ;; esac ;;
     inspect)
       local c="${*: -1}" svc img
       svc="${c#projects-}"; svc="${svc%-1}"; img="sbshop-agent-$svc"
@@ -64,7 +73,16 @@ set +e
 calls_str() { cat "$CALLLOG"; }
 index_of() { local n; n="$(grep -n -m1 -F -- "$1" "$CALLLOG" | cut -d: -f1)"; echo "${n:--1}"; }
 count_of() { grep -c -F -- "$1" "$CALLLOG"; }
-run_main() { ( set -euo pipefail; main ) >"$TMPD/out" 2>&1; }
+fp_of() { printf '%s' "$1" | sha256sum | cut -d' ' -f1; }
+sync_state() {
+  local c svc
+  mkdir -p "$STATE_DIR"
+  for c in "${!RUNNING[@]}"; do
+    svc="${c#projects-}"; svc="${svc%-1}"
+    fp_of "${RUNNING[$c]}" > "$STATE_DIR/$svc.fp"
+  done
+}
+run_main() { sync_state; ( set -euo pipefail; main ) >"$TMPD/out" 2>&1; }
 set_all_same() {
   BUILT[sbshop-agent-sbshop-api]="a"; RUNNING[projects-sbshop-api-1]="a"
   BUILT[sbshop-agent-sbshop-frontend]="f"; RUNNING[projects-sbshop-frontend-1]="f"
@@ -82,15 +100,23 @@ assert_not_contains "다른 프로젝트는 건드리지 않는다" "can-agent" 
 assert_not_contains "12자리 16진 해시가 아닌 접두는 제외" "abc_projects" "$r"
 assert_not_contains "다른 프로젝트(marketplus)의 찌꺼기는 이 배포의 범위가 아니다" "marketplus" "$r"
 
-echo "[service_changed] 이미지 ID 와 compose 설정 해시 비교"
+echo "[service_changed] 내용 지문(상태 파일)과 compose 설정 해시 비교"
+new_env; BUILT[sbshop-agent-sbshop-api]="sha256:new"; RUNNING[projects-sbshop-api-1]="sha256:new"; sync_state
+service_changed sbshop-api && bad "같은 내용은 변경 아님" || ok "같은 내용은 변경 아님"
+RUNNING[projects-sbshop-api-1]="sha256:old"; sync_state
+service_changed sbshop-api && ok "내용이 다르면 변경" || bad "내용이 다르면 변경"
 new_env; BUILT[sbshop-agent-sbshop-api]="sha256:new"; RUNNING[projects-sbshop-api-1]="sha256:new"
-service_changed sbshop-api && bad "같은 이미지는 변경 아님" || ok "같은 이미지는 변경 아님"
-RUNNING[projects-sbshop-api-1]="sha256:old"
-service_changed sbshop-api && ok "다른 이미지는 변경" || bad "다른 이미지는 변경"
+service_changed sbshop-api && ok "상태 파일이 없으면 변경(처음 한 번은 교체)" || bad "상태 파일 없음은 변경"
+new_env; BUILT[sbshop-agent-sbshop-api]="idx-2"; FPC[sbshop-agent-sbshop-api]="content-1"; RUNNING[projects-sbshop-api-1]="idx-1"
+fp_of "content-1" > /dev/null; mkdir -p "$STATE_DIR"; fp_of "content-1" > "$STATE_DIR/sbshop-api.fp"
+service_changed sbshop-api && bad "빌드마다 인덱스 ID 가 바뀌어도 내용이 같으면 변경 아님(실서버 회귀)" || ok "빌드마다 인덱스 ID 가 바뀌어도 내용이 같으면 변경 아님(실서버 회귀)"
+FPC[sbshop-agent-sbshop-api]="content-2"
+service_changed sbshop-api && ok "내용이 바뀌면 변경" || bad "내용이 바뀌면 변경"
+new_env; BUILT[sbshop-agent-sbshop-api]="a"; RUNNING[projects-sbshop-api-1]="a"; sync_state
 unset 'RUNNING[projects-sbshop-api-1]'
 service_changed sbshop-api && ok "실행 중인 컨테이너가 없으면 변경(새로 띄움)" || bad "컨테이너 없음은 변경"
-new_env; BUILT[sbshop-agent-sbshop-api]="x"; RUNNING[projects-sbshop-api-1]="x"; HASH_RUN[sbshop-api]="h1"; HASH_WANT[sbshop-api]="h1"
-service_changed sbshop-api && bad "이미지·설정 모두 같으면 변경 아님" || ok "이미지·설정 모두 같으면 변경 아님"
+new_env; BUILT[sbshop-agent-sbshop-api]="x"; RUNNING[projects-sbshop-api-1]="x"; HASH_RUN[sbshop-api]="h1"; HASH_WANT[sbshop-api]="h1"; sync_state
+service_changed sbshop-api && bad "내용·설정 모두 같으면 변경 아님" || ok "내용·설정 모두 같으면 변경 아님"
 HASH_WANT[sbshop-api]="h2"
 service_changed sbshop-api && ok ".env 등으로 설정 해시만 달라져도 변경" || bad "설정 해시 차이는 변경"
 HASH_WANT[sbshop-api]=""
@@ -120,12 +146,25 @@ new_env; DF_AVAIL=5000000; check_disk; assert_eq "5GB 여유는 실패" 1 $?
 new_env; DF_AVAIL=20000000; check_disk; assert_eq "20GB 여유는 통과" 0 $?
 
 echo "[tag_prev / prune_prev_tags] 교체 전 롤백용 태그, 최근 KEEP_PREV 개만 보관"
-new_env; BUILT[sbshop-agent-sbshop-api]="sha256:new"; RUNNING[projects-sbshop-api-1]="sha256:old"
+new_env; touch "$TMPD/pending.sbshop-agent-sbshop-api"
 tag_prev sbshop-api
-assert_contains "옛 이미지에 prev- 태그를 붙인다" "docker tag sha256:old sbshop-agent-sbshop-api:prev-" "$(calls_str)"
-new_env; BUILT[sbshop-agent-sbshop-api]="sha256:new"
+assert_contains "임시 태그에서 prev- 태그를 만든다" "docker tag sbshop-agent-sbshop-api:pending-prev sbshop-agent-sbshop-api:prev-" "$(calls_str)"
+assert_contains "임시 태그는 지운다" "rmi sbshop-agent-sbshop-api:pending-prev" "$(calls_str)"
+new_env
 tag_prev sbshop-api
-assert_not_contains "실행 중인 컨테이너가 없으면 태그하지 않는다" "docker tag" "$(calls_str)"
+assert_not_contains "임시 태그가 없으면 태그하지 않는다" "docker tag" "$(calls_str)"
+
+echo "[snapshot_prev / drop_pending] 빌드 전에 현재 latest 를 붙잡아 둔다"
+new_env; BUILT[sbshop-agent-sbshop-api]="a"; BUILT[sbshop-agent-sbshop-scraper]="s"
+snapshot_prev
+c="$(calls_str)"
+assert_contains "api latest 에 임시 태그" "docker tag sbshop-agent-sbshop-api:latest sbshop-agent-sbshop-api:pending-prev" "$c"
+assert_contains "scraper latest 에 임시 태그" "docker tag sbshop-agent-sbshop-scraper:latest sbshop-agent-sbshop-scraper:pending-prev" "$c"
+assert_not_contains "이미지가 없는 frontend 는 태그하지 않는다" "sbshop-frontend:pending-prev" "$c"
+new_env; touch "$TMPD/pending.sbshop-agent-sbshop-api"
+drop_pending sbshop-api
+assert_contains "임시 태그를 지운다" "rmi sbshop-agent-sbshop-api:pending-prev" "$(calls_str)"
+
 new_env; TAGS[sbshop-agent-sbshop-api]=$'prev-20260101-000001\nlatest\nprev-20260103-000001\nprev-20260102-000001\nprev-20260104-000001\nprev-20260105-000001'
 prune_prev_tags sbshop-api
 c="$(calls_str)"
@@ -163,7 +202,7 @@ assert_not_contains "안 바뀐 scraper 도 건드리지 않는다" "up -d --no-
 assert_contains "nginx 를 reload 한다" "nginx -s reload" "$c"
 assert_contains "api 헬스체크를 한다" "internal/health" "$c"
 assert_eq "빌드하는 동안 배포 잠금을 쥐고 있다" "LOCKED" "$(head -1 "$LOCKSTATE")"
-b=$(index_of "compose build"); t=$(index_of "docker tag old-api"); rm_=$(index_of "rm -f projects-sbshop-api-1"); u=$(index_of "up -d --no-build --no-deps sbshop-api"); n=$(index_of "nginx -s reload"); h=$(index_of "internal/health")
+b=$(index_of "compose build"); t=$(index_of "docker tag sbshop-agent-sbshop-api:pending-prev sbshop-agent-sbshop-api:prev-"); rm_=$(index_of "rm -f projects-sbshop-api-1"); u=$(index_of "up -d --no-build --no-deps sbshop-api"); n=$(index_of "nginx -s reload"); h=$(index_of "internal/health")
 [ "$b" -ge 0 ] && [ "$b" -lt "$t" ] && [ "$t" -lt "$rm_" ] && [ "$rm_" -lt "$u" ] && [ "$u" -lt "$n" ] && [ "$n" -lt "$h" ] && ok "순서: 빌드 → prev 태그 → 옛 컨테이너 제거 → 기동 → nginx → 헬스" || bad "실행 순서가 틀림" "build=$b tag=$t rm=$rm_ up=$u nginx=$n health=$h"
 
 echo "[main] scraper 만 바뀌면 nginx·api 헬스는 생략"
@@ -190,7 +229,7 @@ assert_eq "정상 종료" 0 "$rc"
 assert_contains "지정한 api 를 다시 만든다" "up -d --no-build --no-deps sbshop-api" "$c"
 assert_not_contains "지정하지 않은 frontend 는 건드리지 않는다" "up -d --no-build --no-deps sbshop-frontend" "$c"
 assert_contains "api 를 다시 만들었으니 헬스체크를 한다" "internal/health" "$c"
-assert_contains "교체 전 prev 태그를 남긴다" "docker tag a sbshop-agent-sbshop-api:prev-" "$c"
+assert_contains "교체 전 prev 태그를 남긴다" "docker tag sbshop-agent-sbshop-api:pending-prev sbshop-agent-sbshop-api:prev-" "$c"
 
 echo "[main] 알 수 없는 서비스 이름은 빌드 전에 거절한다"
 new_env; RECREATE="sbshop-apii"; set_all_same
@@ -278,20 +317,58 @@ BUILT[sbshop-agent-sbshop-api]="new"; RUNNING[projects-sbshop-api-1]="old"
 run_main; rc=$?; c="$(calls_str)"
 assert_eq "정상 종료" 0 "$rc"
 assert_contains "교체하려던 것을 출력한다" "DRY_RUN: docker compose up -d --no-build --no-deps sbshop-api" "$(cat "$TMPD/out")"
-assert_contains "롤백용 태그도 출력만 한다" "DRY_RUN: docker tag old sbshop-agent-sbshop-api:prev-" "$(cat "$TMPD/out")"
+assert_contains "롤백용 태그도 출력만 한다" "DRY_RUN: docker tag sbshop-agent-sbshop-api:pending-prev sbshop-agent-sbshop-api:prev-" "$(cat "$TMPD/out")"
 assert_not_contains "빌드도 실행하지 않는다" "compose build" "$c"
 assert_not_contains "rm 하지 않는다" "rm -f" "$c"
 assert_not_contains "up 하지 않는다" "up -d" "$c"
 assert_not_contains "tag 하지 않는다" "docker tag" "$c"
 assert_not_contains "nginx reload 하지 않는다" "nginx -s reload" "$c"
 
+echo "[main] 실서버 회귀: 빌드마다 인덱스 ID 가 달라져도 내용이 같으면 교체하지 않는다"
+new_env
+for n in api frontend scraper; do BUILT[sbshop-agent-sbshop-$n]="idx-new-$n"; FPC[sbshop-agent-sbshop-$n]="content-$n"; RUNNING[projects-sbshop-$n-1]="idx-old-$n"; done
+mkdir -p "$STATE_DIR"; for n in api frontend scraper; do fp_of "content-$n" > "$STATE_DIR/sbshop-$n.fp"; done
+( set -euo pipefail; main ) >"$TMPD/out" 2>&1; rc=$?; c="$(calls_str)"
+assert_eq "정상 종료" 0 "$rc"
+assert_not_contains "교체하지 않는다" "up -d --no-build" "$c"
+assert_not_contains "롤백용 태그를 만들지 않는다" "prev-" "$c"
+assert_contains "임시 태그는 치운다" "rmi sbshop-agent-sbshop-api:pending-prev" "$c"
+
+echo "[main] 빌드 전에 현재 latest 를 임시 태그로 붙잡는다(빌드하면 옛 이미지를 잃는다)"
+new_env
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="f"; RUNNING[projects-sbshop-frontend-1]="f"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+run_main; c="$(calls_str)"
+sn=$(index_of "docker tag sbshop-agent-sbshop-api:latest sbshop-agent-sbshop-api:pending-prev"); bd=$(index_of "compose build")
+[ "$sn" -ge 0 ] && [ "$sn" -lt "$bd" ] && ok "임시 태그가 빌드보다 먼저" || bad "임시 태그가 빌드보다 먼저여야 함" "snapshot=$sn build=$bd"
+
+echo "[main] 성공하면 교체한 서비스의 내용 지문을 기록한다"
+new_env
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="f"; RUNNING[projects-sbshop-frontend-1]="f"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+run_main; rc=$?
+assert_eq "정상 종료" 0 "$rc"
+assert_eq "api 지문이 새 내용으로 기록된다" "$(fp_of new-api)" "$(cat "$STATE_DIR/sbshop-api.fp")"
+assert_eq "안 바뀐 frontend 지문은 그대로" "$(fp_of f)" "$(cat "$STATE_DIR/sbshop-frontend.fp")"
+
+echo "[main] 헬스체크가 실패하면 지문을 기록하지 않는다(같은 커밋으로 다시 실행하면 재시도된다)"
+new_env; HEALTH_UP_AFTER=999; set_all_same
+BUILT[sbshop-agent-sbshop-api]="new"; RUNNING[projects-sbshop-api-1]="old"
+run_main; rc=$?
+assert_eq "실패로 종료" 1 "$rc"
+assert_eq "api 지문은 옛 내용 그대로" "$(fp_of old)" "$(cat "$STATE_DIR/sbshop-api.fp")"
+
 echo "[rollback_service] 가장 최근 prev- 태그로 되돌린다"
 new_env; TAGS[sbshop-agent-sbshop-api]=$'latest\nprev-20260101-000001\nprev-20260105-000001'
 RUNNING[projects-sbshop-api-1]="cur"
+BUILT[sbshop-agent-sbshop-api]="rolled"
 ( set -euo pipefail; rollback_service sbshop-api ) >"$TMPD/out" 2>&1; rc=$?; c="$(calls_str)"
 assert_eq "정상 종료" 0 "$rc"
 assert_contains "최신 prev 를 latest 로 되돌린다" "docker tag sbshop-agent-sbshop-api:prev-20260105-000001 sbshop-agent-sbshop-api:latest" "$c"
 assert_contains "그 서비스만 다시 띄운다" "up -d --no-build --no-deps sbshop-api" "$c"
+assert_eq "롤백한 내용의 지문을 기록한다" "$(fp_of rolled)" "$(cat "$STATE_DIR/sbshop-api.fp" 2>/dev/null)"
 new_env; TAGS[sbshop-agent-sbshop-api]=$'latest'
 ( rollback_service sbshop-api ) >"$TMPD/out" 2>&1; assert_eq "prev 태그가 없으면 실패" 1 $?
 new_env; TAGS[sbshop-agent-sbshop-api]=$'latest\nprev-20260105-000001'
