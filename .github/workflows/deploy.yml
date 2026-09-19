@@ -1,16 +1,25 @@
 name: Deploy sbshop-agent
 
-# main에 push되면 서버(168.107.31.154)에 SSH로 접속해
-# sbshop-agent 자기 폴더에서 git pull + docker compose up --build 을 실행한다.
-# postgres·nginx(공유 인프라)와 can-agent 는 건드리지 않는다.
-#
-# 필요 시크릿(1회): 저장소 Settings → Secrets and variables → Actions 에
-#   SBSHOP_DEPLOY_KEY = ssh-key-2026-06-25.key 개인키 전체 내용
-
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "도는 소싱처 배치가 있어도 배포한다"
+        type: boolean
+        default: false
+      recreate:
+        description: "이미지가 같아도 다시 만들 서비스(공백 구분, 예: sbshop-api). 운영 검증용"
+        type: string
+        default: ""
+      rollback:
+        description: "지정하면 배포 대신 그 서비스를 직전 prev- 태그로 되돌린다(예: sbshop-api)"
+        type: string
+        default: ""
 
 concurrency:
   group: deploy-sbshop-main
@@ -20,35 +29,47 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: SSH deploy (sbshop-agent 자기 compose만)
+      - name: Validate inputs
+        env:
+          RECREATE: ${{ inputs.recreate }}
+          ROLLBACK: ${{ inputs.rollback }}
+        run: |
+          for v in "$RECREATE" "$ROLLBACK"; do
+            case "$v" in
+              *[!a-z0-9\ -]*) echo "::error::서비스 이름은 소문자·숫자·하이픈·공백만 허용합니다: $v"; exit 1;;
+            esac
+          done
+
+      - name: Deploy via ops/deploy.sh
         env:
           SSH_KEY: ${{ secrets.SBSHOP_DEPLOY_KEY }}
           SERVER: 168.107.31.154
           USER_NAME: ubuntu
+          FORCE_INPUT: ${{ inputs.force }}
+          RECREATE: ${{ inputs.recreate }}
+          ROLLBACK: ${{ inputs.rollback }}
         run: |
           if [ -z "$SSH_KEY" ]; then
-            echo "::error::SBSHOP_DEPLOY_KEY 시크릿이 없습니다. 저장소 Actions 시크릿에 개인키를 등록하세요."
+            echo "::error::SBSHOP_DEPLOY_KEY 시크릿이 없습니다."
             exit 1
           fi
+          FORCE=0; [ "$FORCE_INPUT" = "true" ] && FORCE=1
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$SERVER" >> ~/.ssh/known_hosts 2>/dev/null || true
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new "$USER_NAME@$SERVER" bash -se <<'REMOTE'
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new "$USER_NAME@$SERVER" \
+            "FORCE='$FORCE' RECREATE='$RECREATE' ROLLBACK='$ROLLBACK' bash -se" <<'REMOTE'
             set -euo pipefail
             cd ~/projects/sbshop-agent
-            git pull origin main
-            # Timer and deployment share a lock: no pruning during builds.
-            exec 9>"${HOME}/.sbshop-docker-maintenance.lock"
-            flock -w 720 9
-            free_kb=$(df --output=avail / | tail -1 | tr -d ' ')
-            if [ "$free_kb" -lt 10485760 ]; then
-              echo "Insufficient disk space for build (requires 10 GiB free). Run ops/docker-storage-maintenance.sh first."
-              exit 1
+            git fetch origin main
+            git reset --hard origin/main
+            bash ops/test/deploy_test.sh
+            if [ -n "$ROLLBACK" ]; then
+              ./ops/deploy.sh rollback "$ROLLBACK"
+            else
+              ./ops/deploy.sh
             fi
-            docker compose up -d --build
-            # 컨테이너 재생성 후 nginx가 옛 IP를 캐시하므로 reload 필수
-            docker exec projects-nginx-1 nginx -s reload
           REMOTE
 
       - name: Healthcheck

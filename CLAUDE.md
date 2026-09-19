@@ -4,8 +4,8 @@
 
 ## 배포·런타임
 
-- **배포:** `git push origin main` 하면 운영서버 웹훅이 자동으로 pull→build→컨테이너 재생성한다(2026-09-19 복구 — 7/14~9/19 기간은 죽어 있어 수동 배포였다). **직접 SSH해서 `docker compose build`/`up` 하지 말 것** — 자동배포와 경합해 컨테이너명 충돌(`Conflict. The container name ... is already in use`)이 난다. 배포 확인은 SSH 읽기만: `docker ps --filter name=projects-sbshop-api-1`, `docker logs projects-sbshop-api-1 | grep 'Started ApiApplication'`.
-- **웹훅:** 서비스 `canagent-webhook.service`(리스너 `/home/ubuntu/webhook/deploy.py`, 포트 9000), 훅 URL `http://168.107.31.154:9000/`, 시크릿은 systemd 유닛 파일의 `Environment=WEBHOOK_SECRET`(저장소에 없음). `X-Hub-Signature-256` 검증 — 서명 없는 요청은 403. main 브랜치 push만, **`.md`·`docs/`만 바뀐 푸시는 배포를 생략**한다(문서 커밋으로는 배포 확인 불가). 배포 확인: `sudo journalctl -u canagent-webhook -n 20`, `tail /home/ubuntu/webhook/webhook-deploy.log`, `tail /home/ubuntu/webhook/deploy-sbshop.log`. 웹훅이 죽었을 때의 수동/긴급 배포는 `./deploy-sbshop.sh`.
+- **배포:** `git push origin main` 하면 GitHub Actions(`.github/workflows/deploy.yml`)가 서버에서 `ops/deploy.sh`를 실행한다 — 빌드 → 바뀐 서비스만 교체 → nginx reload → `/internal/health` 확인. `.md`·`docs/`만 바뀐 푸시는 배포하지 않는다. 도는 소싱처 배치가 있으면 끝날 때까지(최대 30분) 기다리며, 급하면 Actions 수동 실행의 `force`. **직접 SSH해서 `docker compose build`/`up` 하지 말 것** — 배포자와 경합해 컨테이너명 충돌이 난다. 배포 확인은 Actions 결과 + SSH 읽기: `docker ps --filter name=projects-sbshop-api-1`, `docker logs projects-sbshop-api-1 | grep 'Started ApiApplication'`.
+- **롤백·검증:** Actions 수동 실행(workflow_dispatch)의 `rollback=sbshop-api`가 직전 `prev-*` 이미지 태그로 되돌린다(서비스별 최근 3개 보관). `recreate=<서비스>`는 이미지가 같아도 다시 만든다. 변경 판정은 배포 성공 때 `~/.sbshop-deploy/<서비스>.fp` 에 기록한 이미지 내용 지문과 비교한다(이 서버는 containerd 이미지 저장소라 이미지 ID는 빌드마다 바뀌어 비교에 쓸 수 없다). 웹훅(`canagent-webhook.service`, 포트 9000)은 2026-09-20 폐기.
 - **JVM 토폴로지:** `worker`는 `api` JVM에 라이브러리로 통합됨 — **단일 프로세스(`sbshop-api` 컨테이너 하나, 8080)**. 스케줄러·이메일 수집(EmailFetcherService)·내부 트리거가 모두 api JVM에서 돈다. 이메일 수동 트리거: `docker exec projects-sbshop-api-1 curl -s -X POST localhost:8080/internal/email/fetch`.
 - **DB 역할(2026-09-19 재구성):** `goottjason`=superuser(관리·수동 DDL, `docker exec projects-postgres-1 psql -U goottjason -d sbshop`은 로컬 소켓 trust라 비밀번호 불필요), `sbshop`=이 앱 전용 일반 계정, `canagent`=can-agent 전용 일반 계정(예전 superuser 이름이었으나 **이제 일반 계정**이다). 프로젝트 계정은 서로의 DB에 접속할 수 없다. 5432는 `127.0.0.1`에만 바인딩(외부 차단 + 서버 방화벽 이중). 비밀번호는 서버 `.env`(600)에만 있고 compose에 기본값 폴백이 없다. 외부에서 DB를 열려면 SSH 터널(`ssh -L 15432:127.0.0.1:5432 ubuntu@서버`).
 - **스키마:** Flyway 제거 — 운영 DB(`docker exec projects-postgres-1 psql -U goottjason -d sbshop`)가 스키마 단일 원본. 엔티티 변경 시 ddl-auto/수동 DDL로 반영.
@@ -38,3 +38,4 @@
 | 2026-09-19 | 개인정보 규칙 신설 (공개 저장소에 고객 실명·연락처·통관번호 금지) | CLAUDE.md | 스캔에서 실명 ~40명·통관번호 3개·전화 2개 발견 |
 | 2026-09-19 | DB 역할 재구성(goottjason=superuser, 프로젝트별 일반 계정)·비밀번호 교체·5432 바인딩 | CLAUDE.md | 공유 Postgres가 인터넷에 노출된 채 공개 기본 비밀번호를 쓰고 있었음 |
 | 2026-09-19 | 웹훅 자동배포 복구 사실·운영 정보 반영 (서비스명·훅 URL·시크릿 위치·문서전용 푸시 생략) | CLAUDE.md | 2026-07-14 이후 중단됐던 자동배포를 서명검증 리스너로 복구 |
+| 2026-09-20 | 배포를 웹훅에서 Actions+`ops/deploy.sh` 단일 경로로 통합, 웹훅 폐기 | CLAUDE.md, deploy.yml, ops/ | 두 배포자 경합으로 인한 컨테이너명 충돌·불필요 재기동 제거 |
