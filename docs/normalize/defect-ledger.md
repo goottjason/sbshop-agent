@@ -6350,7 +6350,7 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 
 ### D-317 — 배포 2단계: 서버 빌드 → GHCR 이미지 pull (개선)
 
-- 심각도: 개선(P3) · 상태: 진행 중(A단계 완료·B단계 착수)
+- 심각도: 개선(P3) · 상태: 완료(A·B·C 단계, 실서버 5경로 검증 — 2026-09-20)
 - 배경: 서버가 소스를 받아 직접 빌드하므로 서버 CPU·디스크를 쓰고, 테스트와 배포가 따로 놀며, 롤백은 최근 3개 `prev-` 태그뿐이다.
 - 설계: GitHub 러너(arm64, 저장소가 공개라 무료 — 실측 과금 0ms)가 이미지를 빌드해 `ghcr.io/goottjason/sbshop-agent-{api,frontend,scraper}:<커밋 SHA 12자>` 로 올리고, 서버는 pull 한 뒤 **기존 로컬 이름(`sbshop-agent-sbshop-*:latest`)으로 다시 태그**한다 — 그래서 compose·지문·prev 태그·nginx·헬스 로직은 그대로다. `IMAGE_TAG` 가 비면 옛 서버 빌드 경로로 동작(비상 폴백).
 - A단계(완료, 0aedafff): `images.yml` 수동 빌드. 3개 각 2분 안팎(scraper 4GB 포함), 패키지는 저장소 가시성을 물려받아 공개, 서버에서 로그인 없이 pull 확인.
@@ -6373,4 +6373,6 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - B단계(완료, 검증 PASS): `deploy.sh` 가 `IMAGE_TAG` 로 pull 방식 동작, 지문에서 라벨 제외(커밋 SHA 라벨이 매 배포 전체 교체를 유발하던 문제 — 실서버에서 라벨만 다른 이미지로 확인), `REGISTRY_PREFIX` 검증, pull 실패 정리, 12자리 커밋 태그 롤백. 테스트 259, 변형 18건 사망. 검증자: 조건부 PASS(재검토 4).
 - 실서버 사전 확인: pull 이미지를 로컬 이름으로 다시 태그해 임시 컨테이너를 만들면 컨테이너 `.Image` == 이미지 `.Id`(api·frontend 둘 다 일치, 단일 매니페스트) → `verify_running_image` 가 pull 방식에서도 성립.
 - C단계(착수): `deploy.yml` = validate(입력 허용집합 검증) → tests ∥ images(arm64 러너) → deploy(서버는 `IMAGE_TAG` 로 pull 만, `git reset --hard <커밋 SHA>`). 수동 실행 입력: `force`, `skip_tests`(긴급), `image_tag`(이미 빌드된 태그 재배포), `recreate`, `rollback`+`rollback_tag`(커밋 SHA 12자 또는 prev-시각). CI 테스트는 D-318·319 수정 뒤 초록(백엔드 6분 53초·프런트 36초).
+- C단계 실서버 검증(2026-09-20, 모두 통과): ① push 전체 파이프라인(테스트 6분20초 ∥ 이미지 빌드 → 서버 pull·교체 1분24초, 총 약 8분) ② 레지스트리 커밋 태그 롤백(`rollback_tag=0aedafff3613`, 재빌드 없이 약 20초) ③ `image_tag` 재배포(테스트·빌드 생략, api만 교체 — pull 방식에서도 "바뀐 서비스만 교체" 동작) ④ 잘못된 `image_tag`·`rollback_tag` 는 `validate` 에서 거절, 서버 무영향 ⑤ `skip_tests` 긴급 경로(no-op).
+- 잔여·관찰: 프런트 `package-lock.json` 이 `.gitignore` 라 의존성 미고정(사용자 결정), `spotlessCheck` 는 기존 52개 파일 위반이라 게이트 아님, 서버 빌드 캐시 약 10GB 는 서버 빌드 시절 잔재(정비 스크립트가 처리), 3단계(무중단 교체·자동 롤백) 미착수.
 
