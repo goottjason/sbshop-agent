@@ -1,0 +1,86 @@
+name: Deploy sbshop-agent (v2, ops/deploy.sh)
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "도는 소싱처 배치가 있어도 배포한다"
+        type: boolean
+        default: false
+      recreate:
+        description: "이미지가 같아도 다시 만들 서비스(공백 구분, 예: sbshop-api). 운영 검증용"
+        type: string
+        default: ""
+      rollback:
+        description: "지정하면 배포 대신 그 서비스를 직전 prev- 태그로 되돌린다(예: sbshop-api)"
+        type: string
+        default: ""
+
+concurrency:
+  group: deploy-sbshop-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs
+        env:
+          RECREATE: ${{ inputs.recreate }}
+          ROLLBACK: ${{ inputs.rollback }}
+        run: |
+          for v in "$RECREATE" "$ROLLBACK"; do
+            case "$v" in
+              *[!a-z0-9\ -]*) echo "::error::서비스 이름은 소문자·숫자·하이픈·공백만 허용합니다: $v"; exit 1;;
+            esac
+          done
+
+      - name: Deploy via ops/deploy.sh
+        env:
+          SSH_KEY: ${{ secrets.SBSHOP_DEPLOY_KEY }}
+          SERVER: 168.107.31.154
+          USER_NAME: ubuntu
+          FORCE_INPUT: ${{ inputs.force }}
+          RECREATE: ${{ inputs.recreate }}
+          ROLLBACK: ${{ inputs.rollback }}
+        run: |
+          if [ -z "$SSH_KEY" ]; then
+            echo "::error::SBSHOP_DEPLOY_KEY 시크릿이 없습니다."
+            exit 1
+          fi
+          FORCE=0; [ "$FORCE_INPUT" = "true" ] && FORCE=1
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SERVER" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new "$USER_NAME@$SERVER" \
+            "FORCE='$FORCE' RECREATE='$RECREATE' ROLLBACK='$ROLLBACK' bash -se" <<'REMOTE'
+            set -euo pipefail
+            cd ~/projects/sbshop-agent
+            git fetch origin main
+            git reset --hard origin/main
+            bash ops/test/deploy_test.sh
+            if [ -n "$ROLLBACK" ]; then
+              ./ops/deploy.sh rollback "$ROLLBACK"
+            else
+              ./ops/deploy.sh
+            fi
+          REMOTE
+
+      - name: Healthcheck
+        env:
+          SERVER: 168.107.31.154
+        run: |
+          code=000
+          for i in $(seq 1 24); do
+            sleep 5
+            code=$(curl -s -o /dev/null -w '%{http_code}' -L -k --connect-timeout 5 "https://$SERVER/sbshop-agent/" || echo 000)
+            [ "$code" = "200" ] || [ "$code" = "302" ] && break
+            echo "waiting... (HTTP $code, $i/24)"
+          done
+          echo "HTTP $code"
+          if [ "$code" != "200" ] && [ "$code" != "302" ]; then
+            echo "::error::배포 헬스체크 실패 (HTTP $code)"
+            exit 1
+          fi
+          echo "✅ sbshop 배포 성공 (HTTP $code)"
