@@ -16,7 +16,7 @@ new_env() {
   : > "$CALLLOG"; : > "$LOCKSTATE"; echo 0 > "$BATCH_IDX_FILE"; echo 0 > "$HEALTH_N_FILE"; rm -f "$TMPD"/replaced.* "$TMPD"/pending.*; rm -rf "$TMPD/state"
   OUT_PS=""; OUT_BATCH=("0"); BATCH_FAIL=0
   declare -gA BUILT=() FPC=() RUNNING=() TAGS=() HASH_RUN=() HASH_WANT=()
-  HEALTH_BODY=""; BUILD_RC=0; UP_RC=0; NGINX_RC=0; STALE_AFTER_UP=0; HEALTH_UP_AFTER=1; DF_AVAIL=99999999; SLEPT=0
+  HEALTH_BODY=""; UP_FAIL_SVC=""; BUILD_RC=0; UP_RC=0; NGINX_RC=0; STALE_AFTER_UP=0; HEALTH_UP_AFTER=1; DF_AVAIL=99999999; SLEPT=0
   export FORCE=0 RECREATE="" DRY_RUN=0 POLL_SEC=1 BATCH_WAIT_SEC=3 HEALTH_WAIT_SEC=4 HEALTH_POLL_SEC=1 MIN_FREE_KB=10485760 KEEP_PREV=3
   export LOCK_FILE="$TMPD/lock" COMPOSE_DIR="$HERE/.." STATE_DIR="$TMPD/state"
 }
@@ -58,7 +58,9 @@ docker() {
         *" build"*)
           if flock -n "$LOCK_FILE" true 2>/dev/null; then echo UNLOCKED >> "$LOCKSTATE"; else echo LOCKED >> "$LOCKSTATE"; fi
           return "$BUILD_RC" ;;
-        *" up "*|*" up -d"*) [ "$UP_RC" = 0 ] && touch "$TMPD/replaced.${*: -1}"; return "$UP_RC" ;;
+        *" up "*|*" up -d"*) local us="${*: -1}" urc="$UP_RC"
+          if [ -n "$UP_FAIL_SVC" ] && [ "$us" != "$UP_FAIL_SVC" ]; then urc=0; fi
+          [ "$urc" = 0 ] && touch "$TMPD/replaced.$us"; return "$urc" ;;
       esac ;;
     logs) echo "fake-log-line" ;;
     *) : ;;
@@ -263,6 +265,7 @@ BUILT[sbshop-agent-sbshop-frontend]="f"; RUNNING[projects-sbshop-frontend-1]="f"
 BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
 run_main; rc=$?; c="$(calls_str)"
 assert_eq "코드 5 로 종료" 5 "$rc"
+assert_eq "nginx 만 실패하면 지문은 기록한다(새 컨테이너는 떠 있다)" "$(fp_of new)" "$(cat "$STATE_DIR/sbshop-api.fp")"
 assert_contains "헬스체크는 수행했다" "internal/health" "$c"
 assert_contains "nginx 실패를 말한다" "nginx reload 실패" "$(cat "$TMPD/out")"
 
@@ -421,15 +424,64 @@ run_main; rc=$?
 assert_eq "코드 6 으로 종료" 6 "$rc"
 assert_contains "nginx 실패 정보가 사라지지 않는다" "nginx reload 실패" "$(cat "$TMPD/out")"
 
+echo "[main] frontend 만 바뀌면 nginx 만 다시 읽힌다(api 헬스체크 없음)"
+new_env; set_all_same
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+run_main; rc=$?; c="$(calls_str)"
+assert_eq "정상 종료" 0 "$rc"
+assert_eq "frontend 를 한 번 교체한다" 1 "$(count_of 'up -d --no-build --no-deps sbshop-frontend')"
+assert_eq "nginx 를 한 번 다시 읽힌다" 1 "$(count_of 'nginx -s reload')"
+assert_not_contains "api 헬스체크는 하지 않는다" "internal/health" "$c"
+
+echo "[main] 교체 도중 실패해도 앞서 교체한 서비스 때문에 nginx 는 다시 읽힌다"
+new_env; UP_RC=1; UP_FAIL_SVC="sbshop-frontend"
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+run_main; rc=$?; c="$(calls_str)"
+assert_eq "코드 4 로 종료" 4 "$rc"
+assert_eq "nginx 를 다시 읽힌다(api 가 새 IP 로 떴다)" 1 "$(count_of 'nginx -s reload')"
+assert_contains "실패한 서비스와 롤백 방법을 알린다" "rollback sbshop-frontend" "$(cat "$TMPD/out")"
+assert_contains "앞서 교체한 서비스가 떠 있음을 알린다" "앞서 교체한 서비스는 떠 있고 nginx 는 다시 읽혔습니다" "$(cat "$TMPD/out")"
+assert_eq "실패 서비스 뒤는 이어서 교체하지 않는다" 2 "$(count_of 'up -d --no-build')"
+
+echo "[main] 첫 서비스에서 실패하면 nginx 는 건드리지 않는다"
+new_env; UP_RC=1
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="f"; RUNNING[projects-sbshop-frontend-1]="f"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+run_main; rc=$?
+assert_eq "코드 4 로 종료" 4 "$rc"
+assert_not_contains "nginx 를 다시 읽히지 않는다" "nginx -s reload" "$(calls_str)"
+
+echo "[main] 지문 기록이 실패해도 배포는 성공으로 끝나고 경고만 한다(교체는 이미 끝났다)"
+new_env
+BUILT[sbshop-agent-sbshop-api]="new"; RUNNING[projects-sbshop-api-1]="old"
+BUILT[sbshop-agent-sbshop-frontend]="f"; RUNNING[projects-sbshop-frontend-1]="f"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+sync_state; chmod 400 "$STATE_DIR"/*.fp; chmod 500 "$STATE_DIR"
+( set -euo pipefail; main ) >"$TMPD/out" 2>&1; rc=$?
+chmod 700 "$STATE_DIR"; chmod 600 "$STATE_DIR"/*.fp
+assert_eq "정상 종료" 0 "$rc"
+assert_contains "경고를 낸다" "지문 기록 실패" "$(cat "$TMPD/out")"
+assert_contains "배포 완료로 끝난다" "배포 완료" "$(cat "$TMPD/out")"
+assert_not_contains "raw 시스템 오류를 그대로 노출하지 않는다" "Permission denied" "$(cat "$TMPD/out")"
+
 echo "[main] DRY_RUN 은 빌드를 건너뛰므로 변경 판정이 이미 있던 이미지 기준임을 알린다"
 new_env; DRY_RUN=1; set_all_same
 run_main
 assert_contains "안내 문구" "빌드를 건너뛰" "$(cat "$TMPD/out")"
 
 echo "[rollback_service] 롤백도 배포와 같은 사후 확인을 한다"
+new_env; TAGS[sbshop-agent-sbshop-api]=$'latest\nprev-20260105-000001'; BUILT[sbshop-agent-sbshop-api]="rolled"; UP_RC=1
+( set -euo pipefail; rollback_service sbshop-api ) >"$TMPD/out" 2>&1; rc=$?
+assert_eq "롤백 기동이 실패하면 코드 4" 4 "$rc"
+assert_contains "다시 실행·롤백 방법을 안내한다" "기동 실패" "$(cat "$TMPD/out")"
+assert_not_contains "롤백 완료라고 하지 않는다" "롤백 완료" "$(cat "$TMPD/out")"
 new_env; TAGS[sbshop-agent-sbshop-api]=$'latest\nprev-20260105-000001'; BUILT[sbshop-agent-sbshop-api]="rolled"; HEALTH_UP_AFTER=999
 ( set -euo pipefail; rollback_service sbshop-api ) >"$TMPD/out" 2>&1; rc=$?
 assert_eq "헬스체크가 끝내 실패하면 코드 6" 6 "$rc"
+[ ! -f "$STATE_DIR/sbshop-api.fp" ] && ok "롤백 헬스 실패 시 지문을 기록하지 않는다" || bad "롤백 헬스 실패 시 지문 기록 금지"
 assert_not_contains "롤백 완료라고 하지 않는다" "롤백 완료" "$(cat "$TMPD/out")"
 new_env; TAGS[sbshop-agent-sbshop-api]=$'latest\nprev-20260105-000001'; BUILT[sbshop-agent-sbshop-api]="rolled"; NGINX_RC=1
 ( set -euo pipefail; rollback_service sbshop-api ) >"$TMPD/out" 2>&1; rc=$?

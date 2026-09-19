@@ -77,8 +77,9 @@ record_fingerprint() {
   fp="$(image_fingerprint "$1")"
   [ -n "$fp" ] || return 0
   if [ "$DRY_RUN" = 1 ]; then log "DRY_RUN: 배포 지문 기록: $1"; return 0; fi
-  mkdir -p "$STATE_DIR"
-  printf '%s\n' "$fp" > "$STATE_DIR/$1.fp"
+  if ! { mkdir -p "$STATE_DIR" && printf '%s\n' "$fp" > "$STATE_DIR/$1.fp"; } 2>/dev/null; then
+    warn "배포 지문 기록 실패: $STATE_DIR/$1.fp — 다음 배포에서 $1 를 한 번 더 교체합니다"
+  fi
 }
 
 service_changed() {
@@ -189,8 +190,11 @@ replace_service() {
   local svc="$1"
   log "교체: $svc"
   run docker rm -f "$(container_of "$svc")" >/dev/null 2>&1 || true
-  (cd "$COMPOSE_DIR" && run docker compose up -d --no-build --no-deps "$svc") \
-    || die "$svc 기동 실패 — 컨테이너가 내려간 상태입니다. 원인을 확인한 뒤 ./ops/deploy.sh 를 다시 실행하거나 ./ops/deploy.sh rollback $svc 를 실행하세요" 4
+  (cd "$COMPOSE_DIR" && run docker compose up -d --no-build --no-deps "$svc") || return 4
+}
+
+replace_failure_message() {
+  echo "$1 기동 실패 — 컨테이너가 내려간 상태입니다. 원인을 확인한 뒤 ./ops/deploy.sh 를 다시 실행하거나 ./ops/deploy.sh rollback $1 를 실행하세요"
 }
 
 verify_running_image() {
@@ -241,7 +245,7 @@ rollback_service() {
   fi
   log "롤백: $svc ← $tag"
   run docker tag "$(image_of "$svc"):$tag" "$(image_of "$svc"):latest"
-  replace_service "$svc"
+  replace_service "$svc" || die "$(replace_failure_message "$svc")" 4
   local nginx_failed=0
   case "$svc" in
     sbshop-api|sbshop-frontend) reload_nginx || nginx_failed=1 ;;
@@ -287,7 +291,13 @@ main() {
   local api_changed=0 reload=0 nginx_failed=0
   for svc in "${changed[@]}"; do
     tag_prev "$svc"
-    replace_service "$svc"
+    if ! replace_service "$svc"; then
+      if [ "$reload" = 1 ]; then
+        reload_nginx || warn "nginx reload 도 실패했습니다"
+        die "$(replace_failure_message "$svc") (앞서 교체한 서비스는 떠 있고 nginx 는 다시 읽혔습니다)" 4
+      fi
+      die "$(replace_failure_message "$svc")" 4
+    fi
     verify_running_image "$svc"
     case "$svc" in
       sbshop-api) api_changed=1; reload=1 ;;
