@@ -14,7 +14,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Table, TableHeader, TableBody, TableRow, TableHead } from '../../components/ui/Table';
 import type { RowData, OrdersCache } from './types';
 import { toolbarBtn, toolbarBtnBase, DEFAULT_VISIBLE_STATUSES, DEFAULT_VISIBLE_CLAIM_TYPES } from './constants';
-import { marketSyncState, patchOrderInCache, patchLineItemInCache } from './helpers';
+import { marketSyncState, patchOrderInCache, patchLineItemInCache, orderRowId, selectedGridRows, selectedOrderIds } from './helpers';
 import { buildOrderColumns } from './orderColumns';
 import OrderTableRow from './OrderTableRow';
 import OrderFilterPanel from './OrderFilterPanel';
@@ -315,15 +315,11 @@ const OrderGrid: React.FC = () => {
     }
   };
   const handleConfirmOrders = async () => {
-    const selectedIds = Object.keys(rowSelection).filter(k => rowSelection[k as keyof typeof rowSelection]);
-    if (selectedIds.length === 0) {
+    if (selectedRows.length === 0) {
       toast.warn('확인할 주문을 선택해주세요.');
       return;
     }
-    const orderIdsToConfirm = Array.from(new Set(selectedIds.map(indexStr => {
-      const row = processedData[parseInt(indexStr, 10)];
-      return row.order?.id;
-    }).filter(id => id !== undefined))) as number[];
+    const orderIdsToConfirm = selectedOrders;
     if (orderIdsToConfirm.length === 0) return;
     try {
       const result = await confirmOrdersBatch(orderIdsToConfirm);
@@ -344,20 +340,16 @@ const OrderGrid: React.FC = () => {
     }
   };
   const handleCancelOrders = async () => {
-    const selectedIds = Object.keys(rowSelection).filter(k => rowSelection[k as keyof typeof rowSelection]);
-    if (selectedIds.length === 0) {
+    if (selectedRows.length === 0) {
       toast.warn('거부할 주문을 선택해주세요.');
       return;
     }
     if (!window.confirm('선택한 주문을 정말로 취소(거부) 처리하시겠습니까?')) return;
 
-    const orderIdsToCancel = Array.from(new Set(selectedIds.map(indexStr => {
-      const row = processedData[parseInt(indexStr, 10)];
-      return row.order?.id;
-    }).filter(id => id !== undefined)));
+    const orderIdsToCancel = selectedOrders;
     if (orderIdsToCancel.length === 0) return;
     try {
-      await Promise.all(orderIdsToCancel.map(id => cancelOrder(id as number)));
+      await Promise.all(orderIdsToCancel.map(id => cancelOrder(id)));
       setRowSelection({});
       refetch();
       toast.success(`${orderIdsToCancel.length}건 취소(거부) 처리되었습니다.`);
@@ -366,15 +358,13 @@ const OrderGrid: React.FC = () => {
     }
   };
   const handleExportExcel = async () => {
-    const selectedIndices = Object.keys(rowSelection).filter(k => rowSelection[k]);
-    if (selectedIndices.length === 0) {
+    if (selectedRows.length === 0) {
       toast.warn('엑셀로 내려받을 주문을 선택해주세요.');
       return;
     }
     const seen = new Set<string>();
     const rows: OrderGridDto[] = [];
-    processedData.forEach((row, index) => {
-      if (!rowSelection[String(index)]) return;
+    selectedRows.forEach((row, index) => {
       const key = String(row.lineItem?.id ?? `${row.order?.id}-${index}`);
       if (seen.has(key)) return;
       seen.add(key);
@@ -461,16 +451,13 @@ const OrderGrid: React.FC = () => {
     });
     return processedData.filter((row) => row.lineItem?.id && keep.has(row.lineItem.id));
   }, [processedData, syncFilter]);
+  const selectedRows = useMemo(() => selectedGridRows(visibleData, rowSelection), [visibleData, rowSelection]);
+  const selectedOrders = useMemo(() => selectedOrderIds(selectedRows), [selectedRows]);
 
   const canConfirmSelected = useMemo(() => {
-    const selectedIndices = Object.keys(rowSelection).filter(k => rowSelection[k]);
-    if (selectedIndices.length === 0) return false;
-    return selectedIndices.every(idx => {
-      const row = processedData[parseInt(idx, 10)];
-      const status = row?.lineItem?.shippingData?.shippingStatus;
-      return status === 'NEW';
-    });
-  }, [rowSelection, processedData]);
+    if (selectedRows.length === 0) return false;
+    return selectedRows.every(row => row.lineItem?.shippingData?.shippingStatus === 'NEW');
+  }, [selectedRows]);
   const columns = useMemo(() => buildOrderColumns({
     getCommonLabel, handleUpdate, handleSyncCustoms, handleSyncProductStock, timeAgo,
   }), [handleUpdate, commonCodes, getCommonLabel]);
@@ -481,6 +468,7 @@ const OrderGrid: React.FC = () => {
     enableRowSelection: true,
     columnResizeMode: 'onChange',
     onRowSelectionChange: setRowSelection,
+    getRowId: orderRowId,
     getCoreRowModel: getCoreRowModel(),
   });
 
@@ -499,14 +487,13 @@ const OrderGrid: React.FC = () => {
     return () => ro.disconnect();
   }, [totalColWidth]);
   const handleShipSelected = async () => {
-    const selectedRows = table.getSelectedRowModel().rows;
-    const orderIds = Array.from(new Set(selectedRows.map(r => r.original.order?.id))).filter(id => id);
+    const orderIds = selectedOrders;
     if (orderIds.length === 0) {
       toast.warning('발송 처리할 주문을 선택해주세요.');
       return;
     }
     try {
-      const result = await shipOrders(orderIds as number[]);
+      const result = await shipOrders(orderIds);
       const skippedSuffix = result.skippedCount ? `, ${result.skippedCount}건 건너뜀` : '';
       if (result.failedCount === 0) {
         toast.success(`${result.successCount}건 발송 처리되었습니다.${skippedSuffix}`);

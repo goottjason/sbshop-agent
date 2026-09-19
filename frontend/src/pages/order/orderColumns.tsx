@@ -149,7 +149,7 @@ export function buildOrderColumns({ getCommonLabel, handleUpdate, handleSyncCust
         }
         if (row.original.rowType === 'fulfillment') return null;
         const val = row.original.order?.customsData?.customsClearanceNo || '';
-        return <InlineInput value={val} onCommit={(v) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'order.customsClearanceNo', v)} />;
+        return <InlineInput key={`customs-${row.original.order?.id ?? 0}`} value={val} onCommit={(v) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'order.customsClearanceNo', v)} />;
       }
     }),
     columnHelper.display({
@@ -159,7 +159,7 @@ export function buildOrderColumns({ getCommonLabel, handleUpdate, handleSyncCust
       cell: ({ row }) => {
         if (row.original.rowType === 'product') {
           const val = row.original.order?.address || '';
-          return <InlineInput value={val} onCommit={(v) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'order.address', v)} />;
+          return <InlineInput key={`address-${row.original.order?.id ?? 0}`} value={val} onCommit={(v) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'order.address', v)} />;
         }
         if (row.original.rowType === 'fulfillment') return null;
         const zipcode = row.original.order?.zipcode || '';
@@ -169,6 +169,7 @@ export function buildOrderColumns({ getCommonLabel, handleUpdate, handleSyncCust
             <span style={{ fontWeight: 500, flexShrink: 0 }}>{zipcode || '-'}</span>
             <span style={{ color: '#999', flexShrink: 0 }}>|</span>
             <InlineInput
+              key={`message-${row.original.order?.id ?? 0}`}
               value={message}
               selectAllOnFocus
               title="배송메시지 — 클릭하면 전체 선택됩니다"
@@ -274,6 +275,7 @@ export function buildOrderColumns({ getCommonLabel, handleUpdate, handleSyncCust
         const discountCode = row.original.lineItem?.sourcingData?.discountCode || '';
         return (
           <SourcingEditCell
+            key={`sourcing-${orderId}-${lineItemId}`}
             sourcingAccount={sourcingAccount}
             sourcingVendor={sourcingVendor}
             sourcingOrderNo={sourcingOrderNo}
@@ -299,6 +301,7 @@ export function buildOrderColumns({ getCommonLabel, handleUpdate, handleSyncCust
           <div style={{ fontSize: '12px', textAlign: 'center' }}>
             {editable ? (
               <ShippingEditCell
+                key={`shipping-${orderId}-${lineItemId}`}
                 carrier={carrier}
                 trackingNo={trackingNo}
                 syncState={marketSyncState(row.original.lineItem, row.original.shipment)}
@@ -327,6 +330,7 @@ export function buildOrderColumns({ getCommonLabel, handleUpdate, handleSyncCust
           const logisticsCost = (row.original.lineItem?.sourcingData?.logisticsCost || 0) as number;
           return (
             <FinancialEditCell
+              key={`financial-${row.original.order?.id ?? 0}-${row.original.lineItem?.id ?? 0}`}
               sourcingAmount={sourcingAmount}
               logisticsCost={logisticsCost}
               onSave={(v) => handleUpdate(row.original.order?.id || 0, row.original.lineItem?.id || 0, 'lineItem.financial', v)}

@@ -1,6 +1,6 @@
 import type * as React from 'react';
 import type { ProductDto, OrderDto, OrderLineItemDto, ShipmentDto } from '../../api/orderApi';
-import type { StockCellInfo, SaveStatus, MarketSyncState, OrdersCache } from './types';
+import type { StockCellInfo, SaveStatus, MarketSyncState, OrdersCache, RowData } from './types';
 import { NO_SEND_STATUSES } from './constants';
 
 export function stockCellInfo(product?: ProductDto): StockCellInfo {
@@ -90,4 +90,19 @@ export function patchLineItemInCache(cache: OrdersCache | undefined, lineItemId:
       };
     }),
   };
+}
+
+export function orderRowId(row: RowData, index: number): string {
+  const orderKey = row.order?.id ?? `i${index}`;
+  const lineItemKey = row.lineItem?.id ?? `i${index}`;
+  return `${orderKey}:${lineItemKey}:${row.rowType ?? 'order'}`;
+}
+
+export function selectedGridRows(rows: RowData[], rowSelection: Record<string, boolean>): RowData[] {
+  return rows.filter((row, index) => rowSelection[orderRowId(row, index)] === true);
+}
+
+export function selectedOrderIds(rows: RowData[]): number[] {
+  const ids = rows.map(row => row.order?.id).filter((id): id is number => typeof id === 'number');
+  return Array.from(new Set(ids));
 }
