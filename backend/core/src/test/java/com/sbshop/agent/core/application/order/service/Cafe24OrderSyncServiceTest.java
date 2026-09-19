@@ -168,7 +168,7 @@ class Cafe24OrderSyncServiceTest {
 	}
 
 	@Test
-	@DisplayName("실제 Cafe24 필드: 통관번호가 receivers[].clearance_information에 오면 추출·저장한다(강연희 P180023584849)")
+	@DisplayName("실제 Cafe24 필드: 통관번호가 receivers[].clearance_information에 오면 추출·저장한다(강연희 P000000000002)")
 	void extractsPcccFromReceiverClearanceInformation() throws Exception {
 		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
 			.thenReturn(ordersJsonRealClearanceInformation());
@@ -178,7 +178,7 @@ class Cafe24OrderSyncServiceTest {
 
 		ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
 		verify(orderRepository, times(1)).save(orderCaptor.capture());
-		assertThat(orderCaptor.getValue().getCustomsData().getCustomsClearanceNo()).isEqualTo("P180023584849");
+		assertThat(orderCaptor.getValue().getCustomsData().getCustomsClearanceNo()).isEqualTo("P000000000002");
 	}
 
 	@Test
@@ -406,10 +406,10 @@ class Cafe24OrderSyncServiceTest {
 			{"orders":[
 			  {"order_id":"20260715-0000010","order_place_id":"gmarket","order_place_name":"G마켓",
 			   "order_date":"2026-07-15T12:00:00+09:00","market_order_no":"4469254653",
-			   "buyer":{"name":"강연희","cellphone":"010-2930-0502"},
-			   "receivers":[{"name":"강연희","cellphone":"010-2930-0502","zipcode":"12345",
+			   "buyer":{"name":"강연희","cellphone":"010-0000-0001"},
+			   "receivers":[{"name":"강연희","cellphone":"010-0000-0001","zipcode":"12345",
 			      "address_full":"서울시 강남구","clearance_information_type":"C",
-			      "clearance_information":"P180023584849"}],
+			      "clearance_information":"P000000000002"}],
 			   "items":[{"product_no":"7034","quantity":1,"payment_amount":"5000","order_status":"N10"}]}
 			]}
 			""";

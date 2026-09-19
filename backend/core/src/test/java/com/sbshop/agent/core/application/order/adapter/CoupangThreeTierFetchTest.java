@@ -181,7 +181,7 @@ class CoupangThreeTierFetchTest {
 
 		assertThat(dto.getRecipientName()).isEqualTo("홍길동");
 		assertThat(dto.getZipcode()).isEqualTo("07997");
-		assertThat(dto.getCustomsClearanceNo()).isEqualTo("P200032008307");
+		assertThat(dto.getCustomsClearanceNo()).isEqualTo("P000000000001");
 		assertThat(dto.getOrdererName()).isEqualTo("김주문");
 		assertThat(dto.getStatus()).isNull();
 		assertThat(dto.getTrackingNo()).isNull();
@@ -265,7 +265,7 @@ class CoupangThreeTierFetchTest {
 				+ "\"postCode\":\"07997\",\"addr1\":\"서울 양천구\",\"addr2\":\"101동\"}")
 			.append(",\"orderer\":{\"name\":\"김주문\"}")
 			.append(",\"overseaShippingInfoDto\":{\"ordererPhoneNumber\":\"010-1111-2222\","
-				+ "\"personalCustomsClearanceCode\":\"P200032008307\"}");
+				+ "\"personalCustomsClearanceCode\":\"P000000000001\"}");
 		if (invoiceNo != null) {
 			sb.append(",\"invoiceNumber\":\"").append(invoiceNo).append('"');
 		}

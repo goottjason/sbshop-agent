@@ -126,14 +126,14 @@ class MarketOrderNormalizerTest {
 			.marketOrderNo("A1")
 			.recipientName("정나영")
 			.address("서울특별시 양천구")
-			.customsClearanceNo("P200032008307")
+			.customsClearanceNo("P000000000001")
 			.build();
 
 		MarketOrderDto result = MarketOrderNormalizer.normalize(flat);
 
 		assertThat(result.getRecipientName()).isEqualTo("정나영");
 		assertThat(result.getAddress()).isEqualTo("서울특별시 양천구");
-		assertThat(result.getCustomsClearanceNo()).isEqualTo("P200032008307");
+		assertThat(result.getCustomsClearanceNo()).isEqualTo("P000000000001");
 	}
 
 	@Test

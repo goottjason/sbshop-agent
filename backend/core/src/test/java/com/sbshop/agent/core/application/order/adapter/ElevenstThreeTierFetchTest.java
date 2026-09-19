@@ -56,7 +56,7 @@ class ElevenstThreeTierFetchTest {
 		MarketOrderDto dto = result.get(0);
 		assertThat(dto.getMarketOrderNo()).isEqualTo(ORD_NO);
 		assertThat(dto.getRecipientName()).isEqualTo("정나영");
-		assertThat(dto.getCustomsClearanceNo()).isEqualTo("P200032008307");
+		assertThat(dto.getCustomsClearanceNo()).isEqualTo("P000000000001");
 
 		assertThat(dto.getShipments()).hasSize(2);
 		assertThat(allLineItems(dto)).hasSize(2);
@@ -252,7 +252,7 @@ class ElevenstThreeTierFetchTest {
 			+ (invcNo == null ? "" : "<invcNo>" + invcNo + "</invcNo><dlvEtprsCd>00034</dlvEtprsCd>")
 			+ "<rcvrNm>정나영</rcvrNm><rcvrMailNo>07997</rcvrMailNo>"
 			+ "<rcvrBaseAddr>서울특별시 양천구</rcvrBaseAddr><rcvrDtlsAddr>101동</rcvrDtlsAddr>"
-			+ "<psnCscUniqNo>P200032008307</psnCscUniqNo>"
+			+ "<psnCscUniqNo>P000000000001</psnCscUniqNo>"
 			+ "</order>");
 	}
 

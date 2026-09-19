@@ -224,9 +224,9 @@ flowchart TD
 - **제안:** 정산 경로(`syncCoupangSettlement`의 DB 찜하기)처럼 두 프로그램을 아우르는 중복 방지로 통일하는 걸 검토합니다.
 
 ### SYNCA-18 · 🟠 GAP — G마켓/옥션 통관번호(PCCC)를 못 가져오던 문제 (실제 필드명 미확정)
-> ✅ **해결됨** (2026-07-17) — 실제 Cafe24 응답의 PCCC 필드가 **`receivers[].clearance_information`**(동반 필드 `clearance_information_type="C"` = 개인통관고유부호 유형)임을 라이브 주문 `20260715-0000010`(강연희, `P180023584849`)으로 확정하고, `extractPccc`의 1순위 후보 키로 반영했다.
+> ✅ **해결됨** (2026-07-17) — 실제 Cafe24 응답의 PCCC 필드가 **`receivers[].clearance_information`**(동반 필드 `clearance_information_type="C"` = 개인통관고유부호 유형)임을 라이브 주문 `20260715-0000010`(강연희, `P000000000002`)으로 확정하고, `extractPccc`의 1순위 후보 키로 반영했다.
 - **무엇이 문제였나:** `extractPccc`(`Cafe24OrderSyncService.java`)가 정확한 Cafe24 PCCC 필드명을 몰라 추측 키들(`personal_customs_clearance_code`·`clearance_code` 등)만 시도했다. 실제 필드명 `clearance_information`이 후보에 없어, 응답에는 값이 있는데도 **항상 null로 저장**됐다(강연희 주문 `customs_clearance_no` NULL로 재현).
-- **근거:** 라이브 Cafe24 Admin API(`GET /admin/orders/{id}?embed=items,receivers,buyer`) 응답에서 `receivers[0].clearance_information = "P180023584849"`, `receivers[0].clearance_information_type = "C"` 확인. 값이 이미 현재 embed(`receivers`)에 포함돼 있어 **embed 변경 없이** 파싱만 고치면 됐다.
+- **근거:** 라이브 Cafe24 Admin API(`GET /admin/orders/{id}?embed=items,receivers,buyer`) 응답에서 `receivers[0].clearance_information = "P000000000002"`, `receivers[0].clearance_information_type = "C"` 확인. 값이 이미 현재 embed(`receivers`)에 포함돼 있어 **embed 변경 없이** 파싱만 고치면 됐다.
 - **영향:** G마켓·옥션 주문의 통관번호가 비어, 이후 통관 검증(GSI Express) 대상에서 누락되거나 수기 입력이 필요했다. (수정 후: 동기화 시 자동 주입 → 통관 상태 동기화가 정상 대상으로 포착.)
 - **재현 테스트:** `Cafe24OrderSyncServiceTest.extractsPcccFromReceiverClearanceInformation` (실제 구조·실제 값으로 Red→Green).
 

@@ -158,9 +158,9 @@ CEA algorithm=HmacSHA256, access-key={accessKey}, signed-date={datetime}, signat
     }
   ],
   "overseaShippingInfoDto": {
-    "personalCustomsClearanceCode": "P210011766727",
+    "personalCustomsClearanceCode": "P000000000003",
     "ordererSsn": "",
-    "ordererPhoneNumber": "01067227207"
+    "ordererPhoneNumber": "01000000002"
   },
   "deliveryCompanyName": "",
   "invoiceNumber": "",
@@ -219,7 +219,7 @@ CEA algorithm=HmacSHA256, access-key={accessKey}, signed-date={datetime}, signat
 
 | 필드 | 타입 | Nullable | Description |
 |------|------|----------|-------------|
-| `personalCustomsClearanceCode` | string | Y | 개인통관고유부호 (e.g. `"P210011766727"`) |
+| `personalCustomsClearanceCode` | string | Y | 개인통관고유부호 (e.g. `"P000000000003"`) |
 | `ordererPhoneNumber` | string | Y | 주문자 실제 전화번호 (마스킹 없음) |
 | `ordererSsn` | string | Y | 주문자 주민등록번호 (보통 빈 문자열) |
 
@@ -318,7 +318,7 @@ X-Requested-By: A00213055
 | 수취인 | 이정수 / 0502-4272-3093 / 충북 청주시 흥덕구 |
 | 우편번호 | `28563` |
 | 배송메모 | `문 앞` |
-| 통관번호 | `P210011766727` (해외배송) |
+| 통관번호 | `P000000000003` (해외배송) |
 | orderPrice | 41,200원 |
 | `externalVendorSkuCode` | `P000BFLG000A` |
 
