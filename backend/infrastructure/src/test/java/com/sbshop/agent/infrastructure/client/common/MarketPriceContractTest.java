@@ -76,19 +76,70 @@ class MarketPriceContractTest {
 		verify(rest).put("/admin/products/123", Map.of("shop_no", 1, "request", Map.of("price", 12300)));
 	}
 
-	@Test
-	void coupangVerifiesParentAndOptionThenReadsActualOptionSalePrice() {
-		var rest = mock(CoupangRestClient.class);
+	static final String VI = "/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/456/prices/";
+
+	CoupangMarketClient coupang(CoupangRestClient rest, int currentSalePrice) {
 		when(rest.resolveVendorId()).thenReturn("A1");
-		var client = new CoupangMarketClient(null, new ObjectMapper(), rest, null, null, null, null, null, null);
 		when(rest.get(contains("seller-products/"))).thenReturn(
 			"{\"code\":\"SUCCESS\",\"data\":{\"sellerProductId\":123,\"vendorId\":\"A1\",\"statusName\":\"승인완료\",\"items\":[{\"vendorItemId\":456}]}}");
-		when(rest.get(contains("/inventories")))
-			.thenReturn("{\"code\":\"SUCCESS\",\"data\":{\"sellerItemId\":456,\"salePrice\":12300,\"onSale\":true}}");
+		when(rest.get(contains("/inventories"))).thenReturn("{\"code\":\"SUCCESS\",\"data\":{\"sellerItemId\":456,"
+			+ "\"salePrice\":" + currentSalePrice + ",\"onSale\":true}}");
+		return new CoupangMarketClient(null, new ObjectMapper(), rest, null, null, null, null, null, null);
+	}
+
+	@Test
+	void coupangVerifiesParentAndOptionThenWritesOptionPriceThroughStepwiseLoop() {
+		var rest = mock(CoupangRestClient.class);
+		var client = coupang(rest, 12300);
 		assertThat(client.readSalePrice("123", "456").value()).isEqualByComparingTo("12300");
 		assertThatThrownBy(() -> client.readSalePrice("123", "789")).isInstanceOf(MarketTransferFailure.class);
 		client.writeSalePrice("123", "456", new BigDecimal("12300"));
-		verify(rest).put("/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/456/prices/12300", null);
+		verify(rest).put(VI + "12300", Map.of());
+		verify(rest, times(1)).put(any(), any());
+	}
+
+	@Test
+	void coupangPriceRaiseBeyondOneStepLimitWalksUpInSeparatePutsUntilTarget() {
+		var rest = mock(CoupangRestClient.class);
+		var client = coupang(rest, 12300);
+		client.writeSalePrice("123", "456", new BigDecimal("100000"));
+		var order = inOrder(rest);
+		order.verify(rest).put(VI + "24600", Map.of());
+		order.verify(rest).put(VI + "49200", Map.of());
+		order.verify(rest).put(VI + "98400", Map.of());
+		order.verify(rest).put(VI + "100000", Map.of());
+		verify(rest, times(4)).put(any(), any());
+	}
+
+	@Test
+	void coupangPriceCutBeyondOneStepLimitWalksDownOnTenWonUnitsUntilTarget() {
+		var rest = mock(CoupangRestClient.class);
+		var client = coupang(rest, 12300);
+		client.writeSalePrice("123", "456", new BigDecimal("3000"));
+		var order = inOrder(rest);
+		order.verify(rest).put(VI + "6150", Map.of());
+		order.verify(rest).put(VI + "3080", Map.of());
+		order.verify(rest).put(VI + "3000", Map.of());
+		verify(rest, times(3)).put(any(), any());
+	}
+
+	@Test
+	void coupangStoppedOptionPriceIsStillWrittenButUnapprovedProductIsRefused() {
+		var rest = mock(CoupangRestClient.class);
+		var client = coupang(rest, 12300);
+		when(rest.get(contains("/inventories")))
+			.thenReturn("{\"code\":\"SUCCESS\",\"data\":{\"sellerItemId\":456,\"salePrice\":12300,\"onSale\":false}}");
+		assertThat(client.readSalePrice("123", "456").writable()).isTrue();
+		client.writeSalePrice("123", "456", new BigDecimal("12300"));
+		verify(rest).put(VI + "12300", Map.of());
+		var unapproved = mock(CoupangRestClient.class);
+		var blocked = coupang(unapproved, 12300);
+		when(unapproved.get(contains("seller-products/"))).thenReturn(
+			"{\"code\":\"SUCCESS\",\"data\":{\"sellerProductId\":123,\"vendorId\":\"A1\",\"statusName\":\"\",\"items\":[{\"vendorItemId\":456}]}}");
+		assertThat(blocked.readSalePrice("123", "456").writable()).isFalse();
+		assertThatThrownBy(() -> blocked.writeSalePrice("123", "456", new BigDecimal("12300")))
+			.isInstanceOf(MarketTransferFailure.class);
+		verify(unapproved, never()).put(any(), any());
 	}
 
 	@Test

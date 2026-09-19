@@ -69,12 +69,21 @@ class MarketStockContractTest {
 	}
 
 	@Test
-	void coupangWrongSbParentOptionVendorAndMissingOnSaleRefuseWrites() {
+	void coupangSellerSkuMismatchIsWarnedInReasonAndStillWritten() {
 		var rest = mock(CoupangRestClient.class);
 		var client = coupang(rest);
-		assertThatThrownBy(
-			() -> client.writeStockQuantity("123", "456", "OTHER", 300, client.inspectionAccountReference(), () -> {}))
-			.isInstanceOf(MarketTransferFailure.class);
+		var read = client.readStockQuantity("123", "456", "OTHER");
+		assertThat(read.writable()).isTrue();
+		assertThat(read.reason()).contains("SB-123").contains("SKU 불일치");
+		client.writeStockQuantity("123", "456", "OTHER", 300, client.inspectionAccountReference(), () -> {});
+		verify(rest).put(Q + "300", null);
+		verify(rest, times(1)).put(any(), any());
+	}
+
+	@Test
+	void coupangWrongParentOptionVendorAndMissingOnSaleRefuseWrites() {
+		var rest = mock(CoupangRestClient.class);
+		var client = coupang(rest);
 		assertThatThrownBy(
 			() -> client.writeStockQuantity("123", "789", "SB-123", 300, client.inspectionAccountReference(), () -> {}))
 			.isInstanceOf(MarketTransferFailure.class);
@@ -85,18 +94,36 @@ class MarketStockContractTest {
 	}
 
 	@Test
-	void coupangStoppedOrUnapprovedProductNeverRunsGuardOrWrites() {
+	void coupangStoppedProductStillWritesAndRecordsRejectionWhileUnapprovedNeverRunsGuardOrWrites() {
 		var rest = mock(CoupangRestClient.class);
 		var client = coupang(rest);
 		var guard = mock(Runnable.class);
 		when(rest.get(I)).thenReturn(
 			"{\"code\":\"SUCCESS\",\"data\":{\"sellerItemId\":456,\"amountInStock\":300,\"onSale\":false}}");
-		assertThat(client.readStockQuantity("123", "456", "SB-123").writable()).isFalse();
-		assertThatThrownBy(
-			() -> client.writeStockQuantity("123", "456", "SB-123", 300, client.inspectionAccountReference(), guard))
-			.isInstanceOf(UnsupportedOperationException.class);
-		verify(guard, never()).run();
-		verify(rest, never()).put(any(), any());
+		assertThat(client.readStockQuantity("123", "456", "SB-123").writable()).isTrue();
+		client.writeStockQuantity("123", "456", "SB-123", 300, client.inspectionAccountReference(), guard);
+		var order = inOrder(guard, rest);
+		order.verify(guard).run();
+		order.verify(rest).put(Q + "300", null);
+		var rejecting = mock(CoupangRestClient.class);
+		var rejected = coupang(rejecting);
+		when(rejecting.get(I)).thenReturn(
+			"{\"code\":\"SUCCESS\",\"data\":{\"sellerItemId\":456,\"amountInStock\":300,\"onSale\":false}}");
+		when(rejecting.put(any(), any())).thenReturn("{\"code\":\"ERROR\",\"message\":\"판매중지 상품\"}");
+		assertThatThrownBy(() -> rejected.writeStockQuantity("123", "456", "SB-123", 300,
+			rejected.inspectionAccountReference(), () -> {})).isInstanceOf(MarketTransferFailure.class);
+		verify(rejecting).put(Q + "300", null);
+		var unapproved = mock(CoupangRestClient.class);
+		var blocked = coupang(unapproved);
+		var blockedGuard = mock(Runnable.class);
+		when(unapproved.get(P)).thenReturn("{\"code\":\"SUCCESS\",\"data\":{\"sellerProductId\":123,"
+			+ "\"vendorId\":\"A1\",\"statusName\":\"\",\"items\":[{\"vendorItemId\":456,"
+			+ "\"externalVendorSku\":\"SB-123\"}]}}");
+		assertThat(blocked.readStockQuantity("123", "456", "SB-123").writable()).isFalse();
+		assertThatThrownBy(() -> blocked.writeStockQuantity("123", "456", "SB-123", 300,
+			blocked.inspectionAccountReference(), blockedGuard)).isInstanceOf(UnsupportedOperationException.class);
+		verify(blockedGuard, never()).run();
+		verify(unapproved, never()).put(any(), any());
 	}
 
 	@Test
@@ -170,26 +197,60 @@ class MarketStockContractTest {
 	}
 
 	@Test
-	void cafeExplicitZeroUsesInventoryEndpointAndDoesNotStopOrResumeSelling() {
+	void cafeExplicitZeroStopsSellingBeforeInventoryPutAndSkipsTheStopWhenAlreadyStopped() {
 		var rest = mock(Cafe24RestClient.class);
 		var client = cafe(rest);
 		client.writeStockQuantity("123", V, "SB-123", 0, "account-A", () -> {});
-		verify(rest).put(CV + "/inventories", Map.of("shop_no", 1, "request", Map.of("quantity", 0)));
-		verify(rest, times(1)).put(any(), any());
+		var order = inOrder(rest);
+		order.verify(rest).put(CP, Map.of("shop_no", 1, "request", Map.of("selling", "F")));
+		order.verify(rest).put(CV + "/inventories", Map.of("shop_no", 1, "request", Map.of("quantity", 0)));
+		verify(rest, times(2)).put(any(), any());
+		var stopped = mock(Cafe24RestClient.class);
+		var stoppedClient = cafe(stopped);
+		when(stopped.get(CP + "?shop_no=1")).thenReturn("{\"product\":{\"shop_no\":1,\"product_no\":123,"
+			+ "\"product_code\":\"P0000001\",\"custom_product_code\":\"SB-123\",\"market_sync\":\"F\","
+			+ "\"selling\":\"F\"}}");
+		stoppedClient.writeStockQuantity("123", V, "SB-123", 0, "account-A", () -> {});
+		verify(stopped).put(CV + "/inventories", Map.of("shop_no", 1, "request", Map.of("quantity", 0)));
+		verify(stopped, times(1)).put(any(), any());
 	}
 
 	@Test
-	void cafeMarketPlusLinkedProductAndDifferentSbOrVariantAreBlocked() {
+	void cafeDifferentSbCodeOrVariantAreBlocked() {
 		var rest = mock(Cafe24RestClient.class);
 		var client = cafe(rest);
 		assertThatThrownBy(() -> client.writeStockQuantity("123", V, "OTHER", 300, "account-A", () -> {}))
 			.isInstanceOf(MarketTransferFailure.class);
 		assertThatThrownBy(() -> client.readStockQuantity("123", "P0000001000B", "SB-123"))
 			.isInstanceOf(MarketTransferFailure.class);
-		when(rest.get(CP + "?shop_no=1")).thenReturn(
-			"{\"product\":{\"shop_no\":1,\"product_no\":123,\"product_code\":\"P0000001\",\"custom_product_code\":\"SB-123\",\"market_sync\":\"T\",\"selling\":\"T\"}}");
-		assertThatThrownBy(() -> client.writeStockQuantity("123", V, "SB-123", 300, "account-A", () -> {}))
-			.isInstanceOf(UnsupportedOperationException.class);
+		verify(rest, never()).put(any(), any());
+	}
+
+	static final String LINKED = "{\"product\":{\"shop_no\":1,\"product_no\":123,\"product_code\":\"P0000001\","
+		+ "\"custom_product_code\":\"SB-123\",\"market_sync\":\"T\",\"selling\":\"T\"}}";
+
+	@Test
+	void cafeMarketPlusLinkedProductIsWrittenOnTheReviewedSingleEditPath() {
+		var rest = mock(Cafe24RestClient.class);
+		var client = cafe(rest);
+		var guard = mock(Runnable.class);
+		when(rest.get(CP + "?shop_no=1")).thenReturn(LINKED);
+		assertThat(client.readStockQuantity("123", V, "SB-123").writable()).isTrue();
+		client.writeStockQuantity("123", V, "SB-123", 300, "account-A", guard);
+		var order = inOrder(guard, rest);
+		order.verify(guard).run();
+		order.verify(rest).put(CV + "/inventories", Map.of("shop_no", 1, "request", Map.of("quantity", 300)));
+		verify(rest, times(1)).put(any(), any());
+	}
+
+	@Test
+	void cafeMarketPlusLinkedProductIsStillBlockedOnTheLegacyBatchPath() {
+		var rest = mock(Cafe24RestClient.class);
+		var client = cafe(rest);
+		when(rest.get(CP + "?shop_no=1")).thenReturn(LINKED);
+		assertThatThrownBy(() -> client.syncPriceAndStock("123", new LinkedHashMap<>(), null, 300, false))
+			.isInstanceOf(UnsupportedOperationException.class)
+			.hasMessageContaining("마켓플러스");
 		verify(rest, never()).put(any(), any());
 	}
 
