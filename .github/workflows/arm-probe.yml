@@ -1,0 +1,15 @@
+name: ARM runner probe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - run: |
+          uname -m
+          docker version --format '{{.Server.Version}} {{.Server.Arch}}'
+          docker info --format 'driver={{.Driver}} type={{index .DriverStatus 0 1}}' || true
+          nproc; free -g | head -2; df -h / | tail -1
+          docker buildx version
