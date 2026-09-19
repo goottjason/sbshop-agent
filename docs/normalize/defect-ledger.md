@@ -6347,3 +6347,11 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 심각도: 중 · 상태: 종결(검증 PASS·실서버 확인 — 416feb99·b9546ba5)
 - `main` 은 모든 교체가 끝난 뒤에야 nginx를 다시 읽혔다. api 교체 성공 → frontend 기동 실패(코드 4)이면 api 는 새 IP 로 떠 있는데 nginx 는 옛 IP 캐시를 물어 `/sbshop-agent/api/` 가 502 였고, 안내한 `rollback sbshop-frontend` 로는 복구되지 않았다.
 - 수정: 앞서 api·frontend 를 교체했다면 실패 직전에 nginx 를 다시 읽히고 그 사실을 메시지에 밝힌다(기동 실패·롤백 태그 실패·교체 후 검증 실패 3경로 공통 `abort_partial`). 첫 서비스에서 실패하면 reload 하지 않는다. `replace_service` 는 `die` 대신 `return 4`, 호출부가 종료한다.
+
+### D-317 — 배포 2단계: 서버 빌드 → GHCR 이미지 pull (개선)
+
+- 심각도: 개선(P3) · 상태: 진행 중(A단계 완료·B단계 착수)
+- 배경: 서버가 소스를 받아 직접 빌드하므로 서버 CPU·디스크를 쓰고, 테스트와 배포가 따로 놀며, 롤백은 최근 3개 `prev-` 태그뿐이다.
+- 설계: GitHub 러너(arm64, 저장소가 공개라 무료 — 실측 과금 0ms)가 이미지를 빌드해 `ghcr.io/goottjason/sbshop-agent-{api,frontend,scraper}:<커밋 SHA 12자>` 로 올리고, 서버는 pull 한 뒤 **기존 로컬 이름(`sbshop-agent-sbshop-*:latest`)으로 다시 태그**한다 — 그래서 compose·지문·prev 태그·nginx·헬스 로직은 그대로다. `IMAGE_TAG` 가 비면 옛 서버 빌드 경로로 동작(비상 폴백).
+- A단계(완료, 0aedafff): `images.yml` 수동 빌드. 3개 각 2분 안팎(scraper 4GB 포함), 패키지는 저장소 가시성을 물려받아 공개, 서버에서 로그인 없이 pull 확인.
+

@@ -16,8 +16,8 @@ new_env() {
   : > "$CALLLOG"; : > "$LOCKSTATE"; echo 0 > "$BATCH_IDX_FILE"; echo 0 > "$HEALTH_N_FILE"; rm -f "$TMPD"/replaced.* "$TMPD"/pending.*; rm -rf "$TMPD/state"
   OUT_PS=""; OUT_BATCH=("0"); BATCH_FAIL=0
   declare -gA BUILT=() FPC=() RUNNING=() TAGS=() HASH_RUN=() HASH_WANT=()
-  HEALTH_BODY=""; UP_FAIL_SVC=""; STALE_SVC=""; TAG_FAIL=0; TAG_FAIL_SVC=""; BUILD_RC=0; UP_RC=0; NGINX_RC=0; STALE_AFTER_UP=0; HEALTH_UP_AFTER=1; DF_AVAIL=99999999; SLEPT=0
-  export FORCE=0 RECREATE="" DRY_RUN=0 POLL_SEC=1 BATCH_WAIT_SEC=3 HEALTH_WAIT_SEC=4 HEALTH_POLL_SEC=1 MIN_FREE_KB=10485760 KEEP_PREV=3
+  PULL_RC=0; PULL_FAIL_SVC=""; HEALTH_BODY=""; UP_FAIL_SVC=""; STALE_SVC=""; TAG_FAIL=0; TAG_FAIL_SVC=""; BUILD_RC=0; UP_RC=0; NGINX_RC=0; STALE_AFTER_UP=0; HEALTH_UP_AFTER=1; DF_AVAIL=99999999; SLEPT=0
+  export IMAGE_TAG="" REGISTRY_PREFIX="ghcr.io/goottjason/sbshop-agent" FORCE=0 RECREATE="" DRY_RUN=0 POLL_SEC=1 BATCH_WAIT_SEC=3 HEALTH_WAIT_SEC=4 HEALTH_POLL_SEC=1 MIN_FREE_KB=10485760 KEEP_PREV=3
   export LOCK_FILE="$TMPD/lock" COMPOSE_DIR="$HERE/.." STATE_DIR="$TMPD/state"
 }
 
@@ -35,6 +35,12 @@ docker() {
         [ -n "${BUILT[$n]:-}" ] || return 1
         case "$*" in *json*) echo "${FPC[$n]:-${BUILT[$n]}}" ;; *) echo "${BUILT[$n]}" ;; esac
       elif [ "$2" = ls ]; then printf '%s\n' "${TAGS[$3]:-}"; fi ;;
+    pull)
+      if flock -n "$LOCK_FILE" true 2>/dev/null; then echo UNLOCKED >> "$LOCKSTATE"; else echo LOCKED >> "$LOCKSTATE"; fi
+      if [ "$PULL_RC" != 0 ]; then
+        if [ -z "$PULL_FAIL_SVC" ]; then return "$PULL_RC"; fi
+        case "${*: -1}" in *"$PULL_FAIL_SVC"*) return "$PULL_RC" ;; esac
+      fi ;;
     tag) case "${*: -1}" in
            *:pending-prev) local pn="${*: -1}"; touch "$TMPD/pending.${pn%:pending-prev}" ;;
            *:prev-*) if [ "$TAG_FAIL" = 1 ]; then
@@ -390,6 +396,8 @@ new_env
 echo "[기본값] 환경변수를 주지 않고 소스했을 때의 기본값(테스트가 export 로 덮어 못 보던 부분)"
 d="$(env -i HOME=/h PATH="$PATH" bash -c 'source "$1"; echo "$LOCK_WAIT_SEC $MIN_FREE_KB $HEALTH_WAIT_SEC $HEALTH_POLL_SEC $BATCH_WAIT_SEC $POLL_SEC $KEEP_PREV $FORCE $DRY_RUN|$LOCK_FILE|$STATE_DIR"' _ "$HERE/../deploy.sh")"
 assert_eq "기본값이 운영 값과 같다" "900 10485760 150 3 1800 30 3 0 0|/h/.sbshop-docker-maintenance.lock|/h/.sbshop-deploy" "$d"
+d="$(env -i HOME=/h PATH="$PATH" bash -c 'source "$1"; echo "[$IMAGE_TAG]|$REGISTRY_PREFIX"' _ "$HERE/../deploy.sh")"
+assert_eq "IMAGE_TAG 기본은 비어 있고(서버 빌드 폴백) 레지스트리 접두어는 GHCR" "[]|ghcr.io/goottjason/sbshop-agent" "$d"
 
 echo "[die] 메시지에 종료코드가 섞이지 않는다"
 o="$( ( die "테스트 메시지" 4 ) 2>&1 )"; rc=$?
@@ -553,6 +561,73 @@ assert_eq "frontend 롤백 정상 종료" 0 "$rc"
 assert_contains "frontend 롤백도 nginx 를 다시 읽힌다" "nginx -s reload" "$(calls_str)"
 assert_not_contains "frontend 롤백은 api 헬스체크를 하지 않는다" "internal/health" "$(calls_str)"
 
+
+echo "[main] IMAGE_TAG 를 주면 서버에서 빌드하지 않고 GHCR 에서 pull 한 뒤 로컬 이름으로 다시 태그한다"
+new_env; IMAGE_TAG="abc123def456"
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="f"; RUNNING[projects-sbshop-frontend-1]="f"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+run_main; rc=$?; c="$(calls_str)"
+assert_eq "정상 종료" 0 "$rc"
+assert_not_contains "서버에서 빌드하지 않는다" "compose build" "$c"
+assert_contains "api 를 pull 한다" "docker pull ghcr.io/goottjason/sbshop-agent-api:abc123def456" "$c"
+assert_contains "frontend 를 pull 한다" "docker pull ghcr.io/goottjason/sbshop-agent-frontend:abc123def456" "$c"
+assert_contains "scraper 를 pull 한다" "docker pull ghcr.io/goottjason/sbshop-agent-scraper:abc123def456" "$c"
+assert_contains "api 를 로컬 이름으로 다시 태그한다" "docker tag ghcr.io/goottjason/sbshop-agent-api:abc123def456 sbshop-agent-sbshop-api:latest" "$c"
+assert_contains "scraper 도 로컬 이름으로 다시 태그한다" "docker tag ghcr.io/goottjason/sbshop-agent-scraper:abc123def456 sbshop-agent-sbshop-scraper:latest" "$c"
+assert_contains "서버에 쌓이지 않도록 레지스트리 이름표는 뗀다" "rmi ghcr.io/goottjason/sbshop-agent-api:abc123def456" "$c"
+assert_contains "바뀐 api 만 교체한다" "up -d --no-build --no-deps sbshop-api" "$c"
+assert_eq "pull 하는 동안 배포 잠금을 쥐고 있다" "LOCKED" "$(head -1 "$LOCKSTATE")"
+sn=$(index_of "docker tag sbshop-agent-sbshop-api:latest sbshop-agent-sbshop-api:pending-prev"); pl=$(index_of "docker pull ghcr.io/goottjason/sbshop-agent-api"); tg=$(index_of "docker tag ghcr.io/goottjason/sbshop-agent-api")
+[ "$sn" -ge 0 ] && [ "$sn" -lt "$pl" ] && [ "$pl" -lt "$tg" ] && ok "순서: 임시 태그 → pull → 로컬 태그" || bad "순서가 틀림" "snapshot=$sn pull=$pl tag=$tg"
+
+echo "[main] IMAGE_TAG 가 비면 옛 경로(서버 빌드)로 동작한다"
+new_env; set_all_same
+run_main; c="$(calls_str)"
+assert_contains "서버에서 빌드한다" "compose build" "$c"
+assert_not_contains "pull 하지 않는다" "docker pull" "$c"
+
+echo "[main] pull 이 실패하면 컨테이너를 건드리지 않는다"
+new_env; IMAGE_TAG="abc123def456"; PULL_RC=1; PULL_FAIL_SVC="scraper"; set_all_same
+BUILT[sbshop-agent-sbshop-api]="new"
+run_main; rc=$?; c="$(calls_str)"
+assert_eq "코드 1(교체 전 실패)로 종료" 1 "$rc"
+assert_contains "이유를 알린다" "pull 실패" "$(cat "$TMPD/out")"
+assert_contains "어느 이미지인지 알린다" "sbshop-agent-scraper:abc123def456" "$(cat "$TMPD/out")"
+assert_not_contains "컨테이너를 지우지 않는다" "rm -f projects-sbshop" "$c"
+assert_not_contains "새로 띄우지 않는다" "up -d" "$c"
+assert_not_contains "하나라도 못 받으면 로컬 latest 를 옮기지 않는다(모두 받은 뒤에 태그)" "docker tag ghcr.io" "$c"
+
+echo "[main] 이미지 태그 형식이 이상하면 아무것도 하기 전에 거절한다"
+new_env; IMAGE_TAG='abc;rm -rf /'; set_all_same
+run_main; rc=$?; c="$(calls_str)"
+assert_eq "코드 2 로 종료" 2 "$rc"
+assert_contains "이유를 알린다" "이미지 태그" "$(cat "$TMPD/out")"
+assert_not_contains "pull 하지 않는다" "docker pull" "$c"
+assert_not_contains "빌드하지 않는다" "compose build" "$c"
+
+echo "[main] DRY_RUN 은 pull 도 실행하지 않고 출력만 한다"
+new_env; DRY_RUN=1; IMAGE_TAG="abc123def456"; set_all_same
+run_main; rc=$?; c="$(calls_str)"
+assert_eq "정상 종료" 0 "$rc"
+assert_contains "pull 하려던 것을 출력한다" "DRY_RUN: docker pull ghcr.io/goottjason/sbshop-agent-api:abc123def456" "$(cat "$TMPD/out")"
+assert_not_contains "실제로 pull 하지 않는다" "docker pull" "$c"
+
+echo "[rollback_service] 로컬 prev- 태그가 아니어도 커밋 태그(12자리)면 레지스트리에서 받아 되돌린다"
+new_env; TAGS[sbshop-agent-sbshop-api]=$'latest'; BUILT[sbshop-agent-sbshop-api]="rolled"
+( set -euo pipefail; rollback_service sbshop-api abc123def456 ) >"$TMPD/out" 2>&1; rc=$?; c="$(calls_str)"
+assert_eq "정상 종료(prev 태그가 하나도 없어도)" 0 "$rc"
+assert_contains "레지스트리에서 받는다" "docker pull ghcr.io/goottjason/sbshop-agent-api:abc123def456" "$c"
+assert_contains "latest 로 다시 태그한다" "docker tag ghcr.io/goottjason/sbshop-agent-api:abc123def456 sbshop-agent-sbshop-api:latest" "$c"
+assert_contains "그 서비스만 다시 띄운다" "up -d --no-build --no-deps sbshop-api" "$c"
+assert_contains "롤백 뒤 헬스체크를 한다" "internal/health" "$c"
+new_env; PULL_RC=1; TAGS[sbshop-agent-sbshop-api]=$'latest'
+( set -euo pipefail; rollback_service sbshop-api abc123def456 ) >"$TMPD/out" 2>&1; rc=$?
+assert_eq "받지 못하면 코드 1" 1 "$rc"
+assert_not_contains "컨테이너를 건드리지 않는다" "up -d" "$(calls_str)"
+new_env; TAGS[sbshop-agent-sbshop-api]=$'latest\nprev-20260105-000001'
+( rollback_service sbshop-api 'zz;bad' ) >"$TMPD/out" 2>&1; assert_eq "형식이 이상한 태그는 로컬에서 찾다 실패" 1 $?
+assert_not_contains "이상한 태그로 pull 하지 않는다" "docker pull" "$(calls_str)"
 
 echo
 echo "결과: 통과 $PASS, 실패 $FAIL"

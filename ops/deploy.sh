@@ -11,6 +11,8 @@ DB_CONTAINER="${DB_CONTAINER:-projects-postgres-1}"
 LOCK_FILE="${LOCK_FILE:-$HOME/.sbshop-docker-maintenance.lock}"
 STATE_DIR="${STATE_DIR:-$HOME/.sbshop-deploy}"
 PENDING_TAG="pending-prev"
+REGISTRY_PREFIX="${REGISTRY_PREFIX:-ghcr.io/goottjason/sbshop-agent}"
+IMAGE_TAG="${IMAGE_TAG:-}"
 LOCK_WAIT_SEC="${LOCK_WAIT_SEC:-900}"
 MIN_FREE_KB="${MIN_FREE_KB:-10485760}"
 BATCH_WAIT_SEC="${BATCH_WAIT_SEC:-1800}"
@@ -47,6 +49,35 @@ validate_recreate() {
   read -r -a items <<< "$RECREATE"
   for s in "${items[@]+"${items[@]}"}"; do
     valid_service "$s" || die "알 수 없는 서비스(RECREATE): $s — 허용: ${SERVICES[*]}" 2
+  done
+}
+
+valid_image_tag() { [[ "$1" =~ ^[a-z0-9][a-z0-9._-]{0,127}$ ]]; }
+
+registry_ref() { echo "${REGISTRY_PREFIX}-${1#sbshop-}:$2"; }
+
+pull_service_image() {
+  local ref
+  ref="$(registry_ref "$1" "$2")"
+  log "pull: $ref"
+  if [ "$DRY_RUN" = 1 ]; then log "DRY_RUN: docker pull $ref"; return 0; fi
+  docker pull "$ref" >/dev/null || return 1
+}
+
+retag_pulled_image() {
+  local ref
+  ref="$(registry_ref "$1" "$2")"
+  run docker tag "$ref" "$(image_of "$1"):latest" || return 1
+  run docker rmi "$ref" >/dev/null 2>&1 || true
+}
+
+pull_images() {
+  local svc
+  for svc in "${SERVICES[@]}"; do
+    pull_service_image "$svc" "$IMAGE_TAG" || die "이미지 pull 실패: $(registry_ref "$svc" "$IMAGE_TAG") — 컨테이너는 변경하지 않았습니다"
+  done
+  for svc in "${SERVICES[@]}"; do
+    retag_pulled_image "$svc" "$IMAGE_TAG" || die "$svc: pull 한 이미지를 로컬 이름으로 태그하지 못했습니다 — 컨테이너는 변경하지 않았습니다"
   done
 }
 
@@ -243,17 +274,23 @@ acquire_lock() {
 
 rollback_service() {
   local svc="${1:-}" tag="${2:-}" tags
-  [ -n "$svc" ] || die "사용법: deploy.sh rollback <서비스> [태그]" 2
+  [ -n "$svc" ] || die "사용법: deploy.sh rollback <서비스> [태그|커밋태그12자리]" 2
   valid_service "$svc" || die "알 수 없는 서비스: $svc — 허용: ${SERVICES[*]}" 2
-  tags="$(docker image ls "$(image_of "$svc")" --format '{{.Tag}}' | grep '^prev-' | sort -r || true)"
-  [ -n "$tags" ] || die "$svc: 되돌릴 prev- 태그가 없습니다"
-  if [ -z "$tag" ]; then
-    tag="$(echo "$tags" | head -1)"
-  elif ! echo "$tags" | grep -qx "$tag"; then
-    die "$svc: 태그 $tag 가 없습니다. 있는 태그: $(echo "$tags" | tr '\n' ' ')"
+  if [[ "$tag" =~ ^[0-9a-f]{12}$ ]]; then
+    log "롤백: $svc ← 레지스트리 $tag"
+    pull_service_image "$svc" "$tag" || die "이미지 pull 실패: $(registry_ref "$svc" "$tag") — 컨테이너는 변경하지 않았습니다"
+    retag_pulled_image "$svc" "$tag" || die "$svc: pull 한 이미지를 로컬 이름으로 태그하지 못했습니다 — 컨테이너는 변경하지 않았습니다"
+  else
+    tags="$(docker image ls "$(image_of "$svc")" --format '{{.Tag}}' | grep '^prev-' | sort -r || true)"
+    [ -n "$tags" ] || die "$svc: 되돌릴 prev- 태그가 없습니다"
+    if [ -z "$tag" ]; then
+      tag="$(echo "$tags" | head -1)"
+    elif ! echo "$tags" | grep -qx "$tag"; then
+      die "$svc: 태그 $tag 가 없습니다. 있는 태그: $(echo "$tags" | tr '\n' ' ')"
+    fi
+    log "롤백: $svc ← $tag"
+    run docker tag "$(image_of "$svc"):$tag" "$(image_of "$svc"):latest"
   fi
-  log "롤백: $svc ← $tag"
-  run docker tag "$(image_of "$svc"):$tag" "$(image_of "$svc"):latest"
   replace_service "$svc" || die "$(replace_failure_message "$svc")" 4
   local nginx_failed=0
   case "$svc" in
@@ -274,14 +311,20 @@ rollback_service() {
 main() {
   if [ "$DRY_RUN" = 1 ]; then log "DRY_RUN: 빌드를 건너뛰므로 변경 판정은 이미 있던 이미지 기준입니다(새 코드는 반영되지 않습니다)"; fi
   validate_recreate
+  if [ -n "$IMAGE_TAG" ] && ! valid_image_tag "$IMAGE_TAG"; then die "이미지 태그 형식이 올바르지 않습니다: $IMAGE_TAG" 2; fi
   acquire_lock
   check_disk || die "디스크 여유 부족" 1
   wait_for_idle_batches || die "도는 소싱처 배치 때문에 배포를 시작하지 않았습니다" 3
 
   snapshot_prev
 
-  log "빌드(실패하면 실행 중인 컨테이너는 그대로 둡니다)"
-  (cd "$COMPOSE_DIR" && run docker compose build "${SERVICES[@]}") || die "이미지 빌드 실패 — 컨테이너는 변경하지 않았습니다"
+  if [ -n "$IMAGE_TAG" ]; then
+    log "이미지 받기(태그 $IMAGE_TAG, 실패하면 실행 중인 컨테이너는 그대로 둡니다)"
+    pull_images
+  else
+    log "빌드(실패하면 실행 중인 컨테이너는 그대로 둡니다)"
+    (cd "$COMPOSE_DIR" && run docker compose build "${SERVICES[@]}") || die "이미지 빌드 실패 — 컨테이너는 변경하지 않았습니다"
+  fi
   require_built_images
 
   remove_leftovers
