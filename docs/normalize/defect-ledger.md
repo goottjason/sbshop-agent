@@ -6272,3 +6272,51 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 이력: 2026-09-19 리더 라이브 검증 중 발견.
 - 이력: 2026-09-19 TDD 수정 완료(tdd-fixer). Red `orderRowIdentity.test.tsx`의 `배송메시지를 A→B로 저장한 뒤 다시 A로 되돌려도 저장 요청이 나간다` — 수정 전 `updateOrder` 1회(기대 2회)로 실패 실측, 수정 후 파일 4/4 통과. 헬퍼 `detail(...)`에 선택 인자 `message = ''` 추가(기본값이라 기존 3건 무영향). 게이트: `npm test` 10/10, `tsc -p tsconfig.app.json` 0 오류, `npm run build` 성공. 요지 `_workspace/fixes/D-306.md`. → **2026-09-19 배포·라이브 확인 완료**: 통합주문관리 그리드에서 주문 609(쿠팡 21103034214368)의 배송메시지를 `경비실`→`경비실 D307`→`경비실`로 저장해 DB `sb_order.message`가 두 번 모두 반영됨을 확인(04:58:00.53·04:58:14.38), `sb_action_log` ORDER_UPDATE SUCCESS 2건(18241·18242). 수정 전이라면 두 번째 저장은 PATCH 자체가 나가지 않았을 경로다. 값은 원래대로 복원.
 - 이력: 2026-09-19 검증통과(verifier-2). 키 일관성(order.message→OrderDto.message→OrderUpdateRequest.message) 확인.
+
+
+### D-308 — 소싱처 배치가 카페24에 재고 0을 전송한다 (마켓플러스 연동 오류 유발)
+
+- 심각도: **P1(마켓 쓰기 오류)** · 리스크 등급: **중대**(마켓 쓰기 가드) · 상태: **수정완료(검증대기)**
+- 위치: `Cafe24MarketClient.writeStockQuantity` (reviewed 경로) · `MarketStockSyncService.plan`(`OUT_OF_STOCK → quantity 0`)
+- **사용자 확정 규칙(2026-09-19)**: 카페24는 **재고 0을 보내면 안 된다** — 마켓플러스가 G마켓·옥션으로 전송할 때 연동 오류가 난다. 재고관리(`use_inventory`)는 **항상 T**로 두고 수량은 **300 고정**, 품절·판매는 본상품 `selling` T/F로만 표현한다.
+- 증상: reviewed 경로가 품절 목표(수량 0)를 그대로 카페24에 PUT 한다(`selling=F` PUT 뒤 `{"quantity":0}` 무조건 전송). 레거시 경로는 `!soldOut` 조건이라 수량을 보내지 않아 규칙과 일치 — **경로에 따라 정반대**.
+- 운영 실측(2026-09-19): 카페24 최종 관측 기준 **수량 0 + 판매안함 272건**, 그중 **235건이 G마켓·옥션 연동 상품**(`market_identifiers`에 `gmarket_goodsNo`/`auction_goodsNo` 보유). 목표수량 0 작업 592건에 쓰기 333회 기록, 최근 확인 문구 `카페24 재조회 확인: 0개 · 판매안함`.
+- 조치 방향: 카페24 품절 목표를 "수량 0"이 아니라 "`selling=F` + 수량 불변"으로. 재입고 시 수량이 0이면 판매용 수량(300)으로 복구하고 `selling=T`. **완료 판정(`matchesTarget`)을 수량이 아닌 판매상태 기준으로 바꾸지 않으면 매 배치마다 재전송된다** — 목표 300 ≠ 현재 0이 되기 때문.
+- 기존 266~272건의 재고 0 복구는 **재입고 시 자연 교정**을 택한다(일괄 교정은 235건 × 2마켓 전송을 새로 만들어 [[D-262]] 증상을 재현한다).
+- 이력: 2026-09-19 TDD 수정 완료(tdd-fixer, [[D-309]]·[[D-310]]과 한 배치). Red 실측 — 어댑터 계약 `44 tests, 11 failed`(품절 목표에서 `inventories {"quantity":0}` PUT이 나감·이미 `selling=F`인데 전송·재입고 순서 역전), 서비스 계약 `52 tests, 3 failed`(카페24 품절·재입고가 `CONFIRMED_QUANTITY` 대신 **VERIFY**로 남아 매 배치 재전송). 수정: `Cafe24MarketClient.writeStockQuantity`가 보낼 필드를 먼저 확정해 **없으면 PUT 0회로 즉시 반환**(품절=`selling=F` 1회, 수량 PUT은 마켓 수량이 0 이하인 재입고에서만), `MarketStockSyncService.matchesTarget`의 무조건 수량 비교를 카페24 분기 뒤로 옮겨 **카페24만 판매상태 기준 판정**(재입고는 `saleState=T`+`stockState=T`+수량>0 — 판매로 300→299가 돼도 재전송하지 않음). 쿠팡·스마트스토어·11번가 판정은 무변경이며 `otherMarketsStillConfirmOnTheExactQuantityIncludingZero`로 고정. 요지 `_workspace/fixes/D-308_309_310.md`.
+- 이력: 2026-09-19 검증 PASS(verifier-cafe24-soldout, 판정서 `_workspace/verify/D-308_309_310.md`). 권고 1건 반영 — `matchesTarget`의 `read.quantity() > 0`이 **살아남는 변형**이었다(조건 삭제 후에도 52 tests 0 failed). 이 조건은 "수량 PUT 실패로 판매중+재고 0이 남았을 때 CONFIRMED로 확정되지 않게" 막는 유일한 안전장치라 `cafe24RestockIsNotConfirmedWhileTheMarketQuantityIsStillZero`로 고정했고, 같은 변형을 재주입하면 `expected "VERIFY" but was "CONFIRMED_QUANTITY"`로 죽는 것을 실측했다. 잔여 리스크(수정 대상 아님): `beginWrite`의 `writes >= 3` 때문에 수량 PUT이 3회 연속 실패하면 FAILED_MISMATCH로 종결되어 "판매중 + 재고 0"이 사람 개입 전까지 남는다 — 구 순서였다면 "판매안함 + 재고 0"이었을 상태다. **라이브 재입고 1건 확인 때 이 상태를 함께 관찰할 것.**
+- 측정 주의(2026-09-19): 게이트가 한 번 적색이 났으나 원인은 **한 작업 디렉터리에서 gradle 빌드 2개가 동시에 돌아 테스트 결과가 서로 오염**된 것이었다(Gradle은 test 시작 시 `build/test-results/test`를 비우므로 `Could not write XML test results` 125건·빈 XML 143건이 발생). 같은 diff를 적용한 **격리 worktree**에서 전 모듈 3회 측정 — 가드 있음 3297/0, 가드 제거 3297/**1**(죽는 것은 `cafe24RestockIsNotConfirmedWhileTheMarketQuantityIsStillZero` 하나뿐), 복원 3297/0. 순서 의존은 재현되지 않았다. **여럿이 동시에 검증할 때는 각자 별도 worktree에서 실행할 것.**
+
+### D-309 — reviewed 경로에 마켓플러스 연동 차단이 없어 레거시와 규칙이 갈린다
+
+- 심각도: P2 · 리스크 등급: **중대**(마켓 쓰기 가드) · 상태: **수정완료(검증대기)**
+- 위치: `Cafe24MarketClient` reviewed 경로(`readStockQuantity`/`writeStockQuantity`/`readSalePrice`/`writeSalePrice`) vs 레거시 `syncVerifiedPriceStock`
+- 증상: 레거시는 `Cafe24VerifiedProductAccess.requireNativeWrite`로 **`market_sync=T`(마켓플러스 연동) 상품을 통째로 차단**하는데, reviewed 경로에는 그 가드가 없다([[D-304]]에서 "두 경로 차이"로 테스트 고정). 그래서 소싱처 배치만 연동 상품에 직접 쓴다 — [[D-308]]의 재고 0 전송이 연동 상품 235건에 나간 경로다.
+- **사용자 승인(2026-09-19)**: reviewed 경로에서 연동 상품을 통째로 막지는 **않는다**(막으면 품절 처리 자체가 불가). **판매상태 변경과 재입고 시 수량 복구만 허용**하고, 품절 상태에서의 수량·가격 전송은 금지한다.
+- 미확인: 마켓플러스가 카페24 상품 수정을 ESM으로 전송할 때 어떤 수정이 거부되는지의 정확한 규칙. [[D-262]]의 관측 문구는 *"연동된 쇼핑몰상품이 '진열/판매'상태일 때만 판매중지를 해제할 수 있습니다"* 뿐이다. 재입고 1건 라이브 확인 필요(`selling=T` → 가격 순서로 보냈을 때 ESM 전송이 성공하는지).
+- 이력: 2026-09-19 TDD 수정 완료(tdd-fixer). **새 가드를 추가하지 않았다** — reviewed 경로의 연동 상품 차단 없음은 사용자 승인대로 유지하고, "품절 중 수량·가격 전송 금지"는 [[D-308]]·[[D-310]] 변경으로 구조적으로 달성된다(품절 목표는 수량 PUT 자체가 사라졌고, 수량 복구는 `selling=T` 전송 뒤에만 일어난다). 연동 상품(`market_sync=T`)의 판매상태 변경이 reviewed 경로에서 실제로 나가는 것을 `cafeMarketPlusLinkedProductIsWrittenOnTheReviewedSingleEditPath`(`selling=F` 1회)로, 레거시 `syncVerifiedPriceStock`의 `requireNativeWrite` 차단이 그대로임을 `cafeMarketPlusLinkedProductIsStillBlockedOnTheLegacyBatchPath`로 계속 고정한다.
+
+### D-310 — 품절 카페24 상품에 가격 전송이 나간다 (D-262 재발 경로)
+
+- 심각도: **P1(마켓 쓰기 오류)** · 리스크 등급: **중대** · 상태: **수정완료(검증대기)**
+- 위치: `MarketPriceSyncService.plan` · `Cafe24MarketClient.readSalePrice`/`writeSalePrice`
+- 증상: 가격 경로가 **재고 상태를 전혀 보지 않는다**(`plan`에 품절 분기 없음). 카페24 `readSalePrice`의 차단 사유는 판매상태 판독 실패와 세금 설정뿐이라 **`selling=F`(판매안함)여도 `writable=true`**이고, `writeSalePrice`에는 마켓플러스 차단도 없다. 따라서 **어제도 오늘도 품절인 상품의 가격이 환율 등으로 바뀌면 매번 카페24에 가격 PUT이 나간다.**
+- [[D-262]]가 막으려던 전송이 정확히 이것이다("환율 변동만으로 매 배치 참이 되어 반복됐다"). 당시 수정은 레거시 배치 경로에 있었고 reviewed 가격 경로에는 적용된 적이 없다.
+- 조치 방향: 카페24는 **품절(`selling=F`)이면 가격 전송 보류**. 보류한 가격은 재입고 시 반영한다. 순서는 `selling=T` → 가격(판매안함 동안의 수정 전송이 거부될 가능성 때문, D-309 미확인 항목과 함께 라이브 확인).
+- 다른 마켓(쿠팡·스마트스토어·11번가)은 이 제약이 없으므로 **카페24 전용 규칙**이다.
+- 범위 밖 관찰(검증자, 2026-09-19): 레거시 `syncVerifiedPriceStock`(`Cafe24MarketClient.java:651-666`)은 `soldOut` 여부와 무관하게 price 를 보낼 수 있다. `market_sync=T`(마켓플러스 연동)는 `requireNativeWrite` 로 차단되어 연동 오류로 이어지지는 않으나, "품절 중 가격 미전송" 규칙이 그 경로에서는 충족되지 않는다. 이번 배치 범위 밖 — 연동 미사용 카페24 상품에만 해당한다.
+- 이력: 2026-09-19 TDD 수정 완료(tdd-fixer). 차단 층은 **어댑터 `Cafe24MarketClient.readSalePrice`** — 본상품 `selling=F`면 `writable=false`(사유 "카페24 판매안함(품절) 상품이라 가격을 전송하지 않습니다…")를 돌려주고, `MarketPriceSyncService:223`이 이를 BLOCKED로 종결해 재시도 루프를 끊는다. 코어에서 막으면 마켓 중립 플래너가 카페24 재고 API를 따로 읽어야 하고 품절 판정 원본이 둘로 갈린다. 부수 효과로 세금 설정(`/admin/products/setting`) 조회 1회도 생략된다. Red — `priceIsNotSentWhileTheConnectedProductIsNotSelling`이 `writable()==true`로 실패(D-310 증상 그대로). [[D-304]] 때 넣은 `marketPlusAndStoppedListingAllowPriceWithVerifiedTaxSettings`("판매안함이어도 가격 전송 가능")는 이 계약과 정면으로 어긋나 `stoppedListingHoldsThePriceWithoutEvenReadingTaxSettings`로 교체했다.
+
+### D-311 — D-262의 `changed` 스킵이 무력화됐다 (플래그 전달만, 미사용)
+
+- 심각도: P3 · 리스크 등급: 경량 · 상태: 발견
+- 위치: `ProductMarketSyncService.syncPriceStock(:46)` → `syncInternal(:80)`
+- 증상: [[D-262]]가 도입한 `changed` 플래그가 `syncInternal`까지 전달되지만 **본문에서 한 번도 사용되지 않는다**. 회귀 테스트 `BatchSoldOutSkipsCafe24ResendTest`도 DisplayName이 "changed=false를 **전달**하며 실제 재전송 여부는 마켓 재조회로 판정한다"로 바뀌어 **전달 여부만 단언**한다 — 스킵 동작 자체는 어떤 테스트도 요구하지 않는다.
+- 현재 실제로 재전송을 막는 것: 레거시는 `requireNativeWrite`(연동 상품 차단) + `selling`이 이미 목표면 보낼 필드가 없어 PUT 없음, reviewed는 `matchesTarget`. 즉 보호는 남아 있으나 **원장 기록(D-262)과 코드가 어긋난 상태**다.
+- 조치 방향: 죽은 파라미터를 제거하고 원장에 "판정 책임이 어댑터·재조회로 이동했다"를 명시하거나, 스킵을 다시 구현한다. [[D-308]]~[[D-310]] 수정 후 판단한다.
+
+### D-312 — D-304의 "사용자 확정 규칙" 전제 정정
+
+- 심각도: 기록 · 상태: 발견
+- 2026-09-19 오전 [[D-304]]에 "카페24 품절 상품은 `use_inventory=F`(재고관리 끔)로 둔다"를 사용자 확정 사실로 기록했으나, 같은 날 오후 사용자가 **"재고관리는 항상 T이고 판매함/판매안함으로 상태를 관리한다"**로 정정했다. 실제 규칙은 [[D-308]]에 기록된 대로다.
+- 영향: D-304로 추가한 `use_inventory=F` 분기(①/②)는 **실전에서 걸리지 않는 안전망**이 된다. 동작상 해는 없고 되돌릴 필요도 없으나, D-304 항목의 규칙 문구는 이 항목을 참조하도록 둔다.
