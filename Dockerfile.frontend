@@ -3,7 +3,7 @@ WORKDIR /app
 
 # package.json 먼저 복사 (의존성 캐시)
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm ci
 
 # 소스 코드 복사 및 빌드 (Ant Design 번들 대응 메모리 확장)
 COPY frontend/ .
