@@ -54,6 +54,8 @@ validate_recreate() {
 
 valid_image_tag() { [[ "$1" =~ ^[a-z0-9][a-z0-9._-]{0,127}$ ]]; }
 
+valid_registry_prefix() { [[ "$1" =~ ^[a-z0-9][a-z0-9./_-]*$ ]]; }
+
 registry_ref() { echo "${REGISTRY_PREFIX}-${1#sbshop-}:$2"; }
 
 pull_service_image() {
@@ -71,10 +73,20 @@ retag_pulled_image() {
   run docker rmi "$ref" >/dev/null 2>&1 || true
 }
 
+drop_pulled_refs() {
+  local svc
+  for svc in "${SERVICES[@]}"; do
+    run docker rmi "$(registry_ref "$svc" "$1")" >/dev/null 2>&1 || true
+  done
+}
+
 pull_images() {
   local svc
   for svc in "${SERVICES[@]}"; do
-    pull_service_image "$svc" "$IMAGE_TAG" || die "이미지 pull 실패: $(registry_ref "$svc" "$IMAGE_TAG") — 컨테이너는 변경하지 않았습니다"
+    if ! pull_service_image "$svc" "$IMAGE_TAG"; then
+      drop_pulled_refs "$IMAGE_TAG"
+      die "이미지 pull 실패: $(registry_ref "$svc" "$IMAGE_TAG") — 컨테이너는 변경하지 않았습니다"
+    fi
   done
   for svc in "${SERVICES[@]}"; do
     retag_pulled_image "$svc" "$IMAGE_TAG" || die "$svc: pull 한 이미지를 로컬 이름으로 태그하지 못했습니다 — 컨테이너는 변경하지 않았습니다"
@@ -96,7 +108,7 @@ wanted_config_hash() {
 
 image_fingerprint() {
   local out
-  out="$(docker image inspect -f '{{json .Config}}{{json .RootFS}}' "$(image_of "$1"):latest" 2>/dev/null)" || true
+  out="$(docker image inspect -f '{{json .Config.Env}}{{json .Config.Cmd}}{{json .Config.Entrypoint}}{{json .Config.WorkingDir}}{{json .Config.User}}{{json .Config.ExposedPorts}}{{json .Config.Volumes}}{{json .Config.Healthcheck}}{{json .RootFS}}' "$(image_of "$1"):latest" 2>/dev/null)" || true
   [ -n "$out" ] || return 0
   printf '%s' "$out" | sha256sum | cut -d' ' -f1
 }
@@ -277,6 +289,7 @@ rollback_service() {
   [ -n "$svc" ] || die "사용법: deploy.sh rollback <서비스> [태그|커밋태그12자리]" 2
   valid_service "$svc" || die "알 수 없는 서비스: $svc — 허용: ${SERVICES[*]}" 2
   if [[ "$tag" =~ ^[0-9a-f]{12}$ ]]; then
+    valid_registry_prefix "$REGISTRY_PREFIX" || die "레지스트리 접두어 형식이 올바르지 않습니다: $REGISTRY_PREFIX" 2
     log "롤백: $svc ← 레지스트리 $tag"
     pull_service_image "$svc" "$tag" || die "이미지 pull 실패: $(registry_ref "$svc" "$tag") — 컨테이너는 변경하지 않았습니다"
     retag_pulled_image "$svc" "$tag" || die "$svc: pull 한 이미지를 로컬 이름으로 태그하지 못했습니다 — 컨테이너는 변경하지 않았습니다"
@@ -311,7 +324,10 @@ rollback_service() {
 main() {
   if [ "$DRY_RUN" = 1 ]; then log "DRY_RUN: 빌드를 건너뛰므로 변경 판정은 이미 있던 이미지 기준입니다(새 코드는 반영되지 않습니다)"; fi
   validate_recreate
-  if [ -n "$IMAGE_TAG" ] && ! valid_image_tag "$IMAGE_TAG"; then die "이미지 태그 형식이 올바르지 않습니다: $IMAGE_TAG" 2; fi
+  if [ -n "$IMAGE_TAG" ]; then
+    valid_image_tag "$IMAGE_TAG" || die "이미지 태그 형식이 올바르지 않습니다: $IMAGE_TAG" 2
+    valid_registry_prefix "$REGISTRY_PREFIX" || die "레지스트리 접두어 형식이 올바르지 않습니다: $REGISTRY_PREFIX" 2
+  fi
   acquire_lock
   check_disk || die "디스크 여유 부족" 1
   wait_for_idle_batches || die "도는 소싱처 배치 때문에 배포를 시작하지 않았습니다" 3
