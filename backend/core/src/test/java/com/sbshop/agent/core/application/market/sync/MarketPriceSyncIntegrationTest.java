@@ -17,6 +17,7 @@ import com.sbshop.agent.core.domain.product.enums.*;
 import com.sbshop.agent.core.domain.product.service.SalePriceRounding;
 import java.math.BigDecimal;
 import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -214,7 +215,7 @@ class MarketPriceSyncIntegrationTest {
 	@Test
 	void shared429CooldownBlocksFollowingWorkAndPreservesRetryAfter() {
 		var r = queue();
-		var until = Instant.now().plusSeconds(900);
+		var until = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(900);
 		when(client.readSalePrice("123", null))
 			.thenThrow(new MarketTransferFailure("HTTP_429", "rate limit", until, null));
 		service.processOne(MARKET);
@@ -277,7 +278,7 @@ class MarketPriceSyncIntegrationTest {
 		var old = service.claim(MARKET);
 		release();
 		var newer = service.claim(MARKET);
-		Instant until = Instant.now().plusSeconds(900);
+		Instant until = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(900);
 		service.finish(old, "VERIFY", "late 429", null, new MarketTransferFailure("HTTP_429", "limit", until, null));
 		var gate = gates.findById(MarketInspectionGate.SMART_STORE_SCOPE).orElseThrow();
 		assertThat(gate.getLeaseToken()).isEqualTo(newer.token());

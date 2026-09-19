@@ -24,6 +24,7 @@ import com.sbshop.agent.core.domain.product.service.SalePriceRounding;
 import com.sbshop.agent.core.domain.product.source.*;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -478,7 +479,7 @@ class ProductSourceServiceIntegrationTest {
 	void source429HonorsServerCooldownAndDoesNotRunNextProduct() {
 		Product p = product();
 		Product q = product();
-		Instant next = Instant.now().plusSeconds(900);
+		Instant next = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(900);
 		when(source.fetch(any(), anyString())).thenThrow(new ProductContentThrottledException(next));
 		collect(p, q);
 		worker.tick();
@@ -495,7 +496,7 @@ class ProductSourceServiceIntegrationTest {
 		tx.executeWithoutResult(s -> products.findForEdit(p.getId()).orElseThrow().update(
 			ProductUpdateCommand.builder().vendor(VendorType.OCD).sourceUrl(url).build()));
 		Product current = products.findById(p.getId()).orElseThrow();
-		Instant next = Instant.now().plusSeconds(900);
+		Instant next = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(900);
 		when(source.fetch(VendorType.OCD, url)).thenThrow(new ProductContentThrottledException(next));
 		var collected = collect(current);
 		worker.tick();
@@ -598,7 +599,7 @@ class ProductSourceServiceIntegrationTest {
 		var collection = contentService.collect(new ProductContentService.CollectionRequest(
 			UUID.randomUUID().toString(), List.of(ihb.getId(), vtb.getId())), "admin");
 		collect(ihb);
-		Instant next = Instant.now().plusSeconds(900);
+		Instant next = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(900);
 		when(source.fetch(any(), anyString())).thenThrow(new ProductContentThrottledException(next));
 		worker.tick();
 		when(contentSource.fetch(anyString()))

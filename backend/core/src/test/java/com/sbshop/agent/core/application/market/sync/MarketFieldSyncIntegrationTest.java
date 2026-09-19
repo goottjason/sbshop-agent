@@ -17,6 +17,7 @@ import com.sbshop.agent.core.domain.product.edit.*;
 import com.sbshop.agent.core.domain.product.enums.*;
 import java.math.BigDecimal;
 import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.*;
@@ -252,7 +253,7 @@ class MarketFieldSyncIntegrationTest {
 			.thenReturn(read(EXPECTED, MarketFieldsRead.Approval.PENDING));
 		service.processOne(MARKET);
 		assertThat(state(id)).isEqualTo("AWAITING_APPROVAL");
-		assertThat(task().getNextRunAt()).isAfter(Instant.now().plusSeconds(800));
+		assertThat(task().getNextRunAt()).isAfter(Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(800));
 		noWrite();
 		release();
 		when(client.readProductFields(any(), any(), any(), any()))
@@ -405,7 +406,7 @@ class MarketFieldSyncIntegrationTest {
 		var old = service.claim(MARKET);
 		release();
 		var current = service.claim(MARKET);
-		Instant retry = Instant.now().plusSeconds(600);
+		Instant retry = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(600);
 		service.finish(old, "VERIFY", "late429", null, new MarketTransferFailure("HTTP_429", "limited", retry, null));
 		assertThat(gates.findById(MARKET.name() + "_ORIGIN_READ").orElseThrow().getLeaseToken())
 			.isEqualTo(current.token());

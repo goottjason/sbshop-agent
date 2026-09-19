@@ -15,6 +15,7 @@ import com.sbshop.agent.core.domain.product.dto.ProductCreateCommand;
 import com.sbshop.agent.core.domain.product.enums.*;
 import java.math.BigDecimal;
 import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.*;
@@ -193,7 +194,7 @@ class MarketInspectionServiceIntegrationTest {
 		link(b);
 		var batch = service.create(List.of(a.getId(), b.getId()), key(), "admin");
 		var claim = service.claim();
-		Instant after = Instant.now().plusSeconds(900);
+		Instant after = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(900);
 		service.finish(claim, new MarketListingObservation(MarketListingObservation.State.UNKNOWN,
 			"HTTP_429/GW.RATE_LIMIT", "호출 제한", "account-A", "GET /origin", Instant.now(), after));
 		var item = service.get(batch.id()).items().getFirst();
