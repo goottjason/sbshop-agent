@@ -31,9 +31,13 @@ class Cafe24BatchStockContractTest {
 		when(rest.get(path + "/variants/" + variant + "?shop_no=1")).thenReturn("""
 			{"variant":{"shop_no":1,"variant_code":"P0000001000A","selling":"%s"}}
 			""".formatted(variantSelling));
-		when(rest.get(path + "/variants/" + variant + "/inventories?shop_no=1")).thenReturn("""
-			{"inventory":{"shop_no":1,"variant_code":"P0000001000A","quantity":300,"use_inventory":"F","display_soldout":"F"}}
-			""");
+		when(rest.get(path + "/variants/" + variant + "/inventories?shop_no=1")).thenReturn(inventories("T"));
+	}
+
+	private String inventories(String useInventory) {
+		return """
+			{"inventory":{"shop_no":1,"variant_code":"P0000001000A","quantity":300,"use_inventory":"%s","display_soldout":"F"}}
+			""".formatted(useInventory);
 	}
 
 	@Test
@@ -45,6 +49,7 @@ class Cafe24BatchStockContractTest {
 	@Test
 	void stockReadPreservesBothSellingStatesAndDoesNotBlockMarketPlusOrUnusedInventory() {
 		fixture("F", "T");
+		when(rest.get(path + "/variants/" + variant + "/inventories?shop_no=1")).thenReturn(inventories("F"));
 		var read = client.readStockQuantity("123", null, "SB123");
 		assertThat(read.writable()).isTrue();
 		assertThat(read.saleState()).isEqualTo("F");
@@ -73,6 +78,7 @@ class Cafe24BatchStockContractTest {
 			Map.of("shop_no", 1, "request", Map.of("quantity", 300)));
 		order.verify(rest).put(path + "/variants/" + variant, Map.of("shop_no", 1, "request", Map.of("selling", "T")));
 		order.verify(rest).put(path, Map.of("shop_no", 1, "request", Map.of("selling", "T")));
+		verify(rest, times(3)).put(any(), any());
 	}
 
 	@Test
@@ -101,6 +107,7 @@ class Cafe24BatchStockContractTest {
 		order.verify(rest).put(path + "/variants/" + variant + "/inventories",
 			Map.of("shop_no", 1, "request", Map.of("quantity", 300)));
 		order.verify(rest).put(path, Map.of("shop_no", 1, "request", Map.of("selling", "T")));
+		verify(rest, times(2)).put(any(), any());
 		verify(rest, never()).put(eq(path + "/variants/" + variant), any());
 	}
 

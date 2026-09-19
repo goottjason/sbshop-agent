@@ -76,6 +76,31 @@ class MarketPriceContractTest {
 		verify(rest).put("/admin/products/123", Map.of("shop_no", 1, "request", Map.of("price", 12300)));
 	}
 
+	@Test
+	void cafe24SoldOutWithInventoryManagementOffSendsNoPriceOnTheLegacyBatchPath() {
+		var rest = mock(Cafe24RestClient.class);
+		when(rest.accountReference()).thenReturn("account-A");
+		String cp = "/admin/products/123";
+		String v = "P0000001000A";
+		when(rest.get(cp + "?shop_no=1")).thenReturn("{\"product\":{\"shop_no\":1,\"product_no\":123,"
+			+ "\"product_code\":\"P0000001\",\"custom_product_code\":\"SB-123\",\"market_sync\":\"F\","
+			+ "\"selling\":\"T\",\"price\":\"12300.00\",\"tax_calculation\":\"A\"}}",
+			"{\"product\":{\"shop_no\":1,\"product_no\":123,"
+				+ "\"product_code\":\"P0000001\",\"custom_product_code\":\"SB-123\",\"market_sync\":\"F\","
+				+ "\"selling\":\"F\",\"price\":\"12300.00\",\"tax_calculation\":\"A\"}}");
+		when(rest.get(cp + "/variants?shop_no=1"))
+			.thenReturn("{\"variants\":[{\"shop_no\":1,\"variant_code\":\"" + v + "\"}]}");
+		when(rest.get(cp + "/variants/" + v + "?shop_no=1"))
+			.thenReturn("{\"variant\":{\"shop_no\":1,\"variant_code\":\"" + v + "\",\"selling\":\"F\"}}");
+		when(rest.get(cp + "/variants/" + v + "/inventories?shop_no=1"))
+			.thenReturn("{\"inventory\":{\"shop_no\":1,\"variant_code\":\"" + v + "\",\"quantity\":0,"
+				+ "\"use_inventory\":\"F\",\"display_soldout\":\"T\"}}");
+		var client = new Cafe24MarketClient(new ObjectMapper(), rest, null, null, null, null);
+		client.syncPriceAndStock("123", new LinkedHashMap<>(), 15000, 0, true);
+		verify(rest).put(cp, Map.of("shop_no", 1, "request", Map.of("selling", "F")));
+		verify(rest, times(1)).put(any(), any());
+	}
+
 	static final String VI = "/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/456/prices/";
 
 	CoupangMarketClient coupang(CoupangRestClient rest, int currentSalePrice) {

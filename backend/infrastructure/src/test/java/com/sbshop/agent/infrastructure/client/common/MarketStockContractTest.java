@@ -277,15 +277,88 @@ class MarketStockContractTest {
 			.isInstanceOf(MarketTransferFailure.class);
 	}
 
+	static String inventory(int quantity, String useInventory) {
+		return "{\"inventory\":{\"shop_no\":1,\"variant_code\":\"" + V + "\",\"quantity\":" + quantity
+			+ ",\"use_inventory\":\"" + useInventory + "\",\"display_soldout\":\"T\"}}";
+	}
+
 	@Test
-	void cafeDisabledInventoryOrStoppedVariantDoesNotChangeSettingsToForceQuantity() {
+	void cafeSoldOutWithInventoryManagementOffSendsNothingOnTheReviewedPath() {
 		var rest = mock(Cafe24RestClient.class);
 		var client = cafe(rest);
-		when(rest.get(CV + "/inventories?shop_no=1")).thenReturn("{\"inventory\":{\"shop_no\":1,\"variant_code\":\"" + V
-			+ "\",\"quantity\":0,\"use_inventory\":\"F\",\"display_soldout\":\"T\"}}");
-		assertThat(client.readStockQuantity("123", null, "SB-123").writable()).isFalse();
-		assertThatThrownBy(() -> client.writeStockQuantity("123", V, "SB-123", 0, "account-A", () -> {}))
+		var guard = mock(Runnable.class);
+		when(rest.get(CV + "/inventories?shop_no=1")).thenReturn(inventory(0, "F"));
+		assertThatThrownBy(() -> client.writeStockQuantity("123", V, "SB-123", 0, "account-A", guard))
+			.isInstanceOf(UnsupportedOperationException.class)
+			.hasMessageContaining("재고관리").hasMessageContaining("품절");
+		verify(guard, never()).run();
+		verify(rest, never()).put(any(), any());
+	}
+
+	static String product(String selling) {
+		return "{\"product\":{\"shop_no\":1,\"product_no\":123,\"product_code\":\"P0000001\","
+			+ "\"custom_product_code\":\"SB-123\",\"market_sync\":\"F\",\"selling\":\"" + selling + "\"}}";
+	}
+
+	@Test
+	void cafeSoldOutWithInventoryManagementOffStopsSellingOnlyOnTheLegacyBatchPath() {
+		var rest = mock(Cafe24RestClient.class);
+		var client = cafe(rest);
+		when(rest.get(CP + "?shop_no=1")).thenReturn(product("T"), product("F"));
+		when(rest.get(CV + "/inventories?shop_no=1")).thenReturn(inventory(0, "F"));
+		client.syncPriceAndStock("123", new LinkedHashMap<>(), null, 0, true);
+		verify(rest).put(CP, Map.of("shop_no", 1, "request", Map.of("selling", "F")));
+		verify(rest, times(1)).put(any(), any());
+		var stopped = mock(Cafe24RestClient.class);
+		var stoppedClient = cafe(stopped);
+		when(stopped.get(CP + "?shop_no=1")).thenReturn(product("F"));
+		when(stopped.get(CV + "/inventories?shop_no=1")).thenReturn(inventory(0, "F"));
+		assertThatCode(() -> stoppedClient.syncPriceAndStock("123", new LinkedHashMap<>(), null, 0, true))
+			.doesNotThrowAnyException();
+		verify(stopped, never()).put(any(), any());
+	}
+
+	@Test
+	void cafeRestockedItemTurnsInventoryManagementOnBeforeQuantityOnTheReviewedPath() {
+		var rest = mock(Cafe24RestClient.class);
+		var client = cafe(rest);
+		var guard = mock(Runnable.class);
+		when(rest.get(CV + "/inventories?shop_no=1")).thenReturn(inventory(0, "F"));
+		client.writeStockQuantity("123", V, "SB-123", 300, "account-A", guard);
+		var order = inOrder(guard, rest);
+		order.verify(guard).run();
+		order.verify(rest).put(CV + "/inventories", Map.of("shop_no", 1, "request", Map.of("use_inventory", "T")));
+		order.verify(rest).put(CV + "/inventories", Map.of("shop_no", 1, "request", Map.of("quantity", 300)));
+		verify(rest, times(2)).put(any(), any());
+	}
+
+	@Test
+	void cafeRestockedItemTurnsInventoryManagementOnBeforeQuantityOnTheLegacyBatchPath() {
+		var rest = mock(Cafe24RestClient.class);
+		var client = cafe(rest);
+		when(rest.get(CV + "/inventories?shop_no=1")).thenReturn(inventory(0, "F"), inventory(300, "T"));
+		client.syncPriceAndStock("123", new LinkedHashMap<>(), null, 300, false);
+		var order = inOrder(rest);
+		order.verify(rest).put(CV + "/inventories", Map.of("shop_no", 1, "request", Map.of("use_inventory", "T")));
+		order.verify(rest).put(CV + "/inventories", Map.of("shop_no", 1, "request", Map.of("quantity", 300)));
+		verify(rest, times(2)).put(any(), any());
+	}
+
+	@Test
+	void cafeStoppedVariantOrHiddenSoldoutStillBlocksTheLegacyBatchPath() {
+		var rest = mock(Cafe24RestClient.class);
+		var client = cafe(rest);
+		when(rest.get(CV + "?shop_no=1"))
+			.thenReturn("{\"variant\":{\"shop_no\":1,\"variant_code\":\"" + V + "\",\"selling\":\"F\"}}");
+		assertThatThrownBy(() -> client.syncPriceAndStock("123", new LinkedHashMap<>(), null, 300, false))
+			.isInstanceOf(UnsupportedOperationException.class);
+		var hidden = mock(Cafe24RestClient.class);
+		var hiddenClient = cafe(hidden);
+		when(hidden.get(CV + "/inventories?shop_no=1")).thenReturn("{\"inventory\":{\"shop_no\":1,\"variant_code\":\""
+			+ V + "\",\"quantity\":10,\"use_inventory\":\"T\",\"display_soldout\":\"F\"}}");
+		assertThatThrownBy(() -> hiddenClient.syncPriceAndStock("123", new LinkedHashMap<>(), null, 300, false))
 			.isInstanceOf(UnsupportedOperationException.class);
 		verify(rest, never()).put(any(), any());
+		verify(hidden, never()).put(any(), any());
 	}
 }

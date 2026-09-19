@@ -112,13 +112,69 @@ class Cafe24MarketClientSoldOutTest {
     }
 
 	@Test
-	void inventorySettingsAreNotEnabledAsSideEffect() {
-		for (String response : List.of(inventory(500, "F", "T"), inventory(500, "T", "F"))) {
-			when(f.rest.get(INVENTORY + "?shop_no=1")).thenReturn(response);
-			assertThatThrownBy(() -> f.client.syncPriceAndStock(ID, new HashMap<>(), null, 300, false))
-				.hasMessageContaining("임의로 켜지");
-		}
+	void displaySoldoutSettingIsNotEnabledAsSideEffect() {
+		when(f.rest.get(INVENTORY + "?shop_no=1")).thenReturn(inventory(500, "T", "F"));
+		assertThatThrownBy(() -> f.client.syncPriceAndStock(ID, new HashMap<>(), null, 300, false))
+			.hasMessageContaining("임의로 켜지");
 		verify(f.rest, never()).put(any(), any());
+	}
+
+	@Test
+	void restockTurnsInventoryManagementOnBeforeAdjustingQuantity() {
+		when(f.rest.get(INVENTORY + "?shop_no=1")).thenReturn(inventory(0, "F", "T"), inventory(300, "T", "T"));
+		f.client.syncPriceAndStock(ID, new HashMap<>(), null, 300, false);
+		var order = inOrder(f.rest);
+		order.verify(f.rest).put(INVENTORY, Map.of("shop_no", 1, "request", Map.of("use_inventory", "T")));
+		order.verify(f.rest).put(INVENTORY, Map.of("shop_no", 1, "request", Map.of("quantity", 300)));
+		verify(f.rest, times(2)).put(any(), any());
+	}
+
+	@Test
+	void alreadyStoppedAndStillSoldOutWithInventoryManagementOffSendsNothing() {
+		when(f.rest.get(PRODUCT + "?shop_no=1")).thenReturn(product("F", "F", "A", "T", 23800));
+		when(f.rest.get(INVENTORY + "?shop_no=1")).thenReturn(inventory(0, "F", "T"));
+		f.client.syncPriceAndStock(ID, new HashMap<>(), 23900, 0, true);
+		verify(f.rest, never()).put(any(), any());
+	}
+
+	@Test
+	void stillSellingAndSoldOutWithInventoryManagementOffStopsSellingWithoutPriceOrQuantity() {
+		when(f.rest.get(PRODUCT + "?shop_no=1"))
+			.thenReturn(product("T", "F", "A", "T", 23800), product("F", "F", "A", "T", 23800));
+		when(f.rest.get(INVENTORY + "?shop_no=1")).thenReturn(inventory(0, "F", "T"));
+		var result = f.client.syncPriceAndStock(ID, new HashMap<>(), 23900, 0, true);
+		verify(f.rest).put(PRODUCT, Map.of("shop_no", 1, "request", Map.of("selling", "F")));
+		verify(f.rest, times(1)).put(any(), any());
+		verify(f.rest, never()).put(eq(INVENTORY), any());
+		assertThat(((Map<?, ?>)result.get("_sbshop_verified_fields")).get("fields")).isEqualTo(List.of("selling"));
+		assertThat(result.toString()).contains("selling=F");
+	}
+
+	@Test
+	void standDownCannotConfirmWhenProductIdentityChangesAfterStoppingSale() {
+		when(f.rest.get(PRODUCT + "?shop_no=1"))
+			.thenReturn(product("T", "F", "A", "T", 23800),
+				product("F", "F", "A", "T", 23800).replace("200630WA013", "DIFFERENT_SB"));
+		when(f.rest.get(INVENTORY + "?shop_no=1")).thenReturn(inventory(0, "F", "T"));
+		assertThatThrownBy(() -> f.client.syncPriceAndStock(ID, new HashMap<>(), 23900, 0, true))
+			.hasMessageContaining("SB코드가 변경");
+	}
+
+	@Test
+	void standDownCannotConfirmWhenSaleIsStillOnAfterStopping() {
+		when(f.rest.get(INVENTORY + "?shop_no=1")).thenReturn(inventory(0, "F", "T"));
+		assertThatThrownBy(() -> f.client.syncPriceAndStock(ID, new HashMap<>(), 23900, 0, true))
+			.hasMessageContaining("판매 중지 반영을 재조회로 확인하지 못했");
+		verify(f.rest, times(1)).put(any(), any());
+	}
+
+	@Test
+	void standDownCannotConfirmWhenProductBecomesMarketPlusLinkedAfterStopping() {
+		when(f.rest.get(PRODUCT + "?shop_no=1"))
+			.thenReturn(product("T", "F", "A", "T", 23800), product("F", "T", "A", "T", 23800));
+		when(f.rest.get(INVENTORY + "?shop_no=1")).thenReturn(inventory(0, "F", "T"));
+		assertThatThrownBy(() -> f.client.syncPriceAndStock(ID, new HashMap<>(), 23900, 0, true))
+			.isInstanceOf(UnsupportedOperationException.class).hasMessageContaining("마켓플러스");
 	}
 
 	@Test

@@ -248,6 +248,9 @@ public class Cafe24MarketClient implements MarketClient {
 			|| !expectedAccountReference.equals(inspectionAccountReference()))
 			throw new UnsupportedOperationException("카페24 계정·판매·재고 설정이 변경되어 수량 전송을 보류합니다.");
 		var access = new Cafe24VerifiedProductAccess(objectMapper, cafe24RestClient, id);
+		boolean inventoryManaged = "T".equals(access.inventory(optionId).path("use_inventory").asText());
+		if (!inventoryManaged && quantity == 0)
+			throw new UnsupportedOperationException("카페24 재고관리(use_inventory)가 꺼진 품절 상품이라 수량·가격을 전송하지 않습니다.");
 		boolean optionProduct = false;
 		if (quantity > 0 && !"T".equals(current.stockState())) {
 			String hasOption = access.product().path("has_option").asText();
@@ -257,6 +260,8 @@ public class Cafe24MarketClient implements MarketClient {
 		}
 		beforeWrite.run();
 		try {
+			if (!inventoryManaged)
+				access.put(access.path() + "/variants/" + optionId + "/inventories", Map.of("use_inventory", "T"));
 			if (quantity == 0 && !"F".equals(current.saleState()))
 				access.put(access.path(), Map.of("selling", "F"));
 			access.put(access.path() + "/variants/" + optionId + "/inventories", Map.of("quantity", quantity));
@@ -604,18 +609,33 @@ public class Cafe24MarketClient implements MarketClient {
 			if (expectedSbCode != null && !expectedSbCode.equals(p.path("custom_product_code").asText()))
 				throw new IllegalStateException("카페24 재고 반영 대상의 SB코드가 시스템상품과 일치하지 않습니다.");
 			access.requireNativeWrite(p);
+			String code = access.singleVariant(p);
+			JsonNode variant = access.variant(code);
+			JsonNode inventory = access.inventory(code);
+			boolean inventoryManaged = "T".equals(inventory.path("use_inventory").asText());
+			if (!inventoryManaged && (soldOut || quantity == 0)) {
+				if ("F".equals(p.path("selling").asText()))
+					return access.snapshot(currentRawData, p, variant, inventory, List.of());
+				access.put(access.path(), Map.of("selling", "F"));
+				JsonNode stopped = access.product();
+				access.requireNativeWrite(stopped);
+				if (!p.path("product_code").equals(stopped.path("product_code"))
+					|| !p.path("custom_product_code").equals(stopped.path("custom_product_code")))
+					throw new IllegalStateException("카페24 재조회 중 상품코드·SB코드가 변경되어 결과를 확정하지 않습니다.");
+				if (!"F".equals(stopped.path("selling").asText()))
+					throw new IllegalStateException("카페24 판매 중지 반영을 재조회로 확인하지 못했습니다. 재조회 후 재시도하세요.");
+				return access.snapshot(currentRawData, stopped, variant, inventory, List.of("selling"));
+			}
 			if (!soldOut && !"T".equals(p.path("selling").asText()))
 				throw new UnsupportedOperationException("카페24 판매 중지 원인이 확인되지 않아 자동 판매 재개를 보류합니다.");
 			String priceBlock = price == null ? null : priceFieldBlock(p);
 			if (priceBlock != null)
 				throw new UnsupportedOperationException(priceBlock);
-			String code = access.singleVariant(p);
-			JsonNode variant = access.variant(code);
-			JsonNode inventory = access.inventory(code);
 			if (!soldOut && (!"T".equals(variant.path("selling").asText())
-				|| !"T".equals(inventory.path("use_inventory").asText())
 				|| !"T".equals(inventory.path("display_soldout").asText())))
-				throw new UnsupportedOperationException("카페24 품목 판매·재고 관리·품절표시 설정 확인이 필요합니다. 설정을 임의로 켜지 않습니다.");
+				throw new UnsupportedOperationException("카페24 품목 판매·품절표시 설정 확인이 필요합니다. 설정을 임의로 켜지 않습니다.");
+			if (!inventoryManaged)
+				access.put(access.path() + "/variants/" + code + "/inventories", Map.of("use_inventory", "T"));
 			Map<String, Object> fields = new LinkedHashMap<>();
 			String selling = soldOut ? "F" : "T";
 			if (!selling.equals(p.path("selling").asText()))
