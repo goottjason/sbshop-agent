@@ -163,7 +163,10 @@ public class Cafe24MarketClient implements MarketClient {
 			if (price.signum() <= 0)
 				throw new IllegalStateException("조회 응답에 유효한 판매가가 없습니다.");
 			String blocked = !List.of("T", "F").contains(p.path("selling").asText())
-				? "카페24 판매 상태를 확인할 수 없습니다." : priceFieldBlock(p);
+				? "카페24 판매 상태를 확인할 수 없습니다."
+				: "F".equals(p.path("selling").asText())
+					? "카페24 판매안함(품절) 상품이라 가격을 전송하지 않습니다. 재입고로 판매를 재개한 뒤 반영합니다."
+					: priceFieldBlock(p);
 			if (account == null || !account.equals(inspectionAccountReference()))
 				throw new IllegalStateException("조회 계정이 변경되었습니다.");
 			return new com.sbshop.agent.core.domain.market.client.dto.MarketPriceRead(price, blocked == null,
@@ -258,18 +261,25 @@ public class Cafe24MarketClient implements MarketClient {
 				throw new IllegalStateException("카페24 옵션 사용 여부를 확인할 수 없습니다.");
 			optionProduct = "T".equals(hasOption);
 		}
+		boolean stopSelling = quantity == 0 && !"F".equals(current.saleState());
+		boolean resumeVariant = quantity > 0 && optionProduct && !"T".equals(current.stockState());
+		boolean resumeProduct = quantity > 0
+			&& (!"T".equals(current.saleState()) || !"T".equals(current.stockState()));
+		boolean restoreQuantity = quantity > 0 && current.quantity() <= 0;
+		if (!stopSelling && !resumeVariant && !resumeProduct && !restoreQuantity)
+			return;
 		beforeWrite.run();
 		try {
-			if (!inventoryManaged)
-				access.put(access.path() + "/variants/" + optionId + "/inventories", Map.of("use_inventory", "T"));
-			if (quantity == 0 && !"F".equals(current.saleState()))
+			if (stopSelling)
 				access.put(access.path(), Map.of("selling", "F"));
-			access.put(access.path() + "/variants/" + optionId + "/inventories", Map.of("quantity", quantity));
-			if (quantity > 0) {
-				if (optionProduct && !"T".equals(current.stockState()))
-					access.put(access.path() + "/variants/" + optionId, Map.of("selling", "T"));
-				if (!"T".equals(current.saleState()) || !"T".equals(current.stockState()))
-					access.put(access.path(), Map.of("selling", "T"));
+			if (resumeVariant)
+				access.put(access.path() + "/variants/" + optionId, Map.of("selling", "T"));
+			if (resumeProduct)
+				access.put(access.path(), Map.of("selling", "T"));
+			if (restoreQuantity) {
+				if (!inventoryManaged)
+					access.put(access.path() + "/variants/" + optionId + "/inventories", Map.of("use_inventory", "T"));
+				access.put(access.path() + "/variants/" + optionId + "/inventories", Map.of("quantity", quantity));
 			}
 			if (!expectedAccountReference.equals(inspectionAccountReference()))
 				throw new IllegalStateException("수량 전송 중 카페24 계정이 변경되었습니다. 결과 재확인이 필요합니다.");

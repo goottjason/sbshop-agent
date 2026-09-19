@@ -424,11 +424,14 @@ public class MarketStockSyncService {
 	}
 
 	private boolean matchesTarget(Claim c, MarketStockRead read) {
-		if (!validRead(c, read) || !canTransition(c, read) || read.quantity() != c.quantity())
+		if (!validRead(c, read) || !canTransition(c, read))
 			return false;
 		if (c.market() == MarketType.CAFE24)
-			return c.quantity() > 0 ? "T".equals(read.saleState()) && "T".equals(read.stockState())
+			return c.quantity() > 0
+				? "T".equals(read.saleState()) && "T".equals(read.stockState()) && read.quantity() > 0
 				: "F".equals(read.saleState());
+		if (read.quantity() != c.quantity())
+			return false;
 		if (c.market() != MarketType.ELEVEN_STREET)
 			return true;
 		return c.quantity() > 0
@@ -528,7 +531,8 @@ public class MarketStockSyncService {
 						? (p.quantity() == 0 ? "11번가 실제 재고 0개와 구매불가 상태를 각각 확인합니다. 전시중지(105)는 품절(104)과 구분합니다."
 							: "11번가 판매용 수량과 판매중(103) 상태를 확인합니다. 품절·일시 전시중지만 재개하며 판매금지·강제종료는 재개하지 않습니다.")
 						: "CAFE24".equals(p.market())
-							? (p.quantity() == 0 ? "카페24 수량 0개·판매안함을 반영하고 재조회합니다." : "카페24 판매용 수량·판매함을 반영하고 재조회합니다.")
+							? (p.quantity() == 0 ? "카페24 판매안함을 반영하고 재조회합니다. 수량은 전송하지 않습니다."
+								: "카페24 판매함을 반영하고 재조회합니다. 마켓 수량이 0일 때만 판매용 수량을 복구합니다.")
 							: p.quantity() == 0 ? "목표 0개를 검토합니다. 실행 시 현재 판매 상태·품목을 확인하며 판매 재개는 하지 않습니다."
 								: "소싱처 실재고와 별도인 판매용 수량을 전송합니다. 현재 판매 상태·품목을 먼저 확인합니다.")
 					: p.reason(),

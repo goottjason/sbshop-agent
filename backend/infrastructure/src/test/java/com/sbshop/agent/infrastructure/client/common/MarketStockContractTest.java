@@ -189,6 +189,7 @@ class MarketStockContractTest {
 		var read = client.readStockQuantity("123", null, "SB-123");
 		assertThat(read.quantity()).isEqualTo(10);
 		assertThat(read.optionId()).isEqualTo(V);
+		when(rest.get(CV + "/inventories?shop_no=1")).thenReturn(inventory(0, "T"));
 		client.writeStockQuantity("123", V, "SB-123", 300, "account-A", guard);
 		var order = inOrder(guard, rest);
 		order.verify(guard).run();
@@ -197,22 +198,30 @@ class MarketStockContractTest {
 	}
 
 	@Test
-	void cafeExplicitZeroStopsSellingBeforeInventoryPutAndSkipsTheStopWhenAlreadyStopped() {
+	void cafeKeepsAPositiveMarketQuantityAndSendsNothingWhileAlreadySelling() {
+		var rest = mock(Cafe24RestClient.class);
+		var client = cafe(rest);
+		var guard = mock(Runnable.class);
+		client.writeStockQuantity("123", V, "SB-123", 300, "account-A", guard);
+		verify(guard, never()).run();
+		verify(rest, never()).put(any(), any());
+	}
+
+	@Test
+	void cafeExplicitZeroStopsSellingOnlyAndSendsNothingWhenAlreadyStopped() {
 		var rest = mock(Cafe24RestClient.class);
 		var client = cafe(rest);
 		client.writeStockQuantity("123", V, "SB-123", 0, "account-A", () -> {});
-		var order = inOrder(rest);
-		order.verify(rest).put(CP, Map.of("shop_no", 1, "request", Map.of("selling", "F")));
-		order.verify(rest).put(CV + "/inventories", Map.of("shop_no", 1, "request", Map.of("quantity", 0)));
-		verify(rest, times(2)).put(any(), any());
+		verify(rest).put(CP, Map.of("shop_no", 1, "request", Map.of("selling", "F")));
+		verify(rest, times(1)).put(any(), any());
+		verify(rest, never()).put(contains("inventories"), any());
 		var stopped = mock(Cafe24RestClient.class);
 		var stoppedClient = cafe(stopped);
 		when(stopped.get(CP + "?shop_no=1")).thenReturn("{\"product\":{\"shop_no\":1,\"product_no\":123,"
 			+ "\"product_code\":\"P0000001\",\"custom_product_code\":\"SB-123\",\"market_sync\":\"F\","
 			+ "\"selling\":\"F\"}}");
 		stoppedClient.writeStockQuantity("123", V, "SB-123", 0, "account-A", () -> {});
-		verify(stopped).put(CV + "/inventories", Map.of("shop_no", 1, "request", Map.of("quantity", 0)));
-		verify(stopped, times(1)).put(any(), any());
+		verify(stopped, never()).put(any(), any());
 	}
 
 	@Test
@@ -236,10 +245,10 @@ class MarketStockContractTest {
 		var guard = mock(Runnable.class);
 		when(rest.get(CP + "?shop_no=1")).thenReturn(LINKED);
 		assertThat(client.readStockQuantity("123", V, "SB-123").writable()).isTrue();
-		client.writeStockQuantity("123", V, "SB-123", 300, "account-A", guard);
+		client.writeStockQuantity("123", V, "SB-123", 0, "account-A", guard);
 		var order = inOrder(guard, rest);
 		order.verify(guard).run();
-		order.verify(rest).put(CV + "/inventories", Map.of("shop_no", 1, "request", Map.of("quantity", 300)));
+		order.verify(rest).put(CP, Map.of("shop_no", 1, "request", Map.of("selling", "F")));
 		verify(rest, times(1)).put(any(), any());
 	}
 

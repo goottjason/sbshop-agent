@@ -121,14 +121,22 @@ class Cafe24PricePolicyContractTest {
 	}
 
 	@Test
-	void marketPlusAndStoppedListingAllowPriceWithVerifiedTaxSettings() {
+	void marketPlusListingAllowsPriceWithVerifiedTaxSettings() {
 		when(rest.get(SETTINGS)).thenReturn("{\"product\":{\"shop_no\":1,\"calculate_price_based_on\":\"S\"}}");
-		for (String changes : new String[] {"\"selling\":\"F\",\"market_sync\":\"F\"",
-			"\"selling\":\"T\",\"market_sync\":\"T\""}) {
-			when(rest.get(PRODUCT)).thenReturn("{\"product\":{\"product_no\":123,\"shop_no\":1,\"price\":12300,"
-				+ "\"tax_calculation\":\"M\"," + changes + "}}");
-			assertThat(client.readSalePrice("123", null).writable()).isTrue();
-		}
-		verify(rest, times(2)).get(SETTINGS);
+		when(rest.get(PRODUCT)).thenReturn("{\"product\":{\"product_no\":123,\"shop_no\":1,\"price\":12300,"
+			+ "\"tax_calculation\":\"M\",\"selling\":\"T\",\"market_sync\":\"T\"}}");
+		assertThat(client.readSalePrice("123", null).writable()).isTrue();
+		verify(rest, times(1)).get(SETTINGS);
+	}
+
+	@Test
+	void stoppedListingHoldsThePriceWithoutEvenReadingTaxSettings() {
+		when(rest.get(SETTINGS)).thenReturn("{\"product\":{\"shop_no\":1,\"calculate_price_based_on\":\"S\"}}");
+		when(rest.get(PRODUCT)).thenReturn("{\"product\":{\"product_no\":123,\"shop_no\":1,\"price\":12300,"
+			+ "\"tax_calculation\":\"M\",\"selling\":\"F\",\"market_sync\":\"F\"}}");
+		var read = client.readSalePrice("123", null);
+		assertThat(read.writable()).isFalse();
+		assertThat(read.reason()).contains("판매안함");
+		verify(rest, never()).get(SETTINGS);
 	}
 }

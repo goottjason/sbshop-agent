@@ -573,6 +573,93 @@ class MarketStockSyncIntegrationTest {
 		verify(client, never()).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
 	}
 
+	void cafe24Registration() {
+		registrations.deleteAll();
+		reg = registrations
+			.saveAndFlush(MarketRegistration.builder().productId(product.getId()).marketType(MarketType.CAFE24)
+				.marketIdentifiers("{\"product_no\":\"123\"}").build());
+		when(clients.hasClient(MarketType.CAFE24)).thenReturn(true);
+		when(clients.getClient(MarketType.CAFE24)).thenReturn(client);
+	}
+
+	MarketStockSyncService.Review cafe24Queued() {
+		cafe24Registration();
+		var r = service.preview(List.of(product.getId()), Set.of(MarketType.CAFE24), "admin");
+		service.commit(r.id(), "admin");
+		return r;
+	}
+
+	@Test
+	void cafe24SoldOutIsConfirmedByTheStoppedSaleStateAloneEvenWithStockLeftOnTheMarket() {
+		jdbc.update("update sb_product set stock_status='OUT_OF_STOCK' where id=?", product.getId());
+		var r = cafe24Queued();
+		assertThat(service.get(r.id(), "admin").items().getFirst().expectedQuantity()).isZero();
+		when(client.readStockQuantity(any(), any(), any()))
+			.thenReturn(new MarketStockRead(300, true, "cafe", "account-A", "P0000001000A", "F", "T"));
+		service.processOne(MarketType.CAFE24);
+		assertThat(state(r.id())).isEqualTo("CONFIRMED_QUANTITY");
+		verify(client, never()).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+	}
+
+	@Test
+	void cafe24SoldOutStopsSellingOnceAndThenStaysConfirmedWithoutResending() {
+		jdbc.update("update sb_product set stock_status='OUT_OF_STOCK' where id=?", product.getId());
+		var r = cafe24Queued();
+		when(client.readStockQuantity(any(), any(), any()))
+			.thenReturn(new MarketStockRead(300, true, "cafe", "account-A", "P0000001000A", "T", "T"));
+		service.processOne(MarketType.CAFE24);
+		assertThat(state(r.id())).isEqualTo("VERIFY");
+		verify(client).writeStockQuantity(eq("123"), eq("P0000001000A"), eq(product.getSbCode()), eq(0),
+			eq("account-A"), any());
+		release();
+		when(client.readStockQuantity(any(), any(), any()))
+			.thenReturn(new MarketStockRead(300, true, "cafe", "account-A", "P0000001000A", "F", "T"));
+		service.processOne(MarketType.CAFE24);
+		assertThat(state(r.id())).isEqualTo("CONFIRMED_QUANTITY");
+		verify(client, times(1)).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+	}
+
+	@Test
+	void cafe24RestockIsConfirmedByAnyPositiveMarketQuantitySoSalesNeverTriggerAResend() {
+		var r = cafe24Queued();
+		when(client.readStockQuantity(any(), any(), any()))
+			.thenReturn(new MarketStockRead(299, true, "cafe", "account-A", "P0000001000A", "T", "T"));
+		service.processOne(MarketType.CAFE24);
+		assertThat(state(r.id())).isEqualTo("CONFIRMED_QUANTITY");
+		verify(client, never()).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+	}
+
+	@Test
+	void cafe24RestockIsNotConfirmedWhileTheMarketQuantityIsStillZero() {
+		var r = cafe24Queued();
+		release();
+		assertThat(service.get(r.id(), "admin").items()).hasSize(1);
+		assertThat(service.get(r.id(), "admin").items().getFirst().expectedQuantity()).isEqualTo(300);
+		when(client.readStockQuantity(any(), any(), any()))
+			.thenReturn(new MarketStockRead(0, true, "cafe", "account-A", "P0000001000A", "T", "T"));
+		service.processOne(MarketType.CAFE24);
+		assertThat(state(r.id())).isEqualTo("VERIFY");
+		verify(client).writeStockQuantity(eq("123"), eq("P0000001000A"), eq(product.getSbCode()), eq(300),
+			eq("account-A"), any());
+		release();
+		service.processOne(MarketType.CAFE24);
+		verify(client, times(2)).writeStockQuantity(any(), any(), any(), anyInt(), any(), any());
+	}
+
+	@Test
+	void otherMarketsStillConfirmOnTheExactQuantityIncludingZero() {
+		jdbc.update("update sb_product set stock_status='OUT_OF_STOCK' where id=?", product.getId());
+		var r = queue();
+		observed(300);
+		service.processOne(MARKET);
+		verify(client).writeStockQuantity(eq("123"), eq("456"), eq(product.getSbCode()), eq(0), eq("account-A"), any());
+		assertThat(state(r.id())).isEqualTo("VERIFY");
+		release();
+		observed(0);
+		service.processOne(MARKET);
+		assertThat(state(r.id())).isEqualTo("CONFIRMED_QUANTITY");
+	}
+
 	@Test
 	void cafe24SameQuantityMustStillResumeSellingAndVerifyIt() {
 		registrations.deleteAll();
