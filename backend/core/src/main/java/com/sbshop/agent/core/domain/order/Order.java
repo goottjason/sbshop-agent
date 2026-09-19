@@ -215,6 +215,11 @@ public class Order extends BaseEntity {
 		return (id != null && !id.isBlank()) ? id : marketOrderNo;
 	}
 
+	public boolean hasCafe24OrderId() {
+		String id = getMarketSpecificDataMap().get("cafe24_order_id");
+		return id != null && !id.isBlank();
+	}
+
 	public void setMarketSpecificDataFromMap(Map<String, String> map) {
 		if (map == null || map.isEmpty()) {
 			this.marketSpecificData = null;

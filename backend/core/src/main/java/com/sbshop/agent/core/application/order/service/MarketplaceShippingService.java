@@ -1,7 +1,9 @@
 package com.sbshop.agent.core.application.order.service;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
@@ -22,6 +24,9 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 public class MarketplaceShippingService {
+	private static final Set<MarketType> CAFE24_BACKED_MARKETS =
+		EnumSet.of(MarketType.GMARKET, MarketType.AUCTION);
+
 	private final OrderRepository orderRepository;
 	private final MarketCredentialRepository credentialRepository;
 	private final List<MarketOrderPort> marketOrderPorts;
@@ -64,6 +69,12 @@ public class MarketplaceShippingService {
 			return MarketShippingResult.ofSkipped("배송 어댑터 미지원: " + order.getMarketType());
 		}
 		MarketOrderPort port = portOpt.get();
+
+		if (CAFE24_BACKED_MARKETS.contains(order.getMarketType()) && !order.hasCafe24OrderId()) {
+			log.warn("[배송전파] {} 주문 {} 은 cafe24_order_id 가 없어 Cafe24 원본 주문을 찾을 수 없음 — 전송 종결(재시도 중단)",
+				order.getMarketType(), order.getMarketOrderNo());
+			return MarketShippingResult.ofTerminal("Cafe24 원본 주문 없음(수동 백필 주문) — 마켓 반영 불가");
+		}
 
 		try {
 			if (invoiceAlreadyExists) {

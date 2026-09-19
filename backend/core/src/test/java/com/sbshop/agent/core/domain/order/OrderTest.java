@@ -24,6 +24,18 @@ class OrderTest {
 	}
 
 	@Test
+	@DisplayName("D-306: hasCafe24OrderId는 폴백 없이 cafe24_order_id 보유 여부만 답한다")
+	void hasCafe24OrderIdDoesNotFallBack() {
+		Order withoutKey = order("4484301400");
+		assertThat(withoutKey.hasCafe24OrderId()).isFalse();
+		assertThat(withoutKey.getCafe24OrderId()).isEqualTo("4484301400");
+
+		Order withKey = order("4466411168");
+		withKey.setMarketSpecificDataFromMap(Map.of("cafe24_order_id", "20260708-0000011"));
+		assertThat(withKey.hasCafe24OrderId()).isTrue();
+	}
+
+	@Test
 	@DisplayName("update: 마스킹(*** 포함) 전화번호로는 기존 실번호를 덮지 않는다(쿠팡 배송완료 마스킹 방어)")
 	void keepsRealPhoneAgainstMask() {
 		Order o = orderWithPhones("01011112222", "01055556666");
