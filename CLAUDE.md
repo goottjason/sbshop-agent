@@ -4,7 +4,8 @@
 
 ## 배포·런타임
 
-- **배포:** `git push origin main` 하면 운영서버 웹훅이 자동으로 pull→build→컨테이너 재생성한다. **직접 SSH해서 `docker compose build`/`up` 하지 말 것** — 자동배포와 경합해 컨테이너명 충돌(`Conflict. The container name ... is already in use`)이 난다. 배포 확인은 SSH 읽기만: `docker ps --filter name=projects-sbshop-api-1`, `docker logs projects-sbshop-api-1 | grep 'Started ApiApplication'`.
+- **배포:** `git push origin main` 하면 운영서버 웹훅이 자동으로 pull→build→컨테이너 재생성한다(2026-09-19 복구 — 7/14~9/19 기간은 죽어 있어 수동 배포였다). **직접 SSH해서 `docker compose build`/`up` 하지 말 것** — 자동배포와 경합해 컨테이너명 충돌(`Conflict. The container name ... is already in use`)이 난다. 배포 확인은 SSH 읽기만: `docker ps --filter name=projects-sbshop-api-1`, `docker logs projects-sbshop-api-1 | grep 'Started ApiApplication'`.
+- **웹훅:** 서비스 `canagent-webhook.service`(리스너 `/home/ubuntu/webhook/deploy.py`, 포트 9000), 훅 URL `http://168.107.31.154:9000/`, 시크릿은 systemd 유닛 파일의 `Environment=WEBHOOK_SECRET`(저장소에 없음). `X-Hub-Signature-256` 검증 — 서명 없는 요청은 403. main 브랜치 push만, **`.md`·`docs/`만 바뀐 푸시는 배포를 생략**한다(문서 커밋으로는 배포 확인 불가). 배포 확인: `sudo journalctl -u canagent-webhook -n 20`, `tail /home/ubuntu/webhook/webhook-deploy.log`, `tail /home/ubuntu/webhook/deploy-sbshop.log`. 웹훅이 죽었을 때의 수동/긴급 배포는 `./deploy-sbshop.sh`.
 - **JVM 토폴로지:** `worker`는 `api` JVM에 라이브러리로 통합됨 — **단일 프로세스(`sbshop-api` 컨테이너 하나, 8080)**. 스케줄러·이메일 수집(EmailFetcherService)·내부 트리거가 모두 api JVM에서 돈다. 이메일 수동 트리거: `docker exec projects-sbshop-api-1 curl -s -X POST localhost:8080/internal/email/fetch`.
 - **스키마:** Flyway 제거 — 운영 DB(`docker exec projects-postgres-1 psql -U canagent -d sbshop`)가 스키마 단일 원본. 엔티티 변경 시 ddl-auto/수동 DDL로 반영.
 
@@ -27,3 +28,4 @@
 | 2026-07-07 | 프론트 타입 게이트 교정 (tsc -p tsconfig.app.json) | skills 3개 | 루트 tsconfig references-only → -p 없는 tsc는 헛-그린 |
 | 2026-07-07 | 스키마 수동 관리 체제 반영 (Flyway 제거) | skills 3개 | 사용자 결정 — 운영 DB가 스키마 단일 원본, 엔티티 변경 시 수동 DDL |
 | 2026-07-18 | 배포·런타임 섹션 신설 (push 자동배포·단일 JVM 명문화) | CLAUDE.md | worker+api 단일 JVM 통합 + git push 웹훅 자동배포 확정 |
+| 2026-09-19 | 웹훅 자동배포 복구 사실·운영 정보 반영 (서비스명·훅 URL·시크릿 위치·문서전용 푸시 생략) | CLAUDE.md | 2026-07-14 이후 중단됐던 자동배포를 서명검증 리스너로 복구 |
