@@ -75,6 +75,7 @@ function detail(
   recipientName: string,
   address: string,
   shipping: { shippingStatus: string; trackingNo?: string },
+  message = '',
 ): OrderDetailResponseDto {
   return {
     order: {
@@ -86,7 +87,7 @@ function detail(
       recipientPhone: '01011112222',
       zipcode: '48058',
       address,
-      message: '',
+      message,
       ordererName: recipientName,
       customsData: {},
     },
@@ -218,5 +219,31 @@ describe('D-302 필터 상태의 일괄 처리 대상', () => {
 
     await waitFor(() => expect(vi.mocked(confirmOrdersBatch)).toHaveBeenCalled());
     expect(vi.mocked(confirmOrdersBatch)).toHaveBeenCalledWith([593]);
+  });
+});
+
+describe('D-307 배송메시지 낙관적 캐시', () => {
+  it('배송메시지를 A→B로 저장한 뒤 다시 A로 되돌려도 저장 요청이 나간다', async () => {
+    const order = detail(609, 901, '김성국', ADDRESS_A, { shippingStatus: 'NEW' }, '경비실');
+    vi.mocked(fetchOrders).mockResolvedValue(page([order]));
+
+    renderGrid();
+
+    const input = (await screen.findByTitle(/배송메시지/)) as HTMLInputElement;
+    expect(input.value).toBe('경비실');
+
+    await act(async () => { input.focus(); });
+    await act(async () => { fireEvent.change(input, { target: { value: '경비실 [검증]' } }); });
+    await act(async () => { input.blur(); });
+
+    await waitFor(() => expect(vi.mocked(updateOrder)).toHaveBeenCalledWith(609, { message: '경비실 [검증]' }));
+    await waitFor(() => expect(input.value).toBe('경비실 [검증]'));
+
+    await act(async () => { input.focus(); });
+    await act(async () => { fireEvent.change(input, { target: { value: '경비실' } }); });
+    await act(async () => { input.blur(); });
+
+    await waitFor(() => expect(vi.mocked(updateOrder).mock.calls.length).toBe(2));
+    expect(vi.mocked(updateOrder).mock.calls[1]).toEqual([609, { message: '경비실' }]);
   });
 });

@@ -135,6 +135,7 @@ const OrderGrid: React.FC = () => {
       previous: await optimisticPatch(c => patchOrderInCache(c, id, o => {
         const next: OrderDto = { ...o };
         if ('address' in updates) next.address = updates.address as string;
+        if ('message' in updates) next.message = updates.message as string;
         if ('customsClearanceNo' in updates) next.customsData = { ...o.customsData, customsClearanceNo: updates.customsClearanceNo as string };
         return next;
       })),
