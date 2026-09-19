@@ -6376,3 +6376,10 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - C단계 실서버 검증(2026-09-20, 모두 통과): ① push 전체 파이프라인(테스트 6분20초 ∥ 이미지 빌드 → 서버 pull·교체 1분24초, 총 약 8분) ② 레지스트리 커밋 태그 롤백(`rollback_tag=0aedafff3613`, 재빌드 없이 약 20초) ③ `image_tag` 재배포(테스트·빌드 생략, api만 교체 — pull 방식에서도 "바뀐 서비스만 교체" 동작) ④ 잘못된 `image_tag`·`rollback_tag` 는 `validate` 에서 거절, 서버 무영향 ⑤ `skip_tests` 긴급 경로(no-op).
 - 잔여·관찰: 프런트 `package-lock.json` 이 `.gitignore` 라 의존성 미고정(사용자 결정), `spotlessCheck` 는 기존 52개 파일 위반이라 게이트 아님, 서버 빌드 캐시 약 10GB 는 서버 빌드 시절 잔재(정비 스크립트가 처리), 3단계(무중단 교체·자동 롤백) 미착수.
 
+### D-320 — 프런트 의존성 미고정(`package-lock.json` gitignore)과 서버 정리
+
+- 심각도: 낮음~중 · 상태: 종결(da870fe2, 2026-09-20)
+- 조치: 프런트·루트 `package-lock.json` 을 `.gitignore` 에서 빼고 커밋(전부 `registry.npmjs.org`, 인증정보 없음, `npm ci` 통과 확인). `Dockerfile.frontend`·CI 는 `npm ci` 로 고정 설치. 파이프라인 실행: 프런트 테스트 24초 통과, 프런트만 교체.
+- 서버 정리: 9월 7~8일 옛 배포가 만든 릴리스·수정 복사본 10개(git 아님, 약 750MB) 삭제. Docker 이미지 잔재 약 160MB 정리, 빌드 캐시는 정비 스크립트가 이미 정리(디스크 여유 26G→33G).
+- 미결(사용자 결정): `~/projects/sbshop-export`(295MB, 2026-06-26 DB 내보내기 — **마켓 인증정보·주문 데이터 평문**)와 `sbshop-export.tar.gz`, `_migration_backup_20260714`(옛 `.env`·roles 덤프)는 권한만 700/600 으로 잠갔고 삭제하지 않았다. 유일한 사본인지 확인 후 삭제 권장. 그 안의 마켓 인증정보는 토큰 회전 검토 대상.
+
