@@ -253,7 +253,7 @@ class MarketFieldSyncIntegrationTest {
 			.thenReturn(read(EXPECTED, MarketFieldsRead.Approval.PENDING));
 		service.processOne(MARKET);
 		assertThat(state(id)).isEqualTo("AWAITING_APPROVAL");
-		assertThat(task().getNextRunAt()).isAfter(Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(800));
+		assertThat(task().getNextRunAt()).isAfter(Instant.now().plusSeconds(800));
 		noWrite();
 		release();
 		when(client.readProductFields(any(), any(), any(), any()))
@@ -406,14 +406,14 @@ class MarketFieldSyncIntegrationTest {
 		var old = service.claim(MARKET);
 		release();
 		var current = service.claim(MARKET);
-		Instant retry = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(600);
+		Instant retry = Instant.now().plusSeconds(600);
 		service.finish(old, "VERIFY", "late429", null, new MarketTransferFailure("HTTP_429", "limited", retry, null));
 		assertThat(gates.findById(MARKET.name() + "_ORIGIN_READ").orElseThrow().getLeaseToken())
 			.isEqualTo(current.token());
 		assertThat(service.beginWrite(current, mismatch())).isFalse();
 		assertThat(task().getWrites()).isZero();
 		assertThat(state(id)).isEqualTo("VERIFY");
-		assertThat(task().getNextRunAt()).isAfterOrEqualTo(retry);
+		assertThat(task().getNextRunAt()).isAfterOrEqualTo(retry.truncatedTo(ChronoUnit.MILLIS));
 	}
 
 	@Test

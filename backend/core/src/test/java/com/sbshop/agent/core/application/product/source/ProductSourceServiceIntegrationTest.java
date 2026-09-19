@@ -479,13 +479,13 @@ class ProductSourceServiceIntegrationTest {
 	void source429HonorsServerCooldownAndDoesNotRunNextProduct() {
 		Product p = product();
 		Product q = product();
-		Instant next = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(900);
+		Instant next = Instant.now().plusSeconds(900);
 		when(source.fetch(any(), anyString())).thenThrow(new ProductContentThrottledException(next));
 		collect(p, q);
 		worker.tick();
 		worker.tick();
 		verify(source, times(1)).fetch(any(), anyString());
-		assertThat(lanes.findById("SOURCE_IHB").orElseThrow().getNextAllowedAt()).isAfterOrEqualTo(next);
+		assertThat(lanes.findById("SOURCE_IHB").orElseThrow().getNextAllowedAt()).isAfterOrEqualTo(next.truncatedTo(ChronoUnit.MILLIS));
 		assertThat(snapshots.findAll()).allSatisfy(s -> assertThat(s.getCollectedAt()).isNull());
 	}
 
@@ -496,7 +496,7 @@ class ProductSourceServiceIntegrationTest {
 		tx.executeWithoutResult(s -> products.findForEdit(p.getId()).orElseThrow().update(
 			ProductUpdateCommand.builder().vendor(VendorType.OCD).sourceUrl(url).build()));
 		Product current = products.findById(p.getId()).orElseThrow();
-		Instant next = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(900);
+		Instant next = Instant.now().plusSeconds(900);
 		when(source.fetch(VendorType.OCD, url)).thenThrow(new ProductContentThrottledException(next));
 		var collected = collect(current);
 		worker.tick();
@@ -507,7 +507,7 @@ class ProductSourceServiceIntegrationTest {
 		verifyNoInteractions(contentSource);
 		assertThat(service.collection(collected.id(), "admin").items().getFirst().collectedAt()).isNull();
 		assertThat(contentService.collection(content.id(), "admin").items().getFirst().collectedAt()).isNull();
-		assertThat(lanes.findById("SOURCE_OCD").orElseThrow().getNextAllowedAt()).isAfterOrEqualTo(next);
+		assertThat(lanes.findById("SOURCE_OCD").orElseThrow().getNextAllowedAt()).isAfterOrEqualTo(next.truncatedTo(ChronoUnit.MILLIS));
 		assertThat(products.findById(p.getId()).orElseThrow().getStock()).isEqualTo(77);
 		assertThat(products.findById(p.getId()).orElseThrow().getStockStatus()).isEqualTo(StockStatus.IN_STOCK);
 	}
@@ -599,7 +599,7 @@ class ProductSourceServiceIntegrationTest {
 		var collection = contentService.collect(new ProductContentService.CollectionRequest(
 			UUID.randomUUID().toString(), List.of(ihb.getId(), vtb.getId())), "admin");
 		collect(ihb);
-		Instant next = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(900);
+		Instant next = Instant.now().plusSeconds(900);
 		when(source.fetch(any(), anyString())).thenThrow(new ProductContentThrottledException(next));
 		worker.tick();
 		when(contentSource.fetch(anyString()))
@@ -607,7 +607,7 @@ class ProductSourceServiceIntegrationTest {
 		contentWorker.tick();
 		verify(contentSource).fetch("https://www.vitabiotics.com/products/wellkid-multi-vitamin-liquid");
 		verify(contentSource, never()).fetch(ihb.getSourcingInfo().getSourceUrl());
-		assertThat(lanes.findById("SOURCE_IHB").orElseThrow().getNextAllowedAt()).isAfterOrEqualTo(next);
+		assertThat(lanes.findById("SOURCE_IHB").orElseThrow().getNextAllowedAt()).isAfterOrEqualTo(next.truncatedTo(ChronoUnit.MILLIS));
 		assertThat(
 			contentSnapshots.findById(collection.items().stream().filter(item -> item.productId().equals(ihb.getId()))
 				.findFirst().orElseThrow().id()).orElseThrow().getState())
@@ -635,7 +635,7 @@ class ProductSourceServiceIntegrationTest {
 		ProductSourceHttpGuard.check(); // scope always clears, including an exception
 		assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
 		tx.executeWithoutResult(s -> ProductSourceVendorGate.finish(lanes, "IHB", newer, Instant.now(), false, null));
-		assertThat(lanes.findById("SOURCE_IHB").orElseThrow().getNextAllowedAt()).isAfterOrEqualTo(next);
+		assertThat(lanes.findById("SOURCE_IHB").orElseThrow().getNextAllowedAt()).isAfterOrEqualTo(next.truncatedTo(ChronoUnit.MILLIS));
 	}
 
 	@Test

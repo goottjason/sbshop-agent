@@ -6360,7 +6360,7 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 심각도: 중(테스트 결함, 운영 코드 무관) · 상태: 수정완료(검증 대기 — CI 실행)
 - 증상: GitHub 러너(Linux)에서 `:core:test` 1808개 중 4개 실패 — `MarketPriceSync`·`MarketStockSync`·`MarketPublication`·`ProductSourceService` 통합 테스트의 429/Retry-After 쿨다운 케이스. 로컬(Mac)은 통과.
 - 원인: 테스트가 `Instant.now().plusSeconds(N)` 으로 만든 시각을 DB에 저장했다 읽은 값과 `isAfterOrEqualTo` 로 비교한다. Mac 은 `Instant.now()` 가 마이크로초 정밀도, Linux 는 나노초라 DB 왕복에서 소수 자리가 잘리면 저장값이 원본보다 미세하게 작아진다.
-- 수정: 같은 패턴의 6개 테스트 파일에서 기대 시각을 `truncatedTo(ChronoUnit.MILLIS)` 로 자름(운영 코드 무변경). 잠복 2곳(`MarketFieldSync`·`MarketInspectionService`) 포함.
+- 수정(2차, 최종): 1차에는 기대 시각의 정의(`Instant.now().plus…`)를 잘랐으나 `Instant now = Instant.now(), next = now.plusSeconds(900)` 형태(`late429RetainsNewPermit…`)가 빠져 CI 재실행에서 확률적으로 실패했다(DB 가 마이크로초 미만을 반올림/절삭하는 방향에 따라 통과·실패). 그래서 6개 테스트 파일의 `isAfterOrEqualTo(기대값)` 14곳 **단언 쪽**에서 기대값을 `truncatedTo(ChronoUnit.MILLIS)` 로 자르고 1차 변경은 되돌렸다 — 저장값은 원본보다 마이크로초 미만만 다르므로 밀리초로 자른 기대값보다 항상 크거나 같아 결정적이다. 운영 코드 무변경. 잠복 2곳(`MarketFieldSync`·`MarketInspectionService`) 포함.
 - 부수 발견: ① gradle 이 첫 실패 모듈(`core`)에서 멈춰 나머지 모듈 테스트는 CI에서 돌지 않았다 → `--continue`. ② `frontend/package-lock.json` 이 `.gitignore` 라 프런트 의존성이 고정되지 않는다(Dockerfile·CI 모두 `npm install`) — 사용자 결정 사항. ③ `spotlessCheck` 는 이 변경과 무관하게 기존 52개 파일에서 위반이라 게이트가 아니다.
 
 ### D-319 — Cafe24TokenManagerTest 가 JVM 시간대(UTC)에서 실패

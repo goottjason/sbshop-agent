@@ -362,26 +362,26 @@ class MarketStockSyncIntegrationTest {
 		assertThat(service.beginWrite(old, read(10))).isFalse();
 		service.finish(old, "CONFIRMED_QUANTITY", "old", read(300), null);
 		assertThat(state(r.id())).isEqualTo("CHECK");
-		Instant until = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(900);
+		Instant until = Instant.now().plusSeconds(900);
 		service.finish(old, "VERIFY", "late429", null, new MarketTransferFailure("HTTP_429", "limit", until, null));
 		var gate = gates.findById(MARKET + "_ORIGIN_READ").orElseThrow();
 		assertThat(gate.getLeaseToken()).isEqualTo(newer.token());
-		assertThat(gate.getNextAllowedAt()).isAfterOrEqualTo(until);
+		assertThat(gate.getNextAllowedAt()).isAfterOrEqualTo(until.truncatedTo(ChronoUnit.MILLIS));
 		assertThat(service.beginWrite(newer, read(10))).isFalse();
 		assertThat(tasks.findByReviewIdOrderById(r.id()).getFirst().getWrites()).isZero();
-		assertThat(gates.findById(MARKET + "_ORIGIN_READ").orElseThrow().getNextAllowedAt()).isAfterOrEqualTo(until);
+		assertThat(gates.findById(MARKET + "_ORIGIN_READ").orElseThrow().getNextAllowedAt()).isAfterOrEqualTo(until.truncatedTo(ChronoUnit.MILLIS));
 		assertThat(service.claim(MARKET)).isNull();
 	}
 
 	@Test
 	void server429RetryAfterDelaysSharedGateAndTask() {
 		var r = queue();
-		Instant until = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(900);
+		Instant until = Instant.now().plusSeconds(900);
 		when(client.readStockQuantity(any(), any(), any()))
 			.thenThrow(new MarketTransferFailure("HTTP_429", "limit", until, null));
 		service.processOne(MARKET);
 		assertThat(state(r.id())).isEqualTo("VERIFY");
-		assertThat(tasks.findByReviewIdOrderById(r.id()).getFirst().getNextRunAt()).isAfterOrEqualTo(until);
+		assertThat(tasks.findByReviewIdOrderById(r.id()).getFirst().getNextRunAt()).isAfterOrEqualTo(until.truncatedTo(ChronoUnit.MILLIS));
 		assertThat(service.claim(MARKET)).isNull();
 	}
 
@@ -739,7 +739,7 @@ class MarketStockSyncIntegrationTest {
 		var price = priceSync.preview(List.of(product.getId()), Set.of(MarketType.SMART_STORE), "admin");
 		priceSync.commit(price.id(), "admin");
 		when(client.readStockQuantity("123", null, product.getSbCode()))
-			.thenThrow(new MarketTransferFailure("HTTP_429", "limit", Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(900), null));
+			.thenThrow(new MarketTransferFailure("HTTP_429", "limit", Instant.now().plusSeconds(900), null));
 		service.processOne(MarketType.SMART_STORE);
 		assertThat(priceSync.claim(MarketType.SMART_STORE)).isNull();
 		assertThat(state(stock.id())).isEqualTo("VERIFY");
@@ -1081,7 +1081,7 @@ class MarketStockSyncIntegrationTest {
 		var other = tasks.saveAndFlush(new MarketStockTask(UUID.randomUUID().toString(), 999999L,
 			"SB-other", reg.getId(), 0, 0, MARKET.name(), "999", "888", "{}", "account-A", 300,
 			null, Instant.now()));
-		assertThat(tasks.due(MARKET.name(), Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(1),
+		assertThat(tasks.due(MARKET.name(), Instant.now().plusSeconds(1),
 			org.springframework.data.domain.PageRequest.of(0, 1)))
 			.extracting(MarketStockTask::getId).containsExactly(other.getId());
 		assertThat(original.getReads()).isZero();

@@ -409,14 +409,14 @@ class MarketPublicationIntegrationTest {
 		release();
 		assertThat(service.claim()).isNull();
 		var gate = gates.findById("SMART_STORE_ORIGIN_READ").orElseThrow();
-		gate.claim("other-worker", Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(180));
+		gate.claim("other-worker", Instant.now().plusSeconds(180));
 		gates.saveAndFlush(gate);
-		Instant retry = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(500);
+		Instant retry = Instant.now().plusSeconds(500);
 		service.finish(old, "UNKNOWN_CREATE", "late429", null,
 			new MarketTransferFailure("HTTP_429", "limited", retry, null));
 		var after = gates.findById("SMART_STORE_ORIGIN_READ").orElseThrow();
 		assertThat(after.getLeaseToken()).isEqualTo("other-worker");
-		assertThat(after.getNextAllowedAt()).isAfterOrEqualTo(retry);
+		assertThat(after.getNextAllowedAt()).isAfterOrEqualTo(retry.truncatedTo(ChronoUnit.MILLIS));
 		assertThat(service.get(r.id()).state()).isEqualTo("UNKNOWN_CREATE");
 	}
 
@@ -524,12 +524,12 @@ class MarketPublicationIntegrationTest {
 		var old = service.claim(MarketType.CAFE24);
 		release();
 		var current = service.claim(MarketType.CAFE24);
-		Instant retry = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(300);
+		Instant retry = Instant.now().plusSeconds(300);
 		service.finish(old, "VERIFY", "late", null, new MarketTransferFailure("HTTP_429", "limited", retry, null));
 		assertThat(gates.findById("CAFE24_ORIGIN_READ").orElseThrow().getLeaseToken()).isEqualTo(current.token());
 		assertThat(service.beginSetup(current)).isFalse();
 		assertThat(publicationTasks.findById(r.id()).orElseThrow().getSetupWrites()).isZero();
-		assertThat(gates.findById("CAFE24_ORIGIN_READ").orElseThrow().getNextAllowedAt()).isAfterOrEqualTo(retry);
+		assertThat(gates.findById("CAFE24_ORIGIN_READ").orElseThrow().getNextAllowedAt()).isAfterOrEqualTo(retry.truncatedTo(ChronoUnit.MILLIS));
 	}
 
 	@Test
@@ -603,7 +603,7 @@ class MarketPublicationIntegrationTest {
 	@Test
 	void previewHonorsExistingSharedCooldownBeforeCallingAdapter() {
 		deleted();
-		gates.saveAndFlush(new MarketInspectionGate("SMART_STORE_ORIGIN_READ", Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(300)));
+		gates.saveAndFlush(new MarketInspectionGate("SMART_STORE_ORIGIN_READ", Instant.now().plusSeconds(300)));
 		var r = service.prepare(List.of(new MarketPublicationService.Pair(product.getId(), MARKET)), "admin");
 		assertThat(r.prepared()).isEmpty();
 		assertThat(r.excluded().getFirst().reason()).contains("공용 호출 제한");
@@ -618,7 +618,7 @@ class MarketPublicationIntegrationTest {
 				org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive())
 				.isFalse();
 			MarketPreparationRequestScope.beforeRequest(MARKET);
-			MarketPreparationRequestScope.observedRateLimit(MARKET, Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(300));
+			MarketPreparationRequestScope.observedRateLimit(MARKET, Instant.now().plusSeconds(300));
 			MarketPreparationRequestScope.beforeRequest(MARKET);
 			throw new AssertionError("second request escaped");
 		});
@@ -627,7 +627,7 @@ class MarketPublicationIntegrationTest {
 		assertThat(r.excluded().getFirst().reason()).contains("다음 API 요청");
 		var gate = gates.findById("SMART_STORE_ORIGIN_READ").orElseThrow();
 		assertThat(gate.getLeaseToken()).isNull();
-		assertThat(gate.getNextAllowedAt()).isAfter(Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(290));
+		assertThat(gate.getNextAllowedAt()).isAfter(Instant.now().plusSeconds(290));
 		assertThatCode(() -> MarketPreparationRequestScope.beforeRequest(MarketType.CAFE24)).doesNotThrowAnyException();
 	}
 
@@ -635,7 +635,7 @@ class MarketPublicationIntegrationTest {
 	void swallowedPreparation429StillCannotStoreAReadyReview() {
 		deleted();
 		when(client.preparePublication(any(), any())).thenAnswer(call -> {
-			MarketPreparationRequestScope.observedRateLimit(MARKET, Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(300));
+			MarketPreparationRequestScope.observedRateLimit(MARKET, Instant.now().plusSeconds(300));
 			return new com.sbshop.agent.core.domain.market.client.dto.PreparedMarketPublication("{}", "account-A", "상품",
 				"50001", null, new BigDecimal("12300"), 300, "https://example.com/a.png");
 		});
@@ -652,8 +652,8 @@ class MarketPublicationIntegrationTest {
 		when(client.preparePublication(any(), any())).thenAnswer(call -> {
 			jdbc.update(
 				"update sb_market_inspection_gate set lease_token='new-worker',lease_until=? where id='SMART_STORE_ORIGIN_READ'",
-				java.sql.Timestamp.from(Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(180)));
-			MarketPreparationRequestScope.observedRateLimit(MARKET, Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(400));
+				java.sql.Timestamp.from(Instant.now().plusSeconds(180)));
+			MarketPreparationRequestScope.observedRateLimit(MARKET, Instant.now().plusSeconds(400));
 			MarketPreparationRequestScope.beforeRequest(MARKET);
 			throw new AssertionError("escaped");
 		});
@@ -661,7 +661,7 @@ class MarketPublicationIntegrationTest {
 		assertThat(r.prepared()).isEmpty();
 		var gate = gates.findById("SMART_STORE_ORIGIN_READ").orElseThrow();
 		assertThat(gate.getLeaseToken()).isEqualTo("new-worker");
-		assertThat(gate.getNextAllowedAt()).isAfter(Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(390));
+		assertThat(gate.getNextAllowedAt()).isAfter(Instant.now().plusSeconds(390));
 	}
 
 	@Test
@@ -703,13 +703,13 @@ class MarketPublicationIntegrationTest {
 
 	@Test
 	void readOnlyInputScopePreservesLate429AndNeverExposesPartialSuccess() {
-		Instant retry = Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(600);
+		Instant retry = Instant.now().plusSeconds(600);
 		assertThatThrownBy(() -> service.withPreparationReadScope(MARKET, () -> {
 			MarketPreparationRequestScope.observedRateLimit(MARKET, retry);
 			return "partial-addresses";
 		})).isInstanceOf(MarketPreparationRequestScope.Blocked.class);
 		var gate = gates.findById("SMART_STORE_ORIGIN_READ").orElseThrow();
-		assertThat(gate.getNextAllowedAt()).isAfterOrEqualTo(retry);
+		assertThat(gate.getNextAllowedAt()).isAfterOrEqualTo(retry.truncatedTo(ChronoUnit.MILLIS));
 		assertThat(gate.getLeaseToken()).isNull();
 		assertThat(MarketPreparationRequestScope.active()).isFalse();
 		assertThatThrownBy(() -> service.withPreparationReadScope(MARKET, () -> "should not call"))
@@ -720,7 +720,7 @@ class MarketPublicationIntegrationTest {
 	@Test
 	void readOnlyInputScopeRetainsNewOwnersLeaseAndStopsOnAccountSwitch() {
 		assertThatThrownBy(() -> service.withPreparationReadScope(MARKET, () -> {
-			jdbc.update("update sb_market_inspection_gate set lease_token='new-owner',lease_until=? where id='SMART_STORE_ORIGIN_READ'", Instant.now().truncatedTo(ChronoUnit.MILLIS).plusSeconds(300));
+			jdbc.update("update sb_market_inspection_gate set lease_token='new-owner',lease_until=? where id='SMART_STORE_ORIGIN_READ'", Instant.now().plusSeconds(300));
 			return "stale-owner";
 		})).isInstanceOf(MarketPreparationRequestScope.Blocked.class);
 		assertThat(gates.findById("SMART_STORE_ORIGIN_READ").orElseThrow().getLeaseToken()).isEqualTo("new-owner");
