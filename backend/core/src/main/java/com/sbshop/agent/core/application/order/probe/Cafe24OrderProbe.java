@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.order.probe;
 
 import java.util.List;
+import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
@@ -17,6 +18,8 @@ import lombok.RequiredArgsConstructor;
 @Component
 @RequiredArgsConstructor
 public class Cafe24OrderProbe implements MarketOrderProbe {
+	private static final Pattern CAFE24_ORDER_ID = Pattern.compile("^\\d{8}-\\d{7}$");
+
 	private final Cafe24OrderApiPort cafe24OrderApiPort;
 
 	@Override
@@ -29,6 +32,9 @@ public class Cafe24OrderProbe implements MarketOrderProbe {
 		String cafe24OrderId = order.getCafe24OrderId();
 		if (cafe24OrderId == null || cafe24OrderId.isBlank()) {
 			return OrderProbeResult.unknown("카페24 주문 아이디 없음");
+		}
+		if (!isCafe24OrderId(cafe24OrderId)) {
+			return OrderProbeResult.unknown("cafe24 주문번호 형식 아님: " + cafe24OrderId);
 		}
 		JsonNode detail;
 		try {
@@ -71,6 +77,10 @@ public class Cafe24OrderProbe implements MarketOrderProbe {
 				+ detail.path("shipping_status").asText(""));
 		}
 		return OrderProbeResult.found(stage, claim, marketTracking);
+	}
+
+	private static boolean isCafe24OrderId(String value) {
+		return CAFE24_ORDER_ID.matcher(value).matches();
 	}
 
 	private ShippingStatus mapShippingStatus(String code) {

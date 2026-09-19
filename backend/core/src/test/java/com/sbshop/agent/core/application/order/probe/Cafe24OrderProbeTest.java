@@ -1,8 +1,12 @@
 package com.sbshop.agent.core.application.order.probe;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -79,8 +83,8 @@ class Cafe24OrderProbeTest {
 	@Test
 	@DisplayName("order 가 비면 NOT_FOUND 다")
 	void notFound() throws Exception {
-		when(order.getCafe24OrderId()).thenReturn("없는번호");
-		when(port.fetchOrderDetail(eq("없는번호"))).thenReturn(mapper.readTree("null"));
+		when(order.getCafe24OrderId()).thenReturn("20260630-0000099");
+		when(port.fetchOrderDetail(eq("20260630-0000099"))).thenReturn(mapper.readTree("null"));
 
 		assertThat(probe.probe(order).status()).isEqualTo(OrderProbeStatus.NOT_FOUND);
 	}
@@ -182,6 +186,32 @@ class Cafe24OrderProbeTest {
 
 		assertThat(result.claim()).isNull();
 		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.DELIVERED);
+	}
+
+	@Test
+	@DisplayName("D-305: 카페24 주문번호 형식이 아니면 묻지 않고 UNKNOWN 이다 — marketOrderNo 폴백값으로 헛질문하지 않는다")
+	void nonCafe24OrderIdIsNotProbed() {
+		when(order.getCafe24OrderId()).thenReturn("4484301400");
+
+		OrderProbeResult result = probe.probe(order);
+
+		assertThat(result.status()).isEqualTo(OrderProbeStatus.UNKNOWN);
+		verify(port, never()).fetchOrderDetail(any());
+	}
+
+	@Test
+	@DisplayName("D-305: 카페24 주문번호 형식이면 지금까지처럼 마켓에 묻는다")
+	void cafe24FormattedOrderIdIsProbed() throws Exception {
+		when(order.getCafe24OrderId()).thenReturn("20260914-0000017");
+		when(port.fetchOrderDetail(eq("20260914-0000017")))
+			.thenReturn(mapper.readTree("{\"order_id\":\"20260914-0000017\","
+				+ "\"shipping_status\":\"T\",\"canceled\":\"F\"}"));
+
+		OrderProbeResult result = probe.probe(order);
+
+		assertThat(result.status()).isEqualTo(OrderProbeStatus.FOUND);
+		assertThat(result.shippingStatus()).isEqualTo(ShippingStatus.DELIVERED);
+		verify(port, times(1)).fetchOrderDetail(eq("20260914-0000017"));
 	}
 
 }
