@@ -6409,8 +6409,11 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 
 ### D-324 — can-agent·life-change 배포 표준화(sbshop 방식) — 공개 전환 대기
 
-- 심각도: 개선(P3) · 상태: 준비 완료(로컬 커밋, 미push) — 저장소 공개 전환(사용자) 후 진행
+- 심각도: 개선(P3) · 상태: 종결(2026-09-20 두 저장소 공개 전환 후 life-change 0f65ce8·can-agent 49f4607 main push·실서버 검증 완료)
 - 두 저장소(`/Users/jasonair/Projects/can-agent`·`life-change`)에 sbshop 방식을 이식: Actions `validate → tests ∥ 이미지 빌드(GHCR, arm64) → 서버 pull`, 공용 단일 서비스 `ops/deploy.sh`(잠금·정상 종료·지문·설정 해시 기록값 비교·prev 롤백·nginx 경유 라우팅 점검·자동 롤백 7/8·`ops/guard.sh` 훅), 커밋 SHA 12자 롤백, 수동 `deploy.sh` 는 워크플로 래퍼. 테스트 204건·변형 약 30건 사망, 검증자 재검토 6(조건부 PASS)→7(PASS).
 - 사전 조사: 이력 시크릿 스캔 깨끗, 두 Dockerfile 로컬 arm64 빌드 성공, can-agent 사이드카 pytest 38·gradle 270·life-change pytest 273 UTC 통과. 발견: 서버 정비 스크립트가 롤백 이미지를 지움(D-322), SIGKILL 퇴행(D-323), life-change 설정 해시 라벨 불일치, can-agent jar 재현 불가, life-change 의존성 미고정.
 - 미결(사용자 결정): 저장소 공개 전환, `ops/guard.sh`(장중·보유 포지션 배포 가드) 내용, life-change 의존성 고정, 첫 배포 시점(반드시 1회 재시작 — 서버 빌드 이미지→레지스트리 이미지 전환, 시장 마감 후 권장).
+- 결과(2026-09-20): CI 시험(임시 브랜치)에서 life-change pytest 26초·이미지 41초, can-agent gradle 78초+사이드카 16초·이미지 1분 52초 통과, 서버 익명 pull·arm64 단일 매니페스트 확인, 실행 설정은 life-change 동일·can-agent 는 기반 이미지 JDK 패치만 다름(17.0.19→17.0.20). life-change 는 사용자가 정석을 묻고 그대로 위임해 `constraints.txt`(운영 컨테이너 pip freeze 30개)로 의존성 고정 — 이미지 설치 목록이 운영과 완전 동일함을 확인. 첫 배포 전 거래 DB(`trades.sqlite`)·can-agent DB 덤프를 서버 `~/backups` 에 권한 600 으로 보관.
+- 라이브: life-change 파이프라인 1분 30초(교체~라우팅 통과 약 10초, 이미지 커밋 라벨·헬스 200·ERROR 0·trades 5169행 유지), can-agent 파이프라인 약 2분 30초(교체~라우팅 약 10초, Started 7.7초·Hikari 연결·ERROR 0). 실계좌 봇이라 실패 주입은 하지 않음. 가드(`ops/guard.sh`) 없이 배포하기로 사용자 결정.
+- 잔여: can-agent 사이드카 pip·apt 미고정(playwright 는 같은 빌드 안에서 브라우저와 짝), 라우팅 점검은 liveness 만 보증, `ops/guard.sh` 는 필요해지면 추가.
 
