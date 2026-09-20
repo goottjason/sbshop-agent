@@ -15,6 +15,7 @@ REGISTRY_PREFIX="${REGISTRY_PREFIX:-ghcr.io/goottjason/sbshop-agent}"
 IMAGE_TAG="${IMAGE_TAG:-}"
 IMAGE_PULL="${IMAGE_PULL:-1}"
 AUTO_ROLLBACK="${AUTO_ROLLBACK:-1}"
+ROLLBACK_WAIT_SEC="${ROLLBACK_WAIT_SEC:-90}"
 SCRAPER_CONTAINER="${SCRAPER_CONTAINER:-projects-sbshop-scraper-1}"
 LOCK_WAIT_SEC="${LOCK_WAIT_SEC:-900}"
 MIN_FREE_KB="${MIN_FREE_KB:-10485760}"
@@ -257,6 +258,7 @@ abort_partial() {
 
 auto_rollback() {
   local msg="$1" i svc tag ok=1 reload_needed=0 routes=1
+  local HEALTH_WAIT_SEC="$ROLLBACK_WAIT_SEC"
   [ "$AUTO_ROLLBACK" = 1 ] || return 1
   [ "${#REPLACED[@]}" -gt 0 ] || return 1
   warn "$msg — 자동 롤백을 시작합니다: ${REPLACED[*]}"
@@ -270,7 +272,9 @@ auto_rollback() {
     case "$svc" in sbshop-api|sbshop-frontend) reload_needed=1 ;; esac
   done
   if [ "$reload_needed" = 1 ]; then reload_nginx || { warn "롤백 후 nginx reload 실패"; routes=0; }; fi
-  for svc in "${REPLACED[@]}"; do check_service "$svc" "$routes" || ok=0; done
+  for svc in "${REPLACED[@]}"; do
+    if ! check_service "$svc" "$routes"; then ok=0; break; fi
+  done
   if [ "$ok" = 1 ]; then
     die "$msg — 자동 롤백 완료: 이전 버전으로 정상 동작합니다(이번 배포는 실패로 기록됩니다)" 7
   fi

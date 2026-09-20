@@ -9,14 +9,14 @@ assert_eq() { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "기대 [$2] 실�
 assert_contains() { case "$3" in *"$2"*) ok "$1";; *) bad "$1" "[$2] 없음 ← $3";; esac; }
 assert_not_contains() { case "$3" in *"$2"*) bad "$1" "[$2] 가 있으면 안 됨 ← $3";; *) ok "$1";; esac; }
 
-TMPD="$(mktemp -d)"; CALLLOG="$TMPD/calls.log"; BATCH_IDX_FILE="$TMPD/batch.idx"; HEALTH_N_FILE="$TMPD/health.n"; LOCKSTATE="$TMPD/lockstate"
+TMPD="$(mktemp -d)"; CALLLOG="$TMPD/calls.log"; BATCH_IDX_FILE="$TMPD/batch.idx"; HEALTH_N_FILE="$TMPD/health.n"; ROUTE_N_FILE="$TMPD/route.n"; LOCKSTATE="$TMPD/lockstate"
 trap 'rm -rf "$TMPD"' EXIT
 
 new_env() {
-  : > "$CALLLOG"; : > "$LOCKSTATE"; echo 0 > "$BATCH_IDX_FILE"; echo 0 > "$HEALTH_N_FILE"; rm -f "$TMPD"/replaced.* "$TMPD"/pending.* "$TMPD"/rolledback.*; rm -rf "$TMPD/state"
+  : > "$CALLLOG"; : > "$LOCKSTATE"; echo 0 > "$BATCH_IDX_FILE"; echo 0 > "$HEALTH_N_FILE"; echo 0 > "$ROUTE_N_FILE"; rm -f "$TMPD"/replaced.* "$TMPD"/pending.* "$TMPD"/rolledback.*; rm -rf "$TMPD/state"
   OUT_PS=""; OUT_BATCH=("0"); BATCH_FAIL=0
   declare -gA BUILT=() FPC=() RUNNING=() TAGS=() HASH_RUN=() HASH_WANT=()
-  SCRAPER_BODY='{"ok":true,"scrapers":["FTN"]}'; BAD_SVC=""; BAD_KIND="both"; BAD_STICKY=0; ROUTE_API_CODE=401; ROUTE_FE_CODE=200; RETAG_FAIL=0; PULL_RC=0; PULL_FAIL_SVC=""; HEALTH_BODY=""; UP_FAIL_SVC=""; STALE_SVC=""; TAG_FAIL=0; TAG_FAIL_SVC=""; BUILD_RC=0; UP_RC=0; NGINX_RC=0; STALE_AFTER_UP=0; HEALTH_UP_AFTER=1; DF_AVAIL=99999999; SLEPT=0
+  ROUTE_OK_AFTER=1; SCRAPER_BODY='{"ok":true,"scrapers":["FTN"]}'; BAD_SVC=""; BAD_KIND="both"; BAD_STICKY=0; ROUTE_API_CODE=401; ROUTE_FE_CODE=200; RETAG_FAIL=0; PULL_RC=0; PULL_FAIL_SVC=""; HEALTH_BODY=""; UP_FAIL_SVC=""; STALE_SVC=""; TAG_FAIL=0; TAG_FAIL_SVC=""; BUILD_RC=0; UP_RC=0; NGINX_RC=0; STALE_AFTER_UP=0; HEALTH_UP_AFTER=1; DF_AVAIL=99999999; SLEPT=0
   export AUTO_ROLLBACK=0 IMAGE_PULL=1 IMAGE_TAG="" REGISTRY_PREFIX="ghcr.io/goottjason/sbshop-agent" FORCE=0 RECREATE="" DRY_RUN=0 POLL_SEC=1 BATCH_WAIT_SEC=3 HEALTH_WAIT_SEC=4 HEALTH_POLL_SEC=1 MIN_FREE_KB=10485760 KEEP_PREV=3
   export LOCK_FILE="$TMPD/lock" COMPOSE_DIR="$HERE/.." STATE_DIR="$TMPD/state"
 }
@@ -64,7 +64,9 @@ docker() {
                 local i; i="$(cat "$BATCH_IDX_FILE")"; echo "${OUT_BATCH[$i]}"
                 [ "$i" -lt $((${#OUT_BATCH[@]} - 1)) ] && echo $((i + 1)) > "$BATCH_IDX_FILE"; return 0 ;;
         *"projects-nginx-1 curl"*)
-                local ru="${*: -1}"
+                local ru="${*: -1}" rn
+                rn=$(( $(cat "$ROUTE_N_FILE") + 1 )); echo "$rn" > "$ROUTE_N_FILE"
+                if [ "$rn" -lt "$ROUTE_OK_AFTER" ]; then echo 502; return 0; fi
                 case "$ru" in
                   */sbshop-agent/api/*) if bad_now sbshop-api route; then echo 502; else echo "$ROUTE_API_CODE"; fi ;;
                   *) if bad_now sbshop-frontend route; then echo 502; else echo "$ROUTE_FE_CODE"; fi ;;
@@ -419,6 +421,8 @@ d="$(env -i HOME=/h PATH="$PATH" bash -c 'source "$1"; echo "[$IMAGE_TAG]|$REGIS
 assert_eq "IMAGE_TAG 기본은 비어 있고(서버 빌드 폴백) 레지스트리 접두어는 GHCR" "[]|ghcr.io/goottjason/sbshop-agent" "$d"
 d="$(env -i HOME=/h PATH="$PATH" bash -c 'source "$1"; echo "$AUTO_ROLLBACK|$IMAGE_PULL|$SCRAPER_CONTAINER"' _ "$HERE/../deploy.sh")"
 assert_eq "자동 롤백은 기본 켬, pull 기본 켬, scraper 컨테이너 이름" "1|1|projects-sbshop-scraper-1" "$d"
+d="$(env -i HOME=/h PATH="$PATH" bash -c 'source "$1"; echo "$ROLLBACK_WAIT_SEC"' _ "$HERE/../deploy.sh")"
+assert_eq "롤백 뒤 재점검 대기 예산 기본 90초" "90" "$d"
 
 echo "[die] 메시지에 종료코드가 섞이지 않는다"
 o="$( ( die "테스트 메시지" 4 ) 2>&1 )"; rc=$?
@@ -707,6 +711,46 @@ assert_contains "frontend 라우팅" "http://127.0.0.1/sbshop-agent/" "$c"
 assert_contains "scraper 헬스" "projects-sbshop-scraper-1 curl -fsS -m 5 http://127.0.0.1:8099/health" "$c"
 r=$(index_of "nginx -s reload"); h=$(index_of "projects-sbshop-api-1 curl"); ro=$(index_of "projects-nginx-1 curl")
 [ "$r" -ge 0 ] && [ "$r" -lt "$h" ] && [ "$h" -lt "$ro" ] && ok "순서: nginx reload → api 헬스 → 라우팅" || bad "순서가 틀림" "reload=$r health=$h route=$ro"
+
+echo "[wait_ok] 교체 직후 잠깐 502 여도 재시도해서 통과한다(upstream 이 자리 잡는 동안의 완충)"
+new_env; ROUTE_OK_AFTER=3; set_all_same
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+run_main; rc=$?
+assert_eq "세 번째 시도에 통과해 정상 종료" 0 "$rc"
+assert_eq "라우팅을 세 번 시도했다" 3 "$(count_of 'projects-nginx-1 curl')"
+new_env; ROUTE_OK_AFTER=999; set_all_same
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+run_main; rc=$?
+assert_eq "끝내 502 면 코드 6" 6 "$rc"
+assert_eq "제한 시간(4초·1초 간격)만큼만 시도한다" 4 "$(count_of 'projects-nginx-1 curl')"
+
+echo "[main] frontend 만 교체하면 frontend 라우팅만 점검하고 api·scraper 는 점검하지 않는다"
+new_env; set_all_same
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+run_main; rc=$?; c="$(calls_str)"
+assert_eq "정상 종료" 0 "$rc"
+assert_contains "frontend 라우팅을 본다" "http://127.0.0.1/sbshop-agent/" "$c"
+assert_not_contains "api 경로는 보지 않는다" "/sbshop-agent/api/" "$c"
+assert_not_contains "api 헬스는 보지 않는다" "projects-sbshop-api-1 curl" "$c"
+assert_not_contains "scraper 는 보지 않는다" "projects-sbshop-scraper-1 curl" "$c"
+
+echo "[main] nginx reload 가 실패하면 frontend 라우팅 점검도 건너뛴다(코드 5)"
+new_env; NGINX_RC=1; set_all_same
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+run_main; rc=$?
+assert_eq "코드 5 로 종료" 5 "$rc"
+assert_not_contains "라우팅을 점검하지 않는다" "projects-nginx-1 curl" "$(calls_str)"
+
+echo "[main] 자동 롤백 재점검은 짧은 별도 예산을 쓰고, 한 서비스가 끝내 실패하면 나머지는 보지 않는다"
+new_env; AUTO_ROLLBACK=1; ROLLBACK_WAIT_SEC=2
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="new-fe"; RUNNING[projects-sbshop-frontend-1]="old-fe"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+BAD_SVC="sbshop-api"; BAD_STICKY=1
+run_main; rc=$?
+assert_eq "코드 8 로 종료" 8 "$rc"
+assert_eq "api 헬스: 교체 직후 4번 + 롤백 뒤 2번(예산 2초)" 6 "$(count_of 'projects-sbshop-api-1 curl')"
+assert_eq "api 가 실패했으니 frontend 라우팅은 시도하지 않는다" 0 "$(count_of 'projects-nginx-1 curl')"
 
 echo "[api_routed] api 에 닿은 응답(200·301·302·401·403)은 정상, 게이트웨이 오류(502·504·연결 실패)만 비정상"
 for c in 200 301 302 401 403; do new_env; ROUTE_API_CODE=$c; api_routed && ok "정상: $c" || bad "정상이어야 함: $c"; done
