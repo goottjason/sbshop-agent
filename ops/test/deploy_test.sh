@@ -16,8 +16,8 @@ new_env() {
   : > "$CALLLOG"; : > "$LOCKSTATE"; echo 0 > "$BATCH_IDX_FILE"; echo 0 > "$HEALTH_N_FILE"; echo 0 > "$ROUTE_N_FILE"; rm -f "$TMPD"/replaced.* "$TMPD"/pending.* "$TMPD"/rolledback.*; rm -rf "$TMPD/state"
   OUT_PS=""; OUT_BATCH=("0"); BATCH_FAIL=0
   declare -gA BUILT=() FPC=() RUNNING=() TAGS=() HASH_RUN=() HASH_WANT=()
-  ROUTE_OK_AFTER=1; SCRAPER_BODY='{"ok":true,"scrapers":["FTN"]}'; BAD_SVC=""; BAD_KIND="both"; BAD_STICKY=0; ROUTE_API_CODE=401; ROUTE_FE_CODE=200; RETAG_FAIL=0; PULL_RC=0; PULL_FAIL_SVC=""; HEALTH_BODY=""; UP_FAIL_SVC=""; STALE_SVC=""; TAG_FAIL=0; TAG_FAIL_SVC=""; BUILD_RC=0; UP_RC=0; NGINX_RC=0; STALE_AFTER_UP=0; HEALTH_UP_AFTER=1; DF_AVAIL=99999999; SLEPT=0
-  export AUTO_ROLLBACK=0 IMAGE_PULL=1 IMAGE_TAG="" REGISTRY_PREFIX="ghcr.io/goottjason/sbshop-agent" FORCE=0 RECREATE="" DRY_RUN=0 POLL_SEC=1 BATCH_WAIT_SEC=3 HEALTH_WAIT_SEC=4 HEALTH_POLL_SEC=1 MIN_FREE_KB=10485760 KEEP_PREV=3
+  ROUTE_OK_AFTER=1; SCRAPER_BODY='{"ok":true,"scrapers":["FTN"]}'; STOP_RC=0; BAD_SVC=""; BAD_KIND="both"; BAD_STICKY=0; ROUTE_API_CODE=401; ROUTE_FE_CODE=200; RETAG_FAIL=0; PULL_RC=0; PULL_FAIL_SVC=""; HEALTH_BODY=""; UP_FAIL_SVC=""; STALE_SVC=""; TAG_FAIL=0; TAG_FAIL_SVC=""; BUILD_RC=0; UP_RC=0; NGINX_RC=0; STALE_AFTER_UP=0; HEALTH_UP_AFTER=1; DF_AVAIL=99999999; SLEPT=0
+  export STOP_TIMEOUT=30 AUTO_ROLLBACK=0 IMAGE_PULL=1 IMAGE_TAG="" REGISTRY_PREFIX="ghcr.io/goottjason/sbshop-agent" FORCE=0 RECREATE="" DRY_RUN=0 POLL_SEC=1 BATCH_WAIT_SEC=3 HEALTH_WAIT_SEC=4 HEALTH_POLL_SEC=1 MIN_FREE_KB=10485760 KEEP_PREV=3
   export LOCK_FILE="$TMPD/lock" COMPOSE_DIR="$HERE/.." STATE_DIR="$TMPD/state"
 }
 
@@ -49,6 +49,7 @@ docker() {
                        case "${*: -1}" in sbshop-agent-"${TAG_FAIL_SVC:-sbshop}"*) return 1 ;; esac
                      fi ;;
          esac ;;
+    stop) return "$STOP_RC" ;;
     rmi) case "${*: -1}" in *:pending-prev) local rn="${*: -1}"; rm -f "$TMPD/pending.${rn%:pending-prev}" ;; esac ;;
     inspect)
       local c="${*: -1}" svc img
@@ -421,8 +422,8 @@ d="$(env -i HOME=/h PATH="$PATH" bash -c 'source "$1"; echo "[$IMAGE_TAG]|$REGIS
 assert_eq "IMAGE_TAG 기본은 비어 있고(서버 빌드 폴백) 레지스트리 접두어는 GHCR" "[]|ghcr.io/goottjason/sbshop-agent" "$d"
 d="$(env -i HOME=/h PATH="$PATH" bash -c 'source "$1"; echo "$AUTO_ROLLBACK|$IMAGE_PULL|$SCRAPER_CONTAINER"' _ "$HERE/../deploy.sh")"
 assert_eq "자동 롤백은 기본 켬, pull 기본 켬, scraper 컨테이너 이름" "1|1|projects-sbshop-scraper-1" "$d"
-d="$(env -i HOME=/h PATH="$PATH" bash -c 'source "$1"; echo "$ROLLBACK_WAIT_SEC"' _ "$HERE/../deploy.sh")"
-assert_eq "롤백 뒤 재점검 대기 예산 기본 90초" "90" "$d"
+d="$(env -i HOME=/h PATH="$PATH" bash -c 'source "$1"; echo "$ROLLBACK_WAIT_SEC $STOP_TIMEOUT"' _ "$HERE/../deploy.sh")"
+assert_eq "롤백 뒤 재점검 대기 예산 90초, 정상 종료 대기 30초" "90 30" "$d"
 
 echo "[die] 메시지에 종료코드가 섞이지 않는다"
 o="$( ( die "테스트 메시지" 4 ) 2>&1 )"; rc=$?
@@ -559,6 +560,33 @@ echo "[main] DRY_RUN 은 빌드를 건너뛰므로 변경 판정이 이미 있�
 new_env; DRY_RUN=1; set_all_same
 run_main
 assert_contains "안내 문구" "빌드를 건너뛰" "$(cat "$TMPD/out")"
+
+echo "[replace_service] 강제 종료(SIGKILL) 전에 정상 종료(SIGTERM)를 먼저 시도한다"
+new_env; set_all_same
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+run_main; c="$(calls_str)"
+st=$(index_of "docker stop -t 30 projects-sbshop-api-1"); rm_=$(index_of "rm -f projects-sbshop-api-1")
+[ "$st" -ge 0 ] && [ "$st" -lt "$rm_" ] && ok "stop 이 rm -f 보다 먼저" || bad "stop 이 rm -f 보다 먼저여야 함" "stop=$st rm=$rm_"
+assert_not_contains "바뀌지 않은 서비스는 내리지 않는다" "docker stop -t 30 projects-sbshop-frontend-1" "$c"
+new_env; set_all_same; STOP_TIMEOUT=45
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+run_main
+assert_contains "STOP_TIMEOUT 을 따른다" "docker stop -t 45 projects-sbshop-api-1" "$(calls_str)"
+new_env; set_all_same; STOP_RC=1
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+run_main; rc=$?
+assert_eq "stop 이 실패해도 교체는 계속한다" 0 "$rc"
+assert_contains "rm -f 로 마무리" "rm -f projects-sbshop-api-1" "$(calls_str)"
+new_env; AUTO_ROLLBACK=1
+BUILT[sbshop-agent-sbshop-api]="new-api"; RUNNING[projects-sbshop-api-1]="old-api"
+BUILT[sbshop-agent-sbshop-frontend]="f"; RUNNING[projects-sbshop-frontend-1]="f"
+BUILT[sbshop-agent-sbshop-scraper]="s"; RUNNING[projects-sbshop-scraper-1]="s"
+BAD_SVC="sbshop-api"
+run_main
+assert_eq "자동 롤백의 교체도 정상 종료를 먼저 시도한다(stop 두 번)" 2 "$(count_of 'docker stop -t 30 projects-sbshop-api-1')"
+new_env; TAGS[sbshop-agent-sbshop-scraper]=$'latest\nprev-20260105-000001'; BUILT[sbshop-agent-sbshop-scraper]="rolled"
+( set -euo pipefail; rollback_service sbshop-scraper ) >"$TMPD/out" 2>&1
+assert_contains "수동 롤백의 교체도 정상 종료를 먼저 시도한다" "docker stop -t 30 projects-sbshop-scraper-1" "$(calls_str)"
 
 echo "[rollback_service] 롤백도 배포와 같은 사후 확인을 한다"
 new_env; TAGS[sbshop-agent-sbshop-api]=$'latest\nprev-20260105-000001'; BUILT[sbshop-agent-sbshop-api]="rolled"; UP_RC=1

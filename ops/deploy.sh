@@ -16,6 +16,7 @@ IMAGE_TAG="${IMAGE_TAG:-}"
 IMAGE_PULL="${IMAGE_PULL:-1}"
 AUTO_ROLLBACK="${AUTO_ROLLBACK:-1}"
 ROLLBACK_WAIT_SEC="${ROLLBACK_WAIT_SEC:-90}"
+STOP_TIMEOUT="${STOP_TIMEOUT:-30}"
 SCRAPER_CONTAINER="${SCRAPER_CONTAINER:-projects-sbshop-scraper-1}"
 LOCK_WAIT_SEC="${LOCK_WAIT_SEC:-900}"
 MIN_FREE_KB="${MIN_FREE_KB:-10485760}"
@@ -243,6 +244,7 @@ tag_prev() {
 replace_service() {
   local svc="$1"
   log "교체: $svc"
+  run docker stop -t "$STOP_TIMEOUT" "$(container_of "$svc")" >/dev/null 2>&1 || true
   run docker rm -f "$(container_of "$svc")" >/dev/null 2>&1 || true
   (cd "$COMPOSE_DIR" && run docker compose up -d --no-build --no-deps "$svc") || return 4
 }

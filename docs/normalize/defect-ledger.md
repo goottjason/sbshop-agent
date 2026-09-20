@@ -6401,3 +6401,9 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 수정: 정비를 함수로 나누고 `prune_old_unused_images` 를 새로 구현 — 컨테이너가 쓰지 않고 7일이 지난 이미지의 태그만 떼되 `:latest`·`:prev-YYYYMMDD-HHMMSS`·`:pending-prev` 는 보호, 태그 없는(dangling) 이미지는 `image prune -f`(-a 없음)로 정리. 볼륨·컨테이너는 그대로 건드리지 않고, 빌드 캐시 상한·디스크 85% 경고·배포와의 공용 잠금 유지. 실서버 읽기 전용 확인: 현재 삭제 후보 없음(새·옛 스크립트 동일).
 - 파급: sbshop-agent·can-agent·life-change 세 파이프라인 모두 같은 서버 정비를 공유한다.
 
+### D-323 — 배포 스크립트가 컨테이너를 SIGKILL 로 내린다(퇴행)
+
+- 심각도: 중 · 상태: 수정완료(테스트 +7, 변형 5건 중 4건 사망·1건 동치, 실서버 확인 대기)
+- 옛 배포(`compose up`)는 컨테이너를 SIGTERM 으로 정상 종료(기본 10초 대기)했는데, 새 `ops/deploy.sh` 의 `replace_service` 는 `docker rm -f`(SIGKILL) 만 써서 JVM 종료 훅·진행 중 작업 정리가 돌지 않는다(D-313 이후 도입한 방식이 낳은 퇴행. can-agent·life-change 표준화 검증 중 검증자가 지적).
+- 수정: 교체 전 `docker stop -t $STOP_TIMEOUT`(기본 30초)로 정상 종료를 먼저 시도하고 실패해도 `rm -f` 로 마무리. 자동 롤백·수동 롤백 교체에도 동일하게 적용.
+
