@@ -6407,3 +6407,10 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 옛 배포(`compose up`)는 컨테이너를 SIGTERM 으로 정상 종료(기본 10초 대기)했는데, 새 `ops/deploy.sh` 의 `replace_service` 는 `docker rm -f`(SIGKILL) 만 써서 JVM 종료 훅·진행 중 작업 정리가 돌지 않는다(D-313 이후 도입한 방식이 낳은 퇴행. can-agent·life-change 표준화 검증 중 검증자가 지적).
 - 수정: 교체 전 `docker stop -t $STOP_TIMEOUT`(기본 30초)로 정상 종료를 먼저 시도하고 실패해도 `rm -f` 로 마무리. 자동 롤백·수동 롤백 교체에도 동일하게 적용.
 
+### D-324 — can-agent·life-change 배포 표준화(sbshop 방식) — 공개 전환 대기
+
+- 심각도: 개선(P3) · 상태: 준비 완료(로컬 커밋, 미push) — 저장소 공개 전환(사용자) 후 진행
+- 두 저장소(`/Users/jasonair/Projects/can-agent`·`life-change`)에 sbshop 방식을 이식: Actions `validate → tests ∥ 이미지 빌드(GHCR, arm64) → 서버 pull`, 공용 단일 서비스 `ops/deploy.sh`(잠금·정상 종료·지문·설정 해시 기록값 비교·prev 롤백·nginx 경유 라우팅 점검·자동 롤백 7/8·`ops/guard.sh` 훅), 커밋 SHA 12자 롤백, 수동 `deploy.sh` 는 워크플로 래퍼. 테스트 204건·변형 약 30건 사망, 검증자 재검토 6(조건부 PASS)→7(PASS).
+- 사전 조사: 이력 시크릿 스캔 깨끗, 두 Dockerfile 로컬 arm64 빌드 성공, can-agent 사이드카 pytest 38·gradle 270·life-change pytest 273 UTC 통과. 발견: 서버 정비 스크립트가 롤백 이미지를 지움(D-322), SIGKILL 퇴행(D-323), life-change 설정 해시 라벨 불일치, can-agent jar 재현 불가, life-change 의존성 미고정.
+- 미결(사용자 결정): 저장소 공개 전환, `ops/guard.sh`(장중·보유 포지션 배포 가드) 내용, life-change 의존성 고정, 첫 배포 시점(반드시 1회 재시작 — 서버 빌드 이미지→레지스트리 이미지 전환, 시장 마감 후 권장).
+
