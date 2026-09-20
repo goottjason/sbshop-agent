@@ -122,6 +122,7 @@ jobs:
             git fetch origin main
             git reset --hard "$GIT_SHA"
             bash ops/test/deploy_test.sh
+            bash ops/test/maintenance_test.sh
             if [ -n "$ROLLBACK" ]; then
               ./ops/deploy.sh rollback "$ROLLBACK" ${ROLLBACK_TAG:+"$ROLLBACK_TAG"}
             else
