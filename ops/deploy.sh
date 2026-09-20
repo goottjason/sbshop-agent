@@ -283,7 +283,7 @@ auto_rollback() {
 
 fail_deploy() {
   auto_rollback "$1" || true
-  abort_partial "$1" "$2" "$3"
+  abort_partial "$1${4:+ — $4}" "$2" "$3"
 }
 
 replace_failure_message() {
@@ -457,7 +457,7 @@ main() {
   if [ "$nginx_failed" = 1 ]; then routes=0; fi
   for svc in "${changed[@]}"; do
     if ! check_service "$svc" "$routes"; then
-      fail_deploy "$svc 점검 실패$([ "$nginx_failed" = 1 ] && echo ' (nginx reload 실패도 있었습니다)') — 롤백하려면: ./ops/deploy.sh rollback $svc" 6 0
+      fail_deploy "$svc 점검 실패$([ "$nginx_failed" = 1 ] && echo ' (nginx reload 실패도 있었습니다)')" 6 0 "롤백하려면: ./ops/deploy.sh rollback $svc"
     fi
   done
   for svc in "${changed[@]}"; do record_fingerprint "$svc"; done

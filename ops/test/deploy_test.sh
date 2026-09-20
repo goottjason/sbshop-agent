@@ -780,6 +780,7 @@ assert_eq "nginx 를 다시 읽힌다(교체 후·롤백 후)" 2 "$(count_of 'ng
 assert_eq "api 지문은 옛 값 그대로(다음 배포에서 재시도)" "$(fp_of old-api)" "$(cat "$STATE_DIR/sbshop-api.fp")"
 assert_eq "frontend 지문도 옛 값 그대로" "$(fp_of old-fe)" "$(cat "$STATE_DIR/sbshop-frontend.fp")"
 assert_not_contains "배포 완료라고 하지 않는다" "배포 완료" "$o"
+assert_not_contains "이미 롤백했는데 수동 롤백 안내를 붙이지 않는다" "롤백하려면" "$o"
 fe=$(index_of "docker tag sbshop-agent-sbshop-frontend:prev-"); ap=$(index_of "docker tag sbshop-agent-sbshop-api:prev-")
 [ "$fe" -ge 0 ] && [ "$fe" -lt "$ap" ] && ok "교체의 역순으로 되돌린다(frontend → api)" || bad "역순이어야 함" "frontend=$fe api=$ap"
 
@@ -802,6 +803,7 @@ BAD_SVC="sbshop-api"
 run_main; rc=$?; c="$(calls_str)"
 assert_eq "코드 6 으로 종료" 6 "$rc"
 assert_not_contains "이전 이미지로 되돌리지 않는다" "docker tag sbshop-agent-sbshop-api:prev-" "$c"
+assert_contains "자동 롤백을 못 하는 경우에는 수동 롤백 방법을 안내한다" "롤백하려면: ./ops/deploy.sh rollback sbshop-api" "$(cat "$TMPD/out")"
 
 echo "[main] 라우팅만 비정상(nginx→api 502)이어도 자동 롤백한다"
 new_env; AUTO_ROLLBACK=1
