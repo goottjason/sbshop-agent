@@ -187,7 +187,7 @@ public class Cafe24OrderSyncService {
 			.recipientPhone(firstNonBlank(text(receiver, "cellphone"), text(receiver, "phone")))
 			.zipcode(text(receiver, "zipcode"))
 			.address(receiverAddress(receiver))
-			.message(text(receiver, "shipping_message"))
+			.message(normalizeShippingMessage(text(receiver, "shipping_message")))
 			.customsData(pccc != null ? CustomsData.builder().customsClearanceNo(pccc).build() : null)
 			.ordererName(firstNonBlank(text(buyer, "name"), text(o, "order_place_name")))
 			.ordererPhone(firstNonBlank(text(buyer, "cellphone"), text(buyer, "phone")))
@@ -303,6 +303,18 @@ public class Cafe24OrderSyncService {
 		"customs_clearance_code", "clearance_code", "customs_no", "personal_customs_number", "pccc"
 	};
 
+	private static String normalizeShippingMessage(String message) {
+		if (message == null) {
+			return null;
+		}
+		String prefix = "[고객배송메모]";
+		String normalized = message;
+		while (normalized.stripLeading().startsWith(prefix)) {
+			normalized = normalized.stripLeading().substring(prefix.length()).stripLeading();
+		}
+		return normalized;
+	}
+
 	private String text(JsonNode node, String field) {
 		if (node == null) {
 			return null;
@@ -362,12 +374,13 @@ public class Cafe24OrderSyncService {
 
 		List<OrderLineItem> lineItems = orderLineItemRepository.findByOrderId(order.getId());
 		boolean protectAddress = lineItems.stream().anyMatch(OrderLineItem::isProgressed);
+		order.normalizeMessage(Cafe24OrderSyncService::normalizeShippingMessage);
 		order.update(
 			text(receiver, "name"),
 			firstNonBlank(text(receiver, "cellphone"), text(receiver, "phone")),
 			protectAddress ? null : text(receiver, "zipcode"),
 			protectAddress ? null : receiverAddress(receiver),
-			text(receiver, "shipping_message"),
+			normalizeShippingMessage(text(receiver, "shipping_message")),
 			firstNonBlank(text(buyer, "name"), text(o, "order_place_name")),
 			firstNonBlank(text(buyer, "cellphone"), text(buyer, "phone")),
 			marketType);

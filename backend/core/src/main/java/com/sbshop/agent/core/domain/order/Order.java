@@ -4,6 +4,7 @@ import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 import org.hibernate.annotations.JdbcTypeCode;
 
@@ -130,6 +131,12 @@ public class Order extends BaseEntity {
 
 	public void updateAddress(String address) {
 		this.address = address;
+	}
+
+	/** Normalize both values so formatting changes do not overwrite a manually edited message. */
+	public void normalizeMessage(UnaryOperator<String> normalizer) {
+		this.message = normalizer.apply(this.message);
+		this.lastMarketMessage = normalizer.apply(this.lastMarketMessage);
 	}
 
 	public void updateMessage(String message) {

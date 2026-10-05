@@ -37,10 +37,14 @@ import com.sbshop.agent.core.domain.order.repository.OrderLineItemRepository;
 import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -358,6 +362,76 @@ class Cafe24OrderSyncServiceTest {
 		ArgumentCaptor<OrderLineItem> itemCaptor = ArgumentCaptor.forClass(OrderLineItem.class);
 		verify(orderLineItemRepository, atLeastOnce()).save(itemCaptor.capture());
 		assertThat(lastOf(itemCaptor).getProductId()).isNull();
+	}
+
+	@ParameterizedTest
+	@MethodSource("shippingMessages")
+	void shouldNormalizeCustomerMemoPrefixWhenCreatingOrder(String raw, String expected) throws Exception {
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
+			.thenReturn(ordersWithShippingMessage(raw));
+		when(orderRepository.findByMarketOrderNo("GM123")).thenReturn(Optional.empty());
+		service.fetchAndPersist(LocalDate.now().minusDays(7), LocalDate.now());
+		ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+		verify(orderRepository).save(captor.capture());
+		assertThat(captor.getValue().getMessage()).isEqualTo(expected);
+	}
+
+	@ParameterizedTest
+	@MethodSource("shippingMessages")
+	void shouldNormalizeExistingMessageAndSnapshotOnRepeatedSync(String raw, String expected) throws Exception {
+		Order existing = Order.builder().marketType(MarketType.GMARKET).marketOrderNo("GM123")
+			.message(raw).build();
+		existing.update(null, null, null, null, raw, null, null, MarketType.GMARKET);
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
+			.thenReturn(ordersWithShippingMessage(raw));
+		when(orderRepository.findByMarketOrderNo("GM123")).thenReturn(Optional.of(existing));
+		service.fetchAndPersist(LocalDate.now().minusDays(7), LocalDate.now());
+		service.fetchAndPersist(LocalDate.now().minusDays(7), LocalDate.now());
+		assertThat(existing.getMessage()).isEqualTo(expected);
+		if (raw != null && !raw.isBlank()) {
+			assertThat(existing.getLastMarketMessage()).isEqualTo(expected);
+		}
+	}
+
+	@Test
+	void shouldPreserveManualMessageWhenOnlyMarketPrefixChangesButAcceptNewMarketText() throws Exception {
+		String raw = "[고객배송메모] 문 앞에 놓아 주세요";
+		Order existing = Order.builder().marketType(MarketType.GMARKET).marketOrderNo("GM123").build();
+		existing.update(null, null, null, null, raw, null, null, MarketType.GMARKET);
+		existing.updateMessage("경비실에 맡겨 주세요");
+		when(cafe24OrderApiPort.fetchOrders(anyString(), anyString(), eq(100), eq(0)))
+			.thenReturn(ordersWithShippingMessage(raw),
+				ordersWithShippingMessage("문 앞에 놓아 주세요"),
+				ordersWithShippingMessage("[고객배송메모] 배송 전에 연락 주세요"));
+		when(orderRepository.findByMarketOrderNo("GM123")).thenReturn(Optional.of(existing));
+		service.fetchAndPersist(LocalDate.now().minusDays(7), LocalDate.now());
+		assertThat(existing.getMessage()).isEqualTo("경비실에 맡겨 주세요");
+		assertThat(existing.getLastMarketMessage()).isEqualTo("문 앞에 놓아 주세요");
+		service.fetchAndPersist(LocalDate.now().minusDays(7), LocalDate.now());
+		assertThat(existing.getMessage()).isEqualTo("경비실에 맡겨 주세요");
+		service.fetchAndPersist(LocalDate.now().minusDays(7), LocalDate.now());
+		assertThat(existing.getMessage()).isEqualTo("배송 전에 연락 주세요");
+	}
+
+	private static Stream<Arguments> shippingMessages() {
+		return Stream.of(
+			Arguments.of("[고객배송메모] 문 앞", "문 앞"),
+			Arguments.of(" \t[고객배송메모]\n [고객배송메모]  문 앞  ", "문 앞  "),
+			Arguments.of("[고객배송메모]", ""),
+			Arguments.of("[고객배송메모]   ", ""),
+			Arguments.of(null, null),
+			Arguments.of("", ""),
+			Arguments.of("  ", "  "),
+			Arguments.of("  문 앞  ", "  문 앞  "),
+			Arguments.of("[판매자메모] 문 앞", "[판매자메모] 문 앞"),
+			Arguments.of("안내 [고객배송메모] 문 앞", "안내 [고객배송메모] 문 앞"));
+	}
+
+	private JsonNode ordersWithShippingMessage(String message) throws Exception {
+		JsonNode orders = ordersJson();
+		((com.fasterxml.jackson.databind.node.ObjectNode) orders.get(0).path("receivers").get(0))
+			.put("shipping_message", message);
+		return orders;
 	}
 
 	private MarketRegistration registration(Long sbProductId, String identifiers) {
