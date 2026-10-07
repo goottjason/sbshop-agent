@@ -24,7 +24,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class ScraplingIherbClient implements BestsellerCrawlerPort, ProductDetailCrawlerPort {
 
-	private static final int SECONDS_PER_PAGE = 45;
+	private static final int SECONDS_PER_PAGE = 90;
 	private static final Duration DETAIL_TIMEOUT = Duration.ofSeconds(120);
 	private static final Duration MIN_DISCOVER_TIMEOUT = Duration.ofMinutes(3);
 	private static final Duration MAX_DISCOVER_TIMEOUT = Duration.ofMinutes(30);

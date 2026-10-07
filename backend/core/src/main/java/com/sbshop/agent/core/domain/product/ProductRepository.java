@@ -31,7 +31,11 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
 	List<Product> findAllByIdIn(List<Long> ids);
 
-	@Query("SELECT MAX(p.sbCode) FROM Product p WHERE p.sbCode LIKE CONCAT(:prefix, '%')")
+	@Query("""
+		SELECT MAX(p.sbCode) FROM Product p WHERE p.sbCode LIKE CONCAT(:prefix, '%')
+		AND LENGTH(p.sbCode) = (SELECT MAX(LENGTH(other.sbCode)) FROM Product other
+		    WHERE other.sbCode LIKE CONCAT(:prefix, '%'))
+		""")
 	Optional<String> findMaxSbCodeByPrefix(@Param("prefix")
 	String prefix);
 

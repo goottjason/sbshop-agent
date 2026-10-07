@@ -15,6 +15,7 @@ import com.sbshop.agent.core.domain.sourcing.repository.ProductDraftRepository;
 import com.sbshop.agent.core.domain.sourcing.repository.SourcingCandidateRepository;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -86,25 +87,77 @@ public class SourcingQueryService {
 
 	@Transactional
 	public ProductDraft updateDraft(Long draftId, DraftUpdate update) {
-		ProductDraft draft = requireDraft(draftId);
+		ProductDraft draft = draftRepository.findForUpdate(draftId)
+			.orElseThrow(() -> new IllegalArgumentException("초안을 찾을 수 없습니다: " + draftId));
+		if (draft.getDraftStatus() != DraftStatus.READY && draft.getDraftStatus() != DraftStatus.FAILED) {
+			throw new IllegalStateException("등록 중이거나 등록 완료된 초안은 수정할 수 없습니다: " + draftId);
+		}
 
-		draft.updateCommon(update.baseNameKo(), update.bundleQty(), update.marginRate(),
-			update.costPrice(), update.origin(), update.hsCode(), update.barcode(),
-			update.weightG(), update.capacity(), parseUnit(update.measureUnit()),
-			update.detailHtml());
+		if (draft.getProductId() != null) {
+			if (commonChanged(draft, update))
+				throw new IllegalStateException("이미 생성된 상품의 공통정보는 상품 관리에서 수정하세요: " + draft.getProductId());
+		} else {
+			draft.updateCommon(update.baseNameKo(), update.bundleQty(), update.marginRate(),
+				update.costPrice(), update.origin(), update.hsCode(), update.barcode(),
+				update.weightG(), update.capacity(), parseUnit(update.measureUnit()),
+				update.detailHtml());
+		}
 		if (update.customsAck() != null)
 			draft.acknowledgeCustoms(update.customsAck());
 
 		for (MarketDraftUpdate mu : update.marketDrafts()) {
 			MarketType type = MarketType.valueOf(mu.marketType().toUpperCase());
-			draft.findMarketDraft(type)
-				.ifPresent(md -> md.update(mu.productName(), mu.categoryId(), mu.categoryPath(), mu.salePrice(),
-					mu.keywords() != null ? toJson(mu.keywords()) : null,
-					null, null, mu.enabled()));
+			draft.findMarketDraft(type).ifPresent(md -> {
+				if (hasPublishedIdentifiers(md) && (changed(mu.productName(), md.getProductName())
+					|| changed(mu.categoryId(), md.getCategoryId()) || changed(mu.categoryPath(), md.getCategoryPath())
+					|| changed(mu.salePrice(), md.getSalePrice()) || keywordsChanged(mu.keywords(), md.getKeywords())))
+					throw new IllegalStateException("이미 등록된 마켓의 정보는 상품 관리에서 수정하세요: " + type);
+				md.update(mu.productName(), mu.categoryId(), mu.categoryPath(), mu.salePrice(),
+					mu.keywords() != null ? toJson(mu.keywords()) : null, null, null, mu.enabled());
+			});
 		}
 
 		revalidate(draft);
 		return draftRepository.save(draft);
+	}
+
+	private boolean commonChanged(ProductDraft draft, DraftUpdate update) {
+		return changed(update.baseNameKo(), draft.getBaseNameKo())
+			|| changed(update.bundleQty(), draft.getBundleQty()) || changed(update.marginRate(), draft.getMarginRate())
+			|| changed(update.costPrice(), draft.getCostPrice()) || changed(update.origin(), draft.getOrigin())
+			|| changed(update.hsCode(), draft.getHsCode()) || changed(update.barcode(), draft.getBarcode())
+			|| changed(update.weightG(), draft.getWeightG()) || changed(update.capacity(), draft.getCapacity())
+			|| changed(parseUnit(update.measureUnit()), draft.getMeasureUnit())
+			|| changed(update.detailHtml(), draft.getDetailHtml());
+	}
+
+	private boolean changed(Object next, Object previous) {
+		if (next == null || (previous == null && next instanceof String text && text.isBlank()))
+			return false;
+		if (next instanceof BigDecimal number && previous instanceof BigDecimal previousNumber)
+			return number.compareTo(previousNumber) != 0;
+		return !Objects.equals(next, previous);
+	}
+
+	private boolean keywordsChanged(List<String> next, String previous) {
+		if (next == null)
+			return false;
+		if (previous == null || previous.isBlank())
+			return !next.isEmpty();
+		try {
+			return !objectMapper.valueToTree(next).equals(objectMapper.readTree(previous));
+		} catch (Exception e) {
+			return true;
+		}
+	}
+
+	private boolean hasPublishedIdentifiers(MarketDraft draft) {
+		try {
+			var identifiers = objectMapper.readTree(draft.getMarketIdentifiers());
+			return identifiers != null && identifiers.isObject() && !identifiers.isEmpty();
+		} catch (Exception e) {
+			return false;
+		}
 	}
 
 	public void revalidate(ProductDraft draft) {

@@ -243,7 +243,7 @@ def fetch_bestsellers(category_slug: str, page: int = 1) -> tuple[list[Candidate
     """베스트셀러 1페이지를 긁는다. 반환 (카드목록, 에러사유|None)."""
     url = BESTSELLER_URL.format(slug=category_slug, page=page)
     try:
-        p = _fetch(url)
+        p = _fetch(url, wait_selector="div.product-cell")
     except Exception as e:  # noqa: BLE001
         return [], f"fetch error: {e}"
 

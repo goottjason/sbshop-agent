@@ -20,6 +20,7 @@ public record ProductSourcingResponse(
 	String rawCategory,
 	BigDecimal capacity,
 	String unit,
+	String measureUnit,
 	String assembledNamePreview) {
 
 	public static ProductSourcingResponse from(ScrapedProductDto dto) {
@@ -36,6 +37,6 @@ public record ProductSourcingResponse(
 			dto.costPrice(), dto.listPrice(), dto.discountPrice(),
 			dto.discountType(), dto.couponRate(), dto.salesDiscount(),
 			dto.isAvailable(), dto.sourceImages(), dto.rawCategory(),
-			dto.capacity(), dto.unit(), preview);
+			dto.capacity(), dto.unit(), dto.inferMeasureUnit().name(), preview);
 	}
 }

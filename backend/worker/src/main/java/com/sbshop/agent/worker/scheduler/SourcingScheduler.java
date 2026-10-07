@@ -61,10 +61,15 @@ public class SourcingScheduler {
 			log.warn("[스케줄러] 이전 발굴이 아직 실행 중 — 이번 회차를 건너뜁니다.");
 			return;
 		}
-		actionLogService.record(ActionLogConstants.SOURCING_DISCOVERY, null,
-			ActionStatus.STARTED, "정기 소싱 후보 발굴 시작");
 		try {
+			actionLogService.record(ActionLogConstants.SOURCING_DISCOVERY, null,
+				ActionStatus.STARTED, "정기 소싱 후보 발굴 시작");
 			DiscoverySummary summary = discoveryUseCase.run();
+			if (summary.crawled() == 0) {
+				actionLogService.record(ActionLogConstants.SOURCING_DISCOVERY, null,
+					ActionStatus.FAILED, "정기 발굴 실패 — 수집된 후보가 없습니다. " + String.join("; ", summary.warnings()));
+				return;
+			}
 			actionLogService.record(ActionLogConstants.SOURCING_DISCOVERY, null,
 				ActionStatus.SUCCESS,
 				"정기 발굴 완료 — 수집 %d · 추천대상 %d · 통관차단 %d · 경고 %d".formatted(

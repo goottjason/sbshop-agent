@@ -10,7 +10,17 @@ public record MarketPublishContext(
 	BigDecimal salePrice,
 	List<String> keywords,
 	Map<String, String> noticeFields,
-	Map<String, Object> extraFields) {
+	Map<String, Object> extraFields,
+	String productName) {
+
+	public MarketPublishContext(String categoryId, String categoryPath, BigDecimal salePrice,
+		List<String> keywords, Map<String, String> noticeFields, Map<String, Object> extraFields) {
+		this(categoryId, categoryPath, salePrice, keywords, noticeFields, extraFields, null);
+	}
+
+	public String productNameOr(String fallback) {
+		return productName != null && !productName.isBlank() ? productName : fallback;
+	}
 
 	public static MarketPublishContext empty() {
 		return new MarketPublishContext(null, null, null, List.of(), Map.of(), Map.of());

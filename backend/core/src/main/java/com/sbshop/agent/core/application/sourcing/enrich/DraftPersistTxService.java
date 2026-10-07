@@ -2,8 +2,11 @@ package com.sbshop.agent.core.application.sourcing.enrich;
 
 import com.sbshop.agent.core.domain.sourcing.ProductDraft;
 import com.sbshop.agent.core.domain.sourcing.SourcingCandidate;
+import com.sbshop.agent.core.domain.sourcing.enums.CandidateStatus;
+import com.sbshop.agent.core.domain.sourcing.enums.CustomsVerdict;
 import com.sbshop.agent.core.domain.sourcing.repository.ProductDraftRepository;
 import com.sbshop.agent.core.domain.sourcing.repository.SourcingCandidateRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -17,14 +20,11 @@ public class DraftPersistTxService {
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public ProductDraft saveAndMarkDrafted(ProductDraft draft, Long candidateId) {
-		ProductDraft saved = draftRepository.save(draft);
-		if (candidateId != null) {
-			candidateRepository.findById(candidateId).ifPresent(c -> {
-				c.markDrafted();
-				candidateRepository.save(c);
-			});
+		if (candidateId != null && candidateRepository.claimDraft(candidateId, CandidateStatus.SCORED,
+			CandidateStatus.DRAFTED, List.of(CustomsVerdict.PASS, CustomsVerdict.REVIEW)) != 1) {
+			throw new IllegalStateException("추천 후보 상태가 변경되었거나 이미 초안이 생성되었습니다: " + candidateId);
 		}
-		return saved;
+		return draftRepository.save(draft);
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)

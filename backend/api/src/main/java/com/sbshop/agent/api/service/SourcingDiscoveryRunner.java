@@ -5,6 +5,8 @@ import com.sbshop.agent.core.application.sourcing.discovery.SourcingDiscoveryUse
 import com.sbshop.agent.core.application.sourcing.dto.DiscoverySummary;
 import com.sbshop.agent.core.domain.actionlog.ActionLogConstants;
 import com.sbshop.agent.core.domain.actionlog.enums.ActionStatus;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.RequiredArgsConstructor;
@@ -27,17 +29,25 @@ public class SourcingDiscoveryRunner {
 
 	@Async
 	public void runAsync() {
-		actionLogService.record(ActionLogConstants.SOURCING_DISCOVERY, null,
-			ActionStatus.STARTED, "소싱 후보 발굴 시작");
+		LocalDateTime startedAt = LocalDateTime.now();
 		try {
+			actionLogService.record(ActionLogConstants.SOURCING_DISCOVERY, null,
+				ActionStatus.STARTED, "소싱 후보 발굴 시작");
 			DiscoverySummary summary = discoveryUseCase.run();
 			lastSummary.set(summary);
+			if (summary.crawled() == 0) {
+				actionLogService.record(ActionLogConstants.SOURCING_DISCOVERY, null,
+					ActionStatus.FAILED, "발굴 실패 — 수집된 후보가 없습니다. " + String.join("; ", summary.warnings()));
+				return;
+			}
 			actionLogService.record(ActionLogConstants.SOURCING_DISCOVERY, null,
 				ActionStatus.SUCCESS,
 				"발굴 완료 — 수집 %d · 추천대상 %d · 통관차단 %d · 경고 %d".formatted(
 					summary.crawled(), summary.scored(), summary.customsBlocked(),
 					summary.warnings().size()));
 		} catch (Exception e) {
+			lastSummary.set(DiscoverySummary.failed(startedAt, List.of(
+				e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage())));
 			log.error("[소싱발굴] 실행 실패", e);
 			actionLogService.record(ActionLogConstants.SOURCING_DISCOVERY, null,
 				ActionStatus.FAILED, "발굴 실패: " + e.getMessage());

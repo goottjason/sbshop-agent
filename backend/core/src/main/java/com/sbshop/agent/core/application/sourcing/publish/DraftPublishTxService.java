@@ -2,6 +2,7 @@ package com.sbshop.agent.core.application.sourcing.publish;
 
 import com.sbshop.agent.core.domain.sourcing.MarketDraft;
 import com.sbshop.agent.core.domain.sourcing.ProductDraft;
+import com.sbshop.agent.core.domain.sourcing.enums.DraftStatus;
 import com.sbshop.agent.core.domain.sourcing.repository.ProductDraftRepository;
 import com.sbshop.agent.core.domain.sourcing.repository.SourcingCandidateRepository;
 import java.util.List;
@@ -25,10 +26,17 @@ public class DraftPublishTxService {
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void markPublishing(Long draftId) {
-		draftRepository.findById(draftId).ifPresent(d -> {
-			d.markPublishing();
-			draftRepository.save(d);
-		});
+		if (draftRepository.claimPublishing(draftId, DraftStatus.PUBLISHING,
+			List.of(DraftStatus.READY, DraftStatus.FAILED)) != 1) {
+			throw new IllegalStateException("초안이 이미 등록 중이거나 등록 가능한 상태가 아닙니다: " + draftId);
+		}
+	}
+
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	public void attachProduct(Long draftId, Long productId) {
+		ProductDraft draft = requireDraft(draftId);
+		draft.attachProduct(productId);
+		draftRepository.save(draft);
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)

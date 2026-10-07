@@ -200,6 +200,10 @@ public class ProductDraft extends BaseEntity {
 		this.draftStatus = DraftStatus.PUBLISHING;
 	}
 
+	public void attachProduct(Long productId) {
+		this.productId = productId;
+	}
+
 	public void markPublished(Long productId) {
 		this.productId = productId;
 		this.draftStatus = DraftStatus.PUBLISHED;

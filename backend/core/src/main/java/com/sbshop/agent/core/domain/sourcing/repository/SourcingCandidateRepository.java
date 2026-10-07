@@ -3,12 +3,14 @@ package com.sbshop.agent.core.domain.sourcing.repository;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import com.sbshop.agent.core.domain.sourcing.SourcingCandidate;
 import com.sbshop.agent.core.domain.sourcing.enums.CandidateStatus;
+import com.sbshop.agent.core.domain.sourcing.enums.CustomsVerdict;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -31,4 +33,16 @@ public interface SourcingCandidateRepository extends JpaRepository<SourcingCandi
 		CandidateStatus status, LocalDateTime before);
 
 	long countByCandidateStatus(CandidateStatus status);
+
+	@Modifying(clearAutomatically = true, flushAutomatically = true)
+	@Query("""
+		UPDATE SourcingCandidate c SET c.candidateStatus = :next
+		WHERE c.id = :id AND c.candidateStatus = :expected AND c.customsVerdict IN :verdicts
+		""")
+	int claimDraft(@Param("id")
+	Long id, @Param("expected")
+	CandidateStatus expected,
+		@Param("next")
+		CandidateStatus next, @Param("verdicts")
+		Collection<CustomsVerdict> verdicts);
 }

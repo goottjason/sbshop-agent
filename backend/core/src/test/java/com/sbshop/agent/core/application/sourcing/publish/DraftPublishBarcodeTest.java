@@ -11,6 +11,7 @@ import com.sbshop.agent.core.application.product.MarketRegistrationTxService;
 import com.sbshop.agent.core.application.product.ProductCreateUseCase;
 import com.sbshop.agent.core.application.product.dto.BulkProductCreateResult;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
+import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.dto.ProductCreateCommand;
@@ -35,6 +36,8 @@ class DraftPublishBarcodeTest {
 	private ProductCreateUseCase productCreateUseCase;
 	@Mock
 	private MarketClientRouter marketClientRouter;
+	@Mock
+	private MarketRegistrationRepository registrations;
 	@Mock
 	private MarketRegistrationTxService registrationTxService;
 	@Mock
@@ -80,6 +83,7 @@ class DraftPublishBarcodeTest {
 			.measureUnit(MeasureUnit.TABLET)
 			.category("비타민")
 			.build();
+		draft.applyEnrichment("<p>상세</p>", "[]", "");
 		draft.acknowledgeCustoms(true);
 		MarketDraft md = MarketDraft.builder()
 			.marketType(MarketType.COUPANG)

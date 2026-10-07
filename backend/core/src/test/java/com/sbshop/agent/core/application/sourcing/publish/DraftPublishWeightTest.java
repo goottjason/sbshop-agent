@@ -13,6 +13,7 @@ import com.sbshop.agent.core.application.product.MarketRegistrationTxService;
 import com.sbshop.agent.core.application.product.ProductCreateUseCase;
 import com.sbshop.agent.core.application.product.dto.BulkProductCreateResult;
 import com.sbshop.agent.core.domain.market.client.MarketClientRouter;
+import com.sbshop.agent.core.domain.market.repository.MarketRegistrationRepository;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.pricing.LandedCostCalculator;
 import com.sbshop.agent.core.domain.pricing.VendorPricePolicy;
@@ -40,6 +41,8 @@ class DraftPublishWeightTest {
 	private ProductCreateUseCase productCreateUseCase;
 	@Mock
 	private MarketClientRouter marketClientRouter;
+	@Mock
+	private MarketRegistrationRepository registrations;
 	@Mock
 	private MarketRegistrationTxService registrationTxService;
 	@Mock
@@ -101,6 +104,7 @@ class DraftPublishWeightTest {
 		ProductDraft draft = ProductDraft.builder().baseNameKo("상품").brand("브랜드")
 			.vendor("IHB").bundleQty(1).marginRate(new BigDecimal("20"))
 			.weightG(grams).costPrice(BigDecimal.TEN).build();
+		draft.applyEnrichment("<p>상세</p>", "[]", "");
 		draft.acknowledgeCustoms(true);
 		MarketDraft market = MarketDraft.builder().marketType(MarketType.COUPANG)
 			.productName("상품").categoryId("1").salePrice(new BigDecimal("10000")).build();

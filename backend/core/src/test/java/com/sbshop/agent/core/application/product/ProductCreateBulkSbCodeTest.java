@@ -11,6 +11,12 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import com.sbshop.agent.core.domain.product.Product;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,6 +57,49 @@ class ProductCreateBulkSbCodeTest {
 		assertThat(result.succeeded().get(0).product().getSbCode()).endsWith("IHB006");
 		assertThat(result.succeeded().get(1).product().getSbCode()).endsWith("IHB007");
 		assertThat(result.succeeded().get(2).product().getSbCode()).endsWith("IHB008");
+	}
+
+	@Test
+	void concurrentRequestsCannotReserveTheSameNextCode() throws Exception {
+		AtomicInteger persisted = new AtomicInteger();
+		CountDownLatch firstSaving = new CountDownLatch(1);
+		CountDownLatch releaseFirst = new CountDownLatch(1);
+		CountDownLatch secondStarted = new CountDownLatch(1);
+		when(productReader.getNextSbCodeSequence(anyString()))
+			.thenAnswer(inv -> inv.getArgument(0) + String.format("%03d", persisted.get() + 1));
+		when(productPersistTxService.saveAll(any())).thenAnswer(inv -> {
+			List<Product> products = inv.getArgument(0);
+			if (products.getFirst().getBaseName().equals("first")) {
+				firstSaving.countDown();
+				if (!releaseFirst.await(5, TimeUnit.SECONDS))
+					throw new IllegalStateException("test coordination timed out");
+			}
+			persisted.addAndGet(products.size());
+			return products;
+		});
+
+		try (var threads = Executors.newFixedThreadPool(2)) {
+			var first = threads.submit(() -> useCase.createBulk(List.of(minimalCommand("first"))));
+			assertThat(firstSaving.await(5, TimeUnit.SECONDS)).isTrue();
+			var second = threads.submit(() -> {
+				secondStarted.countDown();
+				return useCase.createBulk(List.of(minimalCommand("second")));
+			});
+			try {
+				assertThat(secondStarted.await(5, TimeUnit.SECONDS)).isTrue();
+				try {
+					second.get(200, TimeUnit.MILLISECONDS);
+				} catch (TimeoutException expectedWhileFirstSaveIsRunning) {
+					// The next code cannot be read until the first request commits its products.
+				}
+			} finally {
+				releaseFirst.countDown();
+			}
+			var firstResult = first.get(5, TimeUnit.SECONDS);
+			var secondResult = second.get(5, TimeUnit.SECONDS);
+			assertThat(firstResult.succeeded().getFirst().product().getSbCode())
+				.isNotEqualTo(secondResult.succeeded().getFirst().product().getSbCode());
+		}
 	}
 
 	private static ProductCreateCommand minimalCommand(String name) {

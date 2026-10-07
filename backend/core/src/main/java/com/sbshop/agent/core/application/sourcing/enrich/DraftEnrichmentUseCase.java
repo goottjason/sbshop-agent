@@ -14,6 +14,7 @@ import com.sbshop.agent.core.domain.sourcing.ProductDraft;
 import com.sbshop.agent.core.domain.sourcing.SourcingCandidate;
 import com.sbshop.agent.core.domain.sourcing.SourcingConfig;
 import com.sbshop.agent.core.domain.sourcing.component.SearchKeywordDeriver;
+import com.sbshop.agent.core.domain.sourcing.enums.CandidateStatus;
 import com.sbshop.agent.core.domain.sourcing.enums.CustomsVerdict;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -60,6 +61,11 @@ public class DraftEnrichmentUseCase {
 	}
 
 	public ProductDraft enrich(SourcingCandidate candidate, SourcingConfig config) {
+		if (candidate.getCandidateStatus() != CandidateStatus.SCORED
+			|| (candidate.getCustomsVerdict() != CustomsVerdict.PASS
+				&& candidate.getCustomsVerdict() != CustomsVerdict.REVIEW)) {
+			throw new IllegalStateException("통관 심사를 거친 추천 후보만 초안을 생성할 수 있습니다: " + candidate.getId());
+		}
 		List<String> notes = new ArrayList<>();
 
 		ProductDetailDto detail = detailCrawler.fetchDetail(candidate.getSourceUrl());

@@ -29,7 +29,7 @@ public class ProductCreateUseCase {
 	private final ProductPersistTxService productPersistTxService;
 	private final VendorPricePolicyService vendorPricePolicyService;
 
-	public BulkProductCreateResult createBulk(List<ProductCreateCommand> commands) {
+	public synchronized BulkProductCreateResult createBulk(List<ProductCreateCommand> commands) {
 		String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
 		String prefix = today + "IHB";
 
