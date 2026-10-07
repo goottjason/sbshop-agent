@@ -214,9 +214,9 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
 
   const policyReady = workspace?.productId === productId && workspace.revision === detail?.revision;
   const editRule = (name: string) => workspace?.fields.find(f => f.field === (name === 'productName' ? 'name' : name));
-  const canEdit = (name: string) => policyReady && ['EDITABLE', 'INTERNAL'].includes(editRule(name)?.permission ?? '');
+  const canEdit = (name: string) => !uploading && policyReady && ['EDITABLE', 'INTERNAL'].includes(editRule(name)?.permission ?? '');
   const handleSave = async () => {
-    if (productId == null || !detail || !policyReady) return;
+    if (productId == null || !detail || !policyReady || uploading) return;
     setSaving(true);
     try {
       const response = await productEditApi.previewSingle(productId, detail.revision, toUpdateCommand(fields));
@@ -226,17 +226,18 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
   };
 
   const handleFilesSelected = async (files: FileList | null) => {
-    if (productId == null || !files || files.length === 0) return;
+    if (productId == null || !files || files.length === 0 || dirty || saving || uploading || !canEdit('hostedImages')) return;
     const fd = new FormData();
     Array.from(files).forEach((f) => fd.append('images', f));
     setUploading(true);
     try {
       const res = await productApi.uploadImages(productId, fd);
       const r = res.data as ImageUploadResult;
-      notify.success(`${r.imagesSucceeded}장 업로드 완료`);
+      reportImageUpload(r);
       await refreshDetail();
-    } catch {
-      notify.error('이미지 업로드 실패 — 서버 스토리지(R2) 설정을 확인하세요.');
+      if (r.storageUpdated) onSaved();
+    } catch (e) {
+      notify.error(`이미지 업로드 실패: ${extractErrorMessage(e)}`);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -244,18 +245,30 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
   };
 
   const handleUploadByUrl = async () => {
-    if (productId == null) return;
+    if (productId == null || dirty || saving || uploading || !canEdit('hostedImages')) return;
     const urls = urlInput.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
     if (urls.length === 0) { notify.warning('이미지 URL을 입력하세요.'); return; }
     setUploading(true);
     try {
-      await productApi.uploadImagesByUrl(productId, urls);
-      notify.success(`${urls.length}개 이미지 등록 완료`);
+      const res = await productApi.uploadImagesByUrl(productId, urls);
+      const r = res.data as ImageUploadResult;
+      reportImageUpload(r);
       setUrlInput('');
       await refreshDetail();
-    } catch {
-      notify.error('이미지 업로드 실패 — 서버 스토리지(R2) 설정을 확인하세요.');
+      if (r.storageUpdated) onSaved();
+    } catch (e) {
+      notify.error(`이미지 업로드 실패: ${extractErrorMessage(e)}`);
     } finally { setUploading(false); }
+  };
+
+  const reportImageUpload = (result: ImageUploadResult) => {
+    const details = [`${result.imagesSucceeded}장 업로드 완료`];
+    if (result.imagesFailed.length > 0) details.push(`이미지 실패 ${result.imagesFailed.length}건: ${result.imagesFailed.map(f => f.reason).join(', ')}`);
+    if (result.failed.length > 0) details.push(`마켓 반영 실패: ${result.failed.map(f => `${f.label} — ${f.error}`).join(', ')}`);
+    if (result.skipped.length > 0) details.push(`마켓 반영 제외: ${result.skipped.map(m => m.label).join(', ')}`);
+    if (!result.storageUpdated) details.push('이미지 저장 미완료');
+    if (result.imagesFailed.length > 0 || result.failed.length > 0 || result.skipped.length > 0 || !result.storageUpdated) notify.warning(details.join(' / '));
+    else notify.success(details.join(' / '));
   };
 
   const row = (label: string, name: keyof Fields, type: 'text' | 'number' = 'text', full = false,
@@ -279,7 +292,10 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
     <Modal
       rootClassName="product-theme"
       open={open}
-      onCancel={onClose}
+      onCancel={() => { if (!uploading) onClose(); }}
+      closable={!uploading}
+      maskClosable={!uploading}
+      keyboard={!uploading}
       width={820}
       centered
       title={null}
@@ -291,11 +307,11 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
             <span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? GREEN : 'transparent' }} />
             {dirty ? '변경됨' : ''}
           </span>
-          <button onClick={onClose}
+          <button onClick={onClose} disabled={uploading}
             style={{ flex: 1, padding: '11px 0', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
             닫기
           </button>
-          <button onClick={handleSave} disabled={saving || loading || !d || !dirty || !policyReady}
+          <button onClick={handleSave} disabled={uploading || saving || loading || !d || !dirty || !policyReady}
             style={{ flex: 1.4, padding: '11px 0', background: saving || loading || !d || !dirty ? '#9ca3af' : GREEN, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: saving || loading || !d || !dirty ? 'default' : 'pointer' }}>
             {saving ? '검토 중…' : '변경 검토'}
           </button>
@@ -365,7 +381,7 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
             productId={productId} />}
 
           {productId != null && <ProductEditHistory key={`${productId}:${historyKey}`} productId={productId} />}
-          {productId != null && <ProductConnections key={productId} productId={productId} disabled={dirty} onChanged={() => { setHistoryKey(k => k + 1); void refreshDetail(); onSaved(); }} />}
+          {productId != null && <ProductConnections key={productId} productId={productId} disabled={dirty || uploading} onChanged={() => { setHistoryKey(k => k + 1); void refreshDetail(); onSaved(); }} />}
           {productId != null && <ProductMarketPlusHistory key={`marketplus:${productId}`} productId={productId} />}
           {workspace && <Alert type="info" showIcon message={workspace.connections.length ? '마켓 연결 기록에 따라 필드별 수정 조건을 적용합니다.' : '현재 연결 기록이 없는 상품입니다.'}
             description={workspace.connections.map(c => `${marketLabel(c.market)}: ${c.reason}`).join(' ')} />}
@@ -394,13 +410,13 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
           </div>
 
           <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
-            <Button disabled={dirty || !policyReady} onClick={() => setFieldSyncOpen(true)}>저장된 정보 마켓 반영·작업</Button>
-            <Button disabled={dirty || !policyReady} onClick={() => setSourceRefreshOpen(true)}>소싱 가격·재고 비교</Button>
-            <Button disabled={dirty || !policyReady} onClick={() => setPublicCheckOpen(true)}>G마켓·옥션 공개가격 조회</Button>
+            <Button disabled={uploading || dirty || !policyReady} onClick={() => setFieldSyncOpen(true)}>저장된 정보 마켓 반영·작업</Button>
+            <Button disabled={uploading || dirty || !policyReady} onClick={() => setSourceRefreshOpen(true)}>소싱 가격·재고 비교</Button>
+            <Button disabled={uploading || dirty || !policyReady} onClick={() => setPublicCheckOpen(true)}>G마켓·옥션 공개가격 조회</Button>
           </div>
 
           <div style={sectionTitle}>메모</div>
-          <textarea className="pd-ta" rows={2} value={fields.memo ?? ''} onChange={(e) => set('memo', e.target.value)} placeholder="메모" />
+          <textarea className="pd-ta" rows={2} disabled={uploading} value={fields.memo ?? ''} onChange={(e) => set('memo', e.target.value)} placeholder="메모" />
 
           <div style={{ marginTop: 16, background: '#f8fafc', border: '1px solid #eef2f7', borderRadius: 12, padding: 16 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 10 }}>이미지</div>
@@ -418,7 +434,7 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
               <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
                 onChange={(e) => handleFilesSelected(e.target.files)} />
-              <button className="pd-imgbtn" disabled={uploading || !canEdit('hostedImages')} onClick={() => fileInputRef.current?.click()}>
+              <button className="pd-imgbtn" disabled={uploading || saving || dirty || !canEdit('hostedImages')} onClick={() => fileInputRef.current?.click()}>
                 <UploadOutlined /> 파일 업로드
               </button>
               <Tooltip title={dirty ? '작성 중인 변경을 저장한 후 수집 내용을 비교하세요.' : '최신 이미지·상세정보를 수집하고 비교합니다. 적용 시 필드별 편집 정책을 확인합니다.'}>
@@ -427,10 +443,11 @@ export function ProductDetailModal({ productId, open, onClose, onSaved }: {
                 </button>
               </Tooltip>
             </div>
+            {dirty && <p className="pw-change-note">작성 중인 변경을 저장한 후 이미지를 업로드하세요.</p>}
             <textarea className="pd-ta" rows={2} placeholder="이미지 URL을 줄바꿈 또는 쉼표로 구분해 입력"
-              value={urlInput} onChange={(e) => setUrlInput(e.target.value)} />
+              disabled={uploading} value={urlInput} onChange={(e) => setUrlInput(e.target.value)} />
             <div style={{ marginTop: 8 }}>
-              <button className="pd-imgbtn" disabled={uploading || !canEdit('hostedImages')} style={{ borderColor: GREEN, color: GREEN }} onClick={handleUploadByUrl}>
+              <button className="pd-imgbtn" disabled={uploading || saving || dirty || !canEdit('hostedImages')} style={{ borderColor: GREEN, color: GREEN }} onClick={handleUploadByUrl}>
                 <LinkOutlined /> URL로 등록
               </button>
             </div>

@@ -29,6 +29,14 @@ const NAME_LIMITS: Record<string, number> = {
 const won = (v: number | null | undefined) =>
   v == null ? '-' : `₩${Math.round(v).toLocaleString()}`;
 
+const hasPublishedIdentifiers = (market: MarketDraft) =>
+  Object.keys(parseJsonField<Record<string, unknown> | null>(market.marketIdentifiers, null) ?? {}).length > 0;
+
+function errorMessage(error: unknown, fallback: string): string {
+  const data = (error as { response?: { data?: { message?: string } | string } })?.response?.data;
+  return (typeof data === 'string' ? data : data?.message) || fallback;
+}
+
 const DraftReviewPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -36,6 +44,7 @@ const DraftReviewPage = () => {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [publicationStateUnknown, setPublicationStateUnknown] = useState(false);
   const [result, setResult] = useState<PublishResult | null>(null);
 
   const [baseNameKo, setBaseNameKo] = useState('');
@@ -73,39 +82,56 @@ const DraftReviewPage = () => {
     applyDraft(fetchedDraft);
   }
   const loading = !Number.isFinite(draftId) || isLoading;
+  const registrationLocked = publicationStateUnknown || draft?.draftStatus === 'PUBLISHED' || draft?.draftStatus === 'PUBLISHING';
+  const commonLinked = draft?.productId != null;
+  const editLocked = registrationLocked || saving || publishing;
   const patch = (): DraftPatch => ({
-    baseNameKo,
-    bundleQty,
-    marginRate,
-    origin,
+    ...(commonLinked ? {} : { baseNameKo, bundleQty, marginRate, origin }),
     customsAck,
-    marketDrafts: Object.entries(marketEdits).map(([marketType, edit]) => ({
-      marketType,
-      productName: edit.productName ?? null,
-      categoryId: edit.categoryId ?? null,
-      salePrice: edit.salePrice ?? null,
-      keywords: edit.keywords ? parseJsonField<string[]>(edit.keywords, []) : null,
-      enabled: edit.enabled ?? null,
-    })),
+    marketDrafts: Object.entries(marketEdits).map(([marketType, edit]) => {
+      const original = draft?.marketDrafts.find((market) => market.marketType === marketType);
+      if (original && hasPublishedIdentifiers(original)) {
+        return { marketType, enabled: edit.enabled ?? null };
+      }
+      return {
+        marketType,
+        productName: edit.productName ?? null,
+        categoryId: edit.categoryId ?? null,
+        salePrice: edit.salePrice ?? null,
+        keywords: edit.keywords ? parseJsonField<string[]>(edit.keywords, []) : null,
+        enabled: edit.enabled ?? null,
+      };
+    }),
   });
   const handleSave = async () => {
+    if (editLocked) return;
     setSaving(true);
     try {
       const res = await sourcingDiscoveryApi.updateDraft(draftId, patch());
       applyDraft(res.data);
       notify.success('검수 내용을 저장했습니다');
-    } catch {
-      notify.error('저장에 실패했습니다');
+    } catch (error) {
+      notify.error(errorMessage(error, '저장에 실패했습니다'));
     } finally {
       setSaving(false);
     }
   };
   const handlePublish = async () => {
+    if (!publishable || saving || publishing) return;
     setPublishing(true);
+    let publicationAttempted = false;
     try {
       const saved = await sourcingDiscoveryApi.updateDraft(draftId, patch());
       applyDraft(saved.data);
+      publicationAttempted = true;
+      setPublicationStateUnknown(true);
       const res = await sourcingDiscoveryApi.publishDraft(draftId);
+      applyDraft({
+        ...saved.data,
+        productId: res.data.productId,
+        draftStatus: res.data.successCount === res.data.totalCount ? 'PUBLISHED' : 'FAILED',
+      });
+      setPublicationStateUnknown(false);
       setResult(res.data);
       if (res.data.successCount === res.data.totalCount) {
         notify.success(`${res.data.totalCount}개 마켓 등록 완료`);
@@ -115,12 +141,16 @@ const DraftReviewPage = () => {
         );
       }
     } catch (e) {
-      const err = e as { response?: { data?: { message?: string } | string } };
-      const reason =
-        typeof err.response?.data === 'object'
-          ? err.response?.data?.message
-          : (err.response?.data as string);
-      notify.error(reason ?? '등록에 실패했습니다');
+      if (publicationAttempted) {
+        try {
+          const current = await sourcingDiscoveryApi.draft(draftId);
+          applyDraft(current.data);
+          setPublicationStateUnknown(false);
+        } catch {
+          setPublicationStateUnknown(true);
+        }
+      }
+      notify.error(errorMessage(e, '등록에 실패했습니다'));
     } finally {
       setPublishing(false);
     }
@@ -130,10 +160,8 @@ const DraftReviewPage = () => {
     () => draft != null && !draft.customsAck,
     [draft],
   );
-  const publishable = useMemo(() => {
-    const enabledValid = marketDrafts.filter((m) => m.enabled && m.valid);
-    return enabledValid.length > 0 && customsAck;
-  }, [marketDrafts, customsAck]);
+  const enabledValidCount = marketDrafts.filter((m) => (marketEdits[m.marketType]?.enabled ?? m.enabled) && m.valid).length;
+  const publishable = enabledValidCount > 0 && customsAck && !registrationLocked;
   if (loading) {
     return (
       <div style={{ padding: 48, textAlign: 'center' }}>
@@ -186,6 +214,14 @@ const DraftReviewPage = () => {
         등록 검수
       </Title>
       <Text type="secondary">{draft.originalName}</Text>
+      {publicationStateUnknown && !publishing && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginTop: 12 }}
+          message="현재 등록 상태를 확인하지 못했습니다. 초안을 다시 열어 확인하세요."
+        />
+      )}
       {draft.enrichNote && (
         <Alert
           type="info"
@@ -213,7 +249,7 @@ const DraftReviewPage = () => {
                   {draft.ingredientsKo.slice(0, 600)}
                 </Paragraph>
               )}
-              <Checkbox checked={customsAck} onChange={(e) => setCustomsAck(e.target.checked)}>
+              <Checkbox disabled={editLocked} checked={customsAck} onChange={(e) => setCustomsAck(e.target.checked)}>
                 성분을 확인했으며 구매대행이 가능한 상품임을 확인합니다
               </Checkbox>
             </>
@@ -221,14 +257,24 @@ const DraftReviewPage = () => {
         />
       )}
       <Card title="공통 정보" size="small" style={{ marginTop: 16 }}>
+        {commonLinked && (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message="기존 상품을 재사용합니다. 공통 정보는 상품관리에서 수정하세요."
+            description="재시도에서는 미등록 마켓의 검수 내용과 등록 대상을 변경할 수 있습니다."
+          />
+        )}
         <Row gutter={[16, 12]}>
           <Col span={12}>
             <Text type="secondary">기본 상품명 (마켓별 상품명의 기반)</Text>
-            <Input value={baseNameKo} onChange={(e) => setBaseNameKo(e.target.value)} />
+            <Input disabled={commonLinked || editLocked} value={baseNameKo} onChange={(e) => setBaseNameKo(e.target.value)} />
           </Col>
           <Col span={4}>
             <Text type="secondary">묶음 수량</Text>
             <InputNumber
+              disabled={commonLinked || editLocked}
               min={1}
               max={20}
               value={bundleQty}
@@ -239,6 +285,7 @@ const DraftReviewPage = () => {
           <Col span={4}>
             <Text type="secondary">마진율(%)</Text>
             <InputNumber
+              disabled={commonLinked || editLocked}
               min={0}
               max={90}
               value={marginRate ?? undefined}
@@ -248,7 +295,7 @@ const DraftReviewPage = () => {
           </Col>
           <Col span={4}>
             <Text type="secondary">원산지</Text>
-            <Input value={origin} onChange={(e) => setOrigin(e.target.value)} />
+            <Input disabled={commonLinked || editLocked} value={origin} onChange={(e) => setOrigin(e.target.value)} />
           </Col>
         </Row>
         <Divider style={{ margin: '12px 0' }} />
@@ -289,6 +336,7 @@ const DraftReviewPage = () => {
           const edit = marketEdits[md.marketType] ?? {};
           const name = edit.productName ?? md.productName ?? '';
           const limit = NAME_LIMITS[md.marketType] ?? 100;
+          const marketPublished = hasPublishedIdentifiers(md);
           return {
             key: md.marketType,
             label: (
@@ -303,6 +351,15 @@ const DraftReviewPage = () => {
             ),
             children: (
               <Card size="small">
+                {marketPublished && (
+                  <Alert
+                    type="info"
+                    showIcon
+                    style={{ marginBottom: 12 }}
+                    message="이미 등록된 마켓의 이름과 가격은 상품관리에서 수정하세요."
+                    description="재시도 시 기존 등록의 상태를 확인하며, 같은 상품을 새로 등록하지 않습니다."
+                  />
+                )}
                 {missing.length > 0 && (
                   <Alert
                     type="error"
@@ -326,6 +383,7 @@ const DraftReviewPage = () => {
                       상품명 ({name.length}/{limit}자)
                     </Text>
                     <Input
+                      disabled={marketPublished || editLocked}
                       value={name}
                       status={name.length > limit ? 'error' : undefined}
                       onChange={(e) =>
@@ -339,6 +397,7 @@ const DraftReviewPage = () => {
                   <Col span={4}>
                     <Text type="secondary">판매가</Text>
                     <InputNumber
+                      disabled={marketPublished || editLocked}
                       value={edit.salePrice ?? md.salePrice ?? undefined}
                       formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                       parser={(v) => Number((v ?? '').replace(/,/g, ''))}
@@ -363,6 +422,7 @@ const DraftReviewPage = () => {
                   </Descriptions.Item>
                   <Descriptions.Item label="등록 대상">
                     <Checkbox
+                      disabled={editLocked}
                       checked={edit.enabled ?? md.enabled}
                       onChange={(e) =>
                         setMarketEdits((prev) => ({
@@ -413,7 +473,11 @@ const DraftReviewPage = () => {
         <Space>
           {!publishable && (
             <Text type="secondary">
-              {!customsAck
+              {publicationStateUnknown
+                ? '현재 등록 상태를 다시 확인해야 합니다'
+                : registrationLocked
+                ? '이미 등록 완료되었거나 등록 중인 초안입니다'
+                : !customsAck
                 ? '통관 확인 승인이 필요합니다'
                 : '등록 가능한 마켓이 없습니다 (필수필드를 채우세요)'}
             </Text>
@@ -421,6 +485,7 @@ const DraftReviewPage = () => {
           <Button
             icon={<Save size={14} style={{ verticalAlign: -2 }} />}
             loading={saving}
+            disabled={publishing || registrationLocked}
             onClick={() => void handleSave()}
           >
             저장
@@ -429,10 +494,10 @@ const DraftReviewPage = () => {
             type="primary"
             icon={<Upload size={14} style={{ verticalAlign: -2 }} />}
             loading={publishing}
-            disabled={!publishable}
+            disabled={!publishable || saving}
             onClick={() => void handlePublish()}
           >
-            {marketDrafts.filter((m) => m.enabled && m.valid).length}개 마켓 등록
+            {enabledValidCount}개 마켓 등록
           </Button>
         </Space>
       </div>

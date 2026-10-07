@@ -57,3 +57,42 @@ jobs:
       - name: Unit tests
         working-directory: frontend
         run: npm test
+
+      - name: Production build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Browser fixtures
+        working-directory: frontend
+        run: SBSHOP_TEST_CHROME="$(command -v google-chrome)" npm run test:browser
+
+  scraper-and-operations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install scraper dependencies
+        run: python -m pip install -r scraper/requirements.txt
+
+      - name: Scraper regression tests (no external requests)
+        working-directory: scraper
+        run: |
+          python -m unittest discover -s . -p 'test_*.py'
+          python test_brand_detail.py
+
+      - name: MarketPlus observer and parser tests
+        run: |
+          python -m unittest discover -s tools/marketplus -p 'test_*.py'
+          python -m unittest discover -s tools/browser -p 'test_*.py'
+
+      - name: Deployment and rollback regression tests
+        run: |
+          bash ops/test/deploy_test.sh
+          bash ops/test/maintenance_test.sh

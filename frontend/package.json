@@ -9,7 +9,10 @@
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,md}\"",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "npm run test:unit && npm run test:node",
+    "test:unit": "vitest run",
+    "test:node": "node --test tests/*.test.ts",
+    "test:browser": "node tests/run-all-browser.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",

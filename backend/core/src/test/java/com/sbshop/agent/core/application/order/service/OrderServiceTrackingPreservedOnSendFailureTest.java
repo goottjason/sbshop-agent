@@ -107,6 +107,40 @@ class OrderServiceTrackingPreservedOnSendFailureTest {
 		return new LineItemShippingWriter(shipmentRepository, orderLineItemRepository);
 	}
 
+	@Test
+	void changedTrackingResetsPreviousSuccessWhenResendFails() {
+		OrderLineItem item = previouslySentItem("old-tracking", ShippingCarrier.KOREA_POST);
+		assertFailedResendFlag(item, false);
+	}
+
+	@Test
+	void changedCarrierResetsPreviousSuccessWhenResendFails() {
+		OrderLineItem item = previouslySentItem("6079990333504", ShippingCarrier.CJ_LOGISTICS);
+		assertFailedResendFlag(item, false);
+	}
+
+	@Test
+	void unchangedTrackingPreservesConfirmedMarketState() {
+		OrderLineItem item = previouslySentItem("6079990333504", ShippingCarrier.KOREA_POST);
+		assertFailedResendFlag(item, true);
+	}
+
+	private void assertFailedResendFlag(OrderLineItem item, boolean expected) {
+		when(orderLineItemRepository.findById(5L)).thenReturn(Optional.of(item));
+		when(marketplaceShippingService.sendTrackingToMarketplace(same(item), anyBoolean()))
+			.thenReturn(MarketShippingResult.ofFailed("temporary failure"));
+		OrderLineItem result = service().updateShippingInfo(5L, command());
+		assertThat(result.getShippingData().getTrackingNo()).isEqualTo("6079990333504");
+		assertThat(result.getShippingData().getTrackingSentToMarket()).isEqualTo(expected);
+	}
+
+	private OrderLineItem previouslySentItem(String trackingNo, ShippingCarrier carrier) {
+		return OrderLineItem.builder().orderId(223L).quantity(1)
+			.shippingData(ShippingData.builder().shippingStatus(ShippingStatus.SHIPPED)
+				.trackingNo(trackingNo).shippingCarrier(carrier).trackingSentToMarket(true).build())
+			.build();
+	}
+
 	private OrderService service() {
 		return new OrderService(orderRepository, orderLineItemRepository,
 			credentialRepository, marketplaceShippingService, shippingWriter(), orderMarketRefresher());

@@ -1,5 +1,12 @@
 # React + TypeScript + Vite
 
+## Project checks
+
+- `npm test`: runs React/Vitest tests in `src/` and Node tests in `tests/` (Node 24).
+- `npx tsc --noEmit -p tsconfig.app.json`: checks application TypeScript; the root config only contains project references.
+- `npm run build`: builds the production frontend.
+- `npm run test:browser`: runs every `tests/*.browser.tsx` fixture in headless Chrome with mocked API responses and external networking blocked. Set `SBSHOP_TEST_CHROME` to the Chrome executable when it is not at the default macOS path. These fixtures do not validate real marketplace writes.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

@@ -165,8 +165,9 @@ const OrderGrid: React.FC = () => {
   });
   const shippingMutation = useMutation({
     mutationFn: ({ id, updates }: { id: number; updates: { trackingNo?: string; shippingCarrier?: string } }) => updateShippingInfo(id, updates),
-    onSuccess: () => {
-      toast.success('송장/배송 정보가 마켓에 반영되었습니다.');
+    onSuccess: (updated) => {
+      if (updated?.shippingData?.trackingSentToMarket === true) toast.success('송장/배송 정보가 마켓에 반영되었습니다.');
+      else toast.warning('송장/배송 정보는 저장됐지만 마켓 반영은 확인되지 않았습니다. 전송 상태를 확인하세요.');
       queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
     onError: (err: unknown) => {

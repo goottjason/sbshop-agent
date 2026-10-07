@@ -12,7 +12,7 @@ interface EditableRow extends SourcingResult {
   vendor: string;
 }
 
-interface PublishOutcome { productId: number; market: string; ok: boolean; error?: string; }
+interface PublishOutcome { productId: number; market: string; status: 'SYNCED' | 'PENDING' | 'FAILED'; error?: string; }
 
 const { TextArea } = Input;
 
@@ -66,7 +66,7 @@ const ProductRegisterPage = () => {
         selected.map((s) => ({
           sourceUrl: s.sourceUrl, baseName: s.baseName, originalName: s.originalName,
           brand: s.brand, costPrice: s.costPrice, origin: s.origin ?? null,
-          weight: s.weight ?? null, capacity: s.capacity, measureUnit: null,
+          weight: s.weight ?? null, capacity: s.capacity, measureUnit: s.measureUnit ?? null,
           sourceImages: s.sourceImages, rawSourceHtml: null, rawCategory: s.rawCategory ?? null,
           isAvailable: s.isAvailable, bundleQuantity: s.bundleQuantity,
           marginRate: s.marginRate, vendor: s.vendor,
@@ -80,34 +80,36 @@ const ProductRegisterPage = () => {
       setSaveFailures(failed);
       if (failed.length > 0) notify.warning(`${ids.length}개 저장 완료, ${failed.length}개 실패`);
       else notify.success(`${ids.length}개 상품 저장 완료`);
-      setCurrent(2);
+      if (ids.length > 0) setCurrent(2);
     } catch { notify.error('저장 실패'); }
     finally { setLoading(false); }
   };
 
   const handlePublish = async () => {
+    if (savedIds.length === 0) { notify.warning('저장된 상품이 없습니다'); return; }
     if (selectedMarkets.length === 0) { notify.warning('등록할 마켓을 선택하세요'); return; }
     setLoading(true);
     const results: PublishOutcome[] = [];
     for (const id of savedIds) {
       for (const market of selectedMarkets) {
         try {
-          await sourcingApi.publishToMarket(id, market);
-          results.push({ productId: id, market, ok: true });
+          const res = await sourcingApi.publishToMarket(id, market);
+          results.push({ productId: id, market, status: res.data.status });
         } catch (e) {
           const err = e as { response?: { data?: { message?: string } | string }; message?: string };
           const reason =
             (typeof err.response?.data === 'object' ? err.response?.data?.message : err.response?.data) ??
             err.message ?? '알 수 없는 오류';
-          results.push({ productId: id, market, ok: false, error: reason });
+          results.push({ productId: id, market, status: 'FAILED', error: reason });
         }
       }
     }
     setOutcomes(results);
     setLoading(false);
-    const failed = results.filter((r) => !r.ok).length;
-    if (failed === 0) notify.success('모든 마켓 등록 완료');
-    else notify.warning(`${failed}개 조합 등록 실패 — 결과를 확인하세요`);
+    const failed = results.filter((r) => r.status === 'FAILED').length;
+    const pending = results.filter((r) => r.status === 'PENDING').length;
+    if (failed === 0 && pending === 0) notify.success('모든 마켓 등록 완료');
+    else notify.warning(`확인 대기 ${pending}건 / 등록 실패 ${failed}건 — 결과를 확인하세요`);
     setCurrent(3);
   };
 
@@ -120,7 +122,7 @@ const ProductRegisterPage = () => {
   const editColumns = [
     { title: '브랜드', dataIndex: 'brand', width: 90, ellipsis: true },
     { title: '상품명', dataIndex: 'baseName', ellipsis: true },
-    { title: '원가($)', dataIndex: 'costPrice', width: 80 },
+    { title: '원가', dataIndex: 'costPrice', width: 80 },
     { title: '원산지', width: 110, render: (_: unknown, r: EditableRow, i: number) => (
       <Input size="small" value={r.origin} onChange={(e) => updateRow(i, { origin: e.target.value })} />) },
     { title: '중량 (kg)', width: 110, render: (_: unknown, r: EditableRow, i: number) => (
@@ -144,6 +146,21 @@ const ProductRegisterPage = () => {
         { title: '크롤링' }, { title: '보정·가격' }, { title: '마켓 등록' }, { title: '완료' },
       ]} />
 
+      {current <= 1 && crawlFailures.length > 0 && (
+        <Alert type="warning" showIcon style={{ marginBottom: 16 }}
+          message={`크롤링 실패 ${crawlFailures.length}건`}
+          description={<ul style={{ margin: 0, paddingLeft: 18 }}>{crawlFailures.map((f, i) => (
+            <li key={i}>{f.url} — {f.reason}</li>
+          ))}</ul>} />
+      )}
+      {current <= 2 && saveFailures.length > 0 && (
+        <Alert type="warning" showIcon style={{ marginBottom: 16 }}
+          message={`저장 실패 ${saveFailures.length}건`}
+          description={<ul style={{ margin: 0, paddingLeft: 18 }}>{saveFailures.map((f) => (
+            <li key={f.index}>{f.baseName} — {f.reason}</li>
+          ))}</ul>} />
+      )}
+
       {current === 0 && (
         <Space direction="vertical" style={{ width: '100%' }}>
           <TextArea rows={5} placeholder="iHerb 상품 URL을 한 줄에 하나씩 입력하세요"
@@ -154,17 +171,6 @@ const ProductRegisterPage = () => {
 
       {current === 1 && (
         <Space direction="vertical" style={{ width: '100%' }}>
-          {crawlFailures.length > 0 && (
-            <Alert type="warning" showIcon
-              message={`크롤링 실패 ${crawlFailures.length}건`}
-              description={
-                <ul style={{ margin: 0, paddingLeft: 18 }}>
-                  {crawlFailures.map((f, i) => (
-                    <li key={i}>{f.url} — {f.reason}</li>
-                  ))}
-                </ul>
-              } />
-          )}
           <Table<EditableRow> rowKey={(_, i) => i ?? 0} columns={editColumns} dataSource={rows}
             rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
             pagination={false} size="small" scroll={{ y: 460 }} />
@@ -179,17 +185,6 @@ const ProductRegisterPage = () => {
 
       {current === 2 && (
         <Space direction="vertical" style={{ width: '100%' }}>
-          {saveFailures.length > 0 && (
-            <Alert type="warning" showIcon
-              message={`저장 실패 ${saveFailures.length}건`}
-              description={
-                <ul style={{ margin: 0, paddingLeft: 18 }}>
-                  {saveFailures.map((f) => (
-                    <li key={f.index}>{f.baseName} — {f.reason}</li>
-                  ))}
-                </ul>
-              } />
-          )}
           <div>저장된 상품 {savedIds.length}개. 등록할 마켓을 선택하세요.</div>
           <Select mode="multiple" style={{ width: 400 }} placeholder="마켓 선택"
             value={selectedMarkets} onChange={setSelectedMarkets}
@@ -204,14 +199,14 @@ const ProductRegisterPage = () => {
       )}
 
       {current === 3 && (
-        <Result status={outcomes.every((o) => o.ok) ? 'success' : 'warning'}
+        <Result status={outcomes.every((o) => o.status === 'SYNCED') ? 'success' : 'warning'}
           title="마켓 등록 결과"
-          subTitle={`성공 ${outcomes.filter((o) => o.ok).length} / 실패 ${outcomes.filter((o) => !o.ok).length}`}
+          subTitle={`성공 ${outcomes.filter((o) => o.status === 'SYNCED').length} / 확인 대기 ${outcomes.filter((o) => o.status === 'PENDING').length} / 실패 ${outcomes.filter((o) => o.status === 'FAILED').length}`}
           extra={[
             <Space key="list" direction="vertical" style={{ textAlign: 'left' }}>
               {outcomes.map((o, i) => (
                 <div key={i}>
-                  <Tag color={o.ok ? 'green' : 'red'}>{o.ok ? '성공' : '실패'}</Tag>
+                  <Tag color={o.status === 'SYNCED' ? 'green' : o.status === 'PENDING' ? 'gold' : 'red'}>{o.status === 'SYNCED' ? '성공' : o.status === 'PENDING' ? '확인 대기' : '실패'}</Tag>
                   상품 {o.productId} · {o.market}{o.error ? ` — ${o.error}` : ''}
                 </div>
               ))}

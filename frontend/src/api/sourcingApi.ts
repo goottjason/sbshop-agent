@@ -10,6 +10,7 @@ export interface SourcingResult {
   isAvailable: boolean;
   capacity: number;
   unit: string;
+  measureUnit?: string | null;
 }
 
 export interface IherbSourcingResponse {

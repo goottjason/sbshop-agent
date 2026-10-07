@@ -95,9 +95,14 @@ const DiscoveryPage = () => {
     if (!status?.running) return;
     const timer = window.setInterval(async () => {
       const polled = await refetchStatus();
-      if (polled.isError || !polled.data?.running) {
-        await refetchCandidates();
-        notify.success('발굴이 완료되어 추천 목록을 갱신했습니다');
+      if (polled.isError) {
+        notify.error('발굴 상태를 확인하지 못했습니다. 다시 조회합니다.');
+      } else if (polled.data && !polled.data.running) {
+        const refreshed = await refetchCandidates();
+        const finished = polled.data.lastRun;
+        if (finished && 'crawled' in finished && finished.crawled === 0) {
+          notify.warning(`발굴에서 수집한 상품이 없습니다. ${finished.warnings.join(' · ')}`.trim());
+        } else if (!refreshed.isError) notify.success('발굴이 완료되어 추천 목록을 갱신했습니다');
       }
     }, POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
@@ -119,9 +124,13 @@ const DiscoveryPage = () => {
     setSelected((prev) => prev.filter((s) => s !== id));
   };
   const handleReject = async (id: number) => {
-    await sourcingDiscoveryApi.reject(id);
-    removeCandidate(id);
-    notify.success('거절했습니다. 쿨다운 기간 동안 재추천되지 않습니다.');
+    try {
+      await sourcingDiscoveryApi.reject(id);
+      removeCandidate(id);
+      notify.success('거절했습니다. 쿨다운 기간 동안 재추천되지 않습니다.');
+    } catch {
+      notify.error('추천 거절에 실패했습니다. 다시 시도하세요.');
+    }
   };
   const handleCreateDrafts = async () => {
     if (selected.length === 0) {

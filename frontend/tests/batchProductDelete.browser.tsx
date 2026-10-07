@@ -25,15 +25,15 @@ void (async () => {
   try {
     await wait(() => button('상품 삭제')); button('상품 삭제').click();
     await wait(() => text('등록 이력:'));
-    if (deletes || !button('마켓 삭제 후 SB 폐기').disabled) throw new Error('Deletion before consent');
-    if (!text('G마켓') || !text('옥션') || !text('카페24 삭제와 SB 폐기를 보류')) throw new Error('Hidden child marketplaces');
+    if (deletes || !button('마켓 삭제 후 SB 소프트 삭제').disabled) throw new Error('Deletion before consent');
+    if (!text('G마켓') || !text('옥션') || !text('해당 수동 작업은 SB 소프트 삭제를 막지 않으며')) throw new Error('Hidden child marketplaces or incorrect soft-delete policy');
     checks.push('삭제 대상 마켓 확인 및 명시적 확인 전 삭제 요청 없음');
     document.querySelector<HTMLInputElement>('input[type=checkbox]')!.click();
-    await wait(() => !button('마켓 삭제 후 SB 폐기').disabled); button('마켓 삭제 후 SB 폐기').click();
+    await wait(() => !button('마켓 삭제 후 SB 소프트 삭제').disabled); button('마켓 삭제 후 SB 소프트 삭제').click();
     await wait(() => text('일부 마켓 삭제 미완료'));
     if (completed || !text('재조회에서 상품 부재') || !text('삭제 확인: 쿠팡')) throw new Error('False success or hidden reason');
     checks.push('409 부분 실패 시 SB 유지·마켓별 사유 표시·완료 콜백 없음');
-    button('남은 마켓 삭제 재시도').click(); await wait(() => text('SB 폐기 완료'));
+    button('남은 마켓 삭제 재시도').click(); await wait(() => text('SB 소프트 삭제 완료'));
     if (completed !== 1 || deletes !== 2) throw new Error('Invalid retry/completion');
     checks.push('명시적 재시도 후 disposed=true에서만 폐기 완료 표시');
     result = { status: 'passed', checks, calls, fixtureOnly: true };

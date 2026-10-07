@@ -37,9 +37,9 @@ export function ProductPriceSync({ productIds, onClose }: { productIds: number[]
   const retryItems = shown?.items.filter(i => ['BLOCKED', 'STALE', 'FAILED_MISMATCH', 'UNKNOWN'].includes(i.state)) ?? [];
   return <Modal open title="마켓 판매가 반영" width={1120} onCancel={() => { if (!busy) onClose(); }} footer={null} maskClosable={!busy} closable={!busy}>
     <Alert type="info" showIcon message="마켓별 계산 가격을 검토한 뒤 반영합니다. 실제 판매가를 재조회해 완료 여부를 확인합니다."
-      description="현재 스마트스토어·쿠팡·카페24 가격 단독 반영을 지원합니다. 미지원 마켓, 판매 중지, 연결 해제, 옵션 연결이나 마켓플러스 전달 범위가 불명확한 상품은 사유와 함께 보류합니다." />
+      description="현재 스마트스토어·쿠팡·카페24·11번가 가격 단독 반영을 지원합니다. 미지원 마켓, 판매 중지, 연결 해제, 옵션 연결이나 마켓플러스 전달 범위가 불명확한 상품은 사유와 함께 보류합니다." />
     <p>선택한 상품 {productIds.length.toLocaleString()}개 · 검토당 최대 500개</p>
-    <Checkbox.Group value={selected} disabled={busy} options={markets.map(m => ({ label: marketLabel(m), value: m }))} onChange={v => setSelected(v as string[])} />
+    <Checkbox.Group value={selected} disabled={busy} options={markets.map(m => ({ label: marketLabel(m), value: m }))} onChange={v => { setSelected(v as string[]); setReview(null); setWatchId(null); setHistoryId(null); }} />
     <p><Button onClick={() => { void preview(); }} loading={busy} disabled={!productIds.length || productIds.length > 500 || !selected.length}>선택 상품 가격 검토</Button></p>
     {recent.isError ? <Alert type="error" message="최근 가격 작업 조회 실패" action={<Button onClick={() => { void recent.refetch(); }}>다시 조회</Button>} /> : <Select style={{ width: '100%' }} placeholder="최근 가격 검토·작업 내역" value={watchId ?? undefined}
       disabled={busy} options={recent.data?.map(r => ({ value: r.id, label: `${new Date(r.createdAt).toLocaleString('ko-KR')} · ${r.committed ? '접수된 작업' : '미접수 검토'} · ${r.total ?? r.items.length}건 · ${r.actor}` }))}

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import type { OrderDetailResponseDto, PageResponse } from '../../../api/orderApi';
 import type { RowData } from '../types';
 
@@ -34,7 +35,7 @@ vi.mock('../../../api/orderApi', () => ({
 
 import {
   fetchOrders, fetchCommonCodes, fetchSyncStatus,
-  updateOrder, confirmOrdersBatch,
+  updateOrder, confirmOrdersBatch, updateShippingInfo,
 } from '../../../api/orderApi';
 import OrderGrid from '../OrderGrid';
 import { buildOrderColumns } from '../orderColumns';
@@ -245,5 +246,36 @@ describe('D-307 배송메시지 낙관적 캐시', () => {
 
     await waitFor(() => expect(vi.mocked(updateOrder).mock.calls.length).toBe(2));
     expect(vi.mocked(updateOrder).mock.calls[1]).toEqual([609, { message: '경비실' }]);
+  });
+});
+
+describe('D-336 송장 저장과 마켓 전송 결과 구별', () => {
+  async function sendTracking(trackingSentToMarket: boolean | null | undefined) {
+    vi.mocked(fetchOrders).mockResolvedValue(page([
+      detail(701, 902, '수령인', ADDRESS_A, { shippingStatus: 'PREPARING' }),
+    ]));
+    vi.mocked(updateShippingInfo).mockResolvedValue({
+      id: 902, shippingData: { shippingStatus: 'DISPATCHED', trackingNo: '1234567890', shippingCarrier: 'CJ_LOGISTICS', trackingSentToMarket },
+    });
+    renderGrid();
+    const input = await screen.findByPlaceholderText('송장번호');
+    const carrier = input.parentElement!.querySelector('select')!;
+    fireEvent.change(carrier, { target: { value: 'CJ_LOGISTICS' } });
+    fireEvent.change(input, { target: { value: '1234567890' } });
+    fireEvent.click(screen.getByRole('button', { name: '전송' }));
+    await waitFor(() => expect(updateShippingInfo).toHaveBeenCalledWith(902, { trackingNo: '1234567890', shippingCarrier: 'CJ_LOGISTICS' }));
+    await waitFor(() => expect(fetchOrders).toHaveBeenCalledTimes(2));
+  }
+
+  it.each([false, null, undefined])('전송 완료 flag=%s이면 마켓 반영 성공을 알리지 않는다', async (flag) => {
+    await sendTracking(flag);
+    expect(toast.success).not.toHaveBeenCalledWith('송장/배송 정보가 마켓에 반영되었습니다.');
+    expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('마켓 반영은 확인되지 않았습니다'));
+  });
+
+  it('전송 완료 flag=true일 때만 마켓 반영 완료를 알린다', async () => {
+    await sendTracking(true);
+    expect(toast.success).toHaveBeenCalledWith('송장/배송 정보가 마켓에 반영되었습니다.');
+    expect(toast.warning).not.toHaveBeenCalled();
   });
 });

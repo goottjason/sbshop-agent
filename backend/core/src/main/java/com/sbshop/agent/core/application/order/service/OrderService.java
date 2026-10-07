@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.EnumSet;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import java.util.function.LongConsumer;
@@ -262,7 +263,12 @@ public class OrderService {
 			throw new IllegalStateException("배송 처리 시 송장번호는 필수입니다.");
 		}
 
-		ShippingData next = command.toShippingData(item.getShippingData());
+		ShippingData previous = item.getShippingData();
+		ShippingData next = command.toShippingData(previous);
+		if (!Objects.equals(previous.getTrackingNo(), next.getTrackingNo())
+			|| previous.getShippingCarrier() != next.getShippingCarrier()) {
+			next = next.toBuilder().trackingSentToMarket(false).build();
+		}
 		if (isDispatchTransition) {
 			next = next.toBuilder().shippingStatus(ShippingStatus.DISPATCHED).build();
 		}

@@ -198,8 +198,8 @@ export const updateSourcingInfo = async (lineItemId: number, data: {
 export const updateShippingInfo = async (lineItemId: number, data: {
   trackingNo?: string;
   shippingCarrier?: string;
-}): Promise<unknown> => {
-  const response = await apiClient.patch(`/api/v1/orders/line-items/${lineItemId}/shipping`, data);
+}): Promise<OrderLineItemDto> => {
+  const response = await apiClient.patch<OrderLineItemDto>(`/api/v1/orders/line-items/${lineItemId}/shipping`, data);
   return response.data;
 };
 
