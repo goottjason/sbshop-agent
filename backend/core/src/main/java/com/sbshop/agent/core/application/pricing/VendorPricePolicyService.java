@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.pricing;
 
 import com.sbshop.agent.core.domain.common.RecordStatus;
+import com.sbshop.agent.core.domain.pricing.PricePolicyValidator;
 import com.sbshop.agent.core.domain.pricing.VendorPricePolicy;
 import com.sbshop.agent.core.domain.pricing.repository.VendorPricePolicyRepository;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
@@ -35,6 +36,9 @@ public class VendorPricePolicyService {
 		java.math.BigDecimal shipBaseAmount, Integer shipBaseWeightG,
 		java.math.BigDecimal shipStepAmount, Integer shipStepWeightG,
 		java.math.BigDecimal domesticFee, java.math.BigDecimal domesticFreeOver) {
+		PricePolicyValidator.validate(marginRate, couponRate, minMarginPrice);
+		PricePolicyValidator.validateShipping(shipBaseAmount, shipBaseWeightG, shipStepAmount,
+			shipStepWeightG, domesticFee, domesticFreeOver);
 		VendorPricePolicy existing = repository.findByVendorAndStatus(vendor, RecordStatus.ACTIVE)
 			.orElse(null);
 		if (existing == null) {

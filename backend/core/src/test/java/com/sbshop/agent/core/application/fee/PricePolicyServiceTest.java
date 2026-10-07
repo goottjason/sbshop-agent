@@ -1,8 +1,10 @@
 package com.sbshop.agent.core.application.fee;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.domain.common.RecordStatus;
@@ -17,6 +19,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 @ExtendWith(MockitoExtension.class)
 class PricePolicyServiceTest {
@@ -80,6 +84,37 @@ class PricePolicyServiceTest {
 		assertThat(existing.getMarginRate()).isEqualByComparingTo("18");
 		assertThat(existing.getCouponRate()).isEqualByComparingTo("25");
 		assertThat(existing.getMinMarginPrice()).isEqualByComparingTo("7000");
+	}
+
+	@ParameterizedTest
+	@CsvSource({"-0.01, 20, 5000", "100, 20, 5000", "99.999, 20, 5000",
+		"15, -0.01, 5000", "15, 100.01, 5000", "15, 20, -0.01",
+		"15, 20, 10000000000000"})
+	@DisplayName("가격 계산을 깨뜨리거나 저장 범위를 넘는 정책은 기존 정책에 접근하기 전에 거부한다")
+	void update_rejectsInvalidNumbersBeforeRepositoryAccess(BigDecimal marginRate,
+		BigDecimal couponRate, BigDecimal minMarginPrice) {
+		assertThatThrownBy(() -> pricePolicyService.update(marginRate, couponRate, minMarginPrice))
+			.isInstanceOf(IllegalArgumentException.class).hasMessageContaining("이어야 합니다");
+		verifyNoInteractions(pricePolicyRepository);
+	}
+
+	@Test
+	@DisplayName("마진과 최소마진 0, 쿠폰 100%, 정책 초기화 null은 기존 허용 동작을 유지한다")
+	void update_preservesZeroFullCouponAndReset() {
+		PricePolicy existing = policy("15", "20", "5000");
+		when(pricePolicyRepository.findFirstByStatusOrderByIdAsc(RecordStatus.ACTIVE))
+			.thenReturn(Optional.of(existing));
+		when(pricePolicyRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+		pricePolicyService.update(BigDecimal.ZERO, new BigDecimal("100"), BigDecimal.ZERO);
+		assertThat(existing.getMarginRate()).isZero();
+		assertThat(existing.getCouponRate()).isEqualByComparingTo("100");
+		assertThat(existing.getMinMarginPrice()).isZero();
+
+		pricePolicyService.update(null, null, null);
+		assertThat(existing.getMarginRate()).isNull();
+		assertThat(existing.getCouponRate()).isNull();
+		assertThat(existing.getMinMarginPrice()).isNull();
 	}
 
 	private PricePolicy policy(String marginRate, String couponRate, String minMarginPrice) {

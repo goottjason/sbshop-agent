@@ -164,4 +164,23 @@ class ElevenstMarketClientPublishTest {
 			.isInstanceOf(RuntimeException.class)
 			.hasMessageContaining("출고지 주소를 확인해주세요");
 	}
+
+	@Test
+	void reviewedMarketNameReachesTheProductCreateXml() {
+		when(restClient.post(eq("/rest/prodservices/product"), anyString())).thenReturn(OK_RESPONSE);
+		Product product = product();
+		String originalName = product.getProductName();
+		var mapper = new com.fasterxml.jackson.databind.ObjectMapper()
+			.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+		var json = mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(context());
+		json.put("productName", "11번가 검수 상품명 180정 2개");
+
+		client.publish(product, mapper.convertValue(json, MarketPublishContext.class));
+
+		ArgumentCaptor<String> xml = ArgumentCaptor.forClass(String.class);
+		verify(restClient).post(eq("/rest/prodservices/product"), xml.capture());
+		assertThat(xml.getValue()).contains("<prdNm><![CDATA[11번가 검수 상품명 180정 2개]]></prdNm>");
+		assertThat(product.getProductName()).isEqualTo(originalName);
+	}
+
 }

@@ -32,7 +32,7 @@ public class SmartstoreProductPayloadBuilder {
 		originProduct.put("statusType", "SALE");
 		originProduct.put("saleType", "NEW");
 		originProduct.put("leafCategoryId", leafCategoryId);
-		originProduct.put("name", product.getProductName());
+		originProduct.put("name", context.productNameOr(product.getProductName()));
 		originProduct.put("detailContent", product.getDetailHtml());
 		originProduct.put("salePrice", salePrice);
 		originProduct.put("stockQuantity", product.getSalesQuantity());

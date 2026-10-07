@@ -78,12 +78,15 @@ public class ProductManageUseCase {
 		Product product = productReader.findById(productId)
 			.orElseThrow(() -> new ResourceNotFoundException("상품을 찾을 수 없습니다: " + productId));
 
+		if (imageFiles == null || imageFiles.isEmpty())
+			throw new IllegalArgumentException("등록 가능한 이미지가 최소 1개 필요합니다. 기존 이미지를 유지합니다.");
+
 		productEditService.requireWritable(productId, List.of("hostedImages", "detailHtml"));
 		Map<String, String> uploadedUrlMap = imageStorageClient.uploadImages(imageFiles);
 		List<String> hostedImages = new ArrayList<>(uploadedUrlMap.values());
 
 		String newHtml = htmlImageReplacer.replaceImagesBySku(
-			product.getDetailHtml(), product.getSbCode(), hostedImages);
+			product.getDetailHtml(), product.getSbCode(), product.getHostedImages(), hostedImages);
 
 		ProductUpdateCommand command = ProductUpdateCommand.builder()
 			.hostedImages(hostedImages)

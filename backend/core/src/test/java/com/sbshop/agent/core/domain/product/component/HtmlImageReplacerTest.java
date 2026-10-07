@@ -47,4 +47,27 @@ class HtmlImageReplacerTest {
 		String result = replacer.replaceImagesBySku(null, "SKU", List.of("url"));
 		assertThat(result).isNull();
 	}
+
+	@Test
+	void repeatedUuidImageReplacementPreservesBannerAndUnrelatedSourceAttributes() {
+		String banner = "<img data-src='https://r2.dev/old.jpg' src='https://example.com/banner.jpg'>";
+		String html = banner + "<IMG SRC = 'https://r2.dev/old.jpg'><br/><p>설명</p>"
+			+ "<img src=\"https://r2.dev/old2.jpg\">";
+		String first = replacer.replaceImagesBySku(html, "SB001",
+			List.of("https://r2.dev/old.jpg", "https://r2.dev/old2.jpg"), List.of("https://r2.dev/new.jpg"));
+		String second = replacer.replaceImagesBySku(first, "SB001",
+			List.of("https://r2.dev/new.jpg"), List.of("https://r2.dev/final.jpg"));
+		assertThat(second).contains(banner, "<p>설명</p>", "https://r2.dev/final.jpg")
+			.doesNotContain("https://r2.dev/old2.jpg", "https://r2.dev/new.jpg");
+		assertThat(second.split("https://r2.dev/final.jpg", -1)).hasSize(2);
+	}
+
+	@Test
+	void knownImageUrlIsMatchedLiterallyWithoutReplacingOtherImages() {
+		String old = "https://r2.dev/a+b.jpg?version=1&size=2";
+		String unrelated = "<img src=\"https://r2.dev/aaab.jpg?version=1&size=2\">";
+		String result = replacer.replaceImagesBySku("<img src=\"" + old + "\">" + unrelated,
+			null, List.of(old), List.of("https://r2.dev/new.jpg"));
+		assertThat(result).contains("https://r2.dev/new.jpg", unrelated).doesNotContain(old);
+	}
 }

@@ -329,7 +329,7 @@ public class Cafe24MarketClient implements MarketClient {
 
 			Map<String, Object> productData = new HashMap<>();
 			productData.put("shop_no", 1);
-			productData.put("product_name", product.getProductName());
+			productData.put("product_name", context.productNameOr(product.getProductName()));
 			productData.put("custom_product_code", product.getSbCode());
 			productData.put("price", String.valueOf(salePrice));
 			BigDecimal costPrice = product.getCostPrice();
@@ -564,15 +564,24 @@ public class Cafe24MarketClient implements MarketClient {
 		String path = "/admin/products/" + marketItemId + "?embed=variants";
 		String responseJson = cafe24RestClient.get(path);
 		try {
-			JsonNode productNode = objectMapper.readTree(responseJson).path("product");
+			JsonNode root = inspectionObject(responseJson);
+			JsonNode productNode = root.path("product");
+			if (root.has("error") || !productNode.isObject() || productNode.isEmpty()
+				|| !marketItemId.equals(productNode.path("product_no").asText()))
+				throw new IllegalStateException("카페24 상품 조회 응답이 없거나 요청 상품과 다릅니다.");
 			String detailHtml = productNode.path("description").asText("");
 			String sku = productNode.path("custom_product_code").asText("");
+			List<String> images = imageExtractor.extractSkuImages(detailHtml, sku);
+			String representative = productNode.path("detail_image").asText("");
+			if ((images == null || images.isEmpty()) && !representative.isBlank())
+				images = List.of(representative);
 			return MarketItemInfo.builder()
 				.isMasterData(true)
 				.mappingKey(productNode.path("product_code").asText(""))
 				.name(productNode.path("product_name").asText(null))
+				.salePrice(productNode.hasNonNull("price") ? new BigDecimal(productNode.path("price").asText()) : null)
 				.detailHtml(detailHtml)
-				.images(imageExtractor.extractSkuImages(detailHtml, sku))
+				.images(images)
 				.rawData(objectMapper.convertValue(productNode, Map.class))
 				.build();
 		} catch (Exception e) {

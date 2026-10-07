@@ -539,13 +539,34 @@ public class SmartstoreMarketClient implements MarketClient {
 	public MarketItemInfo extractMarketItem(String marketItemId) {
 		String response = restClient.get("/v2/products/origin-products/" + marketItemId);
 		try {
-			JsonNode originNode = objectMapper.readTree(response).path("originProduct");
+			JsonNode root = objectMapper.readTree(response);
+			JsonNode originNode = root == null ? null : root.path("originProduct");
+			if (root == null || root.has("code") || originNode == null || !originNode.isObject()
+				|| originNode.path("name").asText("").isBlank()
+				|| originNode.hasNonNull("id") && !marketItemId.equals(originNode.path("id").asText()))
+				throw new IllegalStateException("스마트스토어 상품 조회 응답이 없거나 요청 상품과 다릅니다.");
+			List<String> images = null;
+			if (originNode.path("images").isObject()) {
+				images = new ArrayList<>();
+				String representative = originNode.path("images").path("representativeImage").path("url").asText("");
+				if (!representative.isBlank())
+					images.add(representative);
+				for (JsonNode image : originNode.path("images").path("optionalImages")) {
+					String url = image.path("url").asText("");
+					if (!url.isBlank())
+						images.add(url);
+				}
+			}
 			return MarketItemInfo.builder()
 				.isMasterData(true)
-				.name(originNode.path("productName").asText(null))
+				.name(originNode.path("name").asText(null))
 				.mappingKey(originNode.path("productCode").asText(""))
-				.salePrice(BigDecimal.valueOf(originNode.path("salePrice").asDouble(0)))
-				.stock(originNode.path("stockQuantity").asInt(0))
+				.salePrice(
+					originNode.hasNonNull("salePrice") ? new BigDecimal(originNode.path("salePrice").asText()) : null)
+				.stock(originNode.hasNonNull("stockQuantity")
+					? new BigDecimal(originNode.path("stockQuantity").asText()).intValueExact() : null)
+				.detailHtml(originNode.path("detailContent").asText(null))
+				.images(images)
 				.rawData(objectMapper.convertValue(originNode, Map.class))
 				.build();
 		} catch (Exception e) {
@@ -561,7 +582,8 @@ public class SmartstoreMarketClient implements MarketClient {
 		}
 		return MarketItemInfo.builder()
 			.isMasterData(true)
-			.name(rawData.get("productName") != null ? String.valueOf(rawData.get("productName")) : null)
+			.name(rawData.get("name") != null ? String.valueOf(rawData.get("name"))
+				: rawData.get("productName") != null ? String.valueOf(rawData.get("productName")) : null)
 			.salePrice(
 				rawData.get("salePrice") != null ? new BigDecimal(String.valueOf(rawData.get("salePrice"))) : null)
 			.stock(rawData.get("stockQuantity") != null ? Integer.parseInt(String.valueOf(rawData.get("stockQuantity")))
@@ -1102,7 +1124,7 @@ public class SmartstoreMarketClient implements MarketClient {
 			context.salePrice() != null ? context.salePrice() : auto.salePrice(),
 			context.keywords().isEmpty() ? auto.keywords() : context.keywords(),
 			context.noticeFields().isEmpty() ? auto.noticeFields() : context.noticeFields(),
-			extra);
+			extra, context.productName());
 	}
 
 	@SuppressWarnings("unchecked")

@@ -375,4 +375,20 @@ class SmartstoreProductPayloadBuilderTest {
 		Map<String, Object> attr = (Map<String, Object>)origin.get("detailAttribute");
 		return (Map<String, Object>)attr.get("sellerCodeInfo");
 	}
+
+	@Test
+	void reviewedMarketNameOverridesOnlyThePublishedName() {
+		Product product = product();
+		String originalName = product.getProductName();
+		var mapper = new com.fasterxml.jackson.databind.ObjectMapper()
+			.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+		var json = mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(context());
+		json.put("productName", "스토어 검수 상품명 180정 2개");
+		MarketPublishContext reviewed = mapper.convertValue(json, MarketPublishContext.class);
+
+		assertThat(originProduct(builder.build(product, reviewed)).get("name"))
+			.isEqualTo("스토어 검수 상품명 180정 2개");
+		assertThat(product.getProductName()).isEqualTo(originalName);
+	}
+
 }

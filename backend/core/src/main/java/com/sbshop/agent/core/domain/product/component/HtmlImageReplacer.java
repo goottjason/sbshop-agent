@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.domain.product.component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -8,12 +9,26 @@ import org.springframework.stereotype.Component;
 @Component
 public class HtmlImageReplacer {
 	public String replaceImagesBySku(String originalHtml, String sku, List<String> hostedImages) {
+		return replaceImagesBySku(originalHtml, sku, List.of(), hostedImages);
+	}
+
+	public String replaceImagesBySku(String originalHtml, String sku, List<String> previousImages,
+		List<String> hostedImages) {
 		if (originalHtml == null || originalHtml.isEmpty()) {
 			return originalHtml;
 		}
 
-		String regex = "(?i)<img[^>]*src=[\"'][^\"']*" + Pattern.quote(sku)
-			+ "[^\"']*[\"'][^>]*>(?:\\s*<br\\s*/?>\\s*)*";
+		List<String> sources = new ArrayList<>();
+		if (sku != null && !sku.isBlank())
+			sources.add("(?i:[^\"']*" + Pattern.quote(sku) + "[^\"']*)");
+		if (previousImages != null)
+			previousImages.stream().filter(url -> url != null && !url.isBlank())
+				.map(Pattern::quote).forEach(sources::add);
+		if (sources.isEmpty())
+			return originalHtml;
+
+		String regex = "(?i:<img)\\b[^>]*\\s+(?i:src)\\s*=\\s*([\"'])(?:" + String.join("|", sources)
+			+ ")\\1[^>]*>(?:\\s*(?i:<br)\\s*/?>\\s*)*";
 		Pattern pattern = Pattern.compile(regex);
 		Matcher matcher = pattern.matcher(originalHtml);
 

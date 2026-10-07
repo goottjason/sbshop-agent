@@ -66,7 +66,7 @@ class ProductManageRepublishMarketCodeTest {
 		lenient().when(product.getDetailHtml()).thenReturn("<old/>");
 		lenient().when(imageStorageClient.uploadImages(any()))
 			.thenReturn(Map.of("a.jpg", "https://r2.dev/a.jpg"));
-		lenient().when(htmlImageReplacer.replaceImagesBySku(any(), any(), anyList()))
+		lenient().when(htmlImageReplacer.replaceImagesBySku(any(), any(), anyList(), anyList()))
 			.thenReturn("<new/>");
 	}
 

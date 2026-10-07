@@ -147,8 +147,8 @@ class Cafe24PublishSchemaTest {
 
 		ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
 		verify(cafe24RestClient).post(eq("/admin/products/999/tags"), captor.capture());
-		@SuppressWarnings("unchecked")
-		Map<String, Object> request = (Map<String, Object>)captor.getValue().get("request");
+		@SuppressWarnings("unchecked") Map<String, Object> request = (Map<String, Object>)captor.getValue()
+			.get("request");
 		assertThat(request.get("tags"))
 			.isEqualTo(List.of("California Gold Nutrition", "비타민D3 K2", "Vitamin D3 K2"));
 	}
@@ -217,4 +217,21 @@ class Cafe24PublishSchemaTest {
 		assertThat(request).doesNotContainKeys("origin_classification", "origin_place_no",
 			"origin_place_value");
 	}
+
+	@Test
+	void reviewedMarketNameReachesTheProductCreatePayload() {
+		stubCreateAndImageUpload();
+		Product product = product(new BigDecimal("0.30"));
+		String originalName = product.getProductName();
+		var mapper = new ObjectMapper()
+			.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+		var json = mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(context());
+		json.put("productName", "카페24 검수 상품명 180정 2개");
+
+		client.publish(product, mapper.convertValue(json, MarketPublishContext.class));
+
+		assertThat(capturedRequest().get("product_name")).isEqualTo("카페24 검수 상품명 180정 2개");
+		assertThat(product.getProductName()).isEqualTo(originalName);
+	}
+
 }

@@ -3,6 +3,7 @@ package com.sbshop.agent.core.application.fee;
 import com.sbshop.agent.core.domain.common.RecordStatus;
 import com.sbshop.agent.core.domain.fee.PricePolicy;
 import com.sbshop.agent.core.domain.fee.repository.PricePolicyRepository;
+import com.sbshop.agent.core.domain.pricing.PricePolicyValidator;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ public class PricePolicyService {
 
 	@Transactional
 	public PricePolicy update(BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice) {
+		PricePolicyValidator.validate(marginRate, couponRate, minMarginPrice);
 		PricePolicy policy = get();
 		if (policy == null) {
 			return pricePolicyRepository.save(PricePolicy.builder()

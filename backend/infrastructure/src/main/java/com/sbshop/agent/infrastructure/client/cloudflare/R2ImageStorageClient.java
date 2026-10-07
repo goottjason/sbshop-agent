@@ -47,7 +47,11 @@ public class R2ImageStorageClient implements ImageStorageClient {
 					RequestBody.fromInputStream(file.inputStream(), file.size()));
 
 				String publicUrl = r2Properties.getPublicUrl() + "/" + fileName;
-				uploadedUrlMap.put(originalFilename, publicUrl);
+				String resultKey = originalFilename;
+				int duplicate = 2;
+				while (uploadedUrlMap.containsKey(resultKey))
+					resultKey = originalFilename + "#" + duplicate++;
+				uploadedUrlMap.put(resultKey, publicUrl);
 			} catch (Exception e) {
 				log.error("R2 업로드 실패: {}", originalFilename, e);
 				throw new RuntimeException("이미지 업로드 중 서버 오류가 발생했습니다.", e);

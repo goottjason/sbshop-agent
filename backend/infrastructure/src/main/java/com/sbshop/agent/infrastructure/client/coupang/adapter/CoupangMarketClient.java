@@ -323,7 +323,7 @@ public class CoupangMarketClient implements MarketClient {
 
 			CoupangProductPayload payload = CoupangProductPayload.create(
 				product, categoryId,
-				product.getBaseName(), product.getBaseName(), product.getBrand(),
+				context.productNameOr(product.getBaseName()), product.getBaseName(), product.getBrand(),
 				salePrice,
 				tags, images, metaResult.notices(), metaResult.attributes(),
 				product.getDetailHtml(), shippingAccount(context));
@@ -456,11 +456,48 @@ public class CoupangMarketClient implements MarketClient {
 			+ "?vendorId=" + restClient.resolveVendorId();
 		String responseJson = restClient.get(path);
 		try {
-			JsonNode dataNode = productParser.parseDataNode(responseJson);
+			JsonNode root = objectMapper.readTree(responseJson);
+			if (root != null && "200".equals(root.path("code").asText()))
+				root = root.path("data");
+			if (root == null || !"SUCCESS".equals(root.path("code").asText()))
+				throw new IllegalStateException("쿠팡 상품 조회 응답에 성공 확인이 없습니다.");
+			JsonNode dataNode = root.path("data");
+			if (!dataNode.isObject() || dataNode.isEmpty()
+				|| !marketItemId.equals(dataNode.path("sellerProductId").asText()))
+				throw new IllegalStateException("쿠팡 상품 조회 응답이 없거나 요청 상품과 다릅니다.");
 			JsonNode firstItem = productParser.getFirstItem(dataNode);
+			// Listing-wide comparisons cannot attribute the first option's values to every option.
+			boolean singleItem = dataNode.path("items").isArray() && dataNode.path("items").size() == 1;
+			List<String> images = null;
+			String detailHtml = null;
+			if (singleItem) {
+				if (firstItem.path("images").isArray()) {
+					var ordered = new java.util.TreeMap<Integer, String>();
+					for (JsonNode image : firstItem.path("images")) {
+						String url = image.path("vendorPath").asText("");
+						if (url.isBlank())
+							url = image.path("cdnPath").asText("");
+						if (!url.isBlank())
+							ordered.put(image.path("imageOrder").asInt(ordered.size()), url);
+					}
+					images = new ArrayList<>(ordered.values());
+				}
+				StringBuilder html = new StringBuilder();
+				for (JsonNode content : firstItem.path("contents"))
+					if ("HTML".equals(content.path("contentsType").asText()))
+						for (JsonNode detail : content.path("contentDetails"))
+							if ("TEXT".equals(detail.path("detailType").asText()))
+								html.append(detail.path("content").asText(""));
+				if (!html.isEmpty())
+					detailHtml = html.toString();
+			}
 			return MarketItemInfo.builder()
 				.isMasterData(true)
 				.name(dataNode.path("displayProductName").asText(null))
+				.salePrice(singleItem && firstItem.hasNonNull("salePrice")
+					? new BigDecimal(firstItem.path("salePrice").asText()) : null)
+				.images(images)
+				.detailHtml(detailHtml)
 				.marketIdentifiers(dataMapper.buildIdentifiers(marketItemId, firstItem))
 				.mappingKey(firstItem.path("externalVendorSku").asText(""))
 				.brand(dataNode.path("brand").asText(null))

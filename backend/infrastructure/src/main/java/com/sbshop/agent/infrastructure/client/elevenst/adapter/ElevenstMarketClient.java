@@ -272,11 +272,30 @@ public class ElevenstMarketClient implements MarketClient {
 
 	@Override
 	public MarketItemInfo extractMarketItem(String marketItemId) {
-		String response = restClient.get("/rest/prodservices/productinfo/" + marketItemId);
+		String response = restClient.get("/rest/prodmarketservice/prodmarket/" + marketItemId);
+		var root = com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.xml(response);
+		String code = com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, "resultCode");
+		if (!"Product".equals(com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.name(root))
+			|| !code.isBlank()
+			|| !marketItemId
+				.equals(com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, "prdNo")))
+			throw new IllegalStateException("11번가 상품 조회 응답이 없거나 요청 상품과 다릅니다."
+				+ (code.isBlank() ? "" : " (resultCode=" + code + ")"));
+		String price = com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, "selPrc");
+		List<String> images = new ArrayList<>();
+		for (int i = 1; i <= 10; i++) {
+			String url = com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root,
+				"prdImage%02d".formatted(i));
+			if (!url.isBlank())
+				images.add(url);
+		}
 		return MarketItemInfo.builder()
 			.isMasterData(true)
-			.name(extractXmlValue(response, "prdNm"))
-			.mappingKey(extractXmlValue(response, "prdNo"))
+			.name(com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, "prdNm"))
+			.mappingKey(marketItemId)
+			.salePrice(price.isBlank() ? null : new java.math.BigDecimal(price))
+			.detailHtml(com.sbshop.agent.infrastructure.client.common.MarketApiEvidence.text(root, "htmlDetail"))
+			.images(images)
 			.rawData(Map.of("xmlResponse", response))
 			.build();
 	}
@@ -588,7 +607,8 @@ public class ElevenstMarketClient implements MarketClient {
 			detail = " · " + (response.body().isBlank() ? "빈 응답" : "XML이 아닌 응답 또는 손상된 응답");
 		}
 		detail = com.sbshop.agent.core.application.product.ProductMarketSyncService.sanitizeMarketMessage(detail);
-		if (detail.length() > 600) detail = detail.substring(0, 600) + "…";
+		if (detail.length() > 600)
+			detail = detail.substring(0, 600) + "…";
 		// No documented delete-success envelope is assumed. The caller's same-account
 		// readback alone may confirm absence; otherwise retain this response as the reason.
 		throw new IllegalStateException("11번가 삭제 미확인 · HTTP " + response.httpStatus()
@@ -603,7 +623,8 @@ public class ElevenstMarketClient implements MarketClient {
 		StringBuilder sb = new StringBuilder();
 		sb.append("<?xml version=\"1.0\" encoding=\"euc-kr\"?>");
 		sb.append("<Product>");
-		sb.append("<prdNm>").append("<![CDATA[").append(product.getProductName()).append("]]>").append("</prdNm>");
+		sb.append("<prdNm>").append("<![CDATA[").append(context.productNameOr(product.getProductName()))
+			.append("]]>").append("</prdNm>");
 		sb.append("<prdNmEng>").append("<![CDATA[").append(product.getBaseName() != null ? product.getBaseName() : "")
 			.append("]]>").append("</prdNmEng>");
 		sb.append("<brand>").append("<![CDATA[").append(product.getBrand() != null ? product.getBrand() : "")

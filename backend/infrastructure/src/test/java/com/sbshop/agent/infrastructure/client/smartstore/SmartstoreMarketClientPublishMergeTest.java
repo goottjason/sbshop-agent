@@ -93,11 +93,17 @@ class SmartstoreMarketClientPublishMergeTest {
 		when(payloadBuilder.build(any(), any())).thenReturn(Map.of("originProduct", Map.of()));
 		when(restClient.post(any(), any())).thenReturn("{\"originProductNo\":\"999\"}");
 
+		var mapper = new ObjectMapper()
+			.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+		var json = mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(partial);
+		json.put("productName", "스토어 검수 상품명");
+		partial = mapper.convertValue(json, MarketPublishContext.class);
 		client.publish(product, partial);
 
 		ArgumentCaptor<MarketPublishContext> captor = ArgumentCaptor.forClass(MarketPublishContext.class);
 		verify(payloadBuilder).build(eq(product), captor.capture());
 		MarketPublishContext merged = captor.getValue();
+		assertThat(mapper.valueToTree(merged).path("productName").asText()).isEqualTo("스토어 검수 상품명");
 		assertThat(merged.salePrice()).isEqualByComparingTo("103000");
 		assertThat(merged.categoryId()).isEqualTo("50000999");
 		assertThat(merged.extraFields()).containsEntry("shippingAddressId", "111");
