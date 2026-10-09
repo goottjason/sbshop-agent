@@ -75,6 +75,22 @@ class CoupangListingRepairControllerTest {
 	}
 
 	@Test
+	@DisplayName("D-341: 브랜드·제조사 변경 내역(fieldChanges)이 응답에 나온다")
+	void exposesFieldChanges() throws Exception {
+		var repair = new com.sbshop.agent.core.domain.market.client.dto.ListingAttributeRepair("14300000001", "승인반려",
+			List.of(), List.of(), List.of(),
+			com.sbshop.agent.core.domain.market.client.dto.ListingAttributeRepairOutcome.DRY_RUN, null,
+			List.of("brand: 자체브랜드→닥터스베스트"));
+		when(useCase.repair(any())).thenReturn(List.of(
+			new CoupangListingRepairUseCase.Outcome(1L, "SB1", "14300000001", "DRY_RUN", repair, null)));
+
+		mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
+			.content("{\"sellerProductIds\":[\"14300000001\"]}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.results[0].repair.fieldChanges[0]").value("brand: 자체브랜드→닥터스베스트"));
+	}
+
+	@Test
 	@DisplayName("D-340: ID·브랜드가 모두 비면 400")
 	void rejectsEmptyTargets() throws Exception {
 		mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content("{}"))

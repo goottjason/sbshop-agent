@@ -989,11 +989,11 @@ public class CoupangMarketClient implements MarketClient {
 		String statusName = attributeText(rawData.get("statusName"));
 		if (!"승인반려".equals(statusName))
 			return new ListingAttributeRepair(id, statusName, List.of(), List.of(), List.of(),
-				ListingAttributeRepairOutcome.SKIPPED_STATUS, "승인반려 상태가 아니라 보정하지 않았습니다");
+				ListingAttributeRepairOutcome.SKIPPED_STATUS, "승인반려 상태가 아니라 보정하지 않았습니다", List.of());
 		Long categoryCode = displayCategoryCode(rawData);
 		if (categoryCode == null)
 			return new ListingAttributeRepair(id, statusName, List.of(), List.of(), List.of(),
-				ListingAttributeRepairOutcome.FAILED, "displayCategoryCode 없음 — 카테고리 메타를 조회할 수 없습니다");
+				ListingAttributeRepairOutcome.FAILED, "displayCategoryCode 없음 — 카테고리 메타를 조회할 수 없습니다", List.of());
 		List<com.sbshop.agent.infrastructure.client.coupang.dto.CoupangAttributeMeta> metas;
 		try {
 			metas = metaService.getAttributeMetas(categoryCode);
@@ -1027,19 +1027,20 @@ public class CoupangMarketClient implements MarketClient {
 			result.removed().forEach(r -> removed.add(prefix + r));
 			result.missing().forEach(m -> missing.add(prefix + m));
 		}
+		List<String> fieldChanges = repairBrandFields(rawData, product);
 		if (!missing.isEmpty())
 			return new ListingAttributeRepair(id, statusName, filled, removed, missing,
-				ListingAttributeRepairOutcome.UNRESOLVED, "상품명에서 필수 구매옵션을 추출하지 못했습니다");
+				ListingAttributeRepairOutcome.UNRESOLVED, "상품명에서 필수 구매옵션을 추출하지 못했습니다", fieldChanges);
 		if (!submit)
 			return new ListingAttributeRepair(id, statusName, filled, removed, missing,
-				ListingAttributeRepairOutcome.DRY_RUN, null);
+				ListingAttributeRepairOutcome.DRY_RUN, null, fieldChanges);
 		rawData.put("requested", true);
 		String response;
 		try {
 			response = restClient.put(CATALOG_BASE, rawData);
 		} catch (RuntimeException e) {
 			return new ListingAttributeRepair(id, statusName, filled, removed, missing,
-				ListingAttributeRepairOutcome.FAILED, exceptionMessage(e));
+				ListingAttributeRepairOutcome.FAILED, exceptionMessage(e), fieldChanges);
 		}
 		JsonNode root = readEnvelope(response);
 		String code = root == null ? "" : root.path("code").asText("");
@@ -1048,11 +1049,35 @@ public class CoupangMarketClient implements MarketClient {
 			log.info("[쿠팡] 구매옵션 보정 재심사 요청: sellerProductId={}, filled={}, removed={}, detail={}", id, filled,
 				removed, detail);
 			return new ListingAttributeRepair(id, statusName, filled, removed, missing,
-				ListingAttributeRepairOutcome.SUBMITTED, detail);
+				ListingAttributeRepairOutcome.SUBMITTED, detail, fieldChanges);
 		}
 		log.warn("[쿠팡] 구매옵션 보정 거부: sellerProductId={}, code={}, detail={}", id, code, detail);
 		return new ListingAttributeRepair(id, statusName, filled, removed, missing,
-			ListingAttributeRepairOutcome.FAILED, detail.isEmpty() ? envelopeSnippet(response) : detail);
+			ListingAttributeRepairOutcome.FAILED, detail.isEmpty() ? envelopeSnippet(response) : detail,
+			fieldChanges);
+	}
+
+	private List<String> repairBrandFields(Map<String, Object> rawData, Product product) {
+		List<String> changes = new ArrayList<>();
+		String brand = product == null ? "" : attributeText(product.getBrand());
+		if (brand.isEmpty())
+			return changes;
+		String currentBrand = attributeText(rawData.get("brand"));
+		if (currentBrand.isEmpty() || "자체브랜드".equals(currentBrand)
+			|| !currentBrand.replaceAll("\\s+", "").equals(brand.replaceAll("\\s+", ""))) {
+			rawData.put("brand", brand);
+			changes.add("brand: " + currentBrand + "→" + brand);
+		}
+		String currentManufacture = attributeText(rawData.get("manufacture"));
+		if (currentManufacture.isEmpty() || "자체제작".equals(currentManufacture)
+			|| "자체브랜드".equals(currentManufacture)) {
+			String manufacturer = product.getSourcingInfo() == null ? ""
+				: attributeText(product.getSourcingInfo().getManufacturer());
+			String replacement = manufacturer.isEmpty() ? brand : manufacturer;
+			rawData.put("manufacture", replacement);
+			changes.add("manufacture: " + currentManufacture + "→" + replacement);
+		}
+		return changes;
 	}
 
 	private static String responseDetail(JsonNode root) {

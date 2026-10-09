@@ -70,7 +70,7 @@ class CoupangListingRepairUseCaseTest {
 	}
 
 	private static ListingAttributeRepair repair(String id, ListingAttributeRepairOutcome outcome, String detail) {
-		return new ListingAttributeRepair(id, "승인반려", List.of(), List.of(), List.of(), outcome, detail);
+		return new ListingAttributeRepair(id, "승인반려", List.of(), List.of(), List.of(), outcome, detail, List.of());
 	}
 
 	@Test
