@@ -39,6 +39,8 @@ public class CoupangPurchaseOptionRepairer {
 	private static final Pattern BUNDLE_SUFFIX = Pattern.compile("(\\d+)\\s*(개|팩|병|통|봉|박스)\\s*$");
 	private static final Pattern BUNDLE_PREFIX = Pattern.compile("^\\s*\\((\\d+)\\s*(개|팩|병|통|봉|박스)\\)");
 	private static final Set<String> PLACEHOLDER_VALUES = Set.of("수량", "용량", "중량", "정", "개", "캡슐");
+	private static final List<String> LEGACY_OPTION_KEYWORDS = List.of("용량", "중량", "정");
+	private static final Set<String> PER_UNIT_OPTIONS = Set.of("개당 캡슐/정", "개당 중량", "개당 용량");
 	private static final Set<String> PILL_UNITS = Set.of("베지캡슐", "캡슐", "소프트젤", "타블렛", "구미", "츄");
 
 	public Result repair(List<Map<String, Object>> attributes, List<CoupangAttributeMeta> metas, String itemName,
@@ -50,13 +52,20 @@ public class CoupangPurchaseOptionRepairer {
 		List<Map<String, Object>> kept = new ArrayList<>();
 		List<String> removed = new ArrayList<>();
 		Set<String> present = new LinkedHashSet<>();
+		boolean legacyPurchaseOption = false;
 		for (Map<String, Object> attribute : attributes == null ? List.<Map<String, Object>>of() : attributes) {
 			String type = text(attribute.get("attributeTypeName"));
 			String value = text(attribute.get("attributeValueName"));
 			if (value.isEmpty()) {
 				removed.add(type + "(빈값)");
 			} else if (!metaByType.containsKey(type)) {
-				removed.add(type + "(폐지)");
+				if ("EXPOSED".equals(text(attribute.get("exposed"))) && !isPlaceholderValue(type, value)) {
+					kept.add(attribute);
+					if (LEGACY_OPTION_KEYWORDS.stream().anyMatch(type::contains))
+						legacyPurchaseOption = true;
+				} else {
+					removed.add(type + "(폐지)");
+				}
 			} else if (isPlaceholderValue(type, value) || isUnitOnly(value, metaByType.get(type))) {
 				removed.add(type + "(쓰레기값)");
 			} else {
@@ -68,6 +77,8 @@ public class CoupangPurchaseOptionRepairer {
 		List<String> missing = new ArrayList<>();
 		for (List<CoupangAttributeMeta> group : purchaseOptionGroups(metas)) {
 			if (group.stream().anyMatch(m -> present.contains(m.typeName())))
+				continue;
+			if (legacyPurchaseOption && group.stream().anyMatch(m -> PER_UNIT_OPTIONS.contains(m.typeName())))
 				continue;
 			boolean satisfied = false;
 			for (CoupangAttributeMeta member : group) {

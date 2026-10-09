@@ -56,7 +56,7 @@ class CoupangPurchaseOptionRepairerTest {
 		var result = repairer.repair(attrs(
 			attr("개당 중량", "", "NONE"),
 			attr("제품 형태", "", "NONE"),
-			attr("개당 용량/중량/정", "90정", "EXPOSED"),
+			attr("개당 용량/중량/정", "90정", "NONE"),
 			attr("수량", "1개", "EXPOSED")), SUPPLEMENT_META, null, "나우푸드 비타민 D 90정", null);
 
 		assertThat(countOf(result, "개당 용량/중량/정")).isZero();
@@ -64,6 +64,32 @@ class CoupangPurchaseOptionRepairerTest {
 		assertThat(result.removed()).contains("개당 용량/중량/정(폐지)", "제품 형태(빈값)", "개당 중량(빈값)");
 		assertThat(valueOf(result, "개당 캡슐/정")).isEqualTo("90정");
 		assertThat(result.missing()).isEmpty();
+	}
+
+	@Test
+	@DisplayName("D-342: 값 있는 옛 구매옵션(EXPOSED)은 유지하고 개당 그룹을 새로 채우지 않는다")
+	void keepsLegacyPurchaseOption() {
+		var result = repairer.repair(attrs(attr("개당 용량/중량/정", "180캡슐", "EXPOSED"), attr("수량", "2개", "EXPOSED")),
+			SUPPLEMENT_META, "180캡슐 2개", "나우푸드 마그네슘 180캡슐", null);
+
+		assertThat(valueOf(result, "개당 용량/중량/정")).isEqualTo("180캡슐");
+		assertThat(countOf(result, "개당 캡슐/정")).isZero();
+		assertThat(result.removed()).isEmpty();
+		assertThat(result.filled()).isEmpty();
+		assertThat(result.missing()).isEmpty();
+	}
+
+	@Test
+	@DisplayName("D-342: 옛 구매옵션이 빈값·쓰레기값·비노출이면 제거하고 개당 그룹을 채운다")
+	void removesUnusableLegacyOption() {
+		for (Map<String, Object> legacy : List.of(attr("개당 용량/중량/정", "", "EXPOSED"),
+			attr("개당 용량/중량/정", "정", "EXPOSED"), attr("개당 용량/중량/정", "180캡슐", "NONE"))) {
+			var result = repairer.repair(attrs(legacy), SUPPLEMENT_META, "1개", "나우푸드 마그네슘 180캡슐", null);
+
+			assertThat(countOf(result, "개당 용량/중량/정")).isZero();
+			assertThat(valueOf(result, "개당 캡슐/정")).isEqualTo("180정");
+			assertThat(result.missing()).isEmpty();
+		}
 	}
 
 	@Test

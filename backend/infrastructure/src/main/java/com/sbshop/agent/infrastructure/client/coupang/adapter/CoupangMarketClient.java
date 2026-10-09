@@ -1063,8 +1063,7 @@ public class CoupangMarketClient implements MarketClient {
 		if (brand.isEmpty())
 			return changes;
 		String currentBrand = attributeText(rawData.get("brand"));
-		if (currentBrand.isEmpty() || "자체브랜드".equals(currentBrand)
-			|| !currentBrand.replaceAll("\\s+", "").equals(brand.replaceAll("\\s+", ""))) {
+		if (currentBrand.isEmpty() || "자체브랜드".equals(currentBrand) || "상품상세 참조".equals(currentBrand)) {
 			rawData.put("brand", brand);
 			changes.add("brand: " + currentBrand + "→" + brand);
 		}

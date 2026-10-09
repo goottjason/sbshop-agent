@@ -79,7 +79,7 @@ class CoupangMarketClientListingRepairTest {
 			+ "\"sellerProductId\":14300000001,\"statusName\":\"" + statusName + "\","
 			+ "\"sellerProductName\":\"" + sellerProductName + "\",\"displayCategoryCode\":58920,"
 			+ "\"items\":[{\"itemName\":\"1개\",\"attributes\":["
-			+ "{\"attributeTypeName\":\"개당 용량/중량/정\",\"attributeValueName\":\"90정\",\"exposed\":\"EXPOSED\",\"editable\":true},"
+			+ "{\"attributeTypeName\":\"개당 용량/중량/정\",\"attributeValueName\":\"90정\",\"exposed\":\"NONE\",\"editable\":true},"
 			+ "{\"attributeTypeName\":\"개당 중량\",\"attributeValueName\":\"\",\"exposed\":\"NONE\",\"editable\":true}"
 			+ "]}]}}");
 	}

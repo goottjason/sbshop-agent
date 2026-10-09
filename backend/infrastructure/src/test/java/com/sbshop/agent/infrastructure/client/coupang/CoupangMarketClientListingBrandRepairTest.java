@@ -101,13 +101,24 @@ class CoupangMarketClientListingBrandRepairTest {
 	}
 
 	@Test
-	@DisplayName("D-341: 공백 제거 비교로 다르면 DB 브랜드로 바꾼다")
-	void replacesDifferentBrand() {
-		stubGet("노르딕 내추럴스", "Nordic Naturals Inc");
+	@DisplayName("D-342: 실제 브랜드끼리의 표기 차이는 바꾸지 않는다(제출 후 변경 불가)")
+	void keepsRealBrandSpellingDifference() {
+		stubGet("노르딕내추럴스", "Nordic Naturals Inc");
 
 		ListingAttributeRepair result = client.repairListingAttributes(product("노르딕내츄럴스", null), ID, false);
 
-		assertThat(result.fieldChanges()).containsExactly("brand: 노르딕 내추럴스→노르딕내츄럴스");
+		assertThat(result.fieldChanges()).isEmpty();
+	}
+
+	@org.junit.jupiter.params.ParameterizedTest
+	@org.junit.jupiter.params.provider.ValueSource(strings = {"자체브랜드", "", "상품상세 참조"})
+	@DisplayName("D-342: 비었거나 자체브랜드·상품상세 참조일 때만 DB 브랜드로 바꾼다")
+	void replacesPlaceholderBrands(String current) {
+		stubGet(current, "Doctor's Best Inc");
+
+		ListingAttributeRepair result = client.repairListingAttributes(product("닥터스베스트", null), ID, false);
+
+		assertThat(result.fieldChanges()).containsExactly("brand: " + current + "→닥터스베스트");
 	}
 
 	@Test
