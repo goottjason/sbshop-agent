@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.domain.market.client.MarketClient;
+import com.sbshop.agent.core.domain.market.client.dto.ListingAttributeRepair;
+import com.sbshop.agent.core.domain.market.client.dto.ListingAttributeRepairOutcome;
 import com.sbshop.agent.core.domain.market.client.dto.MarketApprovalResult;
 import com.sbshop.agent.core.domain.market.client.dto.MarketCatalogEntry;
 import com.sbshop.agent.core.domain.market.client.dto.MarketDraftPrice;
@@ -17,6 +19,7 @@ import com.sbshop.agent.infrastructure.client.coupang.client.CoupangRestClient;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangAttributeValueResolver;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangCategoryPredictor;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangMetaService;
+import com.sbshop.agent.infrastructure.client.coupang.component.CoupangPurchaseOptionRepairer;
 import com.sbshop.agent.infrastructure.client.coupang.component.CoupangSearchTagGenerator;
 import com.sbshop.agent.infrastructure.client.coupang.config.CoupangProperties;
 import com.sbshop.agent.infrastructure.client.coupang.dto.CategoryMetaResult;
@@ -267,8 +270,6 @@ public class CoupangMarketClient implements MarketClient {
 		}
 	}
 
-	private static final Set<String> PLACEHOLDER_ATTRIBUTE_VALUES = Set.of("수량", "용량", "중량", "정", "개", "캡슐");
-
 	private static final String CATALOG_BASE = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
 	private static final String VENDOR_ITEM_BASE = "/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/";
 	private static final String SELLER_PRODUCT_BASE = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/";
@@ -289,6 +290,7 @@ public class CoupangMarketClient implements MarketClient {
 	private final CoupangDataMapper dataMapper;
 	private final CoupangMetaService metaService;
 	private final CoupangAttributeValueResolver attributeValueResolver;
+	private final CoupangPurchaseOptionRepairer purchaseOptionRepairer = new CoupangPurchaseOptionRepairer();
 
 	@Override
 	public MarketType getSupportedMarket() {
@@ -973,6 +975,96 @@ public class CoupangMarketClient implements MarketClient {
 			"성공 봉투(code=SUCCESS·200)가 아닙니다");
 	}
 
+	@Override
+	public ListingAttributeRepair repairListingAttributes(Product product, String marketItemId, boolean submit) {
+		if (marketItemId == null || marketItemId.isBlank())
+			throw new IllegalArgumentException("쿠팡 sellerProductId 없음 — 구매옵션 보정 불가");
+		String id = marketItemId.trim();
+		String getResponse = restClient.get(CATALOG_BASE + "/" + id);
+		verifyEnvelopeStrict(getResponse, "[쿠팡] 구매옵션 보정 전 상품 조회");
+		Map<String, Object> rawData = objectMapper.convertValue(readEnvelope(getResponse).path("data"),
+			new TypeReference<Map<String, Object>>() {});
+		if (rawData == null || rawData.isEmpty())
+			throw new IllegalStateException("쿠팡 상품 조회 응답에 data 없음: " + id);
+		String statusName = attributeText(rawData.get("statusName"));
+		if (!"승인반려".equals(statusName))
+			return new ListingAttributeRepair(id, statusName, List.of(), List.of(), List.of(),
+				ListingAttributeRepairOutcome.SKIPPED_STATUS, "승인반려 상태가 아니라 보정하지 않았습니다");
+		Long categoryCode = displayCategoryCode(rawData);
+		if (categoryCode == null)
+			return new ListingAttributeRepair(id, statusName, List.of(), List.of(), List.of(),
+				ListingAttributeRepairOutcome.FAILED, "displayCategoryCode 없음 — 카테고리 메타를 조회할 수 없습니다");
+		List<com.sbshop.agent.infrastructure.client.coupang.dto.CoupangAttributeMeta> metas;
+		try {
+			metas = metaService.getAttributeMetas(categoryCode);
+		} catch (Exception e) {
+			throw new IllegalStateException("쿠팡 카테고리 메타 조회 실패: " + categoryCode + " — " + e.getMessage(), e);
+		}
+		@SuppressWarnings("unchecked") List<Map<String, Object>> items = rawData.get("items") instanceof List<?> list
+			? (List<Map<String, Object>>)list : List.of();
+		String productName = attributeText(rawData.get("sellerProductName"));
+		String originalName = product == null ? null : product.getOriginalName();
+		List<String> filled = new ArrayList<>();
+		List<String> removed = new ArrayList<>();
+		List<String> missing = new ArrayList<>();
+		for (Map<String, Object> item : items) {
+			List<Map<String, Object>> attributes = new ArrayList<>();
+			if (item.get("attributes") instanceof List<?> current) {
+				for (Object element : current) {
+					if (element instanceof Map<?, ?> attribute) {
+						Map<String, Object> entry = new LinkedHashMap<>();
+						attribute.forEach((key, value) -> entry.put(String.valueOf(key), value));
+						attributes.add(entry);
+					}
+				}
+			}
+			String itemName = attributeText(item.get("itemName"));
+			CoupangPurchaseOptionRepairer.Result result = purchaseOptionRepairer.repair(attributes, metas, itemName,
+				productName, originalName);
+			item.put("attributes", result.attributes());
+			String prefix = items.size() > 1 ? "[" + itemName + "] " : "";
+			result.filled().forEach(f -> filled.add(prefix + f));
+			result.removed().forEach(r -> removed.add(prefix + r));
+			result.missing().forEach(m -> missing.add(prefix + m));
+		}
+		if (!missing.isEmpty())
+			return new ListingAttributeRepair(id, statusName, filled, removed, missing,
+				ListingAttributeRepairOutcome.UNRESOLVED, "상품명에서 필수 구매옵션을 추출하지 못했습니다");
+		if (!submit)
+			return new ListingAttributeRepair(id, statusName, filled, removed, missing,
+				ListingAttributeRepairOutcome.DRY_RUN, null);
+		rawData.put("requested", true);
+		String response;
+		try {
+			response = restClient.put(CATALOG_BASE, rawData);
+		} catch (RuntimeException e) {
+			return new ListingAttributeRepair(id, statusName, filled, removed, missing,
+				ListingAttributeRepairOutcome.FAILED, exceptionMessage(e));
+		}
+		JsonNode root = readEnvelope(response);
+		String code = root == null ? "" : root.path("code").asText("");
+		String detail = root == null ? envelopeSnippet(response) : responseDetail(root);
+		if ("SUCCESS".equalsIgnoreCase(code) || "200".equals(code)) {
+			log.info("[쿠팡] 구매옵션 보정 재심사 요청: sellerProductId={}, filled={}, removed={}, detail={}", id, filled,
+				removed, detail);
+			return new ListingAttributeRepair(id, statusName, filled, removed, missing,
+				ListingAttributeRepairOutcome.SUBMITTED, detail);
+		}
+		log.warn("[쿠팡] 구매옵션 보정 거부: sellerProductId={}, code={}, detail={}", id, code, detail);
+		return new ListingAttributeRepair(id, statusName, filled, removed, missing,
+			ListingAttributeRepairOutcome.FAILED, detail.isEmpty() ? envelopeSnippet(response) : detail);
+	}
+
+	private static String responseDetail(JsonNode root) {
+		String message = root.path("message").asText("").trim();
+		JsonNode details = root.path("details");
+		String extra = details.isMissingNode() || details.isNull() ? ""
+			: (details.isTextual() ? details.asText("") : details.toString()).trim();
+		if (extra.isEmpty())
+			return message;
+		return message.isEmpty() ? extra : message + " / " + extra;
+	}
+
 	private static String exceptionMessage(RuntimeException e) {
 		StringBuilder joined = new StringBuilder();
 		for (Throwable t = e; t != null && t != t.getCause(); t = t.getCause()) {
@@ -1258,7 +1350,7 @@ public class CoupangMarketClient implements MarketClient {
 	}
 
 	private boolean isPlaceholderAttributeValue(String typeName, String valueName) {
-		return valueName.equals(typeName) || PLACEHOLDER_ATTRIBUTE_VALUES.contains(valueName);
+		return CoupangPurchaseOptionRepairer.isPlaceholderValue(typeName, valueName);
 	}
 
 	private Map<String, List<String>> loadUsableUnits(Map<String, Object> rawData) {

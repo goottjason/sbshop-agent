@@ -27,7 +27,8 @@ public class MarketConnectionWriteGuard {
 	public static final Set<String> WRITES = Set.of("publish", "writeSalePrice", "syncPriceAndStock",
 		"syncImagesAndHtml",
 		"deleteFromMarket",
-		"syncBarcode", "syncProductFields", "repairProductNotice", "requestApproval", "removeSellerImmediateDiscount");
+		"syncBarcode", "syncProductFields", "repairProductNotice", "repairListingAttributes", "requestApproval",
+		"removeSellerImmediateDiscount");
 
 	@Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
 	public void requireWritable(MarketType market, Object[] args) {

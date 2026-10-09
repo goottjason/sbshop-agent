@@ -263,6 +263,24 @@ class CoupangMetaServiceTest {
 		assertThat(metaService.getUsableUnits(73134L)).containsEntry("총 용량", List.of("ml", "L"));
 	}
 
+	@Test
+	@DisplayName("D-340: 카테고리 속성 메타를 필수·노출·그룹·단위와 함께 그대로 돌려준다")
+	void attributeMetasCarryGroupAndUnits() throws Exception {
+		stubMeta("{\"code\":\"SUCCESS\",\"data\":{\"attributes\":["
+			+ "{\"attributeTypeName\":\"개당 캡슐/정\",\"dataType\":\"NUMBER\",\"basicUnit\":\"정\","
+			+ "\"usableUnits\":[\"정\",\"회분\"],\"required\":\"MANDATORY\",\"exposed\":\"EXPOSED\",\"groupNumber\":\"1\"},"
+			+ "{\"attributeTypeName\":\"제품 형태\",\"dataType\":\"STRING\",\"usableUnits\":[],"
+			+ "\"required\":\"OPTIONAL\",\"exposed\":\"NONE\",\"groupNumber\":\"NONE\"}]}}");
+
+		var metas = metaService.getAttributeMetas(58920L);
+
+		assertThat(metas).containsExactly(
+			new com.sbshop.agent.infrastructure.client.coupang.dto.CoupangAttributeMeta("개당 캡슐/정", "NUMBER",
+				List.of("정", "회분"), true, true, "1"),
+			new com.sbshop.agent.infrastructure.client.coupang.dto.CoupangAttributeMeta("제품 형태", "STRING",
+				List.of(), false, false, "NONE"));
+	}
+
 	private void stubMeta(String json) {
 		when(restClient.requestWithBody(eq("GET"), anyString(), any())).thenReturn(json);
 	}

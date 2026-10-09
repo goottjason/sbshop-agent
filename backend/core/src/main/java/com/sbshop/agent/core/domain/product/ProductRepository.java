@@ -29,6 +29,8 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
 	List<Product> findByProductNameContaining(String name);
 
+	List<Product> findByBrand(String brand);
+
 	List<Product> findAllByIdIn(List<Long> ids);
 
 	@Query("""

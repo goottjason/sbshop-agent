@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.infrastructure.client.coupang.client.CoupangRestClient;
 import com.sbshop.agent.infrastructure.client.coupang.dto.CategoryMetaResult;
+import com.sbshop.agent.infrastructure.client.coupang.dto.CoupangAttributeMeta;
 import com.sbshop.agent.infrastructure.client.coupang.dto.CoupangProductPayload.Item.Attribute;
 import com.sbshop.agent.infrastructure.client.coupang.dto.CoupangProductPayload.Item.Notice;
 import java.util.ArrayList;
@@ -49,6 +50,20 @@ public class CoupangMetaService {
 			}
 		}
 		return unitsByTypeName;
+	}
+
+	public List<CoupangAttributeMeta> getAttributeMetas(Long categoryId) throws Exception {
+		List<CoupangAttributeMeta> metas = new ArrayList<>();
+		for (JsonNode attr : fetchCategoryMeta(categoryId).path("attributes")) {
+			String typeName = attr.path("attributeTypeName").asText("").trim();
+			if (typeName.isEmpty()) {
+				continue;
+			}
+			metas.add(new CoupangAttributeMeta(typeName, attr.path("dataType").asText(""), extractUsableUnits(attr),
+				"MANDATORY".equals(attr.path("required").asText()), "EXPOSED".equals(attr.path("exposed").asText()),
+				attr.path("groupNumber").asText("NONE")));
+		}
+		return metas;
 	}
 
 	private JsonNode fetchCategoryMeta(Long categoryId) throws Exception {

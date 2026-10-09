@@ -195,6 +195,12 @@ public interface MarketClient {
 			getSupportedMarket() + " 필드 수정 미지원");
 	}
 
+	default com.sbshop.agent.core.domain.market.client.dto.ListingAttributeRepair repairListingAttributes(
+		Product product, String marketItemId, boolean submit) {
+		throw new UnsupportedOperationException(
+			getSupportedMarket() + " 구매옵션 보정 미지원");
+	}
+
 	default boolean repairProductNotice(Product product, String marketItemId) {
 		throw new UnsupportedOperationException(
 			getSupportedMarket() + " 고시정보 보정 미지원");
