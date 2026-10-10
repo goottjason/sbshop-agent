@@ -276,6 +276,7 @@ public class CoupangMarketClient implements MarketClient {
 	private static final Set<String> OPTION_ABSENT_MESSAGES = Set.of("유효한 옵션이 없습니다",
 		"유효하지 않은 ID가 입력되었습니다");
 	private static final Set<String> APPROVAL_ELIGIBLE_STATUSES = Set.of("임시저장", "승인반려", "부분승인완료");
+	private static final Set<String> LISTING_REPAIR_STATUSES = Set.of("승인반려", "임시저장");
 	private static final String APPROVAL_RETRY_MARKER = "등록/수정 중";
 	private static final String APPROVAL_RETRY_NOTE = "쿠팡이 이 상품을 등록/수정 중입니다 — 10분 뒤 같은 ID로 다시 요청하세요(자동 재시도 없음)";
 	private static final int CATALOG_PAGE_SIZE = 100;
@@ -987,9 +988,9 @@ public class CoupangMarketClient implements MarketClient {
 		if (rawData == null || rawData.isEmpty())
 			throw new IllegalStateException("쿠팡 상품 조회 응답에 data 없음: " + id);
 		String statusName = attributeText(rawData.get("statusName"));
-		if (!"승인반려".equals(statusName))
+		if (!LISTING_REPAIR_STATUSES.contains(statusName))
 			return new ListingAttributeRepair(id, statusName, List.of(), List.of(), List.of(),
-				ListingAttributeRepairOutcome.SKIPPED_STATUS, "승인반려 상태가 아니라 보정하지 않았습니다", List.of());
+				ListingAttributeRepairOutcome.SKIPPED_STATUS, "승인반려·임시저장 상태가 아니라 보정하지 않았습니다", List.of());
 		Long categoryCode = displayCategoryCode(rawData);
 		if (categoryCode == null)
 			return new ListingAttributeRepair(id, statusName, List.of(), List.of(), List.of(),

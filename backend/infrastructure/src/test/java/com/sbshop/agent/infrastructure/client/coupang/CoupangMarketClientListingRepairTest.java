@@ -85,7 +85,7 @@ class CoupangMarketClientListingRepairTest {
 	}
 
 	@Test
-	@DisplayName("D-340: 승인반려가 아니면 쓰지 않고 SKIPPED_STATUS")
+	@DisplayName("D-340/343: 승인반려·임시저장이 아니면 쓰지 않고 SKIPPED_STATUS")
 	void skipsNonRejected() throws Exception {
 		stubGet("승인완료", "나우푸드 비타민 D 90정");
 
@@ -95,6 +95,34 @@ class CoupangMarketClientListingRepairTest {
 		assertThat(result.statusBefore()).isEqualTo("승인완료");
 		verify(restClient, never()).put(anyString(), any());
 		verify(metaService, never()).getAttributeMetas(any());
+	}
+
+	@Test
+	@DisplayName("D-343: 심사중 상품은 쓰지 않고 SKIPPED_STATUS")
+	void skipsInReview() throws Exception {
+		stubGet("심사중", "나우푸드 비타민 D 120정");
+
+		ListingAttributeRepair result = client.repairListingAttributes(product(null), "14300000001", true);
+
+		assertThat(result.outcome()).isEqualTo(ListingAttributeRepairOutcome.SKIPPED_STATUS);
+		verify(restClient, never()).put(anyString(), any());
+	}
+
+	@Test
+	@DisplayName("D-343: 임시저장 상품도 보정하고 requested=true 로 판매요청한다")
+	@SuppressWarnings("unchecked")
+	void submitsDraftForReview() throws Exception {
+		stubGet("임시저장", "나우푸드 비타민 D 120정");
+		when(metaService.getAttributeMetas(58920L)).thenReturn(META);
+		when(restClient.put(eq(BASE), any())).thenReturn("{\"code\":\"SUCCESS\",\"message\":\"\",\"data\":14300000001}");
+
+		ListingAttributeRepair result = client.repairListingAttributes(product(null), "14300000001", true);
+
+		ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
+		verify(restClient).put(eq(BASE), body.capture());
+		assertThat(body.getValue()).containsEntry("requested", true);
+		assertThat(result.statusBefore()).isEqualTo("임시저장");
+		assertThat(result.outcome()).isEqualTo(ListingAttributeRepairOutcome.SUBMITTED);
 	}
 
 	@Test
