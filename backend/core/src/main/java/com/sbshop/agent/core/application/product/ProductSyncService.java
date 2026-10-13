@@ -1,5 +1,7 @@
 package com.sbshop.agent.core.application.product;
 
+import java.math.BigDecimal;
+
 import com.sbshop.agent.core.application.actionlog.ActionLogService;
 import com.sbshop.agent.core.application.product.dto.StockCheckResult;
 import com.sbshop.agent.core.application.product.port.ProductStockCrawlerPort;
@@ -33,6 +35,8 @@ public class ProductSyncService {
 	private final OrderLineItemRepository orderLineItemRepository;
 	private final ActionLogService actionLogService;
 	private final PlatformTransactionManager transactions;
+	private final com.sbshop.agent.core.domain.product.edit.ProductChangeHistoryRepository histories;
+	private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
 
 	public enum State {
 		UPDATED, FAILED, CONFLICT, SKIPPED, CANCELLED
@@ -107,6 +111,8 @@ public class ProductSyncService {
 				if (!matches(current, target))
 					return new Item(productId, State.CONFLICT, "수집 중 상품 정보가 변경되어 반영하지 않았습니다. 다시 수집하세요.");
 				current.updateStockStatus(observed.status());
+				long beforeRevision = current.getRevision();
+				BigDecimal beforeCost = current.getCostPrice();
 				// An absent observation does not erase an existing cost or sourcing quantity.
 				if (observed.costPrice() != null)
 					current.updateCostPrice(observed.costPrice());
@@ -116,6 +122,9 @@ public class ProductSyncService {
 					current.updateRestockDate(observed.restockDate());
 				current.recordCrawlSuccess();
 				productRepository.saveAndFlush(current);
+				if (observed.costPrice() != null
+					&& (beforeCost == null || beforeCost.compareTo(observed.costPrice()) != 0))
+					recordCostChange(current, beforeRevision, beforeCost, observed.costPrice());
 				return new Item(productId, State.UPDATED, "확인된 소싱 재고 정보를 DB에 반영했습니다.");
 			});
 		} catch (Exception e) {
@@ -195,6 +204,16 @@ public class ProductSyncService {
 		if (observed.costPrice() != null && observed.costPrice().signum() < 0
 			|| observed.stock() != null && observed.stock() < 0)
 			throw new IllegalArgumentException("가격 또는 재고가 음수인 응답입니다. 기존 값은 유지합니다.");
+	}
+
+	private void recordCostChange(Product product, long beforeRevision, BigDecimal before, BigDecimal after) {
+		var change = JSON.createObjectNode().put("field", "costPrice")
+			.put("before", before == null ? null : before.stripTrailingZeros().toPlainString())
+			.put("after", after.stripTrailingZeros().toPlainString()).put("derived", false);
+		var details = JSON.createObjectNode().put("source", "SOURCE_STOCK_SYNC").put("sbCode", product.getSbCode());
+		histories.save(new com.sbshop.agent.core.domain.product.edit.ProductChangeHistory(
+			java.util.UUID.randomUUID().toString(), product.getId(), beforeRevision, product.getRevision(),
+			"system:source-sync", JSON.createArrayNode().add(change).toString(), details.toString()));
 	}
 
 	private String failureMessage(Exception e) {

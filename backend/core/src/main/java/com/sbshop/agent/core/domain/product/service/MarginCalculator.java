@@ -101,6 +101,12 @@ public class MarginCalculator {
 
 		// 기존 최소마진 정의(판매가 - 쿠폰 적용 총 매입가 - 국내 배송비)를 유지한다.
 		BigDecimal minimumPrice = minMarginPrice == null ? null : totalBuyPrice.add(minMarginPrice);
+		BigDecimal feeKept = BigDecimal.ONE.subtract(channelFeeRate.divide(BigDecimal.valueOf(100), 4,
+			RoundingMode.HALF_UP));
+		if (channelFeeRate.signum() > 0 && feeKept.signum() > 0) {
+			BigDecimal breakEven = totalBuyPrice.divide(feeKept, 0, RoundingMode.CEILING);
+			minimumPrice = minimumPrice == null ? breakEven : minimumPrice.max(breakEven);
+		}
 		var result = SalePriceRounding.fromRatio(totalBuyPrice, divisor, minimumPrice);
 		if (result.salePrice().signum() <= 0) {
 			throw new IllegalArgumentException("100원 단위 처리 후 판매가가 0원입니다. 매입가와 최소마진을 확인하세요.");

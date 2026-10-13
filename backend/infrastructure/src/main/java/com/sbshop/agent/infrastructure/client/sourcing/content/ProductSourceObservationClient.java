@@ -106,15 +106,13 @@ public class ProductSourceObservationClient implements ProductSourceObservationS
 		if (!data.path("isAvailableToPurchase").isBoolean())
 			throw new ProductContentFailureException(ProductContentFailureException.Code.SOURCE_STOCK_INVALID);
 		List<String> notices = new ArrayList<>();
-		BigDecimal price = null;
-		for (String field : List.of("discountPrice", "listPrice")) {
-			var amount = data.path(field + "Amount");
-			var display = data.path(field);
-			if (amount.isNumber() && amount.decimalValue().signum() > 0 && display.isTextual()
-				&& display.textValue().strip().startsWith("₩")) {
-				price = amount.decimalValue();
-				break;
-			}
+		BigDecimal discountPrice = wonAmount(data, "discountPrice");
+		BigDecimal listPrice = wonAmount(data, "listPrice");
+		BigDecimal price = discountPrice != null ? discountPrice : listPrice;
+		if (discountPrice != null && listPrice != null && discountPrice.compareTo(listPrice) < 0) {
+			price = listPrice;
+			notices.add("IHB 할인가 " + discountPrice.stripTrailingZeros().toPlainString() + "원은 기간 한정일 수 있어 매입가로 쓰지 않고 정가 "
+				+ listPrice.stripTrailingZeros().toPlainString() + "원을 씁니다.");
 		}
 		if (price == null && data.path("discountPriceAmount").isNumber() && data.path("listPriceAmount").isNumber()
 			&& data.path("discountPriceAmount").decimalValue().signum() == 0
@@ -135,6 +133,13 @@ public class ProductSourceObservationClient implements ProductSourceObservationS
 			notices, price == null ? null : new ProductSourceData.PricingEvidence(price, "KRW", BigDecimal.ONE,
 				BigDecimal.ONE, price, new ProductSourceData.IherbDiscount(
 					integerCode(data.get("discountType")), integerCode(data.get("discountDisplayType")))));
+	}
+
+	private static BigDecimal wonAmount(JsonNode data, String field) {
+		var amount = data.path(field + "Amount");
+		var display = data.path(field);
+		return amount.isNumber() && amount.decimalValue().signum() > 0 && display.isTextual()
+			&& display.textValue().strip().startsWith("₩") ? amount.decimalValue() : null;
 	}
 
 	private static Integer integerCode(JsonNode value) {

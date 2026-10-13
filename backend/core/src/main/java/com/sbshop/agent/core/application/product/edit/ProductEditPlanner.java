@@ -111,9 +111,10 @@ public class ProductEditPlanner {
 							throw new IllegalArgumentException("원가·가격 정책이 없어 최소마진을 확인할 수 없습니다. 가격 자료를 먼저 확인하세요.");
 						priceResults.add(
 							new Price(market.name(), text(quote.result().minimumPrice()), text(quote.salePrice())));
-						floor = floor.max(quote.result().minimumPrice());
-						if (market == MarketType.COUPANG)
+						if (market == MarketType.COUPANG) {
+							floor = floor.max(quote.result().minimumPrice());
 							batchBaseline = quote.salePrice();
+						}
 					}
 					// The previous batch contract stores the Coupang quote as the DB baseline.
 					BigDecimal baseline = batchSource ? batchBaseline : candidate.getSalePrice();

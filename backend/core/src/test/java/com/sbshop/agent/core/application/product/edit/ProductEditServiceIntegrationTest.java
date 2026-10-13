@@ -436,6 +436,23 @@ class ProductEditServiceIntegrationTest {
 	}
 
 	@Test
+	@org.junit.jupiter.api.DisplayName("D-344: 저장 판매가는 쿠팡 기준이므로 쿠팡 하한만 적용하고 수수료가 다른 마켓의 하한을 끌어오지 않는다")
+	void storedBaselineUsesCoupangMinimumOnly() {
+		when(prices.explainForProduct(any(), any(), any())).thenAnswer(inv -> {
+			BigDecimal floor = inv.getArgument(1) == MarketType.COUPANG ? new BigDecimal("12340")
+				: new BigDecimal("15000");
+			return new MarketSalePriceResolver.Explanation(MarketSalePriceResolver.Basis.CALCULATED,
+				SalePriceRounding.fromPrice(new BigDecimal("18000"), floor));
+		});
+		Product p = create();
+		var review = edits.previewNumeric(request(List.of(p), ProductNumericField.SALE_PRICE, "13000"), "admin");
+		assertThat(review.items().getFirst().changes()).anySatisfy(c -> {
+			assertThat(c.field()).isEqualTo("salePrice");
+			assertThat(c.after()).isEqualTo("13000");
+		});
+	}
+
+	@Test
 	void previewProtectsMinimumAndCommitIsIdempotentWithDurablePendingMarkets() {
 		Product p = create();
 		link(p, MarketType.CAFE24, "{\"product_no\":\"42\",\"gmarket_goodsNo\":\"007\"}");

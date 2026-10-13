@@ -6544,11 +6544,15 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 
 ### D-344 — 아이허브 일시 할인가(discountType=1)가 매입가로 잡혀 판매가가 원가 아래로 떨어짐
 
-- 심각도: 상(P1, 금전 손실) · 상태: 발견(2026-10-13 진단) · 리스크: 중대(가격 산정·마켓 가격 반영)
+- 심각도: 상(P1, 금전 손실) · 상태: 수정완료(2026-10-13, qa-verifier PASS·전체 회귀 3462/0, 배포 대기) · 리스크: 중대(가격 산정·마켓 가격 반영)
 - 위치: infrastructure/.../sourcing/content/ProductSourceObservationClient.java (IHB 관측: discountPriceAmount 우선 채택), core/.../product/edit/ProductEditPlanner.java (일괄 기준가 = 쿠팡 계산가, 최소가 하한만 보호)
 - 증상: 231113IHB078 오가닉밸리 기버터 2병. 판매가 29,900원(현재 매입가 15,365원×2 기준 쿠팡 손익분기 약 41,300원). 쿠팡 주문 629·630(10/11) 정산 24,297원 vs 실제 매입 26,487원 → 건당 −2,190원. 미구매 631·632·641도 손실 예상.
 - 재현(운영 데이터 추적): sb_supplier_batch_item.calculation 에서 pricingEvidence.iherbDiscount.discountType=1 인 배치(10/7·10/9·10/10·10/11)는 costPrice=10,143, discountType=0 인 배치(10/4·10/8)는 15,365. 10,143 기준으로 MarginCalculator 공식이 저장 판매가 29,900/27,700/27,300 을 정확히 재현.
 - 원인(확인): IHB 관측이 discountType 을 가리지 않고 discountPriceAmount 를 원가로 쓴다. 10,143원(정가 −34%)은 실제 구매에서 실현되지 않았다(10/11 실매입 병당 약 13,243원). 원가는 다음 크롤(10/12)에 15,365원으로 돌아왔지만 정기 재가격이 꺼져 있어(D-093) 판매가는 그대로 남았다. 상품 원가 변동은 sb_product_change_history 에 남지 않는다.
 - 원인(미확인): discountType=1 의 정확한 의미(1인 수량 제한 특가·기간 한정 등). 아이허브 응답 필드 확인 필요.
 - 범위: 최근 30일 배치에서 discountType=1 관측 67개 상품(306건). 현재 그 할인가 기준 판매가로 남아 쿠팡 손익분기 미만인 상품 7개: 231113IHB078, 220217IHB145, 220709IHB021, 201126IHB023, 220624IHB002, 231112IHB042, 220614IHB029 (주문 발생은 231113IHB078 만).
-- 이력: 2026-10-13 발견
+- 운영 조치(2026-10-13): 7개 상품 판매가를 현재 정가 기준 쿠팡 계산가로 재설정(기버터 29,900→41,700 등), 25개 마켓 등록 모두 CONFIRMED_PRICE. 쿠팡 미등록 3건은 해당 없음.
+- 실측 보강: discountType=1 은 specialDealInfo 가 붙은 기간 한정 특가, 8 은 할인가=정가(브랜드 표시). 10/11 매입 26,487원 = 특가 10,143×2 + 국내배송 6,000 → 특가 중엔 실현됐으나 특가에 쿠폰 15%를 겹쳐 가정해 특가 중에도 손실, 특가 종료 뒤엔 정가 매입.
+- 수정: ① IHB 관측(ProductSourceObservationClient)·재고확인(IherbScraperClient.parseResponse)이 할인가<정가면 정가를 매입가로(관측은 notice) ② MarginCalculator 최소가에 수수료 포함 손익분기 하한(수수료>0일 때) ③ ProductEditPlanner 저장 기준가 하한은 쿠팡 견적 하한만(마켓별 수수료가 달라져 최댓값이면 18% 마켓 하한이 쿠팡 저장가에 걸림) ④ ProductSyncService 매입가 변동을 sb_product_change_history 에 기록(actor system:source-sync).
+- 범위 밖 후속: 신규 등록·소싱 후보 경로(IherbScraperClient.toScrapedDto, SourcingCandidate.effectiveBuyPrice)는 여전히 할인가 우선. 수동 일괄(BatchPriceStockService)은 매입가 이력 미기록. 손익분기 상향도 '최소마진 보장' 문구로 표시됨.
+- 이력: 2026-10-13 발견 · 2026-10-13 운영 가격 재설정 · 2026-10-13 수정완료(검증 PASS)

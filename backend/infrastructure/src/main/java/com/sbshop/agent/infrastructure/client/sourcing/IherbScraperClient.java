@@ -277,14 +277,12 @@ public class IherbScraperClient implements VendorAwareStockCrawler, ProductInfoC
 			StockStatus status = isAvailable ? StockStatus.IN_STOCK : StockStatus.OUT_OF_STOCK;
 
 			BigDecimal costPrice = null;
-			JsonNode discountAmountNode = root.path("discountPriceAmount");
-			if (!discountAmountNode.isMissingNode() && discountAmountNode.asDouble(0) > 0) {
-				costPrice = BigDecimal.valueOf(discountAmountNode.asDouble(0));
-			} else {
-				JsonNode listAmountNode = root.path("listPriceAmount");
-				if (!listAmountNode.isMissingNode() && listAmountNode.asDouble(0) > 0) {
-					costPrice = BigDecimal.valueOf(listAmountNode.asDouble(0));
-				}
+			double discountAmount = root.path("discountPriceAmount").asDouble(0);
+			double listAmount = root.path("listPriceAmount").asDouble(0);
+			if (discountAmount > 0 && (listAmount <= 0 || discountAmount >= listAmount)) {
+				costPrice = BigDecimal.valueOf(discountAmount);
+			} else if (listAmount > 0) {
+				costPrice = BigDecimal.valueOf(listAmount);
 			}
 			if (costPrice == null) {
 				JsonNode priceNode = root.path("price");

@@ -40,7 +40,8 @@ class ProductSyncServiceAsyncTest {
 	void setUp() {
 		service = new ProductSyncService(
 			productRepository, productStockCrawlerPort, orderLineItemRepository, actionLogService,
-			new StockSyncTestTransactionManager());
+			new StockSyncTestTransactionManager(),
+			org.mockito.Mockito.mock(com.sbshop.agent.core.domain.product.edit.ProductChangeHistoryRepository.class));
 	}
 
 	@Test

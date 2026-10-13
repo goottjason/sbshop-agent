@@ -122,6 +122,18 @@ class MarginCalculatorTest {
 	}
 
 	@Test
+	@DisplayName("D-344: 최소 판매가는 마켓 수수료를 뺀 정산액이 총 매입가를 넘는 손익분기점 아래로 내려가지 않는다")
+	void minimumPriceIncludesMarketFeeBreakEven() {
+		var quote = calculator.quoteSalePrice(new BigDecimal("10000"), 1, BigDecimal.ZERO, BigDecimal.ZERO,
+			new BigDecimal("500"), new BigDecimal("11"), BigDecimal.ZERO, null);
+		assertThat(quote.roundedPrice()).isEqualByComparingTo("11200");
+		assertThat(quote.minimumPrice()).isGreaterThanOrEqualTo(new BigDecimal("11236"));
+		assertThat(quote.salePrice()).isEqualByComparingTo("11300");
+		assertThat(SalePriceRounding.fromPrice(new BigDecimal("10600"), quote.minimumPrice()).salePrice())
+			.isEqualByComparingTo("11300");
+	}
+
+	@Test
 	void roundingToZeroCannotBecomeAnAutomaticSalePrice() {
 		org.assertj.core.api.Assertions.assertThatThrownBy(() -> calculator.quoteSalePrice(new BigDecimal("1"), 1,
 			BigDecimal.ZERO, BigDecimal.ZERO, null, BigDecimal.ZERO, BigDecimal.ZERO, null))

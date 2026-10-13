@@ -72,6 +72,37 @@ class ProductStockRefreshIntegrationTest {
 		return products.findById(p.getId()).orElseThrow();
 	}
 
+	@Autowired
+	com.sbshop.agent.core.domain.product.edit.ProductChangeHistoryRepository histories;
+
+	@Test
+	@DisplayName("D-344: 소싱 수집으로 매입가가 바뀌면 변경 이력에 이전값·새값을 남긴다")
+	void costChangeFromSourceSyncIsRecordedInHistory() {
+		Product p = create();
+		when(crawler.checkStockWithDetails(url))
+			.thenReturn(new StockCheckResult(StockStatus.IN_STOCK, new BigDecimal("15365"), null, null));
+
+		assertThat(service.syncProductStock(p.getId()).state()).isEqualTo(ProductSyncService.State.UPDATED);
+
+		var rows = histories.findTop50ByProductIdOrderByIdDesc(p.getId());
+		assertThat(rows).hasSize(1);
+		assertThat(rows.get(0).getChanges()).contains("\"field\":\"costPrice\"", "\"before\":\"10000\"",
+			"\"after\":\"15365\"");
+		assertThat(rows.get(0).getAfterRevision()).isEqualTo(read(p).getRevision());
+	}
+
+	@Test
+	@DisplayName("D-344: 매입가가 같으면 이력을 만들지 않는다")
+	void unchangedCostIsNotRecorded() {
+		Product p = create();
+		when(crawler.checkStockWithDetails(url))
+			.thenReturn(new StockCheckResult(StockStatus.IN_STOCK, new BigDecimal("10000.00"), null, null));
+
+		service.syncProductStock(p.getId());
+
+		assertThat(histories.findTop50ByProductIdOrderByIdDesc(p.getId())).isEmpty();
+	}
+
 	@Test
 	void crawlerRunsWithoutTransactionAndUnknownPriceDoesNotEraseExistingValue() {
 		Product p = create();
