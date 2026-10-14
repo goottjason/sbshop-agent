@@ -133,4 +133,39 @@ class OrderControllerBulkResultLogTest {
 
 		assertThat(capturedStatus(ActionLogConstants.ORDER_CONFIRM_BATCH)).isEqualTo(ActionStatus.SUCCESS);
 	}
+	private String capturedMessage(String actionType) {
+		ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
+		verify(actionLogService).record(eq(actionType), any(), any(), message.capture());
+		return message.getValue();
+	}
+
+	@Test
+	@DisplayName("D-346: 일괄 발주확인 실패 시 주문별 실패 사유가 활동로그에 남는다")
+	void bulkConfirm_failed_logsPerOrderReasons() {
+		when(orderService.bulkConfirmOrders(anyList())).thenReturn(
+			BulkConfirmResult.builder()
+				.successCount(1).failedCount(1)
+				.failedIds(List.of(637L)).errors(List.of("Order 637: 마켓플레이스 주문 접수 실패: 422"))
+				.build());
+
+		controller().bulkConfirmOrders(new OrderIdsRequest(List.of(636L, 637L)));
+
+		assertThat(capturedMessage(ActionLogConstants.ORDER_CONFIRM_BATCH))
+			.contains("실패 1건")
+			.contains("Order 637: 마켓플레이스 주문 접수 실패: 422");
+	}
+
+	@Test
+	@DisplayName("D-346: 일괄 발주취소 실패 시 주문별 실패 사유가 활동로그에 남는다")
+	void bulkCancel_failed_logsPerOrderReasons() {
+		when(orderService.bulkCancelOrders(anyList())).thenReturn(
+			BulkConfirmResult.builder()
+				.successCount(0).failedCount(1)
+				.failedIds(List.of(9L)).errors(List.of("Order 9: 취소 불가"))
+				.build());
+
+		controller().bulkCancelOrders(new OrderIdsRequest(List.of(9L)));
+
+		assertThat(capturedMessage(ActionLogConstants.ORDER_CANCEL_BATCH)).contains("Order 9: 취소 불가");
+	}
 }

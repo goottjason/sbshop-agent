@@ -3,6 +3,7 @@ package com.sbshop.agent.core.application.order.adapter;
 import com.sbshop.agent.core.application.order.dto.MarketOrderDto;
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
 import com.sbshop.agent.core.application.order.port.MarketOrderPort;
+import com.sbshop.agent.core.application.order.service.Cafe24OrderAcceptance;
 import com.sbshop.agent.core.application.order.service.Cafe24ShipmentService;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.order.Order;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Component;
 public class Cafe24AuctionOrderAdapter implements MarketOrderPort {
 	private final Cafe24ShipmentService cafe24ShipmentService;
 	private final Cafe24OrderApiPort cafe24OrderApiPort;
+	private final Cafe24OrderAcceptance cafe24OrderAcceptance;
 
 	@Override
 	public MarketType getMarketType() {
@@ -40,7 +42,7 @@ public class Cafe24AuctionOrderAdapter implements MarketOrderPort {
 
 	@Override
 	public void acceptOrders(MarketCredential credential, Order order) {
-		cafe24OrderApiPort.acceptOrder(order.getCafe24OrderId());
+		cafe24OrderAcceptance.accept(order.getCafe24OrderId());
 	}
 
 	@Override

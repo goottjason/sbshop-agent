@@ -55,6 +55,8 @@ export const formatThousands = (v: string | number): string => {
 
 export const parseThousands = (v: string): number => Number(v.replace(/[^\d]/g, '')) || 0;
 
+export const isPlaceholderTracking = (value?: string | null): boolean => /^0+$/.test((value || '').replace(/[\s-]/g, ''));
+
 export const marketSyncState = (lineItem?: OrderLineItemDto, shipment?: ShipmentDto | null): MarketSyncState => {
   const shipping = lineItem?.shippingData;
   const tracking = (shipping?.trackingNo || '').trim();
@@ -62,6 +64,7 @@ export const marketSyncState = (lineItem?: OrderLineItemDto, shipment?: Shipment
   const status = shipping?.shippingStatus || '';
   if (NO_SEND_STATUSES.includes(status)) return 'none';
   const marketTracking = (shipment?.marketTrackingNo || '').trim();
+  if (isPlaceholderTracking(marketTracking)) return 'manual';
   if (marketTracking) return marketTracking === tracking ? 'synced' : (shipment?.manualFixRequired ? 'manual' : 'waiting');
   if (shipment?.manualFixRequired) return 'manual';
   if (shipping?.trackingSentToMarket !== true && status !== 'DELIVERED') return 'waiting';

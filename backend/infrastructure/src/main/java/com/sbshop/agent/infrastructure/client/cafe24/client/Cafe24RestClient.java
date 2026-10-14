@@ -36,7 +36,7 @@ public class Cafe24RestClient {
 	public String get(String path) {
 		try {
 			return restClient.get()
-				.uri(getBaseUrl() + freshProductRead(path))
+				.uri(getBaseUrl() + freshRead(path))
 				.header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, max-age=0")
 				.header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenManager.getValidAccessToken())
 				.accept(MediaType.APPLICATION_JSON)
@@ -51,11 +51,14 @@ public class Cafe24RestClient {
 	// Cafe24 can return X-Cache:HIT with pre-write values even with no-cache headers.
 	// A unique query token was verified against the live Admin product API (2026-09-09).
 	// This is a cache-key discriminator, not a Cafe24 product filter or a success assertion.
-	private String freshProductRead(String path) {
-		if (path.equals("/admin/products") || path.startsWith("/admin/products/")
-			|| path.startsWith("/admin/products?"))
+	private String freshRead(String path) {
+		if (isResource(path, "/admin/products") || isResource(path, "/admin/orders"))
 			return path + (path.contains("?") ? "&" : "?") + "_sb_read=" + java.util.UUID.randomUUID();
 		return path;
+	}
+
+	private static boolean isResource(String path, String resource) {
+		return path.equals(resource) || path.startsWith(resource + "/") || path.startsWith(resource + "?");
 	}
 
 	public String post(String path, Object body) {

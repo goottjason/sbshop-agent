@@ -5,6 +5,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
+import com.sbshop.agent.core.application.order.service.Cafe24OrderAcceptance;
 import com.sbshop.agent.core.application.order.service.Cafe24ShipmentService;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.order.Order;
@@ -22,6 +23,8 @@ class Cafe24GmarketOrderAdapterTest {
 	@Mock
 	Cafe24ShipmentService cafe24ShipmentService;
 	@Mock
+	Cafe24OrderAcceptance acceptance;
+	@Mock
 	MarketCredential credential;
 	@Mock
 	Order order;
@@ -29,7 +32,7 @@ class Cafe24GmarketOrderAdapterTest {
 	@Test
 	@DisplayName("marketType은 GMARKET")
 	void marketType() {
-		var adapter = new Cafe24GmarketOrderAdapter(cafe24OrderApiPort, cafe24ShipmentService);
+		var adapter = new Cafe24GmarketOrderAdapter(cafe24OrderApiPort, cafe24ShipmentService, acceptance);
 		assertThat(adapter.getMarketType()).isEqualTo(MarketType.GMARKET);
 	}
 
@@ -37,16 +40,16 @@ class Cafe24GmarketOrderAdapterTest {
 	@DisplayName("acceptOrders는 order.getCafe24OrderId()(cafe24_order_id)로 Cafe24를 타깃한다(마켓번호 아님)")
 	void acceptUsesCafe24OrderId() {
 		when(order.getCafe24OrderId()).thenReturn("20260708-0000011");
-		var adapter = new Cafe24GmarketOrderAdapter(cafe24OrderApiPort, cafe24ShipmentService);
+		var adapter = new Cafe24GmarketOrderAdapter(cafe24OrderApiPort, cafe24ShipmentService, acceptance);
 		adapter.acceptOrders(credential, order);
-		verify(cafe24OrderApiPort).acceptOrder("20260708-0000011");
+		verify(acceptance).accept("20260708-0000011");
 	}
 
 	@Test
 	@DisplayName("cancelOrder는 order.getCafe24OrderId()(cafe24_order_id)로 Cafe24를 타깃한다")
 	void cancelUsesCafe24OrderId() {
 		when(order.getCafe24OrderId()).thenReturn("20260708-0000011");
-		var adapter = new Cafe24GmarketOrderAdapter(cafe24OrderApiPort, cafe24ShipmentService);
+		var adapter = new Cafe24GmarketOrderAdapter(cafe24OrderApiPort, cafe24ShipmentService, acceptance);
 		adapter.cancelOrder(credential, order);
 		verify(cafe24OrderApiPort).cancelOrder("20260708-0000011");
 	}
@@ -55,8 +58,8 @@ class Cafe24GmarketOrderAdapterTest {
 	@DisplayName("폴백은 getCafe24OrderId()가 담당 — 어댑터는 반환값(marketOrderNo)을 그대로 타깃한다")
 	void fallsBackToMarketOrderNoWhenNoCafe24OrderId() {
 		when(order.getCafe24OrderId()).thenReturn("4466411168");
-		var adapter = new Cafe24GmarketOrderAdapter(cafe24OrderApiPort, cafe24ShipmentService);
+		var adapter = new Cafe24GmarketOrderAdapter(cafe24OrderApiPort, cafe24ShipmentService, acceptance);
 		adapter.acceptOrders(credential, order);
-		verify(cafe24OrderApiPort).acceptOrder("4466411168");
+		verify(acceptance).accept("4466411168");
 	}
 }

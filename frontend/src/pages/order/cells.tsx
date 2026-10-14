@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { SaveStatus, MarketSyncState } from './types';
 import { inputStyle, CARRIER_OPTIONS, ACCOUNT_OPTIONS, VENDOR_OPTIONS, SYNC_BADGE, SOURCE_ICON } from './constants';
-import { shortAccountLabel, statusBorder, blurLeftToPage, formatThousands, parseThousands } from './helpers';
+import { shortAccountLabel, statusBorder, blurLeftToPage, formatThousands, parseThousands, isPlaceholderTracking } from './helpers';
 
 export function InlineInput({ value, onCommit, type = 'text', align = 'left', title, selectAllOnFocus = false }: {
   value: string;
@@ -148,25 +148,36 @@ export function TrackingCompareCell({ carrier, trackingNo, marketTrackingNo }: {
   marketTrackingNo?: string;
 }) {
   const carrierLabel = CARRIER_OPTIONS.find(o => o.value === carrier)?.label || carrier;
-  const market = marketTrackingNo?.trim() || '';
+  const rawMarket = marketTrackingNo?.trim() || '';
+  const placeholder = isPlaceholderTracking(rawMarket);
+  const market = placeholder ? '' : rawMarket;
   const mail = trackingNo?.trim() || '';
 
-  if (!market && !mail) {
+  if (!market && !mail && !placeholder) {
     return <span style={{ color: '#d1d5db' }}>—</span>;
   }
 
   const main = market || mail;
   const mismatch = !!market && !!mail && market !== mail;
-  const notSent = !market && !!mail;
+  const notSent = !market && !!mail && !placeholder;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', lineHeight: 1.35 }}>
       {carrierLabel && carrierLabel !== '-' && (
         <span style={{ fontSize: '10.5px', color: '#9ca3af' }}>{carrierLabel}</span>
       )}
-      <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#374151', letterSpacing: '0.01em' }}>
-        {main}
-      </span>
+      {main && (
+        <span data-testid="tracking-main" style={{ fontSize: '12.5px', fontWeight: 600, color: '#374151', letterSpacing: '0.01em' }}>
+          {main}
+        </span>
+      )}
+      {placeholder && (
+        <span title="마켓에 송장 없이 발송처리되어 구매자가 추적할 수 없습니다. 발송 후에는 API로 수정할 수 없어 ESM+에서 직접 고쳐야 합니다"
+          style={{ fontSize: '10px', fontWeight: 700, color: '#a52432', backgroundColor: '#fdeef0',
+            border: '1px solid #f0aab3', borderRadius: '4px', padding: '0 4px' }}>
+          마켓: 송장 없이 발송({rawMarket}) → ESM에서 수정 필요
+        </span>
+      )}
       {mismatch && (
         <span title="마켓에 박힌 송장과 메일로 받은 송장이 다릅니다 — 구매자는 위 번호를 추적합니다"
           style={{ fontSize: '10.5px', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -249,7 +260,9 @@ export function ShippingEditCell({ carrier, trackingNo, syncState, marketTrackin
       {syncState === 'manual' && marketTrackingNo && (
         <div style={{ fontSize: '10.5px', color: '#9ca3af', display: 'flex', gap: '5px', alignItems: 'baseline' }}>
           <span style={{ color: '#a52432', fontWeight: 600 }}>마켓</span>
-          <span style={{ textDecoration: 'line-through' }}>{marketTrackingNo}</span>
+          {isPlaceholderTracking(marketTrackingNo)
+            ? <span>송장 없이 발송({marketTrackingNo}) → ESM에서 수정 필요</span>
+            : <span style={{ textDecoration: 'line-through' }}>{marketTrackingNo}</span>}
         </div>
       )}
     </div>

@@ -4,6 +4,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.application.order.port.Cafe24OrderApiPort;
+import com.sbshop.agent.core.application.order.service.Cafe24OrderAcceptance;
 import com.sbshop.agent.core.application.order.service.Cafe24ShipmentService;
 import com.sbshop.agent.core.domain.market.MarketCredential;
 import com.sbshop.agent.core.domain.order.Order;
@@ -20,6 +21,8 @@ class Cafe24AuctionOrderAdapterTest {
 	@Mock
 	Cafe24ShipmentService cafe24ShipmentService;
 	@Mock
+	Cafe24OrderAcceptance acceptance;
+	@Mock
 	MarketCredential credential;
 	@Mock
 	Order order;
@@ -28,16 +31,16 @@ class Cafe24AuctionOrderAdapterTest {
 	@DisplayName("acceptOrders는 order.getCafe24OrderId()(cafe24_order_id)로 Cafe24를 타깃한다(마켓번호 아님)")
 	void acceptUsesCafe24OrderId() {
 		when(order.getCafe24OrderId()).thenReturn("20260708-0000011");
-		var adapter = new Cafe24AuctionOrderAdapter(cafe24ShipmentService, cafe24OrderApiPort);
+		var adapter = new Cafe24AuctionOrderAdapter(cafe24ShipmentService, cafe24OrderApiPort, acceptance);
 		adapter.acceptOrders(credential, order);
-		verify(cafe24OrderApiPort).acceptOrder("20260708-0000011");
+		verify(acceptance).accept("20260708-0000011");
 	}
 
 	@Test
 	@DisplayName("cancelOrder는 order.getCafe24OrderId()(cafe24_order_id)로 Cafe24를 타깃한다")
 	void cancelUsesCafe24OrderId() {
 		when(order.getCafe24OrderId()).thenReturn("20260708-0000011");
-		var adapter = new Cafe24AuctionOrderAdapter(cafe24ShipmentService, cafe24OrderApiPort);
+		var adapter = new Cafe24AuctionOrderAdapter(cafe24ShipmentService, cafe24OrderApiPort, acceptance);
 		adapter.cancelOrder(credential, order);
 		verify(cafe24OrderApiPort).cancelOrder("20260708-0000011");
 	}
@@ -46,7 +49,7 @@ class Cafe24AuctionOrderAdapterTest {
 	@DisplayName("폴백은 getCafe24OrderId()가 담당 — 어댑터는 반환값(marketOrderNo)을 그대로 타깃한다")
 	void fallsBackToMarketOrderNoWhenNoCafe24OrderId() {
 		when(order.getCafe24OrderId()).thenReturn("4466411168");
-		var adapter = new Cafe24AuctionOrderAdapter(cafe24ShipmentService, cafe24OrderApiPort);
+		var adapter = new Cafe24AuctionOrderAdapter(cafe24ShipmentService, cafe24OrderApiPort, acceptance);
 		adapter.cancelOrder(credential, order);
 		verify(cafe24OrderApiPort).cancelOrder("4466411168");
 	}

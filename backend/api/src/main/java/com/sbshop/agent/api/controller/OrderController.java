@@ -88,13 +88,19 @@ public class OrderController {
 			BulkConfirmResult result = orderService.bulkConfirmOrders(orderIds);
 			actionLogService.record(ActionLogConstants.ORDER_CONFIRM_BATCH, null,
 				statusOf(result.getFailedCount()),
-				"일괄 발주확인 (성공 " + result.getSuccessCount() + "건 / 실패 " + result.getFailedCount() + "건)");
+				"일괄 발주확인 (성공 " + result.getSuccessCount() + "건 / 실패 " + result.getFailedCount() + "건)"
+					+ failureReasons(result));
 			return ResponseEntity.ok(result);
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.ORDER_CONFIRM_BATCH, null,
 				ActionStatus.FAILED, "일괄 발주확인 실패 (" + orderIds.size() + "건): " + e.getMessage());
 			throw e;
 		}
+	}
+
+	private static String failureReasons(BulkConfirmResult result) {
+		List<String> errors = result.getErrors();
+		return errors == null || errors.isEmpty() ? "" : " — " + String.join(" | ", errors);
 	}
 
 	@PostMapping("/{id}/cancel")
@@ -127,7 +133,8 @@ public class OrderController {
 			BulkConfirmResult result = orderService.bulkCancelOrders(orderIds);
 			actionLogService.record(ActionLogConstants.ORDER_CANCEL_BATCH, null,
 				statusOf(result.getFailedCount()),
-				"일괄 발주취소 (성공 " + result.getSuccessCount() + "건 / 실패 " + result.getFailedCount() + "건)");
+				"일괄 발주취소 (성공 " + result.getSuccessCount() + "건 / 실패 " + result.getFailedCount() + "건)"
+					+ failureReasons(result));
 			return ResponseEntity.ok(result);
 		} catch (Exception e) {
 			actionLogService.record(ActionLogConstants.ORDER_CANCEL_BATCH, null,

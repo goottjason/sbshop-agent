@@ -74,6 +74,33 @@ class Cafe24RestClientErrorMessageTest {
 	}
 
 	@Test
+	@DisplayName("D-346: 주문 목록·상세 조회도 매번 다른 캐시 키로 읽어 발주확인 전 응답을 다시 받지 않는다")
+	void consecutiveOrderReadsDoNotReuseTheCacheKey() {
+		server.removeContext("/");
+		var seen = new java.util.concurrent.ConcurrentHashMap<String, String>();
+		var status = new java.util.concurrent.atomic.AtomicReference<>("N10");
+		var queries = new java.util.concurrent.CopyOnWriteArrayList<String>();
+		server.createContext("/", exchange -> {
+			String key = exchange.getRequestURI().toString();
+			queries.add(key);
+			String value = seen.computeIfAbsent(key, ignored -> "{\"order_status\":\"" + status.get() + "\"}");
+			byte[] body = value.getBytes(StandardCharsets.UTF_8);
+			exchange.sendResponseHeaders(200, body.length);
+			try (OutputStream os = exchange.getResponseBody()) {
+				os.write(body);
+			}
+		});
+		String list = "/admin/orders?embed=items,receivers,buyer&date_type=order_date&limit=100&offset=0";
+		assertThat(client.get(list)).contains("N10");
+		assertThat(client.get("/admin/orders/O1?embed=items")).contains("N10");
+		status.set("N20");
+		assertThat(client.get(list)).contains("N20");
+		assertThat(client.get("/admin/orders/O1?embed=items")).contains("N20");
+		assertThat(queries).hasSize(4).doesNotHaveDuplicates();
+		assertThat(queries).allMatch(q -> q.contains("_sb_read="));
+	}
+
+	@Test
 	@DisplayName("POST 실패 메시지에 상태코드와 응답 본문이 실린다")
 	void postCarriesStatusAndBody() {
 		assertThatThrownBy(() -> client.post("/admin/orders/O1/shipments", Map.of("request", Map.of())))
