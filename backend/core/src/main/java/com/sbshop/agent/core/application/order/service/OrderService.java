@@ -91,6 +91,9 @@ public class OrderService {
 		if (hasProgressedOrEnded) {
 			throw new IllegalStateException("이미 발주확인되었거나 종료된 주문은 재확인할 수 없습니다.");
 		}
+		if (currentItems.stream().anyMatch(OrderLineItem::isRefundTerminal)) {
+			throw new IllegalStateException("마켓에서 취소·반품이 완료된 주문은 발주확인할 수 없습니다.");
+		}
 
 		MarketCredential credential = credentialRepository.findByMarketType(order.getMarketType()).orElse(null);
 

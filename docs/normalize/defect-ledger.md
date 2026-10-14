@@ -6556,3 +6556,14 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 수정: ① IHB 관측(ProductSourceObservationClient)·재고확인(IherbScraperClient.parseResponse)이 할인가<정가면 정가를 매입가로(관측은 notice) ② MarginCalculator 최소가에 수수료 포함 손익분기 하한(수수료>0일 때) ③ ProductEditPlanner 저장 기준가 하한은 쿠팡 견적 하한만(마켓별 수수료가 달라져 최댓값이면 18% 마켓 하한이 쿠팡 저장가에 걸림) ④ ProductSyncService 매입가 변동을 sb_product_change_history 에 기록(actor system:source-sync).
 - 범위 밖 후속: 신규 등록·소싱 후보 경로(IherbScraperClient.toScrapedDto, SourcingCandidate.effectiveBuyPrice)는 여전히 할인가 우선. 수동 일괄(BatchPriceStockService)은 매입가 이력 미기록. 손익분기 상향도 '최소마진 보장' 문구로 표시됨.
 - 이력: 2026-10-13 발견 · 2026-10-13 운영 가격 재설정 · 2026-10-13 수정완료(검증 PASS)
+
+### D-345 — 쿠팡 발주확인 전 취소가 반영되지 않아 결제완료로 남고, 발주확인이 조용히 실패함
+
+- 심각도: 중(P2, 취소 주문 매입·정산 오인 위험) · 상태: 수정완료(2026-10-14, qa-verifier PASS·전체 회귀 3465/0, 배포 대기) · 리스크: 표준(쿠팡 조회 파라미터·발주확인 가드)
+- 위치: infrastructure/.../client/coupang/CoupangOrderApiClient.java (queryReturns·acceptOrders), core/.../order/service/OrderService.java (confirmOrderOnly)
+- 증상: 쿠팡 주문 641(기버터, 10/13 판매자 취소)·640(10/13 고객변심 취소)이 쿠팡에선 취소인데 우리는 NEW·클레임 없음·정산 유지. 640은 발주확인을 눌러도 상태가 바뀌지 않음. 확증 프로브는 매시간 TERMINATED("취소 또는 반품")를 보지만 반품/취소를 구분 못 해 미반영.
+- 재현(운영 API 실측 2026-10-14): returnRequests 를 cancelType 없이(=RETURN) 조회하면 출고중지 반품 2건(631·632)만, cancelType=CANCEL 로 조회하면 641·640 이 receiptType=CANCEL·receiptStatus=RETURNS_COMPLETED 로 나온다.
+- 원인(확인): ① queryReturns 가 cancelType=CANCEL 을 조회하지 않아 결제완료 단계 취소를 영영 못 본다(매퍼·detectReturns 는 CANCEL 을 이미 처리). ② confirmOrderOnly 는 배송 단계만 보고 클레임(취소 완료)을 보지 않는다. ③ acceptOrders 는 최상위 code=200 만 보고 data.responseList[].succeed=false 를 무시해 묶음배송 단위 거부를 성공으로 센다.
+- 수정: ① queryReturns 가 RETURN·CANCEL 두 유형을 모두 조회 ② 발주확인은 취소·반품 완료(isRefundTerminal) 라인이 있으면 마켓 호출 없이 거부 ③ acceptOrders 는 succeed=false 가 있으면 쿠팡 사유와 함께 실패. 테스트 3건(CoupangOrderApiClientCancelTest 2, OrderServiceStateGuardTest 1) Red→Green.
+- 운영 데이터: 배포 뒤 다음 쿠팡 동기화에서 640·641 이 CANCEL/DONE·정산 0 으로 자동 정정된다(수동 UPDATE 불필요). 631·632 는 쿠팡이 출고중지 반품(RETURN)으로 처리한 건이라 현재 RETURN/DONE·정산 0 이 맞다.
+- 이력: 2026-10-14 발견·수정완료

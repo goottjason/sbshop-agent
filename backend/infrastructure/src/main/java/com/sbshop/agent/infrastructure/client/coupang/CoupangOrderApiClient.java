@@ -11,8 +11,8 @@ import java.net.URI;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -21,13 +21,23 @@ import org.springframework.web.client.RestClientResponseException;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class CoupangOrderApiClient implements CoupangOrderApiPort {
 
 	private final RestClient restClient = RestClient.create();
 	private final ObjectMapper objectMapper;
+	private final String domain;
 
 	private static final String DOMAIN = "https://api-gateway.coupang.com";
+
+	@Autowired
+	public CoupangOrderApiClient(ObjectMapper objectMapper) {
+		this(objectMapper, DOMAIN);
+	}
+
+	CoupangOrderApiClient(ObjectMapper objectMapper, String domain) {
+		this.objectMapper = objectMapper;
+		this.domain = domain;
+	}
 
 	public JsonNode fetchOrders(MarketCredential credential, String fromDate, String toDate, String status) {
 		String vendorId = credential.getClientId();
@@ -53,7 +63,7 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 
 			try {
 				String response = restClient.get()
-					.uri(DOMAIN + path)
+					.uri(domain + path)
 					.header(HttpHeaders.AUTHORIZATION, authorization)
 					.header("X-Requested-By", vendorId)
 					.accept(MediaType.APPLICATION_JSON)
@@ -103,7 +113,7 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 			+ "/" + orderId + "/ordersheets";
 		try {
 			String body = restClient.get()
-				.uri(URI.create(DOMAIN + path))
+				.uri(URI.create(domain + path))
 				.header(HttpHeaders.AUTHORIZATION,
 					generateHmacSignature("GET", path, credential.getAccessKey(), credential.getSecretKey()))
 				.accept(MediaType.APPLICATION_JSON)
@@ -131,62 +141,65 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 		LocalDate from = LocalDate.parse(fromDate);
 		LocalDate to = LocalDate.parse(toDate);
 
-		for (LocalDate windowStart = from; !windowStart.isAfter(to); windowStart = windowStart.plusDays(7)) {
-			LocalDate windowEnd = windowStart.plusDays(6);
-			if (windowEnd.isAfter(to)) {
-				windowEnd = to;
-			}
-			String createdAtFrom = windowStart + "T00:00";
-			String createdAtTo = windowEnd + "T23:59";
-			String nextToken = "";
-
-			while (true) {
-				String path = "/v2/providers/openapi/apis/api/v4/vendors/" + vendorId + "/returnRequests"
-					+ "?searchType=timeFrame"
-					+ "&createdAtFrom=" + createdAtFrom
-					+ "&createdAtTo=" + createdAtTo
-					+ "&maxPerPage=50";
-				if (!nextToken.isEmpty()) {
-					path += "&nextToken=" + nextToken;
+		for (String cancelType : List.of("RETURN", "CANCEL")) {
+			for (LocalDate windowStart = from; !windowStart.isAfter(to); windowStart = windowStart.plusDays(7)) {
+				LocalDate windowEnd = windowStart.plusDays(6);
+				if (windowEnd.isAfter(to)) {
+					windowEnd = to;
 				}
+				String createdAtFrom = windowStart + "T00:00";
+				String createdAtTo = windowEnd + "T23:59";
+				String nextToken = "";
 
-				String authorization = generateHmacSignature("GET", path, accessKey, secretKey);
-
-				try {
-					String response = restClient.get()
-						.uri(URI.create(DOMAIN + path))
-						.header(HttpHeaders.AUTHORIZATION, authorization)
-						.header("X-Requested-By", vendorId)
-						.accept(MediaType.APPLICATION_JSON)
-						.retrieve()
-						.body(String.class);
-
-					JsonNode root = objectMapper.readTree(response);
-					String code = root.path("code").asText();
-					if (!"200".equals(code) && !"SUCCESS".equalsIgnoreCase(code)) {
-						log.error("쿠팡 반품조회 오류: {} ({}~{})",
-							root.path("message").asText(), createdAtFrom, createdAtTo);
-						break;
+				while (true) {
+					String path = "/v2/providers/openapi/apis/api/v4/vendors/" + vendorId + "/returnRequests"
+						+ "?searchType=timeFrame"
+						+ "&createdAtFrom=" + createdAtFrom
+						+ "&createdAtTo=" + createdAtTo
+						+ "&maxPerPage=50"
+						+ "&cancelType=" + cancelType;
+					if (!nextToken.isEmpty()) {
+						path += "&nextToken=" + nextToken;
 					}
 
-					JsonNode data = root.path("data");
-					if (data.isArray()) {
-						for (JsonNode n : data) {
-							all.add(n);
+					String authorization = generateHmacSignature("GET", path, accessKey, secretKey);
+
+					try {
+						String response = restClient.get()
+							.uri(URI.create(domain + path))
+							.header(HttpHeaders.AUTHORIZATION, authorization)
+							.header("X-Requested-By", vendorId)
+							.accept(MediaType.APPLICATION_JSON)
+							.retrieve()
+							.body(String.class);
+
+						JsonNode root = objectMapper.readTree(response);
+						String code = root.path("code").asText();
+						if (!"200".equals(code) && !"SUCCESS".equalsIgnoreCase(code)) {
+							log.error("쿠팡 반품조회 오류[{}]: {} ({}~{})", cancelType,
+								root.path("message").asText(), createdAtFrom, createdAtTo);
+							break;
 						}
-					}
 
-					nextToken = root.path("nextToken").asText("");
-					if (nextToken.isEmpty()) {
+						JsonNode data = root.path("data");
+						if (data.isArray()) {
+							for (JsonNode n : data) {
+								all.add(n);
+							}
+						}
+
+						nextToken = root.path("nextToken").asText("");
+						if (nextToken.isEmpty()) {
+							break;
+						}
+						Thread.sleep(300);
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+						throw new RuntimeException("쿠팡 반품조회 중단됨", e);
+					} catch (Exception e) {
+						log.error("쿠팡 반품조회 실패[{}]: {} ({}~{})", cancelType, e.getMessage(), createdAtFrom, createdAtTo);
 						break;
 					}
-					Thread.sleep(300);
-				} catch (InterruptedException e) {
-					Thread.currentThread().interrupt();
-					throw new RuntimeException("쿠팡 반품조회 중단됨", e);
-				} catch (Exception e) {
-					log.error("쿠팡 반품조회 실패: {} ({}~{})", e.getMessage(), createdAtFrom, createdAtTo);
-					break;
 				}
 			}
 		}
@@ -226,7 +239,7 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 
 				try {
 					String response = restClient.get()
-						.uri(URI.create(DOMAIN + path))
+						.uri(URI.create(domain + path))
 						.header(HttpHeaders.AUTHORIZATION, authorization)
 						.header("X-Requested-By", vendorId)
 						.accept(MediaType.APPLICATION_JSON)
@@ -288,7 +301,7 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 
 			try {
 				String response = restClient.get()
-					.uri(DOMAIN + path)
+					.uri(domain + path)
 					.header(HttpHeaders.AUTHORIZATION, authorization)
 					.header("X-Requested-By", vendorId)
 					.accept(MediaType.APPLICATION_JSON)
@@ -337,7 +350,7 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 
 		try {
 			String response = restClient.get()
-				.uri(DOMAIN + path)
+				.uri(domain + path)
 				.header(HttpHeaders.AUTHORIZATION, authorization)
 				.header("X-Requested-By", vendorId)
 				.accept(MediaType.APPLICATION_JSON)
@@ -370,7 +383,7 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 			String payload = objectMapper.writeValueAsString(request);
 
 			String response = restClient.post()
-				.uri(DOMAIN + path)
+				.uri(domain + path)
 				.header(HttpHeaders.AUTHORIZATION, authorization)
 				.header("X-Requested-By", vendorId)
 				.contentType(MediaType.APPLICATION_JSON)
@@ -405,7 +418,7 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 			String payload = objectMapper.writeValueAsString(request);
 
 			String response = restClient.post()
-				.uri(DOMAIN + path)
+				.uri(domain + path)
 				.header(HttpHeaders.AUTHORIZATION, authorization)
 				.header("X-Requested-By", vendorId)
 				.contentType(MediaType.APPLICATION_JSON)
@@ -441,7 +454,7 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 			String payload = objectMapper.writeValueAsString(request);
 
 			String response = restClient.put()
-				.uri(DOMAIN + path)
+				.uri(domain + path)
 				.header(HttpHeaders.AUTHORIZATION, authorization)
 				.header("X-Requested-By", vendorId)
 				.contentType(MediaType.APPLICATION_JSON)
@@ -454,6 +467,15 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 			if (!("SUCCESS".equals(rootNode.path("code").asText()) || "200".equals(rootNode.path("code").asText()))) {
 				throw new RuntimeException(
 					"Failed to accept orders via Coupang API: " + rootNode.path("message").asText());
+			}
+			List<String> rejected = new ArrayList<>();
+			for (JsonNode box : rootNode.path("data").path("responseList")) {
+				if (box.has("succeed") && !box.path("succeed").asBoolean()) {
+					rejected.add(box.path("shipmentBoxId").asText() + " " + box.path("resultMessage").asText());
+				}
+			}
+			if (!rejected.isEmpty()) {
+				throw new RuntimeException("쿠팡이 발주확인을 거부했습니다: " + String.join(", ", rejected));
 			}
 		} catch (RuntimeException e) {
 			throw e;
@@ -477,7 +499,7 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 			String payload = objectMapper.writeValueAsString(request);
 
 			String response = restClient.post()
-				.uri(DOMAIN + path)
+				.uri(domain + path)
 				.header(HttpHeaders.AUTHORIZATION, authorization)
 				.header("X-Requested-By", vendorId)
 				.contentType(MediaType.APPLICATION_JSON)

@@ -215,6 +215,24 @@ class OrderServiceStateGuardTest {
 			assertThatThrownBy(() -> service().confirmOrder(5L))
 				.isInstanceOf(IllegalStateException.class);
 		}
+
+		@Test
+		@DisplayName("D-345: 마켓에서 취소 완료된 결제완료(NEW) 주문 발주확인 → 마켓 호출 없이 차단")
+		void marketCancelledNewOrder_confirm_blocked() {
+			Order order = Order.builder().marketType(MarketType.COUPANG).marketOrderNo("O-7").build();
+			OrderLineItem item = itemWithStatus(ShippingStatus.NEW);
+			item.applyClaim(com.sbshop.agent.core.domain.order.vo.ClaimData.builder()
+				.claimType(com.sbshop.agent.core.domain.order.enums.ClaimType.CANCEL)
+				.claimStage(com.sbshop.agent.core.domain.order.enums.ClaimStage.DONE)
+				.claimRawCode("RETURNS_COMPLETED").build());
+			when(orderRepository.findById(7L)).thenReturn(Optional.of(order));
+			lenient().when(orderLineItemRepository.findByOrderId(any())).thenReturn(List.of(item));
+
+			assertThatThrownBy(() -> service().confirmOrder(7L))
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("취소");
+			verify(marketplaceShippingService, Mockito.never()).getPort(any());
+		}
 	}
 
 	@Nested
