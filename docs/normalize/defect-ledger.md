@@ -6544,7 +6544,7 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 
 ### D-344 — 아이허브 일시 할인가(discountType=1)가 매입가로 잡혀 판매가가 원가 아래로 떨어짐
 
-- 심각도: 상(P1, 금전 손실) · 상태: 수정완료(2026-10-13, qa-verifier PASS·전체 회귀 3462/0, 배포 대기) · 리스크: 중대(가격 산정·마켓 가격 반영)
+- 심각도: 상(P1, 금전 손실) · 상태: 검증통과(2026-10-13, qa-verifier PASS·전체 회귀 3462/0, 2026-10-14 737477e3 배포) · 리스크: 중대(가격 산정·마켓 가격 반영)
 - 위치: infrastructure/.../sourcing/content/ProductSourceObservationClient.java (IHB 관측: discountPriceAmount 우선 채택), core/.../product/edit/ProductEditPlanner.java (일괄 기준가 = 쿠팡 계산가, 최소가 하한만 보호)
 - 증상: 231113IHB078 오가닉밸리 기버터 2병. 판매가 29,900원(현재 매입가 15,365원×2 기준 쿠팡 손익분기 약 41,300원). 쿠팡 주문 629·630(10/11) 정산 24,297원 vs 실제 매입 26,487원 → 건당 −2,190원. 미구매 631·632·641도 손실 예상.
 - 재현(운영 데이터 추적): sb_supplier_batch_item.calculation 에서 pricingEvidence.iherbDiscount.discountType=1 인 배치(10/7·10/9·10/10·10/11)는 costPrice=10,143, discountType=0 인 배치(10/4·10/8)는 15,365. 10,143 기준으로 MarginCalculator 공식이 저장 판매가 29,900/27,700/27,300 을 정확히 재현.
@@ -6559,11 +6559,11 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 
 ### D-345 — 쿠팡 발주확인 전 취소가 반영되지 않아 결제완료로 남고, 발주확인이 조용히 실패함
 
-- 심각도: 중(P2, 취소 주문 매입·정산 오인 위험) · 상태: 수정완료(2026-10-14, qa-verifier PASS·전체 회귀 3465/0, 배포 대기) · 리스크: 표준(쿠팡 조회 파라미터·발주확인 가드)
+- 심각도: 중(P2, 취소 주문 매입·정산 오인 위험) · 상태: 검증통과(2026-10-14, qa-verifier PASS·전체 회귀 3465/0, 737477e3 배포·라이브 확인) · 리스크: 표준(쿠팡 조회 파라미터·발주확인 가드)
 - 위치: infrastructure/.../client/coupang/CoupangOrderApiClient.java (queryReturns·acceptOrders), core/.../order/service/OrderService.java (confirmOrderOnly)
 - 증상: 쿠팡 주문 641(기버터, 10/13 판매자 취소)·640(10/13 고객변심 취소)이 쿠팡에선 취소인데 우리는 NEW·클레임 없음·정산 유지. 640은 발주확인을 눌러도 상태가 바뀌지 않음. 확증 프로브는 매시간 TERMINATED("취소 또는 반품")를 보지만 반품/취소를 구분 못 해 미반영.
 - 재현(운영 API 실측 2026-10-14): returnRequests 를 cancelType 없이(=RETURN) 조회하면 출고중지 반품 2건(631·632)만, cancelType=CANCEL 로 조회하면 641·640 이 receiptType=CANCEL·receiptStatus=RETURNS_COMPLETED 로 나온다.
 - 원인(확인): ① queryReturns 가 cancelType=CANCEL 을 조회하지 않아 결제완료 단계 취소를 영영 못 본다(매퍼·detectReturns 는 CANCEL 을 이미 처리). ② confirmOrderOnly 는 배송 단계만 보고 클레임(취소 완료)을 보지 않는다. ③ acceptOrders 는 최상위 code=200 만 보고 data.responseList[].succeed=false 를 무시해 묶음배송 단위 거부를 성공으로 센다.
 - 수정: ① queryReturns 가 RETURN·CANCEL 두 유형을 모두 조회 ② 발주확인은 취소·반품 완료(isRefundTerminal) 라인이 있으면 마켓 호출 없이 거부 ③ acceptOrders 는 succeed=false 가 있으면 쿠팡 사유와 함께 실패. 테스트 3건(CoupangOrderApiClientCancelTest 2, OrderServiceStateGuardTest 1) Red→Green.
 - 운영 데이터: 배포 뒤 다음 쿠팡 동기화에서 640·641 이 CANCEL/DONE·정산 0 으로 자동 정정된다(수동 UPDATE 불필요). 631·632 는 쿠팡이 출고중지 반품(RETURN)으로 처리한 건이라 현재 RETURN/DONE·정산 0 이 맞다.
-- 이력: 2026-10-14 발견·수정완료
+- 이력: 2026-10-14 발견·수정완료 · 2026-10-14 배포 후 쿠팡 동기화에서 640·641 CANCEL/DONE·정산 0 확인
