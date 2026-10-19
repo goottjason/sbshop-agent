@@ -1121,6 +1121,7 @@ const LedgerPage: React.FC = () => {
 
           {/* B. 선택 날짜 지출 내역 목록 (수정 & 삭제 지원) */}
           <Card
+            loading={loading}
             title={
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 14, fontWeight: 700, color: PALETTE.textMain }}>
