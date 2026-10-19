@@ -59,6 +59,26 @@ const LoginPage = ({ onSuccess }: Props) => {
           className="btn-primary" style={{ marginTop: 8 }}>
           {busy ? '확인 중...' : '로그인'}
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            setAdminAuth('demo-token');
+            onSuccess();
+          }}
+          style={{
+            marginTop: 4,
+            padding: '8px 12px',
+            background: '#f5f5f5',
+            border: '1px solid #d9d9d9',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontSize: 13,
+            color: '#555',
+            fontWeight: 500,
+          }}
+        >
+          🚀 가계부 둘러보기 (로컬 체험 모드)
+        </button>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { LayoutDashboard, Table, Settings, Package, PlusCircle, RefreshCw, List, Sparkles, LogOut } from 'lucide-react';
+import { LayoutDashboard, Table, Settings, Package, PlusCircle, RefreshCw, List, Sparkles, LogOut, Wallet } from 'lucide-react';
 import { logout } from '../api/axios';
 
 interface Props {
@@ -19,6 +19,7 @@ const MainLayout = ({ locked = false, children }: Props) => {
     { name: '신규 상품 등록(수동)', path: '/register', icon: PlusCircle },
     { name: '배치 업데이트', path: '/batch', icon: RefreshCw },
     { name: '진행 현황', path: '/process-status', icon: List },
+    { name: '가계부', path: '/ledger', icon: Wallet },
     { name: '설정 및 연동', path: '/settings', icon: Settings },
   ];
 

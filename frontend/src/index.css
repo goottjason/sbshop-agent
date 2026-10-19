@@ -267,3 +267,45 @@ body {
 .Toastify__progress-bar {
   background-color: rgba(0, 0, 0, 0.2) !important;
 }
+
+/* ─── 가계부 캘린더 및 UI 커스텀 ─────────────────────────────────── */
+.ledger-calendar .ant-picker-calendar-date {
+  border-radius: 8px !important;
+  margin: 2px !important;
+  transition: all 0.15s ease !important;
+}
+
+.ledger-calendar .ant-picker-calendar-date-value {
+  color: #334155 !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+}
+
+/* 선택된 날짜 칸이 시커멓게 칠해져 날짜가 안 보이던 문제 해결 */
+.ledger-calendar .ant-picker-calendar-date-selected,
+.ledger-calendar .ant-picker-cell-selected .ant-picker-calendar-date {
+  background-color: #f1f5f9 !important;
+  border: 2px solid #0f172a !important;
+}
+
+.ledger-calendar .ant-picker-calendar-date-selected .ant-picker-calendar-date-value,
+.ledger-calendar .ant-picker-cell-selected .ant-picker-calendar-date-value {
+  color: #0f172a !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
+}
+
+/* 오늘 날짜 표시 */
+.ledger-calendar .ant-picker-cell-today .ant-picker-calendar-date-value {
+  color: #6366f1 !important;
+  font-weight: 700 !important;
+}
+
+/* 버튼 클릭 시 까만 그림자(box-shadow) 완전 제거 */
+.btn-no-shadow,
+.btn-no-shadow:hover,
+.btn-no-shadow:focus,
+.btn-no-shadow:active {
+  box-shadow: none !important;
+  outline: none !important;
+}

@@ -19,6 +19,7 @@ const DiscoveryPage = lazy(() => import('./pages/sourcing/DiscoveryPage'));
 const DraftListPage = lazy(() => import('./pages/sourcing/DraftListPage'));
 const DraftReviewPage = lazy(() => import('./pages/sourcing/DraftReviewPage'));
 const SourcingSettingsPage = lazy(() => import('./pages/sourcing/SourcingSettingsPage'));
+const LedgerPage = lazy(() => import('./pages/ledger/LedgerPage'));
 
 const Loading = () => <div style={{ padding: 24, textAlign: 'center' }}>로딩 중...</div>;
 
@@ -55,6 +56,7 @@ function App() {
             <Route path="sourcing/settings" element={<Suspense fallback={<Loading />}><SourcingSettingsPage /></Suspense>} />
             <Route path="batch" element={<Suspense fallback={<Loading />}><BatchUpdatePage /></Suspense>} />
             <Route path="process-status" element={<Suspense fallback={<Loading />}><ProcessStatusPage /></Suspense>} />
+            <Route path="ledger" element={<Suspense fallback={<Loading />}><LedgerPage /></Suspense>} />
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
