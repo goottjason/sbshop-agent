@@ -83,7 +83,7 @@ class CoupangThreeTierFetchTest {
 	void parsesEveryOrderItem() {
 		stub("ACCEPT", arrayOf(row("3000012345", "77001122", null, null,
 			"111", "9001", "SKU-A", "칼슘", "1", "10000",
-			"222", "9002", "SKU-B", "마그네슘", "2", "7000")));
+			"222", "9002", "SKU-B", "마그네슘", "2", "14000")));
 
 		MarketOrderDto dto = fetch().get(0);
 
@@ -143,6 +143,19 @@ class CoupangThreeTierFetchTest {
 
 		assertThat(allItems(dto)).extracting(MarketLineItemDto::getStatus)
 			.containsExactly(ShippingStatus.DISPATCHED, ShippingStatus.DISPATCHED);
+	}
+
+	@Test
+	@DisplayName("쿠팡 orderPrice는 이미 수량을 곱한 결제액이다 — 수량을 다시 곱하지 않는다")
+	void orderPriceIsAlreadyLineTotal() {
+		stub("DELIVERING", arrayOf(row("3000012345", "77001122", "111111111111", "CJ대한통운",
+			"111", "9001", "SKU-A", "칼슘", "3", "117000")));
+
+		MarketLineItemDto item = allItems(fetch().get(0)).get(0);
+
+		assertThat(item.getQuantity()).isEqualTo(3);
+		assertThat(item.getTotalAmount()).isEqualByComparingTo("117000");
+		assertThat(item.getOrderPrice()).isEqualByComparingTo("39000");
 	}
 
 	@Test

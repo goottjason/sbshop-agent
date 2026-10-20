@@ -6578,3 +6578,14 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 수정: ① 발주확인 전 주문상세를 읽어 클레임(C/R/E) 상품을 뺀 나머지가 이미 배송준비중이면 재전송 없이 성공 ② 전송 후 상세를 최대 5회(1.5초 간격) 다시 읽어 반영 확인, 끝내 신규면 "아직 반영되지 않았습니다" 실패 ③ /admin/orders 조회에도 _sb_read 캐시 우회 ④ 일괄 발주확인·취소 로그에 주문별 실패 사유 기록 ⑤ 0으로만 된 마켓 송장은 우리 송장을 대표로 보이고 "송장 없이 발송 → ESM에서 수정 필요" 표시, 동기화 상태는 수동수정 필요. 테스트 Red→Green: Cafe24OrderAcceptanceTest 7(클레임 상품 섞인 주문 2건 포함), Cafe24RestClientErrorMessageTest 1, OrderControllerBulkResultLogTest 2, marketPlaceholderTracking.test.tsx 5(어댑터 테스트 2개 갱신).
 - 운영 데이터: 00000000 송장 주문은 발송 후라 카페24 API로 수정 불가 — ESM+에서 직접 수정 필요(637은 매입·발송 후 실제 송장 입력).
 - 이력: 2026-10-14 발견·수정완료 · 2026-10-14 qa-verifier 1차 부분PASS(클레임 섞인 주문을 실패로 보고·재전송) → 클레임 상품 제외로 수정 → 재검증 PASS · 2026-10-14 1585d8fb 배포(06:17Z 기동), 수동 G마켓/옥션 동기화 22건 오류 없음, 배포 번들에 00000000 안내 반영 확인. 주문 조회 캐시 우회 효과와 발주확인 재조회는 다음 실제 G마켓 주문확인 때 확인 필요
+
+### D-347 — 쿠팡 정산금액이 판매수량만큼 부풀려짐(수량 2 이상)
+
+- 심각도: 중(P2, 정산·순수익 오표시) · 상태: 수정완료(2026-10-20, 배포 확인 대기) · 리스크: 표준(쿠팡 어댑터 금액 해석 + 운영 데이터 7건 보정)
+- 위치: core/.../order/adapter/CoupangOrderAdapter.java(toLineItem)
+- 증상: 통합 주문 관리에서 쿠팡 수량 2·3 주문의 정산금액이 단건 대비 약 2·3배(예: 상품 2626 단건 평균 36,223 ↔ 수량 3 주문 900이 312,390).
+- 원인(확인): 쿠팡 ordersheet `orderItems[].orderPrice`는 이미 `salesPrice × shippingCount`인 결제액인데, 이를 단가로 보고 다시 수량을 곱해 totalAmount를 만들었고 정산(수수료 차감)이 그 값으로 계산됨. 기존 테스트(parsesEveryOrderItem)도 같은 오해를 박제하고 있었음.
+- 마켓별 점검(운영 DB 수량≥2 27건, 단건 평균과 1개당 금액 대조): 쿠팡 7건만 수량배 부풀림. 스마트스토어(totalPaymentAmount·expectedSettlementAmount)·11번가(ordAmt·정산액)·G마켓/옥션(카페24 payment_amount = 단가)은 정상.
+- 수정: totalAmount = orderPrice 그대로, 단가 = orderPrice ÷ 수량. 테스트 Red→Green: CoupangThreeTierFetchTest.orderPriceIsAlreadyLineTotal 신규, parsesEveryOrderItem 픽스처 교정.
+- 운영 데이터: 정산 0일 때만 재계산하는 구조라 재동기화로 고쳐지지 않음 → 2026-10-20 수동 보정(settlement_amount ÷ quantity, 미검증 7건: line_item 256·306·408·889·898·900·901; 보정 전 값 = 현재 값 × quantity).
+- 별건(미수정): 쿠팡 정산 실값 동기화(CoupangOrderSyncService 정산 동기화)는 sbCode 키 하나에 값 하나라 같은 상품의 여러 주문을 구분하지 못하고, 운영에서 settlement_verified=true 인 쿠팡 행이 수량≥2 중 0건 — 실값 동기화가 사실상 동작하지 않는지 별도 점검 필요.

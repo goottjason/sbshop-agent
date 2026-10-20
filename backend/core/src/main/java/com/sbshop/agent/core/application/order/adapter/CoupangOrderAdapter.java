@@ -28,6 +28,7 @@ import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.repository.ShipmentRepository;
 import com.sbshop.agent.core.domain.order.vo.ClaimData;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -628,7 +629,10 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 		}
 
 		int qty = item.path("shippingCount").asInt();
-		BigDecimal price = new BigDecimal(item.path("orderPrice").asText("0"));
+		BigDecimal lineTotal = new BigDecimal(item.path("orderPrice").asText("0"));
+		BigDecimal unitPrice = qty > 0
+			? lineTotal.divide(BigDecimal.valueOf(qty), 2, RoundingMode.HALF_UP)
+			: lineTotal;
 
 		ShippingStatus status = item.path("canceled").asBoolean(false)
 			? ShippingStatus.CANCELED : boxStatus;
@@ -639,8 +643,8 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 			.sellerProductId(sellerProductId)
 			.productName(emptyToNull(item.path("vendorItemName").asText(null)))
 			.quantity(qty)
-			.orderPrice(price)
-			.totalAmount(price.multiply(BigDecimal.valueOf(qty)))
+			.orderPrice(unitPrice)
+			.totalAmount(lineTotal)
 			.status(status)
 			.marketSpecificData(new HashMap<>(Map.of(
 				"vendorItemId", vendorItemId != null ? vendorItemId : "",
