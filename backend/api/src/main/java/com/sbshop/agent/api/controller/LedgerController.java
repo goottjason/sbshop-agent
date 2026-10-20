@@ -112,12 +112,22 @@ public class LedgerController {
 
 	@GetMapping("/payment-sources")
 	public ResponseEntity<List<String>> getPaymentSources() {
-		return ResponseEntity.ok(ledgerService.getDistinctPaymentSources());
+		return ResponseEntity.ok(ledgerService.getPaymentSources());
+	}
+
+	@PutMapping("/payment-sources")
+	public ResponseEntity<List<String>> updatePaymentSources(@RequestBody List<String> sources) {
+		return ResponseEntity.ok(ledgerService.savePaymentSources(sources));
 	}
 
 	@GetMapping("/categories")
 	public ResponseEntity<List<String>> getCategories() {
-		return ResponseEntity.ok(ledgerService.getDistinctCategories());
+		return ResponseEntity.ok(ledgerService.getCategories());
+	}
+
+	@PutMapping("/categories")
+	public ResponseEntity<List<String>> updateCategories(@RequestBody List<String> categories) {
+		return ResponseEntity.ok(ledgerService.saveCategories(categories));
 	}
 
 	public record ExpenseCreateRequest(

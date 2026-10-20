@@ -51,8 +51,46 @@ const STORAGE_KEY_BUDGETS = 'sbshop.ledger.budgets.v3';
 const STORAGE_KEY_SOURCES = 'sbshop.ledger.payment_sources.v3';
 const STORAGE_KEY_CATEGORIES = 'sbshop.ledger.categories.v3';
 
-const DEFAULT_SOURCES = ['국민카드', '농협은행', '신한카드', '카카오뱅크', '토스뱅크', '현금'];
-const DEFAULT_CATS = ['식비', '카페/간식', '교통/유류비', '비품/소모품', '쇼핑/생활', '통신/공과금', '기타'];
+const DEFAULT_SOURCES = [
+  'JW_롯데(LOCA)',
+  'YH_신한(Y)',
+  'JW_토스페이',
+  '국민카드',
+  '농협은행',
+  '신한카드',
+  '카카오뱅크',
+  '토스뱅크',
+  '현금',
+];
+const DEFAULT_CATS = ['식비', '외식/배달', '카페/간식', '교통/유류비', '비품/소모품', '쇼핑/생활', '통신/공과금', '기타'];
+
+const loadLocalPaymentSources = (): string[] => {
+  try {
+    const raw =
+      localStorage.getItem(STORAGE_KEY_SOURCES) ||
+      localStorage.getItem('sbshop.ledger.payment_sources.v2') ||
+      localStorage.getItem('sbshop.ledger.payment_sources.v1');
+    if (!raw) return DEFAULT_SOURCES;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_SOURCES;
+  } catch {
+    return DEFAULT_SOURCES;
+  }
+};
+
+const loadLocalCategories = (): string[] => {
+  try {
+    const raw =
+      localStorage.getItem(STORAGE_KEY_CATEGORIES) ||
+      localStorage.getItem('sbshop.ledger.categories.v2') ||
+      localStorage.getItem('sbshop.ledger.categories.v1');
+    if (!raw) return DEFAULT_CATS;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_CATS;
+  } catch {
+    return DEFAULT_CATS;
+  }
+};
 
 const getInitialMockExpenses = (): LedgerExpense[] => [
   {
@@ -315,42 +353,72 @@ export const ledgerApi = {
   },
 
   // ─────────────────────────────────────────────────────────
-  // 지출처(출금처/카드/계좌) 목록 관리 (가져오기 / 저장 / 수정 / 삭제)
+  // 지출처(출금처/카드/계좌) 목록 관리 (가져오기 / 저장 / 수정 / 삭제 - DB 영구 저장)
   // ─────────────────────────────────────────────────────────
   getPaymentSources: async (): Promise<string[]> => {
+    const local = loadLocalPaymentSources();
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_SOURCES);
-      if (!raw) {
-        localStorage.setItem(STORAGE_KEY_SOURCES, JSON.stringify(DEFAULT_SOURCES));
-        return DEFAULT_SOURCES;
+      const { data } = await apiClient.get<string[]>('/api/v1/ledger/payment-sources');
+      if (Array.isArray(data) && data.length > 0) {
+        // 만약 로컬에 서버에 없는 커스텀 항목이 있다면 병합하여 서버에 자동 동기화
+        const missing = local.filter((item) => !data.includes(item));
+        if (missing.length > 0) {
+          const merged = [...data, ...missing];
+          await apiClient.put<string[]>('/api/v1/ledger/payment-sources', merged).catch(() => {});
+          localStorage.setItem(STORAGE_KEY_SOURCES, JSON.stringify(merged));
+          return merged;
+        }
+        localStorage.setItem(STORAGE_KEY_SOURCES, JSON.stringify(data));
+        return data;
       }
-      return JSON.parse(raw);
+      return local;
     } catch {
-      return DEFAULT_SOURCES;
+      return local;
     }
   },
 
-  savePaymentSources: (sources: string[]) => {
+  savePaymentSources: async (sources: string[]): Promise<string[]> => {
     localStorage.setItem(STORAGE_KEY_SOURCES, JSON.stringify(sources));
+    try {
+      const { data } = await apiClient.put<string[]>('/api/v1/ledger/payment-sources', sources);
+      return data;
+    } catch {
+      return sources;
+    }
   },
 
   // ─────────────────────────────────────────────────────────
-  // 분류(카테고리) 목록 관리 (가져오기 / 저장 / 수정 / 삭제)
+  // 분류(카테고리) 목록 관리 (가져오기 / 저장 / 수정 / 삭제 - DB 영구 저장)
   // ─────────────────────────────────────────────────────────
   getCategories: async (): Promise<string[]> => {
+    const local = loadLocalCategories();
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_CATEGORIES);
-      if (!raw) {
-        localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(DEFAULT_CATS));
-        return DEFAULT_CATS;
+      const { data } = await apiClient.get<string[]>('/api/v1/ledger/categories');
+      if (Array.isArray(data) && data.length > 0) {
+        // 만약 로컬에 서버에 없는 커스텀 항목이 있다면 병합하여 서버에 자동 동기화
+        const missing = local.filter((item) => !data.includes(item));
+        if (missing.length > 0) {
+          const merged = [...data, ...missing];
+          await apiClient.put<string[]>('/api/v1/ledger/categories', merged).catch(() => {});
+          localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(merged));
+          return merged;
+        }
+        localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(data));
+        return data;
       }
-      return JSON.parse(raw);
+      return local;
     } catch {
-      return DEFAULT_CATS;
+      return local;
     }
   },
 
-  saveCategories: (categories: string[]) => {
+  saveCategories: async (categories: string[]): Promise<string[]> => {
     localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(categories));
+    try {
+      const { data } = await apiClient.put<string[]>('/api/v1/ledger/categories', categories);
+      return data;
+    } catch {
+      return categories;
+    }
   },
 };

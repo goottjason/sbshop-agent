@@ -45,4 +45,8 @@ public abstract class BaseEntity {
 	public void delete() {
 		this.status = RecordStatus.DELETED;
 	}
+
+	public void activate() {
+		this.status = RecordStatus.ACTIVE;
+	}
 }

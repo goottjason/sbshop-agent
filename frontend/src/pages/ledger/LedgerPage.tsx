@@ -333,8 +333,8 @@ const LedgerPage: React.FC = () => {
     }
   };
 
-  // 지출처/분류 마스터 관리 핸들러
-  const handleAddItem = () => {
+  // 지출처/분류 마스터 관리 핸들러 (DB 영구 저장 연동)
+  const handleAddItem = async () => {
     const val = newItemName.trim();
     if (!val) return;
 
@@ -345,7 +345,7 @@ const LedgerPage: React.FC = () => {
       }
       const updated = [...paymentSources, val];
       setPaymentSources(updated);
-      ledgerApi.savePaymentSources(updated);
+      await ledgerApi.savePaymentSources(updated);
     } else {
       if (categories.includes(val)) {
         alert('이미 존재하는 분류입니다.');
@@ -353,12 +353,12 @@ const LedgerPage: React.FC = () => {
       }
       const updated = [...categories, val];
       setCategories(updated);
-      ledgerApi.saveCategories(updated);
+      await ledgerApi.saveCategories(updated);
     }
     setNewItemName('');
   };
 
-  const handleSaveEditItem = (index: number) => {
+  const handleSaveEditItem = async (index: number) => {
     const val = editingItemText.trim();
     if (!val) return;
 
@@ -367,21 +367,21 @@ const LedgerPage: React.FC = () => {
       const updated = [...paymentSources];
       updated[index] = val;
       setPaymentSources(updated);
-      ledgerApi.savePaymentSources(updated);
+      await ledgerApi.savePaymentSources(updated);
       if (paymentSource === oldVal) setPaymentSource(val);
     } else {
       const oldVal = categories[index];
       const updated = [...categories];
       updated[index] = val;
       setCategories(updated);
-      ledgerApi.saveCategories(updated);
+      await ledgerApi.saveCategories(updated);
       if (category === oldVal) setCategory(val);
     }
     setEditingItemIndex(null);
     setEditingItemText('');
   };
 
-  const handleDeleteItem = (index: number) => {
+  const handleDeleteItem = async (index: number) => {
     if (manageTab === 'SOURCE') {
       if (paymentSources.length <= 1) {
         alert('최소 1개 이상의 지출처가 필요합니다.');
@@ -390,7 +390,7 @@ const LedgerPage: React.FC = () => {
       const target = paymentSources[index];
       const updated = paymentSources.filter((_, i) => i !== index);
       setPaymentSources(updated);
-      ledgerApi.savePaymentSources(updated);
+      await ledgerApi.savePaymentSources(updated);
       if (paymentSource === target) setPaymentSource(updated[0]);
     } else {
       if (categories.length <= 1) {
@@ -400,7 +400,7 @@ const LedgerPage: React.FC = () => {
       const target = categories[index];
       const updated = categories.filter((_, i) => i !== index);
       setCategories(updated);
-      ledgerApi.saveCategories(updated);
+      await ledgerApi.saveCategories(updated);
       if (category === target) setCategory(updated[0]);
     }
   };
