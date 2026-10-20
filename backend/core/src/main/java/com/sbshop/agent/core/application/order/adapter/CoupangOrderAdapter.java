@@ -48,6 +48,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class CoupangOrderAdapter implements MarketOrderPort {
+	private static final int REVENUE_CHUNK_DAYS = 30;
 	private final CoupangOrderApiPort coupangOrderApiPort;
 	private final CoupangStatusMapper statusMapper;
 	private final OrderRepository orderRepository;
@@ -205,39 +206,55 @@ public class CoupangOrderAdapter implements MarketOrderPort {
 	public Map<String, BigDecimal> querySettlement(MarketCredential credential,
 		LocalDate from, LocalDate to) {
 		Map<String, BigDecimal> settlementMap = new HashMap<>();
-
-		try {
-			JsonNode salesItems = coupangOrderApiPort.querySalesDetails(
-				credential,
-				from.toString(),
-				to.toString());
-
-			if (salesItems == null || !salesItems.isArray()) {
-				return settlementMap;
+		for (LocalDate chunkFrom = from; !chunkFrom.isAfter(to); chunkFrom = chunkFrom.plusDays(REVENUE_CHUNK_DAYS)) {
+			LocalDate chunkTo = chunkFrom.plusDays(REVENUE_CHUNK_DAYS - 1);
+			if (chunkTo.isAfter(to)) {
+				chunkTo = to;
 			}
-
-			for (JsonNode orderItem : salesItems) {
-				JsonNode itemsArray = orderItem.path("items");
-				if (itemsArray.isArray()) {
-					for (JsonNode item : itemsArray) {
-						String sbCode = item.path("externalSellerSkuCode").asText(null);
-						String settlementAmountStr = item.path("settlementAmount").asText(null);
-						if (sbCode != null && !sbCode.isEmpty()
-							&& settlementAmountStr != null && !settlementAmountStr.isEmpty()) {
-							try {
-								settlementMap.put(sbCode, new BigDecimal(settlementAmountStr));
-							} catch (NumberFormatException e) {
-								log.warn("정산금액 변환 실패: sbCode={}, amount={}", sbCode, settlementAmountStr);
-							}
-						}
-					}
-				}
+			JsonNode salesRows = coupangOrderApiPort.querySalesDetails(
+				credential, chunkFrom.toString(), chunkTo.toString());
+			if (salesRows == null || !salesRows.isArray()) {
+				continue;
 			}
-		} catch (Exception e) {
-			log.error("쿠팡 정산 조회 실패: {}", e.getMessage());
+			for (JsonNode row : salesRows) {
+				collectSaleSettlement(row, settlementMap);
+			}
 		}
-
 		return settlementMap;
+	}
+
+	private void collectSaleSettlement(JsonNode row, Map<String, BigDecimal> settlementMap) {
+		if (!"SALE".equals(row.path("saleType").asText())) {
+			return;
+		}
+		String orderId = emptyToNull(row.path("orderId").asText(null));
+		JsonNode items = row.path("items");
+		if (orderId == null || !items.isArray() || items.isEmpty()) {
+			return;
+		}
+		BigDecimal deliveryFee = decimalOrZero(row.path("deliveryFee").path("settlementAmount"));
+		for (JsonNode item : items) {
+			String vendorItemId = emptyToNull(item.path("vendorItemId").asText(null));
+			if (vendorItemId == null) {
+				continue;
+			}
+			BigDecimal amount = decimalOrZero(item.path("settlementAmount"));
+			if (items.size() == 1) {
+				amount = amount.add(deliveryFee);
+			}
+			settlementMap.merge(orderId + ":" + vendorItemId, amount, BigDecimal::add);
+		}
+	}
+
+	private static BigDecimal decimalOrZero(JsonNode node) {
+		if (node == null || node.isMissingNode() || node.isNull()) {
+			return BigDecimal.ZERO;
+		}
+		try {
+			return new BigDecimal(node.asText());
+		} catch (NumberFormatException e) {
+			return BigDecimal.ZERO;
+		}
 	}
 
 	private static final class OrderAccumulator {

@@ -127,7 +127,7 @@ class OrderSyncControllerActionLogTest {
 	@Test
 	@DisplayName("syncCoupangSettlement 트리거 → STARTED만 기록, SUCCESS는 컨트롤러가 남기지 않음")
 	void settlement_trigger_recordsStartedNotSuccess() {
-		controller().syncCoupangSettlement();
+		controller().syncCoupangSettlement(null);
 		verify(actionLogService).record(eq(ActionLogConstants.COUPANG_SETTLEMENT_SYNC),
 			eq("COUPANG"), eq(ActionStatus.STARTED), any());
 		verify(actionLogService, never()).record(eq(ActionLogConstants.COUPANG_SETTLEMENT_SYNC),
@@ -138,7 +138,7 @@ class OrderSyncControllerActionLogTest {
 	@DisplayName("syncCoupangSettlement 동기 디스패치 예외 → COUPANG_SETTLEMENT_SYNC FAILED 기록")
 	void settlement_dispatchFailure_recordsFailed() {
 		doThrow(new IllegalStateException("boom")).when(coupangOrderSyncService).syncCoupangSettlement();
-		controller().syncCoupangSettlement();
+		controller().syncCoupangSettlement(null);
 		verify(actionLogService).record(eq(ActionLogConstants.COUPANG_SETTLEMENT_SYNC),
 			eq("COUPANG"), eq(ActionStatus.FAILED), any());
 	}

@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
@@ -124,13 +125,18 @@ public class OrderSyncController {
 	}
 
 	@PostMapping("/coupang/settlement")
-	public ResponseEntity<Map<String, Object>> syncCoupangSettlement() {
+	public ResponseEntity<Map<String, Object>> syncCoupangSettlement(
+		@RequestParam(required = false) LocalDate from) {
 		log.info("쿠팡 정산 데이터 동기화 요청 수신됨");
 		actionLogService.record(ActionLogConstants.COUPANG_SETTLEMENT_SYNC, "COUPANG",
 			ActionStatus.STARTED, "쿠팡 정산 동기화 요청");
 
 		try {
-			coupangOrderSyncService.syncCoupangSettlement();
+			if (from != null) {
+				coupangOrderSyncService.syncCoupangSettlement(from);
+			} else {
+				coupangOrderSyncService.syncCoupangSettlement();
+			}
 			return ResponseEntity.ok(Map.of(
 				"success", true,
 				"message", "쿠팡 정산 데이터 동기화가 백그라운드에서 시작되었습니다."));

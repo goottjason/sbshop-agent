@@ -324,15 +324,18 @@ public class CoupangOrderApiClient implements CoupangOrderApiPort {
 					}
 					Thread.sleep(300);
 				} else {
-					log.error("쿠팡 매출상세 API 오류: {}", rootNode.path("message").asText());
-					break;
+					throw new IllegalStateException("쿠팡 매출내역 API 오류: " + rootNode.path("message").asText());
 				}
 			} catch (RestClientResponseException e) {
-				log.error("쿠팡 매출상세 API HTTP 오류: {}", e.getStatusCode());
-				break;
+				throw new IllegalStateException("쿠팡 매출내역 API HTTP " + e.getStatusCode().value() + ": "
+					+ e.getResponseBodyAsString(), e);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new IllegalStateException("쿠팡 매출내역 조회 중단", e);
+			} catch (IllegalStateException e) {
+				throw e;
 			} catch (Exception e) {
-				log.error("쿠팡 매출상세 조회 실패: {}", e.getMessage());
-				break;
+				throw new IllegalStateException("쿠팡 매출내역 조회 실패: " + e.getMessage(), e);
 			}
 		}
 

@@ -27,7 +27,6 @@ import com.sbshop.agent.core.domain.order.repository.OrderRepository;
 import com.sbshop.agent.core.domain.order.vo.CustomsData;
 import com.sbshop.agent.core.domain.order.vo.SettlementData;
 import com.sbshop.agent.core.domain.order.vo.ShippingData;
-import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -46,6 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class CoupangOrderSyncService {
+	private static final int SETTLEMENT_LOOKBACK_DAYS = 60;
 	private final MarketCredentialRepository credentialRepository;
 	private final OrderRepository orderRepository;
 	private final OrderLineItemRepository orderLineItemRepository;
@@ -119,6 +119,16 @@ public class CoupangOrderSyncService {
 	@Async("syncTaskExecutor")
 	@Transactional
 	public void syncCoupangSettlement() {
+		runSettlementSync(LocalDate.now().minusDays(SETTLEMENT_LOOKBACK_DAYS));
+	}
+
+	@Async("syncTaskExecutor")
+	@Transactional
+	public void syncCoupangSettlement(LocalDate fromDate) {
+		runSettlementSync(fromDate);
+	}
+
+	private void runSettlementSync(LocalDate fromDate) {
 		if (!syncStatusService.tryMarkRunning(
 			SyncMarketKeys.COUPANG_SETTLEMENT)) {
 			log.warn("[COUPANG] 정산 동기화 중복 실행 방지 — 이미 RUNNING 상태이므로 스킵");
@@ -126,8 +136,6 @@ public class CoupangOrderSyncService {
 		}
 		try {
 			MarketCredential credential = loadAndValidateCredential();
-
-			LocalDate fromDate = LocalDate.now().minusDays(31);
 			LocalDate toDate = LocalDate.now().minusDays(1);
 
 			log.info("쿠팡 정산 동기화 시작: {} ~ {}", fromDate, toDate);
@@ -140,47 +148,42 @@ public class CoupangOrderSyncService {
 				syncStatusService.markCompleted(
 					SyncMarketKeys.COUPANG_SETTLEMENT);
 				recordSettlement(ActionStatus.SUCCESS,
-					"쿠팡 정산 동기화 완료: 대상 없음");
+					"쿠팡 정산 동기화 완료: 대상 없음 (" + fromDate + " ~ " + toDate + ")");
 				return;
 			}
 
-			List<Order> coupangOrders = orderRepository.findByMarketType(MarketType.COUPANG);
 			int updatedCount = 0;
-
-			for (Order order : coupangOrders) {
-				List<OrderLineItem> lineItems = orderLineItemRepository.findByOrderId(order.getId());
-				for (OrderLineItem item : lineItems) {
-					if (item.getShippingData() == null
-						|| item.getShippingData()
-							.getShippingStatus() != ShippingStatus.DELIVERED) {
-						continue;
-					}
-					if (item.getProductId() == null)
-						continue;
-					String sbCode = productRepository.findById(item.getProductId())
-						.map(Product::getSbCode).orElse(null);
-					if (sbCode == null || sbCode.isEmpty())
-						continue;
-					BigDecimal actualSettlement = settlementMap.get(sbCode);
-					if (actualSettlement != null) {
-						BigDecimal currentSettlement = item.getSettlementData() != null
-							? item.getSettlementData().getSettlementAmount() : null;
-
-						if (currentSettlement == null || actualSettlement.compareTo(currentSettlement) != 0) {
-							item.applySettlement(actualSettlement);
-							item.markSettlementVerified();
-							orderLineItemRepository.save(item);
-							updatedCount++;
-						}
-					}
+			int unmatchedCount = 0;
+			for (Map.Entry<String, BigDecimal> entry : settlementMap.entrySet()) {
+				OrderLineItem item = findSettlementTarget(entry.getKey());
+				if (item == null) {
+					unmatchedCount++;
+					continue;
 				}
+				if (RefundTerminalPolicy.isRefundTerminal(item)) {
+					continue;
+				}
+				BigDecimal actual = entry.getValue();
+				SettlementData current = item.getSettlementData();
+				boolean sameAmount = current != null && current.getSettlementAmount() != null
+					&& current.getSettlementAmount().compareTo(actual) == 0;
+				boolean verified = current != null && Boolean.TRUE.equals(current.getSettlementVerified());
+				if (sameAmount && verified) {
+					continue;
+				}
+				item.applySettlement(actual);
+				item.markSettlementVerified();
+				orderLineItemRepository.save(item);
+				updatedCount++;
 			}
 
-			log.info("쿠팡 정산 동기화 완료: {}건 업데이트", updatedCount);
+			log.info("쿠팡 정산 동기화 완료: 매출 {}건, {}건 업데이트, 미매칭 {}건",
+				settlementMap.size(), updatedCount, unmatchedCount);
 			syncStatusService.markCompleted(
 				SyncMarketKeys.COUPANG_SETTLEMENT);
 			recordSettlement(ActionStatus.SUCCESS,
-				"쿠팡 정산 동기화 완료: " + updatedCount + "건 업데이트");
+				"쿠팡 정산 동기화 완료: 매출 " + settlementMap.size() + "건, " + updatedCount
+					+ "건 업데이트, 미매칭 " + unmatchedCount + "건 (" + fromDate + " ~ " + toDate + ")");
 		} catch (Exception e) {
 			log.error("쿠팡 정산 동기화 실패: {}", e.getMessage());
 			syncStatusService.markFailed(
@@ -188,6 +191,30 @@ public class CoupangOrderSyncService {
 			recordSettlement(ActionStatus.FAILED,
 				"쿠팡 정산 동기화 실패: " + e.getMessage());
 		}
+	}
+
+	private OrderLineItem findSettlementTarget(String settlementKey) {
+		int sep = settlementKey.lastIndexOf(':');
+		String marketOrderNo = settlementKey.substring(0, sep);
+		String vendorItemId = settlementKey.substring(sep + 1);
+		Order order = orderRepository.findByMarketOrderNo(marketOrderNo)
+			.filter(o -> o.getMarketType() == MarketType.COUPANG)
+			.orElse(null);
+		if (order == null) {
+			return null;
+		}
+		List<OrderLineItem> matches = orderLineItemRepository.findByOrderId(order.getId()).stream()
+			.filter(li -> li.getMarketLineItemNo() != null
+				&& li.getMarketLineItemNo().endsWith(":" + vendorItemId))
+			.toList();
+		if (matches.size() != 1) {
+			if (matches.size() > 1) {
+				log.warn("[COUPANG] 정산 대상이 여러 행이라 건너뜀: orderNo={}, vendorItemId={}, 행={}",
+					marketOrderNo, vendorItemId, matches.size());
+			}
+			return null;
+		}
+		return matches.get(0);
 	}
 
 	private MarketCredential loadAndValidateCredential() {

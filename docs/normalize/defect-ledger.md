@@ -6589,3 +6589,13 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 수정: totalAmount = orderPrice 그대로, 단가 = orderPrice ÷ 수량. 테스트 Red→Green: CoupangThreeTierFetchTest.orderPriceIsAlreadyLineTotal 신규, parsesEveryOrderItem 픽스처 교정.
 - 운영 데이터: 정산 0일 때만 재계산하는 구조라 재동기화로 고쳐지지 않음 → 2026-10-20 수동 보정(settlement_amount ÷ quantity, 미검증 7건: line_item 256·306·408·889·898·900·901; 보정 전 값 = 현재 값 × quantity).
 - 별건(미수정): 쿠팡 정산 실값 동기화(CoupangOrderSyncService 정산 동기화)는 sbCode 키 하나에 값 하나라 같은 상품의 여러 주문을 구분하지 못하고, 운영에서 settlement_verified=true 인 쿠팡 행이 수량≥2 중 0건 — 실값 동기화가 사실상 동작하지 않는지 별도 점검 필요.
+
+### D-348 — 쿠팡 실정산 동기화가 매일 "대상 없음 성공"으로 끝나고, 과거에는 같은 SKU 주문끼리 정산액을 덮어씀
+
+- 심각도: 중(P2, 쿠팡 정산이 전부 추정치로 남음·일부는 남의 주문 값) · 상태: 수정완료(2026-10-20, 배포·백필 대기) · 리스크: 표준(쿠팡 매출내역 API 조회·정산 매칭·수동 엔드포인트 파라미터)
+- 위치: infrastructure/.../coupang/CoupangOrderApiClient.java(querySalesDetails), core/.../order/adapter/CoupangOrderAdapter.java(querySettlement), core/.../order/service/CoupangOrderSyncService.java(syncCoupangSettlement), api/.../controller/OrderSyncController.java
+- 증상: 02시 정산 동기화가 action_log에 매일 "쿠팡 정산 동기화 완료: 대상 없음" SUCCESS. 쿠팡 settlement_verified=true 145행 중 실값은 65행뿐이고 그마저 다른 주문 값(예: 56,625가 여러 주문에 반복, 실제 51,060·49,824·60,690 등).
+- 원인(확인, 2026-10-20 서버에서 매출내역 API 직접 호출): ① 조회 범위 31일(now-31~now-1)을 쿠팡이 400 "Date range period must be less than 1 months"로 거부. ② 클라이언트가 오류를 로그만 남기고 빈 목록 반환 → 서비스는 "대상 없음 성공" 기록(실패가 숨음). ③ 정산 맵 키가 externalSellerSkuCode 하나라 같은 SKU 여러 주문이 마지막 값으로 뭉개지고, 그 값을 SKU가 같은 모든 DELIVERED 행에 넣고 확정 표시. ④ DELIVERED만 대상이라 구매확정(CONFIRMED) 행은 제외.
+- 실측: 2026-05-25~10-19 매출 330행(SALE 328·REFUND 2, 주문당 상품 1개, REFUND는 items 없이 반품배송비 -13,538). 우리 DB 시작(2026-06-08) 이후 주문은 주문번호+vendorItemId로 100% 매칭(미매칭 111건은 전부 DB 이전 주문). 매칭 218행 중 196행이 우리 값과 다름(대부분 추정 11% ↔ 실제 10.6%+VAT 차이 수백 원, 확정 표시된 행은 다른 주문 값).
+- 수정: ① 클라이언트는 API 거부·HTTP 오류를 예외로 던짐 → 동기화 FAILED 기록 ② 어댑터가 30일 이하 구간으로 나눠 조회, 키 = 주문번호:vendorItemId, SALE만, 상품 1개 주문은 배송비 정산액 포함 ③ 서비스는 주문번호로 쿠팡 주문을 찾아 market_line_item_no 끝의 vendorItemId가 일치하는 단일 행에만 적용(상태 무관, 반품·취소 종결 행은 D-098 소관이라 제외), 값이 같고 이미 확정이면 생략 ④ 기본 조회 60일, `POST /api/v1/orders/sync/coupang/settlement?from=YYYY-MM-DD` 로 과거 백필. 테스트 Red→Green: CoupangOrderApiClientRevenueTest 1, CoupangSettlementQueryTest 5, CoupangSettlementSyncTest 4. 전체 회귀 통과.
+- 남은 것: 환불 반품배송비(-13,538)는 반영하지 않음(반품 행은 D-098 정규화로 0). 반품비를 손실로 잡을지는 결정 필요.
