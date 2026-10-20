@@ -46,10 +46,10 @@ export interface BudgetResponse {
 // ─────────────────────────────────────────────────────────
 // 로컬 스토리지 Fallback 레이어 (로컬 개발 환경 및 백엔드 미기동 시에도 UI 완전 체험 가능)
 // ─────────────────────────────────────────────────────────
-const STORAGE_KEY_EXPENSES = 'sbshop.ledger.expenses.v2';
-const STORAGE_KEY_BUDGETS = 'sbshop.ledger.budgets.v2';
-const STORAGE_KEY_SOURCES = 'sbshop.ledger.payment_sources.v2';
-const STORAGE_KEY_CATEGORIES = 'sbshop.ledger.categories.v2';
+const STORAGE_KEY_EXPENSES = 'sbshop.ledger.expenses.v3';
+const STORAGE_KEY_BUDGETS = 'sbshop.ledger.budgets.v3';
+const STORAGE_KEY_SOURCES = 'sbshop.ledger.payment_sources.v3';
+const STORAGE_KEY_CATEGORIES = 'sbshop.ledger.categories.v3';
 
 const DEFAULT_SOURCES = ['국민카드', '농협은행', '신한카드', '카카오뱅크', '토스뱅크', '현금'];
 const DEFAULT_CATS = ['식비', '카페/간식', '교통/유류비', '비품/소모품', '쇼핑/생활', '통신/공과금', '기타'];
@@ -118,6 +118,16 @@ const getInitialMockExpenses = (): LedgerExpense[] => [
   {
     id: 7,
     spentDate: '2026-10-19',
+    amount: 67800,
+    category: '식비',
+    paymentSource: '농협은행',
+    memo: '이마트 공동 장보기 (생필품/식재료)',
+    adminUser: 'CM',
+    createdAt: '2026-10-19T18:30:00',
+  },
+  {
+    id: 8,
+    spentDate: '2026-10-19',
     amount: 5000,
     category: '식비',
     paymentSource: '현금',
@@ -149,7 +159,7 @@ const loadLocalBudgets = (): Record<string, number> => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_BUDGETS);
     if (!raw) {
-      const init = { '2026-10_ALL': 2500000, '2026-10_JW': 1200000, '2026-10_YH': 1300000 };
+      const init = { '2026-10_ALL': 3500000, '2026-10_JW': 1000000, '2026-10_YH': 1000000, '2026-10_CM': 1500000 };
       localStorage.setItem(STORAGE_KEY_BUDGETS, JSON.stringify(init));
       return init;
     }

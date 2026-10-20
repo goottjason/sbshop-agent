@@ -47,12 +47,12 @@ const PALETTE = {
   warningText: '#b45309',
 };
 
-// 관리자 2인 톤다운 감성 듀오 컬러
-// JW: 트렌디 인디고 바이올렛 (Indigo), YH: 웜 앰버 테라코타 (Warm Amber)
+// 관리자 3인 톤다운 감성 컬러 (JW: 인디고, YH: 웜 앰버, CM: 딥 틸 공용)
 const ADMIN_CONFIG = {
   ADMIN_A: {
     key: 'JW',
     label: 'JW',
+    shortLabel: 'JW',
     color: '#6366f1', // Indigo 500
     text: '#4338ca', // Indigo 700
     bgLight: '#eef2ff', // Indigo 50
@@ -61,11 +61,27 @@ const ADMIN_CONFIG = {
   ADMIN_B: {
     key: 'YH',
     label: 'YH',
+    shortLabel: 'YH',
     color: '#d97706', // Amber 600
     text: '#b45309', // Amber 700
     bgLight: '#fffbeb', // Amber 50
     border: '#fde68a', // Amber 200
   },
+  ADMIN_CM: {
+    key: 'CM',
+    label: 'CM (공용)',
+    shortLabel: 'CM',
+    color: '#0d9488', // Teal 600
+    text: '#0f766e', // Teal 700
+    bgLight: '#f0fdfa', // Teal 50
+    border: '#99f6e4', // Teal 200
+  },
+};
+
+const getAdminConfig = (user?: string | null) => {
+  if (user === 'JW') return ADMIN_CONFIG.ADMIN_A;
+  if (user === 'YH') return ADMIN_CONFIG.ADMIN_B;
+  return ADMIN_CONFIG.ADMIN_CM;
 };
 
 // 월요일 시작 주 계산 헬퍼 함수
@@ -80,7 +96,7 @@ const LedgerPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'MONTHLY' | 'WEEKLY'>('MONTHLY');
   const [currentDate, setCurrentDate] = useState<Dayjs>(dayjs());
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
-  const [filterAdmin, setFilterAdmin] = useState<string>('ALL'); // 'ALL' | 'JW' | 'YH'
+  const [filterAdmin, setFilterAdmin] = useState<string>('ALL'); // 'ALL' | 'JW' | 'YH' | 'CM'
 
   const [expenses, setExpenses] = useState<LedgerExpense[]>([]);
   const [summary, setSummary] = useState<PeriodSummary | null>(null);
@@ -185,28 +201,31 @@ const LedgerPage: React.FC = () => {
     return expenses.filter((e) => e.spentDate === target);
   }, [expenses, selectedDate]);
 
-  // 선택된 날짜의 지출 총액 (JW / YH / 전체)
+  // 선택된 날짜의 지출 총액 (JW / YH / CM / 전체)
   const selectedDaySummary = useMemo(() => {
     let total = 0;
     let jw = 0;
     let yh = 0;
+    let cm = 0;
     selectedDayExpenses.forEach((e) => {
       total += Number(e.amount);
       if (e.adminUser === 'JW') jw += Number(e.amount);
-      if (e.adminUser === 'YH') yh += Number(e.amount);
+      else if (e.adminUser === 'YH') yh += Number(e.amount);
+      else cm += Number(e.amount);
     });
-    return { total, jw, yh };
+    return { total, jw, yh, cm };
   }, [selectedDayExpenses]);
 
   // 날짜별 지출 매핑 (캘린더 & 주간 뷰용)
   const dateExpenseMap = useMemo(() => {
-    const map = new Map<string, { total: number; jw: number; yh: number; items: LedgerExpense[] }>();
+    const map = new Map<string, { total: number; jw: number; yh: number; cm: number; items: LedgerExpense[] }>();
     expenses.forEach((e) => {
       const dateKey = e.spentDate;
-      const prev = map.get(dateKey) || { total: 0, jw: 0, yh: 0, items: [] };
+      const prev = map.get(dateKey) || { total: 0, jw: 0, yh: 0, cm: 0, items: [] };
       prev.total += Number(e.amount);
       if (e.adminUser === 'JW') prev.jw += Number(e.amount);
-      if (e.adminUser === 'YH') prev.yh += Number(e.amount);
+      else if (e.adminUser === 'YH') prev.yh += Number(e.amount);
+      else prev.cm += Number(e.amount);
       prev.items.push(e);
       map.set(dateKey, prev);
     });
@@ -433,6 +452,25 @@ const LedgerPage: React.FC = () => {
             YH {dayData.yh >= 10000 ? `${(dayData.yh / 10000).toFixed(1)}만` : dayData.yh.toLocaleString()}
           </div>
         )}
+        {dayData.cm > 0 && (
+          <div
+            style={{
+              fontSize: '11px',
+              fontWeight: 600,
+              padding: '1px 5px',
+              borderRadius: 3,
+              backgroundColor: ADMIN_CONFIG.ADMIN_CM.bgLight,
+              color: ADMIN_CONFIG.ADMIN_CM.text,
+              border: `1px solid ${ADMIN_CONFIG.ADMIN_CM.border}`,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+            title={`CM(공용): ${dayData.cm.toLocaleString()}원`}
+          >
+            CM {dayData.cm >= 10000 ? `${(dayData.cm / 10000).toFixed(1)}만` : dayData.cm.toLocaleString()}
+          </div>
+        )}
       </div>
     );
   };
@@ -494,7 +532,7 @@ const LedgerPage: React.FC = () => {
               간편 가계부 <span style={{ fontSize: 12, color: PALETTE.textMuted, fontWeight: 400 }}>관리자 부가도구</span>
             </Title>
             <Text type="secondary" style={{ fontSize: 12, color: PALETTE.textMuted }}>
-              월간 / 주간(월~일) 지출 및 출금처(카드/계좌)·예산 통합 관리 (관리자: JW, YH)
+              월간 / 주간(월~일) 지출 및 출금처(카드/계좌)·예산 통합 관리 (JW, YH, CM 공용)
             </Text>
           </div>
         </div>
@@ -596,6 +634,11 @@ const LedgerPage: React.FC = () => {
                 ● YH
               </span>
             </Radio.Button>
+            <Radio.Button value="CM" style={{ fontSize: 13 }}>
+              <span style={{ color: filterAdmin === 'CM' ? '#fff' : ADMIN_CONFIG.ADMIN_CM.color, fontWeight: 600 }}>
+                ● CM (공용)
+              </span>
+            </Radio.Button>
           </Radio.Group>
 
           <Button
@@ -650,12 +693,15 @@ const LedgerPage: React.FC = () => {
             {currentRangeTotal.toLocaleString()}
             <span style={{ fontSize: 14, fontWeight: 400, marginLeft: 2, color: PALETTE.textMuted }}>원</span>
           </div>
-          <div style={{ fontSize: 12, marginTop: 6, display: 'flex', gap: 12 }}>
+          <div style={{ fontSize: 12, marginTop: 6, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <span style={{ color: ADMIN_CONFIG.ADMIN_A.text, fontWeight: 600 }}>
               JW: {(summary?.byAdminUser?.['JW'] || 0).toLocaleString()}원
             </span>
             <span style={{ color: ADMIN_CONFIG.ADMIN_B.text, fontWeight: 600 }}>
               YH: {(summary?.byAdminUser?.['YH'] || 0).toLocaleString()}원
+            </span>
+            <span style={{ color: ADMIN_CONFIG.ADMIN_CM.text, fontWeight: 600 }}>
+              공용(CM): {(summary?.byAdminUser?.['CM'] || 0).toLocaleString()}원
             </span>
           </div>
         </Card>
@@ -852,6 +898,21 @@ const LedgerPage: React.FC = () => {
                             YH {dayData.yh >= 10000 ? `${(dayData.yh / 10000).toFixed(1)}만` : dayData.yh.toLocaleString()}
                           </div>
                         )}
+                        {dayData && dayData.cm > 0 && (
+                          <div
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              background: ADMIN_CONFIG.ADMIN_CM.bgLight,
+                              color: ADMIN_CONFIG.ADMIN_CM.text,
+                              padding: '1px 3px',
+                              borderRadius: 3,
+                              border: `1px solid ${ADMIN_CONFIG.ADMIN_CM.border}`,
+                            }}
+                          >
+                            CM {dayData.cm >= 10000 ? `${(dayData.cm / 10000).toFixed(1)}만` : dayData.cm.toLocaleString()}
+                          </div>
+                        )}
                         {(!dayData || dayData.total === 0) && (
                           <span style={{ fontSize: 11, color: '#e2e8f0' }}>-</span>
                         )}
@@ -961,6 +1022,24 @@ const LedgerPage: React.FC = () => {
                       onClick={() => setSelectedAdmin('YH')}
                     >
                       ● YH
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-no-shadow"
+                      style={{
+                        padding: '4px 14px',
+                        borderRadius: 6,
+                        border: selectedAdmin === 'CM' ? `1px solid ${ADMIN_CONFIG.ADMIN_CM.color}` : `1px solid ${PALETTE.border}`,
+                        backgroundColor: selectedAdmin === 'CM' ? ADMIN_CONFIG.ADMIN_CM.color : '#ffffff',
+                        color: selectedAdmin === 'CM' ? '#ffffff' : ADMIN_CONFIG.ADMIN_CM.text,
+                        fontWeight: 600,
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        transition: 'all 0.1s ease',
+                      }}
+                      onClick={() => setSelectedAdmin('CM')}
+                    >
+                      ● CM (공용)
                     </button>
                   </div>
                 </div>
@@ -1150,8 +1229,7 @@ const LedgerPage: React.FC = () => {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {selectedDayExpenses.map((item) => {
-                  const isJW = item.adminUser === 'JW';
-                  const adminCfg = isJW ? ADMIN_CONFIG.ADMIN_A : ADMIN_CONFIG.ADMIN_B;
+                  const adminCfg = getAdminConfig(item.adminUser);
                   const isEditing = editingExpenseId === item.id;
 
                   return (
@@ -1181,7 +1259,7 @@ const LedgerPage: React.FC = () => {
                               padding: '1px 5px',
                             }}
                           >
-                            {item.adminUser}
+                            {item.adminUser === 'CM' ? 'CM (공용)' : item.adminUser}
                           </span>
                           <Tag
                             style={{
@@ -1446,11 +1524,11 @@ const LedgerPage: React.FC = () => {
         width={640}
       >
         <div style={{ padding: '8px 0' }}>
-          {/* A. 관리자 2인 분담 현황 */}
+          {/* A. 관리자 및 공용 분담 현황 */}
           <Title level={5} style={{ fontSize: 13, marginBottom: 8, color: PALETTE.textMain }}>
-            1. 관리자 2인(JW, YH) 분담액
+            1. 관리자 및 공용(JW, YH, CM) 분담액
           </Title>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
             <Card size="small" style={{ borderLeft: `3px solid ${ADMIN_CONFIG.ADMIN_A.color}`, background: '#f8fafc' }}>
               <Text style={{ fontSize: 12, color: PALETTE.textMuted }}>JW 총 지출</Text>
               <div style={{ fontSize: 18, fontWeight: 700, color: ADMIN_CONFIG.ADMIN_A.text, marginTop: 4 }}>
@@ -1461,6 +1539,12 @@ const LedgerPage: React.FC = () => {
               <Text style={{ fontSize: 12, color: PALETTE.textMuted }}>YH 총 지출</Text>
               <div style={{ fontSize: 18, fontWeight: 700, color: ADMIN_CONFIG.ADMIN_B.text, marginTop: 4 }}>
                 {(summary?.byAdminUser?.['YH'] || 0).toLocaleString()}원
+              </div>
+            </Card>
+            <Card size="small" style={{ borderLeft: `3px solid ${ADMIN_CONFIG.ADMIN_CM.color}`, background: '#f8fafc' }}>
+              <Text style={{ fontSize: 12, color: PALETTE.textMuted }}>공용(CM) 총 지출</Text>
+              <div style={{ fontSize: 18, fontWeight: 700, color: ADMIN_CONFIG.ADMIN_CM.text, marginTop: 4 }}>
+                {(summary?.byAdminUser?.['CM'] || 0).toLocaleString()}원
               </div>
             </Card>
           </div>
