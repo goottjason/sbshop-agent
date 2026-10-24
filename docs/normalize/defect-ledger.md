@@ -6600,3 +6600,16 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 수정: ① 클라이언트는 API 거부·HTTP 오류를 예외로 던짐 → 동기화 FAILED 기록 ② 어댑터가 30일 이하 구간으로 나눠 조회, 키 = 주문번호:vendorItemId, SALE만, 상품 1개 주문은 배송비 정산액 포함 ③ 서비스는 주문번호로 쿠팡 주문을 찾아 market_line_item_no 끝의 vendorItemId가 일치하는 단일 행에만 적용(상태 무관, 반품·취소 종결 행은 D-098 소관이라 제외), 값이 같고 이미 확정이면 생략 ④ 기본 조회 60일, `POST /api/v1/orders/sync/coupang/settlement?from=YYYY-MM-DD` 로 과거 백필. 테스트 Red→Green: CoupangOrderApiClientRevenueTest 1, CoupangSettlementQueryTest 5, CoupangSettlementSyncTest 4. 전체 회귀 통과.
 - 백필(2026-10-20 02:05Z, from=2026-06-01): 매출 288건·매칭 218·갱신 196·미매칭 70(전부 DB 이전 주문). 재대조 불일치 196→0, 쿠팡 정산 합계 9,752,178→9,725,863. D-347 보정 3건의 실값(83,040·81,627·105,125)이 보정값과 0.7% 이내로 일치해 D-347 판단도 확인. 보정 전 값은 운영 DB 테이블 bak_d348_coupang_settlement(259행)에 보관.
 - 남은 것: 환불 반품배송비(-13,538)는 반영하지 않음(반품 행은 D-098 정규화로 0). 반품비를 손실로 잡을지는 결정 필요.
+
+### D-349 — 스마트스토어 발송기한 경과(발송지연)가 우리 주문에 드러나지 않고 "결제완료"로만 보임
+
+- 심각도: 중(P2, 발송기한을 넘긴 주문을 놓쳐 페널티 위험) · 상태: 수정완료(배포대기 — 수동 DDL 선행) · 리스크: 중대(sb_shipment 컬럼 추가 DDL·프론트 표시)
+- 위치: core/.../order/adapter/SmartStoreOrderAdapter.java(parseProductOrder), core/.../order/mapper/SmartStoreStatusMapper.java(mapStatus), sb_shipment·sb_order_line_item(발송기한 컬럼 없음), frontend 주문 그리드
+- 증상: 주문 662(N스토어 주문 2026101882004141, 상품주문 2026101857769431)이 2026-10-18 결제 후 계속 NEW(결제완료). 스마트스토어 판매자센터에는 발송지연으로 표시.
+- 재현(2026-10-24 서버에서 product-orders/query 직접 호출): productOrderStatus=PAYED, placeOrderStatus=CANCEL(placeOrderDate 10-18 20:57), shippingDueDate=2026-10-21T23:59:59+09:00, delayedDispatchReason 없음. 로그상 30분마다 동기화되며 매번 status=NEW로 정상 처리됨 — 수집 누락이 아님.
+- 원인(확인): 네이버 API에서 "발송지연"은 별도 productOrderStatus가 아니라 ① 발송기한(shippingDueDate) 경과 또는 ② 판매자 발송지연 처리(delayedDispatchReason·연장된 shippingDueDate)로만 드러난다. 어댑터는 productOrderStatus·placeOrderStatus(OK 여부)만 읽고 shippingDueDate·delayedDispatchReason을 버리며, 우리 모델(ShippingStatus·DB·프론트) 어디에도 발송기한 개념이 없다. 매퍼의 PAYED+CANCEL→NEW 는 마켓 상태와 일치한다(발주확인 해제 = 신규로 복귀).
+- 부수 관찰: placeOrderStatus=CANCEL(발주확인 해제)은 우리 action_log에 흔적이 없어 판매자센터 수동 조작으로 추정. last-changed-statuses 응답의 페이지(more) 처리가 없어 하루 300건 초과 시 누락 가능(현재 물량에선 무해, P3).
+- 확정: 판매자센터 '발송지연' 목록 = summaryInfoType=DELIVERY_DUE_DATE_OVER(발송기한 경과).
+- 수정: ① 어댑터가 shippingDueDate·delayedDispatchReason(+상세)를 읽어 MarketShipmentDto.dispatchDueAt/dispatchDelayReason 으로 넘김(패키지 내 최소 기한, 기한 파싱 실패는 경고 후 null — 주문은 유지) ② Shipment에 dispatch_due_at·dispatch_delay_reason 컬럼, applyDispatchDue는 null을 덮지 않음(타 마켓 무영향) ③ 프론트 주문상태 칸에 발송전(NEW·PREPARING)·클레임 아님일 때 기한 경과 '발송지연'(빨강), 지연처리 후 기한 내 '지연안내'(주황) 배지. 테스트 Red→Green: SmartStoreDispatchDueParseTest 3, OrderShipmentUpsertServiceTest +1, dispatchDelay.test.ts 5. 백엔드 전체·프론트 tsc/vitest/build 통과. qa-verifier 조건부 PASS(조건=배포 전 DDL).
+- 배포 선행 DDL(goottjason): ALTER TABLE sb_shipment ADD COLUMN IF NOT EXISTS dispatch_due_at timestamp(6), ADD COLUMN IF NOT EXISTS dispatch_delay_reason varchar(500); — sb_shipment 소유자가 goottjason이라 앱 계정 ddl-auto로는 추가 안 되고, 없이 배포하면 주문 그리드 SELECT가 실패한다.
+- 이력: 2026-10-24 발견(사용자 제보) · 2026-10-24 수정완료(배포대기)

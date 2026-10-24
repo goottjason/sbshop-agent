@@ -87,6 +87,8 @@ export interface ShipmentDto {
   shippingCarrier?: string;
   deliveryStatus?: string | null;
   trackingSource?: 'EMAIL' | 'MANUAL' | 'MARKET' | null;
+  dispatchDueAt?: string | null;
+  dispatchDelayReason?: string | null;
 }
 
 interface OrderLineItemDetailDto {

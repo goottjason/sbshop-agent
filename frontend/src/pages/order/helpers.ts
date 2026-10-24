@@ -71,6 +71,32 @@ export const marketSyncState = (lineItem?: OrderLineItemDto, shipment?: Shipment
   return 'unknown';
 };
 
+const PRE_DISPATCH_STATUSES = ['NEW', 'PREPARING'];
+
+const formatDue = (due: string): string => due.slice(5, 16).replace('T', ' ');
+
+export interface DispatchDelay {
+  label: string;
+  title: string;
+  overdue: boolean;
+}
+
+export const dispatchDelay = (lineItem?: OrderLineItemDto, shipment?: ShipmentDto | null, now: Date = new Date()): DispatchDelay | null => {
+  const due = shipment?.dispatchDueAt;
+  if (!due) return null;
+  if (!PRE_DISPATCH_STATUSES.includes(lineItem?.shippingData?.shippingStatus || '')) return null;
+  if (lineItem?.claimData?.active) return null;
+  const reason = shipment?.dispatchDelayReason;
+  const reasonText = reason ? ` · 지연 사유: ${reason}` : '';
+  if (new Date(due).getTime() < now.getTime()) {
+    return { label: '발송지연', title: `발송기한 ${formatDue(due)} 경과${reasonText}`, overdue: true };
+  }
+  if (reason) {
+    return { label: '지연안내', title: `발송지연 처리됨 · 새 기한 ${formatDue(due)}${reasonText}`, overdue: false };
+  }
+  return null;
+};
+
 export function patchOrderInCache(cache: OrdersCache | undefined, orderId: number, mutate: (o: OrderDto) => OrderDto): OrdersCache | undefined {
   if (!cache) return cache;
   return {

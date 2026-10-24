@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { SaveStatus, MarketSyncState } from './types';
 import { inputStyle, CARRIER_OPTIONS, ACCOUNT_OPTIONS, VENDOR_OPTIONS, SYNC_BADGE, SOURCE_ICON } from './constants';
+import type { DispatchDelay } from './helpers';
 import { shortAccountLabel, statusBorder, blurLeftToPage, formatThousands, parseThousands, isPlaceholderTracking } from './helpers';
 
 export function InlineInput({ value, onCommit, type = 'text', align = 'left', title, selectAllOnFocus = false }: {
@@ -118,11 +119,12 @@ const CLAIM_TONE: Record<string, { fg: string; line: string }> = {
   EXCHANGE: { fg: '#283593', line: '#c5cae9' },
 };
 
-export function OrderStatusCell({ label, tone, claimLabel, claimType }: {
+export function OrderStatusCell({ label, tone, claimLabel, claimType, delay }: {
   label: string;
   tone: { bg: string; text: string };
   claimLabel?: string | null;
   claimType?: string | null;
+  delay?: DispatchDelay | null;
 }) {
   const claimTone = claimType ? CLAIM_TONE[claimType] : undefined;
   return (
@@ -136,6 +138,12 @@ export function OrderStatusCell({ label, tone, claimLabel, claimType }: {
           alignItems: 'center', gap: '2px', whiteSpace: 'nowrap' }}>
           <span style={{ color: claimTone.line }}>└</span>
           {claimLabel}
+        </span>
+      )}
+      {delay && (
+        <span title={delay.title} style={{ fontSize: '10.5px', fontWeight: 600, whiteSpace: 'nowrap',
+          color: delay.overdue ? '#c62828' : '#e65100' }}>
+          {delay.label}
         </span>
       )}
     </div>

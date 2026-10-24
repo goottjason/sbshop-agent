@@ -21,12 +21,14 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -165,7 +167,8 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 		String ordererName, String ordererPhone, String customsClearanceNo,
 		String productName, String sellerProductCode, int quantity,
 		BigDecimal unitPrice, BigDecimal totalAmount, BigDecimal settlementAmount,
-		ShippingStatus status, ClaimData claim, String trackingNo, ShippingCarrier carrier, String deliveryStatus) {
+		ShippingStatus status, ClaimData claim, String trackingNo, ShippingCarrier carrier, String deliveryStatus,
+		LocalDateTime dispatchDueAt, String dispatchDelayReason) {
 		String shipmentKey() {
 			return (packageNumber != null && !packageNumber.isBlank()) ? packageNumber : productOrderId;
 		}
@@ -228,6 +231,14 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 			ProductOrderRow withTracking = entry.getValue().stream()
 				.filter(r -> r.trackingNo() != null && !r.trackingNo().isBlank())
 				.findFirst().orElse(null);
+			LocalDateTime dispatchDueAt = entry.getValue().stream()
+				.map(ProductOrderRow::dispatchDueAt)
+				.filter(Objects::nonNull)
+				.min(LocalDateTime::compareTo).orElse(null);
+			String dispatchDelayReason = entry.getValue().stream()
+				.map(ProductOrderRow::dispatchDelayReason)
+				.filter(Objects::nonNull)
+				.findFirst().orElse(null);
 			List<MarketLineItemDto> lineItems = new ArrayList<>();
 			for (ProductOrderRow row : entry.getValue()) {
 				Map<String, Object> lineData = new HashMap<>();
@@ -253,6 +264,8 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 				.trackingNo(withTracking != null ? withTracking.trackingNo() : null)
 				.carrier(withTracking != null ? withTracking.carrier() : null)
 				.deliveryStatus(withTracking != null ? withTracking.deliveryStatus() : null)
+				.dispatchDueAt(dispatchDueAt)
+				.dispatchDelayReason(dispatchDelayReason)
 				.lineItems(lineItems)
 				.build());
 		}
@@ -350,17 +363,44 @@ public class SmartStoreOrderAdapter implements MarketOrderPort {
 				}
 			}
 
+			LocalDateTime dispatchDueAt = dispatchDueOf(productOrderInfo);
+			String dispatchDelayReason = delayReasonOf(productOrderInfo);
+
 			return new ProductOrderRow(
 				orderKey, productOrderId, packageNumber, orderDate,
 				receiverName.isEmpty() ? recipientName : receiverName,
 				receiverPhone.isEmpty() ? recipientPhone : receiverPhone,
 				zipCode, address, message, ordererName, ordererPhone, customsClearanceNo,
 				productName, sellerProductCode, quantity, unitPrice, totalPaymentAmount,
-				settlementAmount, shippingStatus, claim, trackingNo, carrier, deliveryStatus);
+				settlementAmount, shippingStatus, claim, trackingNo, carrier, deliveryStatus,
+				dispatchDueAt, dispatchDelayReason);
 		} catch (Exception e) {
 			log.error("스마트스토어 주문 파싱 실패: {}", e.getMessage());
 			return null;
 		}
+	}
+
+	private LocalDateTime dispatchDueOf(JsonNode productOrderInfo) {
+		String raw = productOrderInfo.path("shippingDueDate").asText(null);
+		if (raw == null || raw.isBlank()) {
+			return null;
+		}
+		try {
+			return ZonedDateTime.parse(raw).toLocalDateTime();
+		} catch (DateTimeParseException e) {
+			log.warn("스마트스토어 발송기한 파싱 실패: productOrderId={}, value={}",
+				productOrderInfo.path("productOrderId").asText(""), raw);
+			return null;
+		}
+	}
+
+	private String delayReasonOf(JsonNode productOrderInfo) {
+		String reason = productOrderInfo.path("delayedDispatchReason").asText(null);
+		if (reason == null || reason.isBlank()) {
+			return null;
+		}
+		String detail = productOrderInfo.path("delayedDispatchDetailedReason").asText(null);
+		return detail != null && !detail.isBlank() ? reason + ": " + detail : reason;
 	}
 
 	private String mapCarrierCode(ShippingCarrier carrier) {

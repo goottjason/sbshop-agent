@@ -60,6 +60,12 @@ public class Shipment extends BaseEntity {
 	@Column(name = "tracking_source", length = 20)
 	private TrackingSource trackingSource;
 
+	@Column(name = "dispatch_due_at")
+	private LocalDateTime dispatchDueAt;
+
+	@Column(name = "dispatch_delay_reason", length = 500)
+	private String dispatchDelayReason;
+
 	@Builder
 	public Shipment(Long orderId, String marketShipmentNo, String trackingNo,
 		ShippingCarrier shippingCarrier, String deliveryStatus,
@@ -113,6 +119,15 @@ public class Shipment extends BaseEntity {
 			return;
 		}
 		this.trackingSource = source;
+	}
+
+	public void applyDispatchDue(LocalDateTime dueAt, String delayReason) {
+		if (dueAt != null) {
+			this.dispatchDueAt = dueAt;
+		}
+		if (delayReason != null) {
+			this.dispatchDelayReason = delayReason;
+		}
 	}
 
 	public void markManualFixRequired() {

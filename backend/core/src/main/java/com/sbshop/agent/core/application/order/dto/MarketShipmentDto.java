@@ -23,6 +23,9 @@ public class MarketShipmentDto {
 
 	private LocalDateTime shippedAt;
 
+	private LocalDateTime dispatchDueAt;
+	private String dispatchDelayReason;
+
 	@Builder.Default
 	private List<MarketLineItemDto> lineItems = new ArrayList<>();
 }

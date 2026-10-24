@@ -257,6 +257,40 @@ class OrderShipmentUpsertServiceTest {
 		assertThat(shipping.getTrackingSentToMarket()).isTrue();
 	}
 
+	@Test
+	@DisplayName("D-349: 마켓 발송기한·지연 사유를 배송에 반영하고, 지연 처리로 기한이 바뀌면 덮어쓴다")
+	void appliesDispatchDue() {
+		Shipment existing = Shipment.builder()
+			.orderId(100L)
+			.marketShipmentNo("2026101800000003")
+			.build();
+		when(shipmentRepository.findByOrderIdAndMarketShipmentNo(100L, "2026101800000003"))
+			.thenReturn(Optional.of(existing));
+		when(shipmentRepository.save(any(Shipment.class)))
+			.thenAnswer(inv -> inv.getArgument(0));
+
+		service().upsertShipment(100L, MarketShipmentDto.builder()
+			.marketShipmentNo("2026101800000003")
+			.dispatchDueAt(java.time.LocalDateTime.of(2026, 10, 21, 23, 59, 59))
+			.build());
+		assertThat(existing.getDispatchDueAt()).isEqualTo(java.time.LocalDateTime.of(2026, 10, 21, 23, 59, 59));
+		assertThat(existing.getDispatchDelayReason()).isNull();
+
+		Shipment result = service().upsertShipment(100L, MarketShipmentDto.builder()
+			.marketShipmentNo("2026101800000003")
+			.dispatchDueAt(java.time.LocalDateTime.of(2026, 10, 28, 23, 59, 59))
+			.dispatchDelayReason("PRODUCT_PREPARE: 해외 입고 지연")
+			.build());
+		assertThat(result.getDispatchDueAt()).isEqualTo(java.time.LocalDateTime.of(2026, 10, 28, 23, 59, 59));
+		assertThat(result.getDispatchDelayReason()).isEqualTo("PRODUCT_PREPARE: 해외 입고 지연");
+
+		service().upsertShipment(100L, MarketShipmentDto.builder()
+			.marketShipmentNo("2026101800000003")
+			.build());
+		assertThat(existing.getDispatchDueAt()).isEqualTo(java.time.LocalDateTime.of(2026, 10, 28, 23, 59, 59));
+		assertThat(existing.getDispatchDelayReason()).isEqualTo("PRODUCT_PREPARE: 해외 입고 지연");
+	}
+
 	private OrderShipmentUpsertService service() {
 		return new OrderShipmentUpsertService(shipmentRepository, orderLineItemRepository);
 	}

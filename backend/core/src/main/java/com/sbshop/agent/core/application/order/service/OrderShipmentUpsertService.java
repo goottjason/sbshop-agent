@@ -48,6 +48,7 @@ public class OrderShipmentUpsertService {
 		}
 		shipment.applyDeliveryStatus(dto.getDeliveryStatus());
 		shipment.applyShippedAt(dto.getShippedAt());
+		shipment.applyDispatchDue(dto.getDispatchDueAt(), dto.getDispatchDelayReason());
 
 		return shipmentRepository.save(shipment);
 	}

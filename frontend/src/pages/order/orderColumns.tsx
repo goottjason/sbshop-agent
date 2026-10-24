@@ -2,7 +2,7 @@ import React from 'react';
 import { createColumnHelper } from '@tanstack/react-table';
 import type { RowData } from './types';
 import { formatPhone } from '../../utils/phone';
-import { stockCellInfo, marketSyncState } from './helpers';
+import { stockCellInfo, marketSyncState, dispatchDelay } from './helpers';
 import { InlineInput, FinancialEditCell, ShippingEditCell, TrackingCompareCell, OrderStatusCell, SourcingEditCell } from './cells';
 
 const columnHelper = createColumnHelper<RowData>();
@@ -83,6 +83,7 @@ export function buildOrderColumns({ getCommonLabel, handleUpdate, handleSyncCust
             tone={colorMap[val] || { bg: '#f5f5f5', text: '#666' }}
             claimLabel={claim?.label}
             claimType={claim?.claimType}
+            delay={dispatchDelay(row.original.lineItem, row.original.shipment)}
           />
         );
       }
