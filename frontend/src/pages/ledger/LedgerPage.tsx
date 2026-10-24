@@ -430,7 +430,7 @@ const LedgerPage: React.FC = () => {
             }}
             title={`JW: ${dayData.jw.toLocaleString()}원`}
           >
-            JW {dayData.jw >= 10000 ? `${(dayData.jw / 10000).toFixed(1)}만` : dayData.jw.toLocaleString()}
+            JW {dayData.jw.toLocaleString()}
           </div>
         )}
         {dayData.yh > 0 && (
@@ -449,7 +449,7 @@ const LedgerPage: React.FC = () => {
             }}
             title={`YH: ${dayData.yh.toLocaleString()}원`}
           >
-            YH {dayData.yh >= 10000 ? `${(dayData.yh / 10000).toFixed(1)}만` : dayData.yh.toLocaleString()}
+            YH {dayData.yh.toLocaleString()}
           </div>
         )}
         {dayData.cm > 0 && (
@@ -468,7 +468,7 @@ const LedgerPage: React.FC = () => {
             }}
             title={`CM(공용): ${dayData.cm.toLocaleString()}원`}
           >
-            CM {dayData.cm >= 10000 ? `${(dayData.cm / 10000).toFixed(1)}만` : dayData.cm.toLocaleString()}
+            CM {dayData.cm.toLocaleString()}
           </div>
         )}
       </div>
@@ -878,9 +878,13 @@ const LedgerPage: React.FC = () => {
                               padding: '1px 3px',
                               borderRadius: 3,
                               border: `1px solid ${ADMIN_CONFIG.ADMIN_A.border}`,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
                             }}
+                            title={`JW: ${dayData.jw.toLocaleString()}원`}
                           >
-                            JW {dayData.jw >= 10000 ? `${(dayData.jw / 10000).toFixed(1)}만` : dayData.jw.toLocaleString()}
+                            JW {dayData.jw.toLocaleString()}
                           </div>
                         )}
                         {dayData && dayData.yh > 0 && (
@@ -893,9 +897,13 @@ const LedgerPage: React.FC = () => {
                               padding: '1px 3px',
                               borderRadius: 3,
                               border: `1px solid ${ADMIN_CONFIG.ADMIN_B.border}`,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
                             }}
+                            title={`YH: ${dayData.yh.toLocaleString()}원`}
                           >
-                            YH {dayData.yh >= 10000 ? `${(dayData.yh / 10000).toFixed(1)}만` : dayData.yh.toLocaleString()}
+                            YH {dayData.yh.toLocaleString()}
                           </div>
                         )}
                         {dayData && dayData.cm > 0 && (
@@ -908,9 +916,13 @@ const LedgerPage: React.FC = () => {
                               padding: '1px 3px',
                               borderRadius: 3,
                               border: `1px solid ${ADMIN_CONFIG.ADMIN_CM.border}`,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
                             }}
+                            title={`CM(공용): ${dayData.cm.toLocaleString()}원`}
                           >
-                            CM {dayData.cm >= 10000 ? `${(dayData.cm / 10000).toFixed(1)}만` : dayData.cm.toLocaleString()}
+                            CM {dayData.cm.toLocaleString()}
                           </div>
                         )}
                         {(!dayData || dayData.total === 0) && (
