@@ -125,7 +125,8 @@ class DashboardRepositoryPostgresTest {
 		em.flush();
 
 		LocalDateTime now = LocalDateTime.parse("2026-10-30T10:00:00");
-		assertThat(repo.countDelayed(now.minusDays(1), now.minusDays(3))).isEqualTo(1);
+		assertThat(repo.countDelayed(ShippingStatus.NEW, now.minusDays(1))).isEqualTo(1);
+		assertThat(repo.countDelayed(ShippingStatus.PREPARING, now.minusDays(3))).isZero();
 		assertThat(repo.countOutOfStock()).isEqualTo(1);
 	}
 

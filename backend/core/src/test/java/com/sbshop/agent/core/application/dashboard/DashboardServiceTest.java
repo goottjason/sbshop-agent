@@ -14,6 +14,7 @@ import com.sbshop.agent.core.domain.order.enums.ClaimStage;
 import com.sbshop.agent.core.domain.order.enums.ClaimType;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -90,16 +91,20 @@ class DashboardServiceTest {
 	}
 
 	@Test
-	@DisplayName("attention: 리포지토리 카운트를 그대로 조립")
+	@DisplayName("attention: 지연은 결제완료(어제까지 주문)·구매준비(3일 전까지 주문)로 나눠 그리드와 같은 날짜 경계로 센다")
 	void attentionAssembles() {
 		when(repo.countCustomsIssue(any())).thenReturn(3);
 		when(repo.countOutOfStock()).thenReturn(2);
-		when(repo.countDelayed(any(), any())).thenReturn(5);
+		when(repo.countDelayed(ShippingStatus.NEW, LocalDateTime.parse("2026-07-24T23:59:59"))).thenReturn(5);
+		when(repo.countDelayed(ShippingStatus.PREPARING, LocalDateTime.parse("2026-07-22T23:59:59"))).thenReturn(6);
 		when(repo.countActiveClaimsInStages(List.of(ClaimStage.REQUESTED, ClaimStage.IN_PROGRESS))).thenReturn(4);
-		var a = service.attention(LocalDateTime.parse("2026-07-25T10:00:00"));
+		var a = service.attention(LocalDateTime.parse("2026-07-25T00:10:00"));
 		assertThat(a.customsIssue()).isEqualTo(3);
 		assertThat(a.outOfStock()).isEqualTo(2);
-		assertThat(a.delayed()).isEqualTo(5);
+		assertThat(a.newDelayed()).isEqualTo(5);
+		assertThat(a.newDelayedThrough()).isEqualTo(LocalDate.parse("2026-07-24"));
+		assertThat(a.preparingDelayed()).isEqualTo(6);
+		assertThat(a.preparingDelayedThrough()).isEqualTo(LocalDate.parse("2026-07-22"));
 		assertThat(a.returnCancel()).isEqualTo(4);
 	}
 

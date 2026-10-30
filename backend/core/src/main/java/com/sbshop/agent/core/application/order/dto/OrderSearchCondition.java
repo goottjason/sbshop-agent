@@ -1,5 +1,6 @@
 package com.sbshop.agent.core.application.order.dto;
 
+import com.sbshop.agent.core.domain.order.enums.ClaimStage;
 import com.sbshop.agent.core.domain.order.enums.ClaimType;
 import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -16,6 +17,7 @@ public class OrderSearchCondition {
 	private List<PurchaseStatus> purchaseStatuses;
 	private List<CustomsStatus> customsStatuses;
 	private List<ClaimType> claimTypes;
+	private List<ClaimStage> claimStages;
 	private List<String> stockStatuses;
 	private List<String> vendors;
 	private String keyword;

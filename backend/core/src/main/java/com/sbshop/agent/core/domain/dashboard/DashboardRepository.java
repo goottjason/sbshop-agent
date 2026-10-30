@@ -16,7 +16,7 @@ public interface DashboardRepository {
 
 	int countOutOfStock();
 
-	int countDelayed(LocalDateTime newOnOrBefore, LocalDateTime preparingOnOrBefore);
+	int countDelayed(ShippingStatus status, LocalDateTime orderedOnOrBefore);
 
 	int countActiveClaimsInStages(List<ClaimStage> stages);
 }

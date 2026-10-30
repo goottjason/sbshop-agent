@@ -92,20 +92,21 @@ const OrderGrid: React.FC = () => {
     const vendors = getAll('vendors');
     const customsStatuses = getAll('customsStatuses');
     const claimTypes = getAll('claimTypes');
+    const claimStages = getAll('claimStages');
     const keyword = searchParams.get('keyword') ?? '';
     const startDate = searchParams.get('startDate') ?? undefined;
     const endDate = searchParams.get('endDate') ?? undefined;
-    const hasAny = markets.length || statuses.length || stockStatuses.length || vendors.length || customsStatuses.length || claimTypes.length || searchParams.get('keyword') || searchParams.get('startDate') || searchParams.get('endDate');
+    const hasAny = markets.length || statuses.length || stockStatuses.length || vendors.length || customsStatuses.length || claimTypes.length || claimStages.length || searchParams.get('keyword') || searchParams.get('startDate') || searchParams.get('endDate');
     return hasAny ? {
       keyword,
       markets: markets.length ? markets : ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'],
       statuses: statuses.length ? statuses : DEFAULT_VISIBLE_STATUSES,
       purchaseStatuses: ['NOT_PURCHASED', 'PURCHASED', 'WAITING_STOCK'],
-      stockStatuses, vendors, customsStatuses, claimTypes, startDate, endDate,
+      stockStatuses, vendors, customsStatuses, claimTypes, claimStages, startDate, endDate,
     } : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const [queryParams, setQueryParams] = useState<{keyword?: string, markets?: string[], statuses?: string[], purchaseStatuses?: string[], stockStatuses?: string[], vendors?: string[], customsStatuses?: string[], claimTypes?: string[], startDate?: string, endDate?: string}>(initialFromUrl ?? {
+  const [queryParams, setQueryParams] = useState<{keyword?: string, markets?: string[], statuses?: string[], purchaseStatuses?: string[], stockStatuses?: string[], vendors?: string[], customsStatuses?: string[], claimTypes?: string[], claimStages?: string[], startDate?: string, endDate?: string}>(initialFromUrl ?? {
     keyword: '',
     markets: ['COUPANG', 'SMART_STORE', 'ELEVEN_STREET', 'CAFE24', 'GMARKET', 'AUCTION'],
     statuses: DEFAULT_VISIBLE_STATUSES,
@@ -117,7 +118,7 @@ const OrderGrid: React.FC = () => {
   const [searchTrigger, setSearchTrigger] = useState(0);
   const { data, isLoading: queryLoading, refetch } = useQuery({
     queryKey: ['orders', queryParams, searchTrigger],
-    queryFn: () => fetchOrders(0, 500, queryParams.keyword, queryParams.markets, queryParams.statuses, queryParams.startDate, queryParams.endDate, queryParams.purchaseStatuses, queryParams.stockStatuses, queryParams.vendors, queryParams.customsStatuses, queryParams.claimTypes)
+    queryFn: () => fetchOrders(0, 500, queryParams.keyword, queryParams.markets, queryParams.statuses, queryParams.startDate, queryParams.endDate, queryParams.purchaseStatuses, queryParams.stockStatuses, queryParams.vendors, queryParams.customsStatuses, queryParams.claimTypes, queryParams.claimStages)
   });
   type CacheSnapshot = ReturnType<typeof queryClient.getQueriesData<OrdersCache>>;
   const optimisticPatch = useCallback(async (patch: (c: OrdersCache | undefined) => OrdersCache | undefined): Promise<CacheSnapshot> => {

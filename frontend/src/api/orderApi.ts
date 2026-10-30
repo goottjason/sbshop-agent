@@ -154,7 +154,8 @@ export const fetchOrders = async (
   stockStatuses?: string[],
   vendors?: string[],
   customsStatuses?: string[],
-  claimTypes?: string[]
+  claimTypes?: string[],
+  claimStages?: string[]
 ): Promise<PageResponse<OrderDetailResponseDto>> => {
   const params = new URLSearchParams();
   params.append('page', String(page));
@@ -173,6 +174,7 @@ export const fetchOrders = async (
   if (vendors) vendors.forEach(v => params.append('vendors', v));
   if (customsStatuses) customsStatuses.forEach(c => params.append('customsStatuses', c));
   if (claimTypes) claimTypes.forEach(c => params.append('claimTypes', c));
+  if (claimStages) claimStages.forEach(c => params.append('claimStages', c));
   if (startDate) params.append('startDate', startDate + 'T00:00:00');
   if (endDate) params.append('endDate', endDate + 'T23:59:59');
 

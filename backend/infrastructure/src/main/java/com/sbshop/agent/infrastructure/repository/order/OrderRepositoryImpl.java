@@ -2,6 +2,7 @@ package com.sbshop.agent.infrastructure.repository.order;
 
 import static com.sbshop.agent.core.domain.order.QOrder.order;
 
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQuery;
@@ -15,6 +16,7 @@ import com.sbshop.agent.core.domain.order.Order;
 import com.sbshop.agent.core.domain.order.OrderLineItem;
 import com.sbshop.agent.core.domain.order.QOrderLineItem;
 import com.sbshop.agent.core.domain.order.Shipment;
+import com.sbshop.agent.core.domain.order.enums.ClaimStage;
 import com.sbshop.agent.core.domain.order.enums.ClaimType;
 import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
@@ -26,6 +28,7 @@ import com.sbshop.agent.core.domain.product.Product;
 import com.sbshop.agent.core.domain.product.ProductRepository;
 import com.sbshop.agent.core.domain.product.QProduct;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -38,6 +41,11 @@ import org.springframework.stereotype.Repository;
 @Repository
 @RequiredArgsConstructor
 public class OrderRepositoryImpl implements OrderRepositoryCustom {
+
+	private static final List<ClaimType> ACTIVE_CLAIM_TYPES =
+		Arrays.stream(ClaimType.values()).filter(ClaimType::isActive).toList();
+	private static final List<ClaimStage> ACTIVE_CLAIM_STAGES =
+		Arrays.stream(ClaimStage.values()).filter(ClaimStage::isActive).toList();
 
 	private final JPAQueryFactory queryFactory;
 	private final ProductRepository productRepository;
@@ -56,10 +64,9 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.from(order)
 			.where(
 				marketTypeIn(condition.getMarketTypes()),
-				shippingStatusIn(condition.getShippingStatuses()),
+				lineMatches(condition.getShippingStatuses(), condition.getClaimTypes(), condition.getClaimStages()),
 				purchaseStatusIn(condition.getPurchaseStatuses()),
 				customsStatusIn(condition.getCustomsStatuses()),
-				claimTypeIn(condition.getClaimTypes()),
 				keywordContains(condition.getKeyword(), qLineItem, qProduct),
 				dateBetween(condition.getStartDate(), condition.getEndDate()),
 				stockStatusExists(condition.getStockStatuses()),
@@ -143,10 +150,9 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			.from(order)
 			.where(
 				marketTypeIn(condition.getMarketTypes()),
-				shippingStatusIn(condition.getShippingStatuses()),
+				lineMatches(condition.getShippingStatuses(), condition.getClaimTypes(), condition.getClaimStages()),
 				purchaseStatusIn(condition.getPurchaseStatuses()),
 				customsStatusIn(condition.getCustomsStatuses()),
-				claimTypeIn(condition.getClaimTypes()),
 				keywordContains(condition.getKeyword(), qLineItem, qProduct),
 				dateBetween(condition.getStartDate(), condition.getEndDate()),
 				stockStatusExists(condition.getStockStatuses()),
@@ -172,16 +178,20 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 		return marketTypes != null && !marketTypes.isEmpty() ? order.marketType.in(marketTypes) : null;
 	}
 
-	private BooleanExpression shippingStatusIn(List<ShippingStatus> statuses) {
-		if (statuses == null || statuses.isEmpty()) {
+	private BooleanExpression lineMatches(List<ShippingStatus> statuses, List<ClaimType> claimTypes,
+		List<ClaimStage> claimStages) {
+		QOrderLineItem subLineItem = QOrderLineItem.orderLineItem;
+		BooleanBuilder onSameLine = new BooleanBuilder()
+			.and(statuses != null && !statuses.isEmpty() ? subLineItem.shippingData.shippingStatus.in(statuses) : null)
+			.and(claimTypeIn(claimTypes))
+			.and(claimStages != null && !claimStages.isEmpty() ? subLineItem.claimData.claimStage.in(claimStages) : null);
+		if (!onSameLine.hasValue()) {
 			return null;
 		}
-		QOrderLineItem subLineItem = QOrderLineItem.orderLineItem;
 		return JPAExpressions
 			.selectOne()
 			.from(subLineItem)
-			.where(subLineItem.orderId.eq(order.id)
-				.and(subLineItem.shippingData.shippingStatus.in(statuses)))
+			.where(subLineItem.orderId.eq(order.id).and(onSameLine))
 			.exists();
 	}
 
@@ -203,12 +213,20 @@ public class OrderRepositoryImpl implements OrderRepositoryCustom {
 			return null;
 		}
 		QOrderLineItem subLineItem = QOrderLineItem.orderLineItem;
-		return JPAExpressions
-			.selectOne()
-			.from(subLineItem)
-			.where(subLineItem.orderId.eq(order.id)
-				.and(subLineItem.claimData.claimType.in(claimTypes)))
-			.exists();
+		List<ClaimType> claimed = claimTypes.stream().filter(ClaimType::isActive).toList();
+		BooleanExpression ofType = claimed.isEmpty() ? null : subLineItem.claimData.claimType.in(claimed);
+		BooleanExpression noClaim = claimTypes.contains(ClaimType.NONE) ? noActiveClaim(subLineItem) : null;
+		if (ofType == null) {
+			return noClaim;
+		}
+		return noClaim == null ? ofType : ofType.or(noClaim);
+	}
+
+	private static BooleanExpression noActiveClaim(QOrderLineItem li) {
+		return li.claimData.claimType.isNull()
+			.or(li.claimData.claimType.notIn(ACTIVE_CLAIM_TYPES))
+			.or(li.claimData.claimStage.isNull())
+			.or(li.claimData.claimStage.notIn(ACTIVE_CLAIM_STAGES));
 	}
 
 	private BooleanExpression customsStatusIn(List<CustomsStatus> statuses) {

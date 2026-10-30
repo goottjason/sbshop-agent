@@ -89,14 +89,13 @@ public class DashboardRepositoryImpl implements DashboardRepository {
 	}
 
 	@Override
-	public int countDelayed(LocalDateTime newOnOrBefore, LocalDateTime preparingOnOrBefore) {
+	public int countDelayed(ShippingStatus status, LocalDateTime orderedOnOrBefore) {
 		QOrderLineItem li = QOrderLineItem.orderLineItem;
-		BooleanExpression delayed = li.shippingData.shippingStatus.eq(ShippingStatus.NEW)
-			.and(order.orderDate.loe(newOnOrBefore))
-			.or(li.shippingData.shippingStatus.eq(ShippingStatus.PREPARING)
-				.and(order.orderDate.loe(preparingOnOrBefore)));
 		Long c = queryFactory.select(order.id.countDistinct()).from(order)
-			.join(li).on(li.orderId.eq(order.id)).where(delayed, active(li), noActiveClaim(li)).fetchOne();
+			.join(li).on(li.orderId.eq(order.id))
+			.where(li.shippingData.shippingStatus.eq(status), order.orderDate.loe(orderedOnOrBefore),
+				active(li), noActiveClaim(li))
+			.fetchOne();
 		return c == null ? 0 : c.intValue();
 	}
 

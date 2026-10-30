@@ -4,6 +4,7 @@ import com.sbshop.agent.core.domain.order.enums.ClaimStage;
 import com.sbshop.agent.core.domain.order.enums.ClaimType;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public final class DashboardDtos {
@@ -65,7 +66,8 @@ public final class DashboardDtos {
 	public record BreakdownItem(String key, String label, int orderCount, long settlementSum, long profitSum) {
 	}
 
-	public record AttentionResponse(int customsIssue, int outOfStock, int delayed, int returnCancel) {
+	public record AttentionResponse(int customsIssue, int outOfStock, int newDelayed, LocalDate newDelayedThrough,
+		int preparingDelayed, LocalDate preparingDelayedThrough, int returnCancel) {
 	}
 
 	public enum Unit {

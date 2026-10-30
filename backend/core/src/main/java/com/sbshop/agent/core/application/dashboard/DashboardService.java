@@ -84,13 +84,18 @@ public class DashboardService {
 	}
 
 	public AttentionResponse attention(LocalDateTime now) {
-		LocalDateTime newBefore = now.minusDays(1);
-		LocalDateTime preparingBefore = now.minusDays(3);
+		LocalDate newThrough = now.toLocalDate().minusDays(1);
+		LocalDate preparingThrough = now.toLocalDate().minusDays(3);
 		return new AttentionResponse(
 			repo.countCustomsIssue(CUSTOMS_ISSUES),
 			repo.countOutOfStock(),
-			repo.countDelayed(newBefore, preparingBefore),
+			repo.countDelayed(ShippingStatus.NEW, endOfGridDay(newThrough)), newThrough,
+			repo.countDelayed(ShippingStatus.PREPARING, endOfGridDay(preparingThrough)), preparingThrough,
 			repo.countActiveClaimsInStages(List.of(ClaimStage.REQUESTED, ClaimStage.IN_PROGRESS)));
+	}
+
+	private static LocalDateTime endOfGridDay(LocalDate date) {
+		return date.atTime(23, 59, 59);
 	}
 
 	private static final class Totals {
