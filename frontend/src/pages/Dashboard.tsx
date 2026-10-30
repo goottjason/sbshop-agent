@@ -13,18 +13,18 @@ export default function Dashboard() {
   const [period, setPeriod] = useState<PeriodValue>({ year: now.getFullYear(), month: now.getMonth() + 1, unit: 'DAY' });
   const range = useMemo(() => computeRange(period), [period]);
 
-  const summary = useQuery({ queryKey: ['summary', range.start, range.end], queryFn: () => fetchSummary(range.start, range.end) });
-  const timeseries = useQuery({ queryKey: ['timeseries', range.start, range.end, period.unit], queryFn: () => fetchTimeseries(range.start, range.end, period.unit) });
+  const summary = useQuery({ queryKey: ['summary', range.kpi.start, range.kpi.end], queryFn: () => fetchSummary(range.kpi.start, range.kpi.end) });
+  const timeseries = useQuery({ queryKey: ['timeseries', range.chart.start, range.chart.end, period.unit], queryFn: () => fetchTimeseries(range.chart.start, range.chart.end, period.unit) });
   const attention = useQuery({ queryKey: ['attention'], queryFn: fetchAttention, refetchInterval: 60000 });
 
   return (
     <div style={{ padding: '16px 24px' }}>
       <h1 style={{ marginBottom: 16 }}>대시보드</h1>
       <PeriodControl value={period} onChange={setPeriod} />
-      <KpiCards data={summary.data} range={range} />
+      <KpiCards data={summary.data} range={range.kpi} />
       <div style={{ marginTop: 16 }}><TrendChart data={timeseries.data} unit={period.unit} /></div>
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginTop: 16 }}>
-        <BreakdownPanels range={range} />
+        <BreakdownPanels range={range.kpi} />
         <AttentionPanel data={attention.data} />
       </div>
     </div>

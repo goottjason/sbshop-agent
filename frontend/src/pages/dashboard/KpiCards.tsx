@@ -15,7 +15,10 @@ export function KpiCards({ data, range }: { data?: Summary; range: { start: stri
     { title: '배송중', value: num(data?.current.shippingCount), onClick: () => nav(buildOrderGridUrl({ statuses: ['DISPATCHED', 'SHIPPED'] })) },
     { title: '통관오류', value: num(data?.current.customsIssueCount), onClick: () => nav(buildOrderGridUrl({ customsStatuses: ['PENDING', 'INVALID_PCCC', 'INVALID_PHONE', 'INVALID_ZIPCODE'] })) },
   ];
+  const periodText = `${d0.slice(5).replace('-', '/')}~${d1.slice(5).replace('-', '/')}`;
   return (
+    <>
+    <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>기간 집계 {periodText}</div>
     <div className="dashboard-grid">
       {cards.map((c) => (
         <div className="card" key={c.title} onClick={c.onClick} style={{ cursor: 'pointer' }}>
@@ -25,5 +28,6 @@ export function KpiCards({ data, range }: { data?: Summary; range: { start: stri
         </div>
       ))}
     </div>
+    </>
   );
 }

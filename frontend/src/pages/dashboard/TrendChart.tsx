@@ -3,6 +3,7 @@ import type { MouseHandlerDataParam } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import type { TimeseriesBucket, Unit } from './dashboardApi';
 import { buildOrderGridUrl } from './drilldown';
+import { formatBucketLabel } from './period';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -33,10 +34,11 @@ export function TrendChart({ data, unit }: { data?: TimeseriesBucket[]; unit: Un
       <ResponsiveContainer width="100%" height="90%">
         <ComposedChart data={data ?? []} onClick={onClick}>
           <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
-          <XAxis dataKey="bucketStart" fontSize={11} />
+          <XAxis dataKey="bucketStart" fontSize={11} tickFormatter={(v) => formatBucketLabel(String(v), unit)} />
           <YAxis yAxisId="left" fontSize={11} />
           <YAxis yAxisId="right" orientation="right" fontSize={11} tickFormatter={(v) => `${(v / 10000).toLocaleString()}만`} />
           <Tooltip
+            labelFormatter={(v) => formatBucketLabel(String(v), unit)}
             formatter={(v, n) => {
               const num = Number(v);
               return n === '주문수' ? `${num}건` : `${num.toLocaleString()}원`;

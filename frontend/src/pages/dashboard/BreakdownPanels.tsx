@@ -11,7 +11,7 @@ const MARKET_COLOR: Record<string, string> = {
 };
 const STATUS_LABEL: Record<string, string> = {
   NEW: '결제완료', PREPARING: '구매준비', DISPATCHED: '배송지시', SHIPPED: '배송중',
-  DELIVERED: '배송완료', CANCELED: '취소', RETURNED: '반품', EXCHANGED: '교환', UNKNOWN: '알수없음',
+  DELIVERED: '배송완료', CONFIRMED: '구매확정', CANCELED: '취소', RETURNED: '반품', EXCHANGED: '교환', UNKNOWN: '알수없음',
 };
 
 export function BreakdownPanels({ range }: { range: { start: string; end: string } }) {
