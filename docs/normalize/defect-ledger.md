@@ -6614,3 +6614,45 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 배포 선행 DDL(goottjason): ALTER TABLE sb_shipment ADD COLUMN IF NOT EXISTS dispatch_due_at timestamp(6), ADD COLUMN IF NOT EXISTS dispatch_delay_reason varchar(500); — sb_shipment 소유자가 goottjason이라 앱 계정 ddl-auto로는 추가 안 되고, 없이 배포하면 주문 그리드 SELECT가 실패한다.
 - 라이브 확인(2026-10-24 02:16Z 정기 동기화): 주문 662 dispatch_due_at=2026-10-21 23:59:59(NEW → 발송지연 배지 대상). 같은 동기화의 나머지 3건은 CONFIRMED라 배지 없음. DDL은 배포 전 goottjason으로 적용.
 - 이력: 2026-10-24 발견(사용자 제보) · 2026-10-24 수정완료 · 2026-10-24 배포·검증통과
+
+## 대시보드 집계 정확도 전수검토 (2026-10-30, 리더 직접 — 코드 정독 + 운영 DB 실측)
+
+> 사용자 신고: 일별/주별/월별 현황 값이 정확하지 않음. 진단·계획만 수행(수정 미착수). 상세 근거·설계·배치·대사 쿼리: `docs/normalize/plans/D-350_대시보드-집계-정확도-수정계획.md`
+
+### D-350 — 대시보드 버킷이 KST 주문일을 UTC로 오해해 +9시간 밀어 담음
+- 심각도: P1 | 리스크: 표준 | 위치: `DashboardBucketing.bucketKey`, `DashboardBucketingTest.dayBucketUsesKst`(오가정을 정답으로 고정)
+- 실측: 2026-10 주문 101건 중 46건이 다른 날 버킷, 31일 중 23일 값 불일치. 15시 이후 주문 → 다음 날/주/달, 말일이면 범위 밖 버킷 추가
+- 상태: 발견
+
+### D-351 — 월별 모드에서 KPI·분해 패널이 12개월 합계 (제목은 한 달)
+- 심각도: P1 | 리스크: 표준 | 위치: `pages/dashboard/period.ts computeRange`, `Dashboard.tsx`
+- 상태: 발견
+
+### D-352 — 취소·반품 클레임 주문이 미발주·주문 수·지연에 섞임
+- 심각도: P1 | 리스크: 표준 | 위치: `DashboardRepositoryImpl` count 쿼리 3종·`findRowsBetween`
+- 실측: 미발주 KPI 7건 중 6건이 NEW+CANCEL(실제 1건), 10월 주문 수에 취소 5건 포함. 사용자 결정 필요(주문 수 정의)
+- 상태: 발견
+
+### D-353 — 원가 미입력 라인의 순수익이 정산 전액
+- 심각도: P1 | 리스크: 표준 | 위치: `DashboardDtos.AggRow.profit`
+- 실측: 10월 21라인(미구매), 정산 686,741원이 원가 0으로 순수익에 합산. logistics_cost 입력 10/432 — 의미 확인 필요
+- 상태: 발견
+
+### D-354 — 주별 첫·마지막 버킷이 달 경계로 잘린 부분 주, 드릴다운은 전체 주
+- 심각도: P2 | 리스크: 표준 | 위치: `period.ts`, `DashboardBucketing.bucketRange`, `TrendChart.bucketEndDate`
+- 상태: 발견
+
+### D-355 — 상태 축 오류: CONFIRMED 라벨 없음·클레임 무시·반품/취소 기간 무관 누적
+- 심각도: P2 | 리스크: 경량~표준 | 위치: `BreakdownPanels.STATUS_LABEL`, `DashboardService.attention`, `AttentionPanel`
+- 실측: 구매확정 91라인 원문 표시, 반품/취소 18건 전 기간 누적, 진행 중 클레임 12건 누락
+- 상태: 발견
+
+### D-356 — 분해에서 소싱처·상품 미지정 라인 누락, 주문/라인 status 미필터
+- 심각도: P3 | 리스크: 경량 | 위치: `DashboardService.breakdown`, `DashboardRepositoryImpl`
+- 실측: 10월 소싱처 미기입 10라인 → 소싱처별 합 ≠ 전체. status는 현재 전부 ACTIVE(예방)
+- 상태: 발견
+
+### D-357 — 지연 기준 now()가 JVM UTC, 지연 드릴다운 필터가 집계 조건과 다름
+- 심각도: P3 | 리스크: 경량 | 위치: `DashboardController.attention`, `AttentionPanel`
+- 별건 후보: 11번가 주문일 시각 없음(00:00), `ElevenstOrderAdapter.extractOrderDate`·`Cafe24OrderSyncService.parseDate` 폴백 now()가 UTC
+- 상태: 발견
