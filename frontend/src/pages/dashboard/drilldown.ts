@@ -4,6 +4,7 @@ export interface DrilldownFilters {
   customsStatuses?: string[];
   stockStatuses?: string[];
   vendors?: string[];
+  claimTypes?: string[];
   keyword?: string;
   startDate?: string;
   endDate?: string;
@@ -16,6 +17,7 @@ export function buildOrderGridUrl(f: DrilldownFilters): string {
   f.customsStatuses?.forEach((c) => p.append('customsStatuses', c));
   f.stockStatuses?.forEach((s) => p.append('stockStatuses', s));
   f.vendors?.forEach((v) => p.append('vendors', v));
+  f.claimTypes?.forEach((c) => p.append('claimTypes', c));
   if (f.keyword) p.set('keyword', f.keyword);
   if (f.startDate) p.set('startDate', f.startDate);
   if (f.endDate) p.set('endDate', f.endDate);

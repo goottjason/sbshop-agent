@@ -1,5 +1,7 @@
 package com.sbshop.agent.core.application.dashboard.dto;
 
+import com.sbshop.agent.core.domain.order.enums.ClaimStage;
+import com.sbshop.agent.core.domain.order.enums.ClaimType;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import java.time.LocalDateTime;
@@ -12,6 +14,8 @@ public final class DashboardDtos {
 		LocalDateTime orderDate,
 		MarketType marketType,
 		ShippingStatus shippingStatus,
+		ClaimType claimType,
+		ClaimStage claimStage,
 		long settlementAmount,
 		long sourcingAmount,
 		long logisticsCost,
@@ -23,10 +27,33 @@ public final class DashboardDtos {
 		public long profit() {
 			return settlementAmount - sourcingAmount - logisticsCost;
 		}
+
+		public boolean claimActive() {
+			return claimType != null && claimType.isActive() && claimStage != null && claimStage.isActive();
+		}
+
+		public boolean canceled() {
+			return shippingStatus == ShippingStatus.CANCELED || claimActive() && claimType == ClaimType.CANCEL;
+		}
+
+		public boolean returned() {
+			return !canceled()
+				&& (shippingStatus == ShippingStatus.RETURNED || claimActive() && claimType == ClaimType.RETURN);
+		}
+
+		public boolean claimLine() {
+			return claimActive() || shippingStatus == ShippingStatus.CANCELED
+				|| shippingStatus == ShippingStatus.RETURNED || shippingStatus == ShippingStatus.EXCHANGED;
+		}
+
+		public boolean sourced() {
+			return sourcingAmount > 0;
+		}
 	}
 
 	public record SummaryResponse(Period period, Current current) {
-		public record Period(int orderCount, long settlementSum, long profitSum) {
+		public record Period(int orderCount, long settlementSum, long profitSum,
+			int returnCount, long returnProfit, int unsourcedCount, long unsourcedSettlement) {
 		}
 		public record Current(int newCount, int shippingCount, int customsIssueCount) {
 		}

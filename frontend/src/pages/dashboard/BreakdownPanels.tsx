@@ -12,6 +12,7 @@ const MARKET_COLOR: Record<string, string> = {
 const STATUS_LABEL: Record<string, string> = {
   NEW: '결제완료', PREPARING: '구매준비', DISPATCHED: '배송지시', SHIPPED: '배송중',
   DELIVERED: '배송완료', CONFIRMED: '구매확정', CANCELED: '취소', RETURNED: '반품', EXCHANGED: '교환', UNKNOWN: '알수없음',
+  CLAIM: '취소·반품·교환', UNASSIGNED: '미지정',
 };
 
 export function BreakdownPanels({ range }: { range: { start: string; end: string } }) {
@@ -37,17 +38,18 @@ export function BreakdownPanels({ range }: { range: { start: string; end: string
   const onStatusClick = (state: MouseHandlerDataParam) => {
     const label = state?.activeLabel;
     const it = statusRows.find((x) => x.label === label);
-    if (it) go({ statuses: [it.key] });
+    if (!it || it.key === 'UNASSIGNED') return;
+    go(it.key === 'CLAIM' ? { claimTypes: ['CANCEL', 'RETURN', 'EXCHANGE'] } : { statuses: [it.key], claimTypes: ['NONE'] });
   };
   const onProductClick = (state: MouseHandlerDataParam) => {
     const label = state?.activeLabel;
     const it = (product.data ?? []).find((x) => x.label === label);
-    if (it) go({ keyword: it.key });
+    if (it && it.key !== 'UNASSIGNED') go({ keyword: it.key });
   };
   const onVendorClick = (state: MouseHandlerDataParam) => {
     const label = state?.activeLabel;
-    const it = (vendor.data ?? []).find((x) => x.key === label);
-    if (it) go({ vendors: [it.key] });
+    const it = (vendor.data ?? []).find((x) => x.label === label);
+    if (it && it.key !== 'UNASSIGNED') go({ vendors: [it.key] });
   };
 
   return (
@@ -91,7 +93,7 @@ export function BreakdownPanels({ range }: { range: { start: string; end: string
         <div className="card-title">소싱처별</div>
         <ResponsiveContainer width="100%" height={260}>
           <BarChart layout="vertical" data={vendor.data ?? []} onClick={onVendorClick}>
-            <XAxis type="number" fontSize={11} /><YAxis type="category" dataKey="key" width={80} fontSize={11} />
+            <XAxis type="number" fontSize={11} /><YAxis type="category" dataKey="label" width={80} fontSize={11} />
             <Tooltip formatter={(v) => `${Number(v)}건`} />
             <Bar dataKey="orderCount" fill="#fde68a" radius={[0, 3, 3, 0]} />
           </BarChart>

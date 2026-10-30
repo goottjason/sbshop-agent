@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.domain.dashboard;
 
 import com.sbshop.agent.core.application.dashboard.dto.DashboardDtos.AggRow;
+import com.sbshop.agent.core.domain.order.enums.ClaimStage;
 import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import java.time.LocalDateTime;
@@ -16,4 +17,6 @@ public interface DashboardRepository {
 	int countOutOfStock();
 
 	int countDelayed(LocalDateTime newOnOrBefore, LocalDateTime preparingOnOrBefore);
+
+	int countActiveClaimsInStages(List<ClaimStage> stages);
 }

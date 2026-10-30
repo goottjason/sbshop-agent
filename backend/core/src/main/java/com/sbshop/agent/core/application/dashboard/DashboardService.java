@@ -8,20 +8,19 @@ import com.sbshop.agent.core.application.dashboard.dto.DashboardDtos.SummaryResp
 import com.sbshop.agent.core.application.dashboard.dto.DashboardDtos.TimeseriesBucket;
 import com.sbshop.agent.core.application.dashboard.dto.DashboardDtos.Unit;
 import com.sbshop.agent.core.domain.dashboard.DashboardRepository;
+import com.sbshop.agent.core.domain.order.enums.ClaimStage;
 import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -34,64 +33,51 @@ public class DashboardService {
 		CustomsStatus.PENDING, CustomsStatus.INVALID_PCCC,
 		CustomsStatus.INVALID_PHONE, CustomsStatus.INVALID_ZIPCODE);
 
+	private static final String UNASSIGNED = "UNASSIGNED";
+	private static final String CLAIM = "CLAIM";
+
 	private final DashboardRepository repo;
 
 	public SummaryResponse summary(LocalDateTime start, LocalDateTime end) {
-		List<AggRow> rows = repo.findRowsBetween(start, end);
-		int orderCount = (int)rows.stream().map(AggRow::orderId).distinct().count();
-		long settlement = rows.stream().mapToLong(AggRow::settlementAmount).sum();
-		long profit = rows.stream().mapToLong(AggRow::profit).sum();
+		Totals t = Totals.of(repo.findRowsBetween(start, end));
 		var current = new SummaryResponse.Current(
 			repo.countByShippingStatusIn(List.of(ShippingStatus.NEW)),
 			repo.countByShippingStatusIn(List.of(ShippingStatus.DISPATCHED, ShippingStatus.SHIPPED)),
 			repo.countCustomsIssue(CUSTOMS_ISSUES));
-		return new SummaryResponse(new SummaryResponse.Period(orderCount, settlement, profit), current);
+		return new SummaryResponse(new SummaryResponse.Period(t.orderCount, t.settlement, t.profit,
+			t.returnCount, t.returnProfit, t.unsourcedCount, t.unsourcedSettlement), current);
 	}
 
 	public List<TimeseriesBucket> timeseries(LocalDateTime start, LocalDateTime end, Unit unit) {
-		List<AggRow> rows = repo.findRowsBetween(start, end);
-		Map<LocalDate, Set<Long>> orders = new TreeMap<>();
-		Map<LocalDate, long[]> sums = new HashMap<>();
-		Consumer<LocalDate> ensure = b -> {
-			orders.computeIfAbsent(b, k -> new HashSet<>());
-			sums.computeIfAbsent(b, k -> new long[2]);
-		};
+		Map<LocalDate, List<AggRow>> byBucket = new TreeMap<>();
 		for (LocalDate b : DashboardBucketing.bucketRange(start, end, unit))
-			ensure.accept(b);
-		for (AggRow r : rows) {
-			LocalDate b = DashboardBucketing.bucketKey(r.orderDate(), unit);
-			ensure.accept(b);
-			orders.get(b).add(r.orderId());
-			long[] s = sums.get(b);
-			s[0] += r.settlementAmount();
-			s[1] += r.profit();
-		}
+			byBucket.put(b, new ArrayList<>());
+		for (AggRow r : repo.findRowsBetween(start, end))
+			byBucket.computeIfAbsent(DashboardBucketing.bucketKey(r.orderDate(), unit), k -> new ArrayList<>()).add(r);
 		List<TimeseriesBucket> out = new ArrayList<>();
-		for (LocalDate b : orders.keySet()) {
-			long[] s = sums.get(b);
-			out.add(new TimeseriesBucket(b.toString(), orders.get(b).size(), s[0], s[1]));
-		}
+		byBucket.forEach((b, rows) -> {
+			Totals t = Totals.of(rows);
+			out.add(new TimeseriesBucket(b.toString(), t.orderCount, t.settlement, t.profit));
+		});
 		return out;
 	}
 
 	public List<BreakdownItem> breakdown(LocalDateTime start, LocalDateTime end, Dimension dim, int limit) {
-		List<AggRow> rows = repo.findRowsBetween(start, end);
-		Map<String, Set<Long>> ordersByKey = new LinkedHashMap<>();
-		Map<String, long[]> sumsByKey = new LinkedHashMap<>();
+		Map<String, List<AggRow>> byKey = new LinkedHashMap<>();
 		Map<String, String> labels = new LinkedHashMap<>();
-		for (AggRow r : rows) {
+		for (AggRow r : repo.findRowsBetween(start, end)) {
 			String key = keyOf(r, dim);
-			if (key == null)
-				continue;
-			ordersByKey.computeIfAbsent(key, k -> new HashSet<>()).add(r.orderId());
-			sumsByKey.computeIfAbsent(key, k -> new long[2]);
-			sumsByKey.get(key)[0] += r.settlementAmount();
-			sumsByKey.get(key)[1] += r.profit();
+			byKey.computeIfAbsent(key, k -> new ArrayList<>()).add(r);
 			labels.putIfAbsent(key, labelOf(r, dim, key));
 		}
-		List<BreakdownItem> items = ordersByKey.keySet().stream()
-			.map(k -> new BreakdownItem(k, labels.get(k), ordersByKey.get(k).size(),
-				sumsByKey.get(k)[0], sumsByKey.get(k)[1]))
+		List<BreakdownItem> items = byKey.entrySet().stream()
+			.map(e -> {
+				Totals t = Totals.of(e.getValue());
+				int count = CLAIM.equals(e.getKey())
+					? (int)e.getValue().stream().map(AggRow::orderId).distinct().count()
+					: t.orderCount;
+				return new BreakdownItem(e.getKey(), labels.get(e.getKey()), count, t.settlement, t.profit);
+			})
 			.sorted((a, b) -> Integer.compare(b.orderCount(), a.orderCount()))
 			.collect(Collectors.toList());
 		return limit > 0 && items.size() > limit ? items.subList(0, limit) : items;
@@ -104,19 +90,58 @@ public class DashboardService {
 			repo.countCustomsIssue(CUSTOMS_ISSUES),
 			repo.countOutOfStock(),
 			repo.countDelayed(newBefore, preparingBefore),
-			repo.countByShippingStatusIn(List.of(ShippingStatus.CANCELED, ShippingStatus.RETURNED)));
+			repo.countActiveClaimsInStages(List.of(ClaimStage.REQUESTED, ClaimStage.IN_PROGRESS)));
+	}
+
+	private static final class Totals {
+		int orderCount;
+		int returnCount;
+		int unsourcedCount;
+		long settlement;
+		long profit;
+		long returnProfit;
+		long unsourcedSettlement;
+
+		static Totals of(List<AggRow> rows) {
+			Totals t = new Totals();
+			Set<Long> normalOrders = new HashSet<>();
+			Set<Long> returnOrders = new HashSet<>();
+			for (AggRow r : rows) {
+				if (r.canceled())
+					continue;
+				(r.returned() ? returnOrders : normalOrders).add(r.orderId());
+				t.settlement += r.settlementAmount();
+				if (!r.sourced()) {
+					t.unsourcedCount++;
+					t.unsourcedSettlement += r.settlementAmount();
+					continue;
+				}
+				t.profit += r.profit();
+				if (r.returned())
+					t.returnProfit += r.profit();
+			}
+			returnOrders.removeAll(normalOrders);
+			t.orderCount = normalOrders.size();
+			t.returnCount = returnOrders.size();
+			return t;
+		}
 	}
 
 	private String keyOf(AggRow r, Dimension dim) {
-		return switch (dim) {
+		String key = switch (dim) {
 			case MARKET -> r.marketType() == null ? null : r.marketType().name();
-			case STATUS -> r.shippingStatus() == null ? null : r.shippingStatus().name();
+			case STATUS -> r.claimLine() ? CLAIM : r.shippingStatus() == null ? null : r.shippingStatus().name();
 			case PRODUCT -> r.sbCode();
 			case VENDOR -> r.sourcingVendor();
 		};
+		return key == null || key.isBlank() ? UNASSIGNED : key;
 	}
 
 	private String labelOf(AggRow r, Dimension dim, String key) {
+		if (UNASSIGNED.equals(key))
+			return "미지정";
+		if (CLAIM.equals(key))
+			return "취소·반품·교환";
 		return switch (dim) {
 			case MARKET -> {
 				try {

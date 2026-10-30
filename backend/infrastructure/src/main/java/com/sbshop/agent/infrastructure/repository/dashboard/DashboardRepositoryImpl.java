@@ -6,14 +6,18 @@ import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.sbshop.agent.core.application.dashboard.dto.DashboardDtos.AggRow;
+import com.sbshop.agent.core.domain.common.RecordStatus;
 import com.sbshop.agent.core.domain.dashboard.DashboardRepository;
 import com.sbshop.agent.core.domain.order.QOrderLineItem;
+import com.sbshop.agent.core.domain.order.enums.ClaimStage;
+import com.sbshop.agent.core.domain.order.enums.ClaimType;
 import com.sbshop.agent.core.domain.order.enums.CustomsStatus;
 import com.sbshop.agent.core.domain.order.enums.ShippingStatus;
 import com.sbshop.agent.core.domain.product.QProduct;
 import com.sbshop.agent.core.domain.product.enums.StockStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -21,6 +25,11 @@ import org.springframework.stereotype.Repository;
 @Repository
 @RequiredArgsConstructor
 public class DashboardRepositoryImpl implements DashboardRepository {
+
+	private static final List<ClaimType> ACTIVE_CLAIM_TYPES =
+		Arrays.stream(ClaimType.values()).filter(ClaimType::isActive).toList();
+	private static final List<ClaimStage> ACTIVE_CLAIM_STAGES =
+		Arrays.stream(ClaimStage.values()).filter(ClaimStage::isActive).toList();
 
 	private final JPAQueryFactory queryFactory;
 
@@ -30,18 +39,18 @@ public class DashboardRepositoryImpl implements DashboardRepository {
 		QProduct p = QProduct.product;
 		List<Tuple> rows = queryFactory
 			.select(order.id, order.orderDate, order.marketType,
-				li.shippingData.shippingStatus,
+				li.shippingData.shippingStatus, li.claimData.claimType, li.claimData.claimStage,
 				li.settlementData.settlementAmount, li.sourcingData.sourcingAmount,
 				li.sourcingData.logisticsCost, li.productId,
 				p.sbCode, p.productName, li.sourcingData.sourcingVendor, p.stockStatus)
 			.from(order)
 			.join(li).on(li.orderId.eq(order.id))
 			.leftJoin(p).on(p.id.eq(li.productId))
-			.where(order.orderDate.goe(start), order.orderDate.loe(end))
+			.where(order.orderDate.goe(start), order.orderDate.loe(end), active(li))
 			.fetch();
 		return rows.stream().map(t -> new AggRow(
 			t.get(order.id), t.get(order.orderDate), t.get(order.marketType),
-			t.get(li.shippingData.shippingStatus),
+			t.get(li.shippingData.shippingStatus), t.get(li.claimData.claimType), t.get(li.claimData.claimStage),
 			toLong(t.get(li.settlementData.settlementAmount)),
 			toLong(t.get(li.sourcingData.sourcingAmount)),
 			toLong(t.get(li.sourcingData.logisticsCost)),
@@ -55,14 +64,14 @@ public class DashboardRepositoryImpl implements DashboardRepository {
 		QOrderLineItem li = QOrderLineItem.orderLineItem;
 		Long c = queryFactory.select(order.id.countDistinct())
 			.from(order).join(li).on(li.orderId.eq(order.id))
-			.where(li.shippingData.shippingStatus.in(statuses)).fetchOne();
+			.where(li.shippingData.shippingStatus.in(statuses), active(li), noActiveClaim(li)).fetchOne();
 		return c == null ? 0 : c.intValue();
 	}
 
 	@Override
 	public int countCustomsIssue(List<CustomsStatus> statuses) {
 		Long c = queryFactory.select(order.id.countDistinct()).from(order)
-			.where(order.customsData.customsStatus.in(statuses)).fetchOne();
+			.where(order.customsData.customsStatus.in(statuses), order.status.eq(RecordStatus.ACTIVE)).fetchOne();
 		return c == null ? 0 : c.intValue();
 	}
 
@@ -75,7 +84,7 @@ public class DashboardRepositoryImpl implements DashboardRepository {
 		Long c = queryFactory.select(order.id.countDistinct()).from(order)
 			.join(li).on(li.orderId.eq(order.id))
 			.join(p).on(p.id.eq(li.productId))
-			.where(open, p.stockStatus.eq(StockStatus.OUT_OF_STOCK)).fetchOne();
+			.where(open, p.stockStatus.eq(StockStatus.OUT_OF_STOCK), active(li), noActiveClaim(li)).fetchOne();
 		return c == null ? 0 : c.intValue();
 	}
 
@@ -87,8 +96,30 @@ public class DashboardRepositoryImpl implements DashboardRepository {
 			.or(li.shippingData.shippingStatus.eq(ShippingStatus.PREPARING)
 				.and(order.orderDate.loe(preparingOnOrBefore)));
 		Long c = queryFactory.select(order.id.countDistinct()).from(order)
-			.join(li).on(li.orderId.eq(order.id)).where(delayed).fetchOne();
+			.join(li).on(li.orderId.eq(order.id)).where(delayed, active(li), noActiveClaim(li)).fetchOne();
 		return c == null ? 0 : c.intValue();
+	}
+
+	@Override
+	public int countActiveClaimsInStages(List<ClaimStage> stages) {
+		QOrderLineItem li = QOrderLineItem.orderLineItem;
+		Long c = queryFactory.select(order.id.countDistinct()).from(order)
+			.join(li).on(li.orderId.eq(order.id))
+			.where(li.claimData.claimType.in(ACTIVE_CLAIM_TYPES),
+				li.claimData.claimStage.in(stages.stream().filter(ClaimStage::isActive).toList()), active(li))
+			.fetchOne();
+		return c == null ? 0 : c.intValue();
+	}
+
+	private static BooleanExpression active(QOrderLineItem li) {
+		return order.status.eq(RecordStatus.ACTIVE).and(li.status.eq(RecordStatus.ACTIVE));
+	}
+
+	private static BooleanExpression noActiveClaim(QOrderLineItem li) {
+		return li.claimData.claimType.isNull()
+			.or(li.claimData.claimType.notIn(ACTIVE_CLAIM_TYPES))
+			.or(li.claimData.claimStage.isNull())
+			.or(li.claimData.claimStage.notIn(ACTIVE_CLAIM_STAGES));
 	}
 
 	private static long toLong(BigDecimal n) {

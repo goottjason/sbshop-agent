@@ -8,11 +8,11 @@ export function KpiCards({ data, range }: { data?: Summary; range: { start: stri
   const won = (n?: number) => (n == null ? '-' : `${n.toLocaleString()}원`);
   const num = (n?: number) => (n == null ? '-' : n.toLocaleString());
   const cards = [
-    { title: '주문 수', value: num(data?.period.orderCount), onClick: () => nav(buildOrderGridUrl({ startDate: d0, endDate: d1 })) },
+    { title: '주문 수', value: num(data?.period.orderCount), sub: data?.period.returnCount ? `반품 ${num(data.period.returnCount)}건 별도${data.period.returnProfit ? `(손익 ${won(data.period.returnProfit)})` : ''}` : undefined, onClick: () => nav(buildOrderGridUrl({ startDate: d0, endDate: d1 })) },
     { title: '정산금액', value: won(data?.period.settlementSum), onClick: () => nav(buildOrderGridUrl({ startDate: d0, endDate: d1 })) },
-    { title: '순수익', value: won(data?.period.profitSum), sub: '실구매가 입력 기준', onClick: () => nav(buildOrderGridUrl({ startDate: d0, endDate: d1 })) },
-    { title: '미발주', value: num(data?.current.newCount), onClick: () => nav(buildOrderGridUrl({ statuses: ['NEW'] })) },
-    { title: '배송중', value: num(data?.current.shippingCount), onClick: () => nav(buildOrderGridUrl({ statuses: ['DISPATCHED', 'SHIPPED'] })) },
+    { title: '순수익', value: won(data?.period.profitSum), sub: data?.period.unsourcedCount ? `원가 미입력 ${num(data.period.unsourcedCount)}건(정산 ${won(data.period.unsourcedSettlement)}) 제외` : '실구매가 입력 기준', onClick: () => nav(buildOrderGridUrl({ startDate: d0, endDate: d1 })) },
+    { title: '미발주', value: num(data?.current.newCount), onClick: () => nav(buildOrderGridUrl({ statuses: ['NEW'], claimTypes: ['NONE'] })) },
+    { title: '배송중', value: num(data?.current.shippingCount), onClick: () => nav(buildOrderGridUrl({ statuses: ['DISPATCHED', 'SHIPPED'], claimTypes: ['NONE'] })) },
     { title: '통관오류', value: num(data?.current.customsIssueCount), onClick: () => nav(buildOrderGridUrl({ customsStatuses: ['PENDING', 'INVALID_PCCC', 'INVALID_PHONE', 'INVALID_ZIPCODE'] })) },
   ];
   const periodText = `${d0.slice(5).replace('-', '/')}~${d1.slice(5).replace('-', '/')}`;

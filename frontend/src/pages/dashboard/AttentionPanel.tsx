@@ -10,9 +10,9 @@ export function AttentionPanel({ data }: { data?: Attention }) {
   const nav = useNavigate();
   const rows = [
     { label: '통관 오류/대기', v: data?.customsIssue, to: buildOrderGridUrl({ customsStatuses: CUSTOMS }) },
-    { label: '재고부족(품절) 주문', v: data?.outOfStock, to: buildOrderGridUrl({ stockStatuses: ['OUT_OF_STOCK'], statuses: ['NEW', 'PREPARING', 'DISPATCHED'] }) },
-    { label: '배송/처리 지연(미발주 1일+)', v: data?.delayed, to: buildOrderGridUrl({ statuses: ['NEW'], endDate: todayMinus(1) }) },
-    { label: '반품/취소', v: data?.returnCancel, to: buildOrderGridUrl({ statuses: ['CANCELED', 'RETURNED'] }) },
+    { label: '재고부족(품절) 주문', v: data?.outOfStock, to: buildOrderGridUrl({ stockStatuses: ['OUT_OF_STOCK'], statuses: ['NEW', 'PREPARING', 'DISPATCHED'], claimTypes: ['NONE'] }) },
+    { label: '배송/처리 지연(미발주 1일+)', v: data?.delayed, to: buildOrderGridUrl({ statuses: ['NEW'], claimTypes: ['NONE'], endDate: todayMinus(1) }) },
+    { label: '진행 중 클레임(취소·반품·교환)', v: data?.returnCancel, to: buildOrderGridUrl({ claimTypes: ['CANCEL', 'RETURN', 'EXCHANGE'] }) },
   ];
   return (
     <div className="card">

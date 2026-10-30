@@ -4,7 +4,10 @@ export type Unit = 'DAY' | 'WEEK' | 'MONTH';
 export type Dimension = 'MARKET' | 'STATUS' | 'PRODUCT' | 'VENDOR';
 
 export interface Summary {
-  period: { orderCount: number; settlementSum: number; profitSum: number };
+  period: {
+    orderCount: number; settlementSum: number; profitSum: number;
+    returnCount: number; returnProfit: number; unsourcedCount: number; unsourcedSettlement: number;
+  };
   current: { newCount: number; shippingCount: number; customsIssueCount: number };
 }
 export interface TimeseriesBucket { bucketStart: string; orderCount: number; settlementSum: number; profitSum: number; }
