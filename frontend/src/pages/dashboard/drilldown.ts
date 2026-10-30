@@ -1,3 +1,7 @@
+import { ALL_STATUSES } from '../order/constants';
+
+export const EVERY_SHIPPING_STATUS = [...ALL_STATUSES, 'CANCELED', 'RETURNED', 'EXCHANGED'];
+
 export interface DrilldownFilters {
   markets?: string[];
   statuses?: string[];
@@ -5,6 +9,7 @@ export interface DrilldownFilters {
   stockStatuses?: string[];
   vendors?: string[];
   claimTypes?: string[];
+  claimStages?: string[];
   keyword?: string;
   startDate?: string;
   endDate?: string;
@@ -18,6 +23,7 @@ export function buildOrderGridUrl(f: DrilldownFilters): string {
   f.stockStatuses?.forEach((s) => p.append('stockStatuses', s));
   f.vendors?.forEach((v) => p.append('vendors', v));
   f.claimTypes?.forEach((c) => p.append('claimTypes', c));
+  f.claimStages?.forEach((c) => p.append('claimStages', c));
   if (f.keyword) p.set('keyword', f.keyword);
   if (f.startDate) p.set('startDate', f.startDate);
   if (f.endDate) p.set('endDate', f.endDate);

@@ -1,9 +1,9 @@
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import type { PieSectorDataItem, MouseHandlerDataParam } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import type { PieSectorDataItem } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { fetchBreakdown, type Dimension } from './dashboardApi';
-import { buildOrderGridUrl, type DrilldownFilters } from './drilldown';
+import { buildOrderGridUrl, EVERY_SHIPPING_STATUS, type DrilldownFilters } from './drilldown';
 
 const MARKET_COLOR: Record<string, string> = {
   COUPANG: '#c2185b', SMART_STORE: '#689f38', ELEVEN_STREET: '#1565c0',
@@ -14,6 +14,29 @@ const STATUS_LABEL: Record<string, string> = {
   DELIVERED: '배송완료', CONFIRMED: '구매확정', CANCELED: '취소', RETURNED: '반품', EXCHANGED: '교환', UNKNOWN: '알수없음',
   CLAIM: '취소·반품·교환', UNASSIGNED: '미지정',
 };
+
+interface RankItem { key: string; label: string; orderCount: number; }
+
+function RankList({ items, color, onSelect }: { items: RankItem[]; color: string; onSelect: (it: RankItem) => void }) {
+  const max = Math.max(1, ...items.map((it) => it.orderCount));
+  if (items.length === 0) return <div className="dash-empty">데이터 없음</div>;
+  return (
+    <ol className="dash-rank">
+      {items.map((it, i) => {
+        const clickable = it.key !== 'UNASSIGNED';
+        return (
+          <li key={it.key} data-rank-row className={clickable ? 'clickable' : undefined}
+            onClick={clickable ? () => onSelect(it) : undefined}>
+            <span className="dash-rank-no">{i + 1}</span>
+            <span className="dash-rank-name" title={it.label}>{it.label}</span>
+            <span className="dash-rank-bar"><span style={{ width: `${(it.orderCount / max) * 100}%`, background: color }} /></span>
+            <span className="dash-rank-count">{it.orderCount.toLocaleString()}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 export function BreakdownPanels({ range }: { range: { start: string; end: string } }) {
   const nav = useNavigate();
@@ -35,69 +58,44 @@ export function BreakdownPanels({ range }: { range: { start: string; end: string
     if (key) go({ markets: [key] });
   };
 
-  const onStatusClick = (state: MouseHandlerDataParam) => {
-    const label = state?.activeLabel;
-    const it = statusRows.find((x) => x.label === label);
-    if (!it || it.key === 'UNASSIGNED') return;
-    go(it.key === 'CLAIM' ? { claimTypes: ['CANCEL', 'RETURN', 'EXCHANGE'] } : { statuses: [it.key], claimTypes: ['NONE'] });
-  };
-  const onProductClick = (state: MouseHandlerDataParam) => {
-    const label = state?.activeLabel;
-    const it = (product.data ?? []).find((x) => x.label === label);
-    if (it && it.key !== 'UNASSIGNED') go({ keyword: it.key });
-  };
-  const onVendorClick = (state: MouseHandlerDataParam) => {
-    const label = state?.activeLabel;
-    const it = (vendor.data ?? []).find((x) => x.label === label);
-    if (it && it.key !== 'UNASSIGNED') go({ vendors: [it.key] });
-  };
-
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-      <div className="card">
+    <div className="dash-breakdown">
+      <div className="card dash-panel">
         <div className="card-title">마켓별</div>
-        <ResponsiveContainer width="100%" height={220}>
-          <PieChart>
-            <Pie data={market.data ?? []} dataKey="orderCount" nameKey="label" innerRadius={50} outerRadius={80}
-              onClick={onMarketClick}>
-              {(market.data ?? []).map((it) => <Cell key={it.key} fill={MARKET_COLOR[it.key] ?? '#9ca3af'} />)}
-            </Pie>
-            <Tooltip formatter={(v) => `${Number(v)}건`} />
-          </PieChart>
-        </ResponsiveContainer>
+        <div className="dash-panel-body">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={market.data ?? []} dataKey="orderCount" nameKey="label" innerRadius="45%" outerRadius="80%"
+                onClick={onMarketClick}>
+                {(market.data ?? []).map((it) => <Cell key={it.key} fill={MARKET_COLOR[it.key] ?? '#9ca3af'} cursor="pointer" />)}
+              </Pie>
+              <Tooltip formatter={(v) => `${Number(v)}건`} />
+              <Legend layout="vertical" align="right" verticalAlign="middle" iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
-      <div className="card">
+      <div className="card dash-panel">
         <div className="card-title">주문상태</div>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={statusRows} onClick={onStatusClick}>
-            <XAxis dataKey="label" fontSize={11} /><YAxis fontSize={11} />
-            <Tooltip formatter={(v) => `${Number(v)}건`} />
-            <Bar dataKey="orderCount" fill="#93c5fd" radius={[3, 3, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="dash-panel-body">
+          <RankList items={statusRows} color="#93c5fd"
+            onSelect={(it) => go(it.key === 'CLAIM' ? { statuses: EVERY_SHIPPING_STATUS, claimTypes: ['CANCEL', 'RETURN', 'EXCHANGE'], claimStages: ['REQUESTED', 'IN_PROGRESS', 'DONE'] } : { statuses: [it.key], claimTypes: ['NONE'] })} />
+        </div>
       </div>
 
-      <div className="card">
+      <div className="card dash-panel">
         <div className="card-title">상품 Top 10</div>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart layout="vertical" data={product.data ?? []} onClick={onProductClick}>
-            <XAxis type="number" fontSize={11} /><YAxis type="category" dataKey="label" width={120} fontSize={10} />
-            <Tooltip formatter={(v) => `${Number(v)}건`} />
-            <Bar dataKey="orderCount" fill="#a7f3d0" radius={[0, 3, 3, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="dash-panel-body">
+          <RankList items={product.data ?? []} color="#6ee7b7" onSelect={(it) => go({ keyword: it.key })} />
+        </div>
       </div>
 
-      <div className="card">
+      <div className="card dash-panel">
         <div className="card-title">소싱처별</div>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart layout="vertical" data={vendor.data ?? []} onClick={onVendorClick}>
-            <XAxis type="number" fontSize={11} /><YAxis type="category" dataKey="label" width={80} fontSize={11} />
-            <Tooltip formatter={(v) => `${Number(v)}건`} />
-            <Bar dataKey="orderCount" fill="#fde68a" radius={[0, 3, 3, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="dash-panel-body">
+          <RankList items={vendor.data ?? []} color="#fcd34d" onSelect={(it) => go({ vendors: [it.key] })} />
+        </div>
       </div>
     </div>
   );

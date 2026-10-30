@@ -12,7 +12,12 @@ export interface Summary {
 }
 export interface TimeseriesBucket { bucketStart: string; orderCount: number; settlementSum: number; profitSum: number; }
 interface BreakdownItem { key: string; label: string; orderCount: number; settlementSum: number; profitSum: number; }
-export interface Attention { customsIssue: number; outOfStock: number; delayed: number; returnCancel: number; }
+export interface Attention {
+  customsIssue: number; outOfStock: number;
+  newDelayed: number; newDelayedThrough: string;
+  preparingDelayed: number; preparingDelayedThrough: string;
+  returnCancel: number;
+}
 
 const iso = (d: string) => d;
 

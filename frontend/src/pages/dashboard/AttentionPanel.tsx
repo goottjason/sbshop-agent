@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import type { Attention } from './dashboardApi';
-import { buildOrderGridUrl } from './drilldown';
+import { buildOrderGridUrl, EVERY_SHIPPING_STATUS } from './drilldown';
 import { kstDateStringOffset } from '../../utils/datetime';
 
 const CUSTOMS = ['PENDING', 'INVALID_PCCC', 'INVALID_PHONE', 'INVALID_ZIPCODE'];
@@ -11,8 +11,9 @@ export function AttentionPanel({ data }: { data?: Attention }) {
   const rows = [
     { label: '통관 오류/대기', v: data?.customsIssue, to: buildOrderGridUrl({ customsStatuses: CUSTOMS }) },
     { label: '재고부족(품절) 주문', v: data?.outOfStock, to: buildOrderGridUrl({ stockStatuses: ['OUT_OF_STOCK'], statuses: ['NEW', 'PREPARING', 'DISPATCHED'], claimTypes: ['NONE'] }) },
-    { label: '배송/처리 지연(미발주 1일+)', v: data?.delayed, to: buildOrderGridUrl({ statuses: ['NEW'], claimTypes: ['NONE'], endDate: todayMinus(1) }) },
-    { label: '진행 중 클레임(취소·반품·교환)', v: data?.returnCancel, to: buildOrderGridUrl({ claimTypes: ['CANCEL', 'RETURN', 'EXCHANGE'] }) },
+    { label: '결제완료 1일+ 미처리', v: data?.newDelayed, to: buildOrderGridUrl({ statuses: ['NEW'], claimTypes: ['NONE'], endDate: data?.newDelayedThrough ?? todayMinus(1) }) },
+    { label: '구매준비 3일+ 미발송', v: data?.preparingDelayed, to: buildOrderGridUrl({ statuses: ['PREPARING'], claimTypes: ['NONE'], endDate: data?.preparingDelayedThrough ?? todayMinus(3) }) },
+    { label: '진행 중 클레임(취소·반품·교환)', v: data?.returnCancel, to: buildOrderGridUrl({ statuses: EVERY_SHIPPING_STATUS, claimTypes: ['CANCEL', 'RETURN', 'EXCHANGE'], claimStages: ['REQUESTED', 'IN_PROGRESS'] }) },
   ];
   return (
     <div className="card">

@@ -6675,7 +6675,13 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 라이브 실측(2026-10-30): 지연 카드 8건 = 전부 PREPARING 3일 초과(NEW 1일 초과 0건)인데 라벨은 "미발주 1일+", 클릭 시 그리드 statuses=NEW&claimTypes=NONE&endDate → 0건. 배치 D에서 라벨·드릴다운을 NEW/PREPARING 둘로 분리 필요
 - 별건 후보: 11번가 주문일 시각 없음(00:00), `ElevenstOrderAdapter.extractOrderDate`·`Cafe24OrderSyncService.parseDate` 폴백 now()가 UTC
 - 부분 수정: attention 기준 시각 LocalDateTime.now(Asia/Seoul)(DashboardControllerAttentionClockTest). 드릴다운 정합은 배치 D
-- 상태: 부분 수정(검증통과) · 잔여 발견
+- 수정(배치 D1): ① 지연을 두 행으로 분리 — "결제완료 1일+ 미처리"(NEW)·"구매준비 3일+ 미발송"(PREPARING). AttentionResponse `delayed` → `newDelayed·newDelayedThrough·preparingDelayed·preparingDelayedThrough`(through=KST 날짜). 기준은 시각(now−N일)이 아니라 날짜: 주문일 ≤ (오늘−N)일 23:59:59 — 그리드 endDate가 그날 23:59:59 포함이라 같은 경계를 그대로 쓰고, 드릴다운은 서버가 센 through 날짜를 endDate로 받아 자정 전후에도 같은 날짜로 연다. `countDelayed(status, orderedOnOrBefore)` ② 주문 검색에 `claimStages`(반복 파라미터) 추가. 배송상태·클레임 타입·클레임 단계를 한 라인 EXISTS로 묶어 같은 라인에서 함께 맞아야 통과(타입은 라인 A·단계는 라인 B로 통과하던 경로 제거). 진행 중 클레임 카드 → statuses=전 배송상태(취소됨·반품됨·교환됨 포함)·claimTypes=CANCEL·RETURN·EXCHANGE·claimStages=REQUESTED·IN_PROGRESS. OrderGrid가 URL claimStages를 읽어 조회에 넘김 ③ 그리드 claimTypes=NONE = "활성 클레임 아님"(ClaimData.isActive 기준: 타입/단계 NULL·NONE·REJECTED 포함)으로 대시보드와 일치. claimTypes=CANCEL 등 단독 사용은 기존과 같다(단계 무관)
+- Red→Green: DashboardDrilldownParityPostgresTest 4(카드 수 = 그리드 드릴다운 주문 집합 — 결제완료·구매준비·진행 중 클레임, claimTypes 단독 기존 동작), DashboardServiceTest.attentionAssembles(날짜 경계), dashboardCards.test.tsx AttentionPanel 4, orderGridUrlFilters.test.tsx 2, fetchOrdersParams.test.ts 1. Red 실측: 경계 23:59:59·전날 밤 주문이 카운트/그리드에서 엇갈림, NONE이 거부·NULL 클레임 주문을 놓치고 다른 라인 NONE으로 활성 클레임 주문을 통과, 클레임 드릴다운에 DONE·REJECTED·교차 라인 주문 포함
+- 운영 기대값(2026-10-30 22:10 KST, 읽기 전용 SELECT): 결제완료 1일+ 0(through 10-29)·구매준비 3일+ 8(through 10-27, 옛 기준과 같은 8)·진행 중 클레임 0(옛 드릴다운은 DONE 포함 15건을 열었음 → 0). 기본 그리드(전 기간·NONE) 398 → 398(현재 REJECTED·NULL 클레임 라인 0, 다중 라인 주문 2건)
+- 영향: statuses와 claimTypes를 함께 쓴 그리드 조회는 "같은 라인" 의미로 좁아진다 — 차이는 다중 라인 주문에서만(현재 2건). 대시보드 BreakdownPanels CLAIM 막대 드릴다운(claimTypes만·기본 배송상태)은 손대지 않았다
+- 잔여 후보: (가) 그리드는 주문·라인 status=ACTIVE를 거르지 않음(대시보드는 거름) — 현재 비ACTIVE 0건·주문 보관 코드 경로 없음 (나) 품절 카드 드릴다운의 stockStatuses는 별도 EXISTS라 다중 라인 주문에서 배송상태·클레임과 다른 라인으로 통과 가능
+- 검증: qa-verifier PASS(_workspace/verify/D-357_359_verify.md), 백엔드 전체·프론트 94건·빌드 회귀 통과. 운영 대사 결제완료 지연 0·구매준비 지연 8·진행 중 클레임 0(이전 드릴다운 15)·기본 그리드 398=398
+- 상태: 검증통과(배포 대기)
 
 ### D-358 — 카페24에서 삭제된 상품의 G마켓 리스팅이 판매중으로 남아 주문이 미매핑 (2026-10-30, 사용자 제보)
 - 심각도: P2 | 리스크: 운영 조치(코드 아님) | 사례: 주문 id 718(G마켓 4509718290), 라인 953
@@ -6683,3 +6689,12 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 전수 대조(ESM 3,353 리스팅 vs sb_product 3,195): sb에 없는 판매자코드 15건, 그중 판매중은 이 1건(나머지 14건 판매중지)
 - 조치 대기(사용자 결정): (가) 상품 재등록 후 마켓플러스로 정상 리스팅·이 리스팅 판매중지 / (나) 이 리스팅만 판매중지. 해당 주문은 수동 처리
 - 상태: 발견
+
+### D-359 — 대시보드 기간 단위 KPI·한 화면 레이아웃·Top10 겹침 (2026-10-30, 사용자 요청)
+- 심각도: P2 | 리스크: 표준(프론트 전용, 백엔드 API 그대로) | 위치: `Dashboard.tsx`, `dashboard/period.ts`·`PeriodControl`·`KpiCards`·`TrendChart`·`BreakdownPanels`, 신규 `dashboard/dashboard.css`
+- 증상: 일별·주별·월별을 바꿔도 카드는 항상 한 달 합계, 직전 기간 비교 없음, 현재값(미발주·배송중·통관오류)과 기간값 구분 없음, 2000×1100에서도 세로 스크롤(카드 5+1 줄바꿈·차트 340px·하단 패널 밀림), 상품 Top 10 Y축 상품명이 줄바꿈되며 겹침
+- 수정: 기간 모델을 {unit, anchor(KST 날짜)}로 교체. 일=그날, 주=월~일, 월=그 달, ‹ ›는 단위만큼 이동(월 이동은 말일 보정), 다음 기간이 오늘 이후면 › 비활성, 오늘/이번 주/이번 달 버튼. 단위 전환은 anchor를 유지해 선택일이 속한 주/달로. 라벨 `2026-10-30(금)`·`2026-10-26~11-01`(연도 경계는 끝에도 연도)·`2026년 10월`. 직전 기간 summary를 한 번 더 조회해 기간 카드 3개에 "전일/전주/전월 대비 +N·±원" 표시, 현재 3개는 "현재 (기간 무관)" 점선 묶음. 차트는 선택 기간까지 30일/12주(월요일 시작)/12개월, 선택 칸 강조, 막대 클릭=그 기간 선택(그리드 이동 제거), 카드 클릭 그리드 이동은 선택 기간 날짜로 유지. 분해 4패널은 선택 기간으로 집계, 주문상태·상품 Top 10·소싱처는 순위 리스트(순위·한 줄 말줄임+title·비율 바·건수)로 교체, 클릭 드릴다운 유지. 레이아웃은 제목+기간 한 줄 → 카드 6개 한 줄 → 차트 2/3+문제/이상 1/3 → 분해 4패널, 높이는 뷰포트 기준, 1280px 이하 2열·1100px 이하 1열로 줄바꿈(세로 스크롤만)
+- 테스트: period.test.ts(기본값·이동·단위 전환·주 경계·연도 경계·윤년·직전 기간·차트 범위·강조 버킷·라벨), kpiPeriod.test.tsx(증감 표시·현재 묶음·카드 드릴다운), breakdownRank.test.tsx(선택 기간 조회·말줄임+title·상품/소싱처/상태 드릴다운). 레이아웃은 로컬 vite 하네스(가짜 API) + headless Chrome으로 확인: 2000×1100·1440×900 세로·가로 스크롤 없음, 1024·600 폭은 세로 스크롤만
+- 후속(2026-10-30, 판정 D-357_359_verify F-1·F-2): F-1 › 이동·단위 전환 시 anchor를 오늘로 자름(`clampToToday`), 오늘/이번 주/이번 달 버튼은 선택 기간이 오늘을 포함하지 않으면 항상 활성(`includesToday`), PeriodControl `today` 주입(periodFuture.test.tsx). F-2 주문상태 CLAIM 드릴다운을 statuses=배송상태 10종 전부(`drilldown.EVERY_SHIPPING_STATUS`로 AttentionPanel과 공유)·claimTypes C/R/E·claimStages REQUESTED/IN_PROGRESS/DONE·선택 기간으로(breakdownRank.test.tsx URL 고정). tsc·eslint·vitest 16파일 102테스트 통과
+- 검증: qa-verifier PASS(F-1·F-2 후속 반영), 프론트 tsc·vitest 102·node·build 통과. 잔여 후보 F-3(기존 동작): 기간 KPI 카드 클릭은 날짜만 넘겨 취소 주문도 그리드에 보인다(카드는 취소 제외)
+- 상태: 검증통과(배포 대기)

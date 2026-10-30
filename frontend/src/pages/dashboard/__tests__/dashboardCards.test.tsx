@@ -52,12 +52,39 @@ describe('KpiCards', () => {
 });
 
 describe('AttentionPanel', () => {
-  const attention: Attention = { customsIssue: 0, outOfStock: 0, delayed: 1, returnCancel: 3 };
+  const attention: Attention = {
+    customsIssue: 0, outOfStock: 0,
+    newDelayed: 2, newDelayedThrough: '2026-10-29',
+    preparingDelayed: 8, preparingDelayedThrough: '2026-10-27',
+    returnCancel: 3,
+  };
 
-  it('클레임 행은 진행 중 클레임 수를 보여주고 클레임 주문 그리드로 이동한다', () => {
+  it('지연을 결제완료·구매준비 두 줄로 나눠 각 건수를 보여준다', () => {
+    renderAt(<AttentionPanel data={attention} />);
+    expect(screen.getByText('결제완료 1일+ 미처리').nextSibling?.textContent).toBe('2건');
+    expect(screen.getByText('구매준비 3일+ 미발송').nextSibling?.textContent).toBe('8건');
+  });
+
+  it('결제완료 지연 행은 서버가 센 날짜 경계까지의 결제완료 주문을 연다', () => {
+    renderAt(<AttentionPanel data={attention} />);
+    fireEvent.click(screen.getByText('결제완료 1일+ 미처리'));
+    expect(screen.getByTestId('loc').textContent).toBe('/orders?statuses=NEW&claimTypes=NONE&endDate=2026-10-29');
+  });
+
+  it('구매준비 지연 행은 서버가 센 날짜 경계까지의 구매준비 주문을 연다', () => {
+    renderAt(<AttentionPanel data={attention} />);
+    fireEvent.click(screen.getByText('구매준비 3일+ 미발송'));
+    expect(screen.getByTestId('loc').textContent).toBe('/orders?statuses=PREPARING&claimTypes=NONE&endDate=2026-10-27');
+  });
+
+  it('클레임 행은 요청·처리중 단계의 클레임 주문만 연다', () => {
     renderAt(<AttentionPanel data={attention} />);
     fireEvent.click(screen.getByText('진행 중 클레임(취소·반품·교환)'));
-    expect(screen.getByTestId('loc').textContent)
-      .toBe('/orders?claimTypes=CANCEL&claimTypes=RETURN&claimTypes=EXCHANGE');
+    const all = ['UNKNOWN', 'NEW', 'PREPARING', 'DISPATCHED', 'SHIPPED', 'DELIVERED', 'CONFIRMED', 'CANCELED', 'RETURNED', 'EXCHANGED'];
+    expect(screen.getByTestId('loc').textContent).toBe('/orders?' + [
+      ...all.map((s) => `statuses=${s}`),
+      'claimTypes=CANCEL', 'claimTypes=RETURN', 'claimTypes=EXCHANGE',
+      'claimStages=REQUESTED', 'claimStages=IN_PROGRESS',
+    ].join('&'));
   });
 });
