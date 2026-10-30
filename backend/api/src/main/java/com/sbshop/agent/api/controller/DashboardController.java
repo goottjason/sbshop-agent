@@ -8,6 +8,7 @@ import com.sbshop.agent.core.application.dashboard.dto.DashboardDtos.SummaryResp
 import com.sbshop.agent.core.application.dashboard.dto.DashboardDtos.TimeseriesBucket;
 import com.sbshop.agent.core.application.dashboard.dto.DashboardDtos.Unit;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -60,6 +61,6 @@ public class DashboardController {
 
 	@GetMapping("/attention")
 	public AttentionResponse attention() {
-		return dashboardService.attention(LocalDateTime.now());
+		return dashboardService.attention(LocalDateTime.now(ZoneId.of("Asia/Seoul")));
 	}
 }

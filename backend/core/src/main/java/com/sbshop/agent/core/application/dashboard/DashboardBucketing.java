@@ -4,19 +4,15 @@ import com.sbshop.agent.core.application.dashboard.dto.DashboardDtos.Unit;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
 
 public final class DashboardBucketing {
-	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
-
 	private DashboardBucketing() {}
 
-	public static LocalDate bucketKey(LocalDateTime naiveUtc, Unit unit) {
-		LocalDate kst = naiveUtc.atZone(ZoneId.of("UTC")).withZoneSameInstant(KST).toLocalDate();
-		return floor(kst, unit);
+	public static LocalDate bucketKey(LocalDateTime kstOrderDate, Unit unit) {
+		return floor(kstOrderDate.toLocalDate(), unit);
 	}
 
 	public static List<LocalDate> bucketRange(LocalDateTime start, LocalDateTime end, Unit unit) {

@@ -12,12 +12,23 @@ import org.junit.jupiter.api.Test;
 class DashboardBucketingTest {
 
 	@Test
-	@DisplayName("DAY 버킷은 KST 날짜로 매핑(UTC+9 경계)")
-	void dayBucketUsesKst() {
+	@DisplayName("DAY 버킷은 주문일(KST 벽시계)의 날짜 그대로 — 시간대 환산 없음")
+	void dayBucketUsesKstWallClock() {
 		assertThat(DashboardBucketing.bucketKey(LocalDateTime.parse("2026-07-01T20:00:00"), Unit.DAY))
-			.isEqualTo(LocalDate.parse("2026-07-02"));
-		assertThat(DashboardBucketing.bucketKey(LocalDateTime.parse("2026-07-01T10:00:00"), Unit.DAY))
 			.isEqualTo(LocalDate.parse("2026-07-01"));
+		assertThat(DashboardBucketing.bucketKey(LocalDateTime.parse("2026-07-01T23:59:59"), Unit.DAY))
+			.isEqualTo(LocalDate.parse("2026-07-01"));
+		assertThat(DashboardBucketing.bucketKey(LocalDateTime.parse("2026-07-01T00:00:00"), Unit.DAY))
+			.isEqualTo(LocalDate.parse("2026-07-01"));
+	}
+
+	@Test
+	@DisplayName("일요일 밤 주문은 그 주, 말일 밤 주문은 그 달 버킷")
+	void lateNightStaysInSameWeekAndMonth() {
+		assertThat(DashboardBucketing.bucketKey(LocalDateTime.parse("2026-10-25T23:00:00"), Unit.WEEK))
+			.isEqualTo(LocalDate.parse("2026-10-19"));
+		assertThat(DashboardBucketing.bucketKey(LocalDateTime.parse("2026-10-31T23:00:00"), Unit.MONTH))
+			.isEqualTo(LocalDate.parse("2026-10-01"));
 	}
 
 	@Test

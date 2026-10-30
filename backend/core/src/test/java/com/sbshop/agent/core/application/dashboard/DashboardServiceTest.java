@@ -61,6 +61,18 @@ class DashboardServiceTest {
 	}
 
 	@Test
+	@DisplayName("timeseries DAY: 말일 밤 주문은 말일 버킷에 담기고 다음 달 버킷을 만들지 않는다")
+	void lateNightOrderStaysOnItsDay() {
+		when(repo.findRowsBetween(any(), any())).thenReturn(List.of(
+			row(1, "2026-10-31T20:00:00", MarketType.COUPANG, ShippingStatus.NEW, 10000, 0, 0, "A")));
+		List<TimeseriesBucket> ts = service.timeseries(
+			LocalDateTime.parse("2026-10-01T00:00:00"), LocalDateTime.parse("2026-10-31T23:59:59"), Unit.DAY);
+		assertThat(ts).hasSize(31);
+		assertThat(ts.get(30).bucketStart()).isEqualTo("2026-10-31");
+		assertThat(ts.get(30).orderCount()).isEqualTo(1);
+	}
+
+	@Test
 	@DisplayName("breakdown MARKET: 마켓별 distinct 주문수·합계, 라벨 한글")
 	void breakdownByMarket() {
 		when(repo.findRowsBetween(any(), any())).thenReturn(List.of(
