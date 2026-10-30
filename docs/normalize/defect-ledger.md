@@ -6623,12 +6623,14 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 심각도: P1 | 리스크: 표준 | 위치: `DashboardBucketing.bucketKey`, `DashboardBucketingTest.dayBucketUsesKst`(오가정을 정답으로 고정)
 - 실측: 2026-10 주문 101건 중 46건이 다른 날 버킷, 31일 중 23일 값 불일치. 15시 이후 주문 → 다음 날/주/달, 말일이면 범위 밖 버킷 추가
 - 수정: bucketKey가 order_date를 KST 벽시계 그대로 toLocalDate 후 floor(UTC 환산 제거). Red→Green: DashboardBucketingTest 2건(20시·23:59:59·일요일 밤·말일 밤) 교정/신설, DashboardServiceTest 말일 20시 → 31버킷 유지
-- 상태: 검증통과(배포 대기) — qa-verifier PASS, 백엔드 전체·프론트 회귀 통과
+- 라이브 검증(2026-10-30 21:3x KST, 배포 4e290cc8, Chrome 화면 + 화면이 받은 API 응답 대 운영 DB 정답 쿼리): 10월 DAY 31버킷·27일치 주문/정산/순수익 전부 일치, 11-01 버킷 없음
+- 상태: 검증통과(라이브 검증 완료)
 
 ### D-351 — 월별 모드에서 KPI·분해 패널이 12개월 합계 (제목은 한 달)
 - 심각도: P1 | 리스크: 표준 | 위치: `pages/dashboard/period.ts computeRange`, `Dashboard.tsx`
 - 수정: computeRange → {kpi, chart} 분리. KPI·분해 = 선택 달, 차트만 DAY=달/WEEK=겹치는 주 전체/MONTH=12개월. KPI 위 집계 기간 표시. period.test.ts 8건
-- 상태: 검증통과(배포 대기)
+- 라이브 검증(2026-10-30 21:3x KST, 배포 4e290cc8, Chrome 화면 + 화면이 받은 API 응답 대 운영 DB 정답 쿼리): 월별 탭 KPI 93(한 달) 유지·차트 2025.11~2026.10, 주별 5주(9/28~10/4…10/26~11/1) 주문/정산/순수익 전부 일치, 월별은 7월만 1원 차(소수점 정산 0.6원 절사, 무시)
+- 상태: 검증통과(라이브 검증 완료)
 
 ### D-352 — 취소·반품 클레임 주문이 미발주·주문 수·지연에 섞임
 - 심각도: P1 | 리스크: 표준 | 위치: `DashboardRepositoryImpl` count 쿼리 3종·`findRowsBetween`
@@ -6636,35 +6638,41 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 사용자 결정(2026-10-30): 취소 제외 확정. 반품은 금액(손실)엔 반드시 포함 — 주문 수 포함 여부만 미정
 - 사용자 결정(배치 C 착수 시): 반품은 금액엔 포함·주문 수에선 제외하고 "반품 N건 별도" 표시 — qa 지적으로 손실도 표시: "반품 N건 별도(손익 -X원)"(리더 수정, 10월 -59,814원)
 - 수정(배치 C): 클레임 정의는 기존 `ClaimType.isActive && ClaimStage.isActive`(REJECTED=클레임 아님) 재사용. 취소(활성 CANCEL 클레임 또는 CANCELED 라인)는 주문 수·정산·순수익 제외, 반품(활성 RETURN 또는 RETURNED)은 금액 포함·주문 수 제외 → `Period.returnCount·returnProfit`, KPI 주문 수 부제 "반품 N건 별도". 추이 차트 orderCount 동일 정의. 미발주·배송중·지연·품절 count 쿼리에 활성 클레임 라인 제외, 드릴다운에 claimTypes=NONE. Red→Green: DashboardServiceTest(취소 제외·반품 분리·거부 클레임·timeseries), DashboardRepositoryPostgresTest(미발주·지연·품절), dashboardCards.test.tsx. 운영 실측 기대값: 미발주 1, 10월 주문 93·반품 3
-- 상태: 검증통과(배포 대기) — qa-verifier PASS(D-352는 반품 손실 표시 보완 후), 백엔드 전체·프론트 62건 회귀 통과
+- 라이브 검증(2026-10-30 21:3x KST, 배포 4e290cc8, Chrome 화면 + 화면이 받은 API 응답 대 운영 DB 정답 쿼리): KPI 주문 93·정산 5,006,128·순수익 945,060·반품 3건(손익 -59,814)·원가 미입력 16건(686,741)·미발주 1·배송중 26·지연 8·진행 중 클레임 0, 마켓 4종·소싱처(IHB 89·미지정 3·FTN 1)·상태(CLAIM 8 포함) 분해 전부 DB 정답과 일치
+- 상태: 검증통과(라이브 검증 완료)
 
 ### D-353 — 원가 미입력 라인의 순수익이 정산 전액
 - 심각도: P1 | 리스크: 표준 | 위치: `DashboardDtos.AggRow.profit`
 - 실측: 10월 21라인(미구매), 정산 686,741원이 원가 0으로 순수익에 합산. logistics_cost 입력 10/432 — 의미 확인 필요
 - 사용자 결정(2026-10-30): 원가 미입력 라인은 순수익에서 제외하고 별도 표시. 물류비는 원가에 포함이 기본·별도 발생 시만 입력 → 현행 식 유지
 - 수정(배치 C): sourcing_amount null/0 라인은 순수익 합에서 제외(정산 합엔 포함), 원가 있는 정산 0 라인(반품 손실)은 그대로 손실. `Period.unsourcedCount·unsourcedSettlement`, 순수익 카드 부제 "원가 미입력 N건(정산 X원) 제외". 추이 차트 profitSum 동일 정의. Red→Green: DashboardServiceTest(summary·timeseries), dashboardCards.test.tsx. 운영 실측 기대값(10월): 미입력 16라인·정산 686,741원(취소 라인 제외 후)
-- 상태: 검증통과(배포 대기) — qa-verifier PASS(D-352는 반품 손실 표시 보완 후), 백엔드 전체·프론트 62건 회귀 통과
+- 라이브 검증(2026-10-30 21:3x KST, 배포 4e290cc8, Chrome 화면 + 화면이 받은 API 응답 대 운영 DB 정답 쿼리): KPI 주문 93·정산 5,006,128·순수익 945,060·반품 3건(손익 -59,814)·원가 미입력 16건(686,741)·미발주 1·배송중 26·지연 8·진행 중 클레임 0, 마켓 4종·소싱처(IHB 89·미지정 3·FTN 1)·상태(CLAIM 8 포함) 분해 전부 DB 정답과 일치
+- 상태: 검증통과(라이브 검증 완료)
 
 ### D-354 — 주별 첫·마지막 버킷이 달 경계로 잘린 부분 주, 드릴다운은 전체 주
 - 심각도: P2 | 리스크: 표준 | 위치: `period.ts`, `DashboardBucketing.bucketRange`, `TrendChart.bucketEndDate`
 - 수정: 주별 차트 범위 = 첫 주 월요일~마지막 주 일요일 → 모든 버킷 7일, 드릴다운 범위 일치. X축·툴팁 `9/28~10/4`
-- 상태: 검증통과(배포 대기)
+- 라이브 검증(2026-10-30 21:3x KST, 배포 4e290cc8, Chrome 화면 + 화면이 받은 API 응답 대 운영 DB 정답 쿼리): 월별 탭 KPI 93(한 달) 유지·차트 2025.11~2026.10, 주별 5주(9/28~10/4…10/26~11/1) 주문/정산/순수익 전부 일치, 월별은 7월만 1원 차(소수점 정산 0.6원 절사, 무시)
+- 상태: 검증통과(라이브 검증 완료)
 
 ### D-355 — 상태 축 오류: CONFIRMED 라벨 없음·클레임 무시·반품/취소 기간 무관 누적
 - 심각도: P2 | 리스크: 경량~표준 | 위치: `BreakdownPanels.STATUS_LABEL`, `DashboardService.attention`, `AttentionPanel`
 - 실측: 구매확정 91라인 원문 표시, 반품/취소 18건 전 기간 누적, 진행 중 클레임 12건 누락
 - 부분 수정: STATUS_LABEL CONFIRMED=구매확정(배치 B). 클레임 축·반품/취소 카드(진행 중 클레임 수 — 사용자 결정 2026-10-30)는 배치 C
 - 수정(배치 C): 상태 분해에서 클레임 라인(활성 클레임 또는 CANCELED/RETURNED/EXCHANGED)은 `CLAIM`('취소·반품·교환') 한 막대(주문 수=클레임 주문 distinct, 금액=취소 제외 규칙), 클릭 시 claimTypes=CANCEL·RETURN·EXCHANGE. attention.returnCancel = 활성 클레임 중 REQUESTED·IN_PROGRESS 주문 수(기간 무관, `countActiveClaimsInStages`), 라벨 "진행 중 클레임(취소·반품·교환)". 운영 현재 클레임은 전부 DONE이라 값 0이 정상. 한계: 그리드 claimTypes 필터는 단계 조건이 없어 드릴다운에 DONE 클레임도 보인다
-- 상태: 검증통과(배포 대기) — qa-verifier PASS(D-352는 반품 손실 표시 보완 후), 백엔드 전체·프론트 62건 회귀 통과
+- 라이브 검증(2026-10-30 21:3x KST, 배포 4e290cc8, Chrome 화면 + 화면이 받은 API 응답 대 운영 DB 정답 쿼리): KPI 주문 93·정산 5,006,128·순수익 945,060·반품 3건(손익 -59,814)·원가 미입력 16건(686,741)·미발주 1·배송중 26·지연 8·진행 중 클레임 0, 마켓 4종·소싱처(IHB 89·미지정 3·FTN 1)·상태(CLAIM 8 포함) 분해 전부 DB 정답과 일치
+- 상태: 검증통과(라이브 검증 완료)
 
 ### D-356 — 분해에서 소싱처·상품 미지정 라인 누락, 주문/라인 status 미필터
 - 심각도: P3 | 리스크: 경량 | 위치: `DashboardService.breakdown`, `DashboardRepositoryImpl`
 - 실측: 10월 소싱처 미기입 10라인 → 소싱처별 합 ≠ 전체. status는 현재 전부 ACTIVE(예방)
 - 수정(배치 C): 분해 키 null/공백 → `UNASSIGNED`('미지정'), 프론트 클릭 시 드릴다운 생략. findRowsBetween·count 쿼리 5종 전부 order.status=ACTIVE·line.status=ACTIVE(통관은 주문만). Red→Green: DashboardServiceTest.breakdownKeepsUnassigned, DashboardRepositoryPostgresTest(보관 주문·삭제 라인 제외). 주의(qa): PRODUCT·VENDOR 분해의 주문 수 합은 라인 여러 개 주문이 키마다 세어져 KPI보다 클 수 있다(정산 합은 같음, 기존 동작)
-- 상태: 검증통과(배포 대기) — qa-verifier PASS(D-352는 반품 손실 표시 보완 후), 백엔드 전체·프론트 62건 회귀 통과
+- 라이브 검증(2026-10-30 21:3x KST, 배포 4e290cc8, Chrome 화면 + 화면이 받은 API 응답 대 운영 DB 정답 쿼리): KPI 주문 93·정산 5,006,128·순수익 945,060·반품 3건(손익 -59,814)·원가 미입력 16건(686,741)·미발주 1·배송중 26·지연 8·진행 중 클레임 0, 마켓 4종·소싱처(IHB 89·미지정 3·FTN 1)·상태(CLAIM 8 포함) 분해 전부 DB 정답과 일치
+- 상태: 검증통과(라이브 검증 완료)
 
 ### D-357 — 지연 기준 now()가 JVM UTC, 지연 드릴다운 필터가 집계 조건과 다름
 - 심각도: P3 | 리스크: 경량 | 위치: `DashboardController.attention`, `AttentionPanel`
+- 라이브 실측(2026-10-30): 지연 카드 8건 = 전부 PREPARING 3일 초과(NEW 1일 초과 0건)인데 라벨은 "미발주 1일+", 클릭 시 그리드 statuses=NEW&claimTypes=NONE&endDate → 0건. 배치 D에서 라벨·드릴다운을 NEW/PREPARING 둘로 분리 필요
 - 별건 후보: 11번가 주문일 시각 없음(00:00), `ElevenstOrderAdapter.extractOrderDate`·`Cafe24OrderSyncService.parseDate` 폴백 now()가 UTC
 - 부분 수정: attention 기준 시각 LocalDateTime.now(Asia/Seoul)(DashboardControllerAttentionClockTest). 드릴다운 정합은 배치 D
 - 상태: 부분 수정(검증통과) · 잔여 발견
