@@ -6634,13 +6634,16 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 심각도: P1 | 리스크: 표준 | 위치: `DashboardRepositoryImpl` count 쿼리 3종·`findRowsBetween`
 - 실측: 미발주 KPI 7건 중 6건이 NEW+CANCEL(실제 1건), 10월 주문 수에 취소 5건 포함. 사용자 결정 필요(주문 수 정의)
 - 사용자 결정(2026-10-30): 취소 제외 확정. 반품은 금액(손실)엔 반드시 포함 — 주문 수 포함 여부만 미정
-- 상태: 발견
+- 사용자 결정(배치 C 착수 시): 반품은 금액엔 포함·주문 수에선 제외하고 "반품 N건 별도" 표시 — qa 지적으로 손실도 표시: "반품 N건 별도(손익 -X원)"(리더 수정, 10월 -59,814원)
+- 수정(배치 C): 클레임 정의는 기존 `ClaimType.isActive && ClaimStage.isActive`(REJECTED=클레임 아님) 재사용. 취소(활성 CANCEL 클레임 또는 CANCELED 라인)는 주문 수·정산·순수익 제외, 반품(활성 RETURN 또는 RETURNED)은 금액 포함·주문 수 제외 → `Period.returnCount·returnProfit`, KPI 주문 수 부제 "반품 N건 별도". 추이 차트 orderCount 동일 정의. 미발주·배송중·지연·품절 count 쿼리에 활성 클레임 라인 제외, 드릴다운에 claimTypes=NONE. Red→Green: DashboardServiceTest(취소 제외·반품 분리·거부 클레임·timeseries), DashboardRepositoryPostgresTest(미발주·지연·품절), dashboardCards.test.tsx. 운영 실측 기대값: 미발주 1, 10월 주문 93·반품 3
+- 상태: 검증통과(배포 대기) — qa-verifier PASS(D-352는 반품 손실 표시 보완 후), 백엔드 전체·프론트 62건 회귀 통과
 
 ### D-353 — 원가 미입력 라인의 순수익이 정산 전액
 - 심각도: P1 | 리스크: 표준 | 위치: `DashboardDtos.AggRow.profit`
 - 실측: 10월 21라인(미구매), 정산 686,741원이 원가 0으로 순수익에 합산. logistics_cost 입력 10/432 — 의미 확인 필요
 - 사용자 결정(2026-10-30): 원가 미입력 라인은 순수익에서 제외하고 별도 표시. 물류비는 원가에 포함이 기본·별도 발생 시만 입력 → 현행 식 유지
-- 상태: 발견
+- 수정(배치 C): sourcing_amount null/0 라인은 순수익 합에서 제외(정산 합엔 포함), 원가 있는 정산 0 라인(반품 손실)은 그대로 손실. `Period.unsourcedCount·unsourcedSettlement`, 순수익 카드 부제 "원가 미입력 N건(정산 X원) 제외". 추이 차트 profitSum 동일 정의. Red→Green: DashboardServiceTest(summary·timeseries), dashboardCards.test.tsx. 운영 실측 기대값(10월): 미입력 16라인·정산 686,741원(취소 라인 제외 후)
+- 상태: 검증통과(배포 대기) — qa-verifier PASS(D-352는 반품 손실 표시 보완 후), 백엔드 전체·프론트 62건 회귀 통과
 
 ### D-354 — 주별 첫·마지막 버킷이 달 경계로 잘린 부분 주, 드릴다운은 전체 주
 - 심각도: P2 | 리스크: 표준 | 위치: `period.ts`, `DashboardBucketing.bucketRange`, `TrendChart.bucketEndDate`
@@ -6651,15 +6654,24 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 심각도: P2 | 리스크: 경량~표준 | 위치: `BreakdownPanels.STATUS_LABEL`, `DashboardService.attention`, `AttentionPanel`
 - 실측: 구매확정 91라인 원문 표시, 반품/취소 18건 전 기간 누적, 진행 중 클레임 12건 누락
 - 부분 수정: STATUS_LABEL CONFIRMED=구매확정(배치 B). 클레임 축·반품/취소 카드(진행 중 클레임 수 — 사용자 결정 2026-10-30)는 배치 C
-- 상태: 부분 수정(검증통과) · 잔여 발견
+- 수정(배치 C): 상태 분해에서 클레임 라인(활성 클레임 또는 CANCELED/RETURNED/EXCHANGED)은 `CLAIM`('취소·반품·교환') 한 막대(주문 수=클레임 주문 distinct, 금액=취소 제외 규칙), 클릭 시 claimTypes=CANCEL·RETURN·EXCHANGE. attention.returnCancel = 활성 클레임 중 REQUESTED·IN_PROGRESS 주문 수(기간 무관, `countActiveClaimsInStages`), 라벨 "진행 중 클레임(취소·반품·교환)". 운영 현재 클레임은 전부 DONE이라 값 0이 정상. 한계: 그리드 claimTypes 필터는 단계 조건이 없어 드릴다운에 DONE 클레임도 보인다
+- 상태: 검증통과(배포 대기) — qa-verifier PASS(D-352는 반품 손실 표시 보완 후), 백엔드 전체·프론트 62건 회귀 통과
 
 ### D-356 — 분해에서 소싱처·상품 미지정 라인 누락, 주문/라인 status 미필터
 - 심각도: P3 | 리스크: 경량 | 위치: `DashboardService.breakdown`, `DashboardRepositoryImpl`
 - 실측: 10월 소싱처 미기입 10라인 → 소싱처별 합 ≠ 전체. status는 현재 전부 ACTIVE(예방)
-- 상태: 발견
+- 수정(배치 C): 분해 키 null/공백 → `UNASSIGNED`('미지정'), 프론트 클릭 시 드릴다운 생략. findRowsBetween·count 쿼리 5종 전부 order.status=ACTIVE·line.status=ACTIVE(통관은 주문만). Red→Green: DashboardServiceTest.breakdownKeepsUnassigned, DashboardRepositoryPostgresTest(보관 주문·삭제 라인 제외). 주의(qa): PRODUCT·VENDOR 분해의 주문 수 합은 라인 여러 개 주문이 키마다 세어져 KPI보다 클 수 있다(정산 합은 같음, 기존 동작)
+- 상태: 검증통과(배포 대기) — qa-verifier PASS(D-352는 반품 손실 표시 보완 후), 백엔드 전체·프론트 62건 회귀 통과
 
 ### D-357 — 지연 기준 now()가 JVM UTC, 지연 드릴다운 필터가 집계 조건과 다름
 - 심각도: P3 | 리스크: 경량 | 위치: `DashboardController.attention`, `AttentionPanel`
 - 별건 후보: 11번가 주문일 시각 없음(00:00), `ElevenstOrderAdapter.extractOrderDate`·`Cafe24OrderSyncService.parseDate` 폴백 now()가 UTC
 - 부분 수정: attention 기준 시각 LocalDateTime.now(Asia/Seoul)(DashboardControllerAttentionClockTest). 드릴다운 정합은 배치 D
 - 상태: 부분 수정(검증통과) · 잔여 발견
+
+### D-358 — 카페24에서 삭제된 상품의 G마켓 리스팅이 판매중으로 남아 주문이 미매핑 (2026-10-30, 사용자 제보)
+- 심각도: P2 | 리스크: 운영 조치(코드 아님) | 사례: 주문 id 718(G마켓 4509718290), 라인 953
+- 원인: 카페24 몰 상품 231114IHB097(형제 21641~21643 다음 번호 21644 추정, P000BGAM)이 2026-02-22 상품 일괄 수입 이전에 카페24에서 삭제됨. 마켓플러스 연결은 끊겼지만 G마켓 리스팅 3320679591(마스터 2949935417)은 판매중(54,000원, 재고 335 — 우리 300 고정 규칙 미적용 = 배치가 닿지 않음). 이 리스팅 주문은 카페24가 product_no=-99999로 넘겨 우리 쪽 매핑 불가. sb_product에도 해당 코드가 없어 D-326식 매핑 폴백으로도 해결 불가
+- 전수 대조(ESM 3,353 리스팅 vs sb_product 3,195): sb에 없는 판매자코드 15건, 그중 판매중은 이 1건(나머지 14건 판매중지)
+- 조치 대기(사용자 결정): (가) 상품 재등록 후 마켓플러스로 정상 리스팅·이 리스팅 판매중지 / (나) 이 리스팅만 판매중지. 해당 주문은 수동 처리
+- 상태: 발견
