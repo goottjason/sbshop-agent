@@ -6622,30 +6622,36 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 ### D-350 — 대시보드 버킷이 KST 주문일을 UTC로 오해해 +9시간 밀어 담음
 - 심각도: P1 | 리스크: 표준 | 위치: `DashboardBucketing.bucketKey`, `DashboardBucketingTest.dayBucketUsesKst`(오가정을 정답으로 고정)
 - 실측: 2026-10 주문 101건 중 46건이 다른 날 버킷, 31일 중 23일 값 불일치. 15시 이후 주문 → 다음 날/주/달, 말일이면 범위 밖 버킷 추가
-- 상태: 발견
+- 수정: bucketKey가 order_date를 KST 벽시계 그대로 toLocalDate 후 floor(UTC 환산 제거). Red→Green: DashboardBucketingTest 2건(20시·23:59:59·일요일 밤·말일 밤) 교정/신설, DashboardServiceTest 말일 20시 → 31버킷 유지
+- 상태: 검증통과(배포 대기) — qa-verifier PASS, 백엔드 전체·프론트 회귀 통과
 
 ### D-351 — 월별 모드에서 KPI·분해 패널이 12개월 합계 (제목은 한 달)
 - 심각도: P1 | 리스크: 표준 | 위치: `pages/dashboard/period.ts computeRange`, `Dashboard.tsx`
-- 상태: 발견
+- 수정: computeRange → {kpi, chart} 분리. KPI·분해 = 선택 달, 차트만 DAY=달/WEEK=겹치는 주 전체/MONTH=12개월. KPI 위 집계 기간 표시. period.test.ts 8건
+- 상태: 검증통과(배포 대기)
 
 ### D-352 — 취소·반품 클레임 주문이 미발주·주문 수·지연에 섞임
 - 심각도: P1 | 리스크: 표준 | 위치: `DashboardRepositoryImpl` count 쿼리 3종·`findRowsBetween`
 - 실측: 미발주 KPI 7건 중 6건이 NEW+CANCEL(실제 1건), 10월 주문 수에 취소 5건 포함. 사용자 결정 필요(주문 수 정의)
+- 사용자 결정(2026-10-30): 취소 제외 확정. 반품은 금액(손실)엔 반드시 포함 — 주문 수 포함 여부만 미정
 - 상태: 발견
 
 ### D-353 — 원가 미입력 라인의 순수익이 정산 전액
 - 심각도: P1 | 리스크: 표준 | 위치: `DashboardDtos.AggRow.profit`
 - 실측: 10월 21라인(미구매), 정산 686,741원이 원가 0으로 순수익에 합산. logistics_cost 입력 10/432 — 의미 확인 필요
+- 사용자 결정(2026-10-30): 원가 미입력 라인은 순수익에서 제외하고 별도 표시. 물류비는 원가에 포함이 기본·별도 발생 시만 입력 → 현행 식 유지
 - 상태: 발견
 
 ### D-354 — 주별 첫·마지막 버킷이 달 경계로 잘린 부분 주, 드릴다운은 전체 주
 - 심각도: P2 | 리스크: 표준 | 위치: `period.ts`, `DashboardBucketing.bucketRange`, `TrendChart.bucketEndDate`
-- 상태: 발견
+- 수정: 주별 차트 범위 = 첫 주 월요일~마지막 주 일요일 → 모든 버킷 7일, 드릴다운 범위 일치. X축·툴팁 `9/28~10/4`
+- 상태: 검증통과(배포 대기)
 
 ### D-355 — 상태 축 오류: CONFIRMED 라벨 없음·클레임 무시·반품/취소 기간 무관 누적
 - 심각도: P2 | 리스크: 경량~표준 | 위치: `BreakdownPanels.STATUS_LABEL`, `DashboardService.attention`, `AttentionPanel`
 - 실측: 구매확정 91라인 원문 표시, 반품/취소 18건 전 기간 누적, 진행 중 클레임 12건 누락
-- 상태: 발견
+- 부분 수정: STATUS_LABEL CONFIRMED=구매확정(배치 B). 클레임 축·반품/취소 카드(진행 중 클레임 수 — 사용자 결정 2026-10-30)는 배치 C
+- 상태: 부분 수정(검증통과) · 잔여 발견
 
 ### D-356 — 분해에서 소싱처·상품 미지정 라인 누락, 주문/라인 status 미필터
 - 심각도: P3 | 리스크: 경량 | 위치: `DashboardService.breakdown`, `DashboardRepositoryImpl`
@@ -6655,4 +6661,5 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 ### D-357 — 지연 기준 now()가 JVM UTC, 지연 드릴다운 필터가 집계 조건과 다름
 - 심각도: P3 | 리스크: 경량 | 위치: `DashboardController.attention`, `AttentionPanel`
 - 별건 후보: 11번가 주문일 시각 없음(00:00), `ElevenstOrderAdapter.extractOrderDate`·`Cafe24OrderSyncService.parseDate` 폴백 now()가 UTC
-- 상태: 발견
+- 부분 수정: attention 기준 시각 LocalDateTime.now(Asia/Seoul)(DashboardControllerAttentionClockTest). 드릴다운 정합은 배치 D
+- 상태: 부분 수정(검증통과) · 잔여 발견
