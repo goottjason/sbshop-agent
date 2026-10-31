@@ -6710,4 +6710,6 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 함께 고친 것: 라우터가 G마켓·옥션 자식이 detached면 카페24 삭제를 항상 거부하던 버그(삭제는 자기 연결만 검사). 수동 deleteProduct는 자식 LINKED+식별자 있으면 카페24 삭제 보류(ProductDeleteDisposalGuardTest 3건 새 계약으로 교체)
 - 검증: qa-verifier 1차 부분(A 배치 제외 실효 없음·B 회차 중 cancel 덮어씀·C·D) → 수정 → 최종 PASS, cleanTest test 3565/0
 - 운영 수칙: 소싱처 배치가 도는 동안 start 금지, 라이브는 dryRun → limit 1~2부터
-- 상태: 검증통과(배포 대기)
+- 배포(2026-10-31): 첫 배포는 운영 DDL_AUTO=validate라 `sb_product_retirement` 부재로 기동 실패→자동 롤백(코드 7). 테이블을 수동 생성(소유자 sbshop, 인덱스 retirement_status·last_attempt_at)한 뒤 image_tag=d82d4d548cfd로 재배포, 실행 이미지 d82d4d54 확인
+- 파일럿(2026-10-31, IHB 판매 이력 없음 20개: id 60·113 먼저, 이어 115~184 18개): 스마트스토어·쿠팡 삭제는 같은 계정 재조회로 확인, 11번가는 삭제 API로 지워지지 않아 전부 판매중지(105)로 완료, 쿠팡 1건(167)은 첫 회차 거부→다음 회차 삭제. ESM은 크롬으로 마스터상품번호 검색→판매 상태 변경(판매중지)→삭제(판매중지 아니면 "모든 상품이 [판매중지] 상태일 경우에만" 거부) 후 검색 API로 managedCode 0건 확인(대조군 2건 정상)→esm-confirm→카페24 삭제→소프트 삭제. 20/20 DONE·deleted_at, 등록은 스마트스토어·쿠팡·카페24 DETACHED_DELETED, G마켓·옥션 자식 DETACHED_DELETED, 11번가 LINKED(판매중지). ESM 잔존 0
+- 상태: 라이브검증완료
