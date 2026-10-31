@@ -138,6 +138,11 @@ public class ProductManageUseCase {
 					productId, marketType);
 				continue;
 			}
+			if (marketType == MarketType.CAFE24 && hasLinkedMarketplaceListing(reg)) {
+				manual.put(marketType, "G마켓·옥션 리스팅이 남아 있어 카페24 삭제를 보류했습니다 — 퇴출 도구로 G마켓·옥션부터 지우세요");
+				log.warn("[완전삭제] G마켓·옥션 연결이 남아 카페24 삭제 보류: productId={}", productId);
+				continue;
+			}
 			if (marketType == MarketType.ELEVEN_STREET) {
 				manual.put(marketType, "자동 삭제 미지원 · 외부 삭제 미완료로 기록하고 SB에서 소프트 삭제합니다.");
 				continue;
@@ -157,7 +162,7 @@ public class ProductManageUseCase {
 				continue;
 			}
 			try {
-				deleteAndVerify(marketClientRouter.getClient(marketType), marketItemId);
+				MarketListingDeletion.deleteAndVerify(marketClientRouter.getClient(marketType), marketItemId);
 				reg.markAbsentFromMarket(UnsyncReason.DELETED_ON_MARKET);
 				marketRegistrationRepository.save(reg);
 				deleted.add(marketType);
@@ -219,28 +224,13 @@ public class ProductManageUseCase {
 		return new ProductDeleteResult(deleted, skipped, failed, manual, disposed);
 	}
 
-	private void deleteAndVerify(com.sbshop.agent.core.domain.market.client.MarketClient client, String id) {
-		String account = client.inspectionAccountReference();
-		RuntimeException deletionFailure = null;
-		try {
-			client.deleteFromMarket(id);
-		} catch (UnsupportedOperationException unsupported) {
-			throw unsupported;
-		} catch (RuntimeException failure) {
-			deletionFailure = failure;
+	private static boolean hasLinkedMarketplaceListing(MarketRegistration reg) {
+		for (MarketType child : List.of(MarketType.GMARKET, MarketType.AUCTION)) {
+			if (reg.connectionIdentifier(child) != null
+				&& reg.connectionStateFor(child) == com.sbshop.agent.core.domain.market.MarketConnectionState.LINKED)
+				return true;
 		}
-		var observation = client.inspectListing(id);
-		boolean absent = observation != null
-			&& observation
-				.state() == com.sbshop.agent.core.domain.market.client.dto.MarketListingObservation.State.DELETED
-			&& account != null && !account.isBlank() && account.equals(observation.accountReference())
-			&& account.equals(client.inspectionAccountReference());
-		if (absent)
-			return;
-		if (deletionFailure != null)
-			throw deletionFailure;
-		throw new IllegalStateException("삭제 요청 후 재조회에서 상품 부재를 확인하지 못했습니다. SB 상품을 유지합니다. 확인 결과: "
-			+ (observation == null ? "응답 없음" : observation.state() + " / " + observation.code()));
+		return false;
 	}
 
 	private MarketRepublishResult republishToMarkets(Product product, Long productId,

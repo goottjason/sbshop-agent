@@ -31,6 +31,7 @@ class ProductDeleteDisposalGuardTest {
 	private final MarketClient client = mock(MarketClient.class);
 
 	private static final Long PRODUCT_ID = 1L;
+	private static final String GUARD_REASON = "G마켓·옥션 리스팅이 남아 있어 카페24 삭제를 보류했습니다 — 퇴출 도구로 G마켓·옥션부터 지우세요";
 
 	@Test
 	@DisplayName("8a: 마켓 삭제가 하나라도 실패하면 상품을 폐기하지 않는다 — 마켓에 남는데 우리만 잊는 상태를 만들지 않는다")
@@ -167,7 +168,7 @@ class ProductDeleteDisposalGuardTest {
 	}
 
 	@Test
-	void cafe24CanBeDeletedWhileLinkedMarketplacesRemainManual() {
+	void cafe24DeleteIsHeldWhileLinkedMarketplacesRemain() {
 		confirmAbsent("verified-account");
 		var reg = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.CAFE24)
 			.marketIdentifiers(
@@ -175,12 +176,37 @@ class ProductDeleteDisposalGuardTest {
 			.build();
 		var result = useCase(reg).deleteProduct(PRODUCT_ID);
 		assertThat(result.disposed()).isTrue();
-		assertThat(result.manual()).containsOnlyKeys(MarketType.GMARKET, MarketType.AUCTION);
-		assertThat(result.deleted()).containsExactly(MarketType.CAFE24);
+		assertThat(result.manual()).containsOnlyKeys(MarketType.CAFE24, MarketType.GMARKET, MarketType.AUCTION);
+		assertThat(result.manual().get(MarketType.CAFE24)).isEqualTo(GUARD_REASON);
+		assertThat(result.deleted()).doesNotContain(MarketType.CAFE24);
 		assertThat(reg.connectionIdentifier(MarketType.GMARKET)).isEqualTo("3490138764");
 		assertThat(reg.connectionIdentifier(MarketType.AUCTION)).isEqualTo("D888922206");
-		verify(client).deleteFromMarket("7867");
+		verify(client, never()).deleteFromMarket(anyString());
 		verify(productDeleteTxService).deleteWithRegistrations(any(), anyList());
+	}
+
+	@Test
+	void cafe24WithoutChildIdentifiersIsStillDeleted() {
+		confirmAbsent("verified-account");
+		var reg = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.CAFE24)
+			.marketIdentifiers("{\"product_no\":\"7867\"}").build();
+		var result = useCase(reg).deleteProduct(PRODUCT_ID);
+		assertThat(result.deleted()).containsExactly(MarketType.CAFE24);
+		assertThat(result.manual()).isEmpty();
+		verify(client).deleteFromMarket("7867");
+	}
+
+	@Test
+	void cafe24WithDetachedAndMissingChildrenIsStillDeleted() {
+		confirmAbsent("verified-account");
+		var reg = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.CAFE24)
+			.marketIdentifiers("{\"product_no\":\"7867\",\"gmarket_goodsNo\":\"3490138764\"}").build();
+		reg.detachConnection(MarketType.GMARKET,
+			com.sbshop.agent.core.domain.market.MarketConnectionState.DETACHED_DELETED);
+		var result = useCase(reg).deleteProduct(PRODUCT_ID);
+		assertThat(result.deleted()).containsExactly(MarketType.CAFE24);
+		assertThat(result.manual()).doesNotContainKey(MarketType.CAFE24);
+		verify(client).deleteFromMarket("7867");
 	}
 
 	@Test
@@ -196,15 +222,18 @@ class ProductDeleteDisposalGuardTest {
 	}
 
 	@Test
-	void linkedChildrenDoNotHideCafe24DeleteFailure() {
+	void linkedChildHoldsCafe24DeleteAndRecordsReason() {
 		var reg = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.CAFE24)
 			.marketIdentifiers("{\"product_no\":\"7867\",\"gmarket_goodsNo\":\"3490138764\"}").build();
 		var useCase = useCase(reg);
 		doThrow(new IllegalStateException("카페24 삭제 거절")).when(client).deleteFromMarket("7867");
 		var result = useCase.deleteProduct(PRODUCT_ID);
-		assertThat(result.failed()).containsEntry(MarketType.CAFE24, "카페24 삭제 거절");
-		assertThat(result.manual()).containsOnlyKeys(MarketType.GMARKET);
-			assertThat(result.disposed()).isTrue();
+		assertThat(result.failed()).doesNotContainKey(MarketType.CAFE24);
+		assertThat(result.manual()).containsOnlyKeys(MarketType.CAFE24, MarketType.GMARKET);
+		assertThat(result.manual().get(MarketType.CAFE24)).isEqualTo(GUARD_REASON);
+		verify(client, never()).deleteFromMarket(anyString());
+		assertThat(reg.getLastSyncError()).isNull();
+		assertThat(result.disposed()).isTrue();
 	}
 
 	@Test
@@ -239,7 +268,7 @@ class ProductDeleteDisposalGuardTest {
 	}
 
 	@Test
-		void elevenstAndCafe24ChildrenAreArchivedAndRealCafeFailureIsTracked() {
+		void elevenstAndLinkedCafe24ChildrenAreArchivedWithoutCafe24Delete() {
 		var eleven = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.ELEVEN_STREET)
 			.marketIdentifiers("{\"prdNo\":\"3264931038\"}").build();
 		var cafe = MarketRegistration.builder().productId(PRODUCT_ID).marketType(MarketType.CAFE24)
@@ -248,11 +277,14 @@ class ProductDeleteDisposalGuardTest {
 		when(marketRegistrationRepository.findByProductId(PRODUCT_ID)).thenReturn(List.of(eleven, cafe));
 		var blocked = useCase.deleteProduct(PRODUCT_ID);
 			assertThat(blocked.disposed()).isTrue();
-		assertThat(blocked.failed()).containsKey(MarketType.CAFE24);
+		assertThat(blocked.failed()).doesNotContainKey(MarketType.CAFE24);
+		assertThat(blocked.manual()).containsEntry(MarketType.CAFE24, GUARD_REASON);
 		confirmAbsent("verified-account");
 		var done = useCase.deleteProduct(PRODUCT_ID);
 		assertThat(done.disposed()).isTrue();
-		assertThat(done.manual()).containsOnlyKeys(MarketType.ELEVEN_STREET, MarketType.GMARKET, MarketType.AUCTION);
+		assertThat(done.manual()).containsOnlyKeys(MarketType.ELEVEN_STREET, MarketType.CAFE24, MarketType.GMARKET,
+			MarketType.AUCTION);
+		verify(client, never()).deleteFromMarket("10362");
 		var product = org.mockito.ArgumentCaptor.forClass(Product.class);
 		verify(productDeleteTxService, org.mockito.Mockito.times(2)).deleteWithRegistrations(product.capture(), anyList());
 		var snapshot = org.mockito.ArgumentCaptor.forClass(String.class);

@@ -21,12 +21,16 @@ public class MarketClientRouter {
 		com.sbshop.agent.core.application.market.MarketConnectionWriteGuard guard) {
 		return (MarketClient)java.lang.reflect.Proxy.newProxyInstance(MarketClient.class.getClassLoader(),
 			new Class<?>[] {MarketClient.class}, (proxy, method, args) -> {
+				if (com.sbshop.agent.core.application.market.MarketConnectionWriteGuard.RETIREMENT_BLOCKED
+					.contains(method.getName()))
+					guard.requireNotRetiring(adapter.getSupportedMarket(), args == null ? new Object[0] : args);
 				if ("submitPreparedPublication".equals(method.getName()))
 					guard.requirePublicationIntent(adapter.getSupportedMarket(),
 						(com.sbshop.agent.core.domain.product.Product)args[0], (String)args[1]);
 				if (com.sbshop.agent.core.application.market.MarketConnectionWriteGuard.WRITES
 					.contains(method.getName()))
-					guard.requireWritable(adapter.getSupportedMarket(), args == null ? new Object[0] : args);
+					guard.requireWritable(adapter.getSupportedMarket(), method.getName(),
+						args == null ? new Object[0] : args);
 				try {
 					return method.invoke(adapter, args);
 				} catch (java.lang.reflect.InvocationTargetException e) {

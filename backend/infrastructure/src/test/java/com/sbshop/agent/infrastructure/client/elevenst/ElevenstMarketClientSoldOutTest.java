@@ -57,6 +57,14 @@ class ElevenstMarketClientSoldOutTest {
     }
 
 	@Test
+	void stopSellingUsesStopDisplayPath() {
+		client.stopSelling("P001");
+
+		verify(restClient).put(eq("/rest/prodstatservice/stat/stopdisplay/P001"), anyString());
+		verify(restClient, never()).put(eq("/rest/prodstatservice/stat/restartdisplay/P001"), anyString());
+	}
+
+	@Test
 	@DisplayName("price==null → 가격 GET 미호출")
 	void withNullPriceSkipsGetPrice() {
 		client.syncPriceAndStock("P001", new HashMap<>(), null, 1, true);

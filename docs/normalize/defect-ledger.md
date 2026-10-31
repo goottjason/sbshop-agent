@@ -6698,3 +6698,16 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 후속(2026-10-30, 판정 D-357_359_verify F-1·F-2): F-1 › 이동·단위 전환 시 anchor를 오늘로 자름(`clampToToday`), 오늘/이번 주/이번 달 버튼은 선택 기간이 오늘을 포함하지 않으면 항상 활성(`includesToday`), PeriodControl `today` 주입(periodFuture.test.tsx). F-2 주문상태 CLAIM 드릴다운을 statuses=배송상태 10종 전부(`drilldown.EVERY_SHIPPING_STATUS`로 AttentionPanel과 공유)·claimTypes C/R/E·claimStages REQUESTED/IN_PROGRESS/DONE·선택 기간으로(breakdownRank.test.tsx URL 고정). tsc·eslint·vitest 16파일 102테스트 통과
 - 검증: qa-verifier PASS(F-1·F-2 후속 반영), 프론트 tsc·vitest 102·node·build 통과. 잔여 후보 F-3(기존 동작): 기간 KPI 카드 클릭은 날짜만 넘겨 취소 주문도 그리드에 보인다(카드는 취소 제외)
 - 상태: 검증통과(배포 대기)
+
+## 아이허브 퇴출 (D-360 계획 1단계)
+
+### D-361 — 상품 퇴출 도구: 마켓 삭제 → 재조회 부재 확인 → 확인된 것만 소프트 삭제 (2026-10-31, 사용자 요청)
+- 심각도: P1 | 리스크: 중대(마켓 삭제 API 호출·신규 테이블) | 계획: `docs/normalize/plans/D-360_아이허브-축소-영국소싱-전환-계획.md` 1단계
+- 사용자 결정(2026-10-31): 1차 대상=판매 이력 없는 IHB, 판매 이력 있는 146개 제외, 진행 중 IHB 주문 53건은 건건이 수동(도구는 손대지 않음), 퇴출 브랜드 쿠팡 심사 소명 중지, 시스템 삭제=소프트 삭제. API로 지울 수 있는 건 API로, 안 되는 건(G마켓·옥션) 크롬으로 지운다
+- 현행 문제: `ProductManageUseCase.deleteProduct`는 카페24를 지우며 G마켓·옥션 자식 리스팅을 남겨 D-358 유령 리스팅을 만들고, 외부 삭제가 실패해도 SB를 소프트 삭제한다(테스트가 이 계약을 고정). 대량 퇴출에 쓸 수 없다
+- 구현: `sb_product_retirement`(IN_PROGRESS/DONE/CANCELED, @Version), `ProductRetirementService`(candidates·start·advance·esm-targets·esm-confirm·cancel·summary), `/internal/retirement/*`. 처리 순서 스마트스토어→쿠팡→11번가→카페24, 카페24는 ESM(G마켓·옥션) 부재 확인 뒤에만. 부재는 같은 계정 재조회 DELETED만 인정, 11번가는 STOPPED도 완료. 쿠팡 심사중은 COUPANG_REVIEW_PENDING. open 주문(클레임 진행·미종결 배송) 가드. 회차 중 cancel/esm-confirm은 마켓 호출마다 재조회로 반영, 상품 단위 오류 격리. 공용 `MarketListingDeletion`(deleteProduct와 공유, 동작 불변)
+- 쓰기 차단: `MarketClientRouter`가 퇴출 중 상품에 대한 생성·수정 14종(가격·재고·필드·publish·승인요청·할인해제 등)을 거부, 삭제·stopSelling·조회만 허용. 소싱처 배치 대상 쿼리도 퇴출 중 제외
+- 함께 고친 것: 라우터가 G마켓·옥션 자식이 detached면 카페24 삭제를 항상 거부하던 버그(삭제는 자기 연결만 검사). 수동 deleteProduct는 자식 LINKED+식별자 있으면 카페24 삭제 보류(ProductDeleteDisposalGuardTest 3건 새 계약으로 교체)
+- 검증: qa-verifier 1차 부분(A 배치 제외 실효 없음·B 회차 중 cancel 덮어씀·C·D) → 수정 → 최종 PASS, cleanTest test 3565/0
+- 운영 수칙: 소싱처 배치가 도는 동안 start 금지, 라이브는 dryRun → limit 1~2부터
+- 상태: 검증통과(배포 대기)

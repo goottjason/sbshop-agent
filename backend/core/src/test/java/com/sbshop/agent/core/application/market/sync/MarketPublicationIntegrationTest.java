@@ -223,7 +223,8 @@ class MarketPublicationIntegrationTest {
 		var row = registrations.findById(reg.getId()).orElseThrow();
 		assertThat(new com.sbshop.agent.core.application.product.edit.ProductEditPolicy().rule("name", List.of(row))
 			.editable()).isFalse();
-		var guard = new com.sbshop.agent.core.application.market.MarketConnectionWriteGuard(registrations);
+		var guard = new com.sbshop.agent.core.application.market.MarketConnectionWriteGuard(registrations,
+			org.mockito.Mockito.mock(com.sbshop.agent.core.domain.product.retirement.ProductRetirementRepository.class));
 		assertThatThrownBy(() -> guard.requireWritable(MARKET, new Object[] {product}))
 			.isInstanceOf(IllegalStateException.class);
 		assertThatCode(() -> guard.requirePublicationIntent(MARKET, product, r.id())).doesNotThrowAnyException();

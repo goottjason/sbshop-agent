@@ -16,6 +16,8 @@ public interface OrderLineItemRepository extends JpaRepository<OrderLineItem, Lo
 
 	List<OrderLineItem> findByOrderIdIn(List<Long> orderIds);
 
+	List<OrderLineItem> findByProductId(Long productId);
+
 	List<OrderLineItem> findBySourcingData_SourcingOrderNo(String sourcingOrderNo);
 
 	Optional<OrderLineItem> findByOrderIdAndMarketLineItemNo(Long orderId, String marketLineItemNo);

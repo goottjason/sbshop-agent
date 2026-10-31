@@ -82,6 +82,8 @@ class ProductSupplierBatchIntegrationTest {
 	@Autowired
 	ProductSupplierBatchService service;
 	@Autowired
+	jakarta.persistence.EntityManager em;
+	@Autowired
 	ProductSupplierBatchRunner runner;
 	@Autowired
 	ProductSourceService sourceService;
@@ -144,7 +146,7 @@ class ProductSupplierBatchIntegrationTest {
 		for (String table : List.of("sb_supplier_batch_retry", "sb_supplier_batch_attempt", "sb_supplier_batch_stage",
 			"sb_supplier_batch_item", "sb_supplier_batch_run", "sb_product_change_target", "sb_product_change_history",
 			"sb_product_source_review", "sb_product_source_snapshot", "sb_product_source_collection",
-			"sb_market_price_task", "sb_market_stock_task"))
+			"sb_market_price_task", "sb_market_stock_task", "sb_product_retirement"))
 			jdbc.update("delete from " + table);
 		lanes.deleteAll();
 		registrations.deleteAll();
@@ -243,6 +245,26 @@ class ProductSupplierBatchIntegrationTest {
 		assertThatThrownBy(() -> service.create(request(Mode.STOCK), "admin"))
 			.isInstanceOf(ProductEditConflictException.class);
 		verifyNoInteractions(source, priceQueue, stockQueue);
+	}
+
+	@Test
+	void productsUnderRetirementAreNotFrozenIntoNewBatch() {
+		var alive = product();
+		var retiring = product();
+		var canceled = product();
+		tx.executeWithoutResult(t -> {
+			em.persist(com.sbshop.agent.core.domain.product.retirement.ProductRetirement.start(retiring.getId()));
+			var cancel = com.sbshop.agent.core.domain.product.retirement.ProductRetirement.start(canceled.getId());
+			cancel.cancel();
+			em.persist(cancel);
+		});
+
+		var run = create(Mode.STOCK);
+
+		assertThat(run.total()).isEqualTo(2);
+		assertThat(service.items(run.id(), 0, 50, "", "ALL").getContent())
+			.extracting(ProductSupplierBatchService.Item::productId)
+			.containsExactlyInAnyOrder(alive.getId(), canceled.getId());
 	}
 
 	@Test

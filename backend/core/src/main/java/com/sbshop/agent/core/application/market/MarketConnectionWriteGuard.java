@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.*;
 @RequiredArgsConstructor
 public class MarketConnectionWriteGuard {
 	private final MarketRegistrationRepository registrations;
+	private final com.sbshop.agent.core.domain.product.retirement.ProductRetirementRepository retirements;
 
 	@Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
 	public void requirePublicationIntent(MarketType market, Product product, String operationId) {
@@ -30,8 +31,47 @@ public class MarketConnectionWriteGuard {
 		"syncBarcode", "syncProductFields", "repairProductNotice", "repairListingAttributes", "requestApproval",
 		"removeSellerImmediateDiscount");
 
+	public static final Set<String> RETIREMENT_BLOCKED = Set.of("publish", "submitPreparedPublication",
+		"finalizePreparedPublication", "syncPriceAndStock", "writeSalePrice", "writeStockQuantity",
+		"writePreparedProductFields", "syncProductFields", "syncImagesAndHtml", "syncBarcode", "requestApproval",
+		"removeSellerImmediateDiscount", "repairListingAttributes", "repairProductNotice");
+
 	@Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
 	public void requireWritable(MarketType market, Object[] args) {
+		requireWritable(market, null, args);
+	}
+
+	@Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
+	public void requireWritable(MarketType market, String method, Object[] args) {
+		List<MarketRegistration> rows = targets(market, args);
+		boolean delete = "deleteFromMarket".equals(method);
+		for (var reg : rows) {
+			String reason = delete ? deleteBlock(reg) : reg.connectionWriteBlock();
+			if (reason != null)
+				throw new IllegalStateException(market.getLabel() + ": " + reason);
+		}
+	}
+
+	@Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
+	public void requireNotRetiring(MarketType market, Object[] args) {
+		Set<Long> ids = new LinkedHashSet<>();
+		Arrays.stream(args).filter(Product.class::isInstance).map(a -> ((Product)a).getId()).filter(Objects::nonNull)
+			.forEach(ids::add);
+		if (ids.isEmpty() && args.length > 0 && args[0] instanceof String)
+			targets(market, args).forEach(r -> ids.add(r.getProductId()));
+		List<Long> productIds = List.copyOf(ids);
+		if (!productIds.isEmpty() && retirements.existsByProductIdInAndRetirementStatus(productIds,
+			com.sbshop.agent.core.domain.product.retirement.RetirementStatus.IN_PROGRESS))
+			throw new IllegalStateException(market.getLabel() + ": 퇴출 진행 중인 상품이라 가격·재고·판매상태를 보내지 않습니다.");
+	}
+
+	private static String deleteBlock(MarketRegistration reg) {
+		if (reg.getPublicationOperationId() != null || reg.getConnectionState().detached())
+			return reg.connectionWriteBlock();
+		return null;
+	}
+
+	private List<MarketRegistration> targets(MarketType market, Object[] args) {
 		List<MarketRegistration> rows;
 		Product product = Arrays.stream(args).filter(Product.class::isInstance).map(Product.class::cast).findFirst()
 			.orElse(null);
@@ -42,11 +82,7 @@ public class MarketConnectionWriteGuard {
 				.filter(r -> matchesIdentifier(r, id)).toList();
 		} else
 			throw new IllegalArgumentException("마켓 쓰기 대상 식별자가 없습니다.");
-		for (var reg : rows) {
-			String reason = reg.connectionWriteBlock();
-			if (reason != null)
-				throw new IllegalStateException(market.getLabel() + ": " + reason);
-		}
+		return rows;
 	}
 
 	private boolean matchesIdentifier(MarketRegistration reg, String id) {

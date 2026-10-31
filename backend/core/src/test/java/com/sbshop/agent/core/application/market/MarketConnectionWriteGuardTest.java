@@ -19,7 +19,7 @@ class MarketConnectionWriteGuardTest {
 		var reg = MarketRegistration.builder().productId(1L).marketType(MarketType.SMART_STORE)
 			.marketIdentifiers("{\"originProductNo\":\"45\"}").build();
 		when(repo.findIdentifierCandidates(MarketType.SMART_STORE, "45")).thenReturn(List.of(reg));
-		var client = new MarketClientRouter(List.of(adapter), new MarketConnectionWriteGuard(repo))
+		var client = new MarketClientRouter(List.of(adapter), new MarketConnectionWriteGuard(repo, mock(com.sbshop.agent.core.domain.product.retirement.ProductRetirementRepository.class)))
 			.getClient(MarketType.SMART_STORE);
 		reg.detachConnection(MarketType.SMART_STORE, MarketConnectionState.DETACHED_PROHIBITED);
 		assertThatThrownBy(() -> client.syncPriceAndStock("45", Map.of(), 10000, 300, false))
@@ -41,7 +41,7 @@ class MarketConnectionWriteGuardTest {
 			.marketIdentifiers("{\"sellerProductId\":\"45\"}").build();
 		reg.detachConnection(MarketType.COUPANG, MarketConnectionState.DETACHED_DELETED);
 		when(repo.findByProductIdAndMarketType(1L, MarketType.COUPANG)).thenReturn(Optional.of(reg));
-		var guard = new MarketConnectionWriteGuard(repo);
+		var guard = new MarketConnectionWriteGuard(repo, mock(com.sbshop.agent.core.domain.product.retirement.ProductRetirementRepository.class));
 		assertThatThrownBy(() -> guard.requireWritable(MarketType.COUPANG, new Object[] {product}))
 			.hasMessageContaining("연결 해제");
 		when(repo.findIdentifierCandidates(MarketType.COUPANG, "5")).thenReturn(List.of(reg));

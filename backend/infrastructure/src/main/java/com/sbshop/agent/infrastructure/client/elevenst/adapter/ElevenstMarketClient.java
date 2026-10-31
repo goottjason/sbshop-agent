@@ -436,6 +436,11 @@ public class ElevenstMarketClient implements MarketClient {
 	}
 
 	@Override
+	public void stopSelling(String marketItemId) {
+		restClient.put("/rest/prodstatservice/stat/stopdisplay/" + marketItemId, "");
+	}
+
+	@Override
 	public Map<String, Object> syncPriceAndStock(String marketItemId, Map<String, Object> currentRawData,
 		Integer price, int quantity, boolean soldOut) {
 		try {

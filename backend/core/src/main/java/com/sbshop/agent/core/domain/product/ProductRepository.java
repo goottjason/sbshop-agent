@@ -48,7 +48,9 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 		+ "ORDER BY p.id")
 	List<Long> findFieldSyncTargetIds();
 
-	@Query("SELECT p FROM Product p WHERE p.sourcingInfo.vendor = :vendor AND p.deletedAt IS NULL")
+	@Query("SELECT p FROM Product p WHERE p.sourcingInfo.vendor = :vendor AND p.deletedAt IS NULL "
+		+ "AND NOT EXISTS (SELECT 1 FROM ProductRetirement r WHERE r.productId = p.id "
+		+ "AND r.retirementStatus = com.sbshop.agent.core.domain.product.retirement.RetirementStatus.IN_PROGRESS)")
 	List<Product> findByVendor(@Param("vendor")
 	VendorType vendor);
 

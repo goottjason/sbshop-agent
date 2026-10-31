@@ -189,7 +189,9 @@ public class ProductSupplierBatchService {
 			if (runs.existsByVendorAndStateIn(request.vendor().name(), List.of("RUNNING", "PAUSING", "PAUSED")))
 				throw new ProductEditConflictException("이 소싱처에는 진행 중이거나 일시정지된 배치가 있습니다. 기존 배치를 확인하세요.");
 			var products = em.createQuery(
-				"select p.id,p.sbCode,p.productName,p.imageInfo.hostedImages from Product p where p.deletedAt is null and p.sourcingInfo.vendor=:vendor order by p.id",
+				"select p.id,p.sbCode,p.productName,p.imageInfo.hostedImages from Product p where p.deletedAt is null and p.sourcingInfo.vendor=:vendor "
+					+ "and not exists (select 1 from ProductRetirement r where r.productId = p.id "
+					+ "and r.retirementStatus = com.sbshop.agent.core.domain.product.retirement.RetirementStatus.IN_PROGRESS) order by p.id",
 				Object[].class).setParameter("vendor", request.vendor()).getResultList();
 			Instant now = Instant.now();
 			var run = runs.saveAndFlush(new ProductSupplierBatchRun(UUID.randomUUID().toString(), request.requestId(),
