@@ -6712,4 +6712,11 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 운영 수칙: 소싱처 배치가 도는 동안 start 금지, 라이브는 dryRun → limit 1~2부터
 - 배포(2026-10-31): 첫 배포는 운영 DDL_AUTO=validate라 `sb_product_retirement` 부재로 기동 실패→자동 롤백(코드 7). 테이블을 수동 생성(소유자 sbshop, 인덱스 retirement_status·last_attempt_at)한 뒤 image_tag=d82d4d548cfd로 재배포, 실행 이미지 d82d4d54 확인
 - 파일럿(2026-10-31, IHB 판매 이력 없음 20개: id 60·113 먼저, 이어 115~184 18개): 스마트스토어·쿠팡 삭제는 같은 계정 재조회로 확인, 11번가는 삭제 API로 지워지지 않아 전부 판매중지(105)로 완료, 쿠팡 1건(167)은 첫 회차 거부→다음 회차 삭제. ESM은 크롬으로 마스터상품번호 검색→판매 상태 변경(판매중지)→삭제(판매중지 아니면 "모든 상품이 [판매중지] 상태일 경우에만" 거부) 후 검색 API로 managedCode 0건 확인(대조군 2건 정상)→esm-confirm→카페24 삭제→소프트 삭제. 20/20 DONE·deleted_at, 등록은 스마트스토어·쿠팡·카페24 DETACHED_DELETED, G마켓·옥션 자식 DETACHED_DELETED, 11번가 LINKED(판매중지). ESM 잔존 0
+- 전량 퇴출(2026-10-31~11-01, 사용자 지시 "오늘 전부"): 판매 이력 없는 IHB 1,573개 추가 start. ESM은 크롬으로 goodsIds(판매자관리코드 쉼표 목록) 조회→리스팅 2,053개를 500개씩 판매중지→삭제(2,051 삭제, 220915IHB041의 판매불가(22) 2건은 판매중지·삭제 불가). esm-confirm은 advance와 동시 실행 시 낙관락 충돌로 전체 거부되어 20개 단위로 재입력. 서버 루프(~/retire/loop.sh, limit 100)로 advance 반복. 최종: 1,593개 중 DONE 1,571(카페24 1,568·스마트스토어 1,567·쿠팡 708 삭제, 11번가 39 삭제·1,508 판매중지, 유령 리스팅 0), IN_PROGRESS 22 = 쿠팡 삭제 거부 21(판매중지 후에도 삭제 불가, 1건은 vendorItemId 없음) + 220915IHB041. 잔여 22개는 사용자가 직접 처리하기로 함(2026-11-01)
 - 상태: 라이브검증완료
+
+### D-362 — 상품 목록 "상품 목록을 불러오지 못했습니다" — 예외 블록 함수가 PARALLEL SAFE (2026-11-01, 사용자 제보)
+- 심각도: P0(상품 관리 화면 불능) | 리스크: 운영 DDL(가역) | 위치: DB 함수 `sb_market_has_identifier`·`sb_market_identifier_equals`, `backend/docs/ddl/2026-09-06-market-search-identifiers.sql`
+- 원인: 두 plpgsql 함수가 `EXCEPTION WHEN invalid_text_representation` 블록(=서브트랜잭션)을 가지면서 `PARALLEL SAFE`로 선언됨. D-361 퇴출로 sb_product 1,571행이 소프트 삭제된 뒤 상품 목록 쿼리(ProductSpecifications) 계획이 병렬 스캔으로 바뀌자 `cannot start subtransactions during a parallel operation`(SQLState 25000)으로 매 요청 실패
+- 조치: 운영에서 두 함수를 `ALTER FUNCTION … PARALLEL UNSAFE`(본문 불변), 저장소 DDL도 동일하게. `debug_parallel_query=on`으로 두 함수 실행 정상 확인
+- 상태: 수정완료(사용자 화면 확인 대기)

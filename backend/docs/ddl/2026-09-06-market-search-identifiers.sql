@@ -2,7 +2,7 @@
 -- Read only the current top-level identifier; archived identifiers are never a live link.
 CREATE OR REPLACE FUNCTION sb_market_has_identifier(document text, identifier_key text)
 RETURNS boolean
-LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+LANGUAGE plpgsql IMMUTABLE PARALLEL UNSAFE
 AS $$
 DECLARE
     value jsonb;
@@ -20,7 +20,7 @@ $$;
 -- Exact top-level value comparison for current transmission evidence; no archived IDs or trimming.
 CREATE OR REPLACE FUNCTION sb_market_identifier_equals(document text, identifier_key text, expected text)
 RETURNS boolean
-LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+LANGUAGE plpgsql IMMUTABLE PARALLEL UNSAFE
 AS $$
 DECLARE
     value jsonb;
