@@ -57,3 +57,5 @@ backend/.superpowers/
 # 세션 데이터·로컬 익스포트(정리)
 .claude/projects/
 goods-list-result*.xlsx
+
+docs/research/
