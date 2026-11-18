@@ -1,9 +1,7 @@
 # TDD 교리 (Red → Green → Refactor + Tidy First)
 
-생성된 빌더/수정/QA 에이전트의 작업 원칙에 주입하는 표준 교리. Kent Beck TDD + Tidy First 기반. `external-review-loop.md` Step 5의 수정 규율이 이 문서를 따른다.
-
 ## TDD 사이클
-1. **Red** — 가장 단순한 실패 테스트 먼저. 동작 설명 이름(`shouldSumTwoPositiveNumbers`). 실패 명확히. **RED 테스트는 리뷰 대상 1급 산출물이다** — GREEN 전에 1차 검증한다: 기본은 self-reflection("요구사항의 예외 케이스를 모두 포괄하는가?" 자문)+정적검사. **계약·스키마·마이그레이션·보안·다도메인 인터페이스** 테스트만 외부 교차리뷰(`external-review-loop.md`)에 태운다(내부 단위·mock·UI는 과적용 금지).
+1. **Red** — 가장 단순한 실패 테스트 먼저. 동작 설명 이름(`shouldSumTwoPositiveNumbers`). 실패 명확히. **RED 테스트는 리뷰 대상 1급 산출물이다** — GREEN 전에 1차 검증한다: 기본은 self-reflection("요구사항의 예외 케이스를 모두 포괄하는가?" 자문)+정적검사.
 2. **Green** — 통과시킬 **최소** 코드만.
 3. **Refactor** — 통과 상태에서만. 한 번에 하나씩, 매 단계 후 테스트 재실행. 중복 제거·명료성 우선.
 
@@ -29,6 +27,3 @@
 
 ## TDD 적용 한계 (과적용 금지)
 테스트 가능한 동작이 있는 **코드**에만. 설계서·인프라·탐색/리서치·UI 감각엔 TDD 강제 X — 그땐 `dev-rules.md`의 목표 주도(성공 기준 정의)로 대체.
-
-## 주입 방법 (F1 — 실경로)
-팩토리는 이 파일을 타겟 하네스의 `.claude/skills/{harness-name}/references/tdd-doctrine.md`로 **복사**한 뒤, 코드 에이전트 정의 `## 작업 원칙`에 **타겟 실경로** 한 줄을 넣는다: `> TDD 규율: \`.claude/skills/{harness-name}/references/tdd-doctrine.md\` 준수.` 서브에이전트는 `[[ ]]`·플러그인 내부 경로를 해소 못 하므로 타겟상대 실경로 필수. 본문 복붙 금지(DRY).

@@ -21,7 +21,6 @@ description: "sbshop-agent 정상화 오케스트레이터. 오류/버그 수정
 
 | 팀원 | 정의 | 역할 | 스킬 | 주 출력 |
 |------|------|------|------|--------|
-| legacy-mapper | `.claude/agents/legacy-mapper.md` | 구조 지도 | — | `docs/normalize/codebase-map.md` |
 | defect-scout | `.claude/agents/defect-scout.md` | 결함 발굴·원장 | defect-triage | `docs/normalize/defect-ledger.md` |
 | tdd-fixer | `.claude/agents/tdd-fixer.md` | TDD 수정 | tdd-bugfix | 코드 + `_workspace/fixes/` |
 | qa-verifier | `.claude/agents/qa-verifier.md` | 독립 검증 | integration-qa | `_workspace/verify/` |
@@ -39,7 +38,7 @@ description: "sbshop-agent 정상화 오케스트레이터. 오류/버그 수정
 
 ### Phase 1: 진단 (서브 에이전트, 병렬)
 
-1. 단일 메시지로 병렬 스폰: legacy-mapper (지도 작성/갱신) + defect-scout (원장 작성/갱신). 둘 다 `run_in_background: true`.
+1. defect-scout 스폰 (원장 작성/갱신), `run_in_background: true`.
 2. 완료 후 원장을 읽고 **이번 사이클의 수정 배치 선정** (아래 배치 규칙). 심각도·리스크 등급이 원장에 비어 있으면 리더가 판정해 기입한다.
 
 **배치 규칙**: 한 사이클에 3~5건. 서로 파일이 겹치지 않는 결함만 병렬 배치(겹치면 순차). 구조 변경(중복 통합)과 행위 변경(버그 수정)은 같은 배치에 섞지 않는다 (Tidy First — 커밋 분리).
@@ -74,8 +73,7 @@ description: "sbshop-agent 정상화 오케스트레이터. 오류/버그 수정
 ## 데이터 흐름
 
 ```
-legacy-mapper ─→ codebase-map.md ─┐
-defect-scout ─→ defect-ledger.md ─┼→ [리더: 배치 선정]
+defect-scout ─→ defect-ledger.md ──→ [리더: 배치 선정]
                                    ↓
         tdd-fixer ←SendMessage→ qa-verifier
              │                      │
@@ -96,21 +94,11 @@ defect-scout ─→ defect-ledger.md ─┼→ [리더: 배치 선정]
 | 팀원 무응답 (죽음 의심) | **재스폰 전 반드시 재확인**: 원장·`_workspace/` 파일 mtime과 git status로 작업 흔적 점검 후, 흔적 없어도 5분 이상 간격 두고 2회 확인. 동일 임무 중복 스폰은 동시 편집 충돌을 만든다 (2026-07-07 중복 fixer 사고). 재스폰이 불가피하면 기존 인스턴스에 중단 지시를 먼저 보내고 다른 이름으로 스폰 |
 | 빌드 자체 실패 | 모든 배치 중단, 빌드 복구를 P0 단독 배치로 최우선 처리 |
 | Red 테스트가 통과 (재현 실패) | 수정 진행 금지, 원장에 기록, defect-scout 재진단 |
-| 진단 결과 상충 (지도 vs 원장) | 삭제하지 않고 출처 병기, 리더가 코드 직접 확인으로 판정 |
 | 반려 2회 초과 | 결함 `보류` + 에스컬레이션 사유 기록, 사용자 보고 |
 | 대규모 실패 (배치 과반) | 비파괴 롤백 (tdd-doctrine 롤백 규율 — checkpoint에서 `git restore`, `reset --hard` 금지) 후 사용자 보고 |
 
 동시 실행 cap: 서브/팀원 동시 3 (최대 5). 초과분은 큐잉.
 
-## 테스트 시나리오
-
-**정상 흐름**: "오류 찾아서 고쳐줘" → Phase 1 병렬 진단 → 원장 신규 결함 N건 → 배치 4건 선정 → Phase 2 수정·검증 (1건 반려 후 재수정 PASS) → Phase 3 회귀 통과 → 승인 → 결함별 커밋 + 결과서 → 잔여 결함 보고.
-
-**에러 흐름**: Phase 2에서 D-7 반려 2회 초과 → `보류` + 배치 제외 → 나머지 3건 게이트 통과·커밋 → 결과서와 사용자 보고에 "D-7 보류: 재현 조건 불명" 명시 → 다음 단계 참조에 defect-scout 재진단 권고.
-
-**부분 재실행**: "D-3만 다시 고쳐줘" → Phase 0에서 원장 확인 → Phase 1 생략 → D-3 단독 배치로 Phase 2~3.
-
 ## 참조
 
 - 개발 규칙: `references/dev-rules.md` / TDD 교리: `references/tdd-doctrine.md`
-- 외부 리뷰 루프: **미구성** (2026-07-07 점검: codex/agy/gemini 미설치, REVIEWERS: none). 리뷰어 설치 후 `/myharness`로 확장하면 표준·중대 게이트에 외부 리뷰가 추가된다.

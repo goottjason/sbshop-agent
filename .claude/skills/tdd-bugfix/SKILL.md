@@ -34,7 +34,6 @@ TDD 규율(Red→Green→Refactor, Tidy First)의 일반 원칙은 `.claude/skil
 ## 이 프로젝트의 함정
 
 - **H2 ≠ PostgreSQL**: 운영은 PostgreSQL + JSONB. JSONB 의존 로직은 H2 통과가 동작 보증이 아님 — 실 검증은 testcontainers PostgreSQL(api 모듈에 도입됨) 사용.
-- **task.md 체크를 믿지 마라**: "완료" 표시는 테스트 근거가 없다. 결함 수정 중 관련 기능을 건드리면 그 기능의 테스트부터 확보하라.
 - **마켓 API 클라이언트는 mock으로**: Coupang/SmartStore/11st/ESM+/Cafe24 실 API 호출 테스트 금지 (자격증명·rate limit·부작용). MockWebServer 또는 인터페이스 mock 사용.
 - **`.env`·자격증명 파일 접근 금지**: 테스트에 실 자격증명을 넣지 않는다.
 
