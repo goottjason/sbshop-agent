@@ -6720,3 +6720,24 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 원인: 두 plpgsql 함수가 `EXCEPTION WHEN invalid_text_representation` 블록(=서브트랜잭션)을 가지면서 `PARALLEL SAFE`로 선언됨. D-361 퇴출로 sb_product 1,571행이 소프트 삭제된 뒤 상품 목록 쿼리(ProductSpecifications) 계획이 병렬 스캔으로 바뀌자 `cannot start subtransactions during a parallel operation`(SQLState 25000)으로 매 요청 실패
 - 조치: 운영에서 두 함수를 `ALTER FUNCTION … PARALLEL UNSAFE`(본문 불변), 저장소 DDL도 동일하게. `debug_parallel_query=on`으로 두 함수 실행 정상 확인
 - 상태: 수정완료(사용자 화면 확인 대기)
+
+## 운영 DB 보호 장치 (규율 재정비 04 §14)
+
+### D-363 — 운영 DB 정기 백업 없음·읽기 전용 역할 없음 → 매일 덤프·서버 밖 사본·`sbshop_ro`·복구 연습 구성 (2026-11-18, 사용자 지시)
+- 심각도: P1(사고 시 복구 수단 부재) | 리스크: 운영 서버 쓰기(cron·스크립트)·DB 역할 생성 — 사용자 승인(범위 예외) | 코드 변경 없음
+- 원인: 서버에 백업 cron·타이머가 없고 `archive_mode=off`, 마지막 전체 덤프가 2026-09-19였으며 덤프가 전부 DB와 같은 디스크에 있었다. DB 역할이 `goottjason`(superuser)·`sbshop`·`canagent`뿐이라 조회도 superuser로 했다.
+- 조치 ① 전체 덤프: `~/backups/daily/sbshop-20261118-170856.dump`(`pg_dump -Fc`, 358,384,919B ≈ 342MB, 58초, `pg_restore --list` 519항목). 서버 밖 사본으로 내려받아 양쪽 SHA-256 일치(`a20124b4…f0ed5c0`).
+- 조치 ② 매일 덤프: `~/ops-backup/sbshop-db-backup.sh`(저장소 밖). `.partial`로 쓰고 `pg_restore --list` 확인 뒤 이름 변경(600), `.sha256` 동반 → 성공 시에만 보관 정리(최신 7개 + 일요일분 최신 4개, 대상은 `~/backups/daily/sbshop-*.dump`뿐) → 결과 한 줄 `~/ops-backup/sbshop-db-backup.log`. 디스크 여유 12GB 미만이면 덤프하지 않고 FAIL 기록, `flock` 중복 실행 방지. 사용자 crontab에 `55 0 * * *` 한 줄 추가(기존 두 줄 불변, 변경 전 사본 `~/ops-backup/crontab-before-20261118.txt`). 00:55 선택 이유: 주문 동기화가 매시 :00·:05·…·:50에 돌아 :55만 비고, 일일 작업(02:00 쿠팡 정산, 02:30 금지어, 03:00 토큰·디스커버리, 04:00 상품 동기화·nginx reload, 05:00 docker 정비)과 OS 타이머(00:00·00:07)를 피한다. 손 실행 2회 성공(45초).
+- 조치 ③ 서버 밖 사본: 사용자 PC로 주 1회(월 13:00, 꺼져 있던 주는 켜질 때 실행) 최신 덤프와 `.sha256`을 받아 해시 확인 후 최근 8개 보관, 서버 최신 덤프가 26시간보다 오래되면 경고 기록. 로그온 사용자 권한, 비밀번호 저장 없음. Windows 기본 OpenSSH는 키 파일 권한 검사로 거부해 Git 동봉 ssh/scp를 쓴다. 손 실행 성공(결과 0). PC 쪽 경로는 저장소에 적지 않는다.
+- 조치 ④ 읽기 전용 역할(`goottjason`으로 한 트랜잭션, 1)의 덤프 뒤):
+  `CREATE ROLE sbshop_ro LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;`
+  `ALTER ROLE sbshop_ro SET default_transaction_read_only = on;` `ALTER ROLE sbshop_ro SET statement_timeout = '60s';`
+  `GRANT CONNECT ON DATABASE sbshop TO sbshop_ro;` `GRANT USAGE ON SCHEMA public TO sbshop_ro;`
+  `GRANT SELECT ON ALL TABLES IN SCHEMA public TO sbshop_ro;` `GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO sbshop_ro;`
+  `ALTER DEFAULT PRIVILEGES FOR ROLE sbshop IN SCHEMA public GRANT SELECT ON TABLES|SEQUENCES TO sbshop_ro;`(2문장)
+  `ALTER DEFAULT PRIVILEGES FOR ROLE goottjason IN SCHEMA public GRANT SELECT ON TABLES|SEQUENCES TO sbshop_ro;`(2문장)
+  비밀번호 없음 — `pg_hba`의 `local all all trust`로 컨테이너 안 소켓에서만 접속(원격 `host all all all`은 scram이라 불가). 전역 `pg_read_all_data`는 쓰지 않았다(`canagent`까지 열림). 사용: `docker exec projects-postgres-1 psql -U sbshop_ro -d sbshop`.
+- 확인: ① `sbshop_ro`로 `sb_order` 건수 조회 성공 ② 임시 테이블 생성 → `read-only transaction` 거부, `BEGIN READ WRITE` 뒤 `UPDATE sb_order … WHERE false` → `permission denied for table`, `CREATE TABLE` → `permission denied for schema public` ③ `canagent` 접속 → `permission denied for database` ④ 역할·DB ACL·스키마 ACL·기본 권한·테이블 권한 전후 비교에서 바뀐 것은 `sbshop_ro` 항목 추가뿐(`sbshop`·`canagent` 항목 불변).
+- 조치 ⑤ 복구 연습: ①의 덤프를 임시 DB `sbshop_restore_test`에 `pg_restore --no-owner --no-acl`(병렬 1)로 복원 — 240초, 오류·경고 0. 행 수(운영/복원): `sb_order` 445/445, `sb_order_line_item` 447/447, `sb_shipment` 459/459, `sb_product` 3,195/3,195, `sb_supplier_batch_run` 20/20, `sb_supplier_batch_attempt` 6,382,600/6,382,600, `sb_market_connection_event` 469,659/469,659, `sb_market_price_attempt` 452,501/452,501(덤프 뒤 약 40분간 신규 주문 없음). 임시 DB 삭제 후 DB 목록 원상태. 디스크 여유 19GB → 복원 중 14GB → 종료 17GB.
+- 남은 것: (a) cron 첫 실행(11-19 00:55) 결과를 다음 날 `~/ops-backup/sbshop-db-backup.log`와 파일로 확인 (b) 덤프 실패 알림이 없다 — PC 주간 내려받기의 26시간 경고가 유일한 감지(최대 1주 지연) (c) 덤프가 342MB라 보관 11개 ≈ 3.8GB(설계 추정 1.2GB의 약 3배) (d) `sbshop_ro`는 `SET`으로 읽기 전용 기본값을 끌 수 있고 PUBLIC의 sbshop `TEMP` 권한으로 임시 테이블은 만들 수 있다 — 실제 보호는 권한(쓰기 권한 없음)이다. 로컬 소켓이 trust라 컨테이너 안에서는 누구든 아무 역할로 접속되므로 보안 경계가 아니라 실수 방지 장치다 (e) 시점 복구(WAL 보관) 없음 (f) 쓰기 도구(§14 계층 2)는 별도 작업 (g) 분기별 복구 연습 일정 미등록.
+- 상태: 구성완료(cron 첫 실행 확인 대기)
