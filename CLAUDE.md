@@ -24,3 +24,7 @@
 **트리거:** 이 프로젝트의 오류 수정·기능 정상화·결함 진단·리팩토링·테스트 추가 등 코드 수정 작업 요청 시 `sbshop-normalize` 스킬을 사용하라. 단순 질문·코드 설명은 직접 응답 가능.
 
 **핵심 원장:** `docs/normalize/defect-ledger.md` (결함 원장) · `docs/normalize/codebase-map.md` (구조 지도) · `docs/normalize/working_history/` (사이클별 결과서 — 최신 결과서의 `## 다음 단계 참조`부터 읽기)
+
+## 상신 형식
+
+- **작업 완료 상신·정식 보고는 첫머리를 답변 시각 `[YYYY-MM-DD HH:MM]`으로 시작한다.** 짧은 문답·중간 경과 보고에는 붙이지 않는다. 이유: 전역 Stop 훅(`~/.claude/hooks/notify_on_report.py`)이 마지막 답변이 이 형식으로 시작할 때만 사용자에게 디스코드 알림을 보낸다. 시각은 UserPromptSubmit 훅이 주입하는 `[Now: …]`를 쓰고, 주입이 없는 턴은 셸로 조회한다.
