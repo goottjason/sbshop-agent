@@ -166,4 +166,4 @@ python -m unittest discover -s tools/dbwrite -p 'test_*.py'
   - `SBSHOP_DBWRITE_TEST_PSQL` — 쓰기 역할 psql argv의 JSON 배열. 끝이 `-f -`. 예: `["psql","-X","-U","sbshop","-d","sbshop_dbwrite_test","-v","ON_ERROR_STOP=1","-f","-"]`
   - `SBSHOP_DBWRITE_TEST_PSQL_RO` — 읽기 전용 역할 argv(없으면 쓰기용과 같게). 쓰기 역할이 만든 테이블에 읽기 역할의 SELECT가 기본 권한으로 붙어 있어야 한다(운영과 같게).
   - 시험이 만드는 것은 `sbw_t_` 테이블·뷰·함수(트리거·규칙·상속·FK 시험용)와 `bak_d9…` 백업 테이블뿐이고 시험마다 지운다.
-- CI(`tests.yml`)는 이 폴더를 돌리지 않는다. 고칠 때 손으로 돌린다.
+- CI(`tests.yml`의 "MarketPlus observer and parser tests" 단계)가 단위 시험을 돌린다. 통합 시험은 환경 변수가 없어 CI에서 skip된다 — 도구를 고치면 서버 임시 DB에서 다시 돌린다(2026-11-19 첫 실행: 18/18 통과, 절차는 원장 D-364).
