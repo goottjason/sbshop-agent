@@ -6756,5 +6756,6 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
   - **실 DB 통합 시험 통과:** 운영 서버 `projects-postgres-1`(PG 16)에 임시 DB `sbshop_dbwrite_test`(소유자 `sbshop`, `sbshop_ro` CONNECT + 기본 SELECT) → 실제 경로(`docker --context default exec -i … psql -U sbshop|sbshop_ro … -f -`), 도구 `1.0.0 56e6743116b4` → `Ran 18 tests in 17.077s OK`. 설계 §2의 미확인(PL/pgSQL 구문·psql 표지·ctid 배열·lock_timeout·한글·ro 읽기)은 해소. 시험 12의 ResourceWarning은 시험 코드의 미닫힌 파이프로 도구 동작과 무관. 도구 수정 없음.
   - 시험이 덮지 않는 항목 11 확인: `docker exec -i … psql`에 `BEGIN; INSERT; pg_sleep(4); COMMIT`을 보내고 1초 뒤 클라이언트를 `kill -9` → 직후 0행, 6초 뒤 1행. **클라이언트가 죽어도 컨테이너 안 psql은 끝까지 돌아 커밋한다** — `committed=unknown` 규칙의 근거 확인.
   - 정리: 임시 DB DROP, `~/ops-write-test` 삭제, DB 목록 원래대로(`canagent`·`postgres`·`sbshop`·template), api 헬스 200. 운영 `sbshop` DB에는 쓰지 않았다. 사전 확인: 도는 소싱처 배치 0, 진행 중 배포 없음, 디스크 여유 26G.
-- 남은 것: (a) `main` 푸시(승인 대기) (b) 서버 설치(`~/ops-write/`, 운영 쓰기 — 승인 대기) (c) 첫 실제 사용은 별도 계획서·승인 (d) 미확인: 운영 `pre` 덤프가 10분 안에 끝나는가 — 백업 로그 `secs=44~46`이라 여유 충분.
-- 상태: 검증통과(정적·단위·실 DB 통합) — 푸시·설치 승인 대기
+- 2026-11-19 10:54 (사용자 승인): `main` 푸시(`6c47eafa..ff96211e`, 배포 워크플로 결과는 아래 상태 줄) → 서버 설치 `~/ops-write/sbshop_db_write.py`(700) + `~/ops-write/jobs`(700). 서버 `python3 -I ~/ops-write/sbshop_db_write.py --version` → `sbshop_db_write 1.0.0 56e6743116b4`, `sha256sum` 앞 12자 `56e6743116b4` = 저장소 파일. README 설치 명령의 `mkdir -m 700 -p`가 부모 `~/ops-write`를 775로 남겨 `chmod 700`으로 바로잡고 README에 반영(도구 동작과 무관). 되돌리기: `rm -r ~/ops-write`.
+- 남은 것: (a) 첫 실제 사용은 별도 실행 계획서(대상 조건·예상 건수·되돌리기)·승인 (b) 규율 O-3: "데이터 정정은 이 도구로만"과 실제 명령을 규율에 넣고 임시 규칙(쓰기 전 덤프 수동 확인)을 바꾼다 (c) 미확인: 운영 `pre` 덤프가 10분 안에 끝나는가 — 백업 로그 `secs=44~46`이라 여유 충분.
+- 상태: **해결(설치 완료)** — 정적·단위·실 DB 통합 검증, 서버 설치·해시 대조 완료. 첫 실제 사용 전

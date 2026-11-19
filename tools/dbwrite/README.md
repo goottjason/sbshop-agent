@@ -147,7 +147,7 @@ OK의 조건은 psql 종료코드 0, 표준 출력의 명령 태그 줄 `COMMIT`
 설치는 운영 쓰기이므로 승인 후 한다. 서버에 아무것도 설치하지 않는다(Python 3.12 표준 라이브러리만 쓴다).
 
 ```bash
-mkdir -m 700 -p ~/ops-write/jobs
+mkdir -m 700 -p ~/ops-write/jobs && chmod 700 ~/ops-write   # -p 의 -m 은 마지막 폴더에만 적용된다
 install -m 700 tools/dbwrite/sbshop_db_write.py ~/ops-write/sbshop_db_write.py   # 저장소 사본에서 복사
 python3 -I ~/ops-write/sbshop_db_write.py --version   # → sbshop_db_write <버전> <해시12>
 sha256sum ~/ops-write/sbshop_db_write.py               # 앞 12자가 위와 같아야 한다
