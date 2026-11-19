@@ -6768,4 +6768,5 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 수정: 최신 메이저로 — checkout v4→v7, setup-java v4→v6, setup-node v4→v7, setup-python v5→v7, upload-artifact v4→v7, setup-buildx v3→v4, login v3→v4, build-push v6→v7. 각 태그의 `action.yml`이 `using: node24`임을 확인(upload-artifact v5는 아직 node20이라 v6 이상 필요).
 - 파괴적 변경 대조(해당 없음): checkout v6 자격 증명 별도 파일·v7 `pull_request_target`/`workflow_run` 포크 PR 차단(둘 다 미사용) / setup-node v6 자동 캐시 npm 한정(`cache: npm` 명시) / setup-python v7 `pip-install` 입력 제거·EOL 버전 제거(미사용, 3.12) / setup-java v6 Adopt 배포판 제거·서명 검증 기본(temurin) / buildx v4·build-push v7 사용 중단 입력·환경 변수 제거(미사용 — 쓰는 입력은 context·file·platforms·push·provenance·sbom·tags·labels·cache-from·cache-to).
 - 검증: YAML 파싱 OK. 실제 검증은 푸시 후 배포 워크플로(테스트·이미지 빌드 통과, 주석에 Node 20 경고 없음). 실패하면 배포 단계로 넘어가지 않는다.
-- 상태: **수정완료(푸시 전)**
+- 2026-11-19 (사용자 승인): 커밋 `bb89a886` 푸시 → 실행 44453741302 **성공**(테스트 3·이미지 빌드 3·배포 전부 success). 모든 작업의 주석 0건 — Node 20·setup-java 경고 사라짐. 이미지 내용이 같아 교체된 서비스 없음(서버 읽기: api `958df1e6`·frontend `ff96211e`·scraper `88d3e9b2` 그대로, api 헬스 200). 참고: 러너 이미지가 `ubuntu-26.04`로 바뀌어 있었다.
+- 상태: **해결**
