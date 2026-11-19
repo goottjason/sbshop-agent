@@ -6759,3 +6759,13 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 2026-11-19 10:54 (사용자 승인): `main` 푸시(`6c47eafa..ff96211e`, 배포 워크플로 결과는 아래 상태 줄) → 서버 설치 `~/ops-write/sbshop_db_write.py`(700) + `~/ops-write/jobs`(700). 서버 `python3 -I ~/ops-write/sbshop_db_write.py --version` → `sbshop_db_write 1.0.0 56e6743116b4`, `sha256sum` 앞 12자 `56e6743116b4` = 저장소 파일. README 설치 명령의 `mkdir -m 700 -p`가 부모 `~/ops-write`를 775로 남겨 `chmod 700`으로 바로잡고 README에 반영(도구 동작과 무관). 되돌리기: `rm -r ~/ops-write`.
 - 남은 것: (a) 첫 실제 사용은 별도 실행 계획서(대상 조건·예상 건수·되돌리기)·승인 (b) 규율 O-3: "데이터 정정은 이 도구로만"과 실제 명령을 규율에 넣고 임시 규칙(쓰기 전 덤프 수동 확인)을 바꾼다 (c) 미확인: 운영 `pre` 덤프가 10분 안에 끝나는가 — 백업 로그 `secs=44~46`이라 여유 충분.
 - 상태: **해결(설치 완료)** — 정적·단위·실 DB 통합 검증, 서버 설치·해시 대조 완료. 첫 실제 사용 전
+
+## CI 유지보수
+
+### D-365 — GitHub Actions가 Node 20 대상 액션을 Node 24로 강제 실행·`setup-java@v4` 사용 중단 경고 (2026-11-19, 인계서 N4)
+- 심각도: P3(지금은 정상 동작, 향후 러너 변경 시 실패 가능) | 리스크: 경량(`.github/workflows/` 두 파일의 버전 문자열만, 가역). `.github/` 수정은 업무 범위 예외로 사용자 승인.
+- 근거: 실행 44440414221의 주석 — `Node.js 20 is deprecated … forced to run on Node.js 24`(checkout@v4·setup-java@v4·setup-node@v4·setup-python@v5·docker 3종) + `setup-java v4 is deprecated … migrate to actions/setup-java@v5`. `upload-artifact@v4`는 실패 시에만 돌아 주석에 없었지만 같은 Node 20 대상.
+- 수정: 최신 메이저로 — checkout v4→v7, setup-java v4→v6, setup-node v4→v7, setup-python v5→v7, upload-artifact v4→v7, setup-buildx v3→v4, login v3→v4, build-push v6→v7. 각 태그의 `action.yml`이 `using: node24`임을 확인(upload-artifact v5는 아직 node20이라 v6 이상 필요).
+- 파괴적 변경 대조(해당 없음): checkout v6 자격 증명 별도 파일·v7 `pull_request_target`/`workflow_run` 포크 PR 차단(둘 다 미사용) / setup-node v6 자동 캐시 npm 한정(`cache: npm` 명시) / setup-python v7 `pip-install` 입력 제거·EOL 버전 제거(미사용, 3.12) / setup-java v6 Adopt 배포판 제거·서명 검증 기본(temurin) / buildx v4·build-push v7 사용 중단 입력·환경 변수 제거(미사용 — 쓰는 입력은 context·file·platforms·push·provenance·sbom·tags·labels·cache-from·cache-to).
+- 검증: YAML 파싱 OK. 실제 검증은 푸시 후 배포 워크플로(테스트·이미지 빌드 통과, 주석에 Node 20 경고 없음). 실패하면 배포 단계로 넘어가지 않는다.
+- 상태: **수정완료(푸시 전)**
