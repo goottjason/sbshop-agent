@@ -6751,5 +6751,10 @@ Co-op). `Natural` → 상품 113건이 걸린 검색어인데 후보가 전부 �
 - 운영 읽기 확인(2026-11-18, 쓰기 없음): `sbshop` 역할은 public CREATE와 67개 테이블 전부의 DML 권한 보유. 참조 FK 31개는 전부 NO ACTION/RESTRICT, 테이블 규칙·상속·사용자 트리거·이벤트 트리거 0. 서버 OS 시간대 KST(cron 포함), 덤프 이름 시각과 수정 시각 차 45초. 고정 환경 + `docker --context default`로 `sbshop_ro` 접속 확인.
 - 검증(qa-verifier 3회): 1차 부분(반려) — H1 조건을 두 번 평가해 백업한 행≠바꾼 행 가능(`LIMIT`·`random()`), M1 `HOME`·`TZ`·`DOCKER_HOST`가 경로·덤프 시간 창·대상을 바꿈, M2 시간 초과 때 `committed=no` 단정, M3 연쇄 FK·규칙·상속이 백업 밖 → 설계 개정(ctid 배열, K12 구체화, K14 신설, committed 판정 보수화) 후 수정. 2차 보류 — 낮음 2건(위조 `ERROR:` 줄로 거짓 `committed=no`, `touch`한 옛 덤프 통과) → 수정. 3차 **정적·단위 범위 PASS**(변이 40종 전부 잡힘, 거짓 OK·거짓 committed=yes 미발견). **미검증: 실 DB 통합 시험 18항목은 PostgreSQL이 없어 한 번도 실행하지 못했다 — 통과 전에는 운영에 설치하지 않는다.** PL/pgSQL·psql 동작에 관한 결론은 그때까지 추정이다.
 - 사고(2026-11-18 23:01): 2차 검증 중 검증자가 공유 임시 폴더의 변이 스크립트를 내용 확인 없이 다시 실행해 미커밋 상태의 `tools/dbwrite/` 다섯 파일이 삭제됨. 하위 에이전트 작업 기록에서 복구(도구·README는 삭제 직전 읽은 원문과 바이트 일치, 시험 두 파일은 편집 기록 재생 — 삭제 전과 같은 `Ran 194 … OK (skipped=18)` 재현, 이후 3차에서 변이 40종으로 변별력 재확인). 재발 방지: 하위 에이전트에 넘기기 전 스테이징, 에이전트별 전용 임시 폴더, 삭제 코드의 경로 assert.
-- 남은 것: (a) 실 DB 통합 시험 실행(방법은 사용자 결정) (b) 커밋(중대 — 사용자 승인) (c) 서버 설치(`~/ops-write/`, 운영 쓰기 — 승인) (d) CI(`tests.yml`)가 이 폴더의 시험을 돌리지 않음 — 워크플로 수정은 범위 밖이라 사용자 결정 (e) 첫 실제 사용은 별도 계획서·승인.
-- 상태: 검증통과(정적·단위) — 실 DB 통합 시험·커밋 승인 대기
+- 2026-11-19 (사용자 승인: D1 서버 임시 DB · D2 지금 커밋 · D3 CI 추가):
+  - 커밋 `4c50c244`(도구) · `e3c0b45e`(문서) · `11d6a4b5`(CI — `tests.yml` "MarketPlus observer and parser tests" 단계에 `tools/dbwrite` 한 줄. `.github/` 수정은 업무 범위 예외로 사용자 승인). 푸시 전.
+  - **실 DB 통합 시험 통과:** 운영 서버 `projects-postgres-1`(PG 16)에 임시 DB `sbshop_dbwrite_test`(소유자 `sbshop`, `sbshop_ro` CONNECT + 기본 SELECT) → 실제 경로(`docker --context default exec -i … psql -U sbshop|sbshop_ro … -f -`), 도구 `1.0.0 56e6743116b4` → `Ran 18 tests in 17.077s OK`. 설계 §2의 미확인(PL/pgSQL 구문·psql 표지·ctid 배열·lock_timeout·한글·ro 읽기)은 해소. 시험 12의 ResourceWarning은 시험 코드의 미닫힌 파이프로 도구 동작과 무관. 도구 수정 없음.
+  - 시험이 덮지 않는 항목 11 확인: `docker exec -i … psql`에 `BEGIN; INSERT; pg_sleep(4); COMMIT`을 보내고 1초 뒤 클라이언트를 `kill -9` → 직후 0행, 6초 뒤 1행. **클라이언트가 죽어도 컨테이너 안 psql은 끝까지 돌아 커밋한다** — `committed=unknown` 규칙의 근거 확인.
+  - 정리: 임시 DB DROP, `~/ops-write-test` 삭제, DB 목록 원래대로(`canagent`·`postgres`·`sbshop`·template), api 헬스 200. 운영 `sbshop` DB에는 쓰지 않았다. 사전 확인: 도는 소싱처 배치 0, 진행 중 배포 없음, 디스크 여유 26G.
+- 남은 것: (a) `main` 푸시(승인 대기) (b) 서버 설치(`~/ops-write/`, 운영 쓰기 — 승인 대기) (c) 첫 실제 사용은 별도 계획서·승인 (d) 미확인: 운영 `pre` 덤프가 10분 안에 끝나는가 — 백업 로그 `secs=44~46`이라 여유 충분.
+- 상태: 검증통과(정적·단위·실 DB 통합) — 푸시·설치 승인 대기
