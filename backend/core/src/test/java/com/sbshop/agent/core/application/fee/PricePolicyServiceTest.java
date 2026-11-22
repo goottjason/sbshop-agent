@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.domain.common.RecordStatus;
 import com.sbshop.agent.core.domain.fee.PricePolicy;
+import com.sbshop.agent.core.domain.product.service.MarginCalculator.MarginFloor;
 import com.sbshop.agent.core.domain.fee.repository.PricePolicyRepository;
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -61,7 +62,7 @@ class PricePolicyServiceTest {
 		when(pricePolicyRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 		ArgumentCaptor<PricePolicy> captor = ArgumentCaptor.forClass(PricePolicy.class);
 
-		pricePolicyService.update(new BigDecimal("15"), new BigDecimal("20"), new BigDecimal("5000"));
+		pricePolicyService.update(new BigDecimal("15"), new BigDecimal("20"), new BigDecimal("5000"), MarginFloor.NONE);
 
 		verify(pricePolicyRepository).save(captor.capture());
 		assertThat(captor.getValue().getMarginRate()).isEqualByComparingTo("15");
@@ -78,7 +79,7 @@ class PricePolicyServiceTest {
 		when(pricePolicyRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
 		PricePolicy saved = pricePolicyService.update(new BigDecimal("18"), new BigDecimal("25"),
-			new BigDecimal("7000"));
+			new BigDecimal("7000"), MarginFloor.NONE);
 
 		assertThat(saved).isSameAs(existing);
 		assertThat(existing.getMarginRate()).isEqualByComparingTo("18");
@@ -93,7 +94,7 @@ class PricePolicyServiceTest {
 	@DisplayName("가격 계산을 깨뜨리거나 저장 범위를 넘는 정책은 기존 정책에 접근하기 전에 거부한다")
 	void update_rejectsInvalidNumbersBeforeRepositoryAccess(BigDecimal marginRate,
 		BigDecimal couponRate, BigDecimal minMarginPrice) {
-		assertThatThrownBy(() -> pricePolicyService.update(marginRate, couponRate, minMarginPrice))
+		assertThatThrownBy(() -> pricePolicyService.update(marginRate, couponRate, minMarginPrice, MarginFloor.NONE))
 			.isInstanceOf(IllegalArgumentException.class).hasMessageContaining("이어야 합니다");
 		verifyNoInteractions(pricePolicyRepository);
 	}
@@ -106,12 +107,12 @@ class PricePolicyServiceTest {
 			.thenReturn(Optional.of(existing));
 		when(pricePolicyRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
-		pricePolicyService.update(BigDecimal.ZERO, new BigDecimal("100"), BigDecimal.ZERO);
+		pricePolicyService.update(BigDecimal.ZERO, new BigDecimal("100"), BigDecimal.ZERO, MarginFloor.NONE);
 		assertThat(existing.getMarginRate()).isZero();
 		assertThat(existing.getCouponRate()).isEqualByComparingTo("100");
 		assertThat(existing.getMinMarginPrice()).isZero();
 
-		pricePolicyService.update(null, null, null);
+		pricePolicyService.update(null, null, null, null);
 		assertThat(existing.getMarginRate()).isNull();
 		assertThat(existing.getCouponRate()).isNull();
 		assertThat(existing.getMinMarginPrice()).isNull();
@@ -123,5 +124,53 @@ class PricePolicyServiceTest {
 			.couponRate(new BigDecimal(couponRate))
 			.minMarginPrice(new BigDecimal(minMarginPrice))
 			.build();
+	}
+
+	@Test
+	@DisplayName("마진 하한율·하한액을 저장하고, 비우면(null) 하한을 지운다 — 0과 빈 값은 다르다")
+	void update_savesAndClearsMarginFloor() {
+		PricePolicy existing = policy("15", "20", "5000");
+		when(pricePolicyRepository.findFirstByStatusOrderByIdAsc(RecordStatus.ACTIVE))
+			.thenReturn(Optional.of(existing));
+		when(pricePolicyRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+		pricePolicyService.update(new BigDecimal("15"), BigDecimal.ZERO, new BigDecimal("15000"),
+			new MarginFloor(new BigDecimal("5"), new BigDecimal("5000")));
+		assertThat(existing.getMarginFloorRate()).isEqualByComparingTo("5");
+		assertThat(existing.getMarginFloorAmount()).isEqualByComparingTo("5000");
+		assertThat(existing.marginFloor()).isEqualTo(new MarginFloor(new BigDecimal("5"), new BigDecimal("5000")));
+
+		pricePolicyService.update(new BigDecimal("15"), BigDecimal.ZERO, new BigDecimal("15000"),
+			new MarginFloor(BigDecimal.ZERO, null));
+		assertThat(existing.getMarginFloorRate()).isZero();
+		assertThat(existing.getMarginFloorAmount()).isNull();
+
+		pricePolicyService.update(new BigDecimal("15"), BigDecimal.ZERO, new BigDecimal("15000"), MarginFloor.NONE);
+		assertThat(existing.getMarginFloorRate()).isNull();
+		assertThat(existing.getMarginFloorAmount()).isNull();
+	}
+
+	@Test
+	@DisplayName("새 정책 행에도 마진 하한을 저장한다")
+	void update_noRow_savesMarginFloor() {
+		when(pricePolicyRepository.findFirstByStatusOrderByIdAsc(RecordStatus.ACTIVE))
+			.thenReturn(Optional.empty());
+		when(pricePolicyRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+		PricePolicy saved = pricePolicyService.update(new BigDecimal("15"), BigDecimal.ZERO, BigDecimal.ZERO,
+			new MarginFloor(new BigDecimal("5"), new BigDecimal("5000")));
+
+		assertThat(saved.getMarginFloorRate()).isEqualByComparingTo("5");
+		assertThat(saved.getMarginFloorAmount()).isEqualByComparingTo("5000");
+	}
+
+	@ParameterizedTest
+	@CsvSource(value = {"-0.01, NULL", "100, NULL", "NULL, -0.01", "NULL, 10000000000000"}, nullValues = "NULL")
+	@DisplayName("범위를 벗어난 마진 하한은 기존 정책에 접근하기 전에 거부한다")
+	void update_rejectsInvalidMarginFloor(BigDecimal rate, BigDecimal amount) {
+		assertThatThrownBy(() -> pricePolicyService.update(new BigDecimal("15"), BigDecimal.ZERO, BigDecimal.ZERO,
+			new MarginFloor(rate, amount)))
+			.isInstanceOf(IllegalArgumentException.class).hasMessageContaining("마진 하한");
+		verifyNoInteractions(pricePolicyRepository);
 	}
 }

@@ -29,6 +29,27 @@ public final class PricePolicyValidator {
 		validateRange("국내 무료배송 기준금액", domesticFreeOver, MAX_PRICE);
 	}
 
+	public static void validateMarginFloor(BigDecimal ratePercent, BigDecimal amount) {
+		validateRange("마진 하한율", ratePercent, MAX_MARGIN_RATE);
+		validateRange("마진 하한액", amount, MAX_PRICE);
+	}
+
+	/** 배대지 기본 금액이 있으면(0 초과) 기본 무게·단계 무게(0 초과)와 단계 금액이 있어야 계산할 수 있다. */
+	public static void validateForwarder(ForwarderShipping.Rate rate) {
+		if (rate == null)
+			return;
+		validateRange("배대지 기본 금액", rate.baseAmount(), MAX_SHIPPING_AMOUNT);
+		validateWeight("배대지 기본 무게", rate.baseWeightG());
+		validateRange("배대지 단계 금액", rate.stepAmount(), MAX_SHIPPING_AMOUNT);
+		validateWeight("배대지 단계 무게", rate.stepWeightG());
+		validateWeight("배대지 포장 가산 무게", rate.packagingG());
+		if (rate.enabled() && (rate.baseWeightG() == null || rate.baseWeightG() <= 0 || rate.stepWeightG() == null
+			|| rate.stepWeightG() <= 0 || rate.stepAmount() == null)) {
+			throw new IllegalArgumentException("배대지 기본 금액을 넣으면 기본 무게·단계 금액·단계 무게도 넣어야 합니다"
+				+ "(무게는 0보다 커야 합니다).");
+		}
+	}
+
 	private static void validateRange(String label, BigDecimal value, BigDecimal maximum) {
 		if (value != null && (value.signum() < 0 || value.compareTo(maximum) > 0)) {
 			throw new IllegalArgumentException(label + "은(는) 0 이상 " + maximum.toPlainString()

@@ -2,12 +2,14 @@ package com.sbshop.agent.core.application.sourcing.enrich;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sbshop.agent.core.application.fee.MarketFeeService;
+import com.sbshop.agent.core.application.product.MarketSalePriceResolver;
 import com.sbshop.agent.core.application.sourcing.dto.MarketCategory;
 import com.sbshop.agent.core.application.sourcing.port.MarketAccountResourcePort;
 import com.sbshop.agent.core.application.sourcing.port.MarketCategoryResolverPort;
 import com.sbshop.agent.core.config.MarketRegistrationDefaults;
 import com.sbshop.agent.core.domain.order.enums.MarketType;
-import com.sbshop.agent.core.domain.product.service.MarginCalculator;
+import com.sbshop.agent.core.domain.product.enums.VendorType;
+import com.sbshop.agent.core.domain.product.vo.ProductWeight;
 import com.sbshop.agent.core.domain.sourcing.MarketDraft;
 import com.sbshop.agent.core.domain.sourcing.ProductDraft;
 import com.sbshop.agent.core.domain.sourcing.component.MarketProductRules;
@@ -26,7 +28,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class MarketDraftBuilder {
 	private final MarketFeeService marketFeeService;
-	private final MarginCalculator marginCalculator;
+	private final MarketSalePriceResolver salePriceResolver;
 	private final ProductNoticeBuilder noticeBuilder;
 	private final MarketRegistrationDefaults defaults;
 	private final ObjectMapper objectMapper;
@@ -34,12 +36,12 @@ public class MarketDraftBuilder {
 
 	private final Map<MarketType, MarketAccountResourcePort> accountResources = new EnumMap<>(MarketType.class);
 
-	public MarketDraftBuilder(MarketFeeService marketFeeService, MarginCalculator marginCalculator,
+	public MarketDraftBuilder(MarketFeeService marketFeeService, MarketSalePriceResolver salePriceResolver,
 		ProductNoticeBuilder noticeBuilder, MarketRegistrationDefaults defaults,
 		ObjectMapper objectMapper, List<MarketCategoryResolverPort> resolvers,
 		List<MarketAccountResourcePort> accountResourcePorts) {
 		this.marketFeeService = marketFeeService;
-		this.marginCalculator = marginCalculator;
+		this.salePriceResolver = salePriceResolver;
 		this.noticeBuilder = noticeBuilder;
 		this.defaults = defaults;
 		this.objectMapper = objectMapper;
@@ -97,8 +99,33 @@ public class MarketDraftBuilder {
 			return null;
 		int bundleQty = draft.getBundleQty() != null ? draft.getBundleQty() : 1;
 		BigDecimal marginRate = draft.getMarginRate() != null ? draft.getMarginRate() : new BigDecimal("20");
-		return marginCalculator.calculateSalePrice(
-			draft.getCostPrice(), bundleQty, marginRate, couponRate, null, feeRate);
+		var explanation = salePriceResolver.explainForDraft(vendor(draft.getVendor()), draft.getCostPrice(), bundleQty,
+			marginRate, couponRate, weightKg(draft.getWeightG()), feeRate);
+		if (explanation.basis() == MarketSalePriceResolver.Basis.UNAVAILABLE) {
+			// 판매가를 비워 두면 필수값 검증이 "판매가"를 빠진 항목으로 잡아 등록 대상에서 빠진다.
+			log.warn("[초안생성] 판매가 계산 불가: draftId={}, 사유={}", draft.getId(), explanation.unavailableReason());
+			return null;
+		}
+		return explanation.salePrice();
+	}
+
+	/** 범위를 벗어난 초안 무게는 무게 없음으로 본다 — 배대지 요금이 있는 소싱처만 판매가를 비우게 된다. */
+	private static BigDecimal weightKg(BigDecimal grams) {
+		try {
+			return ProductWeight.fromGrams(grams);
+		} catch (IllegalArgumentException e) {
+			return null;
+		}
+	}
+
+	private static VendorType vendor(String raw) {
+		if (raw == null || raw.isBlank())
+			return null;
+		try {
+			return VendorType.valueOf(raw.trim().toUpperCase());
+		} catch (IllegalArgumentException e) {
+			return null;
+		}
 	}
 
 	private MarketCategory resolveCategory(MarketType marketType, String hint, String name, String brand) {

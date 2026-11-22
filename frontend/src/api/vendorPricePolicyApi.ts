@@ -12,6 +12,12 @@ export interface VendorPricePolicy {
   shipStepWeightG: number | null;
   domesticFee: number | null;
   domesticFreeOver: number | null;
+  /** 배대지 요금표(원화, D-360). 기본 금액이 비어 있거나 0이면 배대지 배송비를 더하지 않는다. */
+  forwarderBaseAmount: number | null;
+  forwarderBaseWeightG: number | null;
+  forwarderStepAmount: number | null;
+  forwarderStepWeightG: number | null;
+  forwarderPackagingG: number | null;
 }
 
 export const fetchVendorPricePolicies = async (): Promise<VendorPricePolicy[]> => {

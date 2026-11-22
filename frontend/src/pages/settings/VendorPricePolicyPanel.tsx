@@ -26,6 +26,14 @@ const DOMESTIC_FIELDS: { key: keyof VendorPricePolicy; label: string }[] = [
   { key: 'domesticFreeOver', label: '무료 기준액 (원)' },
 ];
 
+const FORWARDER_FIELDS: { key: keyof VendorPricePolicy; label: string }[] = [
+  { key: 'forwarderBaseAmount', label: '기본 금액 (원)' },
+  { key: 'forwarderBaseWeightG', label: '기본 무게 (g)' },
+  { key: 'forwarderStepAmount', label: '단계 금액 (원)' },
+  { key: 'forwarderStepWeightG', label: '단계 무게 (g)' },
+  { key: 'forwarderPackagingG', label: '포장 가산 (g)' },
+];
+
 const CURRENCIES = ['GBP', 'USD', 'KRW', 'EUR', 'JPY'];
 
 const toNumber = (value: string): number | null => {
@@ -65,6 +73,11 @@ const VendorPricePolicyPanel = () => {
     shipStepWeightG: asText(active?.shipStepWeightG),
     domesticFee: asText(active?.domesticFee),
     domesticFreeOver: asText(active?.domesticFreeOver),
+    forwarderBaseAmount: asText(active?.forwarderBaseAmount),
+    forwarderBaseWeightG: asText(active?.forwarderBaseWeightG),
+    forwarderStepAmount: asText(active?.forwarderStepAmount),
+    forwarderStepWeightG: asText(active?.forwarderStepWeightG),
+    forwarderPackagingG: asText(active?.forwarderPackagingG),
   };
 
   const selectVendor = (next: string) => {
@@ -92,6 +105,11 @@ const VendorPricePolicyPanel = () => {
         shipStepWeightG: toNumber(form.shipStepWeightG),
         domesticFee: toNumber(form.domesticFee),
         domesticFreeOver: toNumber(form.domesticFreeOver),
+        forwarderBaseAmount: toNumber(form.forwarderBaseAmount),
+        forwarderBaseWeightG: toNumber(form.forwarderBaseWeightG),
+        forwarderStepAmount: toNumber(form.forwarderStepAmount),
+        forwarderStepWeightG: toNumber(form.forwarderStepWeightG),
+        forwarderPackagingG: toNumber(form.forwarderPackagingG),
       });
     },
     onSuccess: () => {
@@ -99,7 +117,10 @@ const VendorPricePolicyPanel = () => {
       setDraft(null);
       setSaved(`${activeVendor} 정책을 저장했습니다.`);
     },
-    onError: () => setSaved('저장 중 오류가 발생했습니다.'),
+    onError: (error: unknown) => {
+      const message = (error as { response?: { data?: { message?: unknown } } })?.response?.data?.message;
+      setSaved(typeof message === 'string' && message ? `저장하지 못했습니다: ${message}` : '저장 중 오류가 발생했습니다.');
+    },
   });
 
   return (
@@ -188,12 +209,39 @@ const VendorPricePolicyPanel = () => {
           </div>
 
           <div>
+            <h3 style={{ fontSize: 15, margin: '0 0 12px' }}>배대지 배송비 (원화)</h3>
+            <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 12px' }}>
+              판매가를 계산할 때 총 매입가에 더합니다(원가에는 넣지 않고, 쿠폰 할인도 받지 않습니다).
+              계산 무게 = 상품 무게 × 묶음수량 + 포장 가산이고, 기본 무게를 넘으면 단계 무게마다 단계 금액이 붙습니다.
+              기본 금액을 비우거나 0으로 두면 배대지 배송비를 더하지 않습니다. 값이 있으면 무게가 없는 상품은 가격을 계산하지 않습니다.
+            </p>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              {FORWARDER_FIELDS.map((f) => (
+                <div key={f.key} style={fieldStyle}>
+                  <label htmlFor={`vendor-policy-${f.key}`} style={{ fontWeight: 500, fontSize: 14 }}>{f.label}</label>
+                  <input
+                    id={`vendor-policy-${f.key}`}
+                    type="number"
+                    value={form[f.key]}
+                    onChange={(e) => change(f.key, e.target.value)}
+                    className="input-field"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
             <h3 style={{ fontSize: 15, margin: '0 0 12px' }}>국내 배송비</h3>
+            <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 12px' }}>
+              비워 두면 기본값(6,000원, 40,000원 이상 무료)이 붙습니다. 붙이지 않으려면 0을 넣으세요.
+            </p>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
               {DOMESTIC_FIELDS.map((f) => (
                 <div key={f.key} style={fieldStyle}>
-                  <label style={{ fontWeight: 500, fontSize: 14 }}>{f.label}</label>
+                  <label htmlFor={`vendor-policy-${f.key}`} style={{ fontWeight: 500, fontSize: 14 }}>{f.label}</label>
                   <input
+                    id={`vendor-policy-${f.key}`}
                     type="number"
                     value={form[f.key]}
                     onChange={(e) => change(f.key, e.target.value)}

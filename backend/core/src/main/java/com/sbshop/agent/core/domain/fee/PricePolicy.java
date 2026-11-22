@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.domain.fee;
 
 import com.sbshop.agent.core.domain.common.BaseEntity;
+import com.sbshop.agent.core.domain.product.service.MarginCalculator.MarginFloor;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -25,16 +26,33 @@ public class PricePolicy extends BaseEntity {
 	@Column(name = "min_margin_price", precision = 15, scale = 2)
 	private BigDecimal minMarginPrice;
 
+	/** 마진 하한율(%) — 수수료를 뺀 순이익 ≥ 판매가 × 하한율. null이면 쓰지 않는다(D-360). */
+	@Column(name = "margin_floor_rate", precision = 5, scale = 2)
+	private BigDecimal marginFloorRate;
+
+	/** 마진 하한액(원) — 수수료를 뺀 순이익 ≥ 하한액. null이면 쓰지 않는다(D-360). */
+	@Column(name = "margin_floor_amount", precision = 15, scale = 2)
+	private BigDecimal marginFloorAmount;
+
 	@Builder
-	public PricePolicy(BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice) {
+	public PricePolicy(BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice,
+		BigDecimal marginFloorRate, BigDecimal marginFloorAmount) {
 		this.marginRate = marginRate;
 		this.couponRate = couponRate;
 		this.minMarginPrice = minMarginPrice;
+		this.marginFloorRate = marginFloorRate;
+		this.marginFloorAmount = marginFloorAmount;
 	}
 
-	public void update(BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice) {
+	public void update(BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice, MarginFloor floor) {
 		this.marginRate = marginRate;
 		this.couponRate = couponRate;
 		this.minMarginPrice = minMarginPrice;
+		this.marginFloorRate = floor == null ? null : floor.ratePercent();
+		this.marginFloorAmount = floor == null ? null : floor.amount();
+	}
+
+	public MarginFloor marginFloor() {
+		return new MarginFloor(marginFloorRate, marginFloorAmount);
 	}
 }

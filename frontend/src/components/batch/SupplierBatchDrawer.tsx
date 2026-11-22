@@ -50,7 +50,7 @@ export function SupplierBatchDrawer({ run, itemId, onClose, onRetry, retryBusy, 
           {diagnosis.stockStatus && <p>재고 상태: {diagnosis.stockStatus === 'IN_STOCK' ? '구매 가능' : diagnosis.stockStatus === 'OUT_OF_STOCK' ? '품절' : '미확인'}</p>}
         </> }] : []),
         { key: 'price', label: '가격 계산 근거', children: calculation ? <div className="sb-batch-calculation">
-          <p className="sb-batch-help">최소 마진은 판매가에서 소싱처 쿠폰을 적용한 총매입가와 국내 배송비를 뺀 금액 기준입니다.</p>
+          <p className="sb-batch-help">최소 마진은 판매가에서 소싱처 쿠폰을 적용한 총매입가와 국내·배대지 배송비를 뺀 금액 기준입니다. 마진 하한은 마켓 수수료까지 뺀 순이익 기준이며, 적용되면 아래 근거에 남습니다.</p>
           <dl><div><dt>목표 마진 / 적용 쿠폰 / 최소 마진</dt><dd>{calculation.policy.marginRate}% / {calculation.appliedCouponRate ?? calculation.policy.couponRate}% / {numberText(calculation.policy.minMarginPrice)}원</dd></div>
             <div><dt>입력 쿠폰율 → 실제 적용 쿠폰율</dt><dd>{calculation.policy.couponRate}% → {calculation.appliedCouponRate ?? calculation.policy.couponRate}%</dd></div>
             <div><dt>원가 / 적용 환율</dt><dd>{numberText(calculation.costPrice)}원 / {numberText(calculation.exchangeRate)}</dd></div>

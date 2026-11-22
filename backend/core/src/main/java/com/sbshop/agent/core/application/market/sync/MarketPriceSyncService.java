@@ -391,7 +391,8 @@ public class MarketPriceSyncService {
 		else {
 			var quote = prices.explainForProduct(p, market, MarketSalePriceOverrides.EMPTY);
 			if (quote.basis() != MarketSalePriceResolver.Basis.CALCULATED || quote.salePrice() == null)
-				reason = "최소마진을 포함한 가격을 계산할 수 없습니다.";
+				reason = quote.unavailableReason() != null ? quote.unavailableReason()
+					: "최소마진을 포함한 가격을 계산할 수 없습니다.";
 			else {
 				price = quote.salePrice();
 				try {

@@ -110,8 +110,15 @@ public class MarginCalculator {
 		if (minMarginPrice != null && minMarginPrice.signum() < 0) {
 			throw new IllegalArgumentException("최소마진은 0 이상이어야 합니다.");
 		}
+		if (forwarderFee != null && forwarderFee.signum() < 0) {
+			throw new IllegalArgumentException("배대지 배송비는 0 이상이어야 합니다.");
+		}
 		BigDecimal totalBuyPrice = buyPrice.multiply(BigDecimal.valueOf(bundleQty));
 		totalBuyPrice = totalBuyPrice.add(domesticFee(totalBuyPrice, domesticFee, domesticFreeOver));
+		// 쿠폰과 국내 배송비 무료 기준은 배대지 배송비를 더하기 전 금액에 적용한다(D-360 6-3 고정 결정 2).
+		if (forwarderFee != null) {
+			totalBuyPrice = totalBuyPrice.add(forwarderFee);
+		}
 
 		BigDecimal divisor = BigDecimal.ONE
 			.subtract(marginRate.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP))
@@ -126,9 +133,52 @@ public class MarginCalculator {
 			minimumPrice = minimumPrice == null ? breakEven : minimumPrice.max(breakEven);
 		}
 		var result = SalePriceRounding.fromRatio(totalBuyPrice, divisor, minimumPrice);
+		BigDecimal floorPrice = floorPrice(totalBuyPrice, channelFeeRate, floor);
+		if (floorPrice != null) {
+			// 판매가 = max(목표가, 기존 최저가, 하한가). 하한가도 최저가에 넣어 검토 화면의 최저가와 맞춘다.
+			var floored = SalePriceRounding.fromRatio(totalBuyPrice, divisor,
+				minimumPrice == null ? floorPrice : minimumPrice.max(floorPrice));
+			result = floored.salePrice().compareTo(result.salePrice()) > 0
+				? new SalePriceRounding.Result(floored.roundedPrice(), floored.minimumPrice(), floored.salePrice(),
+					result.salePrice())
+				: floored;
+		}
 		if (result.salePrice().signum() <= 0) {
 			throw new IllegalArgumentException("100원 단위 처리 후 판매가가 0원입니다. 매입가와 최소마진을 확인하세요.");
 		}
 		return result;
+	}
+
+	/**
+	 * 하한가 = min(총 매입가 ÷ (1 − 수수료율 − 하한율), (총 매입가 + 하한액) ÷ (1 − 수수료율)), 원 단위 올림.
+	 * 하한이 없으면 null.
+	 */
+	private static BigDecimal floorPrice(BigDecimal totalBuyPrice, BigDecimal channelFeeRate, MarginFloor floor) {
+		if (floor == null || floor.ratePercent() == null && floor.amount() == null) {
+			return null;
+		}
+		if (floor.ratePercent() != null && floor.ratePercent().signum() < 0
+			|| floor.amount() != null && floor.amount().signum() < 0) {
+			throw new IllegalArgumentException("마진 하한율·하한액은 0 이상이어야 합니다.");
+		}
+		BigDecimal feeKept = BigDecimal.ONE.subtract(channelFeeRate.divide(BigDecimal.valueOf(100), 4,
+			RoundingMode.HALF_UP));
+		BigDecimal byRate = null;
+		if (floor.ratePercent() != null) {
+			BigDecimal kept = feeKept.subtract(floor.ratePercent().divide(BigDecimal.valueOf(100), 4,
+				RoundingMode.HALF_UP));
+			if (kept.signum() <= 0) {
+				throw new IllegalArgumentException("마진 하한율과 채널수수료의 합은 100% 미만이어야 합니다.");
+			}
+			byRate = totalBuyPrice.divide(kept, 0, RoundingMode.CEILING);
+		}
+		BigDecimal byAmount = null;
+		if (floor.amount() != null) {
+			if (feeKept.signum() <= 0) {
+				throw new IllegalArgumentException("채널수수료는 100% 미만이어야 합니다.");
+			}
+			byAmount = totalBuyPrice.add(floor.amount()).divide(feeKept, 0, RoundingMode.CEILING);
+		}
+		return byRate == null ? byAmount : byAmount == null ? byRate : byRate.min(byAmount);
 	}
 }

@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.sbshop.agent.core.domain.common.RecordStatus;
+import com.sbshop.agent.core.domain.pricing.ForwarderShipping;
 import com.sbshop.agent.core.domain.pricing.VendorPricePolicy;
 import com.sbshop.agent.core.domain.pricing.repository.VendorPricePolicyRepository;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
@@ -45,7 +46,7 @@ class VendorPricePolicyServiceTest {
 			field.equals("step") ? value : new BigDecimal("2"),
 			field.equals("stepWeight") ? value.intValueExact() : 500,
 			field.equals("domestic") ? value : new BigDecimal("6000"),
-			field.equals("freeOver") ? value : new BigDecimal("40000")))
+			field.equals("freeOver") ? value : new BigDecimal("40000"), null))
 			.isInstanceOf(IllegalArgumentException.class).hasMessageContaining("이어야 합니다");
 		verifyNoInteractions(repository);
 	}
@@ -60,7 +61,7 @@ class VendorPricePolicyServiceTest {
 
 		VendorPricePolicy saved = service.upsert(VendorType.IHB, BigDecimal.ZERO,
 			new BigDecimal("100"), BigDecimal.ZERO, "USD", BigDecimal.ZERO, 0,
-			BigDecimal.ZERO, 0, BigDecimal.ZERO, BigDecimal.ZERO);
+			BigDecimal.ZERO, 0, BigDecimal.ZERO, BigDecimal.ZERO, null);
 		assertThat(saved).isSameAs(existing);
 		assertThat(saved.getMarginRate()).isZero();
 		assertThat(saved.getCouponRate()).isEqualByComparingTo("100");
@@ -71,7 +72,7 @@ class VendorPricePolicyServiceTest {
 		assertThat(saved.getDomesticFee()).isZero();
 		assertThat(saved.getDomesticFreeOver()).isZero();
 
-		service.upsert(VendorType.IHB, null, null, null, null, null, null, null, null, null, null);
+		service.upsert(VendorType.IHB, null, null, null, null, null, null, null, null, null, null, null);
 		assertThat(existing.getMarginRate()).isNull();
 		assertThat(existing.getCouponRate()).isNull();
 		assertThat(existing.getMinMarginPrice()).isNull();
@@ -81,5 +82,72 @@ class VendorPricePolicyServiceTest {
 		assertThat(existing.getShipStepWeightG()).isNull();
 		assertThat(existing.getDomesticFee()).isNull();
 		assertThat(existing.getDomesticFreeOver()).isNull();
+	}
+
+	@Test
+	@DisplayName("배대지 요금표 다섯 칸을 저장하고, 비우면 지운다 — 국내 배송비 0은 0으로 남는다")
+	void upsert_savesAndClearsForwarderRate() {
+		VendorPricePolicy existing = VendorPricePolicy.builder().vendor(VendorType.IHB).build();
+		when(repository.findByVendorAndStatus(VendorType.IHB, RecordStatus.ACTIVE))
+			.thenReturn(Optional.of(existing));
+		when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
+		var oregon = new ForwarderShipping.Rate(new BigDecimal("10500"), 500, new BigDecimal("2600"), 500, 200);
+
+		service.upsert(VendorType.IHB, new BigDecimal("4"), BigDecimal.ZERO, BigDecimal.ZERO, "KRW", BigDecimal.ZERO,
+			0, BigDecimal.ZERO, 0, BigDecimal.ZERO, BigDecimal.ZERO, oregon);
+		assertThat(existing.forwarderRate()).isEqualTo(oregon);
+		assertThat(existing.getForwarderBaseAmount()).isEqualByComparingTo("10500");
+		assertThat(existing.getForwarderPackagingG()).isEqualTo(200);
+		assertThat(existing.getDomesticFee()).isZero();
+		assertThat(existing.getDomesticFreeOver()).isZero();
+
+		service.upsert(VendorType.IHB, new BigDecimal("4"), BigDecimal.ZERO, BigDecimal.ZERO, "KRW", BigDecimal.ZERO,
+			0, BigDecimal.ZERO, 0, BigDecimal.ZERO, BigDecimal.ZERO, null);
+		assertThat(existing.getForwarderBaseAmount()).isNull();
+		assertThat(existing.getForwarderBaseWeightG()).isNull();
+		assertThat(existing.getForwarderStepAmount()).isNull();
+		assertThat(existing.getForwarderStepWeightG()).isNull();
+		assertThat(existing.getForwarderPackagingG()).isNull();
+	}
+
+	@Test
+	@DisplayName("새 소싱처 정책 행에도 배대지 요금표를 저장한다")
+	void upsert_newRowSavesForwarderRate() {
+		when(repository.findByVendorAndStatus(VendorType.IHB, RecordStatus.ACTIVE)).thenReturn(Optional.empty());
+		when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
+		var oregon = new ForwarderShipping.Rate(new BigDecimal("10500"), 500, new BigDecimal("2600"), 500, 200);
+
+		VendorPricePolicy saved = service.upsert(VendorType.IHB, null, null, null, "KRW", null, null, null, null,
+			BigDecimal.ZERO, BigDecimal.ZERO, oregon);
+
+		assertThat(saved.forwarderRate()).isEqualTo(oregon);
+	}
+
+	@ParameterizedTest
+	@CsvSource(value = {"-0.01, 500, 2600, 500, 200", "100000000, 500, 2600, 500, 200",
+		"10500, -1, 2600, 500, 200", "10500, 500, -0.01, 500, 200", "10500, 500, 2600, -1, 200",
+		"10500, 500, 2600, 500, -1", "10500, NULL, 2600, 500, 200", "10500, 0, 2600, 500, 200",
+		"10500, 500, NULL, 500, 200", "10500, 500, 2600, NULL, 200", "10500, 500, 2600, 0, 200"},
+		nullValues = "NULL")
+	@DisplayName("배대지 요금표가 음수이거나, 기본 금액이 있는데 기본 무게·단계 금액·단계 무게가 없으면 저장하지 않는다")
+	void upsert_rejectsInvalidForwarderRate(BigDecimal base, Integer baseWeight, BigDecimal step,
+		Integer stepWeight, Integer packaging) {
+		assertThatThrownBy(() -> service.upsert(VendorType.IHB, null, null, null, "KRW", null, null, null, null,
+			BigDecimal.ZERO, BigDecimal.ZERO, new ForwarderShipping.Rate(base, baseWeight, step, stepWeight, packaging)))
+			.isInstanceOf(IllegalArgumentException.class).hasMessageContaining("배대지");
+		verifyNoInteractions(repository);
+	}
+
+	@Test
+	@DisplayName("배대지 기본 금액이 0이면 나머지 칸이 비어도 저장한다(배대지 미사용)")
+	void upsert_allowsDisabledForwarderWithEmptyRest() {
+		when(repository.findByVendorAndStatus(VendorType.IHB, RecordStatus.ACTIVE)).thenReturn(Optional.empty());
+		when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+		VendorPricePolicy saved = service.upsert(VendorType.IHB, null, null, null, "KRW", null, null, null, null,
+			null, null, new ForwarderShipping.Rate(BigDecimal.ZERO, null, null, null, null));
+
+		assertThat(saved.getForwarderBaseAmount()).isZero();
+		assertThat(saved.getForwarderBaseWeightG()).isNull();
 	}
 }

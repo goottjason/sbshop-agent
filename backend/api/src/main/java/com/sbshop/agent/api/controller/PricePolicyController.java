@@ -2,6 +2,7 @@ package com.sbshop.agent.api.controller;
 
 import com.sbshop.agent.core.application.fee.PricePolicyService;
 import com.sbshop.agent.core.domain.fee.PricePolicy;
+import com.sbshop.agent.core.domain.product.service.MarginCalculator.MarginFloor;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -29,23 +30,24 @@ public class PricePolicyController {
 	public ResponseEntity<PricePolicyResponse> updatePolicy(@RequestBody
 	PricePolicyRequest request) {
 		PricePolicy saved = pricePolicyService.update(request.marginRate(), request.couponRate(),
-			request.minMarginPrice());
+			request.minMarginPrice(), new MarginFloor(request.marginFloorRate(), request.marginFloorAmount()));
 		return ResponseEntity.ok(PricePolicyResponse.from(saved));
 	}
 
+	/** 마진 하한율(%)·하한액(원)은 수수료를 뺀 순이익의 하한이다. 비우면(null) 쓰지 않는다(D-360). */
 	public record PricePolicyRequest(BigDecimal marginRate, BigDecimal couponRate,
-		BigDecimal minMarginPrice) {
+		BigDecimal minMarginPrice, BigDecimal marginFloorRate, BigDecimal marginFloorAmount) {
 	}
 
 	public record PricePolicyResponse(BigDecimal marginRate, BigDecimal couponRate,
-		BigDecimal minMarginPrice) {
+		BigDecimal minMarginPrice, BigDecimal marginFloorRate, BigDecimal marginFloorAmount) {
 
 		static PricePolicyResponse from(PricePolicy policy) {
 			if (policy == null) {
-				return new PricePolicyResponse(null, null, null);
+				return new PricePolicyResponse(null, null, null, null, null);
 			}
 			return new PricePolicyResponse(policy.getMarginRate(), policy.getCouponRate(),
-				policy.getMinMarginPrice());
+				policy.getMinMarginPrice(), policy.getMarginFloorRate(), policy.getMarginFloorAmount());
 		}
 	}
 }

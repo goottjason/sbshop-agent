@@ -1,6 +1,7 @@
 package com.sbshop.agent.api.controller;
 
 import com.sbshop.agent.core.application.pricing.VendorPricePolicyService;
+import com.sbshop.agent.core.domain.pricing.ForwarderShipping;
 import com.sbshop.agent.core.domain.pricing.VendorPricePolicy;
 import com.sbshop.agent.core.domain.product.enums.VendorType;
 import java.math.BigDecimal;
@@ -46,26 +47,35 @@ public class VendorPricePolicyController {
 			request.marginRate(), request.couponRate(), request.minMarginPrice(),
 			request.shipCurrency(), request.shipBaseAmount(), request.shipBaseWeightG(),
 			request.shipStepAmount(), request.shipStepWeightG(),
-			request.domesticFee(), request.domesticFreeOver());
+			request.domesticFee(), request.domesticFreeOver(),
+			new ForwarderShipping.Rate(request.forwarderBaseAmount(), request.forwarderBaseWeightG(),
+				request.forwarderStepAmount(), request.forwarderStepWeightG(), request.forwarderPackagingG()));
 		return ResponseEntity.ok(VendorPricePolicyResponse.from(saved));
 	}
 
+	/** forwarder*: 배대지 요금표(원화, D-360). 기본 금액이 비어 있거나 0이면 배대지 배송비를 더하지 않는다. */
 	public record VendorPricePolicyRequest(BigDecimal marginRate, BigDecimal couponRate,
 		BigDecimal minMarginPrice, String shipCurrency, BigDecimal shipBaseAmount,
 		Integer shipBaseWeightG, BigDecimal shipStepAmount, Integer shipStepWeightG,
-		BigDecimal domesticFee, BigDecimal domesticFreeOver) {
+		BigDecimal domesticFee, BigDecimal domesticFreeOver, BigDecimal forwarderBaseAmount,
+		Integer forwarderBaseWeightG, BigDecimal forwarderStepAmount, Integer forwarderStepWeightG,
+		Integer forwarderPackagingG) {
 	}
 
 	public record VendorPricePolicyResponse(String vendor, BigDecimal marginRate,
 		BigDecimal couponRate, BigDecimal minMarginPrice, String shipCurrency,
 		BigDecimal shipBaseAmount, Integer shipBaseWeightG, BigDecimal shipStepAmount,
-		Integer shipStepWeightG, BigDecimal domesticFee, BigDecimal domesticFreeOver) {
+		Integer shipStepWeightG, BigDecimal domesticFee, BigDecimal domesticFreeOver,
+		BigDecimal forwarderBaseAmount, Integer forwarderBaseWeightG, BigDecimal forwarderStepAmount,
+		Integer forwarderStepWeightG, Integer forwarderPackagingG) {
 
 		static VendorPricePolicyResponse from(VendorPricePolicy p) {
 			return new VendorPricePolicyResponse(p.getVendor().name(), p.getMarginRate(),
 				p.getCouponRate(), p.getMinMarginPrice(), p.getShipCurrency(),
 				p.getShipBaseAmount(), p.getShipBaseWeightG(), p.getShipStepAmount(),
-				p.getShipStepWeightG(), p.getDomesticFee(), p.getDomesticFreeOver());
+				p.getShipStepWeightG(), p.getDomesticFee(), p.getDomesticFreeOver(),
+				p.getForwarderBaseAmount(), p.getForwarderBaseWeightG(), p.getForwarderStepAmount(),
+				p.getForwarderStepWeightG(), p.getForwarderPackagingG());
 		}
 	}
 }

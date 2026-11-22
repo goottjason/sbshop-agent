@@ -53,11 +53,27 @@ public class VendorPricePolicy extends BaseEntity {
 	@Column(name = "domestic_free_over", precision = 15, scale = 2)
 	private BigDecimal domesticFreeOver;
 
+	// 배대지 요금표(원화, D-360). 기본 금액이 비어 있거나 0이면 배대지 배송비를 더하지 않는다.
+	@Column(name = "forwarder_base_amount", precision = 10, scale = 2)
+	private BigDecimal forwarderBaseAmount;
+
+	@Column(name = "forwarder_base_weight_g")
+	private Integer forwarderBaseWeightG;
+
+	@Column(name = "forwarder_step_amount", precision = 10, scale = 2)
+	private BigDecimal forwarderStepAmount;
+
+	@Column(name = "forwarder_step_weight_g")
+	private Integer forwarderStepWeightG;
+
+	@Column(name = "forwarder_packaging_g")
+	private Integer forwarderPackagingG;
+
 	@Builder
 	public VendorPricePolicy(VendorType vendor, BigDecimal marginRate, BigDecimal couponRate,
 		BigDecimal minMarginPrice, String shipCurrency, BigDecimal shipBaseAmount,
 		Integer shipBaseWeightG, BigDecimal shipStepAmount, Integer shipStepWeightG,
-		BigDecimal domesticFee, BigDecimal domesticFreeOver) {
+		BigDecimal domesticFee, BigDecimal domesticFreeOver, ForwarderShipping.Rate forwarder) {
 		this.vendor = vendor;
 		this.marginRate = marginRate;
 		this.couponRate = couponRate;
@@ -69,12 +85,13 @@ public class VendorPricePolicy extends BaseEntity {
 		this.shipStepWeightG = shipStepWeightG;
 		this.domesticFee = domesticFee;
 		this.domesticFreeOver = domesticFreeOver;
+		applyForwarder(forwarder);
 	}
 
 	public void update(BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice,
 		String shipCurrency, BigDecimal shipBaseAmount, Integer shipBaseWeightG,
 		BigDecimal shipStepAmount, Integer shipStepWeightG,
-		BigDecimal domesticFee, BigDecimal domesticFreeOver) {
+		BigDecimal domesticFee, BigDecimal domesticFreeOver, ForwarderShipping.Rate forwarder) {
 		this.marginRate = marginRate;
 		this.couponRate = couponRate;
 		this.minMarginPrice = minMarginPrice;
@@ -85,5 +102,19 @@ public class VendorPricePolicy extends BaseEntity {
 		this.shipStepWeightG = shipStepWeightG;
 		this.domesticFee = domesticFee;
 		this.domesticFreeOver = domesticFreeOver;
+		applyForwarder(forwarder);
+	}
+
+	public ForwarderShipping.Rate forwarderRate() {
+		return new ForwarderShipping.Rate(forwarderBaseAmount, forwarderBaseWeightG, forwarderStepAmount,
+			forwarderStepWeightG, forwarderPackagingG);
+	}
+
+	private void applyForwarder(ForwarderShipping.Rate forwarder) {
+		this.forwarderBaseAmount = forwarder == null ? null : forwarder.baseAmount();
+		this.forwarderBaseWeightG = forwarder == null ? null : forwarder.baseWeightG();
+		this.forwarderStepAmount = forwarder == null ? null : forwarder.stepAmount();
+		this.forwarderStepWeightG = forwarder == null ? null : forwarder.stepWeightG();
+		this.forwarderPackagingG = forwarder == null ? null : forwarder.packagingG();
 	}
 }

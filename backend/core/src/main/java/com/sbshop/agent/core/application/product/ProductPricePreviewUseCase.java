@@ -44,13 +44,17 @@ public class ProductPricePreviewUseCase {
 	private Item previewMarket(Product product, MarketType market) {
 		try {
 			var explanation = resolver.explainForProduct(product, market, MarketSalePriceOverrides.EMPTY);
+			if (explanation.basis() == MarketSalePriceResolver.Basis.UNAVAILABLE) {
+				return failed(market, explanation.unavailableReason());
+			}
 			var result = explanation.result();
 			if (result == null || result.salePrice().signum() <= 0) {
 				return failed(market, "계산에 사용할 양수의 판매가가 없습니다.");
 			}
 			boolean fallback = explanation.basis() == MarketSalePriceResolver.Basis.STORED_PRICE_FALLBACK;
 			String reason = fallback ? "원가·마진 자료 부족으로 저장된 기준가를 반올림했습니다. 최소마진은 검증하지 못했습니다."
-				: result.reason() + (result.minimumPrice() == null ? " · 최소마진 설정 없음" : "");
+				: result.reason() + (result.minimumPrice() == null ? " · 최소마진 설정 없음" : "")
+					+ (explanation.forwarderNote() == null ? "" : " · " + explanation.forwarderNote());
 			return new Item(market, fallback ? Status.FALLBACK : Status.CALCULATED, text(result.roundedPrice()),
 				text(result.minimumPrice()), text(result.salePrice()), result.minimumAdjusted(), reason);
 		} catch (RuntimeException e) {

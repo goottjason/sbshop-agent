@@ -2,21 +2,13 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchCredentials, saveCredential, getCafe24Status, issueCafe24Token, getCafe24AuthorizationUrl, getCafe24PriceSettingsStatus } from '../api/marketApi';
 import type { MarketCredential } from '../api/marketApi';
-import { fetchPricePolicy, savePricePolicy } from '../api/pricePolicyApi';
+import { fetchPricePolicy, savePricePolicy, toPricePolicyPayload, type PricePolicyForm } from '../api/pricePolicyApi';
 import { getAdminAuth, setAdminAuth } from '../api/axios';
 import VendorPricePolicyPanel from './settings/VendorPricePolicyPanel';
 
 const secretPlaceholder = (hasValue?: boolean, fallback = ''): string =>
   hasValue ? '설정됨 — 변경하려면 새 값 입력 (비우면 기존 값 유지)' : fallback;
 
-type PricePolicyForm = { marginRate: string; couponRate: string; minMarginPrice: string };
-
-const toPolicyNumber = (value: string): number | null => {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) ? parsed : null;
-};
 
 const Settings = () => {
   const queryClient = useQueryClient();
@@ -134,14 +126,12 @@ const Settings = () => {
     marginRate: pricePolicy?.marginRate != null ? String(pricePolicy.marginRate) : '',
     couponRate: pricePolicy?.couponRate != null ? String(pricePolicy.couponRate) : '',
     minMarginPrice: pricePolicy?.minMarginPrice != null ? String(pricePolicy.minMarginPrice) : '',
+    marginFloorRate: pricePolicy?.marginFloorRate != null ? String(pricePolicy.marginFloorRate) : '',
+    marginFloorAmount: pricePolicy?.marginFloorAmount != null ? String(pricePolicy.marginFloorAmount) : '',
   };
 
   const policyMutation = useMutation({
-    mutationFn: (form: PricePolicyForm) => savePricePolicy({
-      marginRate: toPolicyNumber(form.marginRate),
-      couponRate: toPolicyNumber(form.couponRate),
-      minMarginPrice: toPolicyNumber(form.minMarginPrice),
-    }),
+    mutationFn: (form: PricePolicyForm) => savePricePolicy(toPricePolicyPayload(form)),
     onSuccess: () => {
       setPolicyDraft(null);
       queryClient.invalidateQueries({ queryKey: ['price-policy'] });
@@ -508,6 +498,40 @@ const Settings = () => {
               className="input-field"
               placeholder="예: 5000"
             />
+          </div>
+
+          <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
+            <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>마진 하한 (모든 소싱처·모든 계산에 적용)</h3>
+            <p style={{ color: '#666', fontSize: 13, margin: '0 0 12px' }}>
+              마켓 수수료와 배송비까지 뺀 순이익이 min(판매가 × 하한율, 하한액) 아래로 내려가면 판매가를 올립니다.
+              배치에 넣은 마진·최소마진 값과 관계없이 지켜집니다. 하나만 넣으면 그 하나만, 둘 다 비우면 하한을 쓰지 않습니다.
+            </p>
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: '1 1 200px' }}>
+                <label htmlFor="price-policy-marginFloorRate" style={{ fontWeight: 500 }}>마진 하한율 (%)</label>
+                <input
+                  id="price-policy-marginFloorRate"
+                  type="number"
+                  name="marginFloorRate"
+                  value={policyForm.marginFloorRate}
+                  onChange={handlePolicyChange}
+                  className="input-field"
+                  placeholder="예: 5"
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: '1 1 200px' }}>
+                <label htmlFor="price-policy-marginFloorAmount" style={{ fontWeight: 500 }}>마진 하한액 (원)</label>
+                <input
+                  id="price-policy-marginFloorAmount"
+                  type="number"
+                  name="marginFloorAmount"
+                  value={policyForm.marginFloorAmount}
+                  onChange={handlePolicyChange}
+                  className="input-field"
+                  placeholder="예: 5000"
+                />
+              </div>
+            </div>
           </div>
 
           <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12 }}>

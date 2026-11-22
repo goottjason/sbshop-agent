@@ -66,6 +66,11 @@ public class ProductPublishUseCase {
 
 		MarketClient client = marketClientRouter.getClient(marketType);
 
+		// 판매가를 계산할 수 없으면(D-360: 배대지 요금이 있는데 무게 없음) PENDING 행을 만들기 전에 멈춘다.
+		BigDecimal salePrice = pricingOverrides == null
+			? marketSalePriceResolver.resolveForProduct(product, marketType)
+			: marketSalePriceResolver.resolveForProduct(product, marketType, pricingOverrides);
+
 		MarketRegistration registration = registrationTxService.savePending(productId, marketType,
 			product.getProductName(), product.getRevision());
 		if (registration.connectionWriteBlock() != null)
@@ -76,9 +81,6 @@ public class ProductPublishUseCase {
 			guardAgainstDuplicatePublish(registration, productId, marketType);
 		}
 
-		BigDecimal salePrice = pricingOverrides == null
-			? marketSalePriceResolver.resolveForProduct(product, marketType)
-			: marketSalePriceResolver.resolveForProduct(product, marketType, pricingOverrides);
 		MarketPublishContext context = new MarketPublishContext(
 			null, null, salePrice, List.of(), Map.of(), Map.of());
 		Map<String, String> identifiers = client.publish(product, context);

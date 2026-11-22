@@ -108,9 +108,15 @@ public class ProductEditPlanner {
 					for (MarketType market : DIRECT) {
 						var quote = prices.explainForProduct(candidate, market, MarketSalePriceOverrides.EMPTY);
 						if (quote.basis() != MarketSalePriceResolver.Basis.CALCULATED || quote.result() == null)
-							throw new IllegalArgumentException("원가·가격 정책이 없어 최소마진을 확인할 수 없습니다. 가격 자료를 먼저 확인하세요.");
+							throw new IllegalArgumentException(quote.unavailableReason() != null ? quote.unavailableReason()
+								: "원가·가격 정책이 없어 최소마진을 확인할 수 없습니다. 가격 자료를 먼저 확인하세요.");
 						priceResults.add(
 							new Price(market.name(), text(quote.result().minimumPrice()), text(quote.salePrice())));
+						// D-360: 배대지 배송비 근거(마켓 공통)와 마켓별 마진 하한 적용을 계산 근거에 남긴다.
+						if (quote.forwarderNote() != null && !notices.contains(quote.forwarderNote()))
+							notices.add(quote.forwarderNote());
+						if (quote.result().floorApplied())
+							notices.add(market.name() + " " + quote.result().reason());
 						if (market == MarketType.COUPANG) {
 							floor = floor.max(quote.result().minimumPrice());
 							batchBaseline = quote.salePrice();

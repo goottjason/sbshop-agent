@@ -8,6 +8,7 @@ import com.sbshop.agent.api.controller.PricePolicyController.PricePolicyRequest;
 import com.sbshop.agent.api.controller.PricePolicyController.PricePolicyResponse;
 import com.sbshop.agent.core.application.fee.PricePolicyService;
 import com.sbshop.agent.core.domain.fee.PricePolicy;
+import com.sbshop.agent.core.domain.product.service.MarginCalculator.MarginFloor;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,18 +51,35 @@ class PricePolicyControllerTest {
 	}
 
 	@Test
-	@DisplayName("PUT → 요청 본문 세 값을 서비스에 그대로 위임하고 저장 결과를 반환한다")
+	@DisplayName("PUT → 요청 본문 값(마진 하한 포함)을 서비스에 그대로 위임하고 저장 결과를 반환한다")
 	void updatePolicy_delegatesToService() {
-		when(pricePolicyService.update(new BigDecimal("18"), new BigDecimal("25"), new BigDecimal("7000")))
-			.thenReturn(policy("18", "25", "7000"));
+		MarginFloor floor = new MarginFloor(new BigDecimal("5"), new BigDecimal("5000"));
+		when(pricePolicyService.update(new BigDecimal("18"), new BigDecimal("25"), new BigDecimal("7000"), floor))
+			.thenReturn(PricePolicy.builder().marginRate(new BigDecimal("18")).couponRate(new BigDecimal("25"))
+				.minMarginPrice(new BigDecimal("7000")).marginFloorRate(new BigDecimal("5"))
+				.marginFloorAmount(new BigDecimal("5000")).build());
 
 		ResponseEntity<PricePolicyResponse> response = controller().updatePolicy(
-			new PricePolicyRequest(new BigDecimal("18"), new BigDecimal("25"), new BigDecimal("7000")));
+			new PricePolicyRequest(new BigDecimal("18"), new BigDecimal("25"), new BigDecimal("7000"),
+				new BigDecimal("5"), new BigDecimal("5000")));
 
-		verify(pricePolicyService).update(new BigDecimal("18"), new BigDecimal("25"), new BigDecimal("7000"));
+		verify(pricePolicyService).update(new BigDecimal("18"), new BigDecimal("25"), new BigDecimal("7000"), floor);
 		assertThat(response.getBody().marginRate()).isEqualByComparingTo("18");
 		assertThat(response.getBody().couponRate()).isEqualByComparingTo("25");
 		assertThat(response.getBody().minMarginPrice()).isEqualByComparingTo("7000");
+		assertThat(response.getBody().marginFloorRate()).isEqualByComparingTo("5");
+		assertThat(response.getBody().marginFloorAmount()).isEqualByComparingTo("5000");
+	}
+
+	@Test
+	@DisplayName("PUT → 마진 하한을 비워 보내면 빈 하한(null, null)으로 위임한다")
+	void updatePolicy_emptyFloorDelegatesNulls() {
+		when(pricePolicyService.update(new BigDecimal("15"), null, null, MarginFloor.NONE))
+			.thenReturn(policy("15", "0", "0"));
+
+		controller().updatePolicy(new PricePolicyRequest(new BigDecimal("15"), null, null, null, null));
+
+		verify(pricePolicyService).update(new BigDecimal("15"), null, null, MarginFloor.NONE);
 	}
 
 	private PricePolicy policy(String marginRate, String couponRate, String minMarginPrice) {

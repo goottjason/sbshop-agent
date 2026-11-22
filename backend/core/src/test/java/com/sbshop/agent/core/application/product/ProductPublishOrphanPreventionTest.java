@@ -122,6 +122,20 @@ class ProductPublishOrphanPreventionTest {
 	}
 
 	@Test
+	@DisplayName("판매가를 계산할 수 없으면(배대지 요금이 있는데 무게 없음) PENDING 저장도 외부 publish도 하지 않는다 (D-360)")
+	void unpriceableProduct_noPendingNoPublish() {
+		when(marketSalePriceResolver.resolveForProduct(product, MARKET))
+			.thenThrow(new IllegalStateException("배대지 배송비를 계산하려면 상품 무게가 필요합니다."));
+
+		assertThatThrownBy(() -> useCase.publishToMarket(PRODUCT_ID, MARKET))
+			.isInstanceOf(IllegalStateException.class).hasMessageContaining("무게");
+
+		verify(registrationTxService, never()).savePending(any(), any(), anyString(),
+			org.mockito.ArgumentMatchers.anyLong());
+		verify(client, never()).publish(any(), any());
+	}
+
+	@Test
 	@DisplayName("게시 성공 시 마켓 identifiers를 담은 결과를 반환한다 — 프론트가 재조회 없이 배지를 링크로 바꿔야 한다")
 	void publishToMarket_returnsOutcomeWithIdentifiers() {
 		MarketRegistration pending = MarketRegistration.builder()

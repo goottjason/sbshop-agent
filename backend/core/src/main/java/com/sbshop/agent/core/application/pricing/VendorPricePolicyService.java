@@ -1,6 +1,7 @@
 package com.sbshop.agent.core.application.pricing;
 
 import com.sbshop.agent.core.domain.common.RecordStatus;
+import com.sbshop.agent.core.domain.pricing.ForwarderShipping;
 import com.sbshop.agent.core.domain.pricing.PricePolicyValidator;
 import com.sbshop.agent.core.domain.pricing.VendorPricePolicy;
 import com.sbshop.agent.core.domain.pricing.repository.VendorPricePolicyRepository;
@@ -35,10 +36,11 @@ public class VendorPricePolicyService {
 		java.math.BigDecimal couponRate, java.math.BigDecimal minMarginPrice, String shipCurrency,
 		java.math.BigDecimal shipBaseAmount, Integer shipBaseWeightG,
 		java.math.BigDecimal shipStepAmount, Integer shipStepWeightG,
-		java.math.BigDecimal domesticFee, java.math.BigDecimal domesticFreeOver) {
+		java.math.BigDecimal domesticFee, java.math.BigDecimal domesticFreeOver, ForwarderShipping.Rate forwarder) {
 		PricePolicyValidator.validate(marginRate, couponRate, minMarginPrice);
 		PricePolicyValidator.validateShipping(shipBaseAmount, shipBaseWeightG, shipStepAmount,
 			shipStepWeightG, domesticFee, domesticFreeOver);
+		PricePolicyValidator.validateForwarder(forwarder);
 		VendorPricePolicy existing = repository.findByVendorAndStatus(vendor, RecordStatus.ACTIVE)
 			.orElse(null);
 		if (existing == null) {
@@ -48,10 +50,11 @@ public class VendorPricePolicyService {
 				.shipBaseAmount(shipBaseAmount).shipBaseWeightG(shipBaseWeightG)
 				.shipStepAmount(shipStepAmount).shipStepWeightG(shipStepWeightG)
 				.domesticFee(domesticFee).domesticFreeOver(domesticFreeOver)
+				.forwarder(forwarder)
 				.build());
 		}
 		existing.update(marginRate, couponRate, minMarginPrice, shipCurrency, shipBaseAmount,
-			shipBaseWeightG, shipStepAmount, shipStepWeightG, domesticFee, domesticFreeOver);
+			shipBaseWeightG, shipStepAmount, shipStepWeightG, domesticFee, domesticFreeOver, forwarder);
 		return repository.save(existing);
 	}
 }
