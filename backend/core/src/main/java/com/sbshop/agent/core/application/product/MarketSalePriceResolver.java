@@ -73,13 +73,14 @@ public class MarketSalePriceResolver {
 			&& product.getLogisticsInfo().getBundleQuantity() != null
 				? product.getLogisticsInfo().getBundleQuantity() : 1;
 		BigDecimal fee = marketFeeService.feeRate(marketType);
-		if (vendorPolicy == null || vendorPolicy.getDomesticFee() == null) {
-			return new Explanation(Basis.CALCULATED, marginCalculator.quoteSalePrice(costPrice, bundleQty, marginRate,
-				couponRate, minMarginPrice, fee));
-		}
+		// 소싱처 국내 배송비가 비어 있으면 코드 기본값(6,000원/40,000원)을 쓴다. 0과 빈 값은 다르다.
+		boolean defaultDomestic = vendorPolicy == null || vendorPolicy.getDomesticFee() == null;
+		BigDecimal domesticFee = defaultDomestic ? MarginCalculator.DELIVERY_FEE : vendorPolicy.getDomesticFee();
+		BigDecimal domesticFreeOver = defaultDomestic
+			? MarginCalculator.DELIVERY_FEE_THRESHOLD : vendorPolicy.getDomesticFreeOver();
 		return new Explanation(Basis.CALCULATED, marginCalculator.quoteSalePrice(costPrice, bundleQty, marginRate,
-			couponRate, minMarginPrice, fee,
-			vendorPolicy.getDomesticFee(), vendorPolicy.getDomesticFreeOver()));
+			couponRate, minMarginPrice, fee, domesticFee, domesticFreeOver, BigDecimal.ZERO,
+			MarginCalculator.MarginFloor.NONE));
 	}
 
 	private boolean isFullyOverridden(MarketSalePriceOverrides o) {

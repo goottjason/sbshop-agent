@@ -8,12 +8,25 @@ public final class SalePriceRounding {
 
 	private SalePriceRounding() {}
 
-	public record Result(BigDecimal roundedPrice, BigDecimal minimumPrice, BigDecimal salePrice) {
+	/** floorRaisedFrom: 마진 하한이 가격을 올렸을 때 올리기 전 가격(D-360). 올리지 않았으면 null. */
+	public record Result(BigDecimal roundedPrice, BigDecimal minimumPrice, BigDecimal salePrice,
+		BigDecimal floorRaisedFrom) {
+		public Result(BigDecimal roundedPrice, BigDecimal minimumPrice, BigDecimal salePrice) {
+			this(roundedPrice, minimumPrice, salePrice, null);
+		}
+
 		public boolean minimumAdjusted() {
 			return salePrice.compareTo(roundedPrice) > 0;
 		}
 
+		public boolean floorApplied() {
+			return floorRaisedFrom != null;
+		}
+
 		public String reason() {
+			if (floorApplied())
+				return "마진 하한 적용: " + text(floorRaisedFrom) + "원 → " + text(salePrice)
+					+ "원 (수수료를 뺀 순이익 하한 보장, 100원 단위 올림)";
 			return minimumAdjusted()
 				? "최소마진 보장: 반올림가 " + text(roundedPrice) + "원 / 하한 " + text(minimumPrice)
 					+ "원 → " + text(salePrice) + "원 (100원 단위 조정)"

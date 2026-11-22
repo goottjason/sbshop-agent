@@ -7,8 +7,16 @@ import org.springframework.stereotype.Component;
 @Component
 public class MarginCalculator {
 	private static final BigDecimal DEFAULT_CHANNEL_FEE_RATE = new BigDecimal("18.5");
-	private static final BigDecimal DELIVERY_FEE_THRESHOLD = new BigDecimal("40000");
-	private static final BigDecimal DELIVERY_FEE = new BigDecimal("6000");
+	public static final BigDecimal DELIVERY_FEE_THRESHOLD = new BigDecimal("40000");
+	public static final BigDecimal DELIVERY_FEE = new BigDecimal("6000");
+
+	/**
+	 * 마진 하한(D-360 6-3 고정 결정 6·7). 수수료를 뺀 순이익이 min(판매가 × 하한율, 하한액) 아래로 내려가지 않게 한다.
+	 * 둘 중 하나만 있으면 그 하나만, 둘 다 없으면 적용하지 않는다.
+	 */
+	public record MarginFloor(BigDecimal ratePercent, BigDecimal amount) {
+		public static final MarginFloor NONE = new MarginFloor(null, null);
+	}
 
 	public BigDecimal calculateSalePrice(BigDecimal buyPrice, int bundleQty,
 		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice) {
@@ -31,7 +39,7 @@ public class MarginCalculator {
 	public BigDecimal calculateSalePrice(BigDecimal buyPrice, int bundleQty,
 		BigDecimal marginRate, BigDecimal minMarginPrice) {
 		return computeSalePrice(buyPrice, bundleQty, marginRate, minMarginPrice, DEFAULT_CHANNEL_FEE_RATE,
-			DELIVERY_FEE, DELIVERY_FEE_THRESHOLD).salePrice();
+			DELIVERY_FEE, DELIVERY_FEE_THRESHOLD, BigDecimal.ZERO, MarginFloor.NONE).salePrice();
 	}
 
 	public SalePriceRounding.Result quoteSalePrice(BigDecimal buyPrice, int bundleQty,
@@ -43,8 +51,18 @@ public class MarginCalculator {
 	public SalePriceRounding.Result quoteSalePrice(BigDecimal buyPrice, int bundleQty,
 		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice, BigDecimal channelFeeRate,
 		BigDecimal domesticFee, BigDecimal domesticFreeOver) {
+		return quoteSalePrice(buyPrice, bundleQty, marginRate, couponRate, minMarginPrice, channelFeeRate,
+			domesticFee, domesticFreeOver, BigDecimal.ZERO, MarginFloor.NONE);
+	}
+
+	/**
+	 * 배대지 배송비는 쿠폰·국내 배송비 무료 기준을 적용한 뒤 총 매입가에 더한다(D-360 6-3 고정 결정 2).
+	 */
+	public SalePriceRounding.Result quoteSalePrice(BigDecimal buyPrice, int bundleQty,
+		BigDecimal marginRate, BigDecimal couponRate, BigDecimal minMarginPrice, BigDecimal channelFeeRate,
+		BigDecimal domesticFee, BigDecimal domesticFreeOver, BigDecimal forwarderFee, MarginFloor floor) {
 		return computeSalePrice(applyCoupon(buyPrice, couponRate), bundleQty, marginRate, minMarginPrice,
-			channelFeeRate, domesticFee, domesticFreeOver);
+			channelFeeRate, domesticFee, domesticFreeOver, forwarderFee, floor);
 	}
 
 	public BigDecimal getEffectiveBuyPrice(BigDecimal listPrice, BigDecimal discountPrice,
@@ -84,7 +102,7 @@ public class MarginCalculator {
 
 	private SalePriceRounding.Result computeSalePrice(BigDecimal buyPrice, int bundleQty,
 		BigDecimal marginRate, BigDecimal minMarginPrice, BigDecimal channelFeeRate,
-		BigDecimal domesticFee, BigDecimal domesticFreeOver) {
+		BigDecimal domesticFee, BigDecimal domesticFreeOver, BigDecimal forwarderFee, MarginFloor floor) {
 		if (buyPrice == null || buyPrice.signum() < 0 || bundleQty < 1 || marginRate == null
 			|| channelFeeRate == null) {
 			throw new IllegalArgumentException("가격 계산에 유효한 매입가·묶음수량·마진율·채널수수료가 필요합니다.");
